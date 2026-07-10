@@ -5,19 +5,21 @@ export default function NavBar() {
   return (
     <>
       <div className="fixed top-0 left-0 bottom-0 w-60 z-50 bg-afs-bg-dim border-r border-afs-chrome-dim flex flex-col">
-        <div className="flex items-center justify-center px-4 py-6">
+        <div className="flex items-center justify-center px-2 pt-2 pb-3">
           <Link href="/">
             <Image
               src="/afs-logo.png"
               alt="AFS Architectural Flashing Supply"
-              width={200}
-              height={90}
+              width={232}
+              height={165}
               priority
               className="w-full h-auto object-contain"
             />
           </Link>
         </div>
+
         <div className="flex-1" />
+
         <div className="px-4 py-4 border-t border-afs-chrome-dim">
           <p className="font-label text-xs text-afs-chrome-dim tracking-widest uppercase text-center">
             Est. Texas
