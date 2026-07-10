@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useCallback } from 'react';
@@ -149,7 +148,9 @@ export default function UploadPage() {
             onDragLeave={() => setDragOver(false)}
             onClick={() => document.getElementById('file-input')?.click()}
             className={`border-2 border-dashed rounded p-20 text-center transition-colors cursor-pointer ${
-              dragOver ? 'border-afs-crimson bg-[rgba(192,0,26,0.08)]' : 'border-[#48526A] hover:border-afs-chrome-base bg-afs-bg-raised'
+              dragOver
+                ? 'border-afs-crimson bg-[rgba(192,0,26,0.08)]'
+                : 'border-afs-chrome-dim hover:border-afs-chrome-base bg-afs-bg-raised'
             }`}
           >
             <input
@@ -159,22 +160,24 @@ export default function UploadPage() {
               accept=".dwg,.dxf,.pdf,.png,.jpg,.jpeg,.tiff,.tif,.webp"
               onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
             />
-            <svg className="w-16 h-16 mx-auto text-afs-chrome-dim mb-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-16 h-16 mx-auto text-afs-chrome-mid mb-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
             </svg>
             <p className="font-heading text-2xl text-afs-chrome-high mb-2">Drop your drawing here</p>
-            <p className="font-body text-afs-chrome-base text-sm mb-6">or click to browse</p>
-            <div className="flex gap-2 justify-center flex-wrap mb-4">
+            <p className="font-body text-afs-chrome-mid text-sm mb-8">or click to browse</p>
+            <div className="flex gap-3 justify-center flex-wrap mb-4">
               {['DWG','DXF','PDF','PNG','JPG','TIFF'].map(f => (
-                <span key={f} className="font-data text-xs text-afs-chrome-dim border border-[#48526A] px-2 py-1 rounded">{f}</span>
+                <span key={f} className="font-data text-sm text-afs-chrome-high border border-afs-chrome-base bg-afs-bg-surface px-3 py-1.5 rounded font-semibold">
+                  {f}
+                </span>
               ))}
             </div>
-            <p className="font-body text-xs text-afs-chrome-dim">Maximum 50MB</p>
+            <p className="font-body text-xs text-afs-chrome-base mt-4">Maximum 50MB</p>
           </div>
         )}
 
         {state === 'uploading' && (
-          <div className="bg-afs-bg-raised border border-[#48526A] rounded p-12 text-center">
+          <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-12 text-center">
             <p className="font-label text-afs-chrome-mid text-sm uppercase tracking-wide mb-6">
               Uploading {filename}...
             </p>
@@ -185,7 +188,7 @@ export default function UploadPage() {
         )}
 
         {state === 'processing' && (
-          <div className="bg-afs-bg-raised border border-[#48526A] rounded p-12 max-w-lg mx-auto">
+          <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-12 max-w-lg mx-auto">
             <p className="font-label text-afs-chrome-mid text-sm uppercase tracking-wide mb-8 text-center">
               AI Processing — {filename}
             </p>
@@ -195,13 +198,15 @@ export default function UploadPage() {
                   <div className={`w-3 h-3 rounded-full flex-shrink-0 ${
                     i < stage ? 'bg-afs-crimson' :
                     i === stage ? 'bg-afs-crimson animate-pulse' :
-                    'border border-[#48526A]'
+                    'border border-afs-chrome-dim'
                   }`} />
-                  <span className={`font-body text-sm ${i <= stage ? 'text-afs-chrome-mid' : 'text-afs-chrome-dim'}`}>{s}</span>
+                  <span className={`font-body text-sm ${i <= stage ? 'text-afs-chrome-high' : 'text-afs-chrome-dim'}`}>
+                    {s}
+                  </span>
                 </div>
               ))}
             </div>
-            <p className="font-body text-xs text-afs-chrome-dim text-center mt-8">
+            <p className="font-body text-xs text-afs-chrome-base text-center mt-8">
               Usually takes 30–90 seconds. Do not close this tab.
             </p>
           </div>
@@ -222,15 +227,15 @@ export default function UploadPage() {
             </div>
 
             {result.processingNotes && (
-              <div className="bg-afs-bg-surface border border-[#48526A] rounded p-4 mb-6 font-body text-sm text-afs-chrome-base">
+              <div className="bg-afs-bg-surface border border-afs-chrome-dim rounded p-4 mb-6 font-body text-sm text-afs-chrome-mid">
                 {result.processingNotes}
               </div>
             )}
 
-            <div className="bg-afs-bg-raised border border-[#48526A] rounded overflow-hidden mb-6">
+            <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded overflow-hidden mb-6">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-afs-bg-surface border-b border-[#48526A]">
+                  <tr className="bg-afs-bg-surface border-b border-afs-chrome-dim">
                     {['#','Profile','Material','Gauge','Dimensions (in)','Length (ft)','Qty','Confidence',''].map(h => (
                       <th key={h} className="font-heading text-xs text-afs-chrome-mid uppercase tracking-wide text-left px-4 py-3">{h}</th>
                     ))}
@@ -238,12 +243,14 @@ export default function UploadPage() {
                 </thead>
                 <tbody>
                   {items.map((item, i) => (
-                    <tr key={i} className={`border-b border-[#48526A] hover:bg-afs-bg-surface transition-colors ${item.confidence === 'low' ? 'border-l-2 border-l-yellow-600' : ''}`}>
-                      <td className="font-data text-afs-chrome-dim px-4 py-3">{i + 1}</td>
+                    <tr key={i} className={`border-b border-afs-chrome-dim hover:bg-afs-bg-surface transition-colors ${
+                      item.confidence === 'low' ? 'border-l-2 border-l-yellow-500' : ''
+                    }`}>
+                      <td className="font-data text-afs-chrome-base px-4 py-3">{i + 1}</td>
                       <td className="px-4 py-3">
                         <input value={item.profileType} onChange={(e) => updateItem(i, 'profileType', e.target.value)}
-                          className="bg-transparent font-body text-afs-chrome-mid w-full focus:outline-none" />
-                        {item.aiNote && <p className="font-body text-xs text-afs-chrome-dim mt-0.5">{item.aiNote}</p>}
+                          className="bg-transparent font-body text-afs-chrome-high w-full focus:outline-none" />
+                        {item.aiNote && <p className="font-body text-xs text-afs-chrome-base mt-0.5">{item.aiNote}</p>}
                       </td>
                       <td className="px-4 py-3">
                         <input value={item.material ?? ''} onChange={(e) => updateItem(i, 'material', e.target.value)}
@@ -253,7 +260,7 @@ export default function UploadPage() {
                         <input value={item.gauge ?? ''} onChange={(e) => updateItem(i, 'gauge', e.target.value)}
                           className="bg-transparent font-data text-xs text-afs-chrome-mid w-20 focus:outline-none" />
                       </td>
-                      <td className="px-4 py-3 font-data text-xs text-afs-chrome-base">
+                      <td className="px-4 py-3 font-data text-xs text-afs-chrome-mid">
                         {[item.width ? `W:${item.width}"` : null, item.height ? `H:${item.height}"` : null,
                           item.legA ? `A:${item.legA}"` : null, item.legB ? `B:${item.legB}"` : null].filter(Boolean).join(' ')}
                       </td>
@@ -269,7 +276,10 @@ export default function UploadPage() {
                         <span className={confidenceBadge(item.confidence)}>{item.confidence}</span>
                       </td>
                       <td className="px-4 py-3">
-                        <button onClick={() => removeItem(i)} className="text-afs-chrome-dim hover:text-afs-crimson text-xs font-body">Remove</button>
+                        <button onClick={() => removeItem(i)}
+                          className="text-afs-chrome-base hover:text-afs-crimson text-xs font-body transition-colors">
+                          Remove
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -282,10 +292,11 @@ export default function UploadPage() {
                 Submit Quote Request
               </button>
               <button onClick={() => { setState('idle'); setResult(null); setItems([]); }}
-                className="border border-[#48526A] text-afs-chrome-mid hover:bg-afs-bg-surface font-label font-semibold px-6 py-4 rounded text-sm transition-colors">
+                className="border border-afs-chrome-dim text-afs-chrome-mid hover:bg-afs-bg-surface hover:text-afs-chrome-high font-label font-semibold px-6 py-4 rounded text-sm transition-colors">
                 Start Over
               </button>
-              <a href="/quote" className="border border-[#48526A] text-afs-chrome-mid hover:bg-afs-bg-surface font-label font-semibold px-6 py-4 rounded text-sm transition-colors">
+              <a href="/quote"
+                className="border border-afs-chrome-dim text-afs-chrome-mid hover:bg-afs-bg-surface hover:text-afs-chrome-high font-label font-semibold px-6 py-4 rounded text-sm transition-colors">
                 Build Quote Manually
               </a>
             </div>
@@ -298,10 +309,11 @@ export default function UploadPage() {
             <p className="font-body text-afs-chrome-mid text-sm mb-6">{error ?? 'Something went wrong.'}</p>
             <div className="flex gap-4">
               <button onClick={() => { setState('idle'); setError(null); }}
-                className="bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label font-semibold px-6 py-3 rounded text-sm">
+                className="bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label font-semibold px-6 py-3 rounded text-sm transition-colors">
                 Try Again
               </button>
-              <a href="/quote" className="border border-[#48526A] text-afs-chrome-mid font-label font-semibold px-6 py-3 rounded text-sm">
+              <a href="/quote"
+                className="border border-afs-chrome-dim text-afs-chrome-mid font-label font-semibold px-6 py-3 rounded text-sm transition-colors">
                 Build Quote Manually
               </a>
             </div>
