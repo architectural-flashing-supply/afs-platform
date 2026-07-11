@@ -1,7 +1,34 @@
+'use client';
+
 import Link from 'next/link';
 import Image from 'next/image';
+import { usePathname } from 'next/navigation';
+
+const PANEL_LINKS = [
+  { label: 'Home', href: '/' },
+  { label: 'Products', href: '/products' },
+  { label: 'Request a Quote', href: '/quote' },
+  { label: 'Upload Drawing', href: '/upload' },
+  { label: 'Architects', href: '/architects' },
+];
+
+const PANEL_ACCOUNT_LINKS = [
+  { label: 'My Account', href: '/account' },
+  { label: 'Sign In', href: '/login' },
+];
 
 export default function NavBar() {
+  const pathname = usePathname();
+
+  const panelLinkClass = (href: string) => {
+    const active = pathname === href;
+    return `font-label text-sm px-4 py-2.5 rounded transition-colors ${
+      active
+        ? 'text-white bg-afs-bg-surface border-l-2 border-afs-crimson'
+        : 'text-afs-chrome-mid hover:text-white hover:bg-afs-bg-surface'
+    }`;
+  };
+
   return (
     <>
       <div className="fixed top-0 left-0 bottom-0 w-60 z-50 bg-afs-bg-dim border-r border-afs-chrome-dim flex flex-col">
@@ -18,6 +45,22 @@ export default function NavBar() {
           </Link>
         </div>
 
+        <nav className="flex flex-col gap-1 px-3">
+          {PANEL_LINKS.map(link => (
+            <Link key={link.href} href={link.href} className={panelLinkClass(link.href)}>
+              {link.label}
+            </Link>
+          ))}
+
+          <div className="my-2 border-t border-afs-chrome-dim mx-1" />
+
+          {PANEL_ACCOUNT_LINKS.map(link => (
+            <Link key={link.href} href={link.href} className={panelLinkClass(link.href)}>
+              {link.label}
+            </Link>
+          ))}
+        </nav>
+
         <div className="flex-1" />
 
         <div className="px-4 py-4 border-t border-afs-chrome-dim">
@@ -28,7 +71,7 @@ export default function NavBar() {
       </div>
 
       <header className="fixed top-0 left-60 right-0 z-40 h-16 bg-afs-bg-raised border-b border-afs-chrome-dim flex items-center px-8">
-        <div className="hidden md:flex items-center gap-8 flex-1">
+        <div className="hidden md:flex items-center gap-8">
           <Link href="/products" className="font-label text-sm text-afs-chrome-mid hover:text-afs-chrome-high transition-colors">
             Products
           </Link>
@@ -40,14 +83,6 @@ export default function NavBar() {
           </Link>
           <Link href="/architects" className="font-label text-sm text-afs-chrome-mid hover:text-afs-chrome-high transition-colors">
             Architects
-          </Link>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link href="/upload" className="bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label font-semibold text-sm px-5 py-2.5 rounded transition-colors">
-            Submit a Drawing
-          </Link>
-          <Link href="/login" className="hidden sm:block border border-afs-chrome-dim text-afs-chrome-mid hover:text-afs-chrome-high font-label text-sm px-4 py-2.5 rounded transition-colors">
-            Sign In
           </Link>
         </div>
       </header>

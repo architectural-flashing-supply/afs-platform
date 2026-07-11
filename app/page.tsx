@@ -1,23 +1,75 @@
+import Image from 'next/image';
+import Link from 'next/link';
+
 export default function HomePage() {
   return (
-    <main className="min-h-screen bg-afs-bg-base flex flex-col items-center justify-center px-6">
-      <div className="metal-edge bg-afs-bg-raised border border-[#48526A] rounded p-12 max-w-2xl w-full text-center">
-        <p className="font-label text-afs-crimson text-sm tracking-widest uppercase mb-6">
-          ARCHITECTURAL FLASHING SUPPLY
-        </p>
-        <h1 className="font-display text-8xl text-afs-chrome-high leading-none mb-6">
-          AFS
-        </h1>
-        <p className="font-body text-afs-chrome-mid text-lg mb-10">
-          Custom fabricated sheet metal flashing. Platform launching soon.
-        </p>
-        <div className="flex gap-4 justify-center flex-wrap">
-          <a href="/quote" className="bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label font-semibold px-8 py-4 rounded text-sm tracking-wide transition-colors">
-            Request a Quote
-          </a>
-          <a href="/upload" className="border border-[#48526A] text-afs-chrome-mid hover:bg-afs-bg-surface font-label font-semibold px-8 py-4 rounded text-sm tracking-wide transition-colors">
-            Upload a Drawing
-          </a>
+    <main className="relative min-h-screen overflow-hidden bg-afs-bg-base">
+
+      {/* Right side: images 2 & 3, stacked, full-bleed layer behind the diagonal cut */}
+      <div className="absolute inset-0 z-0 flex flex-col">
+        <div className="relative h-1/2 w-full overflow-hidden">
+          <Image
+            src="/home_page_images/2.jpg"
+            alt="Precision sheet metal fabrication in progress"
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+        </div>
+        <div className="relative h-1/2 w-full overflow-hidden">
+          <Image
+            src="/home_page_images/3.jpg"
+            alt="Finished architectural flashing installed on a commercial building"
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+        </div>
+      </div>
+
+      {/* Left side: image 1, full height, diagonal clip-path edge */}
+      <div
+        className="absolute inset-y-0 left-0 z-10 w-[40%]"
+        style={{ clipPath: 'polygon(0 0, 100% 0, calc(100% - 10vh) 100%, 0 100%)' }}
+      >
+        <Image
+          src="/home_page_images/1.jpg"
+          alt="Custom fabricated architectural flashing profiles"
+          fill
+          priority
+          sizes="40vw"
+          className="object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+      </div>
+
+      {/* Headline content */}
+      <div className="relative z-20 flex min-h-screen flex-col items-center justify-center px-6 text-center">
+        <div className="max-w-5xl">
+          <h1 className="hero-glow-red font-display text-[5rem] leading-none md:text-[7rem]">
+            Texas Crafted. Nationally Delivered.
+          </h1>
+          <p className="hero-glow-chrome font-heading text-3xl font-semibold md:text-4xl mt-6">
+            Precision Metal Flashing Fabrication
+          </p>
+          <div className="mt-10 flex flex-wrap justify-center gap-4">
+            <Link
+              href="/upload"
+              className="rounded bg-[#C0001A] px-8 py-4 font-label text-sm font-semibold text-white transition-colors hover:bg-[#E8001F]"
+            >
+              Submit a Drawing
+            </Link>
+            <Link
+              href="/quote"
+              className="rounded border border-[#9AA8C0] px-8 py-4 font-label text-sm font-semibold text-white transition-colors hover:bg-white/10"
+            >
+              Request a Quote
+            </Link>
+          </div>
         </div>
       </div>
     </main>

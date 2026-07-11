@@ -149,7 +149,7 @@ export default function UploadPage() {
             onClick={() => document.getElementById('file-input')?.click()}
             className={`border-2 border-dashed rounded p-20 text-center transition-colors cursor-pointer ${
               dragOver
-                ? 'border-afs-crimson bg-[rgba(192,0,26,0.08)]'
+                ? 'border-afs-crimson bg-afs-bg-overlay'
                 : 'border-afs-chrome-dim hover:border-afs-chrome-base bg-afs-bg-raised'
             }`}
           >
