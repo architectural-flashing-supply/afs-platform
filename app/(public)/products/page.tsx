@@ -25,7 +25,7 @@ export default function ProductsPage() {
         </p>
       </div>
 
-      <div className="max-w-[1400px] mx-auto px-6 pb-16">
+      <div className="max-w-[1400px] mx-auto px-6 pb-16 bg-[#D4D4D4]">
         <ProductSearchTabs categories={CATEGORIES} />
       </div>
     </main>
