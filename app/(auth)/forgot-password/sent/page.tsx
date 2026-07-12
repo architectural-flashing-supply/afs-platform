@@ -13,8 +13,8 @@ export default function ForgotPasswordSentPage() {
           />
         </svg>
       </div>
-      <h1 className="font-heading text-2xl font-bold text-afs-ink-900 mb-3">Check Your Email</h1>
-      <p className="font-body text-sm text-afs-ink-700 mb-8">
+      <h1 className="font-heading text-2xl font-bold text-afs-chrome-high mb-3">Check Your Email</h1>
+      <p className="font-body text-sm text-afs-chrome-mid mb-8">
         If an account exists for that email, we sent a password reset link.
       </p>
       <Link href="/login" className="font-label text-sm text-afs-crimson hover:text-afs-crimson-hover">

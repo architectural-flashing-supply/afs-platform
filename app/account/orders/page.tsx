@@ -94,8 +94,8 @@ export default async function AccountOrdersPage({
   return (
     <div className="max-w-[1100px] mx-auto">
       <div className="mb-8">
-        <h1 className="font-heading text-3xl text-afs-ink-900">My Orders</h1>
-        <p className="font-body text-sm text-afs-ink-700 mt-1">
+        <h1 className="font-heading text-3xl text-afs-chrome-high">My Orders</h1>
+        <p className="font-body text-sm text-afs-chrome-mid mt-1">
           Track fabrication and delivery for every order you&apos;ve placed with AFS.
         </p>
       </div>
@@ -107,8 +107,8 @@ export default async function AccountOrdersPage({
             href={buildTabHref(tab.key)}
             className={`font-label text-sm px-4 py-2 rounded border transition-colors ${
               activeTab === tab.key
-                ? 'border-afs-crimson bg-[var(--afs-crimson-ghost)] text-afs-ink-900'
-                : 'border-afs-chrome-dim text-afs-ink-700 hover:bg-afs-bg-surface'
+                ? 'border-afs-crimson bg-[var(--afs-crimson-ghost)] text-afs-chrome-high'
+                : 'border-afs-chrome-dim text-afs-chrome-mid hover:bg-afs-bg-surface'
             }`}
           >
             {tab.label}
@@ -131,19 +131,19 @@ export default async function AccountOrdersPage({
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-afs-bg-surface border-b border-afs-chrome-dim">
-                  <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
+                  <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
                     Order #
                   </th>
-                  <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
+                  <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
                     Date
                   </th>
-                  <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
+                  <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
                     Items
                   </th>
-                  <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
+                  <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
                     Status
                   </th>
-                  <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-right px-4 py-3">
+                  <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-right px-4 py-3">
                     Actions
                   </th>
                 </tr>
@@ -162,8 +162,8 @@ export default async function AccountOrdersPage({
                         {order.order_number}
                       </Link>
                     </td>
-                    <td className="font-data text-sm text-afs-ink-700 px-4 py-3">{formatDate(order.created_at)}</td>
-                    <td className="font-body text-sm text-afs-ink-900 px-4 py-3">
+                    <td className="font-data text-sm text-afs-chrome-mid px-4 py-3">{formatDate(order.created_at)}</td>
+                    <td className="font-body text-sm text-afs-chrome-high px-4 py-3">
                       {summarizeLineItems(order.order_line_items)}
                     </td>
                     <td className="px-4 py-3">
@@ -175,7 +175,7 @@ export default async function AccountOrdersPage({
                       <div className="flex items-center justify-end gap-4">
                         <Link
                           href={`/account/orders/${order.id}`}
-                          className="font-label text-xs text-afs-ink-700 hover:text-afs-crimson transition-colors"
+                          className="font-label text-xs text-afs-chrome-mid hover:text-afs-crimson transition-colors"
                         >
                           View Details
                         </Link>
@@ -196,12 +196,12 @@ export default async function AccountOrdersPage({
                 className={`font-label text-sm px-4 py-2 rounded border border-afs-chrome-dim ${
                   page <= 1
                     ? 'opacity-40 pointer-events-none'
-                    : 'text-afs-ink-700 hover:bg-afs-bg-surface transition-colors'
+                    : 'text-afs-chrome-mid hover:bg-afs-bg-surface transition-colors'
                 }`}
               >
                 ← Previous
               </Link>
-              <span className="font-body text-xs text-afs-ink-700">
+              <span className="font-body text-xs text-afs-chrome-mid">
                 Page {page} of {totalPages}
               </span>
               <Link
@@ -210,7 +210,7 @@ export default async function AccountOrdersPage({
                 className={`font-label text-sm px-4 py-2 rounded border border-afs-chrome-dim ${
                   page >= totalPages
                     ? 'opacity-40 pointer-events-none'
-                    : 'text-afs-ink-700 hover:bg-afs-bg-surface transition-colors'
+                    : 'text-afs-chrome-mid hover:bg-afs-bg-surface transition-colors'
                 }`}
               >
                 Next →

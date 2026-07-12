@@ -62,8 +62,8 @@ export default async function FinishPalettePage() {
     <ArchitectShell>
       <section className="metal-edge metal-edge-copper px-6 pt-16 pb-12 text-center border-b border-afs-border">
         <ArchitectEyebrow>AFS Finish &amp; Color Library</ArchitectEyebrow>
-        <h1 className="font-display text-6xl text-afs-ink-900 leading-none mb-4">FINISH PALETTE</h1>
-        <p className="font-body text-afs-ink-700 text-base max-w-2xl mx-auto">
+        <h1 className="font-display text-6xl text-afs-chrome-high leading-none mb-4">FINISH PALETTE</h1>
+        <p className="font-body text-afs-chrome-mid text-base max-w-2xl mx-auto">
           Digital color chips and downloadable palettes for every AFS material.
         </p>
       </section>

@@ -52,7 +52,7 @@ export default function ProfileSettingsForm({ email, initialFullName, initialCom
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4" data-testid="profile-settings-form">
       <div>
-        <label htmlFor="settings-email" className="font-label text-xs uppercase tracking-wide text-afs-ink-700 block mb-1.5">
+        <label htmlFor="settings-email" className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-1.5">
           Email
         </label>
         <input
@@ -60,11 +60,11 @@ export default function ProfileSettingsForm({ email, initialFullName, initialCom
           type="email"
           value={email}
           disabled
-          className="w-full bg-afs-bg-dim border border-afs-border rounded px-3 py-2.5 text-sm text-afs-ink-700 font-body cursor-not-allowed"
+          className="w-full bg-afs-bg-dim border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-dim font-body cursor-not-allowed"
         />
       </div>
       <div>
-        <label htmlFor="settings-name" className="font-label text-xs uppercase tracking-wide text-afs-ink-700 block mb-1.5">
+        <label htmlFor="settings-name" className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-1.5">
           Full Name
         </label>
         <input
@@ -72,12 +72,12 @@ export default function ProfileSettingsForm({ email, initialFullName, initialCom
           type="text"
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
-          className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-ink-900 focus:border-afs-crimson outline-none font-body"
+          className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body"
           required
         />
       </div>
       <div>
-        <label htmlFor="settings-company" className="font-label text-xs uppercase tracking-wide text-afs-ink-700 block mb-1.5">
+        <label htmlFor="settings-company" className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-1.5">
           Company
         </label>
         <input
@@ -85,11 +85,11 @@ export default function ProfileSettingsForm({ email, initialFullName, initialCom
           type="text"
           value={company}
           onChange={(e) => setCompany(e.target.value)}
-          className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-ink-900 focus:border-afs-crimson outline-none font-body"
+          className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body"
         />
       </div>
       <div>
-        <label htmlFor="settings-phone" className="font-label text-xs uppercase tracking-wide text-afs-ink-700 block mb-1.5">
+        <label htmlFor="settings-phone" className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-1.5">
           Phone
         </label>
         <input
@@ -97,7 +97,7 @@ export default function ProfileSettingsForm({ email, initialFullName, initialCom
           type="tel"
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
-          className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-ink-900 focus:border-afs-crimson outline-none font-body"
+          className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body"
         />
       </div>
 

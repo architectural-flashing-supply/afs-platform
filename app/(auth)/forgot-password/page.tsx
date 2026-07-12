@@ -34,14 +34,14 @@ export default function ForgotPasswordPage() {
 
   return (
     <div>
-      <h1 className="font-heading text-3xl font-bold text-afs-ink-900 mb-1 text-center">Reset Password</h1>
-      <p className="font-body text-sm text-afs-ink-700 text-center mb-8">
+      <h1 className="font-heading text-3xl font-bold text-afs-chrome-high mb-1 text-center">Reset Password</h1>
+      <p className="font-body text-sm text-afs-chrome-base text-center mb-8">
         Enter your email and we&apos;ll send you a reset link
       </p>
 
       {error && (
         <div className={authErrorClass}>
-          <p className="font-body text-sm text-afs-ink-900">{error}</p>
+          <p className="font-body text-sm text-afs-chrome-high">{error}</p>
         </div>
       )}
 
@@ -66,7 +66,7 @@ export default function ForgotPasswordPage() {
         </button>
       </form>
 
-      <p className="text-center font-body text-sm text-afs-ink-700 mt-8">
+      <p className="text-center font-body text-sm text-afs-chrome-base mt-8">
         Remembered your password?{' '}
         <Link href="/login" className="text-afs-crimson hover:text-afs-crimson-hover">
           Sign in

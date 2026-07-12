@@ -52,8 +52,8 @@ export default async function AdminCustomersPage({
     <div>
       <div className="flex items-start justify-between gap-4 mb-6 flex-wrap">
         <div>
-          <h1 className="font-heading text-3xl text-afs-ink-900">Customers</h1>
-          <p className="font-body text-sm text-afs-ink-700 mt-1">
+          <h1 className="font-heading text-3xl text-afs-chrome-high">Customers</h1>
+          <p className="font-body text-sm text-afs-chrome-mid mt-1">
             Every registered account — contractors, architects, and customers.
           </p>
         </div>
@@ -66,12 +66,12 @@ export default async function AdminCustomersPage({
           name="q"
           defaultValue={filters.search}
           placeholder="Search name, company, or email…"
-          className="flex-1 min-w-[240px] bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-ink-900 focus:border-afs-crimson outline-none font-body"
+          className="flex-1 min-w-[240px] bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body"
         />
         <select
           name="role"
           defaultValue={filters.role}
-          className="bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-ink-900 focus:border-afs-crimson outline-none font-body"
+          className="bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body"
         >
           {ROLE_OPTIONS.map((r) => (
             <option key={r} value={r}>
@@ -82,7 +82,7 @@ export default async function AdminCustomersPage({
         <select
           name="tier"
           defaultValue={filters.tier}
-          className="bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-ink-900 focus:border-afs-crimson outline-none font-body"
+          className="bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body"
         >
           {TIER_OPTIONS.map((t) => (
             <option key={t} value={t}>
@@ -97,7 +97,7 @@ export default async function AdminCustomersPage({
           Filter
         </button>
         {(filters.search || filters.role !== 'all' || filters.tier !== 'all') && (
-          <Link href="/admin/customers" className="font-label text-xs text-afs-ink-700 hover:text-afs-crimson">
+          <Link href="/admin/customers" className="font-label text-xs text-afs-chrome-mid hover:text-afs-crimson">
             Clear all
           </Link>
         )}
@@ -110,17 +110,17 @@ export default async function AdminCustomersPage({
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-afs-bg-surface border-b border-afs-border">
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">Name</th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">Name</th>
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
                   Company
                 </th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">Email</th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">Role</th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">Tier</th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-right px-4 py-3">
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">Email</th>
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">Role</th>
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">Tier</th>
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-right px-4 py-3">
                   Orders
                 </th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
                   Last Order
                 </th>
               </tr>
@@ -129,20 +129,20 @@ export default async function AdminCustomersPage({
               {rows.map((row) => (
                 <tr key={row.id} className="border-b border-afs-border last:border-b-0 hover:bg-afs-bg-surface transition-colors">
                   <td className="px-4 py-3">
-                    <Link href={`/admin/customers/${row.id}`} className="font-body text-sm text-afs-ink-900 hover:text-afs-crimson">
+                    <Link href={`/admin/customers/${row.id}`} className="font-body text-sm text-afs-chrome-high hover:text-afs-crimson">
                       {row.fullName}
                     </Link>
                   </td>
-                  <td className="font-body text-sm text-afs-ink-700 px-4 py-3">{row.company ?? '—'}</td>
-                  <td className="font-data text-xs text-afs-ink-700 px-4 py-3">{row.email}</td>
+                  <td className="font-body text-sm text-afs-chrome-mid px-4 py-3">{row.company ?? '—'}</td>
+                  <td className="font-data text-xs text-afs-chrome-mid px-4 py-3">{row.email}</td>
                   <td className="px-4 py-3">
                     <Badge variant={ROLE_VARIANT[row.role] ?? 'chrome'}>{row.role}</Badge>
                   </td>
                   <td className="px-4 py-3">
                     <Badge variant={TIER_VARIANT[row.pricingTier] ?? 'chrome'}>{row.pricingTier}</Badge>
                   </td>
-                  <td className="font-data text-sm text-afs-ink-900 text-right px-4 py-3">{row.totalOrders}</td>
-                  <td className="font-data text-xs text-afs-ink-700 px-4 py-3">{formatDate(row.lastOrderAt)}</td>
+                  <td className="font-data text-sm text-afs-chrome-high text-right px-4 py-3">{row.totalOrders}</td>
+                  <td className="font-data text-xs text-afs-chrome-dim px-4 py-3">{formatDate(row.lastOrderAt)}</td>
                 </tr>
               ))}
             </tbody>

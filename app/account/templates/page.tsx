@@ -55,8 +55,8 @@ export default async function AccountTemplatesPage() {
     <div className="max-w-[1100px] mx-auto">
       <div className="flex items-start justify-between gap-6 mb-8 flex-wrap">
         <div>
-          <h1 className="font-heading text-3xl text-afs-ink-900">Saved Templates</h1>
-          <p className="font-body text-sm text-afs-ink-700 mt-1">
+          <h1 className="font-heading text-3xl text-afs-chrome-high">Saved Templates</h1>
+          <p className="font-body text-sm text-afs-chrome-mid mt-1">
             Reuse standard flashing packages instead of re-entering the same specification every job.
           </p>
         </div>
@@ -81,7 +81,7 @@ export default async function AccountTemplatesPage() {
                 data-testid="template-card"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <h2 className="font-heading text-lg text-afs-ink-900 leading-tight">{template.name}</h2>
+                  <h2 className="font-heading text-lg text-afs-chrome-high leading-tight">{template.name}</h2>
                   {template.is_company_shared && (
                     <span className="font-label text-xs uppercase tracking-wide text-afs-copper border border-afs-copper rounded px-2 py-0.5 shrink-0">
                       Company
@@ -89,9 +89,9 @@ export default async function AccountTemplatesPage() {
                   )}
                 </div>
                 {template.description && (
-                  <p className="font-body text-sm text-afs-ink-700 line-clamp-2">{template.description}</p>
+                  <p className="font-body text-sm text-afs-chrome-mid line-clamp-2">{template.description}</p>
                 )}
-                <div className="flex items-center gap-3 font-data text-xs text-afs-ink-700">
+                <div className="flex items-center gap-3 font-data text-xs text-afs-chrome-dim">
                   <span>
                     {itemCount} item{itemCount === 1 ? '' : 's'}
                   </span>
@@ -100,7 +100,7 @@ export default async function AccountTemplatesPage() {
                     Used {template.use_count} time{template.use_count === 1 ? '' : 's'}
                   </span>
                 </div>
-                <p className="font-data text-xs text-afs-ink-700">Last updated {formatDate(template.updated_at)}</p>
+                <p className="font-data text-xs text-afs-chrome-dim">Last updated {formatDate(template.updated_at)}</p>
                 <div className="mt-auto pt-3 border-t border-afs-chrome-dim">
                   <UseTemplateButton templateId={template.id} />
                 </div>

@@ -74,15 +74,15 @@ export default function DocumentUploadForm({ projects, defaultProjectId }: Docum
         >
           <div className="w-full max-w-[480px] bg-afs-bg-raised border border-afs-chrome-dim rounded metal-edge p-6">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="font-heading text-xl text-afs-ink-900">Upload Files</h2>
-              <button type="button" onClick={close} className="text-afs-ink-700 hover:text-afs-ink-900" aria-label="Close">
+              <h2 className="font-heading text-xl text-afs-chrome-high">Upload Files</h2>
+              <button type="button" onClick={close} className="text-afs-chrome-mid hover:text-afs-chrome-high" aria-label="Close">
                 ✕
               </button>
             </div>
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <div>
-                <label htmlFor="doc-files" className="font-label text-xs uppercase tracking-wide text-afs-ink-700 block mb-1.5">
+                <label htmlFor="doc-files" className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-1.5">
                   Files
                 </label>
                 <input
@@ -90,23 +90,23 @@ export default function DocumentUploadForm({ projects, defaultProjectId }: Docum
                   ref={fileInputRef}
                   type="file"
                   multiple
-                  className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-ink-900 font-body file:mr-3 file:bg-afs-bg-surface file:border-0 file:rounded file:px-3 file:py-1.5 file:font-label file:text-xs file:text-afs-ink-900"
+                  className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high font-body file:mr-3 file:bg-afs-bg-surface file:border-0 file:rounded file:px-3 file:py-1.5 file:font-label file:text-xs file:text-afs-chrome-high"
                 />
-                <p className="font-body text-xs text-afs-ink-700 mt-1">
+                <p className="font-body text-xs text-afs-chrome-dim mt-1">
                   PDF, DWG, DXF, images, Office docs, CSV, ZIP — up to 100MB each.
                 </p>
               </div>
 
               {projects.length > 0 && (
                 <div>
-                  <label htmlFor="doc-project" className="font-label text-xs uppercase tracking-wide text-afs-ink-700 block mb-1.5">
+                  <label htmlFor="doc-project" className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-1.5">
                     Project
                   </label>
                   <select
                     id="doc-project"
                     value={projectId}
                     onChange={(e) => setProjectId(e.target.value)}
-                    className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-ink-900 focus:border-afs-crimson outline-none font-body"
+                    className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body"
                   >
                     <option value="">No project</option>
                     {projects.map((p) => (
@@ -119,7 +119,7 @@ export default function DocumentUploadForm({ projects, defaultProjectId }: Docum
               )}
 
               <div>
-                <label htmlFor="doc-folder" className="font-label text-xs uppercase tracking-wide text-afs-ink-700 block mb-1.5">
+                <label htmlFor="doc-folder" className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-1.5">
                   Folder
                 </label>
                 <input
@@ -128,7 +128,7 @@ export default function DocumentUploadForm({ projects, defaultProjectId }: Docum
                   value={folderName}
                   onChange={(e) => setFolderName(e.target.value)}
                   placeholder="e.g. Submittals, RFIs, Change Orders"
-                  className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-ink-900 focus:border-afs-crimson outline-none font-body"
+                  className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body"
                 />
               </div>
 
@@ -138,7 +138,7 @@ export default function DocumentUploadForm({ projects, defaultProjectId }: Docum
                 <button
                   type="button"
                   onClick={close}
-                  className="border border-afs-border text-afs-ink-700 hover:bg-afs-bg-surface font-label font-semibold px-5 py-2.5 rounded text-sm transition-colors"
+                  className="border border-afs-border text-afs-chrome-mid hover:bg-afs-bg-surface font-label font-semibold px-5 py-2.5 rounded text-sm transition-colors"
                 >
                   Cancel
                 </button>

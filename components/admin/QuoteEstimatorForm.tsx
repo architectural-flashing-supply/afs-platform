@@ -25,8 +25,8 @@ interface QuoteEstimatorFormProps {
 }
 
 const inputClass =
-  'w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2 text-sm text-afs-ink-900 focus:border-afs-crimson outline-none font-data text-right';
-const labelClass = 'font-label text-xs uppercase tracking-wide text-afs-ink-700 block mb-1.5';
+  'w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-data text-right';
+const labelClass = 'font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-1.5';
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
@@ -125,8 +125,8 @@ export default function QuoteEstimatorForm({ requestId, items, jobsiteAddress }:
   if (success) {
     return (
       <div className="bg-afs-bg-raised border border-afs-success rounded p-8 text-center">
-        <h2 className="font-heading text-xl text-afs-ink-900 mb-2">Quote Sent</h2>
-        <p className="font-body text-sm text-afs-ink-700 mb-4">
+        <h2 className="font-heading text-xl text-afs-chrome-high mb-2">Quote Sent</h2>
+        <p className="font-body text-sm text-afs-chrome-mid mb-4">
           {success.quoteNumber} has been delivered to the customer&apos;s account.
         </p>
         <button
@@ -144,30 +144,30 @@ export default function QuoteEstimatorForm({ requestId, items, jobsiteAddress }:
     <div data-testid="estimator-form" className="flex flex-col gap-6">
       <div className="bg-afs-bg-raised border border-afs-border rounded overflow-hidden">
         <div className="px-4 py-3 border-b border-afs-border flex items-center justify-between">
-          <span className="font-heading text-sm text-afs-ink-700 uppercase tracking-wide">Enter Pricing</span>
-          <span className="font-body text-xs text-afs-ink-700">
+          <span className="font-heading text-sm text-afs-chrome-mid uppercase tracking-wide">Enter Pricing</span>
+          <span className="font-body text-xs text-afs-chrome-dim">
             Waste factor: {Math.round((DEFAULT_WASTE_FACTOR - 1) * 100)}% (standard AFS allowance)
           </span>
         </div>
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-afs-bg-surface border-b border-afs-border">
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
                 Item
               </th>
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
                 Dimensions
               </th>
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-right px-4 py-3">
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-right px-4 py-3">
                 Ordered
               </th>
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-right px-4 py-3">
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-right px-4 py-3">
                 Billed (w/ waste)
               </th>
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-right px-4 py-3 w-36">
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-right px-4 py-3 w-36">
                 Unit Price ($/LF)
               </th>
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-right px-4 py-3">
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-right px-4 py-3">
                 Line Total
               </th>
             </tr>
@@ -178,12 +178,12 @@ export default function QuoteEstimatorForm({ requestId, items, jobsiteAddress }:
               const billedLf = computeBilledQuantity(item.quantity, item.lengthFt);
               return (
                 <tr key={i} className="border-b border-afs-border last:border-b-0">
-                  <td className="font-body text-sm text-afs-ink-900 px-4 py-3">{describeItem(item)}</td>
-                  <td className="font-data text-xs text-afs-ink-700 px-4 py-3">{formatDimensions(item)}</td>
-                  <td className="font-data text-sm text-afs-ink-900 text-right px-4 py-3">
+                  <td className="font-body text-sm text-afs-chrome-high px-4 py-3">{describeItem(item)}</td>
+                  <td className="font-data text-xs text-afs-chrome-mid px-4 py-3">{formatDimensions(item)}</td>
+                  <td className="font-data text-sm text-afs-chrome-high text-right px-4 py-3">
                     {item.quantity} pc &middot; {orderedLf} LF
                   </td>
-                  <td className="font-data text-sm text-afs-ink-900 text-right px-4 py-3">{billedLf} LF</td>
+                  <td className="font-data text-sm text-afs-chrome-high text-right px-4 py-3">{billedLf} LF</td>
                   <td className="px-4 py-3">
                     <input
                       type="number"
@@ -196,7 +196,7 @@ export default function QuoteEstimatorForm({ requestId, items, jobsiteAddress }:
                       className={inputClass}
                     />
                   </td>
-                  <td className="font-data text-sm text-afs-ink-900 text-right px-4 py-3">
+                  <td className="font-data text-sm text-afs-chrome-high text-right px-4 py-3">
                     {lineTotals[i] > 0 ? currency.format(lineTotals[i]) : '—'}
                   </td>
                 </tr>
@@ -208,10 +208,10 @@ export default function QuoteEstimatorForm({ requestId, items, jobsiteAddress }:
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-afs-bg-raised border border-afs-border rounded p-6">
-          <h3 className="font-heading text-lg text-afs-ink-900 mb-4">Freight</h3>
+          <h3 className="font-heading text-lg text-afs-chrome-high mb-4">Freight</h3>
           <div className="mb-4">
             <span className={labelClass}>Destination</span>
-            <p className="font-body text-sm text-afs-ink-900 whitespace-pre-line">
+            <p className="font-body text-sm text-afs-chrome-high whitespace-pre-line">
               {jobsiteAddress || '—'}
             </p>
           </div>
@@ -227,19 +227,19 @@ export default function QuoteEstimatorForm({ requestId, items, jobsiteAddress }:
               value={freight}
               onChange={(e) => setFreight(e.target.value)}
               placeholder="0.00"
-              className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-ink-900 focus:border-afs-crimson outline-none font-data"
+              className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-data"
             />
           </div>
         </div>
 
         <div className="bg-afs-bg-raised border border-afs-border rounded p-6">
-          <h3 className="font-heading text-lg text-afs-ink-900 mb-4">Estimator Notes</h3>
+          <h3 className="font-heading text-lg text-afs-chrome-high mb-4">Estimator Notes</h3>
           <textarea
             value={estimatorNotes}
             onChange={(e) => setEstimatorNotes(e.target.value)}
             rows={4}
             placeholder="Notes the customer will see on their formal quote (lead times, substitutions, etc.)"
-            className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-ink-900 focus:border-afs-crimson outline-none font-body resize-y"
+            className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body resize-y"
           />
         </div>
       </div>
@@ -247,17 +247,17 @@ export default function QuoteEstimatorForm({ requestId, items, jobsiteAddress }:
       <div className="bg-afs-bg-raised border border-afs-border rounded p-6 flex items-center justify-between">
         <dl className="flex items-center gap-8 font-body text-sm">
           <div>
-            <dt className="text-afs-ink-700">Subtotal</dt>
-            <dd className="font-data text-lg text-afs-ink-900">{currency.format(subtotal)}</dd>
+            <dt className="text-afs-chrome-mid">Subtotal</dt>
+            <dd className="font-data text-lg text-afs-chrome-high">{currency.format(subtotal)}</dd>
           </div>
           <div>
-            <dt className="text-afs-ink-700">Freight</dt>
-            <dd className="font-data text-lg text-afs-ink-900">
+            <dt className="text-afs-chrome-mid">Freight</dt>
+            <dd className="font-data text-lg text-afs-chrome-high">
               {hasValidFreight ? currency.format(freightAmount) : '—'}
             </dd>
           </div>
           <div>
-            <dt className="text-afs-ink-700">Total</dt>
+            <dt className="text-afs-chrome-mid">Total</dt>
             <dd className="font-data text-xl text-afs-crimson">{currency.format(total)}</dd>
           </div>
         </dl>

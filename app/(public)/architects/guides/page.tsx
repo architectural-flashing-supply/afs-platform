@@ -32,8 +32,8 @@ export default function ArchitecturalResourceCenterPage() {
       <div className="max-w-[1280px] mx-auto px-6 py-16">
         <div className="mb-10 text-center">
           <ArchitectEyebrow>Architectural Resource Center</ArchitectEyebrow>
-          <h1 className="font-display text-6xl text-afs-ink-900 leading-none mb-4">TECHNICAL RESOURCES</h1>
-          <p className="font-body text-afs-ink-700 text-base max-w-2xl mx-auto">
+          <h1 className="font-display text-6xl text-afs-chrome-high leading-none mb-4">TECHNICAL RESOURCES</h1>
+          <p className="font-body text-afs-chrome-mid text-base max-w-2xl mx-auto">
             Standards references, installation guidance, and specification writing resources for AFS
             architectural flashing.
           </p>
@@ -47,8 +47,8 @@ export default function ArchitecturalResourceCenterPage() {
               onClick={() => setActiveCategory(tab.key)}
               className={`font-label text-sm px-6 py-3 border-b-2 transition-colors ${
                 activeCategory === tab.key
-                  ? 'border-afs-copper text-afs-ink-900'
-                  : 'border-transparent text-afs-ink-700 hover:text-afs-ink-900'
+                  ? 'border-afs-copper text-afs-chrome-high'
+                  : 'border-transparent text-afs-chrome-mid hover:text-afs-chrome-high'
               }`}
             >
               {tab.label}

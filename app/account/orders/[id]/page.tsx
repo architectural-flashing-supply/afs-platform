@@ -131,14 +131,14 @@ export default async function OrderDetailPage({ params }: { params: { id: string
     <div className="max-w-[1000px] mx-auto">
       <OrderRealtimeListener orderId={order.id} />
 
-      <Link href="/account/orders" className="font-label text-xs text-afs-ink-700 hover:text-afs-crimson">
+      <Link href="/account/orders" className="font-label text-xs text-afs-chrome-mid hover:text-afs-crimson">
         ← Back to My Orders
       </Link>
 
       <div data-testid="order-detail-header" className="flex items-start justify-between gap-6 mt-2 mb-8 flex-wrap">
         <div>
-          <h1 className="font-data text-3xl text-afs-ink-900">{order.order_number}</h1>
-          <p className="font-body text-sm text-afs-ink-700 mt-1">
+          <h1 className="font-data text-3xl text-afs-chrome-high">{order.order_number}</h1>
+          <p className="font-body text-sm text-afs-chrome-mid mt-1">
             Ordered {formatDate(order.created_at)} ·{' '}
             {order.delivery_scheduled_at
               ? `Expected ship: ${formatDate(order.delivery_scheduled_at)}`
@@ -152,7 +152,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
           <div className="flex items-center gap-4">
             <Link
               href={`/contact?order=${order.id}`}
-              className="border border-afs-border bg-afs-bg-overlay text-afs-ink-900 hover:bg-afs-bg-surface font-label font-semibold px-5 py-2.5 rounded text-sm transition-colors"
+              className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label font-semibold px-5 py-2.5 rounded text-sm transition-colors"
             >
               Get Help with This Order
             </Link>
@@ -169,22 +169,22 @@ export default async function OrderDetailPage({ params }: { params: { id: string
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-afs-bg-surface border-b border-afs-chrome-dim">
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
                 Description
               </th>
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
                 Dimensions
               </th>
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
                 Length
               </th>
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
                 Qty
               </th>
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-right px-4 py-3">
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-right px-4 py-3">
                 Unit Price
               </th>
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-right px-4 py-3">
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-right px-4 py-3">
                 Line Total
               </th>
             </tr>
@@ -192,18 +192,18 @@ export default async function OrderDetailPage({ params }: { params: { id: string
           <tbody>
             {lineItems.map((item) => (
               <tr key={item.id} className="border-b border-afs-chrome-dim last:border-b-0">
-                <td className="font-body text-sm text-afs-ink-900 px-4 py-3">{item.description}</td>
-                <td className="font-data text-xs text-afs-ink-700 px-4 py-3">
+                <td className="font-body text-sm text-afs-chrome-high px-4 py-3">{item.description}</td>
+                <td className="font-data text-xs text-afs-chrome-mid px-4 py-3">
                   {formatDimensions(item.width_in, item.height_in, item.leg_a_in, item.leg_b_in)}
                 </td>
-                <td className="font-data text-sm text-afs-ink-900 px-4 py-3">{item.length_ft} ft</td>
-                <td className="font-data text-sm text-afs-ink-900 px-4 py-3">
+                <td className="font-data text-sm text-afs-chrome-high px-4 py-3">{item.length_ft} ft</td>
+                <td className="font-data text-sm text-afs-chrome-high px-4 py-3">
                   {item.quantity} {item.unit}
                 </td>
-                <td className="font-data text-sm text-afs-ink-900 text-right px-4 py-3">
+                <td className="font-data text-sm text-afs-chrome-high text-right px-4 py-3">
                   {currency.format(item.unit_price)}
                 </td>
-                <td className="font-data text-sm text-afs-ink-900 text-right px-4 py-3">
+                <td className="font-data text-sm text-afs-chrome-high text-right px-4 py-3">
                   {currency.format(item.line_total)}
                 </td>
               </tr>
@@ -212,37 +212,37 @@ export default async function OrderDetailPage({ params }: { params: { id: string
           <tfoot>
             <tr className="border-t border-afs-chrome-dim">
               <td colSpan={4} />
-              <td className="font-label text-xs uppercase text-afs-ink-700 text-right px-4 py-2">Subtotal</td>
-              <td className="font-data text-sm text-afs-ink-900 text-right px-4 py-2">
+              <td className="font-label text-xs uppercase text-afs-chrome-mid text-right px-4 py-2">Subtotal</td>
+              <td className="font-data text-sm text-afs-chrome-high text-right px-4 py-2">
                 {currency.format(order.subtotal)}
               </td>
             </tr>
             <tr>
               <td colSpan={4} />
-              <td className="font-label text-xs uppercase text-afs-ink-700 text-right px-4 py-2">Freight</td>
-              <td className="font-data text-sm text-afs-ink-900 text-right px-4 py-2">
+              <td className="font-label text-xs uppercase text-afs-chrome-mid text-right px-4 py-2">Freight</td>
+              <td className="font-data text-sm text-afs-chrome-high text-right px-4 py-2">
                 {order.freight != null ? currency.format(order.freight) : '—'}
               </td>
             </tr>
             {order.rush_surcharge > 0 && (
               <tr>
                 <td colSpan={4} />
-                <td className="font-label text-xs uppercase text-afs-ink-700 text-right px-4 py-2">Rush Surcharge</td>
-                <td className="font-data text-sm text-afs-ink-900 text-right px-4 py-2">
+                <td className="font-label text-xs uppercase text-afs-chrome-mid text-right px-4 py-2">Rush Surcharge</td>
+                <td className="font-data text-sm text-afs-chrome-high text-right px-4 py-2">
                   {currency.format(order.rush_surcharge)}
                 </td>
               </tr>
             )}
             <tr>
               <td colSpan={4} />
-              <td className="font-label text-xs uppercase text-afs-ink-700 text-right px-4 py-2">Tax</td>
-              <td className="font-data text-sm text-afs-ink-900 text-right px-4 py-2">
+              <td className="font-label text-xs uppercase text-afs-chrome-mid text-right px-4 py-2">Tax</td>
+              <td className="font-data text-sm text-afs-chrome-high text-right px-4 py-2">
                 {order.tax != null ? currency.format(order.tax) : '—'}
               </td>
             </tr>
             <tr className="border-t border-afs-chrome-dim">
               <td colSpan={4} />
-              <td className="font-label text-sm text-afs-ink-900 font-semibold text-right px-4 py-3">Total</td>
+              <td className="font-label text-sm text-afs-chrome-high font-semibold text-right px-4 py-3">Total</td>
               <td className="font-data text-lg text-afs-crimson text-right px-4 py-3">{currency.format(order.total)}</td>
             </tr>
           </tfoot>
@@ -250,7 +250,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
       </div>
 
       <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-6 mb-8">
-        <h2 className="font-heading text-lg text-afs-ink-900 mb-4">Production Status</h2>
+        <h2 className="font-heading text-lg text-afs-chrome-high mb-4">Production Status</h2>
         <ProductionTimeline
           currentStatus={order.status}
           statusHistory={statusHistory}
@@ -262,43 +262,43 @@ export default async function OrderDetailPage({ params }: { params: { id: string
       </div>
 
       <div data-testid="delivery-section" className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-6 mb-8">
-        <h2 className="font-heading text-lg text-afs-ink-900 mb-4">
+        <h2 className="font-heading text-lg text-afs-chrome-high mb-4">
           {order.delivery_method === 'pickup' ? 'Pickup' : 'Delivery'}
         </h2>
         {order.delivery_method === 'pickup' ? (
           <dl className="flex flex-col gap-2 font-body text-sm">
             <div className="flex justify-between">
-              <dt className="text-afs-ink-700">Pickup Date</dt>
-              <dd className="font-data text-afs-ink-900">
+              <dt className="text-afs-chrome-mid">Pickup Date</dt>
+              <dd className="font-data text-afs-chrome-high">
                 {order.delivery_scheduled_at ? formatDate(order.delivery_scheduled_at) : 'Not yet scheduled'}
               </dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-afs-ink-700">Window</dt>
-              <dd className="font-data text-afs-ink-900">{order.delivery_window ?? '—'}</dd>
+              <dt className="text-afs-chrome-mid">Window</dt>
+              <dd className="font-data text-afs-chrome-high">{order.delivery_window ?? '—'}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-afs-ink-700">Facility</dt>
-              <dd className="font-body text-afs-ink-900 text-right">Contact AFS for pickup address.</dd>
+              <dt className="text-afs-chrome-mid">Facility</dt>
+              <dd className="font-body text-afs-chrome-high text-right">Contact AFS for pickup address.</dd>
             </div>
           </dl>
         ) : (
           <dl className="flex flex-col gap-2 font-body text-sm">
             <div className="flex justify-between gap-6">
-              <dt className="text-afs-ink-700 shrink-0">Delivery Address</dt>
-              <dd className="font-body text-afs-ink-900 whitespace-pre-line text-right">
+              <dt className="text-afs-chrome-mid shrink-0">Delivery Address</dt>
+              <dd className="font-body text-afs-chrome-high whitespace-pre-line text-right">
                 {formatAddress(order.delivery_address)}
               </dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-afs-ink-700">Scheduled Date</dt>
-              <dd className="font-data text-afs-ink-900">
+              <dt className="text-afs-chrome-mid">Scheduled Date</dt>
+              <dd className="font-data text-afs-chrome-high">
                 {order.delivery_scheduled_at ? formatDate(order.delivery_scheduled_at) : 'Not yet scheduled'}
               </dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-afs-ink-700">Window</dt>
-              <dd className="font-data text-afs-ink-900">{order.delivery_window ?? '—'}</dd>
+              <dt className="text-afs-chrome-mid">Window</dt>
+              <dd className="font-data text-afs-chrome-high">{order.delivery_window ?? '—'}</dd>
             </div>
           </dl>
         )}
@@ -306,8 +306,8 @@ export default async function OrderDetailPage({ params }: { params: { id: string
 
       <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-6 flex items-center justify-between gap-6 flex-wrap">
         <div>
-          <h2 className="font-heading text-lg text-afs-ink-900 mb-1">Order These Items Again</h2>
-          <p className="font-body text-sm text-afs-ink-700">
+          <h2 className="font-heading text-lg text-afs-chrome-high mb-1">Order These Items Again</h2>
+          <p className="font-body text-sm text-afs-chrome-mid">
             Quantities and specifications are loaded from this order. Edit anything before submitting a new request.
           </p>
         </div>

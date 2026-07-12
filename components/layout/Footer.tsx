@@ -9,23 +9,23 @@ export default function Footer() {
           {/* Brand */}
           <div>
             <div className="bg-afs-bg-dim inline-block px-3 py-1.5 rounded mb-4">
-              <span className="font-display text-2xl text-afs-ink-900">AFS</span>
+              <span className="font-display text-2xl text-afs-chrome-high">AFS</span>
             </div>
-            <p className="font-body text-sm text-afs-ink-700 leading-relaxed mb-4">
+            <p className="font-body text-sm text-afs-chrome-base leading-relaxed mb-4">
               Architectural Flashing Supply. Custom sheet metal fabrication for contractors and architects.
             </p>
-            <p className="font-body text-sm text-afs-ink-700 leading-relaxed">
+            <p className="font-body text-sm text-afs-chrome-base leading-relaxed">
               209 Sure Cast Drive<br />Burnet, Texas 78611
             </p>
-            <p className="font-data text-sm text-afs-ink-700 mt-2">
-              <a href="tel:+15123724900" className="hover:text-afs-crimson transition-colors">
+            <p className="font-data text-sm text-afs-chrome-base mt-2">
+              <a href="tel:+15123724900" className="hover:text-afs-chrome-mid transition-colors">
                 (512) 372-4900
               </a>
             </p>
-            <p className="font-body text-sm text-afs-ink-700 mt-1 break-all">
+            <p className="font-body text-sm text-afs-chrome-base mt-1 break-all">
               <a
                 href="mailto:trica@architecturalflashingsupply.com"
-                className="hover:text-afs-crimson transition-colors"
+                className="hover:text-afs-chrome-mid transition-colors"
               >
                 trica@architecturalflashingsupply.com
               </a>
@@ -34,11 +34,11 @@ export default function Footer() {
 
           {/* Products */}
           <div>
-            <h4 className="font-label text-xs text-afs-crimson uppercase tracking-widest mb-4">Products</h4>
+            <h4 className="font-label text-xs text-afs-chrome-mid uppercase tracking-widest mb-4">Products</h4>
             <ul className="space-y-2">
               {['Coping Caps','Base Flashing','Drip Edge','Gravel Stop','Custom Profiles'].map(item => (
                 <li key={item}>
-                  <Link href="/products" className="font-body text-sm text-afs-ink-700 hover:text-afs-crimson transition-colors">
+                  <Link href="/products" className="font-body text-sm text-afs-chrome-base hover:text-afs-chrome-mid transition-colors">
                     {item}
                   </Link>
                 </li>
@@ -48,7 +48,7 @@ export default function Footer() {
 
           {/* Resources */}
           <div>
-            <h4 className="font-label text-xs text-afs-crimson uppercase tracking-widest mb-4">Resources</h4>
+            <h4 className="font-label text-xs text-afs-chrome-mid uppercase tracking-widest mb-4">Resources</h4>
             <ul className="space-y-2">
               {[
                 { label: 'Upload a Drawing', href: '/upload' },
@@ -57,7 +57,7 @@ export default function Footer() {
                 { label: 'Track an Order', href: '/account/orders' },
               ].map(item => (
                 <li key={item.label}>
-                  <Link href={item.href} className="font-body text-sm text-afs-ink-700 hover:text-afs-crimson transition-colors">
+                  <Link href={item.href} className="font-body text-sm text-afs-chrome-base hover:text-afs-chrome-mid transition-colors">
                     {item.label}
                   </Link>
                 </li>
@@ -67,7 +67,7 @@ export default function Footer() {
 
           {/* Company */}
           <div>
-            <h4 className="font-label text-xs text-afs-crimson uppercase tracking-widest mb-4">Company</h4>
+            <h4 className="font-label text-xs text-afs-chrome-mid uppercase tracking-widest mb-4">Company</h4>
             <ul className="space-y-2">
               {[
                 { label: 'About', href: '/about' },
@@ -76,7 +76,7 @@ export default function Footer() {
                 { label: 'Terms of Sale', href: '/legal/terms' },
               ].map(item => (
                 <li key={item.label}>
-                  <Link href={item.href} className="font-body text-sm text-afs-ink-700 hover:text-afs-crimson transition-colors">
+                  <Link href={item.href} className="font-body text-sm text-afs-chrome-base hover:text-afs-chrome-mid transition-colors">
                     {item.label}
                   </Link>
                 </li>
@@ -88,10 +88,10 @@ export default function Footer() {
 
         {/* Bottom bar */}
         <div className="border-t border-afs-chrome-dim pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="font-body text-xs text-afs-ink-700">
+          <p className="font-body text-xs text-afs-chrome-dim">
             © {new Date().getFullYear()} AFS Architectural Flashing Supply. All rights reserved.
           </p>
-          <p className="font-label text-xs text-afs-crimson tracking-widest uppercase">
+          <p className="font-label text-xs text-afs-chrome-dim tracking-widest uppercase">
             SMACNA Standards Compliant
           </p>
         </div>

@@ -58,15 +58,15 @@ interface OrderSuccess {
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
 const inputClass =
-  'w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-ink-900 focus:border-afs-crimson outline-none font-body';
-const labelClass = 'font-label text-xs uppercase tracking-wide text-afs-ink-700 block mb-1.5';
+  'w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body';
+const labelClass = 'font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-1.5';
 
 export default function CheckoutPage() {
   return (
     <Suspense
       fallback={
         <div className="max-w-[600px] mx-auto text-center py-24">
-          <p className="font-label text-sm text-afs-ink-700 uppercase tracking-wide">Loading checkout…</p>
+          <p className="font-label text-sm text-afs-chrome-mid uppercase tracking-wide">Loading checkout…</p>
         </div>
       }
     >
@@ -165,7 +165,7 @@ function CheckoutPageInner() {
   if (loadState === 'loading') {
     return (
       <div className="max-w-[600px] mx-auto text-center py-24">
-        <p className="font-label text-sm text-afs-ink-700 uppercase tracking-wide">Loading checkout…</p>
+        <p className="font-label text-sm text-afs-chrome-mid uppercase tracking-wide">Loading checkout…</p>
       </div>
     );
   }
@@ -174,8 +174,8 @@ function CheckoutPageInner() {
     return (
       <div className="max-w-[600px] mx-auto py-16">
         <div className="bg-afs-bg-raised border border-afs-crimson rounded p-8 text-center">
-          <h1 className="font-heading text-2xl text-afs-ink-900 mb-3">Checkout Unavailable</h1>
-          <p className="font-body text-sm text-afs-ink-700 mb-6">{loadError}</p>
+          <h1 className="font-heading text-2xl text-afs-chrome-high mb-3">Checkout Unavailable</h1>
+          <p className="font-body text-sm text-afs-chrome-mid mb-6">{loadError}</p>
           <Link
             href="/account/quotes"
             className="bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label font-semibold px-6 py-3 rounded text-sm transition-colors inline-block"
@@ -302,11 +302,11 @@ function CheckoutForm({
     return (
       <div className="max-w-[600px] mx-auto py-16">
         <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-8 text-center">
-          <h1 className="font-heading text-2xl text-afs-ink-900 mb-3">Order Placed</h1>
+          <h1 className="font-heading text-2xl text-afs-chrome-high mb-3">Order Placed</h1>
           {orderSuccess.orderNumber ? (
             <p className="font-data text-lg text-afs-crimson mb-3">{orderSuccess.orderNumber}</p>
           ) : null}
-          <p className="font-body text-sm text-afs-ink-700 mb-6">
+          <p className="font-body text-sm text-afs-chrome-mid mb-6">
             {paymentMethod === 'net_terms'
               ? 'Your order has entered the fabrication queue. An invoice will appear in your account.'
               : 'Payment received. Your order confirmation will appear in your account shortly.'}
@@ -325,18 +325,18 @@ function CheckoutForm({
   return (
     <div className="max-w-[1100px] mx-auto grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-8">
       <div>
-        <h1 className="font-heading text-3xl text-afs-ink-900 mb-1">Secure Checkout</h1>
-        <p className="font-body text-sm text-afs-ink-700 mb-8">Quote {quote.quote_number}</p>
+        <h1 className="font-heading text-3xl text-afs-chrome-high mb-1">Secure Checkout</h1>
+        <p className="font-body text-sm text-afs-chrome-mid mb-8">Quote {quote.quote_number}</p>
 
         <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-6 mb-6">
-          <h2 className="font-heading text-lg text-afs-ink-900 mb-4">1. Delivery Information</h2>
+          <h2 className="font-heading text-lg text-afs-chrome-high mb-4">1. Delivery Information</h2>
 
           <div className="grid grid-cols-2 gap-3 mb-4">
             <label
               className={`flex items-center gap-2 border rounded px-3 py-3 cursor-pointer font-label text-sm transition-colors ${
                 deliveryMethod === 'ship'
-                  ? 'border-afs-crimson bg-[var(--afs-crimson-ghost)] text-afs-ink-900'
-                  : 'border-afs-border text-afs-ink-700 hover:bg-afs-bg-surface'
+                  ? 'border-afs-crimson bg-[var(--afs-crimson-ghost)] text-afs-chrome-high'
+                  : 'border-afs-border text-afs-chrome-mid hover:bg-afs-bg-surface'
               }`}
             >
               <input
@@ -352,8 +352,8 @@ function CheckoutForm({
             <label
               className={`flex items-center gap-2 border rounded px-3 py-3 cursor-pointer font-label text-sm transition-colors ${
                 deliveryMethod === 'pickup'
-                  ? 'border-afs-crimson bg-[var(--afs-crimson-ghost)] text-afs-ink-900'
-                  : 'border-afs-border text-afs-ink-700 hover:bg-afs-bg-surface'
+                  ? 'border-afs-crimson bg-[var(--afs-crimson-ghost)] text-afs-chrome-high'
+                  : 'border-afs-border text-afs-chrome-mid hover:bg-afs-bg-surface'
               }`}
             >
               <input
@@ -385,7 +385,7 @@ function CheckoutForm({
                   required
                 />
               </div>
-              <label className="flex items-center gap-3 font-body text-sm text-afs-ink-700">
+              <label className="flex items-center gap-3 font-body text-sm text-afs-chrome-mid">
                 <input
                   type="checkbox"
                   checked={residential}
@@ -397,7 +397,7 @@ function CheckoutForm({
               </label>
               <div>
                 <label className={labelClass} htmlFor="po-number">
-                  PO Number <span className="normal-case text-afs-crimson">(optional)</span>
+                  PO Number <span className="normal-case text-afs-chrome-dim">(optional)</span>
                 </label>
                 <input
                   id="po-number"
@@ -411,7 +411,7 @@ function CheckoutForm({
             </div>
           ) : (
             <div className="flex flex-col gap-4">
-              <p className="font-body text-sm text-afs-ink-700">
+              <p className="font-body text-sm text-afs-chrome-mid">
                 You&apos;ll receive pickup scheduling instructions in your order confirmation.
               </p>
               <div className="grid grid-cols-2 gap-4">
@@ -449,14 +449,14 @@ function CheckoutForm({
         </div>
 
         <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-6 mb-6">
-          <h2 className="font-heading text-lg text-afs-ink-900 mb-4">2. Payment</h2>
+          <h2 className="font-heading text-lg text-afs-chrome-high mb-4">2. Payment</h2>
 
           <div className={`grid ${netTerms > 0 ? 'grid-cols-2' : 'grid-cols-1'} gap-3 mb-4`}>
             <label
               className={`flex items-center gap-2 border rounded px-3 py-3 cursor-pointer font-label text-sm transition-colors ${
                 paymentMethod === 'card'
-                  ? 'border-afs-crimson bg-[var(--afs-crimson-ghost)] text-afs-ink-900'
-                  : 'border-afs-border text-afs-ink-700 hover:bg-afs-bg-surface'
+                  ? 'border-afs-crimson bg-[var(--afs-crimson-ghost)] text-afs-chrome-high'
+                  : 'border-afs-border text-afs-chrome-mid hover:bg-afs-bg-surface'
               }`}
             >
               <input
@@ -473,8 +473,8 @@ function CheckoutForm({
               <label
                 className={`flex items-center gap-2 border rounded px-3 py-3 cursor-pointer font-label text-sm transition-colors ${
                   paymentMethod === 'net_terms'
-                    ? 'border-afs-crimson bg-[var(--afs-crimson-ghost)] text-afs-ink-900'
-                    : 'border-afs-border text-afs-ink-700 hover:bg-afs-bg-surface'
+                    ? 'border-afs-crimson bg-[var(--afs-crimson-ghost)] text-afs-chrome-high'
+                    : 'border-afs-border text-afs-chrome-mid hover:bg-afs-bg-surface'
                 }`}
               >
                 <input
@@ -519,7 +519,7 @@ function CheckoutForm({
               />
             </div>
           ) : (
-            <p className="font-body text-sm text-afs-ink-700">
+            <p className="font-body text-sm text-afs-chrome-mid">
               Invoiced on Net-{netTerms} terms. No payment required now — your order enters the
               fabrication queue immediately.
             </p>
@@ -527,9 +527,9 @@ function CheckoutForm({
         </div>
 
         <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-6 mb-6">
-          <h2 className="font-heading text-lg text-afs-ink-900 mb-4">3. Legal Acceptance</h2>
+          <h2 className="font-heading text-lg text-afs-chrome-high mb-4">3. Legal Acceptance</h2>
           <div className="flex flex-col gap-3">
-            <label className="flex items-start gap-3 font-body text-sm text-afs-ink-700">
+            <label className="flex items-start gap-3 font-body text-sm text-afs-chrome-mid">
               <input
                 type="checkbox"
                 checked={acceptTerms}
@@ -540,7 +540,7 @@ function CheckoutForm({
               />
               I have reviewed and accept the AFS Terms of Sale.
             </label>
-            <label className="flex items-start gap-3 font-body text-sm text-afs-ink-700">
+            <label className="flex items-start gap-3 font-body text-sm text-afs-chrome-mid">
               <input
                 type="checkbox"
                 checked={noReturns}
@@ -551,7 +551,7 @@ function CheckoutForm({
               />
               I understand that custom fabricated items cannot be returned once production begins.
             </label>
-            <label className="flex items-start gap-3 font-body text-sm text-afs-ink-700">
+            <label className="flex items-start gap-3 font-body text-sm text-afs-chrome-mid">
               <input
                 type="checkbox"
                 checked={specsFinal}
@@ -581,14 +581,14 @@ function CheckoutForm({
 
       <div className="lg:sticky lg:top-6 h-fit">
         <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-6">
-          <h2 className="font-heading text-lg text-afs-ink-900 mb-4">Order Summary</h2>
+          <h2 className="font-heading text-lg text-afs-chrome-high mb-4">Order Summary</h2>
           <div className="flex flex-col gap-2 mb-4">
             {lineItems.map((item) => (
-              <div key={item.id} className="flex justify-between font-body text-xs text-afs-ink-700 gap-3">
+              <div key={item.id} className="flex justify-between font-body text-xs text-afs-chrome-mid gap-3">
                 <span className="truncate">
                   {item.description} ({item.quantity} {item.unit})
                 </span>
-                <span className="font-data text-afs-ink-900 whitespace-nowrap">
+                <span className="font-data text-afs-chrome-high whitespace-nowrap">
                   {currency.format(item.line_total)}
                 </span>
               </div>
@@ -596,33 +596,33 @@ function CheckoutForm({
           </div>
           <dl className="flex flex-col gap-2 font-body text-sm border-t border-afs-chrome-dim pt-3">
             <div className="flex justify-between">
-              <dt className="text-afs-ink-700">Subtotal</dt>
-              <dd className="font-data text-afs-ink-900">{currency.format(quote.subtotal)}</dd>
+              <dt className="text-afs-chrome-mid">Subtotal</dt>
+              <dd className="font-data text-afs-chrome-high">{currency.format(quote.subtotal)}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-afs-ink-700">Freight</dt>
-              <dd className="font-data text-afs-ink-900">
+              <dt className="text-afs-chrome-mid">Freight</dt>
+              <dd className="font-data text-afs-chrome-high">
                 {quote.freight != null ? currency.format(quote.freight) : '—'}
               </dd>
             </div>
             {quote.rush_surcharge > 0 && (
               <div className="flex justify-between">
-                <dt className="text-afs-ink-700">Rush Surcharge</dt>
-                <dd className="font-data text-afs-ink-900">{currency.format(quote.rush_surcharge)}</dd>
+                <dt className="text-afs-chrome-mid">Rush Surcharge</dt>
+                <dd className="font-data text-afs-chrome-high">{currency.format(quote.rush_surcharge)}</dd>
               </div>
             )}
             <div className="flex justify-between">
-              <dt className="text-afs-ink-700">Tax</dt>
-              <dd className="font-data text-afs-ink-900">
+              <dt className="text-afs-chrome-mid">Tax</dt>
+              <dd className="font-data text-afs-chrome-high">
                 {quote.tax != null ? currency.format(quote.tax) : '—'}
               </dd>
             </div>
             <div className="flex justify-between border-t border-afs-chrome-dim pt-2 mt-1">
-              <dt className="font-label text-afs-ink-900 font-semibold">Total</dt>
+              <dt className="font-label text-afs-chrome-high font-semibold">Total</dt>
               <dd className="font-data text-lg text-afs-crimson">{currency.format(quote.total)}</dd>
             </div>
           </dl>
-          <p className="font-body text-xs text-afs-ink-700 mt-4">
+          <p className="font-body text-xs text-afs-chrome-dim mt-4">
             Prices set by AFS and confirmed in your quote.
           </p>
         </div>

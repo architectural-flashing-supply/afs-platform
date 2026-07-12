@@ -131,7 +131,7 @@ export default function CADLibraryBrowser({
       </div>
 
       {!hasRevitFiles && (
-        <p className="font-body text-xs text-afs-ink-700 text-center mt-10">
+        <p className="font-body text-xs text-afs-chrome-dim text-center mt-10">
           Revit Families — Coming Soon
         </p>
       )}

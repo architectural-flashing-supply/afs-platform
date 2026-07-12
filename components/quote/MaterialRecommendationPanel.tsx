@@ -65,10 +65,10 @@ export default function MaterialRecommendationPanel({
 
   return (
     <div className="bg-afs-bg-surface border border-afs-border rounded p-6 mt-6">
-      <p className="font-label text-xs uppercase tracking-wide text-afs-ink-700 mb-3">
+      <p className="font-label text-xs uppercase tracking-wide text-afs-chrome-base mb-3">
         Material Guidance
       </p>
-      <p className="font-body text-sm text-afs-ink-700 mb-5">{result.message}</p>
+      <p className="font-body text-sm text-afs-chrome-mid mb-5">{result.message}</p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         {result.alternatives.map((alt) => (
@@ -77,12 +77,12 @@ export default function MaterialRecommendationPanel({
             className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-4 flex flex-col"
           >
             <div className="flex items-center justify-between mb-2">
-              <span className="font-heading text-base text-afs-ink-900">{alt.material}</span>
-              <span className="font-label text-xs uppercase text-afs-ink-700 border border-afs-chrome-dim rounded px-2 py-0.5">
+              <span className="font-heading text-base text-afs-chrome-high">{alt.material}</span>
+              <span className="font-label text-xs uppercase text-afs-chrome-dim border border-afs-chrome-dim rounded px-2 py-0.5">
                 {STOCK_TYPE_LABEL[alt.stockStatus]}
               </span>
             </div>
-            <p className="font-body text-sm text-afs-ink-700 mb-4">{alt.reason}</p>
+            <p className="font-body text-sm text-afs-chrome-mid mb-4">{alt.reason}</p>
             <button
               type="button"
               onClick={() => onSelectAlternative(alt.material)}
@@ -97,7 +97,7 @@ export default function MaterialRecommendationPanel({
       <button
         type="button"
         onClick={() => setDismissed(true)}
-        className="font-body text-xs text-afs-ink-700 hover:text-afs-crimson transition-colors"
+        className="font-body text-xs text-afs-chrome-mid hover:text-afs-crimson transition-colors"
       >
         Keep My Selection
       </button>

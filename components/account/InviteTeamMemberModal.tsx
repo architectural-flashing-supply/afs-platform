@@ -88,11 +88,11 @@ export default function InviteTeamMemberModal() {
         >
           <div className="w-full max-w-[520px] bg-afs-bg-raised border border-afs-chrome-dim rounded metal-edge p-6">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="font-heading text-xl text-afs-ink-900">Invite Team Member</h2>
+              <h2 className="font-heading text-xl text-afs-chrome-high">Invite Team Member</h2>
               <button
                 type="button"
                 onClick={resetAndClose}
-                className="text-afs-ink-700 hover:text-afs-ink-900"
+                className="text-afs-chrome-mid hover:text-afs-chrome-high"
                 aria-label="Close"
               >
                 ✕
@@ -101,10 +101,10 @@ export default function InviteTeamMemberModal() {
 
             {inviteUrl ? (
               <div className="flex flex-col gap-4" data-testid="invite-success">
-                <p className="font-body text-sm text-afs-ink-700">
+                <p className="font-body text-sm text-afs-chrome-mid">
                   Invitation created. Share this link with them to join your team — it expires in 7 days.
                 </p>
-                <div className="bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 font-data text-xs text-afs-ink-900 break-all">
+                <div className="bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 font-data text-xs text-afs-chrome-high break-all">
                   {inviteUrl}
                 </div>
                 <div className="flex justify-end">
@@ -120,7 +120,7 @@ export default function InviteTeamMemberModal() {
             ) : (
               <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                 <div>
-                  <label htmlFor="invite-email" className="font-label text-xs uppercase tracking-wide text-afs-ink-700 block mb-1.5">
+                  <label htmlFor="invite-email" className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-1.5">
                     Email
                   </label>
                   <input
@@ -129,19 +129,19 @@ export default function InviteTeamMemberModal() {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-ink-900 focus:border-afs-crimson outline-none font-body"
+                    className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body"
                     placeholder="teammate@company.com"
                   />
                 </div>
                 <div>
-                  <label htmlFor="invite-role" className="font-label text-xs uppercase tracking-wide text-afs-ink-700 block mb-1.5">
+                  <label htmlFor="invite-role" className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-1.5">
                     Role
                   </label>
                   <select
                     id="invite-role"
                     value={role}
                     onChange={(e) => setRole(e.target.value as CompanyRole)}
-                    className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-ink-900 focus:border-afs-crimson outline-none font-body"
+                    className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body"
                   >
                     {ROLE_OPTIONS.map((opt) => (
                       <option key={opt.value} value={opt.value}>
@@ -151,15 +151,15 @@ export default function InviteTeamMemberModal() {
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="invite-message" className="font-label text-xs uppercase tracking-wide text-afs-ink-700 block mb-1.5">
-                    Personal Message <span className="normal-case text-afs-crimson">(optional)</span>
+                  <label htmlFor="invite-message" className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-1.5">
+                    Personal Message <span className="normal-case text-afs-chrome-dim">(optional)</span>
                   </label>
                   <textarea
                     id="invite-message"
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                     rows={2}
-                    className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-ink-900 focus:border-afs-crimson outline-none font-body resize-y"
+                    className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body resize-y"
                   />
                 </div>
 
@@ -169,7 +169,7 @@ export default function InviteTeamMemberModal() {
                   <button
                     type="button"
                     onClick={resetAndClose}
-                    className="border border-afs-border text-afs-ink-700 hover:bg-afs-bg-surface font-label font-semibold px-5 py-2.5 rounded text-sm transition-colors"
+                    className="border border-afs-border text-afs-chrome-mid hover:bg-afs-bg-surface font-label font-semibold px-5 py-2.5 rounded text-sm transition-colors"
                   >
                     Cancel
                   </button>

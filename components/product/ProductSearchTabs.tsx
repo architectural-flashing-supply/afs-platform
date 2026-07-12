@@ -26,7 +26,7 @@ export default function ProductSearchTabs({ categories }: { categories: CatalogC
             className={`font-label text-sm font-semibold px-6 py-2.5 rounded transition-colors ${
               mode === tab.mode
                 ? 'bg-afs-crimson text-white'
-                : 'border border-afs-border text-afs-ink-700 hover:bg-afs-bg-surface'
+                : 'border border-afs-border text-afs-chrome-mid hover:bg-afs-bg-surface'
             }`}
           >
             {tab.label}

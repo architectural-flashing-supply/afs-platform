@@ -88,16 +88,16 @@ export default function CADFileCard({ file, isAuthenticated }: CADFileCardProps)
         <div className="flex items-center justify-between mb-3">
           <Badge variant={FORMAT_BADGE_VARIANT[file.format]}>{FORMAT_LABEL[file.format]}</Badge>
           {isRevit && file.revitVersion && (
-            <span className="font-data text-xs text-afs-ink-700">Revit {file.revitVersion}</span>
+            <span className="font-data text-xs text-afs-chrome-dim">Revit {file.revitVersion}</span>
           )}
         </div>
 
-        <h3 className="font-heading text-lg text-afs-ink-900 mb-1">{file.profileName}</h3>
+        <h3 className="font-heading text-lg text-afs-chrome-high mb-1">{file.profileName}</h3>
         {file.description && (
-          <p className="font-body text-sm text-afs-ink-700 mb-4 line-clamp-2">{file.description}</p>
+          <p className="font-body text-sm text-afs-chrome-mid mb-4 line-clamp-2">{file.description}</p>
         )}
 
-        <div className="flex items-center gap-3 flex-wrap font-data text-xs text-afs-ink-700 mb-5">
+        <div className="flex items-center gap-3 flex-wrap font-data text-xs text-afs-chrome-dim mb-5">
           {file.fileSizeBytes != null && <span>{formatFileSize(file.fileSizeBytes)}</span>}
           {file.version && <span>v{file.version}</span>}
           <span>
@@ -108,7 +108,7 @@ export default function CADFileCard({ file, isAuthenticated }: CADFileCardProps)
         <div className="mt-auto">
           {showSignIn ? (
             <div className="bg-afs-bg-surface border border-afs-chrome-dim rounded p-3">
-              <p className="font-body text-xs text-afs-ink-700 mb-3">
+              <p className="font-body text-xs text-afs-chrome-mid mb-3">
                 Sign in to download technical drawings.
               </p>
               <div className="flex gap-2">
@@ -120,7 +120,7 @@ export default function CADFileCard({ file, isAuthenticated }: CADFileCardProps)
                 </Link>
                 <Link
                   href="/register"
-                  className="flex-1 text-center border border-afs-border text-afs-ink-700 hover:bg-afs-bg-overlay font-label text-xs font-semibold px-3 py-2 rounded transition-colors"
+                  className="flex-1 text-center border border-afs-border text-afs-chrome-mid hover:bg-afs-bg-overlay font-label text-xs font-semibold px-3 py-2 rounded transition-colors"
                 >
                   Create Account
                 </Link>

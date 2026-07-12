@@ -70,7 +70,7 @@ export default function AIInstallationAdvisor({ profileSlug, profileName }: AIIn
       <p className="font-label text-afs-copper text-sm tracking-widest uppercase mb-3">
         Have a Question About This Installation?
       </p>
-      <p className="font-body text-afs-ink-700 text-base mb-6">
+      <p className="font-body text-afs-chrome-mid text-base mb-6">
         Ask our AI advisor — trained on AFS fabrication practices and SMACNA standards.
       </p>
 
@@ -85,10 +85,10 @@ export default function AIInstallationAdvisor({ profileSlug, profileName }: AIIn
                   : 'bg-afs-bg-raised border-afs-copper mr-8'
               }`}
             >
-              <p className="font-label text-xs uppercase tracking-wide text-afs-crimson mb-1">
+              <p className="font-label text-xs uppercase tracking-wide text-afs-chrome-dim mb-1">
                 {message.role === 'user' ? 'You' : 'AFS Installation Advisor'}
               </p>
-              <p className="font-body text-sm text-afs-ink-900 whitespace-pre-line">{message.content}</p>
+              <p className="font-body text-sm text-afs-chrome-high whitespace-pre-line">{message.content}</p>
             </div>
           ))}
         </div>
@@ -98,7 +98,7 @@ export default function AIInstallationAdvisor({ profileSlug, profileName }: AIIn
 
       {limitReached ? (
         <div className="bg-afs-bg-surface border border-afs-chrome-dim rounded p-4 text-center">
-          <p className="font-body text-sm text-afs-ink-700 mb-3">
+          <p className="font-body text-sm text-afs-chrome-mid mb-3">
             You&apos;ve reached the limit for this conversation.
           </p>
           <button
@@ -119,7 +119,7 @@ export default function AIInstallationAdvisor({ profileSlug, profileName }: AIIn
               if (e.key === 'Enter') ask();
             }}
             placeholder="Your installation question..."
-            className="flex-1 min-w-[240px] bg-afs-bg-overlay border border-afs-border rounded px-4 py-3 font-body text-sm text-afs-ink-900 placeholder:text-afs-ink-700 focus:outline-none focus:border-afs-copper transition-colors"
+            className="flex-1 min-w-[240px] bg-afs-bg-overlay border border-afs-border rounded px-4 py-3 font-body text-sm text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-copper transition-colors"
           />
           <button
             type="button"
@@ -136,7 +136,7 @@ export default function AIInstallationAdvisor({ profileSlug, profileName }: AIIn
         <button
           type="button"
           onClick={startNewQuestion}
-          className="font-body text-xs text-afs-ink-700 hover:text-afs-copper transition-colors mt-4"
+          className="font-body text-xs text-afs-chrome-mid hover:text-afs-copper transition-colors mt-4"
         >
           Start New Question
         </button>

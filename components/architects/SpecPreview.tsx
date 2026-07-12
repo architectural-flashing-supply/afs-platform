@@ -61,7 +61,7 @@ export default function SpecPreview({ spec, isSoleSource, onStartOver }: SpecPre
     const part = editableSpec[partKey];
     return (
       <section key={partKey} className="mb-8">
-        <h3 className="font-heading text-xl text-afs-ink-900 mb-4 uppercase tracking-wide">
+        <h3 className="font-heading text-xl text-afs-chrome-high mb-4 uppercase tracking-wide">
           {PART_LABEL[partKey]} — {part.title}
         </h3>
         <div className="space-y-5">
@@ -75,7 +75,7 @@ export default function SpecPreview({ spec, isSoleSource, onStartOver }: SpecPre
                 value={article.content}
                 onChange={(e) => updateArticle(partKey, idx, e.target.value)}
                 rows={Math.min(12, Math.max(3, Math.ceil(article.content.length / 80)))}
-                className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2 font-body text-sm text-afs-ink-900 focus:outline-none focus:border-afs-copper transition-colors resize-y"
+                className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2 font-body text-sm text-afs-chrome-high focus:outline-none focus:border-afs-copper transition-colors resize-y"
               />
             </div>
           ))}
@@ -89,10 +89,10 @@ export default function SpecPreview({ spec, isSoleSource, onStartOver }: SpecPre
       <div className="flex items-start justify-between flex-wrap gap-4 mb-8">
         <div>
           <p className="font-label text-afs-copper text-xs tracking-widest uppercase mb-2">Generated Specification</p>
-          <h2 className="font-heading text-2xl text-afs-ink-900">
+          <h2 className="font-heading text-2xl text-afs-chrome-high">
             {editableSpec.csiSection} — {editableSpec.csiTitle}
           </h2>
-          <p className="font-body text-xs text-afs-ink-700 mt-2">
+          <p className="font-body text-xs text-afs-chrome-dim mt-2">
             DRAFT — verify with AFS before use in contract documents.
           </p>
         </div>
@@ -112,8 +112,8 @@ export default function SpecPreview({ spec, isSoleSource, onStartOver }: SpecPre
             }}
             className={`font-label font-semibold px-5 py-2.5 rounded text-sm transition-colors border ${
               savedId
-                ? 'border-afs-border bg-afs-bg-overlay text-afs-ink-900 hover:bg-afs-bg-surface'
-                : 'border-afs-chrome-dim text-afs-ink-700 cursor-not-allowed'
+                ? 'border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface'
+                : 'border-afs-chrome-dim text-afs-chrome-dim cursor-not-allowed'
             }`}
           >
             Download DOCX
@@ -121,7 +121,7 @@ export default function SpecPreview({ spec, isSoleSource, onStartOver }: SpecPre
           <button
             type="button"
             onClick={onStartOver}
-            className="font-body text-xs text-afs-ink-700 hover:text-afs-copper transition-colors"
+            className="font-body text-xs text-afs-chrome-mid hover:text-afs-copper transition-colors"
           >
             Start Over
           </button>
@@ -130,7 +130,7 @@ export default function SpecPreview({ spec, isSoleSource, onStartOver }: SpecPre
 
       {saveError && <p className="font-body text-sm text-afs-crimson mb-6">{saveError}</p>}
       {!savedId && saveState !== 'saving' && (
-        <p className="font-body text-xs text-afs-ink-700 mb-6">Save to your account to enable DOCX download.</p>
+        <p className="font-body text-xs text-afs-chrome-dim mb-6">Save to your account to enable DOCX download.</p>
       )}
 
       {renderPart('part1')}

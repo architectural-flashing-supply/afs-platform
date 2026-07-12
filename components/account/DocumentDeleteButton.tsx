@@ -28,7 +28,7 @@ export default function DocumentDeleteButton({ documentId, filename }: DocumentD
       type="button"
       onClick={handleDelete}
       disabled={loading}
-      className="font-label text-xs text-afs-ink-700 hover:text-afs-crimson transition-colors disabled:opacity-50"
+      className="font-label text-xs text-afs-chrome-mid hover:text-afs-crimson transition-colors disabled:opacity-50"
     >
       {loading ? 'Deleting…' : 'Delete'}
     </button>

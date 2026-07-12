@@ -2,10 +2,10 @@ import Image from 'next/image';
 import Link from 'next/link';
 
 export const authInputClass =
-  'w-full bg-afs-bg-overlay border border-afs-border rounded px-4 py-3 text-afs-ink-900 font-body text-sm placeholder:text-afs-ink-700 focus:border-afs-crimson outline-none transition-colors';
+  'w-full bg-afs-bg-overlay border border-afs-border rounded px-4 py-3 text-afs-chrome-high font-body text-sm placeholder:text-afs-chrome-dim focus:border-afs-crimson outline-none transition-colors';
 
 export const authLabelClass =
-  'block font-label text-xs uppercase tracking-widest text-afs-crimson mb-2';
+  'block font-label text-xs uppercase tracking-widest text-afs-chrome-mid mb-2';
 
 export const authButtonClass =
   'w-full bg-afs-crimson hover:bg-afs-crimson-hover disabled:bg-afs-crimson-dim disabled:cursor-not-allowed text-white font-label font-semibold text-sm rounded px-6 py-3 transition-colors';

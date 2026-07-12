@@ -41,7 +41,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${bebasNeue.variable} ${barlowCondensed.variable} ${barlow.variable} ${inter.variable} ${jetbrainsMono.variable}`}>
-      <body className="bg-afs-bg-base text-afs-ink-700 font-body">
+      <body className="bg-afs-bg-base text-afs-chrome-mid font-body">
         <AppChrome>{children}</AppChrome>
       </body>
     </html>

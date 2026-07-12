@@ -77,8 +77,8 @@ export default async function AccountDocumentsPage({
     <div className="max-w-[1100px] mx-auto">
       <div className="flex items-start justify-between gap-6 mb-8 flex-wrap">
         <div>
-          <h1 className="font-heading text-3xl text-afs-ink-900">Project Documents</h1>
-          <p className="font-body text-sm text-afs-ink-700 mt-1">
+          <h1 className="font-heading text-3xl text-afs-chrome-high">Project Documents</h1>
+          <p className="font-body text-sm text-afs-chrome-mid mt-1">
             Drawings, specs, submittals, and RFIs — organized by project and folder.
           </p>
         </div>
@@ -91,8 +91,8 @@ export default async function AccountDocumentsPage({
             href={buildProjectHref('')}
             className={`font-label text-sm px-4 py-2 rounded border transition-colors ${
               !selectedProjectId
-                ? 'border-afs-crimson bg-[var(--afs-crimson-ghost)] text-afs-ink-900'
-                : 'border-afs-chrome-dim text-afs-ink-700 hover:bg-afs-bg-surface'
+                ? 'border-afs-crimson bg-[var(--afs-crimson-ghost)] text-afs-chrome-high'
+                : 'border-afs-chrome-dim text-afs-chrome-mid hover:bg-afs-bg-surface'
             }`}
           >
             All Projects
@@ -103,8 +103,8 @@ export default async function AccountDocumentsPage({
               href={buildProjectHref(p.id)}
               className={`font-label text-sm px-4 py-2 rounded border transition-colors ${
                 selectedProjectId === p.id
-                  ? 'border-afs-crimson bg-[var(--afs-crimson-ghost)] text-afs-ink-900'
-                  : 'border-afs-chrome-dim text-afs-ink-700 hover:bg-afs-bg-surface'
+                  ? 'border-afs-crimson bg-[var(--afs-crimson-ghost)] text-afs-chrome-high'
+                  : 'border-afs-chrome-dim text-afs-chrome-mid hover:bg-afs-bg-surface'
               }`}
             >
               {p.name}
@@ -115,8 +115,8 @@ export default async function AccountDocumentsPage({
 
       {documents.length === 0 ? (
         <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-12 text-center">
-          <h3 className="font-heading text-xl text-afs-ink-900 mb-2">No documents yet.</h3>
-          <p className="font-body text-sm text-afs-ink-700 mb-6 max-w-md mx-auto">
+          <h3 className="font-heading text-xl text-afs-chrome-high mb-2">No documents yet.</h3>
+          <p className="font-body text-sm text-afs-chrome-mid mb-6 max-w-md mx-auto">
             Upload drawings, specs, and submittals to keep everything organized.
           </p>
           <div className="flex justify-center">
@@ -127,8 +127,8 @@ export default async function AccountDocumentsPage({
         <div className="flex flex-col gap-8">
           {sortedFolderNames.map((folderName) => (
             <div key={folderName}>
-              <h2 className="font-heading text-sm uppercase tracking-wide text-afs-ink-700 mb-3">
-                {folderName} <span className="font-data text-xs text-afs-ink-700">({folders.get(folderName)!.length})</span>
+              <h2 className="font-heading text-sm uppercase tracking-wide text-afs-chrome-mid mb-3">
+                {folderName} <span className="font-data text-xs text-afs-chrome-dim">({folders.get(folderName)!.length})</span>
               </h2>
               <ul className="flex flex-col gap-2">
                 {folders.get(folderName)!.map((doc) => (
@@ -137,10 +137,10 @@ export default async function AccountDocumentsPage({
                     className="flex items-center justify-between gap-4 bg-afs-bg-raised border border-afs-chrome-dim rounded px-4 py-3"
                   >
                     <div className="min-w-0">
-                      <p className="font-body text-sm text-afs-ink-900 truncate" title={doc.filename}>
+                      <p className="font-body text-sm text-afs-chrome-high truncate" title={doc.filename}>
                         {doc.filename}
                       </p>
-                      <p className="font-data text-xs text-afs-ink-700">
+                      <p className="font-data text-xs text-afs-chrome-dim">
                         {doc.file_type.replace('.', '').toUpperCase()} · {formatFileSize(doc.file_size_bytes)} ·{' '}
                         {formatDate(doc.created_at)}
                       </p>

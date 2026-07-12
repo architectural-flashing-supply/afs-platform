@@ -16,8 +16,8 @@ interface InvitationRow {
 function InvalidInvite({ title, description }: { title: string; description: string }) {
   return (
     <div className="text-center">
-      <h1 className="font-heading text-2xl font-bold text-afs-ink-900 mb-3">{title}</h1>
-      <p className="font-body text-sm text-afs-ink-700 mb-8">{description}</p>
+      <h1 className="font-heading text-2xl font-bold text-afs-chrome-high mb-3">{title}</h1>
+      <p className="font-body text-sm text-afs-chrome-mid mb-8">{description}</p>
       <Link
         href="/login"
         className="inline-block bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label font-semibold text-sm rounded px-6 py-3 transition-colors"

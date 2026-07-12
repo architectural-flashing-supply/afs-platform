@@ -97,21 +97,21 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
 
   return (
     <div className="max-w-[1100px] mx-auto">
-      <Link href="/account/projects" className="font-label text-xs text-afs-ink-700 hover:text-afs-crimson">
+      <Link href="/account/projects" className="font-label text-xs text-afs-chrome-mid hover:text-afs-crimson">
         ← Back to My Projects
       </Link>
 
       <div className="flex items-start justify-between gap-6 mt-2 mb-8 flex-wrap">
         <div>
           <div className="flex items-center gap-3 mb-2">
-            <h1 className="font-heading text-3xl text-afs-ink-900">{project.name}</h1>
+            <h1 className="font-heading text-3xl text-afs-chrome-high">{project.name}</h1>
             <Badge variant={STATUS_VARIANT[project.status]} size="md">
               {STATUS_LABEL[project.status]}
             </Badge>
           </div>
-          {project.description && <p className="font-body text-sm text-afs-ink-700 mb-1 max-w-xl">{project.description}</p>}
+          {project.description && <p className="font-body text-sm text-afs-chrome-mid mb-1 max-w-xl">{project.description}</p>}
           {project.jobsite_address && (
-            <p className="font-data text-xs text-afs-ink-700">{project.jobsite_address}</p>
+            <p className="font-data text-xs text-afs-chrome-dim">{project.jobsite_address}</p>
           )}
         </div>
         <div className="flex flex-col items-end gap-3">
@@ -136,7 +136,7 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
         </Link>
         <Link
           href={`/upload?project=${project.id}`}
-          className="border border-afs-border bg-afs-bg-overlay text-afs-ink-900 hover:bg-afs-bg-surface font-label font-semibold px-5 py-2.5 rounded text-sm transition-colors"
+          className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label font-semibold px-5 py-2.5 rounded text-sm transition-colors"
         >
           Upload Drawing
         </Link>

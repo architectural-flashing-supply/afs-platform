@@ -36,10 +36,10 @@ export default function AboutPage() {
       {/* Hero */}
       <section className="metal-edge metal-edge-red px-6 pt-20 pb-16 text-center border-b border-afs-border">
         <p className="font-label text-afs-crimson text-sm tracking-widest uppercase mb-3">About AFS</p>
-        <h1 className="font-display text-6xl md:text-[6rem] text-afs-ink-900 leading-none mb-6">
+        <h1 className="font-display text-6xl md:text-[6rem] text-afs-chrome-high leading-none mb-6">
           BUILT BY ARTISANS
         </h1>
-        <p className="font-body text-afs-ink-700 text-xl max-w-2xl mx-auto">
+        <p className="font-body text-afs-chrome-mid text-xl max-w-2xl mx-auto">
           Founded by artisans with a vision for excellence. Decades of expertise in custom metal fabrication.
         </p>
       </section>
@@ -47,14 +47,14 @@ export default function AboutPage() {
       {/* Story + photography placeholder */}
       <section className="max-w-[1280px] mx-auto px-6 py-16 grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
         <div>
-          <h2 className="font-heading text-3xl font-bold text-afs-ink-900 mb-4">Our Story</h2>
-          <p className="font-body text-base text-afs-ink-700 leading-relaxed mb-4">
+          <h2 className="font-heading text-3xl font-bold text-afs-chrome-high mb-4">Our Story</h2>
+          <p className="font-body text-base text-afs-chrome-mid leading-relaxed mb-4">
             Founded by artisans with a vision for excellence, AFS has spent decades building a reputation for
             precision custom metal fabrication. What started as hands-on sheet metal craft has grown into a
             full-scale operation without losing the standard that built it: every piece fabricated to exact
             specification, every order treated like the only one on the shop floor.
           </p>
-          <p className="font-body text-base text-afs-ink-700 leading-relaxed">
+          <p className="font-body text-base text-afs-chrome-mid leading-relaxed">
             Today AFS fabricates coping caps, base flashing, counter flashing, step flashing, drip edge, gravel
             stop, and custom architectural profiles in copper, aluminum, galvanized steel, stainless, and
             Galvalume &mdash; built to SMACNA standards and shipped nationwide.
@@ -64,7 +64,7 @@ export default function AboutPage() {
           className="h-80 rounded metal-edge metal-edge-red bg-gradient-to-br from-afs-bg-surface via-afs-bg-raised to-afs-bg-dim border border-afs-border flex items-center justify-center"
           aria-hidden="true"
         >
-          <span className="font-label text-xs text-afs-ink-700 uppercase tracking-widest">
+          <span className="font-label text-xs text-afs-chrome-dim uppercase tracking-widest">
             Shop Photography Coming Soon
           </span>
         </div>
@@ -73,10 +73,10 @@ export default function AboutPage() {
       {/* Equipment */}
       <section className="bg-afs-bg-raised border-y border-afs-border">
         <div className="max-w-[1280px] mx-auto px-6 py-16">
-          <h2 className="font-heading text-3xl font-bold text-afs-ink-900 text-center mb-2">
+          <h2 className="font-heading text-3xl font-bold text-afs-chrome-high text-center mb-2">
             Fabrication Equipment
           </h2>
-          <p className="font-body text-sm text-afs-ink-700 text-center max-w-xl mx-auto mb-12">
+          <p className="font-body text-sm text-afs-chrome-mid text-center max-w-xl mx-auto mb-12">
             Precision equipment built for custom work, not a fixed catalog.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -88,8 +88,8 @@ export default function AboutPage() {
                 <span className="inline-block font-label text-xs text-afs-crimson uppercase tracking-widest border border-afs-crimson rounded px-2 py-1 mb-4">
                   {item.detail}
                 </span>
-                <h3 className="font-heading text-xl text-afs-ink-900 mb-3">{item.name}</h3>
-                <p className="font-body text-sm text-afs-ink-700 leading-relaxed">{item.body}</p>
+                <h3 className="font-heading text-xl text-afs-chrome-high mb-3">{item.name}</h3>
+                <p className="font-body text-sm text-afs-chrome-mid leading-relaxed">{item.body}</p>
               </div>
             ))}
           </div>
@@ -98,17 +98,17 @@ export default function AboutPage() {
 
       {/* Supplier partners */}
       <section className="max-w-[1280px] mx-auto px-6 py-16">
-        <h2 className="font-heading text-3xl font-bold text-afs-ink-900 text-center mb-2">
+        <h2 className="font-heading text-3xl font-bold text-afs-chrome-high text-center mb-2">
           Material Partners
         </h2>
-        <p className="font-body text-sm text-afs-ink-700 text-center max-w-xl mx-auto mb-12">
+        <p className="font-body text-sm text-afs-chrome-mid text-center max-w-xl mx-auto mb-12">
           AFS sources and fabricates using material from leading manufacturers.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-x-12 gap-y-6">
           {SUPPLIERS.map((supplier) => (
             <span
               key={supplier}
-              className="font-heading text-xl md:text-2xl text-afs-ink-700 hover:text-afs-ink-900 transition-colors"
+              className="font-heading text-xl md:text-2xl text-afs-chrome-base hover:text-afs-chrome-high transition-colors"
             >
               {supplier}
             </span>

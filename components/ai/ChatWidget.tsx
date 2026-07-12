@@ -178,12 +178,12 @@ export default function ChatWidget() {
   return (
     <div className="fixed bottom-6 right-6 z-50 w-[380px] h-[520px] max-w-[calc(100vw-2rem)] bg-afs-bg-raised border border-afs-border rounded shadow-raised metal-edge flex flex-col overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b border-afs-border bg-afs-bg-raised">
-        <p className="font-heading text-lg font-semibold text-afs-ink-900">AFS Support</p>
+        <p className="font-heading text-lg font-semibold text-afs-chrome-high">AFS Support</p>
         <button
           type="button"
           onClick={() => setExpanded(false)}
           aria-label="Close chat"
-          className="text-afs-ink-700 hover:text-afs-ink-900 transition-colors text-xl leading-none px-1"
+          className="text-afs-chrome-mid hover:text-afs-chrome-high transition-colors text-xl leading-none px-1"
         >
           &times;
         </button>
@@ -191,7 +191,7 @@ export default function ChatWidget() {
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
         {messages.length === 0 && (
-          <p className="font-body text-sm text-afs-ink-700">
+          <p className="font-body text-sm text-afs-chrome-mid">
             Ask about products, ordering, or your account. For pricing, submit a quote request and our estimators will follow up.
           </p>
         )}
@@ -213,8 +213,8 @@ export default function ChatWidget() {
               <div
                 className={`rounded px-4 py-2.5 font-body text-sm whitespace-pre-line ${
                   message.role === 'user'
-                    ? 'bg-afs-bg-overlay text-afs-ink-900 ml-8'
-                    : 'bg-afs-bg-surface border border-afs-border text-afs-ink-900 mr-8'
+                    ? 'bg-afs-bg-overlay text-afs-chrome-high ml-8'
+                    : 'bg-afs-bg-surface border border-afs-border text-afs-chrome-high mr-8'
                 }`}
               >
                 {message.content}
@@ -237,7 +237,7 @@ export default function ChatWidget() {
           onKeyDown={handleKeyDown}
           placeholder="Type a message…"
           rows={1}
-          className="flex-1 resize-none bg-afs-bg-overlay border border-afs-border rounded px-3 py-2 font-body text-sm text-afs-ink-900 placeholder:text-afs-ink-700 focus:outline-none focus:border-afs-crimson transition-colors max-h-[120px]"
+          className="flex-1 resize-none bg-afs-bg-overlay border border-afs-border rounded px-3 py-2 font-body text-sm text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors max-h-[120px]"
         />
         <button
           type="button"

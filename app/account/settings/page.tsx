@@ -29,12 +29,12 @@ export default async function AccountSettingsPage() {
   return (
     <div className="max-w-[700px] mx-auto">
       <div className="mb-8">
-        <h1 className="font-heading text-3xl text-afs-ink-900">Settings</h1>
-        <p className="font-body text-sm text-afs-ink-700 mt-1">Manage your profile and notification preferences.</p>
+        <h1 className="font-heading text-3xl text-afs-chrome-high">Settings</h1>
+        <p className="font-body text-sm text-afs-chrome-mid mt-1">Manage your profile and notification preferences.</p>
       </div>
 
       <section className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-6 mb-6">
-        <h2 className="font-heading text-lg text-afs-ink-900 mb-4">Profile</h2>
+        <h2 className="font-heading text-lg text-afs-chrome-high mb-4">Profile</h2>
         <ProfileSettingsForm
           email={user.email ?? ''}
           initialFullName={profile?.full_name ?? ''}
@@ -44,7 +44,7 @@ export default async function AccountSettingsPage() {
       </section>
 
       <section className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-6 mb-6">
-        <h2 className="font-heading text-lg text-afs-ink-900 mb-4">Notification Preferences</h2>
+        <h2 className="font-heading text-lg text-afs-chrome-high mb-4">Notification Preferences</h2>
         <NotificationSettingsForm
           initialEmailOptIn={profile?.email_opt_in ?? true}
           initialSmsOptIn={profile?.sms_opt_in ?? false}
@@ -53,12 +53,12 @@ export default async function AccountSettingsPage() {
 
       <section className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-6 flex items-center justify-between gap-6 flex-wrap">
         <div>
-          <h2 className="font-heading text-lg text-afs-ink-900 mb-1">Password</h2>
-          <p className="font-body text-sm text-afs-ink-700">Send yourself a password reset link by email.</p>
+          <h2 className="font-heading text-lg text-afs-chrome-high mb-1">Password</h2>
+          <p className="font-body text-sm text-afs-chrome-mid">Send yourself a password reset link by email.</p>
         </div>
         <Link
           href="/forgot-password"
-          className="border border-afs-border bg-afs-bg-overlay text-afs-ink-900 hover:bg-afs-bg-surface font-label font-semibold px-5 py-2.5 rounded text-sm transition-colors whitespace-nowrap"
+          className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label font-semibold px-5 py-2.5 rounded text-sm transition-colors whitespace-nowrap"
         >
           Change Password
         </Link>

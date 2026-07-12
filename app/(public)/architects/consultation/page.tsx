@@ -58,9 +58,9 @@ const EMPTY_FORM: FormState = {
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const inputClass =
-  'w-full bg-afs-bg-overlay border border-afs-border rounded px-4 py-3 font-body text-sm text-afs-ink-900 placeholder:text-afs-ink-700 focus:outline-none focus:border-afs-copper transition-colors';
+  'w-full bg-afs-bg-overlay border border-afs-border rounded px-4 py-3 font-body text-sm text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-copper transition-colors';
 
-const labelClass = 'font-label text-xs uppercase tracking-wide text-afs-ink-700 mb-2 block';
+const labelClass = 'font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-2 block';
 
 export default function ConsultationPage() {
   const [step, setStep] = useState<Step>(1);
@@ -173,10 +173,10 @@ export default function ConsultationPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h2 className="font-heading text-3xl text-afs-ink-900 mb-3">Request Sent</h2>
-            <p className="font-body text-sm text-afs-ink-700 mb-8">
+            <h2 className="font-heading text-3xl text-afs-chrome-high mb-3">Request Sent</h2>
+            <p className="font-body text-sm text-afs-chrome-mid mb-8">
               We&apos;ll reach out within 1 business day to discuss{' '}
-              {form.projectName ? <span className="text-afs-ink-900">{form.projectName}</span> : 'your project'}.
+              {form.projectName ? <span className="text-afs-chrome-high">{form.projectName}</span> : 'your project'}.
             </p>
             <a
               href="/architects"
@@ -195,8 +195,8 @@ export default function ConsultationPage() {
       <div className="max-w-3xl mx-auto py-16 px-6">
         <div className="mb-10 text-center">
           <ArchitectEyebrow>Design Consultation</ArchitectEyebrow>
-          <h1 className="font-display text-6xl text-afs-ink-900 leading-none mb-4">TALK TO OUR TEAM</h1>
-          <p className="font-body text-afs-ink-700 text-base max-w-xl mx-auto">
+          <h1 className="font-display text-6xl text-afs-chrome-high leading-none mb-4">TALK TO OUR TEAM</h1>
+          <p className="font-body text-afs-chrome-mid text-base max-w-xl mx-auto">
             For projects that need more than a self-service quote — custom profiles, spec review, or budget
             estimates. We&apos;ll follow up within 1 business day.
           </p>
@@ -211,15 +211,15 @@ export default function ConsultationPage() {
                     step === s.n
                       ? 'border-afs-copper bg-afs-copper text-white'
                       : step > s.n
-                      ? 'border-afs-chrome-base bg-afs-bg-surface text-afs-ink-900'
-                      : 'border-afs-chrome-dim text-afs-ink-700'
+                      ? 'border-afs-chrome-base bg-afs-bg-surface text-afs-chrome-high'
+                      : 'border-afs-chrome-dim text-afs-chrome-dim'
                   }`}
                 >
                   {step > s.n ? '✓' : s.n}
                 </div>
                 <span
                   className={`font-label text-xs uppercase tracking-wide text-center ${
-                    step >= s.n ? 'text-afs-ink-900' : 'text-afs-ink-700'
+                    step >= s.n ? 'text-afs-chrome-high' : 'text-afs-chrome-dim'
                   }`}
                 >
                   {s.label}
@@ -235,7 +235,7 @@ export default function ConsultationPage() {
         <div className="bg-afs-bg-overlay border border-afs-chrome-dim rounded p-8 md:p-10">
           {step === 1 && (
             <div>
-              <h2 className="font-heading text-2xl text-afs-ink-900 mb-6">Contact &amp; Project</h2>
+              <h2 className="font-heading text-2xl text-afs-chrome-high mb-6">Contact &amp; Project</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
                   <label className={labelClass} htmlFor="name">Name</label>
@@ -277,7 +277,7 @@ export default function ConsultationPage() {
                     onChange={(e) => updateField('projectLocation', e.target.value)} placeholder="City, State" />
                 </div>
                 <div>
-                  <label className={labelClass} htmlFor="estimatedBidDate">Estimated Bid Date <span className="normal-case text-afs-crimson">(optional)</span></label>
+                  <label className={labelClass} htmlFor="estimatedBidDate">Estimated Bid Date <span className="normal-case text-afs-chrome-dim">(optional)</span></label>
                   <input id="estimatedBidDate" type="date" className={inputClass} value={form.estimatedBidDate}
                     onChange={(e) => updateField('estimatedBidDate', e.target.value)} />
                 </div>
@@ -287,7 +287,7 @@ export default function ConsultationPage() {
 
           {step === 2 && (
             <div>
-              <h2 className="font-heading text-2xl text-afs-ink-900 mb-6">What You Need Help With</h2>
+              <h2 className="font-heading text-2xl text-afs-chrome-high mb-6">What You Need Help With</h2>
               <span className={labelClass}>Topic</span>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-8">
                 {TOPICS.map((topic) => (
@@ -298,7 +298,7 @@ export default function ConsultationPage() {
                     className={`font-label text-sm px-4 py-3 rounded border text-left transition-colors ${
                       form.topic === topic
                         ? 'bg-afs-copper border-afs-copper text-white'
-                        : 'bg-afs-bg-overlay text-afs-ink-700 border-afs-border hover:bg-afs-bg-surface'
+                        : 'bg-afs-bg-overlay text-white border-afs-border hover:bg-afs-bg-surface'
                     }`}
                   >
                     {topic}
@@ -316,8 +316,8 @@ export default function ConsultationPage() {
 
           {step === 3 && (
             <div>
-              <h2 className="font-heading text-2xl text-afs-ink-900 mb-2">Upload Plans or Sketches</h2>
-              <p className="font-body text-sm text-afs-ink-700 mb-6">
+              <h2 className="font-heading text-2xl text-afs-chrome-high mb-2">Upload Plans or Sketches</h2>
+              <p className="font-body text-sm text-afs-chrome-mid mb-6">
                 Optional. Upload plans, sketches, or existing specs. Up to {MAX_FILES} files, 25MB each.
                 Accepted: PDF, DWG, DXF, images.
               </p>
@@ -326,7 +326,7 @@ export default function ConsultationPage() {
                 <svg className="w-8 h-8 text-afs-copper" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M12 12v9m0-9l-3 3m3-3l3 3" />
                 </svg>
-                <span className="font-label text-sm text-afs-ink-900">Click to upload or drag files here</span>
+                <span className="font-label text-sm text-afs-chrome-high">Click to upload or drag files here</span>
                 <input
                   type="file"
                   multiple
@@ -345,11 +345,11 @@ export default function ConsultationPage() {
                       key={file.name}
                       className="flex items-center justify-between bg-afs-bg-surface border border-afs-chrome-dim rounded px-4 py-3"
                     >
-                      <span className="font-body text-sm text-afs-ink-900 truncate">{file.name}</span>
+                      <span className="font-body text-sm text-afs-chrome-high truncate">{file.name}</span>
                       <button
                         type="button"
                         onClick={() => removeFile(file.name)}
-                        className="font-label text-xs text-afs-ink-700 hover:text-afs-copper transition-colors ml-4"
+                        className="font-label text-xs text-afs-chrome-mid hover:text-afs-copper transition-colors ml-4"
                       >
                         Remove
                       </button>
@@ -362,7 +362,7 @@ export default function ConsultationPage() {
 
           {step === 4 && (
             <div>
-              <h2 className="font-heading text-2xl text-afs-ink-900 mb-6">Scheduling Preference</h2>
+              <h2 className="font-heading text-2xl text-afs-chrome-high mb-6">Scheduling Preference</h2>
 
               <span className={labelClass}>Preferred Contact</span>
               <div className="grid grid-cols-3 gap-3 mb-6">
@@ -374,7 +374,7 @@ export default function ConsultationPage() {
                     className={`font-label text-sm px-4 py-3 rounded border transition-colors ${
                       form.preferredContact === contact
                         ? 'bg-afs-copper border-afs-copper text-white'
-                        : 'bg-afs-bg-overlay text-afs-ink-700 border-afs-border hover:bg-afs-bg-surface'
+                        : 'bg-afs-bg-overlay text-white border-afs-border hover:bg-afs-bg-surface'
                     }`}
                   >
                     {contact}
@@ -398,7 +398,7 @@ export default function ConsultationPage() {
                     className={`font-label text-sm px-4 py-2 rounded border transition-colors ${
                       form.preferredDays.includes(day)
                         ? 'bg-afs-copper border-afs-copper text-white'
-                        : 'bg-afs-bg-overlay text-afs-ink-700 border-afs-border hover:bg-afs-bg-surface'
+                        : 'bg-afs-bg-overlay text-white border-afs-border hover:bg-afs-bg-surface'
                     }`}
                   >
                     {day}
@@ -416,7 +416,7 @@ export default function ConsultationPage() {
                     className={`font-label text-sm px-4 py-2 rounded border transition-colors ${
                       form.preferredTimes.includes(time)
                         ? 'bg-afs-copper border-afs-copper text-white'
-                        : 'bg-afs-bg-overlay text-afs-ink-700 border-afs-border hover:bg-afs-bg-surface'
+                        : 'bg-afs-bg-overlay text-white border-afs-border hover:bg-afs-bg-surface'
                     }`}
                   >
                     {time}
@@ -459,7 +459,7 @@ export default function ConsultationPage() {
 
         {step === 4 && (
           <div className="flex justify-center mt-4">
-            <button type="button" onClick={() => goToStep(2)} className="font-body text-xs text-afs-ink-700 hover:text-afs-copper transition-colors">
+            <button type="button" onClick={() => goToStep(2)} className="font-body text-xs text-afs-chrome-mid hover:text-afs-copper transition-colors">
               Edit topic &amp; description
             </button>
           </div>

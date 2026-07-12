@@ -42,7 +42,7 @@ export default function ExportCustomersCsvButton({ rows }: ExportCustomersCsvBut
       type="button"
       onClick={handleExport}
       disabled={rows.length === 0}
-      className="border border-afs-border bg-afs-bg-overlay text-afs-ink-900 hover:bg-afs-bg-surface font-label font-semibold px-5 py-2.5 rounded text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label font-semibold px-5 py-2.5 rounded text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
     >
       Export CSV
     </button>

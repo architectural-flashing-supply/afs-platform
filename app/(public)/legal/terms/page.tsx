@@ -10,9 +10,9 @@ export default function TermsOfSalePage() {
     <main className="min-h-screen bg-afs-bg-base">
       <div className="max-w-[860px] mx-auto px-6 py-24 text-center">
         <p className="font-label text-afs-crimson text-sm tracking-widest uppercase mb-3">Legal</p>
-        <h1 className="font-display text-5xl text-afs-ink-900 leading-none mb-6">TERMS OF SALE</h1>
+        <h1 className="font-display text-5xl text-afs-chrome-high leading-none mb-6">TERMS OF SALE</h1>
         <div className="metal-edge metal-edge-red bg-afs-bg-raised border border-afs-border rounded p-10">
-          <p className="font-body text-base text-afs-ink-700 leading-relaxed">
+          <p className="font-body text-base text-afs-chrome-mid leading-relaxed">
             Terms of Sale coming soon. Contact{' '}
             <a
               href="mailto:trica@architecturalflashingsupply.com"

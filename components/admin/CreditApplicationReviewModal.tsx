@@ -10,8 +10,8 @@ interface CreditApplicationReviewModalProps {
 }
 
 const inputClass =
-  'w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-ink-900 focus:border-afs-crimson outline-none font-data';
-const labelClass = 'font-label text-xs uppercase tracking-wide text-afs-ink-700 block mb-1.5';
+  'w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-data';
+const labelClass = 'font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-1.5';
 
 export default function CreditApplicationReviewModal({ application, onClose }: CreditApplicationReviewModalProps) {
   const router = useRouter();
@@ -59,19 +59,19 @@ export default function CreditApplicationReviewModal({ application, onClose }: C
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-afs-bg-modal" onClick={onClose} />
       <div className="relative bg-afs-bg-raised border border-afs-border rounded max-w-md w-full p-6">
-        <h2 className="font-heading text-xl text-afs-ink-900 mb-1">Review Credit Application</h2>
-        <p className="font-body text-sm text-afs-ink-700 mb-6">{application.companyName}</p>
+        <h2 className="font-heading text-xl text-afs-chrome-high mb-1">Review Credit Application</h2>
+        <p className="font-body text-sm text-afs-chrome-mid mb-6">{application.companyName}</p>
 
         <dl className="grid grid-cols-2 gap-3 mb-6 font-body text-sm">
           <div>
-            <dt className="text-afs-ink-700">Requested Limit</dt>
-            <dd className="font-data text-afs-ink-900">
+            <dt className="text-afs-chrome-mid">Requested Limit</dt>
+            <dd className="font-data text-afs-chrome-high">
               {application.requestedLimit != null ? `$${application.requestedLimit.toLocaleString()}` : '—'}
             </dd>
           </div>
           <div>
-            <dt className="text-afs-ink-700">Requested Terms</dt>
-            <dd className="font-data text-afs-ink-900">
+            <dt className="text-afs-chrome-mid">Requested Terms</dt>
+            <dd className="font-data text-afs-chrome-high">
               {application.requestedTerms != null ? `Net ${application.requestedTerms}` : '—'}
             </dd>
           </div>
@@ -119,7 +119,7 @@ export default function CreditApplicationReviewModal({ application, onClose }: C
             value={reviewerNotes}
             onChange={(e) => setReviewerNotes(e.target.value)}
             placeholder="Internal notes — reason for the decision"
-            className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-ink-900 focus:border-afs-crimson outline-none font-body resize-y"
+            className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body resize-y"
           />
         </div>
 
@@ -129,7 +129,7 @@ export default function CreditApplicationReviewModal({ application, onClose }: C
           <button
             type="button"
             onClick={onClose}
-            className="font-label text-xs text-afs-ink-700 hover:text-afs-ink-900 px-3 py-2"
+            className="font-label text-xs text-afs-chrome-mid hover:text-afs-chrome-high px-3 py-2"
           >
             Cancel
           </button>

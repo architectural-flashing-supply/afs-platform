@@ -46,10 +46,10 @@ function KPICard({ testId, label, stat }: KPICardProps) {
   return (
     <div data-testid={testId} className="bg-afs-bg-raised border border-afs-border rounded p-6">
       <div className="flex items-start justify-between gap-2">
-        <span className="font-display text-5xl text-afs-ink-900 leading-none">{stat.count}</span>
+        <span className="font-display text-5xl text-afs-chrome-high leading-none">{stat.count}</span>
         {stat.rush > 0 && <Badge variant="error">{stat.rush} rush</Badge>}
       </div>
-      <p className="font-label text-sm text-afs-ink-700 uppercase tracking-wide mt-2">{label}</p>
+      <p className="font-label text-sm text-afs-chrome-base uppercase tracking-wide mt-2">{label}</p>
     </div>
   );
 }
@@ -98,8 +98,8 @@ export default async function AdminDashboardPage() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="font-heading text-3xl text-afs-ink-900">Dashboard</h1>
-        <p className="font-body text-sm text-afs-ink-700 mt-1">
+        <h1 className="font-heading text-3xl text-afs-chrome-high">Dashboard</h1>
+        <p className="font-body text-sm text-afs-chrome-mid mt-1">
           Operational overview across quote requests, production, and business alerts.
         </p>
       </div>
@@ -117,7 +117,7 @@ export default async function AdminDashboardPage() {
         {/* Quote Request Queue */}
         <section className="bg-afs-bg-raised border border-afs-border rounded p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-heading text-lg text-afs-ink-900">Quote Request Queue</h2>
+            <h2 className="font-heading text-lg text-afs-chrome-high">Quote Request Queue</h2>
             <Link href="/admin/quote-requests" className="font-label text-xs text-afs-crimson hover:text-afs-crimson-hover">
               View all →
             </Link>
@@ -134,14 +134,14 @@ export default async function AdminDashboardPage() {
                     className="flex items-center justify-between gap-4 bg-afs-bg-surface border border-afs-border rounded px-4 py-3 hover:border-afs-crimson transition-colors"
                   >
                     <div className="min-w-0">
-                      <p className="font-data text-sm text-afs-ink-900 truncate">{row.requestNumber}</p>
-                      <p className="font-body text-xs text-afs-ink-700 truncate">
+                      <p className="font-data text-sm text-afs-chrome-high truncate">{row.requestNumber}</p>
+                      <p className="font-body text-xs text-afs-chrome-mid truncate">
                         {row.customerName} · {row.profileSummary}
                       </p>
                     </div>
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       {row.isRush && <Badge variant="error">Rush</Badge>}
-                      <span className="font-data text-xs text-afs-ink-700">{formatTimeAgo(row.submittedAt)}</span>
+                      <span className="font-data text-xs text-afs-chrome-dim">{formatTimeAgo(row.submittedAt)}</span>
                     </div>
                   </Link>
                 </li>
@@ -153,7 +153,7 @@ export default async function AdminDashboardPage() {
         {/* Recent Order Activity */}
         <section className="bg-afs-bg-raised border border-afs-border rounded p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-heading text-lg text-afs-ink-900">Recent Order Activity</h2>
+            <h2 className="font-heading text-lg text-afs-chrome-high">Recent Order Activity</h2>
             <Link href="/admin/orders" className="font-label text-xs text-afs-crimson hover:text-afs-crimson-hover">
               View all →
             </Link>
@@ -169,15 +169,15 @@ export default async function AdminDashboardPage() {
                   className="flex items-center justify-between gap-4 bg-afs-bg-surface border border-afs-border rounded px-4 py-3"
                 >
                   <div className="min-w-0">
-                    <p className="font-data text-sm text-afs-ink-900 truncate">
-                      {row.orderNumber} <span className="text-afs-ink-700">→</span>{' '}
+                    <p className="font-data text-sm text-afs-chrome-high truncate">
+                      {row.orderNumber} <span className="text-afs-chrome-dim">→</span>{' '}
                       {ORDER_STATUS_LABEL[row.status] ?? row.status}
                     </p>
                     {row.changedByName && (
-                      <p className="font-body text-xs text-afs-ink-700 truncate">by {row.changedByName}</p>
+                      <p className="font-body text-xs text-afs-chrome-mid truncate">by {row.changedByName}</p>
                     )}
                   </div>
-                  <span className="font-data text-xs text-afs-ink-700 shrink-0">{formatTimeAgo(row.createdAt)}</span>
+                  <span className="font-data text-xs text-afs-chrome-dim shrink-0">{formatTimeAgo(row.createdAt)}</span>
                 </li>
               ))}
             </ul>

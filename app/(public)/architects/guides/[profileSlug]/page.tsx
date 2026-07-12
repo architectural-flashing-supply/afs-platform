@@ -29,14 +29,14 @@ export default function FieldInstallationGuidePage({ params }: GuidePageProps) {
     <ArchitectShell>
       <div className="max-w-3xl mx-auto px-6 py-16">
         <ArchitectEyebrow>Field Installation Guide</ArchitectEyebrow>
-        <h1 className="font-display text-6xl text-afs-ink-900 leading-none mb-2">{category.name.toUpperCase()}</h1>
-        <p className="font-body text-afs-ink-700 text-sm mb-8">Guide content last updated — pending publication</p>
+        <h1 className="font-display text-6xl text-afs-chrome-high leading-none mb-2">{category.name.toUpperCase()}</h1>
+        <p className="font-body text-afs-chrome-mid text-sm mb-8">Guide content last updated — pending publication</p>
 
         <div className="flex gap-2 flex-wrap mb-12">
           {TOOLS.map((tool) => (
             <span
               key={tool}
-              className="font-label text-xs px-3 py-1.5 rounded border border-afs-chrome-dim text-afs-ink-700"
+              className="font-label text-xs px-3 py-1.5 rounded border border-afs-chrome-dim text-afs-chrome-mid"
             >
               {tool}
             </span>
@@ -52,7 +52,7 @@ export default function FieldInstallationGuidePage({ params }: GuidePageProps) {
         />
 
         <div className="mt-8 text-center">
-          <Link href="/architects/guides" className="font-body text-sm text-afs-ink-700 hover:text-afs-copper transition-colors">
+          <Link href="/architects/guides" className="font-body text-sm text-afs-chrome-mid hover:text-afs-copper transition-colors">
             ← Back to Resource Center
           </Link>
         </div>

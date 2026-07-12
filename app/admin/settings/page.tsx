@@ -114,26 +114,26 @@ export default async function AdminSettingsPage() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="font-heading text-3xl text-afs-ink-900">Settings</h1>
-        <p className="font-body text-sm text-afs-ink-700 mt-1">Integration status and cron job health.</p>
+        <h1 className="font-heading text-3xl text-afs-chrome-high">Settings</h1>
+        <p className="font-body text-sm text-afs-chrome-mid mt-1">Integration status and cron job health.</p>
       </div>
 
       <section className="mb-8">
-        <h2 className="font-heading text-lg text-afs-ink-900 mb-4">Integration Status</h2>
+        <h2 className="font-heading text-lg text-afs-chrome-high mb-4">Integration Status</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {integrations.map((integration) => (
             <div key={integration.name} className="bg-afs-bg-raised border border-afs-border rounded p-5">
               <div className="flex items-center justify-between gap-2 mb-2">
-                <p className="font-heading text-base text-afs-ink-900">{integration.name}</p>
+                <p className="font-heading text-base text-afs-chrome-high">{integration.name}</p>
                 <Badge variant={integration.variant}>{integration.label}</Badge>
               </div>
-              <p className="font-body text-xs text-afs-ink-700">{integration.detail}</p>
+              <p className="font-body text-xs text-afs-chrome-mid">{integration.detail}</p>
               {integration.name === 'QuickBooks' && (
                 <button
                   type="button"
                   disabled
                   title="QuickBooks OAuth connect ships in Phase 8"
-                  className="mt-3 w-full font-label text-xs text-afs-ink-700 border border-afs-border rounded px-3 py-2 cursor-not-allowed"
+                  className="mt-3 w-full font-label text-xs text-afs-chrome-dim border border-afs-border rounded px-3 py-2 cursor-not-allowed"
                 >
                   Connect QBO
                 </button>
@@ -144,7 +144,7 @@ export default async function AdminSettingsPage() {
       </section>
 
       <section>
-        <h2 className="font-heading text-lg text-afs-ink-900 mb-4">Cron Job Status</h2>
+        <h2 className="font-heading text-lg text-afs-chrome-high mb-4">Cron Job Status</h2>
         <div className="flex flex-col gap-3">
           {cronJobs.map((job) => (
             <div
@@ -152,9 +152,9 @@ export default async function AdminSettingsPage() {
               className="flex items-center justify-between gap-4 bg-afs-bg-raised border border-afs-border rounded p-5"
             >
               <div className="min-w-0">
-                <p className="font-data text-sm text-afs-ink-900">{job.name}</p>
-                <p className="font-body text-xs text-afs-ink-700 mt-1">{job.schedule}</p>
-                <p className="font-body text-xs text-afs-ink-700 mt-1">
+                <p className="font-data text-sm text-afs-chrome-high">{job.name}</p>
+                <p className="font-body text-xs text-afs-chrome-mid mt-1">{job.schedule}</p>
+                <p className="font-body text-xs text-afs-chrome-dim mt-1">
                   Last run: {job.lastRun ? formatDateTime(job.lastRun) : 'Never'} · {job.lastResult}
                 </p>
               </div>
@@ -162,7 +162,7 @@ export default async function AdminSettingsPage() {
                 type="button"
                 disabled
                 title="Cron routes are not yet deployed (Phase 8)"
-                className="font-label text-xs text-afs-ink-700 border border-afs-border rounded px-3 py-2 cursor-not-allowed shrink-0"
+                className="font-label text-xs text-afs-chrome-dim border border-afs-border rounded px-3 py-2 cursor-not-allowed shrink-0"
               >
                 Trigger Now
               </button>

@@ -38,7 +38,7 @@ export default function HomePage() {
         style={{ left: '7%', top: '50%', transform: 'translateY(-50%)' }}
       >
         <h1
-          className="font-display text-afs-ink-900"
+          className="font-display text-afs-chrome-high"
           style={{
             fontSize: 'clamp(3rem, 5vw, 5.5rem)',
             lineHeight: 1.0,
@@ -51,8 +51,8 @@ export default function HomePage() {
         <div className="my-[18px] h-[3px] w-[80px] bg-afs-crimson shadow-crimson" />
 
         <p
-          className="font-heading font-medium tracking-[0.08em] text-afs-ink-900"
-          style={{ fontSize: 'clamp(1.3rem, 2.3vw, 1.75rem)' }}
+          className="font-heading font-medium tracking-[0.08em] text-afs-chrome-high"
+          style={{ fontSize: 'clamp(1rem, 1.8vw, 1.35rem)' }}
         >
           Precision Metal Flashing Fabrication
         </p>
@@ -66,7 +66,7 @@ export default function HomePage() {
           </Link>
           <Link
             href="/quote"
-            className="afs-btn-chrome rounded px-9 py-3.5 font-label text-sm tracking-[1px] cursor-pointer"
+            className="rounded border border-afs-chrome-high/45 bg-transparent px-9 py-3.5 font-label text-sm font-semibold tracking-[1px] text-afs-chrome-high cursor-pointer"
           >
             Request a Quote
           </Link>

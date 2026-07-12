@@ -32,8 +32,8 @@ export default async function AdminCreditApplicationsPage() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="font-heading text-3xl text-afs-ink-900">Credit Applications</h1>
-        <p className="font-body text-sm text-afs-ink-700 mt-1">Net-terms applications submitted by customers.</p>
+        <h1 className="font-heading text-3xl text-afs-chrome-high">Credit Applications</h1>
+        <p className="font-body text-sm text-afs-chrome-mid mt-1">Net-terms applications submitted by customers.</p>
       </div>
 
       {rows.length === 0 ? (
@@ -43,19 +43,19 @@ export default async function AdminCreditApplicationsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-afs-bg-surface border-b border-afs-border">
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
                   Company
                 </th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-right px-4 py-3">
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-right px-4 py-3">
                   Requested
                 </th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
                   Status
                 </th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
                   Submitted
                 </th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
                   Actions
                 </th>
               </tr>
@@ -63,15 +63,15 @@ export default async function AdminCreditApplicationsPage() {
             <tbody>
               {rows.map((row) => (
                 <tr key={row.id} className="border-b border-afs-border last:border-b-0 hover:bg-afs-bg-surface transition-colors">
-                  <td className="font-body text-sm text-afs-ink-900 px-4 py-3">{row.companyName}</td>
-                  <td className="font-data text-sm text-afs-ink-900 text-right px-4 py-3">
+                  <td className="font-body text-sm text-afs-chrome-high px-4 py-3">{row.companyName}</td>
+                  <td className="font-data text-sm text-afs-chrome-high text-right px-4 py-3">
                     {row.requestedLimit != null ? `$${row.requestedLimit.toLocaleString()}` : '—'}
                     {row.requestedTerms != null ? ` @ Net ${row.requestedTerms}` : ''}
                   </td>
                   <td className="px-4 py-3">
                     <Badge variant={STATUS_VARIANT[row.status] ?? 'chrome'}>{STATUS_LABEL[row.status] ?? row.status}</Badge>
                   </td>
-                  <td className="font-data text-xs text-afs-ink-700 px-4 py-3">{formatDate(row.submittedAt)}</td>
+                  <td className="font-data text-xs text-afs-chrome-dim px-4 py-3">{formatDate(row.submittedAt)}</td>
                   <td className="px-4 py-3">
                     <CreditApplicationRowActions application={row} />
                   </td>

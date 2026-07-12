@@ -3,20 +3,18 @@
 @tailwind utilities;
 
 :root {
-  --afs-bg-dim:       #D0D0D0;
-  --afs-bg-base:      #D4D4D4;
-  --afs-bg-raised:    #DADADA;
-  --afs-bg-surface:   #E0E0E0;
-  --afs-bg-overlay:   #E6E6E6;
-  --afs-bg-modal:     rgba(212, 212, 212, 0.92);
+  --afs-bg-dim:       #1C1F26;
+  --afs-bg-base:      #2A2D35;
+  --afs-bg-raised:    #363C4A;
+  --afs-bg-surface:   #404858;
+  --afs-bg-overlay:   #4E5568;
+  --afs-bg-modal:     rgba(42, 45, 53, 0.92);
   --afs-chrome-high:   #FFFFFF;
   --afs-chrome-mid:    #B8BFD0;
   --afs-chrome-base:   #9AA0B8;
   --afs-chrome-dim:    #7A8299;
   --afs-chrome-silver: #C8D0E0;
   --afs-chrome-ghost:  rgba(154, 160, 184, 0.15);
-  --afs-ink-900:       #111111;
-  --afs-ink-700:       #374151;
   --afs-crimson:       #C0001A;
   --afs-crimson-hover: #E8001F;
   --afs-crimson-dim:   #7A0010;
@@ -38,15 +36,15 @@
 }
 
 html {
-  background-color: #D4D4D4;
-  color: #374151;
+  background-color: #2A2D35;
+  color: #B8BFD0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 body {
   background-color: var(--afs-bg-base);
-  color: var(--afs-ink-700);
+  color: var(--afs-chrome-mid);
 }
 
 .metal-edge {
@@ -87,17 +85,6 @@ body {
     rgba(184,115,51,0.8) 75%,
     transparent 100%
   );
-}
-
-.afs-btn-chrome {
-  background: linear-gradient(135deg, #C8CDD6 0%, #E8EAED 50%, #B8BFC9 100%);
-  color: #1a1a1a;
-  border: 1px solid #9CA3AF;
-  font-weight: 700;
-  transition: filter 0.15s ease;
-}
-.afs-btn-chrome:hover {
-  filter: brightness(0.96);
 }
 
 .hero-glow-red {

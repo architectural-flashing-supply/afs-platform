@@ -32,24 +32,24 @@ export default function CategoryPage({ params }: CategoryPageParams) {
   return (
     <main className="min-h-screen bg-afs-bg-base">
       <div className="max-w-[1400px] mx-auto px-6 pt-8">
-        <nav className="font-body text-xs text-afs-ink-700 mb-8" aria-label="Breadcrumb">
-          <Link href="/" className="hover:text-afs-ink-700 transition-colors">Home</Link>
+        <nav className="font-body text-xs text-afs-chrome-dim mb-8" aria-label="Breadcrumb">
+          <Link href="/" className="hover:text-afs-chrome-mid transition-colors">Home</Link>
           <span className="mx-2">/</span>
-          <Link href="/products" className="hover:text-afs-ink-700 transition-colors">Products</Link>
+          <Link href="/products" className="hover:text-afs-chrome-mid transition-colors">Products</Link>
           <span className="mx-2">/</span>
-          <span className="text-afs-ink-700">{category.name}</span>
+          <span className="text-afs-chrome-mid">{category.name}</span>
         </nav>
 
         <p className="font-label text-afs-crimson text-sm tracking-widest uppercase mb-3">
           {category.tagline}
         </p>
-        <h1 className="font-display text-5xl text-afs-ink-900 leading-none mb-4">
+        <h1 className="font-display text-5xl text-afs-chrome-high leading-none mb-4">
           {category.name.toUpperCase()}
         </h1>
-        <p className="font-body text-afs-ink-700 text-base max-w-2xl mb-2">
+        <p className="font-body text-afs-chrome-mid text-base max-w-2xl mb-2">
           {category.description}
         </p>
-        <p className="font-data text-xs text-afs-ink-700 uppercase tracking-wide mb-8">
+        <p className="font-data text-xs text-afs-chrome-dim uppercase tracking-wide mb-8">
           {products.length} products in this category
         </p>
       </div>

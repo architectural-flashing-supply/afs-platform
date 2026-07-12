@@ -8,18 +8,16 @@ module.exports = {
     extend: {
       colors: {
         afs: {
-          'bg-dim':     '#D0D0D0',
-          'bg-base':    '#D4D4D4',
-          'bg-raised':  '#DADADA',
-          'bg-surface': '#E0E0E0',
-          'bg-overlay': '#E6E6E6',
+          'bg-dim':     '#1C1F26',
+          'bg-base':    '#2A2D35',
+          'bg-raised':  '#363C4A',
+          'bg-surface': '#404858',
+          'bg-overlay': '#4E5568',
           'chrome-high':   '#FFFFFF',
           'chrome-mid':    '#B8BFD0',
           'chrome-base':   '#9AA0B8',
           'chrome-dim':    '#7A8299',
           'chrome-silver': '#C8D0E0',
-          'ink-900':       '#111111',
-          'ink-700':       '#374151',
           'crimson':       '#C0001A',
           'crimson-hover': '#E8001F',
           'crimson-dim':   '#7A0010',

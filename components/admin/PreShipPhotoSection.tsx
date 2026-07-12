@@ -43,16 +43,16 @@ export default function PreShipPhotoSection({ orderId, photos }: PreShipPhotoSec
 
   return (
     <div className="bg-afs-bg-raised border border-afs-border rounded p-6">
-      <h2 className="font-heading text-lg text-afs-ink-900 mb-4">Pre-Ship Photos</h2>
+      <h2 className="font-heading text-lg text-afs-chrome-high mb-4">Pre-Ship Photos</h2>
 
       <div className="flex flex-col gap-3 mb-6">
         <input
           type="file"
           accept="image/png,image/jpeg,image/webp,image/heic"
           onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          className="font-body text-sm text-afs-ink-700 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:font-label file:text-sm file:font-semibold file:bg-afs-bg-overlay file:text-afs-ink-900 hover:file:bg-afs-bg-surface"
+          className="font-body text-sm text-afs-chrome-mid file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:font-label file:text-sm file:font-semibold file:bg-afs-bg-overlay file:text-afs-chrome-high hover:file:bg-afs-bg-surface"
         />
-        <label className="flex items-center gap-2 font-body text-sm text-afs-ink-700">
+        <label className="flex items-center gap-2 font-body text-sm text-afs-chrome-mid">
           <input
             type="checkbox"
             checked={notifyCustomer}
@@ -73,7 +73,7 @@ export default function PreShipPhotoSection({ orderId, photos }: PreShipPhotoSec
       </div>
 
       {localPhotos.length === 0 ? (
-        <p className="font-body text-sm text-afs-ink-700">No pre-ship photos yet.</p>
+        <p className="font-body text-sm text-afs-chrome-mid">No pre-ship photos yet.</p>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {localPhotos.map((photo) => (
@@ -88,7 +88,7 @@ export default function PreShipPhotoSection({ orderId, photos }: PreShipPhotoSec
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={photo.signedUrl} alt={photo.filename} className="w-full h-full object-cover" />
               ) : (
-                <div className="w-full h-full flex items-center justify-center font-body text-xs text-afs-ink-700 px-2 text-center">
+                <div className="w-full h-full flex items-center justify-center font-body text-xs text-afs-chrome-dim px-2 text-center">
                   {photo.filename}
                 </div>
               )}

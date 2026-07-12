@@ -84,10 +84,10 @@ export default function ArchitectsPage() {
     <ArchitectShell>
       <section className="metal-edge metal-edge-copper px-6 pt-20 pb-16 text-center border-b border-afs-border">
         <ArchitectEyebrow>For Architects &amp; Specifiers</ArchitectEyebrow>
-        <h1 className="font-display text-6xl md:text-[6rem] text-afs-ink-900 leading-none mb-6">
+        <h1 className="font-display text-6xl md:text-[6rem] text-afs-chrome-high leading-none mb-6">
           THE ARCHITECT&apos;S PLATFORM
         </h1>
-        <p className="font-body text-afs-ink-700 text-xl max-w-2xl mx-auto mb-10">
+        <p className="font-body text-afs-chrome-mid text-xl max-w-2xl mx-auto mb-10">
           Spec language, CAD details, Revit families, and material data. Everything needed to specify AFS
           products in your drawings.
         </p>
@@ -100,7 +100,7 @@ export default function ArchitectsPage() {
           </Link>
           <Link
             href="/architects/cad-library"
-            className="border border-afs-border bg-afs-bg-overlay text-afs-ink-900 hover:bg-afs-bg-surface font-label font-semibold px-8 py-3 rounded text-sm transition-colors"
+            className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label font-semibold px-8 py-3 rounded text-sm transition-colors"
           >
             Browse CAD Library
           </Link>
@@ -126,8 +126,8 @@ export default function ArchitectsPage() {
                   </span>
                 )}
               </div>
-              <h3 className="font-heading text-2xl text-afs-ink-900 mb-2">{card.title}</h3>
-              <p className="font-body text-sm text-afs-ink-700">{card.description}</p>
+              <h3 className="font-heading text-2xl text-afs-chrome-high mb-2">{card.title}</h3>
+              <p className="font-body text-sm text-afs-chrome-mid">{card.description}</p>
             </Link>
           ))}
         </div>
@@ -135,14 +135,14 @@ export default function ArchitectsPage() {
 
       <section className="bg-afs-bg-raised border-y border-afs-border">
         <div className="max-w-[1280px] mx-auto px-6 py-16">
-          <h2 className="font-heading text-3xl font-bold text-afs-ink-900 text-center mb-12">
+          <h2 className="font-heading text-3xl font-bold text-afs-chrome-high text-center mb-12">
             Why Architects Spec AFS
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
             {WHY_SPEC_AFS.map((item) => (
               <div key={item.title} className="border-l-2 border-afs-copper pl-6">
-                <h3 className="font-heading text-lg text-afs-ink-900 mb-2">{item.title}</h3>
-                <p className="font-body text-sm text-afs-ink-700 leading-relaxed">{item.body}</p>
+                <h3 className="font-heading text-lg text-afs-chrome-high mb-2">{item.title}</h3>
+                <p className="font-body text-sm text-afs-chrome-mid leading-relaxed">{item.body}</p>
               </div>
             ))}
           </div>
@@ -150,10 +150,10 @@ export default function ArchitectsPage() {
       </section>
 
       <section className="max-w-[860px] mx-auto px-6 py-20 text-center">
-        <h2 className="font-heading text-3xl font-bold text-afs-ink-900 mb-3">
+        <h2 className="font-heading text-3xl font-bold text-afs-chrome-high mb-3">
           Create a free architect account
         </h2>
-        <p className="font-body text-base text-afs-ink-700 mb-8">
+        <p className="font-body text-base text-afs-chrome-mid mb-8">
           Access spec generation, CAD downloads, and direct technical support.
         </p>
         <div className="flex items-center justify-center gap-4 flex-wrap mb-4">
@@ -164,7 +164,7 @@ export default function ArchitectsPage() {
             Register as Architect
           </Link>
         </div>
-        <p className="font-body text-sm text-afs-ink-700">
+        <p className="font-body text-sm text-afs-chrome-mid">
           Already have an account?{' '}
           <Link href="/login" className="text-afs-copper hover:text-afs-copper-hover">
             Sign In

@@ -57,8 +57,8 @@ export default async function AdminQuoteRequestsPage({
   return (
     <div>
       <div className="mb-6">
-        <h1 className="font-heading text-3xl text-afs-ink-900">Quote Requests</h1>
-        <p className="font-body text-sm text-afs-ink-700 mt-1">
+        <h1 className="font-heading text-3xl text-afs-chrome-high">Quote Requests</h1>
+        <p className="font-body text-sm text-afs-chrome-mid mt-1">
           Incoming customer submissions awaiting a formal AFS quote.
         </p>
       </div>
@@ -73,8 +73,8 @@ export default async function AdminQuoteRequestsPage({
               href={href}
               className={`font-label text-sm px-4 py-2.5 border-b-2 transition-colors ${
                 active
-                  ? 'border-afs-crimson text-afs-ink-900'
-                  : 'border-transparent text-afs-ink-700 hover:text-afs-ink-900'
+                  ? 'border-afs-crimson text-afs-chrome-high'
+                  : 'border-transparent text-afs-chrome-mid hover:text-afs-chrome-high'
               }`}
             >
               {tab.label}
@@ -90,22 +90,22 @@ export default async function AdminQuoteRequestsPage({
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-afs-bg-surface border-b border-afs-border">
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
                   Request #
                 </th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
                   Customer
                 </th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
                   Profiles
                 </th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
                   Submitted
                 </th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
                   Rush
                 </th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
                   Status
                 </th>
               </tr>
@@ -122,14 +122,14 @@ export default async function AdminQuoteRequestsPage({
                   <td className="px-4 py-3">
                     <Link
                       href={`/admin/quote-requests/${row.id}`}
-                      className="font-data text-sm text-afs-ink-900 hover:text-afs-crimson"
+                      className="font-data text-sm text-afs-chrome-high hover:text-afs-crimson"
                     >
                       {row.requestNumber}
                     </Link>
                   </td>
-                  <td className="font-body text-sm text-afs-ink-900 px-4 py-3">{row.customerName}</td>
-                  <td className="font-body text-sm text-afs-ink-700 px-4 py-3">{row.profileSummary}</td>
-                  <td className="font-data text-xs text-afs-ink-700 px-4 py-3">{formatTimeAgo(row.submittedAt)}</td>
+                  <td className="font-body text-sm text-afs-chrome-high px-4 py-3">{row.customerName}</td>
+                  <td className="font-body text-sm text-afs-chrome-mid px-4 py-3">{row.profileSummary}</td>
+                  <td className="font-data text-xs text-afs-chrome-dim px-4 py-3">{formatTimeAgo(row.submittedAt)}</td>
                   <td className="px-4 py-3">
                     {row.isRush && (
                       <span className="bg-afs-crimson text-white font-label text-xs font-bold px-2 py-1 rounded">

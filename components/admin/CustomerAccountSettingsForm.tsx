@@ -19,8 +19,8 @@ const TIER_OPTIONS = ['standard', 'contractor', 'preferred', 'wholesale'];
 const NET_TERMS_OPTIONS = [0, 15, 30, 60];
 
 const selectClass =
-  'w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-ink-900 focus:border-afs-crimson outline-none font-body';
-const labelClass = 'font-label text-xs uppercase tracking-wide text-afs-ink-700 block mb-1.5';
+  'w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body';
+const labelClass = 'font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-1.5';
 
 export default function CustomerAccountSettingsForm({ customerId, initial }: CustomerAccountSettingsFormProps) {
   const router = useRouter();
@@ -78,7 +78,7 @@ export default function CustomerAccountSettingsForm({ customerId, initial }: Cus
 
   return (
     <div className="bg-afs-bg-raised border border-afs-border rounded p-6">
-      <h2 className="font-heading text-lg text-afs-ink-900 mb-4">Account Settings</h2>
+      <h2 className="font-heading text-lg text-afs-chrome-high mb-4">Account Settings</h2>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
         <div>
@@ -154,7 +154,7 @@ export default function CustomerAccountSettingsForm({ customerId, initial }: Cus
           onChange={(e) => setTaxExempt(e.target.checked)}
           className="w-4 h-4 accent-afs-crimson"
         />
-        <span className="font-body text-sm text-afs-ink-900">Tax Exempt</span>
+        <span className="font-body text-sm text-afs-chrome-high">Tax Exempt</span>
       </label>
 
       <div className="flex items-center justify-between gap-4">
