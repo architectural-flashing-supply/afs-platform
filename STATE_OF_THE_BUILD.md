@@ -26,12 +26,26 @@ API keys in .env.local:  Present locally (not committed). STRIPE_SECRET_KEY,
 pnpm install:            DONE (afs-025) — stripe, @stripe/stripe-js,
                          @stripe/react-stripe-js, docx all present in
                          pnpm-lock.yaml and node_modules.
-pnpm tsc --noEmit:       PASSES — 0 errors (afs-026, re-verified after every change).
-pnpm run build:          PASSES — exit 0, all 92 routes generated (afs-026, +2 routes
-                         for /admin/quickbooks and /api/admin/quickbooks/status vs.
-                         afs-025's 90).
-git commits:             All work through afs-026 is committed (see SESSION LOG).
+pnpm tsc --noEmit:       PASSES — 0 errors (afs-027, re-verified after every change).
+pnpm run build:          PASSES — exit 0, all 92 routes generated (afs-027, same route
+                         count as afs-026 — this was a visual rebrand, no routes added
+                         or removed).
+git commits:             All work through afs-027 is committed (see SESSION LOG).
                          Working tree is clean.
+Design system:           REBRANDED (afs-027) — site-wide light silver theme replacing
+                         the original dark gunmetal theme. See DESIGN_TOKENS.md §10 for
+                         full history. afs-bg-dim/base/raised/surface/overlay now run
+                         #D0D0D0→#E6E6E6 (previously #1C1F26→#4E5568). Two new tokens,
+                         afs-ink-900 (#111111) and afs-ink-700 (#374151), carry on-page
+                         text that used to run on the chrome-high/mid/base scale — that
+                         scale is retained, unchanged, for text on solid crimson/copper
+                         fills only (buttons, badges), per explicit instruction to keep
+                         all crimson CTAs exactly as they were. New afs-btn-chrome CSS
+                         class (metallic gradient) added for the homepage's secondary
+                         CTA. Visually verified via Playwright screenshot (temporary,
+                         not added to package.json) against the running dev server —
+                         homepage, /products, /about all render correctly with legible
+                         dark text on the new light backgrounds and intact crimson CTAs.
 ```
 
 ---
@@ -162,26 +176,48 @@ When migrating DNS to the live domain, these must be updated BEFORE go-live:
 
 ## NEXT ACTION
 
-**All 9 build phases (0–8) are now built.** The tool-approval gate logged in
-afs-023/024 has not recurred since afs-025; every pnpm/git command in
-afs-026 ran directly with no approval issue.
+**All 9 build phases (0–8) are built, and the site has been rebranded from
+the dark gunmetal theme to a light silver theme (afs-027).** The tool-approval
+gate logged in afs-023/024 has not recurred since afs-025.
 
-1. **Done (afs-026):** Phase 8 — QuickBooks stub + Vercel deploy prep.
+1. **Done (afs-027):** Site-wide light theme rebrand. `tailwind.config.js` +
+   `app/globals.css`: afs-bg-* tokens changed to light silver values, added
+   `afs-ink-900`/`afs-ink-700` tokens, added `.afs-btn-chrome` CTA class.
+   `DESIGN_TOKENS.md` rewritten to document the new theme (§10 has full
+   before/after history). ~130 files across `app/` and `components/` had
+   their on-page text classes remapped from the old light-on-dark
+   `chrome-high/mid/base/dim` scale to the new dark-on-light `ink-900/700`
+   scale, via 13 parallel subagents each handling a directory slice, plus
+   manual passes on the homepage, product cards, and layout shells. Every
+   crimson/copper CTA's `text-white` was deliberately left unchanged per
+   instruction. Homepage headline enlarged ~30% and recolored; "Request a
+   Quote" button converted to the new chrome-metallic style. Product
+   category cards made compact with the title moved to the top of the tile.
+   `pnpm tsc --noEmit` (0 errors) and `pnpm run build` (exit 0, 92/92 routes)
+   both pass; visually verified via a temporary Playwright screenshot check
+   against the dev server (not added as a project dependency). Committed.
+2. **Done (afs-026):** Phase 8 — QuickBooks stub + Vercel deploy prep.
    `lib/integrations/quickbooks.ts`, `app/api/admin/quickbooks/status/route.ts`,
    `app/admin/quickbooks/page.tsx`, AdminShell nav entry, `vercel.json`,
-   `.env.example` METALS_API_KEY addition. `pnpm run build` (exit 0, 92/92
-   routes) and `pnpm tsc --noEmit` (0 errors) both pass. Committed.
-2. **Remaining — not a code task:** `supabase/migrations/*` have not been
+   `.env.example` METALS_API_KEY addition.
+3. **Remaining — not a code task:** `supabase/migrations/*` have not been
    applied to a live Supabase project yet (see `supabase/README.md`).
-3. Confirm chat_conversations retention policy (#65) before relying on
+4. Confirm chat_conversations retention policy (#65) before relying on
    chat history persistence in production.
-4. If/when the client confirms QuickBooks scope (checklist #52-54), build
+5. If/when the client confirms QuickBooks scope (checklist #52-54), build
    out real OAuth + sync per SPEC_QUICKBOOKS_INTEGRATION.md §3-5 — the stub
    module's function signatures already match what that implementation
    will fill in.
-5. DATA BLOCKERS table below is the remaining pre-launch punch list —
+6. DATA BLOCKERS table below is the remaining pre-launch punch list —
    nothing left is a FORGE code task; all remaining items need data/assets
    from the client.
+7. Known cosmetic residual from the rebrand: the `.metal-edge`/`.metal-edge-red`/
+   `.metal-edge-copper` signature-element gradients and the (currently unused)
+   `.hero-glow-red`/`.hero-glow-chrome` classes in `app/globals.css` were not
+   updated — they were tuned for the old dark backgrounds and may read as
+   faint against the new light ones. Not touched because they weren't in
+   scope for this rebrand request; worth a follow-up pass if the Metal Edge
+   accent looks washed out in review.
 
 Historical detail on the afs-023 → afs-025 build-blocker investigation and
 the two real build bugs fixed in afs-025 (eager `new Stripe(...)` at module
