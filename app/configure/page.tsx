@@ -413,16 +413,16 @@ export default function ConfiguratorPage() {
         <p className="font-label text-afs-crimson text-sm tracking-widest uppercase mb-3">
           CUSTOM FLASHING CONFIGURATOR
         </p>
-        <h1 className="font-display text-5xl text-afs-chrome-high leading-none mb-2">
+        <h1 className="font-display text-5xl text-afs-crimson font-bold leading-none mb-2">
           CONFIGURE YOUR PROFILE
         </h1>
-        <p className="font-body text-afs-chrome-mid text-sm max-w-xl mx-auto">
+        <p className="font-body text-black font-bold text-sm max-w-xl mx-auto">
           Specify exact dimensions and see a live diagram update as you type. No prices shown —
           AFS follows up with a formal quote.
         </p>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6 px-6 pb-10 max-w-[1400px] mx-auto">
+      <div className="flex flex-col lg:flex-row gap-6 px-6 pb-10 max-w-[1400px] mx-auto" style={{ backgroundColor: '#B8BEC8' }}>
 
         {/* LEFT — CONTROLS */}
         <div className="w-full lg:w-[420px] lg:shrink-0 bg-afs-bg-raised border border-afs-chrome-dim rounded p-6">

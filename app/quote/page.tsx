@@ -341,16 +341,16 @@ export default function QuotePage() {
 
   return (
     <main className="min-h-screen bg-afs-bg-base py-16 px-6">
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-3xl mx-auto" style={{ backgroundColor: '#B8BEC8' }}>
 
         <div className="mb-10 text-center">
           <p className="font-label text-afs-crimson text-sm tracking-widest uppercase mb-4">
             REQUEST A QUOTE
           </p>
-          <h1 className="font-display text-6xl text-afs-chrome-high leading-none mb-4">
+          <h1 className="font-display text-6xl text-afs-crimson font-bold leading-none mb-4">
             BUILD YOUR QUOTE
           </h1>
-          <p className="font-body text-afs-chrome-mid text-base max-w-xl mx-auto">
+          <p className="font-body text-black font-bold text-base max-w-xl mx-auto">
             Tell us what you need fabricated and we&apos;ll follow up with formal pricing.
           </p>
         </div>

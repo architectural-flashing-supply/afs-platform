@@ -15,8 +15,8 @@ export default function ProductsPage() {
         <p className="font-label text-afs-crimson text-sm tracking-widest uppercase mb-3">
           Product Catalog
         </p>
-        <h1 className="font-display text-6xl text-afs-chrome-high leading-none mb-4">PRODUCTS</h1>
-        <p className="font-body text-afs-chrome-mid text-base max-w-2xl mx-auto mb-2">
+        <h1 className="font-display text-6xl text-afs-crimson font-bold leading-none mb-4">PRODUCTS</h1>
+        <p className="font-body text-black font-bold text-base max-w-2xl mx-auto mb-2">
           Custom fabricated sheet metal flashing — every profile, every material. Every product on this
           page drives to a formal quote request.
         </p>
@@ -25,7 +25,7 @@ export default function ProductsPage() {
         </p>
       </div>
 
-      <div className="max-w-[1400px] mx-auto px-6 pb-16 bg-[#D4D4D4]">
+      <div className="max-w-[1400px] mx-auto px-6 pb-16" style={{ backgroundColor: '#B8BEC8' }}>
         <ProductSearchTabs categories={CATEGORIES} />
       </div>
     </main>
