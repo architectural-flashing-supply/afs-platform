@@ -3,7 +3,13 @@ import Stripe from 'stripe';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createOrderFromQuote, type DeliveryAddressInput } from '@/lib/data/orders';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+let stripe: Stripe | null = null;
+function getStripe(): Stripe {
+  if (!stripe) {
+    stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+  }
+  return stripe;
+}
 
 async function handlePaymentSuccess(paymentIntent: Stripe.PaymentIntent): Promise<void> {
   const metadata = paymentIntent.metadata;
@@ -53,7 +59,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(body, signature, process.env.STRIPE_WEBHOOK_SECRET!);
+    event = getStripe().webhooks.constructEvent(body, signature, process.env.STRIPE_WEBHOOK_SECRET!);
   } catch (error) {
     console.error('[Stripe Webhook] Invalid signature', error);
     return NextResponse.json({ error: 'Invalid signature.' }, { status: 400 });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { loadStripe } from '@stripe/stripe-js';
@@ -62,6 +62,20 @@ const inputClass =
 const labelClass = 'font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-1.5';
 
 export default function CheckoutPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="max-w-[600px] mx-auto text-center py-24">
+          <p className="font-label text-sm text-afs-chrome-mid uppercase tracking-wide">Loading checkout…</p>
+        </div>
+      }
+    >
+      <CheckoutPageInner />
+    </Suspense>
+  );
+}
+
+function CheckoutPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const quoteId = searchParams.get('quote');

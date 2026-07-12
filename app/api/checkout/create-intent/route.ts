@@ -4,7 +4,13 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createOrderFromQuote, type DeliveryAddressInput } from '@/lib/data/orders';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+let stripe: Stripe | null = null;
+function getStripe(): Stripe {
+  if (!stripe) {
+    stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+  }
+  return stripe;
+}
 
 interface CreateIntentRequestBody {
   quoteId: string;
@@ -127,7 +133,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       metadata.contactPhone = body.contactPhone ?? '';
     }
 
-    const intent = await stripe.paymentIntents.create({
+    const intent = await getStripe().paymentIntents.create({
       amount: Math.round(quote.total * 100),
       currency: 'usd',
       metadata,
