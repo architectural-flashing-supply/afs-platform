@@ -26,26 +26,41 @@ API keys in .env.local:  Present locally (not committed). STRIPE_SECRET_KEY,
 pnpm install:            DONE (afs-025) — stripe, @stripe/stripe-js,
                          @stripe/react-stripe-js, docx all present in
                          pnpm-lock.yaml and node_modules.
-pnpm tsc --noEmit:       PASSES — 0 errors (afs-027, re-verified after every change).
-pnpm run build:          PASSES — exit 0, all 92 routes generated (afs-027, same route
-                         count as afs-026 — this was a visual rebrand, no routes added
-                         or removed).
-git commits:             All work through afs-027 is committed (see SESSION LOG).
-                         Working tree is clean.
-Design system:           REBRANDED (afs-027) — site-wide light silver theme replacing
-                         the original dark gunmetal theme. See DESIGN_TOKENS.md §10 for
-                         full history. afs-bg-dim/base/raised/surface/overlay now run
-                         #D0D0D0→#E6E6E6 (previously #1C1F26→#4E5568). Two new tokens,
-                         afs-ink-900 (#111111) and afs-ink-700 (#374151), carry on-page
-                         text that used to run on the chrome-high/mid/base scale — that
-                         scale is retained, unchanged, for text on solid crimson/copper
-                         fills only (buttons, badges), per explicit instruction to keep
-                         all crimson CTAs exactly as they were. New afs-btn-chrome CSS
-                         class (metallic gradient) added for the homepage's secondary
-                         CTA. Visually verified via Playwright screenshot (temporary,
-                         not added to package.json) against the running dev server —
-                         homepage, /products, /about all render correctly with legible
-                         dark text on the new light backgrounds and intact crimson CTAs.
+pnpm tsc --noEmit:       PASSES — 0 errors (afs-030, re-verified after every change).
+pnpm run build:          PASSES — exit 0, all 98 routes generated (afs-030 — +6 vs.
+                         afs-029's 92: /studio, /studio/draft, /api/admin/pathfinder,
+                         /api/admin/pathfinder/push-profile,
+                         /api/admin/pathfinder/submit-job, /api/studio/match-profile).
+git commits:             All work through afs-030 is committed and pushed to
+                         origin/main. Working tree is clean.
+Design system:           The afs-027 site-wide light silver rebrand was REVERTED
+                         (afs-028, `git revert b3512f1`) back to the original dark
+                         gunmetal theme per explicit instruction ("light theme was
+                         applied in error") — DESIGN_TOKENS.md, tailwind.config.js,
+                         and app/globals.css are back to their pre-afs-027 dark
+                         values. afs-029 then applied a small, explicitly-scoped
+                         patch on top of the reverted dark theme: app/(public)/
+                         products/page.tsx, app/configure/page.tsx, and
+                         app/quote/page.tsx each have their main content-area div
+                         given an inline `style={{ backgroundColor: '#B8BEC8' }}`
+                         (a one-off arbitrary value, not a token, per explicit
+                         instruction to touch nothing else) and their page
+                         title/subtitle recolored to text-afs-crimson font-bold /
+                         text-black font-bold. afs-030 (this build) re-added just
+                         the afs-ink-900 (#111111) / afs-ink-700 (#374151) token
+                         pair — removed by the afs-028 revert — because the new
+                         FlashDraft canvas tool needs dark dimension-label text on
+                         its light drawing surface; the rest of the site remains
+                         dark gunmetal. See SESSION_STATE.md for the full afs-027
+                         → afs-028 → afs-029 → afs-030 sequence.
+Design Studio:           NEW (afs-030) — app/studio (tab-card landing page) +
+                         app/studio/draft (FlashDraft canvas tool), backed by a new
+                         machine profile library imported from the shop's actual
+                         Thalmann DS2801 bending machine database. See BUILD PHASE
+                         STATUS below for full detail. PathfinderEdge machine-control
+                         integration was investigated live and found to have no
+                         discoverable REST API — stubbed, not implemented, exactly
+                         like the QuickBooks precedent.
 ```
 
 ---
@@ -160,6 +175,101 @@ Phase 8 — Integrations + Deploy:       BUILT (afs-026). QuickBooks per
                                         but absent from the example file), next.config.js
                                         already had the Supabase Storage remotePattern
                                         — no change needed.
+
+Design Studio (afs-030) —                NEW, beyond BLUEPRINT.md's original 9-phase
+  not one of Phase 0-8:                  queue. Three parts:
+
+  1. Thalmann machine profile import:    supabase/migrations/004_machine_profiles.sql
+                                        (machine_profile_categories, machine_profiles,
+                                        machine_profile_bends, RLS: authenticated read
+                                        on is_public rows, admin read/write all — NOT
+                                        yet applied to the live Supabase project, see
+                                        supabase/README.md). scripts/import-machine-
+                                        profiles.ts reads machine-data/ds2801db.bdb (a
+                                        real Microsoft Jet/Access database despite its
+                                        unusual extension — confirmed via magic bytes)
+                                        via the mdb-reader npm package instead of the
+                                        system mdbtools CLI (no apt-get/mdbtools
+                                        available in this Windows dev environment).
+                                        IMPORTANT: this source file is the shop's
+                                        actual job history, not a clean generic
+                                        catalog — most of its 911 profiles are named
+                                        after real customers/projects (hospitals,
+                                        churches, individual clients), including
+                                        inside categories with generic-sounding names
+                                        like "DRIP EDGE" or "VALLEY". Only categories
+                                        23 (Rheinzink-Profile → Zinc Profiles) and
+                                        42-61 (the numbered "00"-"19" series →
+                                        Standard Series 0-19) are imported
+                                        is_public = true; everything else is
+                                        is_public = false. Within the public
+                                        categories, any individual profile whose name
+                                        doesn't resolve to a recognized generic term
+                                        is also forced private (a handful of profiles
+                                        even there — "Messe", "Toli", "HAM", "SHOP
+                                        SINK", "1407 BURFORD" — read as personal
+                                        nicknames or job addresses, not generic
+                                        templates). machine-data/ itself is gitignored
+                                        — the raw file is real customer data and was
+                                        never committed. `pnpm run import:machine-
+                                        profiles` is documented but not run against
+                                        the live database (Part 5 instruction: do not
+                                        auto-run — paste 004_machine_profiles.sql into
+                                        the SQL Editor first, per supabase/README.md).
+
+  2. PathfinderEdge integration:         lib/integrations/pathfinder-edge.ts +
+                                        app/api/admin/pathfinder/{route,push-profile/
+                                        route,submit-job/route}.ts. A live discovery
+                                        pass was run (with explicit user
+                                        authorization) against the configured API key
+                                        and https://afs.pathfinderedge.com: the host
+                                        is real (Azure/Kestrel), but `/` redirects to
+                                        `/login` (session auth) and every guessed REST
+                                        path (/api, /api/v1, /api/profiles, /api/
+                                        catalogs, /api/jobs, /api/machines) plus
+                                        Swagger/OpenAPI discovery paths all returned
+                                        404 — no discoverable API surface. Stubbed
+                                        exactly like lib/integrations/quickbooks.ts:
+                                        all 5 functions (discoverApiEndpoints,
+                                        getPathfinderCatalogs, pushProfileToPathfinder,
+                                        submitJobToMachine, getJobStatus) return
+                                        'not_configured', zero network calls. This
+                                        matters because submitJobToMachine would
+                                        otherwise drive a real physical bending
+                                        machine (serial P0700707) from a fabricated,
+                                        undocumented request format.
+
+  3. FlashDraft + Design Studio UI:      app/studio/page.tsx (3 tab cards: Scan to
+                                        Quote → /upload, Photo to Quote →
+                                        /upload?tab=photos, FlashDraft →
+                                        /studio/draft). app/studio/draft/page.tsx —
+                                        two-panel canvas tool (380px controls + flex
+                                        canvas, min 600×500): draw/select/erase modes,
+                                        15°-angle and 1/8"-dimension snapping, Ctrl+Z/
+                                        Ctrl+Y undo/redo, wheel zoom, middle-mouse/
+                                        Space+drag pan, per-segment length editing,
+                                        1/4" grid, profile drawn in afs-crimson with
+                                        dimension/angle labels in afs-ink-900 (re-added
+                                        this token pair specifically for this canvas
+                                        use — see Design system note above), debounced
+                                        (500ms) profile matching against
+                                        app/api/studio/match-profile/route.ts (scores
+                                        public machine_profiles by bend count + angle
+                                        + leg-length similarity, returns top 3), Save
+                                        Draft (localStorage), Load from Library
+                                        (queries public machine_profiles client-side,
+                                        reconstructs an approximate shape from the
+                                        bend sequence), Submit for Quote (existing
+                                        /api/quote-requests endpoint). Added to
+                                        NavBar.tsx between "Upload Drawing" and
+                                        "Architects". Visually verified — drew a test
+                                        L-shaped profile via Playwright, confirmed
+                                        snapping/labels/undo render correctly, zero
+                                        console errors; the profile-match panel
+                                        correctly shows its empty state since
+                                        machine_profiles doesn't exist in the live DB
+                                        yet (migration not applied — expected, not
+                                        a bug).
 ```
 
 ---
@@ -176,53 +286,53 @@ When migrating DNS to the live domain, these must be updated BEFORE go-live:
 
 ## NEXT ACTION
 
-**All 9 build phases (0–8) are built, and the site has been rebranded from
-the dark gunmetal theme to a light silver theme (afs-027).** The tool-approval
-gate logged in afs-023/024 has not recurred since afs-025.
+**All 9 original build phases (0–8) are built. The design system is back to
+its original dark gunmetal theme (afs-028 reverted afs-027's light rebrand).
+A new, tenth body of work — the Design Studio (Thalmann profile import,
+FlashDraft canvas tool, PathfinderEdge stub) — was added in afs-030.** The
+tool-approval gate logged in afs-023/024 has not recurred since afs-025.
 
-1. **Done (afs-027):** Site-wide light theme rebrand. `tailwind.config.js` +
-   `app/globals.css`: afs-bg-* tokens changed to light silver values, added
-   `afs-ink-900`/`afs-ink-700` tokens, added `.afs-btn-chrome` CTA class.
-   `DESIGN_TOKENS.md` rewritten to document the new theme (§10 has full
-   before/after history). ~130 files across `app/` and `components/` had
-   their on-page text classes remapped from the old light-on-dark
-   `chrome-high/mid/base/dim` scale to the new dark-on-light `ink-900/700`
-   scale, via 13 parallel subagents each handling a directory slice, plus
-   manual passes on the homepage, product cards, and layout shells. Every
-   crimson/copper CTA's `text-white` was deliberately left unchanged per
-   instruction. Homepage headline enlarged ~30% and recolored; "Request a
-   Quote" button converted to the new chrome-metallic style. Product
-   category cards made compact with the title moved to the top of the tile.
-   `pnpm tsc --noEmit` (0 errors) and `pnpm run build` (exit 0, 92/92 routes)
-   both pass; visually verified via a temporary Playwright screenshot check
-   against the dev server (not added as a project dependency). Committed.
-2. **Done (afs-026):** Phase 8 — QuickBooks stub + Vercel deploy prep.
-   `lib/integrations/quickbooks.ts`, `app/api/admin/quickbooks/status/route.ts`,
-   `app/admin/quickbooks/page.tsx`, AdminShell nav entry, `vercel.json`,
-   `.env.example` METALS_API_KEY addition.
-3. **Remaining — not a code task:** `supabase/migrations/*` have not been
-   applied to a live Supabase project yet (see `supabase/README.md`).
-4. Confirm chat_conversations retention policy (#65) before relying on
+1. **Done (afs-030 — this build):** Design Studio. See BUILD PHASE STATUS
+   above for full detail: `supabase/migrations/004_machine_profiles.sql`
+   (not yet applied to the live project — paste into SQL Editor per
+   `supabase/README.md`, then run `pnpm run import:machine-profiles`),
+   `app/studio` + `app/studio/draft` (FlashDraft canvas), `app/api/studio/
+   match-profile`, `lib/integrations/pathfinder-edge.ts` (stub — no real
+   PathfinderEdge API was discoverable) + its 3 admin routes, NavBar entry.
+   Re-added `afs-ink-900`/`afs-ink-700` tokens (only these two) for the
+   FlashDraft canvas's dimension labels. `pnpm tsc --noEmit` (0 errors) and
+   `pnpm run build` (exit 0, 98/98 routes) both pass; visually verified.
+2. **Done (afs-029):** Scoped fix on top of the reverted dark theme —
+   `app/(public)/products/page.tsx`, `app/configure/page.tsx`,
+   `app/quote/page.tsx` each got an inline `#B8BEC8` background on their
+   main content div and `text-afs-crimson font-bold` / `text-black
+   font-bold` titles/subtitles, per an explicitly narrow instruction
+   ("do not touch any other file/token"). Not committed to governance docs
+   at the time per that instruction's own scope — logged here now for
+   completeness.
+3. **Done (afs-028):** `git revert b3512f1` — reverted the afs-027 site-wide
+   light rebrand back to the original dark gunmetal theme per explicit
+   instruction. `pnpm tsc --noEmit` and `pnpm run build` both re-verified
+   passing after the revert.
+4. **Remaining — not a code task:** `supabase/migrations/*` (all 4, including
+   the new 004) have not been applied to a live Supabase project yet.
+5. Confirm chat_conversations retention policy (#65) before relying on
    chat history persistence in production.
-5. If/when the client confirms QuickBooks scope (checklist #52-54), build
-   out real OAuth + sync per SPEC_QUICKBOOKS_INTEGRATION.md §3-5 — the stub
-   module's function signatures already match what that implementation
-   will fill in.
-6. DATA BLOCKERS table below is the remaining pre-launch punch list —
+6. If/when the client confirms QuickBooks scope (checklist #52-54) or a
+   real PathfinderEdge API is documented, build the real integrations out
+   against the existing stub function signatures in `lib/integrations/
+   quickbooks.ts` and `lib/integrations/pathfinder-edge.ts`.
+7. If further profile data is needed publicly, a human should review the
+   ~850 profiles imported as `is_public = false` (real customer/project
+   job history) and selectively flip specific ones to public — do not
+   bulk-flip the category default, per the privacy audit in afs-030.
+8. DATA BLOCKERS table below is the remaining pre-launch punch list —
    nothing left is a FORGE code task; all remaining items need data/assets
    from the client.
-7. Known cosmetic residual from the rebrand: the `.metal-edge`/`.metal-edge-red`/
-   `.metal-edge-copper` signature-element gradients and the (currently unused)
-   `.hero-glow-red`/`.hero-glow-chrome` classes in `app/globals.css` were not
-   updated — they were tuned for the old dark backgrounds and may read as
-   faint against the new light ones. Not touched because they weren't in
-   scope for this rebrand request; worth a follow-up pass if the Metal Edge
-   accent looks washed out in review.
 
-Historical detail on the afs-023 → afs-025 build-blocker investigation and
-the two real build bugs fixed in afs-025 (eager `new Stripe(...)` at module
-scope; missing `<Suspense>` around `useSearchParams()` in
-`app/checkout/page.tsx`) is preserved in SESSION_STATE.md's SESSION LOG.
+Historical detail on the afs-023 → afs-027 sequence (build-blocker
+investigation, the two real build bugs fixed in afs-025, and the full
+afs-027 light-rebrand build) is preserved in SESSION_STATE.md's SESSION LOG.
 
 ---
 
