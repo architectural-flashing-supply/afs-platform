@@ -30,6 +30,7 @@
   --afs-border:        rgba(78, 85, 104, 0.8);
   --afs-border-strong: rgba(180, 190, 210, 0.35);
   --afs-success:       #1E8A52;
+  --afs-success-ghost: rgba(30, 138, 82, 0.12);
   --afs-warning:       #C48A00;
   --afs-info:          #3478B0;
 }
@@ -72,6 +73,16 @@ body {
     rgba(192,0,26,0.8) 25%,
     rgba(232,0,31,1) 50%,
     rgba(192,0,26,0.8) 75%,
+    transparent 100%
+  );
+}
+.metal-edge-copper::before {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(184,115,51,0.8) 25%,
+    rgba(212,149,106,1) 50%,
+    rgba(184,115,51,0.8) 75%,
     transparent 100%
   );
 }

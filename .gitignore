@@ -8,6 +8,7 @@ out/
 
 # Build
 dist/
+tsconfig.tsbuildinfo
 
 # Env
 .env

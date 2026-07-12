@@ -1,0 +1,887 @@
+project: afs-website
+version: "2.0"
+description: >
+  AFS Architectural Flashing Supply — Full platform scaffold.
+  Reads CLAUDE.md first on every prompt. RFQ model — no customer-facing pricing.
+  pnpm only. TypeScript strict. afs-* tokens only.
+
+rules:
+  - Read CLAUDE.md before executing any prompt
+  - Read the referenced spec docs before building any feature
+  - pnpm only — never npm or yarn
+  - pnpm tsc --noEmit must pass with 0 errors before marking any prompt complete
+  - No hardcoded hex values — use afs-* Tailwind tokens
+  - No customer-facing prices anywhere
+  - Update STATE_OF_THE_BUILD.md and SESSION_STATE.md at the end of every prompt
+
+prompts:
+
+  # ─────────────────────────────────────────────
+  # PHASE 0 — FOUNDATION AUDIT
+  # ─────────────────────────────────────────────
+
+  - id: p0-001
+    label: "Foundation audit and token reconciliation"
+    reads: [CLAUDE.md, BLUEPRINT.md, DESIGN_TOKENS.md]
+    prompt: |
+      Read CLAUDE.md, BLUEPRINT.md, and DESIGN_TOKENS.md from the project root.
+
+      Audit the existing codebase against the spec:
+      1. Verify tailwind.config.js has all afs-* color tokens from DESIGN_TOKENS.md
+      2. Verify app/globals.css has all CSS custom properties from DESIGN_TOKENS.md
+      3. Verify app/layout.tsx has all five Google Fonts loaded correctly
+      4. Verify middleware.ts exists and protects /account/** and /admin/**
+      5. Verify lib/supabase/client.ts and lib/supabase/server.ts exist
+      6. Verify lib/anthropic/client.ts exists
+
+      Fix any discrepancies found. Do not change what is already correct.
+      Run pnpm tsc --noEmit — 0 errors required.
+      Update STATE_OF_THE_BUILD.md with audit findings.
+
+  # ─────────────────────────────────────────────
+  # PHASE 1 — DRAWING TOOL COMPLETION
+  # ─────────────────────────────────────────────
+
+  - id: p1-001
+    label: "Supabase Storage wiring for blueprint uploads"
+    reads: [CLAUDE.md, SPEC_DRAWING_TOOL.md, SPEC_SUPABASE_INTEGRATION.md]
+    prompt: |
+      Read CLAUDE.md, SPEC_DRAWING_TOOL.md, and SPEC_SUPABASE_INTEGRATION.md.
+
+      The upload API at app/api/upload/route.ts currently processes files but
+      does not store them in Supabase Storage. Wire in Supabase Storage:
+
+      1. Create lib/supabase/admin.ts — service role client for server operations
+      2. Update app/api/upload/route.ts to:
+         - Upload the file buffer to Supabase Storage bucket 'blueprints'
+         - Storage path: blueprints/{userId|'guest'}/{uuid}/{sanitized-filename}
+         - Insert a takeoff_uploads record with status='uploaded'
+         - Return { uploadId, storageKey, status: 'uploaded' }
+      3. Update app/api/takeoff/route.ts to:
+         - Fetch the file from Supabase Storage using the storageKey
+         - Update takeoff_uploads.status = 'processing' before AI call
+         - Update takeoff_uploads.result_items and status after AI call
+         - Return the full TakeoffResult
+
+      Use the server Supabase client (not admin) for user-owned operations.
+      Use admin client only for service-level operations.
+      Run pnpm tsc --noEmit — 0 errors.
+      Update STATE_OF_THE_BUILD.md.
+
+  - id: p1-002
+    label: "Quote request submission from drawing tool"
+    reads: [CLAUDE.md, SPEC_DRAWING_TOOL.md, SPEC_QUOTE_BUILDER.md]
+    prompt: |
+      Read CLAUDE.md, SPEC_DRAWING_TOOL.md, and SPEC_QUOTE_BUILDER.md.
+
+      The "Submit Quote Request" button on app/upload/page.tsx is not wired.
+      Wire it to POST /api/quote-requests:
+
+      1. Create app/api/quote-requests/route.ts:
+         - POST: accepts items[], projectId?, jobsiteAddress?, isRush, notes, guestEmail?
+         - Generates request_number: AFS-QR-{YEAR}-{SEQUENCE} using Supabase sequence
+         - Inserts quote_requests record
+         - Returns { requestId, requestNumber }
+      2. Update the Submit Quote Request button in app/upload/page.tsx to:
+         - POST confirmed items to /api/quote-requests
+         - Show loading state during submission
+         - On success: show confirmation view with request number
+         - On error: show error toast, allow retry
+      3. Guest flow: if no auth session, show GuestCaptureModal for email before submit
+
+      No prices anywhere. RFQ model.
+      Run pnpm tsc --noEmit — 0 errors.
+      Update STATE_OF_THE_BUILD.md.
+
+  # ─────────────────────────────────────────────
+  # PHASE 2 — QUOTE WIZARD COMPLETION
+  # ─────────────────────────────────────────────
+
+  - id: p2-001
+    label: "Quote wizard backend wiring"
+    reads: [CLAUDE.md, SPEC_QUOTE_BUILDER.md]
+    prompt: |
+      Read CLAUDE.md and SPEC_QUOTE_BUILDER.md.
+
+      app/quote/page.tsx has a working 4-step wizard UI but submission is a no-op.
+      Wire the Submit Quote Request button to POST /api/quote-requests (created in p1-002).
+
+      The payload from the wizard must include:
+      - items: all QuoteRequestLineItem[] from session state
+      - projectId, jobsiteAddress, poNumber (from Step 3)
+      - isRush (from Step 3)
+      - notes (from Step 3)
+
+      After successful submission:
+      - Show confirmation view with request number AFS-QR-XXXX
+      - "View My Requests" link → /account/quotes
+      - "Submit Another" resets wizard
+
+      No prices at any step. Validate before submit: minimum 1 item with
+      profileType + material + lengthFt.
+      Run pnpm tsc --noEmit — 0 errors.
+      Update STATE_OF_THE_BUILD.md.
+
+  - id: p2-002
+    label: "Flashing configurator page"
+    reads: [CLAUDE.md, SPEC_FLASHING_CONFIGURATOR.md, DESIGN_TOKENS.md]
+    prompt: |
+      Read CLAUDE.md, SPEC_FLASHING_CONFIGURATOR.md, and DESIGN_TOKENS.md.
+
+      Create app/configure/page.tsx — the Custom Flashing Configurator.
+
+      Layout: two-panel desktop (left 420px controls, right flex-1 preview).
+      Mobile: tabbed (Configure | Preview).
+
+      LEFT PANEL controls sections:
+      1. Profile Type — same button grid as quote wizard
+      2. Material — select element from AFS materials list
+      3. Gauge — select element filtered by material
+      4. Dimensions — width, height, legA, legB inputs (inches, step 0.0625)
+      5. Length (ft) + Quantity
+      6. Notes textarea
+      Actions: [Submit for Quote] [Add to Quote Request] [Start Over]
+
+      RIGHT PANEL:
+      - ProfileDiagramSVG — parameterized SVG showing profile shape with dimension labels
+        Create lib/utils/profile-svg.ts with generateProfileSVG() function
+        Generates SVG for: coping-cap, base-flashing, drip-edge, gravel-stop, fascia
+        Updates live as dimensions change (debounced 150ms)
+      - SpecSummaryPanel — text summary of current configuration
+      - Disclaimer: "CAD preview for reference only"
+
+      Submit for Quote → POST /api/quote-requests with single item.
+      No prices. No totals.
+      Use afs-* tokens throughout.
+      Run pnpm tsc --noEmit — 0 errors.
+      Update STATE_OF_THE_BUILD.md.
+
+  # ─────────────────────────────────────────────
+  # PHASE 3 — AUTH SYSTEM
+  # ─────────────────────────────────────────────
+
+  - id: p3-001
+    label: "Authentication pages — register, login, forgot password"
+    reads: [CLAUDE.md, SPEC_AUTH.md, DESIGN_TOKENS.md]
+    prompt: |
+      Read CLAUDE.md, SPEC_AUTH.md, and DESIGN_TOKENS.md.
+
+      Build the complete authentication flow using Supabase Auth:
+
+      1. app/(auth)/login/page.tsx
+         - Email + password form
+         - Magic link toggle
+         - "Forgot password?" link
+         - On success: redirect admin → /admin, others → /account
+         - Error states per SPEC_AUTH.md
+
+      2. app/(auth)/register/page.tsx
+         - Fields: email, password, fullName, company (optional), accountType
+         - accountType options: contractor, architect, pm_gc, other
+         - Password strength indicator (weak/fair/strong)
+         - On submit: Supabase createUser() + insert profiles record via admin client
+         - Redirect to /register/confirm
+
+      3. app/(auth)/register/confirm/page.tsx
+         - "Check your email" message
+         - Resend link (rate limited)
+
+      4. app/(auth)/forgot-password/page.tsx + /forgot-password/sent/page.tsx
+         - Email input → Supabase resetPasswordForEmail()
+         - Never confirm or deny email existence
+
+      5. app/(auth)/reset-password/page.tsx
+         - New password + confirm
+         - Supabase updateUser()
+
+      6. app/auth/callback/route.ts
+         - Supabase code exchange handler
+
+      All auth pages use AuthShell layout (centered card, no NavBar/Footer).
+      AuthShell: max-w-[480px] mx-auto mt-24 bg-afs-bg-raised border border-afs-border rounded p-10
+      AFS logo at top of card.
+      Run pnpm tsc --noEmit — 0 errors.
+      Update STATE_OF_THE_BUILD.md.
+
+  # ─────────────────────────────────────────────
+  # PHASE 3 — PRODUCT CATALOG STUBS
+  # ─────────────────────────────────────────────
+
+  - id: p3-002
+    label: "Product catalog pages — stubbed with AFS product data"
+    reads: [CLAUDE.md, SPEC_PRODUCT_CATALOG.md, DESIGN_TOKENS.md]
+    prompt: |
+      Read CLAUDE.md, SPEC_PRODUCT_CATALOG.md, and DESIGN_TOKENS.md.
+
+      Build the product catalog with AFS real product categories as stubs.
+      No prices anywhere. Every product drives to quote request.
+
+      1. app/(public)/products/page.tsx — catalog index
+         - ProductFilterPanel (left sidebar): Profile Type, Material, Gauge filters
+         - ProductGrid: CSS gradient placeholder cards (no photography yet)
+         - AFS product categories from real site:
+           Roofing, Scuppers, Fascia, Copings/Cleats, Siding/Walls,
+           Custom Fabrications, Windows/Doors Flashing
+         - Each card: category name, brief description, "Request a Quote" CTA
+         - No prices, no "from $X"
+
+      2. app/(public)/products/[category]/page.tsx — category page
+         - Breadcrumb: Home > Products > [Category]
+         - Category description
+         - Product grid filtered to this category
+         - Static params: ['roofing','scuppers','fascia','copings-cleats',
+           'siding-walls','custom-fabrications','windows-doors']
+
+      3. app/(public)/products/[category]/[slug]/page.tsx — product detail stub
+         - ProfileDiagramSVG (illustrative)
+         - Material options
+         - "Request a Quote for This Product" primary CTA → /quote?category={category}
+         - "Configure Custom Dimensions" → /configure
+
+      Use afs-* tokens. No prices. CSS gradient placeholders for images.
+      Run pnpm tsc --noEmit — 0 errors.
+      Update STATE_OF_THE_BUILD.md.
+
+  # ─────────────────────────────────────────────
+  # PHASE 4 — CUSTOMER PORTAL
+  # ─────────────────────────────────────────────
+
+  - id: p4-001
+    label: "Account shell and dashboard"
+    reads: [CLAUDE.md, SPEC_ORDER_PORTAL.md, DESIGN_TOKENS.md]
+    prompt: |
+      Read CLAUDE.md, SPEC_ORDER_PORTAL.md, and DESIGN_TOKENS.md.
+
+      Build the customer account portal shell and dashboard:
+
+      1. components/layout/AccountShell.tsx
+         Left sidebar (220px) with nav:
+         - Dashboard → /account
+         - My Orders → /account/orders
+         - My Quotes → /account/quotes
+         - My Projects → /account/projects
+         - Documents → /account/documents
+         - Invoices → /account/invoices
+         - Templates → /account/templates
+         - Team → /account/team
+         - Settings → /account/settings
+         Active item: border-l-2 border-afs-crimson bg-afs-bg-surface text-white
+         Main content area: flex-1, pt-16 (for fixed top nav)
+
+      2. app/account/page.tsx — Dashboard
+         - WelcomeHeader: "Good {timeOfDay}, {firstName}"
+         - ActiveOrdersCard: orders not in delivered/cancelled (max 3, "View all →")
+         - RecentQuotesCard: recent quote_requests + formal quotes (max 3)
+         - QuickActionsCard: Upload Drawing | Request Quote | Track Order | Invoices
+         - Empty states when no data
+
+      3. app/account/quotes/page.tsx — Quote requests list
+         - Table: Request # | Profiles | Submitted | Status
+         - Status badges: Pending Review (amber) | Quote Ready (green) | Quoted
+
+      4. app/account/quotes/[id]/page.tsx — Quote detail
+         - If quote_request: shows submitted specs, awaiting AFS quote message
+         - If formal quote: shows AFS line items WITH prices (first time customer sees prices)
+         - [Approve & Pay] → /checkout?quote={id}
+
+      All pages auth-gated via middleware. Use AccountShell.
+      Run pnpm tsc --noEmit — 0 errors.
+      Update STATE_OF_THE_BUILD.md.
+
+  - id: p4-002
+    label: "Order portal — list, detail, production timeline"
+    reads: [CLAUDE.md, SPEC_ORDER_PORTAL.md, SPEC_PRODUCTION_TIMELINE.md]
+    prompt: |
+      Read CLAUDE.md, SPEC_ORDER_PORTAL.md, and SPEC_PRODUCTION_TIMELINE.md.
+
+      1. app/account/orders/page.tsx
+         Paginated table: Order # | Date | Profiles summary | Status | Actions
+         Status badges per order stage.
+         Filter tabs: All | Active | Completed
+         "Reorder" button per row.
+
+      2. app/account/orders/[id]/page.tsx
+         OrderDetailHeader: order number, status badge, dates
+         OrderLineItemsTable: read-only, shows AFS-set prices
+         ProductionTimeline component (see below)
+         DeliverySection: address, scheduled date, tracking when shipped
+         ReorderSection: "Order These Items Again" button
+
+      3. components/account/ProductionTimeline.tsx
+         Vertical stage timeline component:
+         Stages: submitted → received → in_queue → cutting → bending → qc → ready → shipped → delivered
+         Completed: filled crimson dot
+         Active: pulsing crimson dot
+         Pending: empty chrome-dim dot, dashed connector
+         Timestamps from order_status_history
+         variant prop: 'customer' | 'admin' | 'public'
+
+      4. app/track/[orderId]/page.tsx — Public tracker
+         Email verification form (order ID + email match)
+         Shows ProductionTimeline read-only, no prices
+         Rate limited
+
+      Supabase Realtime subscription on orders table for live status updates.
+      Run pnpm tsc --noEmit — 0 errors.
+      Update STATE_OF_THE_BUILD.md.
+
+  - id: p4-003
+    label: "Projects, documents, invoices, templates portal pages"
+    reads: [CLAUDE.md, SPEC_MULTI_PROJECT_MANAGEMENT.md, SPEC_INVOICE_PORTAL.md, SPEC_SAVED_PROJECT_TEMPLATES.md]
+    prompt: |
+      Read CLAUDE.md, SPEC_MULTI_PROJECT_MANAGEMENT.md, SPEC_INVOICE_PORTAL.md,
+      and SPEC_SAVED_PROJECT_TEMPLATES.md.
+
+      Build these account portal pages:
+
+      1. app/account/projects/page.tsx
+         Project card grid: name, status badge, order count, last activity
+         [Create Project] → ProjectCreateModal (name, description, jobsite address)
+         Empty state with CTA
+
+      2. app/account/projects/[id]/page.tsx
+         Tabs: Orders | Quotes | Documents | Team
+         Project header with edit capability
+
+      3. app/account/documents/page.tsx
+         Document vault — file list with folder organization
+         Upload button (context: 'vault')
+         Filter by project
+
+      4. app/account/invoices/page.tsx
+         Table: Invoice # | Order # | Date | Amount | Status | Download PDF
+         Status: paid (green) | due (amber) | overdue (crimson)
+         Account statement download
+
+      5. app/account/templates/page.tsx
+         Template cards: name, item count, use count, last used
+         [Use Template] → /quote?from_template={id}
+         [Create Template] flow
+
+      6. app/account/settings/page.tsx
+         Profile section: name, company, phone (editable)
+         Notification preferences: email/SMS toggles
+         Security: change password link
+
+      All pages use AccountShell. Auth-gated.
+      Run pnpm tsc --noEmit — 0 errors.
+      Update STATE_OF_THE_BUILD.md.
+
+  - id: p4-004
+    label: "Team accounts and credit application"
+    reads: [CLAUDE.md, SPEC_TEAM_ACCOUNTS.md, SPEC_ONLINE_CREDIT_APPLICATION.md]
+    prompt: |
+      Read CLAUDE.md, SPEC_TEAM_ACCOUNTS.md, and SPEC_ONLINE_CREDIT_APPLICATION.md.
+
+      1. app/account/team/page.tsx
+         Member table: Name | Email | Role | Status | Actions
+         [Invite Team Member] → InvitationModal (email + role dropdown)
+         POST /api/team/invite → creates pending invitation + sends email
+
+      2. app/invite/[token]/page.tsx
+         Validates token → adds user to company with role
+         Shows login or register form pre-filled with invited email
+
+      3. app/account/credit-application/page.tsx
+         4-step form per SPEC_ONLINE_CREDIT_APPLICATION.md:
+         Step 1: Business info (legal name, EIN, years, type, revenue)
+         Step 2: Trade references (3 minimum)
+         Step 3: Credit request (limit + terms)
+         Step 4: Authorization (typed signature, certification)
+         Submit → POST /api/credit/apply
+
+      API routes:
+      - POST /api/team/invite
+      - POST /api/credit/apply
+
+      Run pnpm tsc --noEmit — 0 errors.
+      Update STATE_OF_THE_BUILD.md.
+
+  # ─────────────────────────────────────────────
+  # PHASE 4 — CHECKOUT
+  # ─────────────────────────────────────────────
+
+  - id: p4-005
+    label: "Checkout flow — post quote approval payment"
+    reads: [CLAUDE.md, SPEC_CHECKOUT.md, SPEC_STRIPE_INTEGRATION.md]
+    prompt: |
+      Read CLAUDE.md, SPEC_CHECKOUT.md, and SPEC_STRIPE_INTEGRATION.md.
+
+      Build the checkout flow. Payment is collected ONLY after customer
+      approves a formal AFS-generated quote. Never self-service.
+
+      1. app/checkout/page.tsx
+         Requires ?quote={id} param and authentication.
+         Section 1: Delivery — Ship or Pickup radio
+           Ship: address autocomplete, residential toggle, PO number
+           Pickup: contact name + phone
+         Section 2: Payment method selector
+           Card: Stripe Elements (dark theme per SPEC_CHECKOUT.md)
+           Net Terms: shown only for net_terms > 0 accounts
+         Section 3: Legal checkboxes (all required):
+           - Accept terms of sale
+           - No returns on custom fabricated items
+           - Specifications are final
+         [Place Order] button — crimson, disabled until all fields + checkboxes
+
+      2. app/api/checkout/create-intent/route.ts
+         Fetches quote from DB (validates ownership + status === 'sent')
+         Creates Stripe PaymentIntent for quotes.total
+         Returns { clientSecret }
+
+      3. app/api/webhooks/stripe/route.ts
+         Verifies Stripe signature
+         Handles payment_intent.succeeded:
+           - Creates orders record
+           - Copies quote_line_items → order_line_items
+           - Sets quote.status = 'converted'
+           - Inserts order_status_history
+         Handles payment_intent.payment_failed
+
+      Install: pnpm install stripe @stripe/stripe-js @stripe/react-stripe-js
+      Run pnpm tsc --noEmit — 0 errors.
+      Update STATE_OF_THE_BUILD.md.
+
+  # ─────────────────────────────────────────────
+  # PHASE 5 — ARCHITECT PORTAL
+  # ─────────────────────────────────────────────
+
+  - id: p5-001
+    label: "Architect portal landing and shell"
+    reads: [CLAUDE.md, SPEC_ARCHITECT_PORTAL.md, DESIGN_TOKENS.md]
+    prompt: |
+      Read CLAUDE.md, SPEC_ARCHITECT_PORTAL.md, and DESIGN_TOKENS.md.
+
+      Build the architect portal. Copper accent replaces crimson throughout.
+      Same dark gunmetal base. Distinct from contractor-facing pages.
+
+      1. app/(public)/architects/page.tsx — Portal landing
+         ArchitectHero: copper eyebrow, large headline, copper CTA
+         PortalFeatureGrid: 4 cards (Spec Writer, CAD Library, Finish Palette, Custom Profiles)
+         WhySpecAFSSection: 3 columns
+         ArchitectAccountCTA: register as architect
+
+      2. components/layout/ArchitectShell.tsx
+         Extends PageShell with copper accent treatment
+         Copper eyebrow pattern above headings
+
+      3. app/(public)/architects/consultation/page.tsx
+         4-step consultation request form per SPEC_DESIGN_CONSULTATION.md
+         POST /api/consultation/request
+
+      4. app/(public)/architects/guides/page.tsx — Resource center
+         Category tabs: Standards | Installation | Specification | FAQs
+         Article list (empty state: "Content being prepared")
+
+      5. app/(public)/architects/guides/[profileSlug]/page.tsx — Installation guide stub
+         Step list placeholder
+         AIAdvisorSection at bottom (chat input, inline)
+
+      All copper accent rules: bg-afs-copper for primary buttons in architect context.
+      Run pnpm tsc --noEmit — 0 errors.
+      Update STATE_OF_THE_BUILD.md.
+
+  - id: p5-002
+    label: "AI Spec Writer"
+    reads: [CLAUDE.md, SPEC_AI_SPEC_WRITER.md]
+    prompt: |
+      Read CLAUDE.md and SPEC_AI_SPEC_WRITER.md.
+
+      Build the AI CSI Specification Generator at app/(public)/architects/spec-writer/page.tsx.
+      Auth required: architect or admin role.
+
+      4-step flow:
+      Step 1: CSI section selection
+        Sections: '07 61 00 Sheet Metal Roofing', '07 62 00 Sheet Metal Flashing and Trim',
+        '07 65 00 Flexible Flashing', '07 72 00 Roof Accessories'
+      Step 2: Profile + material selection (checkboxes)
+      Step 3: Project context (optional): project type, climate zone, sole source toggle
+      Step 4: Generate + preview
+
+      API: POST /api/spec
+        Calls claude-sonnet-4-6 with SPEC_WRITER_SYSTEM_PROMPT from SPEC_AI_SPEC_WRITER.md
+        Returns structured CSI spec JSON (Part 1, Part 2, Part 3)
+        Max tokens: 4096
+
+      SpecPreview component:
+        Renders Part 1/2/3 sections with article numbers
+        Inline editing capability
+        [Download DOCX] button → GET /api/spec/{id}/docx
+        [Save to Account] → saved_specifications table
+
+      DOCX generation: pnpm install docx
+      Use copper accent throughout (architect portal).
+      Run pnpm tsc --noEmit — 0 errors.
+      Update STATE_OF_THE_BUILD.md.
+
+  - id: p5-003
+    label: "CAD library, finish palette, custom profiles"
+    reads: [CLAUDE.md, SPEC_CAD_BIM_LIBRARY.md, SPEC_FINISH_PALETTE.md, SPEC_CUSTOM_PROFILE_LIBRARY.md]
+    prompt: |
+      Read CLAUDE.md, SPEC_CAD_BIM_LIBRARY.md, SPEC_FINISH_PALETTE.md,
+      and SPEC_CUSTOM_PROFILE_LIBRARY.md.
+
+      1. app/(public)/architects/cad-library/page.tsx
+         Filter bar: Profile Type | Format (DWG/DXF/PDF/Revit) | Material
+         CADFileCard grid (reads cad_library_files table)
+         Empty state: "CAD library being populated. Files available soon."
+         Download requires auth — guest sees sign-in prompt
+         Download flow: POST /api/documents/{id}/download → signed URL
+
+      2. app/(public)/architects/finish-palette/page.tsx
+         Material tabs from materials table (not hardcoded)
+         FinishChip grid (hex_preview as background)
+         Empty state per material tab
+         "Download Complete Palette" PDF button
+
+      3. app/(public)/architects/custom-profiles/page.tsx
+         Auth required (any role)
+         SavedConfigCard grid from saved_configurations table
+         ProfileDiagramSVG on each card
+         [Reorder] → /quote with config pre-loaded
+         [Edit] → /configure?saved={id}
+         Empty state: "No custom profiles yet. Configure one to save it here."
+
+      API: GET /api/architects/palette/{materialSlug}/pdf
+      Use copper accent throughout.
+      Run pnpm tsc --noEmit — 0 errors.
+      Update STATE_OF_THE_BUILD.md.
+
+  # ─────────────────────────────────────────────
+  # PHASE 6 — ADMIN PORTAL
+  # ─────────────────────────────────────────────
+
+  - id: p6-001
+    label: "Admin shell and dashboard"
+    reads: [CLAUDE.md, SPEC_ADMIN_PORTAL.md, DESIGN_TOKENS.md]
+    prompt: |
+      Read CLAUDE.md, SPEC_ADMIN_PORTAL.md, and DESIGN_TOKENS.md.
+
+      Build the admin portal shell and dashboard. Admin role only.
+      Server-side role check in EVERY admin page — not just middleware.
+
+      1. components/layout/AdminShell.tsx
+         Fixed sidebar (240px):
+           AFS logo at top
+           Nav sections:
+           ── Operations ──
+             Quote Requests → /admin/quote-requests
+             Production Queue → /admin/orders
+             Consultations → /admin/consultations
+           ── Business ──
+             Customers → /admin/customers
+             Credit Apps → /admin/credit-applications
+             Pricing → /admin/pricing
+           ── Content ──
+             CAD Library → /admin/cad-library
+           ── Settings ──
+             Settings → /admin/settings
+           Bottom: signed-in admin name + Sign Out
+         Main content: flex-1, ml-[240px], pt-16
+
+      2. app/admin/page.tsx — Dashboard
+         KPI row (4 cards): Today's Orders | In Production | Ready to Ship | Pending Quotes
+         Rush count badge on each card
+         AlertsRow: margin risk, overdue invoices, pending credit apps
+         QuoteRequestQueue: 5 most recent submitted requests
+         RecentOrderActivity: last 10 status changes
+
+      3. app/admin/settings/page.tsx
+         Integration status cards:
+           Supabase, Stripe, Resend, Twilio, TaxJar, Google Maps
+         Cron job status (commodity-prices, pricing-trends) — placeholder "Not configured"
+         Maintenance mode toggle
+
+      Run pnpm tsc --noEmit — 0 errors.
+      Update STATE_OF_THE_BUILD.md.
+
+  - id: p6-002
+    label: "Admin quote request queue and estimator flow"
+    reads: [CLAUDE.md, SPEC_PRODUCTION_QUEUE.md, PRICING_ENGINE.md]
+    prompt: |
+      Read CLAUDE.md, SPEC_PRODUCTION_QUEUE.md, and PRICING_ENGINE.md.
+
+      Build the admin quote request management — the core estimator workflow:
+
+      1. app/admin/quote-requests/page.tsx
+         Queue table: Request # | Customer | Profiles | Submitted | Rush | Status
+         Rush orders highlighted and sorted to top
+         Status filter tabs: All | Submitted | Reviewing | Quoted
+         Click any row → /admin/quote-requests/{id}
+
+      2. app/admin/quote-requests/[id]/page.tsx — Estimator quote creation
+         Full customer submission display (read-only)
+         Per line item MANUAL price entry form (engine is deferred):
+           Unit price input ($/LF) — estimator enters manually
+           Waste factor display (adjusted quantity)
+           Line total auto-calculates
+           Estimator note field per item
+         FreightCalculatorPanel:
+           Destination (from submission), weight estimate, longest piece
+           Manual freight dollar input (no carrier API yet)
+         "Send Quote to Customer" button:
+           Validates all line items have unit price > 0
+           Creates quotes record with estimator-entered prices
+           Sets quote.status = 'sent'
+           Customer notification fires
+         API: POST /api/admin/quote-requests/{id}/send
+
+      Run pnpm tsc --noEmit — 0 errors.
+      Update STATE_OF_THE_BUILD.md.
+
+  - id: p6-003
+    label: "Production queue and order management"
+    reads: [CLAUDE.md, SPEC_PRODUCTION_QUEUE.md, SPEC_PRODUCTION_TIMELINE.md]
+    prompt: |
+      Read CLAUDE.md, SPEC_PRODUCTION_QUEUE.md, and SPEC_PRODUCTION_TIMELINE.md.
+
+      1. app/admin/orders/page.tsx — Production queue
+         Table: Order # | Customer | Profiles | Created | Expected | Rush | Status | Advance
+         Sort: Rush first → oldest first
+         QuickAdvanceButton per row → next status in one click
+         Filter tabs: All | Rush | In Queue | Cutting | Forming | QC | Ready | Shipped
+         Supabase Realtime: status updates appear live without refresh
+
+      2. app/admin/orders/[id]/page.tsx — Admin order detail
+         StatusAdvancer (prominent, top right):
+           [→ Advance to: {nextStage}] primary crimson button
+           StatusDropdown for manual override + note field
+           Backward change requires confirmation
+         OrderLineItemsTable with prices (admin sees full pricing)
+         AdminNotes: append-only textarea + history
+         PreShipPhotoSection: upload images, "Notify customer" checkbox
+         CustomerInfo: all order/delivery/payment details
+         StatusHistory: full order_status_history list
+
+      API routes:
+      - PATCH /api/admin/orders/{id}/status
+      - POST /api/admin/orders/{id}/photos
+
+      All status changes: customer notification + order_status_history + admin_audit_log.
+      Run pnpm tsc --noEmit — 0 errors.
+      Update STATE_OF_THE_BUILD.md.
+
+  - id: p6-004
+    label: "Customer management and pricing admin"
+    reads: [CLAUDE.md, SPEC_CUSTOMER_MANAGEMENT.md, SPEC_PRICING_ADMIN.md]
+    prompt: |
+      Read CLAUDE.md, SPEC_CUSTOMER_MANAGEMENT.md, and SPEC_PRICING_ADMIN.md.
+
+      1. app/admin/customers/page.tsx
+         Searchable table: Name | Company | Email | Role | Tier | Orders | Last Order
+         Filters: Role | Pricing Tier | Has Net Terms
+         [Export CSV] button
+
+      2. app/admin/customers/[id]/page.tsx
+         CustomerHeader: name, company, email, role badge, tier badge
+         AccountSettings (editable): role, pricing tier, net terms, credit limit, tax exempt
+         OrderHistory table (links to admin order detail)
+         AdminNotesLog: append-only, timestamped
+
+      3. app/admin/pricing/page.tsx
+         PricingRulesEditor: per-product table
+           Columns: Product | Material | Cost Notes | Target Margin % | Waste Factor | Rush %
+           Inline editing, save per row
+         PricingEngineComingSoonCard:
+           "Commodity-indexed pricing engine in development"
+           "Activation: 6-12 months post-launch"
+           Requirements checklist
+
+      4. app/admin/credit-applications/page.tsx
+         List: Company | Requested | Status | Submitted | Actions
+         [Review] → modal with application data, approve/deny controls
+
+      API routes:
+      - PATCH /api/admin/customers/{id}
+      - PATCH /api/admin/pricing/rules/{productId}
+
+      Run pnpm tsc --noEmit — 0 errors.
+      Update STATE_OF_THE_BUILD.md.
+
+  # ─────────────────────────────────────────────
+  # PHASE 7 — AI LAYER
+  # ─────────────────────────────────────────────
+
+  - id: p7-001
+    label: "Customer support chatbot widget"
+    reads: [CLAUDE.md, SPEC_AI_CHATBOT.md]
+    prompt: |
+      Read CLAUDE.md and SPEC_AI_CHATBOT.md.
+
+      Build the ChatWidget component and wire it to the AI API:
+
+      1. components/ai/ChatWidget.tsx
+         Fixed bottom-right, z-50
+         Collapsed: 64px circular button, crimson background, AFS mark
+         Expanded: 380×520px panel sliding up
+         MessageList with auto-scroll
+         InputBar: textarea (auto-grow) + Send button
+         TypingIndicator during streaming
+         EscalationCard when escalation detected
+
+      2. app/api/chat/route.ts — streaming endpoint
+         Model: claude-sonnet-4-6
+         Max tokens: 512 (forces concise answers)
+         System prompt from SPEC_AI_CHATBOT.md
+         Injects runtime context (authenticated user's orders + quotes)
+         Returns streaming response
+         NEVER reveals prices or quotes prices to customer
+
+      3. Wire ChatWidget into app/layout.tsx
+         Renders on all customer-facing pages
+         Not rendered on /admin/** routes
+
+      Escalation detection: parse [ESCALATE: {...}] from response
+      Show EscalationCard with AFS phone + email (from real site data).
+      Run pnpm tsc --noEmit — 0 errors.
+      Update STATE_OF_THE_BUILD.md.
+
+  - id: p7-002
+    label: "AI product finder, material recommendations, cross-sell"
+    reads: [CLAUDE.md, SPEC_AI_PRODUCT_FINDER.md, SPEC_AI_MATERIAL_RECOMMENDATIONS.md, SPEC_AI_CROSS_SELL.md]
+    prompt: |
+      Read CLAUDE.md, SPEC_AI_PRODUCT_FINDER.md, SPEC_AI_MATERIAL_RECOMMENDATIONS.md,
+      and SPEC_AI_CROSS_SELL.md.
+
+      1. AIProductFinder — embedded in app/(public)/products/page.tsx
+         Tab: [Browse Products] [Find by Description]
+         Find by Description: conversational input
+         POST /api/products/ai-search → returns product recommendations
+         Max 3 recommendations, each with "Request a Quote" CTA
+         No prices in any recommendation
+
+      2. MaterialRecommendationPanel — embedded in quote wizard Step 1
+         Triggers when material with special_order status is selected
+         POST /api/recommendations/material
+         Shows 1-2 alternative materials with availability and reason
+         [Select This Instead] updates material selection
+
+      3. CrossSellPanel — embedded below AutoMaterialCalculator in wizard Step 3
+         Only fires for orders with 3+ profile types OR copper orders
+         POST /api/recommendations/cross-sell
+         Shows 1-2 missed accessories with "Add to Quote Request" checkbox
+         No prices
+
+      All AI routes: claude-sonnet-4-6, never reveal prices.
+      Run pnpm tsc --noEmit — 0 errors.
+      Update STATE_OF_THE_BUILD.md.
+
+  # ─────────────────────────────────────────────
+  # PHASE 8 — REMAINING PUBLIC PAGES
+  # ─────────────────────────────────────────────
+
+  - id: p8-001
+    label: "About, contact, and legal pages"
+    reads: [CLAUDE.md, DESIGN_TOKENS.md]
+    prompt: |
+      Read CLAUDE.md and DESIGN_TOKENS.md.
+
+      Build remaining public pages using real AFS data from the existing website:
+
+      1. app/(public)/about/page.tsx
+         Company story: "Founded by artisans with a vision for excellence"
+         "Decades of expertise" — craftsmanship focus
+         Equipment section: Thalmann Verda ZR150 Folder, Schlebach Quadro Roll Former
+         Mobile fabrication capability
+         Supplier logos section: Englert, Revere, McElroy Metal, Unimet, Drexel, PAC-CLAD
+         CSS gradient image placeholders (no photography yet)
+
+      2. app/(public)/contact/page.tsx
+         Contact form: Name, Email, Phone, Project Details
+         Real AFS contact info:
+           209 Sure Cast Drive, Burnet, Texas 78611
+           (512) 372-4900
+           trica@architecturalflashingsupply.com
+         Google Maps embed placeholder (map of Burnet TX)
+         Query param: ?order={id} pre-fills order reference
+
+      3. app/(public)/legal/privacy/page.tsx
+         Placeholder: "Privacy Policy — Coming Soon"
+         "Contact us at trica@architecturalflashingsupply.com for privacy inquiries"
+         LAUNCH BLOCKER note in UI
+
+      4. app/(public)/legal/terms/page.tsx
+         Placeholder: "Terms of Sale — Coming Soon"
+
+      5. Footer.tsx update
+         Add real AFS address, phone, email
+         Update all column links to match actual routes built
+
+      Run pnpm tsc --noEmit — 0 errors.
+      Update STATE_OF_THE_BUILD.md.
+
+  - id: p8-002
+    label: "Database schema migration and Supabase setup"
+    reads: [CLAUDE.md, SCHEMA.md, SPEC_SUPABASE_INTEGRATION.md]
+    prompt: |
+      Read CLAUDE.md, SCHEMA.md, and SPEC_SUPABASE_INTEGRATION.md.
+
+      Create the complete Supabase database migration file:
+
+      1. Create supabase/migrations/001_initial_schema.sql
+         Include ALL 25 tables from SCHEMA.md plus additional tables:
+         profiles, companies, materials, gauges, finishes, product_profiles,
+         products, accessories, product_accessories, pricing_rules,
+         contractor_pricing, commodity_prices, supplier_price_history,
+         pricing_trend_analysis, projects, quote_requests, quotes,
+         quote_line_items, orders, order_line_items, order_status_history,
+         order_attachments, notifications, takeoff_uploads, vault_documents,
+         cad_library_files, cad_download_log, saved_configurations,
+         quote_templates, saved_specifications, admin_audit_log,
+         credit_applications, consultation_requests, chat_conversations,
+         spec_templates
+
+         Every table: RLS enabled, policies applied, indexes on FK columns.
+
+      2. Create supabase/migrations/002_seed_afs_data.sql
+         Seed real AFS materials data from their website:
+         INSERT INTO materials for each: Galvanized Steel, Galvanized Galvalume,
+         Copper, Lead Coated Copper, Anodized Aluminum, Stainless Steel,
+         Zinc, Kynar 500 Painted Steel, Vintage Steel
+         With commodity_key and density values.
+
+         INSERT INTO gauges for each material with correct thickness values.
+
+         INSERT INTO product_profiles for AFS product categories:
+         Coping Cap, Base Flashing, Counter Flashing, Drip Edge, Gravel Stop,
+         Fascia, Scupper, Valley Flashing, Expansion Joint, Window/Door Flashing,
+         Standing Seam Roofing, Custom Profile
+
+      Do not run the migration — just create the files.
+      Add README in supabase/ explaining how to run.
+      Run pnpm tsc --noEmit — 0 errors.
+      Update STATE_OF_THE_BUILD.md.
+
+  - id: p8-003
+    label: "Final build verification and Vercel deployment prep"
+    reads: [CLAUDE.md, BLUEPRINT.md]
+    prompt: |
+      Read CLAUDE.md and BLUEPRINT.md.
+
+      Final verification before Vercel deployment:
+
+      1. Run pnpm run build — must succeed with 0 errors
+         Fix any build errors found. Do not skip or suppress them.
+
+      2. Audit every page for:
+         - No hardcoded hex values bypassing afs-* token system
+         - No customer-facing prices (no $ amounts before formal quote)
+         - No broken imports or missing components
+         - All dynamic routes have generateStaticParams or are dynamic
+
+      3. Create .env.example in project root with all required env vars
+         (no values — just keys with comments explaining each)
+
+      4. Update next.config.js:
+         - Add image domains for Supabase Storage
+         - Ensure no deprecated config options
+
+      5. Verify vercel.json exists with correct build settings
+         Do NOT add cron jobs (pricing engine deferred)
+
+      6. Final commit:
+         git add -A
+         git commit -m "Phase 8: Production-ready build — all pages stubbed, schema ready"
+
+      Update STATE_OF_THE_BUILD.md with final status of all phases.
+      Update SESSION_STATE.md with handoff notes for next session.

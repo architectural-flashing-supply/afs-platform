@@ -25,22 +25,51 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  // Protect account routes
-  if (!user && request.nextUrl.pathname.startsWith('/account')) {
+  const pathname = request.nextUrl.pathname;
+  const isAccountRoute = pathname.startsWith('/account');
+  const isCheckoutRoute = pathname.startsWith('/checkout');
+  const isAdminRoute = pathname.startsWith('/admin');
+  const isAuthEntryRoute = pathname === '/login' || pathname === '/register';
+
+  // Unauthenticated users cannot reach protected routes.
+  if (!user && (isAccountRoute || isCheckoutRoute || isAdminRoute)) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
+    url.searchParams.set('redirect', pathname);
     return NextResponse.redirect(url);
   }
 
-  // Protect admin routes
-  if (request.nextUrl.pathname.startsWith('/admin')) {
-    if (!user) {
+  // Admin routes require the admin role, verified server-side on every request.
+  if (user && isAdminRoute) {
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError) {
       const url = request.nextUrl.clone();
       url.pathname = '/login';
       return NextResponse.redirect(url);
     }
+
+    if (profile.role !== 'admin') {
+      const url = request.nextUrl.clone();
+      url.pathname = '/account';
+      return NextResponse.redirect(url);
+    }
+  }
+
+  // Already-authenticated users don't need the login/register entry points.
+  if (user && isAuthEntryRoute) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/account';
+    url.search = '';
+    return NextResponse.redirect(url);
   }
 
   return supabaseResponse;

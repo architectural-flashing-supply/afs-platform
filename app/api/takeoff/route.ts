@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { anthropic } from '@/lib/anthropic/client';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 const TAKEOFF_SYSTEM_PROMPT = `You are a construction drawing analyzer for AFS Architectural Flashing Supply, a sheet metal fabricator. Your job is to read architectural drawings and extract all flashing and sheet metal details into a structured specification.
 
@@ -50,30 +51,78 @@ RETURN ONLY valid JSON, no prose, no markdown, no code fences:
 
 If no flashing details found: { "items": [], "processingNotes": "No flashing details identified.", "overallConfidence": "low" }`;
 
-export async function POST(request: NextRequest): Promise<NextResponse> {
-  try {
-    const { fileBase64, fileType, filename } = await request.json();
+interface TakeoffRequestBody {
+  uploadId: string;
+  storageKey: string;
+  fileType: string;
+}
 
-    if (!fileBase64 || !fileType) {
-      return NextResponse.json({ error: 'Missing file data' }, { status: 400 });
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  const admin = createAdminClient();
+  let uploadId: string | undefined;
+
+  try {
+    const body: TakeoffRequestBody = await request.json();
+    uploadId = body.uploadId;
+    const { storageKey, fileType } = body;
+
+    if (!uploadId || !storageKey || !fileType) {
+      return NextResponse.json({ error: 'Missing uploadId, storageKey, or fileType' }, { status: 400 });
     }
 
-    // Determine media type for Claude
-    const isImage = ['png', 'jpg', 'jpeg', 'webp'].includes(fileType.replace('.', ''));
-    const isPDF = fileType === '.pdf';
+    await admin
+      .from('takeoff_uploads')
+      .update({ status: 'processing', updated_at: new Date().toISOString() })
+      .eq('id', uploadId);
+
+    const normalizedType = fileType.replace('.', '').toLowerCase();
+    const isImage = ['png', 'jpg', 'jpeg', 'webp'].includes(normalizedType);
+    const isPDF = normalizedType === 'pdf';
 
     if (!isImage && !isPDF) {
+      const processingNotes = `${fileType.toUpperCase()} files require conversion. Please upload as PDF or image for AI analysis.`;
+
+      await admin
+        .from('takeoff_uploads')
+        .update({
+          status: 'partial',
+          result_items: [],
+          processing_notes: processingNotes,
+          overall_confidence: 'low',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', uploadId);
+
       return NextResponse.json({
         items: [],
-        processingNotes: `${fileType.toUpperCase()} files require conversion. Please upload as PDF or image for AI analysis.`,
         overallConfidence: 'low',
-        status: 'partial'
+        pagesProcessed: 0,
+        processingNotes,
+        status: 'partial',
       });
     }
 
+    const { data: fileBlob, error: downloadError } = await admin.storage
+      .from('blueprints')
+      .download(storageKey);
+
+    if (downloadError || !fileBlob) {
+      console.error('[Takeoff Download Error]', downloadError);
+      await admin
+        .from('takeoff_uploads')
+        .update({ status: 'failed', updated_at: new Date().toISOString() })
+        .eq('id', uploadId);
+      return NextResponse.json({ error: 'Could not retrieve uploaded file' }, { status: 500 });
+    }
+
+    const buffer = Buffer.from(await fileBlob.arrayBuffer());
+    const fileBase64 = buffer.toString('base64');
+
     const mediaType = isPDF ? 'application/pdf' :
-      fileType === '.png' ? 'image/png' :
-      fileType === '.webp' ? 'image/webp' : 'image/jpeg';
+      normalizedType === 'png' ? 'image/png' :
+      normalizedType === 'webp' ? 'image/webp' : 'image/jpeg';
+
+    const startedAt = Date.now();
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
@@ -92,7 +141,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           } as any,
           {
             type: 'text',
-            text: `Analyze this construction drawing file: ${filename}. Extract all flashing and sheet metal details.`,
+            text: `Analyze this construction drawing file: ${storageKey}. Extract all flashing and sheet metal details.`,
           }
         ],
       }],
@@ -102,13 +151,37 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const clean = text.replace(/```json|```/g, '').trim();
     const result = JSON.parse(clean);
 
+    const status: 'success' | 'partial' = result.items?.length > 0 ? 'success' : 'partial';
+    const processingMs = Date.now() - startedAt;
+
+    await admin
+      .from('takeoff_uploads')
+      .update({
+        status: status === 'success' ? 'complete' : 'partial',
+        result_items: result.items ?? [],
+        overall_confidence: result.overallConfidence ?? null,
+        processing_notes: result.processingNotes ?? null,
+        processing_ms: processingMs,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', uploadId);
+
     return NextResponse.json({
-      ...result,
-      status: result.items?.length > 0 ? 'success' : 'partial',
+      items: result.items ?? [],
+      overallConfidence: result.overallConfidence ?? 'low',
+      pagesProcessed: 1,
+      processingNotes: result.processingNotes ?? null,
+      status,
     });
 
   } catch (error) {
     console.error('[Takeoff Error]', error);
+    if (uploadId) {
+      await admin
+        .from('takeoff_uploads')
+        .update({ status: 'failed', updated_at: new Date().toISOString() })
+        .eq('id', uploadId);
+    }
     return NextResponse.json({ error: 'Processing failed' }, { status: 500 });
   }
 }

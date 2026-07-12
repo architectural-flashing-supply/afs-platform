@@ -1,18 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ACCEPTED_TYPES = [
-  'application/pdf',
-  'image/png',
-  'image/jpeg',
-  'image/webp',
-  'image/tiff',
-];
+import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 const ACCEPTED_EXTENSIONS = [
   '.pdf', '.dwg', '.dxf', '.png', '.jpg', '.jpeg', '.webp', '.tiff', '.tif'
 ];
 
 const MAX_SIZE = 50 * 1024 * 1024; // 50MB
+
+function sanitizeFilename(filename: string): string {
+  return filename.replace(/[^a-zA-Z0-9.\-_]/g, '_').replace(/_+/g, '_');
+}
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
@@ -38,14 +36,50 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }, { status: 400 });
     }
 
-    // Return success with file info for now
-    // Supabase Storage upload will be added when buckets are configured
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    const userId = user?.id ?? null;
+
+    const uploadId = crypto.randomUUID();
+    const sanitizedFilename = sanitizeFilename(file.name);
+    const storageKey = `blueprints/${userId ?? 'guest'}/${uploadId}/${sanitizedFilename}`;
+
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const admin = createAdminClient();
+
+    const { error: storageError } = await admin.storage
+      .from('blueprints')
+      .upload(storageKey, buffer, {
+        contentType: file.type || 'application/octet-stream',
+        upsert: false,
+      });
+
+    if (storageError) {
+      console.error('[Upload Storage Error]', storageError);
+      return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
+    }
+
+    const { error: insertError } = await admin
+      .from('takeoff_uploads')
+      .insert({
+        id: uploadId,
+        user_id: userId,
+        storage_key: storageKey,
+        file_name: file.name,
+        file_type: ext,
+        file_size_bytes: file.size,
+        status: 'uploaded',
+      });
+
+    if (insertError) {
+      console.error('[Upload Insert Error]', insertError);
+      return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
+    }
+
     return NextResponse.json({
-      uploadId:   crypto.randomUUID(),
-      filename:   file.name,
-      fileType:   ext,
-      fileSizeBytes: file.size,
-      status:     'uploaded',
+      uploadId,
+      storageKey,
+      status: 'uploaded',
     });
 
   } catch (error) {

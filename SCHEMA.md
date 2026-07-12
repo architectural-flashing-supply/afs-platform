@@ -1030,6 +1030,41 @@ CREATE POLICY "admin_all_chats" ON chat_conversations
   FOR ALL USING (
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
   );
+
+-- Team invitations (SPEC_TEAM_ACCOUNTS.md — /account/team, /invite/[token])
+CREATE TABLE team_invitations (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id   UUID NOT NULL REFERENCES companies(id),
+  email        TEXT NOT NULL,
+  role         TEXT NOT NULL CHECK (role IN ('owner','admin','estimator','pm','accounting','viewer')),
+  token        TEXT NOT NULL UNIQUE,
+  message      TEXT,
+  invited_by   UUID NOT NULL REFERENCES profiles(id),
+  status       TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','accepted','revoked','expired')),
+  expires_at   TIMESTAMPTZ NOT NULL,
+  accepted_at  TIMESTAMPTZ,
+  accepted_by  UUID REFERENCES profiles(id),
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_team_invitations_company ON team_invitations(company_id);
+CREATE INDEX idx_team_invitations_token ON team_invitations(token);
+
+ALTER TABLE team_invitations ENABLE ROW LEVEL SECURITY;
+-- Token lookups for the public /invite/[token] page happen server-side via the
+-- service role client (unauthenticated by design, like a password reset link).
+CREATE POLICY "company_admins_manage_invitations" ON team_invitations
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE id = auth.uid() AND company_id = team_invitations.company_id
+      AND company_role IN ('owner','admin')
+    )
+  );
+CREATE POLICY "admin_all_invitations" ON team_invitations
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
 ```
 
 ---

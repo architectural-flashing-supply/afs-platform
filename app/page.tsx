@@ -4,8 +4,8 @@ import Link from 'next/link';
 export default function HomePage() {
   return (
     <main
-      className="relative overflow-hidden"
-      style={{ height: '100vh', backgroundColor: '#1a1c22' }}
+      className="relative overflow-hidden bg-afs-bg-dim"
+      style={{ height: '100vh' }}
     >
       <Image
         src="/home_page_images/2.jpg"
@@ -16,13 +16,7 @@ export default function HomePage() {
         className="object-cover"
         style={{ objectPosition: 'center center' }}
       />
-      <div
-        className="absolute inset-0"
-        style={{
-          background:
-            'linear-gradient(135deg, rgba(10,12,18,0.70) 0%, rgba(10,12,18,0.45) 50%, rgba(10,12,18,0.63) 100%)',
-        }}
-      />
+      <div className="absolute inset-0 bg-gradient-to-br from-afs-bg-dim/70 via-afs-bg-dim/45 to-afs-bg-dim/60" />
 
       {/* Rooftop triangle — pre-composited PNG with the diagonal cut baked into its alpha channel */}
       <img
@@ -44,71 +38,35 @@ export default function HomePage() {
         style={{ left: '7%', top: '50%', transform: 'translateY(-50%)' }}
       >
         <h1
+          className="font-display text-afs-chrome-high"
           style={{
-            fontFamily: 'var(--font-bebas)',
             fontSize: 'clamp(3rem, 5vw, 5.5rem)',
             lineHeight: 1.0,
-            color: '#FFFFFF',
           }}
         >
           TEXAS CRAFTED.<br />
           NATIONALLY DELIVERED.
         </h1>
 
-        <div
-          style={{
-            height: '3px',
-            width: '80px',
-            background: '#C0001A',
-            boxShadow: '0 0 12px rgba(192,0,26,0.7)',
-            margin: '18px 0',
-          }}
-        />
+        <div className="my-[18px] h-[3px] w-[80px] bg-afs-crimson shadow-crimson" />
 
         <p
-          style={{
-            fontFamily: 'var(--font-barlow-condensed)',
-            fontSize: 'clamp(1rem, 1.8vw, 1.35rem)',
-            fontWeight: 500,
-            letterSpacing: '0.08em',
-            color: '#FFFFFF',
-          }}
+          className="font-heading font-medium tracking-[0.08em] text-afs-chrome-high"
+          style={{ fontSize: 'clamp(1rem, 1.8vw, 1.35rem)' }}
         >
           Precision Metal Flashing Fabrication
         </p>
 
-        <div style={{ marginTop: '36px', display: 'flex', gap: '16px' }}>
+        <div className="mt-9 flex gap-4">
           <Link
             href="/upload"
-            style={{
-              background: '#C0001A',
-              color: '#FFFFFF',
-              fontFamily: 'var(--font-barlow)',
-              fontWeight: 600,
-              fontSize: '14px',
-              padding: '14px 36px',
-              borderRadius: '4px',
-              border: 'none',
-              letterSpacing: '1px',
-              cursor: 'pointer',
-            }}
+            className="rounded border border-transparent bg-afs-crimson px-9 py-3.5 font-label text-sm font-semibold tracking-[1px] text-afs-chrome-high cursor-pointer"
           >
             Submit a Drawing
           </Link>
           <Link
             href="/quote"
-            style={{
-              background: 'transparent',
-              color: '#FFFFFF',
-              fontFamily: 'var(--font-barlow)',
-              fontWeight: 600,
-              fontSize: '14px',
-              padding: '14px 36px',
-              borderRadius: '4px',
-              border: '1px solid rgba(255,255,255,0.45)',
-              letterSpacing: '1px',
-              cursor: 'pointer',
-            }}
+            className="rounded border border-afs-chrome-high/45 bg-transparent px-9 py-3.5 font-label text-sm font-semibold tracking-[1px] text-afs-chrome-high cursor-pointer"
           >
             Request a Quote
           </Link>

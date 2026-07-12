@@ -1,8 +1,13 @@
 'use client';
 
-import { Fragment, useState } from 'react';
+import { Fragment, useState, useEffect, useCallback } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import { MATERIAL_STOCK_STATUS } from '@/lib/data/catalog';
+import MaterialRecommendationPanel from '@/components/quote/MaterialRecommendationPanel';
+import CrossSellPanel from '@/components/ai/CrossSellPanel';
 
 type Step = 1 | 2 | 3 | 4;
+type SubmitState = 'idle' | 'submitting' | 'submitted';
 
 interface QuoteFormData {
   profileType:     string;
@@ -89,6 +94,36 @@ const STEPS: { n: Step; label: string }[] = [
   { n: 4, label: 'Review' },
 ];
 
+interface QuoteRequestItemInput {
+  profileType: string;
+  material?: string | null;
+  gauge?: string | null;
+  width?: number | null;
+  height?: number | null;
+  legA?: number | null;
+  legB?: number | null;
+  lengthFt: number;
+  quantity: number;
+  unit?: string;
+}
+
+interface QuoteRequestSuccessResponse {
+  requestId: string;
+  requestNumber: string;
+}
+
+interface QuoteRequestErrorResponse {
+  error: string;
+}
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function toNumberOrNull(v: string): number | null {
+  if (v.trim() === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 function isPositiveNumber(v: string): boolean {
   if (v.trim() === '') return false;
   const n = Number(v);
@@ -113,9 +148,21 @@ const labelClass = 'font-label text-xs uppercase tracking-wide text-afs-chrome-m
 
 export default function QuotePage() {
   const [step, setStep]         = useState<Step>(1);
-  const [submitted, setSubmitted] = useState(false);
   const [form, setForm]         = useState<QuoteFormData>(EMPTY_FORM);
   const [hoveredProfile, setHoveredProfile] = useState<string | null>(null);
+
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [submitState, setSubmitState] = useState<SubmitState>('idle');
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [requestNumber, setRequestNumber] = useState<string | null>(null);
+  const [showEmailCapture, setShowEmailCapture] = useState(false);
+  const [guestEmail, setGuestEmail] = useState('');
+  const [selectedAccessories, setSelectedAccessories] = useState<string[]>([]);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => setIsAuthenticated(!!data.user));
+  }, []);
 
   const updateField = (field: Exclude<keyof QuoteFormData, 'rush'>, value: string) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -147,12 +194,100 @@ export default function QuotePage() {
   const goBack = () => { if (step > 1) setStep((step - 1) as Step); };
   const goToStep = (s: Step) => setStep(s);
 
-  const handleSubmit = () => setSubmitted(true);
+  const buildItems = useCallback((): QuoteRequestItemInput[] => {
+    if (form.profileType.trim() === '' || form.material.trim() === '' || !isPositiveNumber(form.lengthFt)) {
+      return [];
+    }
+    return [{
+      profileType: form.profileType,
+      material:    form.material,
+      gauge:       form.gauge || null,
+      width:       toNumberOrNull(form.width),
+      height:      toNumberOrNull(form.height),
+      legA:        toNumberOrNull(form.legA),
+      legB:        toNumberOrNull(form.legB),
+      lengthFt:    Number(form.lengthFt),
+      quantity:    isPositiveNumber(form.quantity) ? Number(form.quantity) : 1,
+      unit:        'LF',
+    }];
+  }, [form]);
+
+  const submitQuoteRequest = useCallback(async (email?: string) => {
+    const items = buildItems();
+    if (items.length === 0) {
+      setSubmitError('Add a profile type, material, and length before submitting.');
+      return;
+    }
+
+    setSubmitError(null);
+    setSubmitState('submitting');
+
+    const notes = [
+      form.projectName.trim() ? `Project: ${form.projectName.trim()}` : null,
+      selectedAccessories.length > 0 ? `Requested accessories: ${selectedAccessories.join(', ')}` : null,
+      form.notes.trim() || null,
+    ].filter(Boolean).join('\n\n') || null;
+
+    try {
+      const res = await fetch('/api/quote-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items,
+          jobsiteAddress: form.jobsiteAddress.trim() || null,
+          poNumber: form.poNumber.trim() || null,
+          isRush: form.rush,
+          notes,
+          guestEmail: email,
+        }),
+      });
+      const data = (await res.json()) as QuoteRequestSuccessResponse | QuoteRequestErrorResponse;
+      if (!res.ok) {
+        setSubmitError('error' in data ? data.error : 'Submission failed. Please try again.');
+        setSubmitState('idle');
+        return;
+      }
+      const success = data as QuoteRequestSuccessResponse;
+      setRequestNumber(success.requestNumber);
+      setShowEmailCapture(false);
+      setSubmitState('submitted');
+    } catch {
+      setSubmitError('Submission failed. Please try again.');
+      setSubmitState('idle');
+    }
+  }, [buildItems, form, selectedAccessories]);
+
+  const handleSubmit = () => {
+    if (buildItems().length === 0) {
+      setSubmitError('Add a profile type, material, and length before submitting.');
+      return;
+    }
+    if (isAuthenticated) {
+      submitQuoteRequest();
+    } else {
+      setSubmitError(null);
+      setShowEmailCapture(true);
+    }
+  };
+
+  const handleGuestSubmit = () => {
+    const trimmed = guestEmail.trim();
+    if (!EMAIL_PATTERN.test(trimmed)) {
+      setSubmitError('Enter a valid email address.');
+      return;
+    }
+    submitQuoteRequest(trimmed);
+  };
 
   const startOver = () => {
     setForm(EMPTY_FORM);
     setStep(1);
-    setSubmitted(false);
+    setSubmitState('idle');
+    setSubmitError(null);
+    setRequestNumber(null);
+    setShowEmailCapture(false);
+    setGuestEmail('');
+    setSelectedAccessories([]);
   };
 
   const dimensionSummary = [
@@ -162,7 +297,7 @@ export default function QuotePage() {
     form.legB ? `Leg B: ${form.legB}"` : null,
   ].filter(Boolean).join('   ·   ');
 
-  if (submitted) {
+  if (submitState === 'submitted') {
     return (
       <main className="min-h-screen bg-afs-bg-base py-16 px-6">
         <div className="max-w-lg mx-auto">
@@ -173,24 +308,30 @@ export default function QuotePage() {
               </svg>
             </div>
             <h2 className="font-heading text-3xl text-afs-chrome-high mb-3">Quote Request Submitted</h2>
+            {requestNumber && (
+              <p className="font-data text-sm text-afs-crimson mb-3">{requestNumber}</p>
+            )}
             <p className="font-body text-sm text-afs-chrome-mid mb-8">
-              We&apos;ve received your request for{' '}
-              <span className="text-afs-chrome-high">{form.projectName}</span>. Our team will follow up
-              with a formal quote within 1–2 business days.
+              We&apos;ve received your request
+              {form.projectName ? (
+                <>
+                  {' '}for <span className="text-afs-chrome-high">{form.projectName}</span>
+                </>
+              ) : null}. Our team will follow up with a formal quote within 1–2 business days.
             </p>
             <div className="flex gap-4 justify-center flex-wrap">
-              <button
-                onClick={startOver}
+              <a
+                href="/account/quotes"
                 className="bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label font-semibold px-6 py-3 rounded text-sm transition-colors"
               >
-                Start a New Quote
-              </button>
-              <a
-                href="/upload"
+                View My Requests
+              </a>
+              <button
+                onClick={startOver}
                 className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label font-semibold px-6 py-3 rounded text-sm transition-colors"
               >
-                Upload a Drawing Instead
-              </a>
+                Submit Another
+              </button>
             </div>
           </div>
         </div>
@@ -265,8 +406,7 @@ export default function QuotePage() {
                       onClick={() => updateField('profileType', p)}
                       onMouseEnter={() => setHoveredProfile(p)}
                       onMouseLeave={() => setHoveredProfile(null)}
-                      className="font-label text-sm px-4 py-3 rounded border text-left transition-colors bg-afs-bg-overlay text-white border-afs-border"
-                      style={active ? { backgroundColor: '#C0001A', color: '#FFFFFF', borderColor: '#C0001A' } : undefined}
+                      className={`font-label text-sm px-4 py-3 rounded border text-left transition-colors ${active ? 'bg-afs-crimson text-white border-afs-crimson' : 'bg-afs-bg-overlay text-white border-afs-border'}`}
                     >
                       {p}
                     </button>
@@ -303,6 +443,15 @@ export default function QuotePage() {
                   </select>
                 </div>
               </div>
+
+              {form.material && (
+                <MaterialRecommendationPanel
+                  material={form.material}
+                  profileType={form.profileType}
+                  stockStatus={MATERIAL_STOCK_STATUS[form.material] ?? 'fabricated'}
+                  onSelectAlternative={selectMaterial}
+                />
+              )}
             </div>
           )}
 
@@ -411,6 +560,12 @@ export default function QuotePage() {
                   value={form.notes} onChange={(e) => updateField('notes', e.target.value)}
                   placeholder="Anything else we should know about this project?" />
               </div>
+
+              <CrossSellPanel
+                profileTypes={[form.profileType].filter(Boolean)}
+                materials={[form.material].filter(Boolean)}
+                onSelectionChange={setSelectedAccessories}
+              />
             </div>
           )}
 
@@ -516,6 +671,37 @@ export default function QuotePage() {
               <p className="font-body text-xs text-afs-chrome-mid mb-2">
                 Pricing is not shown here — our team will follow up with a formal quote.
               </p>
+
+              {showEmailCapture && (
+                <div className="bg-afs-bg-surface border border-afs-chrome-dim rounded p-6 mt-6">
+                  <label className={labelClass} htmlFor="guestEmail">Email Address</label>
+                  <p className="font-body text-xs text-afs-chrome-mid mb-3">
+                    Sign in for full account access, or submit this request as a guest with your email.
+                  </p>
+                  <div className="flex gap-3 flex-wrap">
+                    <input
+                      id="guestEmail"
+                      type="email"
+                      className={`${inputClass} flex-1 min-w-[240px]`}
+                      value={guestEmail}
+                      onChange={(e) => setGuestEmail(e.target.value)}
+                      placeholder="you@example.com"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleGuestSubmit}
+                      disabled={submitState === 'submitting'}
+                      className="bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label font-semibold px-6 py-3 rounded text-sm transition-colors disabled:opacity-50 disabled:pointer-events-none"
+                    >
+                      {submitState === 'submitting' ? 'Submitting…' : 'Submit as Guest'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {submitError && (
+                <p className="font-body text-sm text-afs-crimson mt-4">{submitError}</p>
+              )}
             </div>
           )}
 
@@ -541,9 +727,10 @@ export default function QuotePage() {
           ) : (
             <button
               onClick={handleSubmit}
-              className="bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label font-semibold px-8 py-3 rounded text-sm transition-colors"
+              disabled={submitState === 'submitting' || showEmailCapture}
+              className="bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label font-semibold px-8 py-3 rounded text-sm transition-colors disabled:opacity-50 disabled:pointer-events-none"
             >
-              Submit Quote Request
+              {submitState === 'submitting' ? 'Submitting…' : 'Submit Quote Request'}
             </button>
           )}
         </div>

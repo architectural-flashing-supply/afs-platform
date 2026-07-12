@@ -11,8 +11,24 @@ export default function Footer() {
             <div className="bg-afs-bg-dim inline-block px-3 py-1.5 rounded mb-4">
               <span className="font-display text-2xl text-afs-chrome-high">AFS</span>
             </div>
-            <p className="font-body text-sm text-afs-chrome-base leading-relaxed">
+            <p className="font-body text-sm text-afs-chrome-base leading-relaxed mb-4">
               Architectural Flashing Supply. Custom sheet metal fabrication for contractors and architects.
+            </p>
+            <p className="font-body text-sm text-afs-chrome-base leading-relaxed">
+              209 Sure Cast Drive<br />Burnet, Texas 78611
+            </p>
+            <p className="font-data text-sm text-afs-chrome-base mt-2">
+              <a href="tel:+15123724900" className="hover:text-afs-chrome-mid transition-colors">
+                (512) 372-4900
+              </a>
+            </p>
+            <p className="font-body text-sm text-afs-chrome-base mt-1 break-all">
+              <a
+                href="mailto:trica@architecturalflashingsupply.com"
+                className="hover:text-afs-chrome-mid transition-colors"
+              >
+                trica@architecturalflashingsupply.com
+              </a>
             </p>
           </div>
 

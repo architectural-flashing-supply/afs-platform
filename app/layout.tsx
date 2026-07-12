@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import { Bebas_Neue, Barlow_Condensed, Barlow, Inter, JetBrains_Mono } from 'next/font/google';
-import NavBar from '@/components/layout/NavBar';
-import Footer from '@/components/layout/Footer';
+import AppChrome from '@/components/layout/AppChrome';
 import './globals.css';
 
 const bebasNeue = Bebas_Neue({
@@ -43,12 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${bebasNeue.variable} ${barlowCondensed.variable} ${barlow.variable} ${inter.variable} ${jetbrainsMono.variable}`}>
       <body className="bg-afs-bg-base text-afs-chrome-mid font-body">
-        <NavBar />
-        {/* Offset content for fixed left panel (w-48) and fixed top nav (h-11) */}
-        <div className="ml-48 pt-11">
-          {children}
-          <Footer />
-        </div>
+        <AppChrome>{children}</AppChrome>
       </body>
     </html>
   );

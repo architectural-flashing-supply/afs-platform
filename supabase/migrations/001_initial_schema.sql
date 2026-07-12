@@ -1,0 +1,1080 @@
+-- 001_initial_schema.sql
+-- AFS — Architectural Flashing Supply — Initial Database Schema
+-- Source of truth: SCHEMA.md (repo root)
+-- Run in Supabase SQL Editor (or via `supabase db push`) before any feature is built.
+-- Every table: RLS enabled, policies applied, indexes on FK / filter columns.
+
+create extension if not exists pgcrypto;
+
+-- SECURITY DEFINER helper: the "admin_all_profiles" policy below must check
+-- the caller's role on the profiles table, but a policy on profiles cannot
+-- query profiles directly (RLS re-evaluates the same policy on itself and
+-- Postgres raises "infinite recursion detected in policy for relation
+-- profiles"). This function runs with the privileges of its owner, bypassing
+-- RLS, so the lookup does not re-trigger policy evaluation.
+CREATE OR REPLACE FUNCTION is_admin()
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin');
+$$;
+
+-- ============================================================================
+-- TABLE 1 — profiles
+-- ============================================================================
+CREATE TABLE profiles (
+  id              UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email           TEXT NOT NULL,
+  full_name       TEXT NOT NULL,
+  company         TEXT,
+  phone           TEXT,
+  role            TEXT NOT NULL DEFAULT 'customer'
+                  CHECK (role IN ('admin','contractor','architect','customer')),
+  pricing_tier    TEXT NOT NULL DEFAULT 'standard'
+                  CHECK (pricing_tier IN ('standard','contractor','preferred','wholesale')),
+  net_terms       INTEGER NOT NULL DEFAULT 0
+                  CHECK (net_terms IN (0,15,30,60)),
+  credit_limit    DECIMAL(10,2),
+  tax_exempt      BOOLEAN NOT NULL DEFAULT false,
+  company_id      UUID,                              -- FK added after companies table
+  company_role    TEXT CHECK (company_role IN ('owner','admin','estimator','pm','accounting','viewer')),
+  sms_opt_in      BOOLEAN NOT NULL DEFAULT false,
+  email_opt_in    BOOLEAN NOT NULL DEFAULT true,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "users_own_profile" ON profiles
+  FOR ALL USING (auth.uid() = id);
+CREATE POLICY "admin_all_profiles" ON profiles
+  FOR ALL USING (is_admin());
+
+CREATE INDEX idx_profiles_company ON profiles(company_id);
+CREATE INDEX idx_profiles_role ON profiles(role);
+
+-- ============================================================================
+-- TABLE 2 — companies
+-- ============================================================================
+CREATE TABLE companies (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name            TEXT NOT NULL,
+  billing_address JSONB,
+  phone           TEXT,
+  primary_user_id UUID REFERENCES profiles(id),
+  pricing_tier    TEXT NOT NULL DEFAULT 'standard',
+  net_terms       INTEGER NOT NULL DEFAULT 0,
+  credit_limit    DECIMAL(10,2),
+  require_po      BOOLEAN NOT NULL DEFAULT false,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "company_members" ON companies
+  FOR SELECT USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND company_id = companies.id)
+  );
+CREATE POLICY "admin_all_companies" ON companies
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- Add FK back to profiles
+ALTER TABLE profiles ADD CONSTRAINT fk_profiles_company
+  FOREIGN KEY (company_id) REFERENCES companies(id);
+
+CREATE INDEX idx_companies_primary_user ON companies(primary_user_id);
+
+-- ============================================================================
+-- TABLE 3 — materials
+-- ============================================================================
+CREATE TABLE materials (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name            TEXT NOT NULL,
+  slug            TEXT NOT NULL UNIQUE,
+  alloy_grade     TEXT,
+  category        TEXT NOT NULL
+                  CHECK (category IN ('copper','zinc','aluminum','galvanized',
+                                      'stainless','galvalume','painted_steel')),
+  commodity_key   TEXT NOT NULL
+                  CHECK (commodity_key IN ('copper','aluminum','zinc',
+                                          'steel_hrc','stainless_surcharge','galvalume')),
+  unit_weight_lbs_per_sqft DECIMAL(8,4),
+  density_lbs_per_cubic_in DECIMAL(10,6),
+  is_active       BOOLEAN NOT NULL DEFAULT true,
+  sort_order      INTEGER NOT NULL DEFAULT 0,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE materials ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "authenticated_read_materials" ON materials
+  FOR SELECT USING (auth.uid() IS NOT NULL AND is_active = true);
+CREATE POLICY "admin_write_materials" ON materials
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- ============================================================================
+-- TABLE 4 — gauges
+-- ============================================================================
+CREATE TABLE gauges (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  material_id     UUID NOT NULL REFERENCES materials(id),
+  label           TEXT NOT NULL,
+  thickness_inches DECIMAL(8,5) NOT NULL,
+  weight_lbs_sqft DECIMAL(8,4),
+  is_active       BOOLEAN NOT NULL DEFAULT true,
+  sort_order      INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX idx_gauges_material ON gauges(material_id);
+
+ALTER TABLE gauges ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "authenticated_read_gauges" ON gauges
+  FOR SELECT USING (auth.uid() IS NOT NULL AND is_active = true);
+CREATE POLICY "admin_write_gauges" ON gauges
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- ============================================================================
+-- TABLE 5 — finishes
+-- ============================================================================
+CREATE TABLE finishes (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  material_id     UUID NOT NULL REFERENCES materials(id),
+  name            TEXT NOT NULL,
+  manufacturer    TEXT,
+  color_code      TEXT,
+  hex_preview     TEXT,
+  is_standard     BOOLEAN NOT NULL DEFAULT true,
+  upcharge_pct    DECIMAL(5,4) NOT NULL DEFAULT 0,
+  is_active       BOOLEAN NOT NULL DEFAULT true,
+  sort_order      INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX idx_finishes_material ON finishes(material_id);
+
+ALTER TABLE finishes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "authenticated_read_finishes" ON finishes
+  FOR SELECT USING (auth.uid() IS NOT NULL AND is_active = true);
+CREATE POLICY "admin_write_finishes" ON finishes
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- ============================================================================
+-- TABLE 6 — product_profiles
+-- ============================================================================
+CREATE TABLE product_profiles (
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name                  TEXT NOT NULL,
+  slug                  TEXT NOT NULL UNIQUE,
+  category              TEXT NOT NULL,
+  description           TEXT,
+  min_width             DECIMAL(8,3),
+  max_width             DECIMAL(8,3),
+  min_height            DECIMAL(8,3),
+  max_height            DECIMAL(8,3),
+  min_leg_a             DECIMAL(8,3),
+  max_leg_a             DECIMAL(8,3),
+  min_leg_b             DECIMAL(8,3),
+  max_leg_b             DECIMAL(8,3),
+  standard_length_ft    DECIMAL(6,2),
+  max_length_ft         DECIMAL(6,2),
+  requires_consultation BOOLEAN NOT NULL DEFAULT false,
+  is_active             BOOLEAN NOT NULL DEFAULT true,
+  sort_order            INTEGER NOT NULL DEFAULT 0,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE product_profiles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "authenticated_read_profiles" ON product_profiles
+  FOR SELECT USING (auth.uid() IS NOT NULL AND is_active = true);
+CREATE POLICY "admin_write_profiles" ON product_profiles
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- ============================================================================
+-- TABLE 7 — products
+-- ============================================================================
+CREATE TABLE products (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  sku             TEXT UNIQUE,
+  profile_id      UUID NOT NULL REFERENCES product_profiles(id),
+  material_id     UUID NOT NULL REFERENCES materials(id),
+  gauge_id        UUID REFERENCES gauges(id),
+  name            TEXT NOT NULL,
+  description     TEXT,
+  stock_type      TEXT NOT NULL DEFAULT 'fabricated'
+                  CHECK (stock_type IN ('stock','fabricated','special_order')),
+  lead_time_days  INTEGER NOT NULL DEFAULT 5,
+  rush_eligible   BOOLEAN NOT NULL DEFAULT true,
+  online_quotable BOOLEAN NOT NULL DEFAULT true,
+  is_active       BOOLEAN NOT NULL DEFAULT true,
+  sort_order      INTEGER NOT NULL DEFAULT 0,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_products_profile ON products(profile_id);
+CREATE INDEX idx_products_material ON products(material_id);
+CREATE INDEX idx_products_gauge ON products(gauge_id);
+
+ALTER TABLE products ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "authenticated_read_products" ON products
+  FOR SELECT USING (auth.uid() IS NOT NULL AND is_active = true);
+CREATE POLICY "admin_write_products" ON products
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- ============================================================================
+-- TABLE 8 — accessories / product_accessories
+-- ============================================================================
+CREATE TABLE accessories (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  sku             TEXT UNIQUE,
+  name            TEXT NOT NULL,
+  category        TEXT,
+  description     TEXT,
+  unit            TEXT NOT NULL DEFAULT 'EA',
+  is_active       BOOLEAN NOT NULL DEFAULT true
+);
+
+CREATE TABLE product_accessories (
+  product_id      UUID NOT NULL REFERENCES products(id),
+  accessory_id    UUID NOT NULL REFERENCES accessories(id),
+  calc_method     TEXT NOT NULL CHECK (calc_method IN ('per_lf','per_piece','per_sqft','fixed')),
+  calc_rate       DECIMAL(8,4) NOT NULL DEFAULT 1,
+  is_required     BOOLEAN NOT NULL DEFAULT false,
+  PRIMARY KEY (product_id, accessory_id)
+);
+
+CREATE INDEX idx_product_accessories_accessory ON product_accessories(accessory_id);
+
+ALTER TABLE accessories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE product_accessories ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "authenticated_read_accessories" ON accessories
+  FOR SELECT USING (auth.uid() IS NOT NULL AND is_active = true);
+CREATE POLICY "authenticated_read_product_accessories" ON product_accessories
+  FOR SELECT USING (auth.uid() IS NOT NULL);
+CREATE POLICY "admin_write_accessories" ON accessories
+  FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
+CREATE POLICY "admin_write_product_accessories" ON product_accessories
+  FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
+
+-- ============================================================================
+-- TABLE 9 — pricing_rules (internal pricing engine)
+-- ============================================================================
+CREATE TABLE pricing_rules (
+  id                        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id                UUID NOT NULL REFERENCES products(id),
+  fabrication_cost_lf       DECIMAL(10,4),
+  overhead_pct              DECIMAL(5,4) NOT NULL DEFAULT 0.25,
+  margin_pct                DECIMAL(5,4) NOT NULL DEFAULT 0.35,
+  waste_factor              DECIMAL(5,4) NOT NULL DEFAULT 1.10,
+  material_cost_multiplier  DECIMAL(6,4) NOT NULL DEFAULT 1.00,
+  rush_surcharge_pct        DECIMAL(5,4) NOT NULL DEFAULT 0.25,
+  min_order_lf              DECIMAL(8,2),
+  tier_1_qty                DECIMAL(8,2),
+  tier_1_discount_pct       DECIMAL(5,4),
+  tier_2_qty                DECIMAL(8,2),
+  tier_2_discount_pct       DECIMAL(5,4),
+  tier_3_qty                DECIMAL(8,2),
+  tier_3_discount_pct       DECIMAL(5,4),
+  is_active                 BOOLEAN NOT NULL DEFAULT true,
+  updated_at                TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_pricing_rules_product ON pricing_rules(product_id);
+
+ALTER TABLE pricing_rules ENABLE ROW LEVEL SECURITY;
+-- Admin only — no customer access
+CREATE POLICY "admin_only_pricing_rules" ON pricing_rules
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- ============================================================================
+-- TABLE 10 — contractor_pricing (negotiated rates)
+-- ============================================================================
+CREATE TABLE contractor_pricing (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  profile_id      UUID NOT NULL REFERENCES profiles(id),
+  product_id      UUID NOT NULL REFERENCES products(id),
+  discount_pct    DECIMAL(5,4),
+  fixed_price_lf  DECIMAL(10,4),
+  effective_date  DATE NOT NULL DEFAULT CURRENT_DATE,
+  expiry_date     DATE,
+  created_by      UUID REFERENCES profiles(id),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (profile_id, product_id)
+);
+
+CREATE INDEX idx_contractor_pricing_profile ON contractor_pricing(profile_id);
+CREATE INDEX idx_contractor_pricing_product ON contractor_pricing(product_id);
+CREATE INDEX idx_contractor_pricing_created_by ON contractor_pricing(created_by);
+
+ALTER TABLE contractor_pricing ENABLE ROW LEVEL SECURITY;
+-- Admin only — not visible to customers
+CREATE POLICY "admin_only_contractor_pricing" ON contractor_pricing
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- ============================================================================
+-- TABLE 11 — commodity_prices (pricing engine data)
+-- ============================================================================
+CREATE TABLE commodity_prices (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  commodity       TEXT NOT NULL
+                  CHECK (commodity IN ('copper','aluminum','zinc','steel_hrc',
+                                       'stainless_surcharge','galvalume')),
+  price_per_lb    DECIMAL(10,6) NOT NULL,
+  price_date      DATE NOT NULL,
+  data_source     TEXT,
+  is_manual       BOOLEAN NOT NULL DEFAULT false,
+  recorded_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (commodity, price_date)
+);
+
+ALTER TABLE commodity_prices ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "admin_only_commodity" ON commodity_prices
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- ============================================================================
+-- TABLE 12 — supplier_price_history
+-- ============================================================================
+CREATE TABLE supplier_price_history (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  material_id     UUID NOT NULL REFERENCES materials(id),
+  supplier_name   TEXT,
+  effective_date  DATE NOT NULL,
+  price_per_lb    DECIMAL(10,6),
+  price_per_lf    DECIMAL(10,4),
+  notes           TEXT,
+  recorded_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_supplier_price_history_material ON supplier_price_history(material_id);
+
+ALTER TABLE supplier_price_history ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "admin_only_supplier_history" ON supplier_price_history
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- ============================================================================
+-- TABLE 13 — pricing_trend_analysis
+-- ============================================================================
+CREATE TABLE pricing_trend_analysis (
+  id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  material_id                 UUID NOT NULL REFERENCES materials(id),
+  analysis_date               DATE NOT NULL,
+  commodity_30d_change_pct    DECIMAL(8,4),
+  commodity_90d_change_pct    DECIMAL(8,4),
+  commodity_365d_change_pct   DECIMAL(8,4),
+  supplier_commodity_correlation DECIMAL(6,4),
+  projected_cost_30d          DECIMAL(10,6),
+  projected_cost_60d          DECIMAL(10,6),
+  projected_cost_90d          DECIMAL(10,6),
+  margin_risk_flag            BOOLEAN NOT NULL DEFAULT false,
+  margin_risk_note            TEXT,
+  computed_at                 TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (material_id, analysis_date)
+);
+
+CREATE INDEX idx_pricing_trend_analysis_material ON pricing_trend_analysis(material_id);
+
+ALTER TABLE pricing_trend_analysis ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "admin_only_trend_analysis" ON pricing_trend_analysis
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- ============================================================================
+-- TABLE 14 — projects
+-- ============================================================================
+CREATE TABLE projects (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         UUID NOT NULL REFERENCES profiles(id),
+  company_id      UUID REFERENCES companies(id),
+  name            TEXT NOT NULL,
+  description     TEXT,
+  status          TEXT NOT NULL DEFAULT 'active'
+                  CHECK (status IN ('active','completed','archived')),
+  jobsite_address TEXT,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_projects_user ON projects(user_id);
+CREATE INDEX idx_projects_company ON projects(company_id);
+
+ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "users_own_projects" ON projects
+  FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "admin_all_projects" ON projects
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- ============================================================================
+-- TABLE 15 — quote_requests
+-- ============================================================================
+CREATE TABLE quote_requests (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  request_number  TEXT UNIQUE NOT NULL,  -- AFS-QR-2026-XXXXX
+  user_id         UUID REFERENCES profiles(id),
+  guest_email     TEXT,
+  project_id      UUID REFERENCES projects(id),
+  status          TEXT NOT NULL DEFAULT 'submitted'
+                  CHECK (status IN ('submitted','reviewing','quoted','expired','cancelled')),
+  line_items      JSONB NOT NULL,
+  jobsite_address JSONB,
+  requested_delivery DATE,
+  po_number       TEXT,
+  is_rush         BOOLEAN NOT NULL DEFAULT false,
+  upload_id       UUID,                  -- FK to takeoff_uploads if from drawing
+  notes           TEXT,
+  quote_id        UUID,                  -- Set when formal quote is created
+  submitted_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  reviewed_at     TIMESTAMPTZ,
+  quoted_at       TIMESTAMPTZ
+);
+
+CREATE INDEX idx_quote_requests_user ON quote_requests(user_id);
+CREATE INDEX idx_quote_requests_status ON quote_requests(status);
+CREATE INDEX idx_quote_requests_submitted ON quote_requests(submitted_at DESC);
+CREATE INDEX idx_quote_requests_project ON quote_requests(project_id);
+
+ALTER TABLE quote_requests ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "users_own_requests" ON quote_requests
+  FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "users_insert_requests" ON quote_requests
+  FOR INSERT WITH CHECK (auth.uid() = user_id OR user_id IS NULL);
+CREATE POLICY "admin_all_requests" ON quote_requests
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- ============================================================================
+-- TABLE 16 — quotes (formal AFS-generated quotes)
+-- ============================================================================
+CREATE TABLE quotes (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  quote_number    TEXT UNIQUE NOT NULL,  -- AFS-Q-2026-XXXXX
+  request_id      UUID REFERENCES quote_requests(id),
+  user_id         UUID NOT NULL REFERENCES profiles(id),
+  status          TEXT NOT NULL DEFAULT 'draft'
+                  CHECK (status IN ('draft','sent','approved','expired','converted','cancelled')),
+  subtotal        DECIMAL(10,2) NOT NULL,
+  freight         DECIMAL(10,2),
+  rush_surcharge  DECIMAL(10,2) NOT NULL DEFAULT 0,
+  tax             DECIMAL(10,2),
+  total           DECIMAL(10,2) NOT NULL,
+  valid_until     DATE,
+  estimator_notes TEXT,
+  created_by      UUID REFERENCES profiles(id),  -- Admin estimator
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  sent_at         TIMESTAMPTZ,
+  approved_at     TIMESTAMPTZ
+);
+
+CREATE INDEX idx_quotes_user ON quotes(user_id);
+CREATE INDEX idx_quotes_status ON quotes(status);
+CREATE INDEX idx_quotes_request ON quotes(request_id);
+CREATE INDEX idx_quotes_created_by ON quotes(created_by);
+
+ALTER TABLE quotes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "users_own_quotes" ON quotes
+  FOR SELECT USING (auth.uid() = user_id AND status != 'draft');
+CREATE POLICY "admin_all_quotes" ON quotes
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- ============================================================================
+-- TABLE 17 — quote_line_items
+-- ============================================================================
+CREATE TABLE quote_line_items (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  quote_id        UUID NOT NULL REFERENCES quotes(id) ON DELETE CASCADE,
+  product_id      UUID REFERENCES products(id),
+  finish_id       UUID REFERENCES finishes(id),
+  description     TEXT NOT NULL,
+  width_in        DECIMAL(8,3),
+  height_in       DECIMAL(8,3),
+  leg_a_in        DECIMAL(8,3),
+  leg_b_in        DECIMAL(8,3),
+  length_ft       DECIMAL(8,2) NOT NULL,
+  quantity        INTEGER NOT NULL DEFAULT 1,
+  unit            TEXT NOT NULL DEFAULT 'LF',
+  unit_price      DECIMAL(10,4) NOT NULL,
+  line_total      DECIMAL(10,2) NOT NULL,
+  sort_order      INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX idx_quote_line_items_quote ON quote_line_items(quote_id);
+CREATE INDEX idx_quote_line_items_product ON quote_line_items(product_id);
+CREATE INDEX idx_quote_line_items_finish ON quote_line_items(finish_id);
+
+ALTER TABLE quote_line_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "quote_owner_line_items" ON quote_line_items
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM quotes WHERE id = quote_id AND user_id = auth.uid()
+      AND status != 'draft'
+    )
+  );
+CREATE POLICY "admin_all_line_items" ON quote_line_items
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- ============================================================================
+-- TABLE 18 — orders
+-- ============================================================================
+CREATE TABLE orders (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_number        TEXT UNIQUE NOT NULL,  -- AFS-2026-XXXXX
+  quote_id            UUID NOT NULL REFERENCES quotes(id),
+  user_id             UUID NOT NULL REFERENCES profiles(id),
+  project_id          UUID REFERENCES projects(id),
+  status              TEXT NOT NULL DEFAULT 'submitted'
+                      CHECK (status IN (
+                        'submitted','received','in_queue','cutting',
+                        'bending','qc','ready','shipped','delivered','cancelled'
+                      )),
+  is_rush             BOOLEAN NOT NULL DEFAULT false,
+  subtotal            DECIMAL(10,2) NOT NULL,
+  freight              DECIMAL(10,2),
+  tax                 DECIMAL(10,2),
+  rush_surcharge      DECIMAL(10,2) NOT NULL DEFAULT 0,
+  deposit_amount      DECIMAL(10,2) NOT NULL DEFAULT 0,
+  deposit_paid        BOOLEAN NOT NULL DEFAULT false,
+  total               DECIMAL(10,2) NOT NULL,
+  payment_method      TEXT CHECK (payment_method IN ('card','ach','net_terms')),
+  net_terms           INTEGER NOT NULL DEFAULT 0,
+  po_number           TEXT,
+  delivery_method     TEXT NOT NULL DEFAULT 'ship'
+                      CHECK (delivery_method IN ('ship','pickup')),
+  delivery_address    JSONB,
+  delivery_scheduled_at TIMESTAMPTZ,
+  delivery_window     TEXT,
+  tracking_number     TEXT,
+  carrier             TEXT,
+  shop_photo_url      TEXT,
+  notes               TEXT,
+  admin_notes         TEXT,
+  stripe_payment_intent_id TEXT,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_orders_user ON orders(user_id);
+CREATE INDEX idx_orders_status ON orders(status);
+CREATE INDEX idx_orders_created ON orders(created_at DESC);
+CREATE INDEX idx_orders_quote ON orders(quote_id);
+CREATE INDEX idx_orders_project ON orders(project_id);
+
+ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "users_own_orders" ON orders
+  FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "admin_all_orders" ON orders
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- ============================================================================
+-- TABLE 19 — order_line_items
+-- ============================================================================
+CREATE TABLE order_line_items (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id    UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  product_id  UUID REFERENCES products(id),
+  finish_id   UUID REFERENCES finishes(id),
+  description TEXT NOT NULL,
+  width_in    DECIMAL(8,3),
+  height_in   DECIMAL(8,3),
+  leg_a_in    DECIMAL(8,3),
+  leg_b_in    DECIMAL(8,3),
+  length_ft   DECIMAL(8,2) NOT NULL,
+  quantity    INTEGER NOT NULL DEFAULT 1,
+  unit        TEXT NOT NULL DEFAULT 'LF',
+  unit_price  DECIMAL(10,4) NOT NULL,
+  line_total  DECIMAL(10,2) NOT NULL,
+  sort_order  INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX idx_order_line_items_order ON order_line_items(order_id);
+CREATE INDEX idx_order_line_items_product ON order_line_items(product_id);
+CREATE INDEX idx_order_line_items_finish ON order_line_items(finish_id);
+
+ALTER TABLE order_line_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "order_owner_line_items" ON order_line_items
+  FOR SELECT USING (
+    EXISTS (SELECT 1 FROM orders WHERE id = order_id AND user_id = auth.uid())
+  );
+CREATE POLICY "admin_all_order_items" ON order_line_items
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- ============================================================================
+-- TABLE 20 — order_status_history
+-- ============================================================================
+CREATE TABLE order_status_history (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id    UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  status      TEXT NOT NULL,
+  changed_by  UUID REFERENCES profiles(id),
+  note        TEXT,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_order_status_history_order ON order_status_history(order_id);
+CREATE INDEX idx_order_status_history_changed_by ON order_status_history(changed_by);
+
+ALTER TABLE order_status_history ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "order_owner_history" ON order_status_history
+  FOR SELECT USING (
+    EXISTS (SELECT 1 FROM orders WHERE id = order_id AND user_id = auth.uid())
+  );
+CREATE POLICY "admin_all_history" ON order_status_history
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- ============================================================================
+-- TABLE 21 — order_attachments
+-- ============================================================================
+CREATE TABLE order_attachments (
+  id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id                UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  attachment_type         TEXT NOT NULL
+                          CHECK (attachment_type IN (
+                            'approved_drawing','pre_ship_photo',
+                            'delivery_confirmation','signed_bol',
+                            'quality_report','other'
+                          )),
+  filename                TEXT NOT NULL,
+  storage_key             TEXT NOT NULL,
+  file_size_bytes         BIGINT,
+  uploaded_by             UUID REFERENCES profiles(id),
+  uploaded_by_role        TEXT CHECK (uploaded_by_role IN ('admin','customer')),
+  is_visible_to_customer  BOOLEAN NOT NULL DEFAULT true,
+  created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_order_attachments_order ON order_attachments(order_id);
+CREATE INDEX idx_order_attachments_uploaded_by ON order_attachments(uploaded_by);
+
+ALTER TABLE order_attachments ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "order_owner_attachments" ON order_attachments
+  FOR SELECT USING (
+    is_visible_to_customer = true AND
+    EXISTS (SELECT 1 FROM orders WHERE id = order_id AND user_id = auth.uid())
+  );
+CREATE POLICY "admin_all_attachments" ON order_attachments
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- ============================================================================
+-- TABLE 22 — notifications
+-- ============================================================================
+CREATE TABLE notifications (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id    UUID REFERENCES orders(id),
+  user_id     UUID REFERENCES profiles(id),
+  channel     TEXT NOT NULL CHECK (channel IN ('email','sms')),
+  type        TEXT NOT NULL,
+  recipient   TEXT NOT NULL,
+  status      TEXT NOT NULL CHECK (status IN ('sent','delivered','failed')),
+  error       TEXT,
+  sent_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_notifications_order ON notifications(order_id);
+CREATE INDEX idx_notifications_user ON notifications(user_id);
+
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "admin_all_notifications" ON notifications
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- ============================================================================
+-- TABLE 23 — takeoff_uploads
+-- ============================================================================
+CREATE TABLE takeoff_uploads (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id          UUID REFERENCES profiles(id),
+  guest_email      TEXT,
+  storage_key      TEXT NOT NULL,
+  file_name        TEXT NOT NULL,
+  file_type        TEXT NOT NULL,
+  file_size_bytes  BIGINT,
+  page_count       INTEGER,
+  status           TEXT NOT NULL DEFAULT 'uploaded'
+                   CHECK (status IN ('uploaded','processing','complete','partial','failed')),
+  result_items     JSONB,
+  confirmed_items  JSONB,
+  request_id       UUID REFERENCES quote_requests(id),
+  overall_confidence TEXT,
+  processing_notes TEXT,
+  processing_ms    INTEGER,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_takeoff_uploads_user ON takeoff_uploads(user_id);
+CREATE INDEX idx_takeoff_uploads_status ON takeoff_uploads(status);
+CREATE INDEX idx_takeoff_uploads_request ON takeoff_uploads(request_id);
+
+ALTER TABLE takeoff_uploads ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "users_own_uploads" ON takeoff_uploads
+  FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "users_insert_uploads" ON takeoff_uploads
+  FOR INSERT WITH CHECK (auth.uid() = user_id OR user_id IS NULL);
+CREATE POLICY "admin_all_uploads" ON takeoff_uploads
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- ============================================================================
+-- TABLE 24 — vault_documents
+-- ============================================================================
+CREATE TABLE vault_documents (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id           UUID NOT NULL REFERENCES profiles(id),
+  project_id        UUID REFERENCES projects(id),
+  order_id          UUID REFERENCES orders(id),
+  folder_name       TEXT,
+  filename          TEXT NOT NULL,
+  original_filename TEXT NOT NULL,
+  file_type         TEXT NOT NULL,
+  file_size_bytes   BIGINT NOT NULL,
+  storage_key       TEXT NOT NULL UNIQUE,
+  description       TEXT,
+  tags              TEXT[] NOT NULL DEFAULT '{}',
+  is_shared         BOOLEAN NOT NULL DEFAULT false,
+  download_count    INTEGER NOT NULL DEFAULT 0,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_vault_documents_user ON vault_documents(user_id);
+CREATE INDEX idx_vault_documents_project ON vault_documents(project_id);
+CREATE INDEX idx_vault_documents_order ON vault_documents(order_id);
+
+ALTER TABLE vault_documents ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "users_own_documents" ON vault_documents
+  FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "admin_all_documents" ON vault_documents
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- ============================================================================
+-- TABLE 25 — cad_library_files / cad_download_log
+-- ============================================================================
+CREATE TABLE cad_library_files (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  profile_id        UUID REFERENCES product_profiles(id),
+  format            TEXT NOT NULL CHECK (format IN ('dwg','dxf','pdf','rfa','rvt')),
+  filename          TEXT NOT NULL,
+  storage_key       TEXT NOT NULL,
+  description       TEXT,
+  version           TEXT,
+  revit_version     TEXT,
+  file_size_bytes   BIGINT,
+  preview_image_key TEXT,
+  download_count    INTEGER NOT NULL DEFAULT 0,
+  is_active         BOOLEAN NOT NULL DEFAULT true,
+  uploaded_by       UUID REFERENCES profiles(id),
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE cad_download_log (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  file_id     UUID NOT NULL REFERENCES cad_library_files(id),
+  user_id     UUID REFERENCES profiles(id),
+  downloaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_cad_library_profile ON cad_library_files(profile_id);
+CREATE INDEX idx_cad_library_uploaded_by ON cad_library_files(uploaded_by);
+CREATE INDEX idx_cad_download_log_file ON cad_download_log(file_id);
+CREATE INDEX idx_cad_download_log_user ON cad_download_log(user_id);
+
+ALTER TABLE cad_library_files ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "authenticated_read_cad" ON cad_library_files
+  FOR SELECT USING (auth.uid() IS NOT NULL AND is_active = true);
+CREATE POLICY "admin_write_cad" ON cad_library_files
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+ALTER TABLE cad_download_log ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "admin_read_downloads" ON cad_download_log
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- ============================================================================
+-- ADDITIONAL TABLES (smaller, supporting)
+-- ============================================================================
+
+-- Saved configurator configurations
+CREATE TABLE saved_configurations (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     UUID NOT NULL REFERENCES profiles(id),
+  name        TEXT,
+  profile_id  UUID REFERENCES product_profiles(id),
+  material_id UUID REFERENCES materials(id),
+  gauge_id    UUID REFERENCES gauges(id),
+  finish_id   UUID REFERENCES finishes(id),
+  dimensions  JSONB NOT NULL,
+  length_ft   DECIMAL(8,2),
+  quantity    INTEGER,
+  notes       TEXT,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_saved_configurations_user ON saved_configurations(user_id);
+CREATE INDEX idx_saved_configurations_profile ON saved_configurations(profile_id);
+CREATE INDEX idx_saved_configurations_material ON saved_configurations(material_id);
+CREATE INDEX idx_saved_configurations_gauge ON saved_configurations(gauge_id);
+CREATE INDEX idx_saved_configurations_finish ON saved_configurations(finish_id);
+
+ALTER TABLE saved_configurations ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "users_own_configs" ON saved_configurations
+  FOR ALL USING (auth.uid() = user_id);
+
+-- Saved quote request templates
+CREATE TABLE quote_templates (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id          UUID NOT NULL REFERENCES profiles(id),
+  company_id       UUID REFERENCES companies(id),
+  name             TEXT NOT NULL,
+  description      TEXT,
+  is_company_shared BOOLEAN NOT NULL DEFAULT false,
+  items            JSONB NOT NULL,
+  use_count        INTEGER NOT NULL DEFAULT 0,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_quote_templates_user ON quote_templates(user_id);
+CREATE INDEX idx_quote_templates_company ON quote_templates(company_id);
+
+ALTER TABLE quote_templates ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "users_own_templates" ON quote_templates
+  FOR ALL USING (auth.uid() = user_id);
+
+-- Saved CSI specification sections
+CREATE TABLE saved_specifications (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     UUID NOT NULL REFERENCES profiles(id),
+  project_id  UUID REFERENCES projects(id),
+  csi_section TEXT NOT NULL,
+  csi_title   TEXT NOT NULL,
+  spec_data   JSONB NOT NULL,
+  is_sole_source BOOLEAN NOT NULL DEFAULT true,
+  version     INTEGER NOT NULL DEFAULT 1,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_saved_specifications_user ON saved_specifications(user_id);
+CREATE INDEX idx_saved_specifications_project ON saved_specifications(project_id);
+
+ALTER TABLE saved_specifications ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "users_own_specs" ON saved_specifications
+  FOR ALL USING (auth.uid() = user_id);
+
+-- Admin audit log (all admin actions)
+CREATE TABLE admin_audit_log (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  admin_id      UUID NOT NULL REFERENCES profiles(id),
+  action        TEXT NOT NULL,
+  resource_type TEXT NOT NULL,
+  resource_id   UUID,
+  before_value  JSONB,
+  after_value   JSONB,
+  ip_address    TEXT,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_admin_audit_log_admin ON admin_audit_log(admin_id);
+
+-- No RLS delete — audit records are permanent
+ALTER TABLE admin_audit_log ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "admin_read_audit" ON admin_audit_log
+  FOR SELECT USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- Credit applications
+CREATE TABLE credit_applications (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id          UUID NOT NULL REFERENCES profiles(id),
+  company_id       UUID REFERENCES companies(id),
+  status           TEXT NOT NULL DEFAULT 'submitted'
+                   CHECK (status IN ('submitted','under_review','approved','denied')),
+  application_data JSONB NOT NULL,
+  requested_limit  DECIMAL(10,2),
+  requested_terms  INTEGER,
+  approved_limit   DECIMAL(10,2),
+  approved_terms   INTEGER,
+  reviewer_id      UUID REFERENCES profiles(id),
+  reviewer_notes   TEXT,
+  submitted_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  reviewed_at      TIMESTAMPTZ
+);
+
+CREATE INDEX idx_credit_applications_user ON credit_applications(user_id);
+CREATE INDEX idx_credit_applications_company ON credit_applications(company_id);
+CREATE INDEX idx_credit_applications_reviewer ON credit_applications(reviewer_id);
+
+ALTER TABLE credit_applications ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "users_own_applications" ON credit_applications
+  FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "users_insert_applications" ON credit_applications
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "admin_all_applications" ON credit_applications
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- Design consultation requests
+CREATE TABLE consultation_requests (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id          UUID REFERENCES profiles(id),
+  name             TEXT NOT NULL,
+  firm_name        TEXT,
+  email            TEXT NOT NULL,
+  phone            TEXT,
+  project_name     TEXT,
+  project_type     TEXT,
+  project_location TEXT,
+  topic            TEXT,
+  description      TEXT,
+  attachment_keys  TEXT[],
+  preferred_contact TEXT,
+  preferred_days   TEXT[],
+  preferred_times  TEXT[],
+  status           TEXT NOT NULL DEFAULT 'new'
+                   CHECK (status IN ('new','contacted','completed','no_response')),
+  admin_notes      TEXT,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_consultation_requests_user ON consultation_requests(user_id);
+
+ALTER TABLE consultation_requests ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "users_own_consultations" ON consultation_requests
+  FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "public_insert_consultations" ON consultation_requests
+  FOR INSERT WITH CHECK (true);
+CREATE POLICY "admin_all_consultations" ON consultation_requests
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- Chat conversations (AI chatbot history)
+CREATE TABLE chat_conversations (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id          UUID REFERENCES profiles(id),
+  guest_session_id TEXT,
+  messages         JSONB NOT NULL DEFAULT '[]',
+  escalated        BOOLEAN NOT NULL DEFAULT false,
+  escalated_at     TIMESTAMPTZ,
+  resolved         BOOLEAN NOT NULL DEFAULT false,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_chat_conversations_user ON chat_conversations(user_id);
+
+ALTER TABLE chat_conversations ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "users_own_chats" ON chat_conversations
+  FOR ALL USING (auth.uid() = user_id OR user_id IS NULL);
+CREATE POLICY "admin_all_chats" ON chat_conversations
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- Team invitations (SPEC_TEAM_ACCOUNTS.md — /account/team, /invite/[token])
+CREATE TABLE team_invitations (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id   UUID NOT NULL REFERENCES companies(id),
+  email        TEXT NOT NULL,
+  role         TEXT NOT NULL CHECK (role IN ('owner','admin','estimator','pm','accounting','viewer')),
+  token        TEXT NOT NULL UNIQUE,
+  message      TEXT,
+  invited_by   UUID NOT NULL REFERENCES profiles(id),
+  status       TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','accepted','revoked','expired')),
+  expires_at   TIMESTAMPTZ NOT NULL,
+  accepted_at  TIMESTAMPTZ,
+  accepted_by  UUID REFERENCES profiles(id),
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_team_invitations_company ON team_invitations(company_id);
+CREATE INDEX idx_team_invitations_token ON team_invitations(token);
+CREATE INDEX idx_team_invitations_invited_by ON team_invitations(invited_by);
+CREATE INDEX idx_team_invitations_accepted_by ON team_invitations(accepted_by);
+
+ALTER TABLE team_invitations ENABLE ROW LEVEL SECURITY;
+-- Token lookups for the public /invite/[token] page happen server-side via the
+-- service role client (unauthenticated by design, like a password reset link).
+CREATE POLICY "company_admins_manage_invitations" ON team_invitations
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE id = auth.uid() AND company_id = team_invitations.company_id
+      AND company_role IN ('owner','admin')
+    )
+  );
+CREATE POLICY "admin_all_invitations" ON team_invitations
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- ============================================================================
+-- SPEC TEMPLATES (CSI)
+-- ============================================================================
+CREATE TABLE spec_templates (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  csi_section         TEXT NOT NULL,
+  csi_title           TEXT NOT NULL,
+  applicable_profiles TEXT[],
+  standards_refs      TEXT[],
+  part_1_template     TEXT,
+  part_2_template     TEXT,
+  part_3_template     TEXT,
+  is_active           BOOLEAN NOT NULL DEFAULT true,
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE spec_templates ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "authenticated_read_spec_templates" ON spec_templates
+  FOR SELECT USING (auth.uid() IS NOT NULL AND is_active = true);
+CREATE POLICY "admin_write_spec_templates" ON spec_templates
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- ============================================================================
+-- END 001_initial_schema.sql
+-- ============================================================================
