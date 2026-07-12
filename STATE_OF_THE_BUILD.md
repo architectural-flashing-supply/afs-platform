@@ -22,6 +22,10 @@ Database migration:      supabase/migrations/001_initial_schema.sql (all 35 tabl
                          machine_profile_bends tables exist live and are populated:
                          46 categories, 911 profiles, 4537 bend steps, 70 profiles
                          public / 841 private (see Machine Profile Data Status below).
+                         005_machine_jobs.sql (afs-032) is written but NOT YET APPLIED
+                         to the live project — adds machine_jobs (Command Center's
+                         approval queue) and machine_bridge_status (bridge connection
+                         ping), relaxes admin_audit_log.admin_id to nullable.
 API keys in .env.local:  Present locally (not committed). STRIPE_SECRET_KEY,
                          STRIPE_WEBHOOK_SECRET, and NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
                          are all confirmed populated with live-mode values (sk_live_/
@@ -31,12 +35,17 @@ API keys in .env.local:  Present locally (not committed). STRIPE_SECRET_KEY,
 pnpm install:            DONE (afs-025) — stripe, @stripe/stripe-js,
                          @stripe/react-stripe-js, docx all present in
                          pnpm-lock.yaml and node_modules.
-pnpm tsc --noEmit:       PASSES — 0 errors (afs-031, re-verified after every change).
-pnpm run build:          PASSES — exit 0, all 98 routes generated (afs-031 — same
-                         route count as afs-030; this run only touched the import
-                         script and its dependencies, no routes added/removed).
-git commits:             All work through afs-031 is committed and pushed to
-                         origin/main. Working tree is clean.
+pnpm tsc --noEmit:       PASSES — 0 errors (afs-032, re-verified after every change).
+pnpm run build:          PASSES — exit 0, all 106 routes generated (afs-032 — +8 vs.
+                         afs-031's 98: /admin/command-center, /api/machine-bridge/
+                         {pending-jobs,job-delivered,status}, /api/admin/command-center/
+                         {approve,reject,request-changes,mark-delivered}).
+git commits:             All afs-website work through afs-032 is committed and pushed
+                         to origin/main. Working tree is clean. A SEPARATE standalone
+                         project, C:\Users\manag\Documents\afs-machine-bridge, has its
+                         own independent git repo (not part of this repo, not pushed
+                         anywhere — no remote was given) — see Machine Bridge status
+                         below.
 Machine Profile Data     004_machine_profiles.sql was applied to the live Supabase
 Status (afs-031):        project (pasted into the SQL Editor by the user) and
                          `pnpm run import:machine-profiles` was run against it
@@ -290,6 +299,125 @@ Design Studio (afs-030) —                NEW, beyond BLUEPRINT.md's original 9
                                         machine_profiles doesn't exist in the live DB
                                         yet (migration not applied — expected, not
                                         a bug).
+
+Machine Bridge + Command Center          NEW (afs-032). Two investigations, both
+(afs-032):                             surfaced to the user before writing code:
+
+  1. The .ds1 binary format:           the task assumed a specific byte layout
+                                        (null-terminated strings, uint32 bend
+                                        count, 4 doubles per bend step). Did a
+                                        real byte-level analysis of the two
+                                        sample .ds1 files in machine-data/
+                                        instead of trusting that assumption —
+                                        found the real header uses Pascal-style
+                                        length-prefixed strings (not null-
+                                        terminated), and the numeric/bend-step
+                                        region does not follow a simple fixed
+                                        8-byte-double stride (probing breaks
+                                        down into denormalized garbage after
+                                        the second value). Neither sample file
+                                        corresponds to any of the 46 categories
+                                        already imported from ds2801db.bdb, so
+                                        there's no known-good record to
+                                        validate field-by-field against
+                                        either. User chose: build the
+                                        generator best-effort (verified string
+                                        header + best-effort numeric section,
+                                        both clearly labeled by confidence
+                                        level in code comments) but add a
+                                        mandatory human-review gate — the
+                                        bridge writes to a local review/
+                                        folder, never directly to the
+                                        machine's live folder, until someone
+                                        with real format knowledge confirms a
+                                        generated file loads correctly.
+
+  2. Data model:                       orders.status has a fixed CHECK
+                                        constraint with no machine-delivery
+                                        states, and there was no existing link
+                                        between an order/quote_request and a
+                                        machine_profile_bends sequence. User
+                                        chose a new machine_jobs table
+                                        (supabase/migrations/005_machine_jobs.sql)
+                                        rather than overloading orders.status.
+                                        Also relaxed admin_audit_log.admin_id
+                                        to nullable — job-delivered is reported
+                                        by the automated bridge, which has no
+                                        admin session to attribute audit
+                                        entries to.
+
+  Built:                               C:\Users\manag\Documents\afs-machine-bridge
+                                        — a SEPARATE standalone Node.js project
+                                        (own package.json, own git repo, NOT
+                                        part of the afs-website repo per
+                                        explicit instruction) with src/bridge.js
+                                        (30s polling loop, never crashes —
+                                        catches all errors and retries next
+                                        interval), src/ds1-generator.js (the
+                                        best-effort generator described above),
+                                        src/install-service.js (node-windows
+                                        service installer, not run — only
+                                        written), src/logger.js, README.md
+                                        (explains the review gate, install
+                                        steps for DESKTOP-MB7AMMP, and the
+                                        $0/mo-vs-$350/mo PathfinderEdge
+                                        rationale). Generated a random 32-char
+                                        hex AFS_BRIDGE_SECRET, set identically
+                                        in both the bridge's .env and
+                                        afs-website's .env.local/.env.example.
+
+                                        In afs-website: 3 machine-bridge API
+                                        routes (pending-jobs, job-delivered,
+                                        status) authenticated via a
+                                        timing-safe Bearer-secret comparison
+                                        (lib/machine-bridge/auth.ts) instead of
+                                        Supabase session auth, since the
+                                        bridge is a service, not a logged-in
+                                        user. app/admin/command-center/page.tsx
+                                        (3 tabs: Pending Approval / Sent to
+                                        Machine / Completed) with
+                                        BendSequenceDiagram.tsx (SVG bend-shape
+                                        reconstruction, same turtle-graphics
+                                        approach as FlashDraft's Load from
+                                        Library, explicitly labeled
+                                        approximate) and
+                                        MachineBridgeStatusDot.tsx (polls
+                                        /api/machine-bridge/status every 30s
+                                        for the green/red connection dot). 4
+                                        admin action routes: approve, reject
+                                        (reason required), request-changes
+                                        (added a 'changes_requested' status +
+                                        customer email notification, beyond
+                                        the task's literal 3-button list, to
+                                        actually close that loop), and
+                                        mark-delivered (closes the human-
+                                        review-gate loop — an admin confirms
+                                        they verified and manually copied a
+                                        staged .ds1 file before it's marked
+                                        sent_to_machine). "Command Center"
+                                        added to AdminShell nav with a live
+                                        pending-job-count badge.
+
+                                        NOTE: nothing currently creates
+                                        machine_jobs rows from real customer
+                                        quote_requests/orders — that
+                                        population step is explicitly out of
+                                        scope for this build (not asked for);
+                                        the Pending Approval tab will be empty
+                                        until either a future feature or a
+                                        manual DB insert creates rows.
+
+  Gates:                               pnpm tsc --noEmit 0 errors. pnpm run
+                                        build exit 0, 106/106 routes. Could
+                                        not visually verify the Command Center
+                                        in a browser (it's admin-auth-gated
+                                        and this dev environment has no real
+                                        admin session to drive Playwright
+                                        with) — verified via build/typecheck
+                                        and careful code review instead;
+                                        say so explicitly rather than
+                                        claiming a browser check that didn't
+                                        happen.
 ```
 
 ---
@@ -308,12 +436,27 @@ When migrating DNS to the live domain, these must be updated BEFORE go-live:
 
 **All 9 original build phases (0–8) are built. The design system is back to
 its original dark gunmetal theme (afs-028 reverted afs-027's light rebrand).
-The Design Studio (afs-030) is built AND its data is now live (afs-031):
-004_machine_profiles.sql applied, 911 profiles imported, 70 public / 841
-private.** The tool-approval gate logged in afs-023/024 has not recurred
-since afs-025.
+The Design Studio (afs-030) is built and its data is live (afs-031). The
+Machine Bridge + Command Center (afs-032) is built — a standalone polling
+service plus an admin approval dashboard — but its migration
+(005_machine_jobs.sql) is NOT yet applied to the live project.** The
+tool-approval gate logged in afs-023/024 has not recurred since afs-025.
 
-1. **Done (afs-031 — this build):** Applied `004_machine_profiles.sql` to
+1. **Done (afs-032 — this build):** Machine Bridge + Command Center. See
+   BUILD PHASE STATUS above for full detail. Two investigations before
+   writing code: the `.ds1` binary format didn't match the task's assumed
+   layout (real header is Pascal-length-prefixed strings, not
+   null-terminated; numeric section doesn't follow a fixed stride) — user
+   chose best-effort generation behind a mandatory human-review gate. The
+   data model needed a new `machine_jobs` table rather than overloading
+   `orders.status` — user confirmed. `pnpm tsc --noEmit` (0 errors),
+   `pnpm run build` (106/106 routes). **`005_machine_jobs.sql` has NOT been
+   applied to the live Supabase project yet** — paste it via the SQL Editor
+   per `supabase/README.md` before the Command Center or bridge can
+   actually read/write real data. The standalone `afs-machine-bridge`
+   project has its own separate git repo (not pushed anywhere — no remote
+   given).
+2. **Done (afs-031):** Applied `004_machine_profiles.sql` to
    the live Supabase project (user ran it via the SQL Editor). Ran
    `pnpm run import:machine-profiles` — first attempt failed
    ("Node.js detected but native WebSocket not found": supabase-js always
@@ -328,13 +471,13 @@ since afs-025.
    expose and **not run** — user confirmed keeping the 70/841 split.
    `pnpm tsc --noEmit` (0 errors) and `pnpm run build` (98/98 routes) both
    pass.
-2. **Done (afs-030):** Design Studio built. See BUILD PHASE STATUS above
+3. **Done (afs-030):** Design Studio built. See BUILD PHASE STATUS above
    for full detail: `app/studio` + `app/studio/draft` (FlashDraft canvas),
    `app/api/studio/match-profile`, `lib/integrations/pathfinder-edge.ts`
    (stub — no real PathfinderEdge API was discoverable) + its 3 admin
    routes, NavBar entry. Re-added `afs-ink-900`/`afs-ink-700` tokens (only
    these two) for the FlashDraft canvas's dimension labels.
-3. **Done (afs-029):** Scoped fix on top of the reverted dark theme —
+4. **Done (afs-029):** Scoped fix on top of the reverted dark theme —
    `app/(public)/products/page.tsx`, `app/configure/page.tsx`,
    `app/quote/page.tsx` each got an inline `#B8BEC8` background on their
    main content div and `text-afs-crimson font-bold` / `text-black
@@ -342,27 +485,37 @@ since afs-025.
    ("do not touch any other file/token"). Not committed to governance docs
    at the time per that instruction's own scope — logged here now for
    completeness.
-4. **Done (afs-028):** `git revert b3512f1` — reverted the afs-027 site-wide
+5. **Done (afs-028):** `git revert b3512f1` — reverted the afs-027 site-wide
    light rebrand back to the original dark gunmetal theme per explicit
    instruction. `pnpm tsc --noEmit` and `pnpm run build` both re-verified
    passing after the revert.
-5. **Remaining — not a code task:** `supabase/migrations/001-003` have not
-   been applied to a live Supabase project yet (004 now has been, as of
-   afs-031).
-6. Confirm chat_conversations retention policy (#65) before relying on
+6. **Remaining — not a code task:** `supabase/migrations/001-003` have not
+   been applied to a live Supabase project yet; `005_machine_jobs.sql` is
+   also pending (see item 1 above). 004 has been applied (afs-031).
+7. Confirm chat_conversations retention policy (#65) before relying on
    chat history persistence in production.
-7. If/when the client confirms QuickBooks scope (checklist #52-54) or a
+8. If/when the client confirms QuickBooks scope (checklist #52-54) or a
    real PathfinderEdge API is documented, build the real integrations out
    against the existing stub function signatures in `lib/integrations/
    quickbooks.ts` and `lib/integrations/pathfinder-edge.ts`.
-8. The 841 private profiles are real customer/contractor/hospital/project
+9. The 841 private profiles are real customer/contractor/hospital/project
    job history, now live in the production database (RLS-protected,
    admin-only read). If specific ones are ever needed publicly, a human
    should review and flip them individually — do not bulk-flip
    `is_public`, per the explicit decision in afs-031.
-9. DATA BLOCKERS table below is the remaining pre-launch punch list —
-   nothing left is a FORGE code task; all remaining items need data/assets
-   from the client.
+10. Once `005_machine_jobs.sql` is applied, the Command Center's "Pending
+    Approval" tab will still be empty — nothing currently creates
+    `machine_jobs` rows from real customer submissions (see afs-032 note
+    in BUILD PHASE STATUS). That population step needs to be built
+    separately.
+11. Before removing the Machine Bridge's mandatory human-review gate
+    (i.e. before letting it write directly into `THALMANN_DS2801_PATH`),
+    someone with real Thalmann DS2801 format knowledge needs to confirm a
+    generated `.ds1` file actually loads correctly — see
+    afs-machine-bridge/README.md and afs-machine-bridge/src/ds1-generator.js.
+12. DATA BLOCKERS table below is the remaining pre-launch punch list —
+    nothing left is a FORGE code task; all remaining items need data/assets
+    from the client.
 
 Historical detail on the afs-023 → afs-027 sequence (build-blocker
 investigation, the two real build bugs fixed in afs-025, and the full

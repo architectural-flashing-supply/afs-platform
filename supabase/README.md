@@ -11,6 +11,7 @@ migrations/
   002_seed_afs_data.sql               Materials, gauges, product_profiles reference data
   003_pricing_rules_cost_notes.sql    Adds pricing_rules.cost_notes (manual pricing mode)
   004_machine_profiles.sql            Thalmann DS2801 machine profile library (Design Studio)
+  005_machine_jobs.sql                Machine Bridge job approval queue (Command Center)
 ```
 
 Run them in numeric order. Each file is idempotent-safe to re-run only where it
@@ -26,7 +27,8 @@ re-running against a database that already has the schema will error on
 4. Paste the contents of `002_seed_afs_data.sql`, run it
 5. Paste the contents of `003_pricing_rules_cost_notes.sql`, run it
 6. Paste the contents of `004_machine_profiles.sql`, run it
-7. Verify: **Table Editor** should show 39 tables, all with the RLS lock icon enabled
+7. Paste the contents of `005_machine_jobs.sql`, run it
+8. Verify: **Table Editor** should show 41 tables, all with the RLS lock icon enabled
 
 ## 004_machine_profiles.sql — Design Studio machine profile library
 
@@ -61,6 +63,28 @@ those public categories, any individual profile whose name doesn't resolve to
 a recognized generic term is also forced private as a safety net. See the
 comments at the top of `scripts/import-machine-profiles.ts` and the
 `004_machine_profiles.sql` migration for the full reasoning.
+
+## 005_machine_jobs.sql — Machine Bridge job approval queue
+
+Also **not** run automatically — paste it into the SQL Editor per Option A
+step 7. Adds `machine_jobs` (the Command Center's approval queue, linking an
+order/quote request to either a `machine_profiles` library entry or a custom
+FlashDraft bend sequence) and `machine_bridge_status` (a one-row table the
+bridge pings so the Command Center can show a connection dot). Also relaxes
+`admin_audit_log.admin_id` to nullable, since the Machine Bridge's automated
+`job-delivered` report has no logged-in admin session to attribute its audit
+entries to.
+
+**Nothing currently creates `machine_jobs` rows automatically** — that's a
+gap, not an oversight: this build wires up the full approval → bridge →
+delivery lifecycle, but populating the "Pending Approval" tab from real
+customer quote requests/orders is a separate, not-yet-built feature.
+
+See the standalone `afs-machine-bridge` project's own README.md for the
+polling service that reads `machine_jobs` (via
+`app/api/machine-bridge/pending-jobs`) and generates `.ds1` files — including
+why generated files require manual human verification before they reach the
+real Thalmann machine.
 
 ## Option B — Supabase CLI
 
