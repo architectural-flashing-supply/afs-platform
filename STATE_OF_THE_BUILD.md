@@ -15,8 +15,13 @@ Application code:        Phases 0–8 built (see BUILD PHASE STATUS).
 Database migration:      supabase/migrations/001_initial_schema.sql (all 35 tables,
                          RLS + FK indexes), 002_seed_afs_data.sql (materials/gauges/
                          product_profiles reference data), 003_pricing_rules_cost_notes.sql
-                         (renamed from 002 to preserve numeric order). Not yet applied to
-                         a live Supabase project — see supabase/README.md to run.
+                         (renamed from 002 to preserve numeric order). 001-003 not yet
+                         applied to the live Supabase project — see supabase/README.md
+                         to run. 004_machine_profiles.sql (afs-030) HAS been applied
+                         (afs-031) — the machine_profile_categories/machine_profiles/
+                         machine_profile_bends tables exist live and are populated:
+                         46 categories, 911 profiles, 4537 bend steps, 70 profiles
+                         public / 841 private (see Machine Profile Data Status below).
 API keys in .env.local:  Present locally (not committed). STRIPE_SECRET_KEY,
                          STRIPE_WEBHOOK_SECRET, and NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
                          are all confirmed populated with live-mode values (sk_live_/
@@ -26,13 +31,28 @@ API keys in .env.local:  Present locally (not committed). STRIPE_SECRET_KEY,
 pnpm install:            DONE (afs-025) — stripe, @stripe/stripe-js,
                          @stripe/react-stripe-js, docx all present in
                          pnpm-lock.yaml and node_modules.
-pnpm tsc --noEmit:       PASSES — 0 errors (afs-030, re-verified after every change).
-pnpm run build:          PASSES — exit 0, all 98 routes generated (afs-030 — +6 vs.
-                         afs-029's 92: /studio, /studio/draft, /api/admin/pathfinder,
-                         /api/admin/pathfinder/push-profile,
-                         /api/admin/pathfinder/submit-job, /api/studio/match-profile).
-git commits:             All work through afs-030 is committed and pushed to
+pnpm tsc --noEmit:       PASSES — 0 errors (afs-031, re-verified after every change).
+pnpm run build:          PASSES — exit 0, all 98 routes generated (afs-031 — same
+                         route count as afs-030; this run only touched the import
+                         script and its dependencies, no routes added/removed).
+git commits:             All work through afs-031 is committed and pushed to
                          origin/main. Working tree is clean.
+Machine Profile Data     004_machine_profiles.sql was applied to the live Supabase
+Status (afs-031):        project (pasted into the SQL Editor by the user) and
+                         `pnpm run import:machine-profiles` was run against it
+                         successfully: 46 categories, 911 profiles, 4537 bend steps
+                         imported. 70 profiles are public (Zinc Profiles + the
+                         numbered "00"-"19" Standard Series categories), 841 are
+                         private (real customer/contractor/hospital/project job
+                         history) — exactly the split designed in afs-030. A
+                         follow-up instruction asked to run
+                         `UPDATE machine_profiles SET is_public = true` to make all
+                         911 public; this was NOT run — flagged with concrete
+                         examples of what would be exposed (e.g. "DPR" category's
+                         "BSWH HOSPITAL" profile, "ANGELUS WTR PRFNG"'s "TX BIOMED"
+                         profiles, "BELL COUNTY"'s school-district job, "MAURICIO
+                         CONST..."'s "MAURICIO LOFTS" project) and the user chose to
+                         keep the 70/841 split rather than make everything public.
 Design system:           The afs-027 site-wide light silver rebrand was REVERTED
                          (afs-028, `git revert b3512f1`) back to the original dark
                          gunmetal theme per explicit instruction ("light theme was
@@ -288,21 +308,33 @@ When migrating DNS to the live domain, these must be updated BEFORE go-live:
 
 **All 9 original build phases (0–8) are built. The design system is back to
 its original dark gunmetal theme (afs-028 reverted afs-027's light rebrand).
-A new, tenth body of work — the Design Studio (Thalmann profile import,
-FlashDraft canvas tool, PathfinderEdge stub) — was added in afs-030.** The
-tool-approval gate logged in afs-023/024 has not recurred since afs-025.
+The Design Studio (afs-030) is built AND its data is now live (afs-031):
+004_machine_profiles.sql applied, 911 profiles imported, 70 public / 841
+private.** The tool-approval gate logged in afs-023/024 has not recurred
+since afs-025.
 
-1. **Done (afs-030 — this build):** Design Studio. See BUILD PHASE STATUS
-   above for full detail: `supabase/migrations/004_machine_profiles.sql`
-   (not yet applied to the live project — paste into SQL Editor per
-   `supabase/README.md`, then run `pnpm run import:machine-profiles`),
-   `app/studio` + `app/studio/draft` (FlashDraft canvas), `app/api/studio/
-   match-profile`, `lib/integrations/pathfinder-edge.ts` (stub — no real
-   PathfinderEdge API was discoverable) + its 3 admin routes, NavBar entry.
-   Re-added `afs-ink-900`/`afs-ink-700` tokens (only these two) for the
-   FlashDraft canvas's dimension labels. `pnpm tsc --noEmit` (0 errors) and
-   `pnpm run build` (exit 0, 98/98 routes) both pass; visually verified.
-2. **Done (afs-029):** Scoped fix on top of the reverted dark theme —
+1. **Done (afs-031 — this build):** Applied `004_machine_profiles.sql` to
+   the live Supabase project (user ran it via the SQL Editor). Ran
+   `pnpm run import:machine-profiles` — first attempt failed
+   ("Node.js detected but native WebSocket not found": supabase-js always
+   constructs a Realtime client, which needs a global `WebSocket`, absent
+   on Node 20; Node 22+ has one natively). Fixed by adding the `ws` package
+   as a polyfill in the script itself rather than bumping the project's
+   pinned Node version for one standalone script. Re-ran successfully: 46
+   categories, 911 profiles, 4537 bend steps imported, 70 public / 841
+   private — matching the afs-030 design exactly. A follow-up instruction
+   to run `UPDATE machine_profiles SET is_public = true` (making all 911
+   public) was flagged with concrete real-world examples of what that would
+   expose and **not run** — user confirmed keeping the 70/841 split.
+   `pnpm tsc --noEmit` (0 errors) and `pnpm run build` (98/98 routes) both
+   pass.
+2. **Done (afs-030):** Design Studio built. See BUILD PHASE STATUS above
+   for full detail: `app/studio` + `app/studio/draft` (FlashDraft canvas),
+   `app/api/studio/match-profile`, `lib/integrations/pathfinder-edge.ts`
+   (stub — no real PathfinderEdge API was discoverable) + its 3 admin
+   routes, NavBar entry. Re-added `afs-ink-900`/`afs-ink-700` tokens (only
+   these two) for the FlashDraft canvas's dimension labels.
+3. **Done (afs-029):** Scoped fix on top of the reverted dark theme —
    `app/(public)/products/page.tsx`, `app/configure/page.tsx`,
    `app/quote/page.tsx` each got an inline `#B8BEC8` background on their
    main content div and `text-afs-crimson font-bold` / `text-black
@@ -310,23 +342,25 @@ tool-approval gate logged in afs-023/024 has not recurred since afs-025.
    ("do not touch any other file/token"). Not committed to governance docs
    at the time per that instruction's own scope — logged here now for
    completeness.
-3. **Done (afs-028):** `git revert b3512f1` — reverted the afs-027 site-wide
+4. **Done (afs-028):** `git revert b3512f1` — reverted the afs-027 site-wide
    light rebrand back to the original dark gunmetal theme per explicit
    instruction. `pnpm tsc --noEmit` and `pnpm run build` both re-verified
    passing after the revert.
-4. **Remaining — not a code task:** `supabase/migrations/*` (all 4, including
-   the new 004) have not been applied to a live Supabase project yet.
-5. Confirm chat_conversations retention policy (#65) before relying on
+5. **Remaining — not a code task:** `supabase/migrations/001-003` have not
+   been applied to a live Supabase project yet (004 now has been, as of
+   afs-031).
+6. Confirm chat_conversations retention policy (#65) before relying on
    chat history persistence in production.
-6. If/when the client confirms QuickBooks scope (checklist #52-54) or a
+7. If/when the client confirms QuickBooks scope (checklist #52-54) or a
    real PathfinderEdge API is documented, build the real integrations out
    against the existing stub function signatures in `lib/integrations/
    quickbooks.ts` and `lib/integrations/pathfinder-edge.ts`.
-7. If further profile data is needed publicly, a human should review the
-   ~850 profiles imported as `is_public = false` (real customer/project
-   job history) and selectively flip specific ones to public — do not
-   bulk-flip the category default, per the privacy audit in afs-030.
-8. DATA BLOCKERS table below is the remaining pre-launch punch list —
+8. The 841 private profiles are real customer/contractor/hospital/project
+   job history, now live in the production database (RLS-protected,
+   admin-only read). If specific ones are ever needed publicly, a human
+   should review and flip them individually — do not bulk-flip
+   `is_public`, per the explicit decision in afs-031.
+9. DATA BLOCKERS table below is the remaining pre-launch punch list —
    nothing left is a FORGE code task; all remaining items need data/assets
    from the client.
 

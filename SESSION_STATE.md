@@ -9,11 +9,22 @@
 
 **Governance status:** Complete. All 12 governance documents finalized.
 **Spec status:** Complete. All 52 feature specs finalized.
-**Build status:** ALL 9 ORIGINAL PHASES (0–8) BUILT, plus a new Design
-Studio body of work (afs-030). `pnpm tsc --noEmit` passes (0 errors) and
-`pnpm run build` succeeds (exit 0, 98/98 routes) as of afs-030. Working
-tree is clean; all work through afs-030 is committed and pushed to
-origin/main.
+**Build status:** ALL 9 ORIGINAL PHASES (0–8) BUILT, plus the Design
+Studio (afs-030), whose data is now live in production (afs-031).
+`pnpm tsc --noEmit` passes (0 errors) and `pnpm run build` succeeds
+(exit 0, 98/98 routes) as of afs-031. Working tree is clean; all work
+through afs-031 is committed and pushed to origin/main.
+**Machine profile data status (afs-031):** `004_machine_profiles.sql` has
+been applied to the live Supabase project and
+`pnpm run import:machine-profiles` has been run successfully against it:
+46 categories, 911 profiles, 4537 bend steps are live. 70 profiles are
+public, 841 are private — exactly the split afs-030 designed. A follow-up
+instruction to make all 911 public (`UPDATE machine_profiles SET
+is_public = true`) was declined by the user after being shown concrete
+real examples of what it would expose (a hospital job under "DPR", a
+biomedical facility job under "ANGELUS WTR PRFNG", a school district job
+under "BELL COUNTY", a named residential project under "MAURICIO
+CONST..."). The 70/841 split from the original import stands.
 **Design system status:** The afs-027 site-wide light silver rebrand was
 **reverted** in afs-028 (`git revert b3512f1`) back to the original dark
 gunmetal theme, per explicit instruction that the light theme had been
@@ -37,19 +48,19 @@ exceptions layered on top:
 
 ## WHAT IS READY TO RUN
 
-queue.yaml's original 9 phases are all built. The new Design Studio feature
-(afs-030) is also built. Remaining work is non-code:
-1. Apply `supabase/migrations/001` through `004` to a live Supabase project
-   (004 is new this session — see supabase/README.md), then run
-   `pnpm run import:machine-profiles` to populate the machine profile
-   library.
+queue.yaml's original 9 phases are all built. The Design Studio feature
+(afs-030) is built and its data is live (afs-031). Remaining work is
+non-code:
+1. Apply `supabase/migrations/001` through `003` to a live Supabase project
+   (004 is already applied as of afs-031 — see supabase/README.md).
 2. Get client confirmation on QuickBooks scope (#52-54), and/or real
    PathfinderEdge API documentation, before building either integration
    for real.
-3. A human should review the ~850 profiles imported as private (real
+3. A human should review the 841 profiles now live as private (real
    customer/project job history) and selectively mark specific safe ones
    public — see the privacy audit below, don't bulk-flip the category
-   default.
+   default. This data is now in the production database, not just a local
+   import plan, so this review carries real weight.
 4. Optionally reconcile DESIGN_TOKENS.md §10 and BLUEPRINT.md §3, both of
    which still narrate the afs-027 light-theme rebrand as current when the
    theme has since been reverted — flagged but not corrected this session
@@ -86,13 +97,57 @@ queue.yaml's original 9 phases are all built. The new Design Studio feature
 | 2026-07-12 | afs-028: Instructed to fully revert the afs-027 light theme rebrand ("the light theme must be fully restored" / "was applied in error"). Ran `git revert b3512f1 --no-edit` (clean, no conflicts — `caa14a3`, the intervening docs-only commit, never touched any file `b3512f1` had changed) → `6903d00`. Verified `tailwind.config.js`, `app/globals.css`, and `DESIGN_TOKENS.md` were back to their original dark gunmetal values (spot-checked `--afs-bg-base: #2A2D35`, header text "Single fixed gunmetal theme"). `pnpm tsc --noEmit`: 0 errors. Was about to run `pnpm run build` when the user interrupted with a new, more specific instruction set (see afs-029) — that interruption is what closes out this entry; the revert itself was already complete and didn't need re-doing. |
 | 2026-07-12 | afs-029: User interrupted afs-028's build-verification step with a narrower, more specific two-part instruction: (1) confirm the afs-027 revert (already done in afs-028 — did NOT re-run `git revert b3512f1`, which would have errored since it was already applied; verified via `git log` and re-reading `DESIGN_TOKENS.md`'s header instead), and (2) in `app/(public)/products/page.tsx` **only**, add `bg-[#D4D4D4]` inline/utility background to the div wrapping the product cards grid, explicitly forbidding any token or other-file changes. Applied `style={{ backgroundColor: '#D4D4D4' }}` to that one div. `pnpm tsc --noEmit` (0 errors) and `pnpm run build` (92/92 routes) both passed. Committed `git add "app/(public)/products/page.tsx"` (exactly that one file, as instructed) → `9d22d5c` ("fix: restore dark theme + silver content area on products page only"), then `git push origin main` (explicit instruction) — checked `git remote -v` first, pushed clean. Flagged but did not block on: `bg-[#D4D4D4]` is a hardcoded hex value in JSX, which CLAUDE.md rule #4 normally prohibits — proceeded anyway since the user's own instructions explicitly forbade the token-based alternative this session had used earlier (afs-027) for the same class of conflict. Per explicit instruction ("do exactly two things and nothing else"), did NOT update governance docs at the end of this entry — logged here retroactively as part of afs-030 for continuity. **Superseded within the same conversation**: a follow-up message expanded the same "silver content zone" pattern to `app/configure/page.tsx` and `app/quote/page.tsx` too, and changed the color to `#B8BEC8` with crimson/black bold titles — see next entry. |
 | 2026-07-12 | afs-030: Design Studio — Thalmann DS2801 profile import, PathfinderEdge investigation, FlashDraft canvas tool, Design Studio landing page. Also carried a follow-up, more specific version of afs-029's scoped fix (see below) as its opening step. **Part 0 (styling follow-up):** re-applied the "silver content zone" idea across all three of `app/(public)/products/page.tsx`, `app/configure/page.tsx`, `app/quote/page.tsx` — each page's main content-area div (the one wrapping the cards grid / configurator panels / wizard — for `quote/page.tsx` specifically, asked the user to disambiguate between the step-indicator-bar div and the outer `max-w-3xl mx-auto` container, since that page's layout doesn't have one clean "rest of page" wrapper the way the other two do; user chose the outer container) got `style={{ backgroundColor: '#B8BEC8' }}` (replacing afs-029's `#D4D4D4` on the products page — one inline value, not stacked), and each page's title → `text-afs-crimson font-bold`, subtitle → `text-black font-bold`. Same rule-#4 hex/non-token exception as afs-029, same reasoning. **Part 1 (Thalmann import):** Read `CLAUDE.md`. Investigated `machine-data/ds2801db.bdb` before writing any code — confirmed via magic bytes ("Standard Jet DB") it's a genuine Microsoft Access database despite the unusual `.bdb` extension, so `mdbtools` was the right *kind* of tool, but it isn't installable in this environment (Windows Git Bash, no apt-get; not in the scoop bucket either) — substituted the pure-JS `mdb-reader` npm package for the same result, portable, added as a devDependency. Inspected the actual `Kategorien`/`Biegeprogramme`/`BiegeprogrammSaetze` tables directly (46 categories, 911 profiles, 4537 bend steps) rather than trusting the task's assumed schema, and found the real data materially different from the "clean profile library" premise: dumping all 46 categories and sampling profile names per category revealed that even generic-sounding categories ("DRIP EDGE," "VALLEY," "HIP AND RIDGE," "COPPER," "HEADWALL") contain individual profiles named after real customers, hospitals, and projects (`S WILLIAMS 8-12`, `BSWH HOSPITAL`, `TSLA DATA CEN`, `MIDLAND MEMORIAL`, etc.) — surfaced this to the user before proceeding rather than silently applying the task's category-only privacy rule, which would have published real client names to a customer-facing catalog. User chose: only categories 23 (Rheinzink-Profile) and 42-61 (numbered "00"-"19" series) import `is_public = true`; everything else `is_public = false` regardless of category name. Built and dry-ran (against real data, read-only, no writes) a token-level classifier as an additional safety net *within* those public categories — first version was too permissive (let `HAM`, `SHOP SINK`, `BAND STRAP` through because short plain words matched a bare `[A-Z]{2,6}` pattern); tightened it to require an explicit dictionary hit or a numeric/dimension/radius pattern, re-verified against all 91 profiles in the nominally-public categories, confirmed it correctly caught `HAM`, `WALLER CREEK*`, `1407 BURFORD*`, `BAND STRAP`, `JONHS-LUCE`, `BUG--master-cuppers`, `Messe`, `Toli` as private while still passing legitimate generic terms (`Einlauf 239`→`Gutter Inlet 239`, `Rund R100`→`Round R100`, `Kehl mit Rippe`→`Ribbed Valley Flashing`, etc.) — one dictionary gap found and fixed along the way (`ribbed` was missing, wrongly privatizing its own translation output). Wrote `supabase/migrations/004_machine_profiles.sql` (`machine_profile_categories`/`machine_profiles`/`machine_profile_bends`, RLS: authenticated read on `is_public` rows, admin read/write all; added `is_public` to categories and `source_category_id`/`source_profile_id`/`UNIQUE(profile_id, step_number)` beyond the task's literal column list, since without them the stated privacy goal and idempotent-upsert goal both silently fail — documented both additions in the migration's own comments) and `scripts/import-machine-profiles.ts` (full category translation table for all 46 real categories, the validated token classifier, mm→in conversion at 4 decimals, chunked upserts). Added `machine-data/` to `.gitignore` rather than letting `git add -A` sweep the raw shop database (real customer names, 3.5MB+ of binary files) into permanent git history — this wasn't explicitly requested but follows the same logic as the pre-existing `.env.local` exclusion. Did not run the migration or the import script against the live project (Part 5's own instruction: do not auto-run). **Part 2 (PathfinderEdge):** the requested build (`discoverApiEndpoints()` probing live REST paths with the given API key, `submitJobToMachine()` driving physical machine serial P0700707) had two concrete red flags raised before writing any code: the API key, base64-decoded, is a flat random string with no vendor-recognizable structure, and "discover the format from the API response" for a job-submission function with no real docs necessarily means fabricating a wire format for something that drives real equipment. Asked the user, who confirmed authorization and asked for a real live discovery pass. Ran it (with that authorization): the domain resolves to a real Azure-hosted ASP.NET Core (Kestrel) app, but `/` redirects to `/login` (session auth, not bearer-token REST) and every guessed path (`/api`, `/api/v1`, `/api/profiles`, `/api/catalogs`, `/api/jobs`, `/api/machines`) plus Swagger/OpenAPI discovery paths all 404'd — no discoverable API surface at all. Reported this back rather than proceeding to invent one; user chose the QuickBooks-precedent stub pattern. Built `lib/integrations/pathfinder-edge.ts` (all 5 requested functions: `discoverApiEndpoints`/`getPathfinderCatalogs`/`pushProfileToPathfinder`/`submitJobToMachine`/`getJobStatus`, all return `not_configured`, zero network calls) and its 3 admin routes (`app/api/admin/pathfinder/{route,push-profile/route,submit-job/route}.ts`), matching `lib/integrations/quickbooks.ts`'s exact pattern. Added the 3 `PATHFINDER_EDGE_*` vars to `.env.example` (already present in `.env.local`, added by the user). **Part 3 (FlashDraft + Design Studio):** discovered the `afs-ink-900`/`afs-ink-700` tokens the task's own spec assumed ("Dimension labels in afs-ink-900") no longer existed post-afs-028-revert — re-added just that one token pair (not the rest of afs-027) to `tailwind.config.js`/`globals.css`, scoped narrowly to this canvas need. Built `app/studio/draft/page.tsx`: two-panel canvas (380px controls + flex canvas, min 600×500px), draw/select/erase tool modes, angle snapping (15°) and dimension snapping (1/8") applied via a shared `applySnapping` helper, undo/redo via explicit past/future point-array stacks (Ctrl+Z/Ctrl+Y), wheel zoom (clamped 0.25×-4×), middle-mouse or Space+drag pan, per-segment exact-length editing that shifts all downstream points to preserve the rest of the shape, 1/4" grid, canvas-drawn profile in a `CANVAS_COLORS` constant object mirroring `afs-crimson`/`afs-ink-900` (documented as the same canvas-can't-use-Tailwind-classes exception already established for the Stripe CardElement), debounced (500ms) POST to a new `app/api/studio/match-profile/route.ts` (scores public `machine_profiles` by bend-count/angle/leg-length similarity within each profile's own `match_tolerance_pct`, returns top 3), Save Draft (`localStorage`), Load from Library (client-side Supabase query of public profiles + an explicitly-approximate "turtle graphics" shape reconstruction from the stored bend sequence, documented as approximate since the source data has no explicit connectivity/direction metadata), Submit for Quote (existing `/api/quote-requests` endpoint, with a text bend-summary folded into `notes` since the schema's fixed dimension fields don't fit an arbitrary N-point polyline). Built `app/studio/page.tsx` (3 tab cards: Scan to Quote → `/upload`, Photo to Quote → `/upload?tab=photos`, FlashDraft → `/studio/draft`) and added "Design Studio" → `/studio` to `components/layout/NavBar.tsx` between "Upload Drawing" and "Architects" (both the sidebar panel list and the top header list). `pnpm tsc --noEmit`: 0 errors throughout. `pnpm run build`: exit 0, 98/98 routes (+6 vs. afs-029's 92). Visually verified: screenshotted `/studio` (renders 3 clean tab cards) and `/studio/draft`, then drove 3 real clicks on the canvas via Playwright — confirmed angle/dimension snapping, crimson profile line, dark dimension/angle labels, and the bend-angle computation all render correctly with zero console errors; the profile-match panel correctly shows its empty state (the 500 from `machine_profiles` not existing in the live DB yet is swallowed gracefully by design, not a bug). Added `.gitignore` entry for `machine-data/` before the final `git add -A` (see Part 1). Committed `git add -A && git commit -m "feat: Design Studio, FlashDraft, PathfinderEdge integration, Thalmann profile import"` → `7950f13`, then `git push origin main`. |
+| 2026-07-12 | afs-031: Applied `004_machine_profiles.sql` (live, populated). Instructed to (1) print the migration and wait for the user to paste it into the Supabase SQL Editor and confirm success, (2) run `pnpm run import:machine-profiles` and report the summary, (3) run `UPDATE machine_profiles SET is_public = true` to make all 911 profiles public, then commit/push and update governance docs. Printed the migration, user confirmed it succeeded. Ran the import — first attempt failed with "Node.js detected but native WebSocket not found": `@supabase/supabase-js` always constructs a `RealtimeClient`, which needs a global `WebSocket`; Node 20 (this project's pinned version) doesn't have one natively (Node 22+ does). Fixed by adding the `ws` package as a polyfill inside the script itself (`globalThis.WebSocket = ws` if undefined) rather than bumping the whole project's Node version for one standalone script. Re-ran successfully: 46 categories (21 public), 911 profiles, 4537 bend steps — 70 public / 841 private, matching afs-030's design. `pnpm tsc --noEmit` (0 errors) and `pnpm run build` (98/98 routes) both re-verified after the fix. Before running step 3, pulled concrete real examples from the actual source data to make the exposure tangible rather than abstract — the "DPR" category's `BSWH HOSPITAL` profile, "ANGELUS WTR PRFNG"'s `TX BIOMED` profiles, "CLINTON BAIRD"'s `MANOR MED` profile, "BELL COUNTY"'s `HARIS ES` (school) profile, "MAURICIO CONST..."'s `MAURICIO LOFTS` project — and asked the user to confirm before running the blanket `UPDATE`. User chose to keep the 70/841 split and skip step 3 entirely. Since step 3 didn't happen, used an accurate commit message rather than the literally-requested one (which said "...and set public"): `git add -A && git commit -m "fix: WebSocket polyfill for standalone import script + machine profiles data import (70 public / 841 private)"` → `12e0f47`, then `git push origin main`. |
 | 2026-07-12 | afs-025: Asked to create 6 dynamic route pages (`products/[category]`, `products/[category]/[slug]`, `account/quotes/[id]`, `account/orders/[id]`, `track/[orderId]`, `invite/[token]`) believed missing from the FORGE run. Found all 6 already fully implemented on disk — `git status` showed the entire `app/`, `lib/`, `components/` tree as untracked, meaning a prior session's work had never been committed (the afs-023/024 blocker was real for `git commit`, just not reproducing this session). Verified each page against its spec (SPEC_PRODUCT_CATALOG.md, SPEC_ORDER_PORTAL.md, SPEC_TEAM_ACCOUNTS.md) rather than overwriting working code — all compliant (no customer-facing pricing pre-quote, afs-* tokens only, correct data fetching via server-side Supabase with RLS scoping rather than an internal API round-trip). Ran `pnpm add stripe @stripe/stripe-js @stripe/react-stripe-js docx` (this actually happened in the turn immediately prior to this one) then `pnpm tsc --noEmit` — 0 errors, fixing one pre-existing bug along the way (`HeadingLevel.HEADING1` → `HEADING_1` typo in `app/api/spec/[id]/docx/route.ts`). Committed everything with `git add -A && git commit -m "fix: missing dynamic route pages from FORGE run"` (`5c0d33f`, 194 files — this is the entire previously-uncommitted FORGE output, not just the 6 pages, since `git add -A` was the explicit instruction). Then ran `pnpm run build` to verify the afs-023/024-logged blocker was actually resolved and found it still failed, but for a **different, real reason**: `STRIPE_SECRET_KEY` is present in `.env.local` but its value is an empty string, and both `app/api/webhooks/stripe/route.ts` and `app/api/checkout/create-intent/route.ts` called `new Stripe(...)` at module scope, so Next's build-time page-data collection crashed on import. Fixed by lazy-instantiating the Stripe client in both files via a `getStripe()` helper. Also hit and fixed a second real build error: `app/checkout/page.tsx` called `useSearchParams()` without a `<Suspense>` boundary (required by the App Router for static export) — split into a `CheckoutPageInner` wrapped in `<Suspense>`. After both fixes, `pnpm tsc --noEmit` still 0 errors and `pnpm run build` succeeds cleanly (exit 0, 90/90 routes). Committed separately: `ad28d1c` ("fix: unblock pnpm run build"). Confirmed via `find`/`grep` that Phase 7 (AI layer) is fully built — all 5 specs (chatbot, product finder, material recs, cross-sell, installation advisor) have matching components + routes — and that Phase 8 (QuickBooks integration) has zero code yet. Working tree is clean at end of session. |
 
 ---
 
 ## LAST FORGE PROMPT RUN
 
-afs-030 — Task: build the AFS Design Studio — Thalmann DS2801 machine
+afs-031 — Task: apply `004_machine_profiles.sql` to the live Supabase
+project (print it, wait for user confirmation), run the import script and
+report the summary, then run `UPDATE machine_profiles SET is_public = true`
+to make all 911 profiles public, then commit/push and update governance
+docs.
+
+**Step 1 (migration):** printed the full migration SQL, user pasted it
+into the Supabase SQL Editor and confirmed success.
+
+**Step 2 (import):** `pnpm run import:machine-profiles` failed on first
+attempt — `@supabase/supabase-js` unconditionally constructs a
+`RealtimeClient`, which requires a global `WebSocket`; this project is
+pinned to Node 20, which doesn't have one natively (Node 22+ does). Fixed
+by adding the `ws` package as a polyfill inside the script
+(`globalThis.WebSocket = ws` when undefined) rather than bumping the whole
+project's Node version for one standalone script. Re-ran successfully: 46
+categories (21 public), 911 profiles, 4537 bend steps — 70 public / 841
+private, exactly matching afs-030's designed split. Re-verified
+`pnpm tsc --noEmit` (0 errors) and `pnpm run build` (98/98 routes) after
+the fix.
+
+**Step 3 (bulk-public UPDATE) — NOT executed.** Before running it, pulled
+concrete real examples straight from the source data to make the exposure
+tangible: category "DPR" contains a profile literally named
+`BSWH HOSPITAL`; "ANGELUS WTR PRFNG" contains `TX BIOMED` profiles;
+"CLINTON BAIRD" contains `MANOR MED`; "BELL COUNTY" contains a school
+profile (`HARIS ES`); "MAURICIO CONST..." contains `MAURICIO LOFTS`. Asked
+the user to confirm given these specifics — they chose to keep the 70/841
+split and skip the bulk UPDATE entirely.
+
+Since step 3 didn't happen, the literally-requested commit message
+("...and set public") would have been inaccurate — used a corrected one
+instead: `git add -A && git commit -m "fix: WebSocket polyfill for
+standalone import script + machine profiles data import (70 public / 841
+private)"` → `12e0f47`, then `git push origin main`.
+
+**Everything is committed and pushed. Working tree is clean. The machine
+profile data is now live in production with the privacy split intact.**
+
+---
+
+## PRIOR RUN — afs-030
+
+Task: build the AFS Design Studio — Thalmann DS2801 machine
 profile import, PathfinderEdge machine integration, FlashDraft canvas
 drawing tool, unified Design Studio landing page — then gates, commit,
 push, update governance docs. (Preceded in the same conversation by
@@ -164,17 +219,19 @@ PathfinderEdge integration, Thalmann profile import"` → `7950f13`, then
 
 ## NEXT FORGE PROMPT
 
-All 9 original build phases plus the new Design Studio feature are built.
-Remaining work:
-1. Apply `supabase/migrations/001` through `004` to a live Supabase project
-   (see `supabase/README.md`), then run `pnpm run import:machine-profiles`.
+All 9 original build phases plus the Design Studio feature are built, and
+its data is now live in production. Remaining work:
+1. Apply `supabase/migrations/001` through `003` to the live Supabase
+   project (004 is already applied as of afs-031 — see
+   `supabase/README.md`).
 2. If the client confirms QuickBooks scope (checklist #52-54) or a real
    PathfinderEdge API gets documented, build the real integrations against
    the existing stub signatures in `lib/integrations/quickbooks.ts` /
    `lib/integrations/pathfinder-edge.ts`.
-3. A human should review the ~850 profiles imported private (real
+3. A human should review the 841 profiles now live as private (real
    customer/project job history) and selectively mark specific safe ones
-   public — don't bulk-flip the category default.
+   public — don't bulk-flip `is_public`. This is real production data now,
+   not a pending import decision.
 4. Confirm chat_conversations retention policy (#65).
 5. Remaining DATA BLOCKERS table items (STATE_OF_THE_BUILD.md) need
    client-supplied data/assets, not more FORGE code.
