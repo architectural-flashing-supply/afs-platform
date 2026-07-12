@@ -150,6 +150,16 @@ Phase 8 — Integrations + Deploy:       BUILT (afs-026). QuickBooks per
 
 ---
 
+## DNS MIGRATION CHECKLIST
+When migrating DNS to the live domain, these must be updated BEFORE go-live:
+
+1. Vercel Environment Variables — update NEXT_PUBLIC_APP_URL from https://afs-website-alpha.vercel.app to the live domain
+2. Supabase Auth — update Site URL in Authentication settings to the live domain
+3. Stripe webhook endpoint URL — update in Stripe dashboard to the live domain
+4. Redeploy on Vercel after env var change
+
+---
+
 ## NEXT ACTION
 
 **All 9 build phases (0–8) are now built.** The tool-approval gate logged in
