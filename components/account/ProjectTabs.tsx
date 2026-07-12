@@ -93,33 +93,33 @@ export default function ProjectTabs({ orders, quotes, documents, team }: Project
             data-testid={`project-tab-${t.key}`}
             className={`font-label text-sm pb-3 border-b-2 transition-colors ${
               tab === t.key
-                ? 'border-afs-crimson text-afs-chrome-high'
-                : 'border-transparent text-afs-chrome-mid hover:text-afs-chrome-high'
+                ? 'border-afs-crimson text-afs-ink-900'
+                : 'border-transparent text-afs-ink-700 hover:text-afs-ink-900'
             }`}
           >
-            {t.label} <span className="font-data text-xs text-afs-chrome-dim">({t.count})</span>
+            {t.label} <span className="font-data text-xs text-afs-ink-700">({t.count})</span>
           </button>
         ))}
       </div>
 
       {tab === 'orders' &&
         (orders.length === 0 ? (
-          <p className="font-body text-sm text-afs-chrome-mid">No orders linked to this project yet.</p>
+          <p className="font-body text-sm text-afs-ink-700">No orders linked to this project yet.</p>
         ) : (
           <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded overflow-hidden">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-afs-bg-surface border-b border-afs-chrome-dim">
-                  <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+                  <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                     Order #
                   </th>
-                  <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+                  <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                     Date
                   </th>
-                  <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+                  <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                     Status
                   </th>
-                  <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-right px-4 py-3">
+                  <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-right px-4 py-3">
                     Total
                   </th>
                 </tr>
@@ -132,13 +132,13 @@ export default function ProjectTabs({ orders, quotes, documents, team }: Project
                         {order.orderNumber}
                       </Link>
                     </td>
-                    <td className="font-data text-sm text-afs-chrome-mid px-4 py-3">{formatDate(order.createdAt)}</td>
+                    <td className="font-data text-sm text-afs-ink-700 px-4 py-3">{formatDate(order.createdAt)}</td>
                     <td className="px-4 py-3">
                       <Badge variant={ORDER_STATUS_VARIANT[order.status] ?? 'chrome'}>
                         {ORDER_STATUS_LABEL[order.status] ?? order.status}
                       </Badge>
                     </td>
-                    <td className="font-data text-sm text-afs-chrome-high text-right px-4 py-3">{currency.format(order.total)}</td>
+                    <td className="font-data text-sm text-afs-ink-900 text-right px-4 py-3">{currency.format(order.total)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -148,22 +148,22 @@ export default function ProjectTabs({ orders, quotes, documents, team }: Project
 
       {tab === 'quotes' &&
         (quotes.length === 0 ? (
-          <p className="font-body text-sm text-afs-chrome-mid">No quote requests linked to this project yet.</p>
+          <p className="font-body text-sm text-afs-ink-700">No quote requests linked to this project yet.</p>
         ) : (
           <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded overflow-hidden">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-afs-bg-surface border-b border-afs-chrome-dim">
-                  <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+                  <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                     Request #
                   </th>
-                  <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+                  <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                     Profiles
                   </th>
-                  <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+                  <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                     Submitted
                   </th>
-                  <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+                  <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                     Status
                   </th>
                 </tr>
@@ -176,8 +176,8 @@ export default function ProjectTabs({ orders, quotes, documents, team }: Project
                         {row.quoteNumber ?? row.requestNumber}
                       </Link>
                     </td>
-                    <td className="font-body text-sm text-afs-chrome-high px-4 py-3">{row.profilesSummary}</td>
-                    <td className="font-data text-sm text-afs-chrome-mid px-4 py-3">{formatDate(row.submittedAt)}</td>
+                    <td className="font-body text-sm text-afs-ink-900 px-4 py-3">{row.profilesSummary}</td>
+                    <td className="font-data text-sm text-afs-ink-700 px-4 py-3">{formatDate(row.submittedAt)}</td>
                     <td className="px-4 py-3">
                       <Badge variant={QUOTE_STATUS_VARIANT[row.status]} pulse={row.status === 'ready'}>
                         {QUOTE_STATUS_LABEL[row.status]}
@@ -192,7 +192,7 @@ export default function ProjectTabs({ orders, quotes, documents, team }: Project
 
       {tab === 'documents' &&
         (documents.length === 0 ? (
-          <p className="font-body text-sm text-afs-chrome-mid">No documents in this project yet.</p>
+          <p className="font-body text-sm text-afs-ink-700">No documents in this project yet.</p>
         ) : (
           <ul className="flex flex-col gap-2">
             {documents.map((doc) => (
@@ -201,8 +201,8 @@ export default function ProjectTabs({ orders, quotes, documents, team }: Project
                 className="flex items-center justify-between gap-4 bg-afs-bg-raised border border-afs-chrome-dim rounded px-4 py-3"
               >
                 <div className="min-w-0">
-                  <p className="font-body text-sm text-afs-chrome-high truncate">{doc.filename}</p>
-                  <p className="font-data text-xs text-afs-chrome-dim">
+                  <p className="font-body text-sm text-afs-ink-900 truncate">{doc.filename}</p>
+                  <p className="font-data text-xs text-afs-ink-700">
                     {doc.fileType.replace('.', '').toUpperCase()} · {formatFileSize(doc.fileSizeBytes)} · {formatDate(doc.createdAt)}
                   </p>
                 </div>
@@ -217,11 +217,11 @@ export default function ProjectTabs({ orders, quotes, documents, team }: Project
 
       {tab === 'team' &&
         (team === null ? (
-          <p className="font-body text-sm text-afs-chrome-mid">
+          <p className="font-body text-sm text-afs-ink-700">
             Team accounts aren&apos;t set up for your profile yet. Contact AFS to enable a company team.
           </p>
         ) : team.length === 0 ? (
-          <p className="font-body text-sm text-afs-chrome-mid">No team members yet.</p>
+          <p className="font-body text-sm text-afs-ink-700">No team members yet.</p>
         ) : (
           <ul className="flex flex-col gap-2">
             {team.map((member) => (
@@ -230,11 +230,11 @@ export default function ProjectTabs({ orders, quotes, documents, team }: Project
                 className="flex items-center justify-between gap-4 bg-afs-bg-raised border border-afs-chrome-dim rounded px-4 py-3"
               >
                 <div className="min-w-0">
-                  <p className="font-body text-sm text-afs-chrome-high truncate">{member.fullName}</p>
-                  <p className="font-data text-xs text-afs-chrome-dim truncate">{member.email}</p>
+                  <p className="font-body text-sm text-afs-ink-900 truncate">{member.fullName}</p>
+                  <p className="font-data text-xs text-afs-ink-700 truncate">{member.email}</p>
                 </div>
                 {member.companyRole && (
-                  <span className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid shrink-0">
+                  <span className="font-label text-xs uppercase tracking-wide text-afs-ink-700 shrink-0">
                     {member.companyRole}
                   </span>
                 )}

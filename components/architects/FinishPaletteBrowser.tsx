@@ -34,8 +34,8 @@ export default function FinishPaletteBrowser({ materials, finishesByMaterial }: 
             onClick={() => setActiveMaterialId(m.id)}
             className={`font-label text-sm px-6 py-3 border-b-2 transition-colors ${
               activeMaterial?.id === m.id
-                ? 'border-afs-copper text-afs-chrome-high'
-                : 'border-transparent text-afs-chrome-mid hover:text-afs-chrome-high'
+                ? 'border-afs-copper text-afs-ink-900'
+                : 'border-transparent text-afs-ink-700 hover:text-afs-ink-900'
             }`}
           >
             {m.name}
@@ -61,7 +61,7 @@ export default function FinishPaletteBrowser({ materials, finishesByMaterial }: 
           <div className="text-center">
             <a
               href={`/api/architects/palette/${activeMaterial?.slug}/pdf`}
-              className="inline-block border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label font-semibold px-6 py-3 rounded text-sm transition-colors"
+              className="inline-block border border-afs-border bg-afs-bg-overlay text-afs-ink-900 hover:bg-afs-bg-surface font-label font-semibold px-6 py-3 rounded text-sm transition-colors"
             >
               Download Complete Palette (PDF)
             </a>

@@ -51,22 +51,22 @@ export default function SavedConfigCard({ config }: { config: SavedConfig }) {
         {svgMarkup ? (
           <div className="w-full aspect-square" dangerouslySetInnerHTML={{ __html: svgMarkup }} />
         ) : (
-          <span className="font-label text-xs text-afs-chrome-dim text-center">{config.profileName}</span>
+          <span className="font-label text-xs text-afs-ink-700 text-center">{config.profileName}</span>
         )}
       </div>
 
       <div className="flex-1 p-5 flex flex-col">
-        <h3 className="font-heading text-lg text-afs-chrome-high mb-1">{config.name || config.profileName}</h3>
-        <p className="font-body text-sm text-afs-chrome-mid mb-2">
+        <h3 className="font-heading text-lg text-afs-ink-900 mb-1">{config.name || config.profileName}</h3>
+        <p className="font-body text-sm text-afs-ink-700 mb-2">
           {[config.materialName, config.gaugeLabel].filter(Boolean).join(' — ') || '—'}
         </p>
         <p className="font-data text-xs text-afs-copper mb-1">{formatDimensions(config)}</p>
         {config.lengthFt != null && config.quantity != null && (
-          <p className="font-data text-xs text-afs-chrome-mid mb-2">
+          <p className="font-data text-xs text-afs-ink-700 mb-2">
             {config.lengthFt} ft × Qty {config.quantity}
           </p>
         )}
-        <p className="font-body text-xs text-afs-chrome-dim mb-4">Saved {formatDate(config.updatedAt)}</p>
+        <p className="font-body text-xs text-afs-ink-700 mb-4">Saved {formatDate(config.updatedAt)}</p>
 
         <div className="mt-auto flex gap-3">
           <Link
@@ -77,7 +77,7 @@ export default function SavedConfigCard({ config }: { config: SavedConfig }) {
           </Link>
           <Link
             href={`/configure?saved=${config.id}`}
-            className="flex-1 text-center border border-afs-border text-afs-chrome-mid hover:bg-afs-bg-surface hover:text-afs-chrome-high font-label font-semibold text-sm px-4 py-2.5 rounded transition-colors"
+            className="flex-1 text-center border border-afs-border text-afs-ink-700 hover:bg-afs-bg-surface hover:text-afs-ink-900 font-label font-semibold text-sm px-4 py-2.5 rounded transition-colors"
           >
             Edit
           </Link>

@@ -85,14 +85,14 @@ export default function RegisterPage() {
 
   return (
     <div>
-      <h1 className="font-heading text-3xl font-bold text-afs-chrome-high mb-1 text-center">Create Account</h1>
-      <p className="font-body text-sm text-afs-chrome-base text-center mb-8">
+      <h1 className="font-heading text-3xl font-bold text-afs-ink-900 mb-1 text-center">Create Account</h1>
+      <p className="font-body text-sm text-afs-ink-700 text-center mb-8">
         Submit drawings, request quotes, and track orders online
       </p>
 
       {error && (
         <div className={authErrorClass}>
-          <p className="font-body text-sm text-afs-chrome-high">{error}</p>
+          <p className="font-body text-sm text-afs-ink-900">{error}</p>
         </div>
       )}
 
@@ -131,7 +131,7 @@ export default function RegisterPage() {
 
         <div>
           <label className={authLabelClass} htmlFor="company">
-            Company <span className="normal-case text-afs-chrome-dim">(optional)</span>
+            Company <span className="normal-case text-afs-crimson">(optional)</span>
           </label>
           <input
             id="company"
@@ -181,8 +181,8 @@ export default function RegisterPage() {
                 key={type.value}
                 className={`flex items-center gap-2 border rounded px-3 py-2.5 cursor-pointer font-body text-sm transition-colors ${
                   accountType === type.value
-                    ? 'border-afs-crimson bg-[var(--afs-crimson-ghost)] text-afs-chrome-high'
-                    : 'border-afs-border text-afs-chrome-mid hover:bg-afs-bg-surface'
+                    ? 'border-afs-crimson bg-[var(--afs-crimson-ghost)] text-afs-ink-900'
+                    : 'border-afs-border text-afs-ink-700 hover:bg-afs-bg-surface'
                 }`}
               >
                 <input
@@ -204,7 +204,7 @@ export default function RegisterPage() {
         </button>
       </form>
 
-      <p className="text-center font-body text-sm text-afs-chrome-base mt-8">
+      <p className="text-center font-body text-sm text-afs-ink-700 mt-8">
         Already have an account?{' '}
         <Link href="/login" className="text-afs-crimson hover:text-afs-crimson-hover">
           Sign in

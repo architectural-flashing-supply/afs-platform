@@ -37,7 +37,7 @@ export default function OrderRealtimeListener({ orderId }: { orderId: string }) 
 
   return (
     <div className="fixed bottom-6 right-6 z-50 bg-afs-bg-raised border border-afs-crimson rounded px-5 py-3 shadow-raised">
-      <p className="font-body text-sm text-afs-chrome-high">{message}</p>
+      <p className="font-body text-sm text-afs-ink-900">{message}</p>
     </div>
   );
 }

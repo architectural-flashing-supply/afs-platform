@@ -44,7 +44,7 @@ export default function ProjectStatusActions({ projectId, status }: ProjectStatu
             type="button"
             onClick={() => updateStatus(status === 'completed' ? 'active' : 'completed')}
             disabled={loading !== null}
-            className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label font-semibold px-4 py-2 rounded text-sm transition-colors disabled:opacity-50"
+            className="border border-afs-border bg-afs-bg-overlay text-afs-ink-900 hover:bg-afs-bg-surface font-label font-semibold px-4 py-2 rounded text-sm transition-colors disabled:opacity-50"
           >
             {loading === 'completed' || loading === 'active'
               ? 'Updating…'
@@ -58,7 +58,7 @@ export default function ProjectStatusActions({ projectId, status }: ProjectStatu
             type="button"
             onClick={() => updateStatus('archived')}
             disabled={loading !== null}
-            className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label font-semibold px-4 py-2 rounded text-sm transition-colors disabled:opacity-50"
+            className="border border-afs-border bg-afs-bg-overlay text-afs-ink-900 hover:bg-afs-bg-surface font-label font-semibold px-4 py-2 rounded text-sm transition-colors disabled:opacity-50"
           >
             {loading === 'archived' ? 'Archiving…' : 'Archive'}
           </button>
@@ -67,7 +67,7 @@ export default function ProjectStatusActions({ projectId, status }: ProjectStatu
             type="button"
             onClick={() => updateStatus('active')}
             disabled={loading !== null}
-            className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label font-semibold px-4 py-2 rounded text-sm transition-colors disabled:opacity-50"
+            className="border border-afs-border bg-afs-bg-overlay text-afs-ink-900 hover:bg-afs-bg-surface font-label font-semibold px-4 py-2 rounded text-sm transition-colors disabled:opacity-50"
           >
             {loading === 'active' ? 'Restoring…' : 'Unarchive'}
           </button>

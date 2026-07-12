@@ -68,7 +68,7 @@ export default function CrossSellPanel({ profileTypes, materials, onSelectionCha
 
   return (
     <div className="bg-afs-bg-surface border border-afs-border rounded p-6 mt-6">
-      <p className="font-label text-xs uppercase tracking-wide text-afs-chrome-base mb-4">
+      <p className="font-label text-xs uppercase tracking-wide text-afs-ink-700 mb-4">
         You may also need:
       </p>
       <div className="space-y-3">
@@ -84,8 +84,8 @@ export default function CrossSellPanel({ profileTypes, materials, onSelectionCha
               className="mt-1 accent-afs-crimson"
             />
             <span>
-              <span className="font-heading text-base text-afs-chrome-high block mb-1">{s.accessory}</span>
-              <span className="font-body text-sm text-afs-chrome-mid">{s.reason}</span>
+              <span className="font-heading text-base text-afs-ink-900 block mb-1">{s.accessory}</span>
+              <span className="font-body text-sm text-afs-ink-700">{s.reason}</span>
             </span>
           </label>
         ))}

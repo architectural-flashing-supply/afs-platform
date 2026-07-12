@@ -39,8 +39,8 @@ const EMPTY_REFERENCE: TradeReferenceForm = { businessName: '', contactName: '',
 const STEP_LABELS = ['Business Info', 'Trade References', 'Credit Request', 'Authorization'];
 
 const inputClass =
-  'w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body';
-const labelClass = 'font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-1.5';
+  'w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-ink-900 focus:border-afs-crimson outline-none font-body';
+const labelClass = 'font-label text-xs uppercase tracking-wide text-afs-ink-700 block mb-1.5';
 
 export default function CreditApplicationForm({ defaultAuthorizedName }: CreditApplicationFormProps) {
   const router = useRouter();
@@ -176,8 +176,8 @@ export default function CreditApplicationForm({ defaultAuthorizedName }: CreditA
   if (submitted) {
     return (
       <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-12 text-center">
-        <h2 className="font-heading text-2xl text-afs-chrome-high mb-3">Application Submitted</h2>
-        <p className="font-body text-sm text-afs-chrome-mid mb-6 max-w-md mx-auto">
+        <h2 className="font-heading text-2xl text-afs-ink-900 mb-3">Application Submitted</h2>
+        <p className="font-body text-sm text-afs-ink-700 mb-6 max-w-md mx-auto">
           Thanks — your credit application has been sent to AFS accounting. Review typically takes 3–5 business days.
           We&apos;ll email you once a decision has been made.
         </p>
@@ -207,15 +207,15 @@ export default function CreditApplicationForm({ defaultAuthorizedName }: CreditA
                     complete
                       ? 'bg-afs-crimson border-afs-crimson text-white'
                       : active
-                      ? 'border-afs-crimson text-afs-chrome-high'
-                      : 'border-afs-chrome-dim text-afs-chrome-dim'
+                      ? 'border-afs-crimson text-afs-ink-900'
+                      : 'border-afs-chrome-dim text-afs-ink-700'
                   }`}
                 >
                   {complete ? '✓' : n}
                 </div>
                 <span
                   className={`font-label text-xs mt-2 text-center ${
-                    active || complete ? 'text-afs-chrome-high' : 'text-afs-chrome-dim'
+                    active || complete ? 'text-afs-ink-900' : 'text-afs-ink-700'
                   }`}
                 >
                   {label}
@@ -230,7 +230,7 @@ export default function CreditApplicationForm({ defaultAuthorizedName }: CreditA
       <form onSubmit={handleSubmit} className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-6">
         {step === 1 && (
           <div className="flex flex-col gap-4">
-            <h2 className="font-heading text-xl text-afs-chrome-high mb-1">Business Information</h2>
+            <h2 className="font-heading text-xl text-afs-ink-900 mb-1">Business Information</h2>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className={labelClass} htmlFor="legal-business-name">
@@ -247,7 +247,7 @@ export default function CreditApplicationForm({ defaultAuthorizedName }: CreditA
               </div>
               <div>
                 <label className={labelClass} htmlFor="dba-name">
-                  DBA Name <span className="normal-case text-afs-chrome-dim">(optional)</span>
+                  DBA Name <span className="normal-case text-afs-crimson">(optional)</span>
                 </label>
                 <input id="dba-name" type="text" value={dbaName} onChange={(e) => setDbaName(e.target.value)} className={inputClass} />
               </div>
@@ -333,21 +333,21 @@ export default function CreditApplicationForm({ defaultAuthorizedName }: CreditA
         {step === 2 && (
           <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">
-              <h2 className="font-heading text-xl text-afs-chrome-high">Trade References</h2>
+              <h2 className="font-heading text-xl text-afs-ink-900">Trade References</h2>
               <button type="button" onClick={addReference} className="font-label text-xs text-afs-crimson hover:text-afs-crimson-hover">
                 + Add Reference
               </button>
             </div>
-            <p className="font-body text-sm text-afs-chrome-mid -mt-2">Provide at least 3 suppliers or vendors you have an account with.</p>
+            <p className="font-body text-sm text-afs-ink-700 -mt-2">Provide at least 3 suppliers or vendors you have an account with.</p>
             {tradeReferences.map((ref, index) => (
               <div key={index} className="border border-afs-chrome-dim rounded p-4" data-testid="trade-reference-row">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="font-label text-xs uppercase tracking-wide text-afs-chrome-dim">Reference {index + 1}</span>
+                  <span className="font-label text-xs uppercase tracking-wide text-afs-crimson">Reference {index + 1}</span>
                   {tradeReferences.length > 3 && (
                     <button
                       type="button"
                       onClick={() => removeReference(index)}
-                      className="font-label text-xs text-afs-chrome-dim hover:text-afs-crimson"
+                      className="font-label text-xs text-afs-ink-700 hover:text-afs-crimson"
                     >
                       Remove
                     </button>
@@ -390,7 +390,7 @@ export default function CreditApplicationForm({ defaultAuthorizedName }: CreditA
 
         {step === 3 && (
           <div className="flex flex-col gap-4">
-            <h2 className="font-heading text-xl text-afs-chrome-high mb-1">Credit Request</h2>
+            <h2 className="font-heading text-xl text-afs-ink-900 mb-1">Credit Request</h2>
             <div>
               <label className={labelClass} htmlFor="requested-limit">
                 Requested Credit Limit
@@ -415,8 +415,8 @@ export default function CreditApplicationForm({ defaultAuthorizedName }: CreditA
                     key={terms}
                     className={`flex items-center justify-center gap-2 border rounded px-3 py-3 cursor-pointer font-data text-sm transition-colors ${
                       requestedTerms === terms
-                        ? 'border-afs-crimson bg-[var(--afs-crimson-ghost)] text-afs-chrome-high'
-                        : 'border-afs-border text-afs-chrome-mid hover:bg-afs-bg-surface'
+                        ? 'border-afs-crimson bg-[var(--afs-crimson-ghost)] text-afs-ink-900'
+                        : 'border-afs-border text-afs-ink-700 hover:bg-afs-bg-surface'
                     }`}
                   >
                     <input
@@ -437,7 +437,7 @@ export default function CreditApplicationForm({ defaultAuthorizedName }: CreditA
 
         {step === 4 && (
           <div className="flex flex-col gap-4">
-            <h2 className="font-heading text-xl text-afs-chrome-high mb-1">Authorization</h2>
+            <h2 className="font-heading text-xl text-afs-ink-900 mb-1">Authorization</h2>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className={labelClass} htmlFor="authorized-name">
@@ -480,7 +480,7 @@ export default function CreditApplicationForm({ defaultAuthorizedName }: CreditA
                 required
               />
             </div>
-            <label className="flex items-start gap-3 font-body text-sm text-afs-chrome-mid mt-2">
+            <label className="flex items-start gap-3 font-body text-sm text-afs-ink-700 mt-2">
               <input
                 type="checkbox"
                 checked={certificationAccepted}
@@ -501,7 +501,7 @@ export default function CreditApplicationForm({ defaultAuthorizedName }: CreditA
             type="button"
             onClick={goBack}
             disabled={step === 1}
-            className="border border-afs-border text-afs-chrome-mid hover:bg-afs-bg-surface font-label font-semibold px-5 py-2.5 rounded text-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            className="border border-afs-border text-afs-ink-700 hover:bg-afs-bg-surface font-label font-semibold px-5 py-2.5 rounded text-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           >
             Back
           </button>

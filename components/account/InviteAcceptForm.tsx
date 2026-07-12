@@ -136,7 +136,7 @@ export default function InviteAcceptForm({
   if (autoAccepting) {
     return (
       <div className="text-center py-8">
-        <p className="font-body text-sm text-afs-chrome-mid">Joining {companyName}…</p>
+        <p className="font-body text-sm text-afs-ink-700">Joining {companyName}…</p>
       </div>
     );
   }
@@ -144,11 +144,11 @@ export default function InviteAcceptForm({
   if (registered) {
     return (
       <div className="text-center">
-        <h1 className="font-heading text-2xl text-afs-chrome-high mb-3">Confirm Your Email</h1>
-        <p className="font-body text-sm text-afs-chrome-mid mb-2">
-          We sent a confirmation link to <span className="text-afs-chrome-high">{email}</span>.
+        <h1 className="font-heading text-2xl text-afs-ink-900 mb-3">Confirm Your Email</h1>
+        <p className="font-body text-sm text-afs-ink-700 mb-2">
+          We sent a confirmation link to <span className="text-afs-ink-900">{email}</span>.
         </p>
-        <p className="font-body text-sm text-afs-chrome-mid">
+        <p className="font-body text-sm text-afs-ink-700">
           After confirming, come back to this invitation link to finish joining {companyName}.
         </p>
       </div>
@@ -157,14 +157,14 @@ export default function InviteAcceptForm({
 
   return (
     <div>
-      <h1 className="font-heading text-2xl font-bold text-afs-chrome-high mb-1 text-center">Join {companyName}</h1>
-      <p className="font-body text-sm text-afs-chrome-base text-center mb-8">
-        You&apos;ve been invited as <span className="text-afs-chrome-high">{ROLE_LABEL[role] ?? role}</span>
+      <h1 className="font-heading text-2xl font-bold text-afs-ink-900 mb-1 text-center">Join {companyName}</h1>
+      <p className="font-body text-sm text-afs-ink-700 text-center mb-8">
+        You&apos;ve been invited as <span className="text-afs-ink-900">{ROLE_LABEL[role] ?? role}</span>
       </p>
 
       {error && (
         <div className={authErrorClass}>
-          <p className="font-body text-sm text-afs-chrome-high">{error}</p>
+          <p className="font-body text-sm text-afs-ink-900">{error}</p>
         </div>
       )}
 
@@ -177,8 +177,8 @@ export default function InviteAcceptForm({
           }}
           className={`font-label text-sm px-4 py-2 rounded border transition-colors ${
             mode === 'login'
-              ? 'border-afs-crimson bg-[var(--afs-crimson-ghost)] text-afs-chrome-high'
-              : 'border-afs-chrome-dim text-afs-chrome-mid hover:bg-afs-bg-surface'
+              ? 'border-afs-crimson bg-[var(--afs-crimson-ghost)] text-afs-ink-900'
+              : 'border-afs-chrome-dim text-afs-ink-700 hover:bg-afs-bg-surface'
           }`}
         >
           Sign In
@@ -191,8 +191,8 @@ export default function InviteAcceptForm({
           }}
           className={`font-label text-sm px-4 py-2 rounded border transition-colors ${
             mode === 'register'
-              ? 'border-afs-crimson bg-[var(--afs-crimson-ghost)] text-afs-chrome-high'
-              : 'border-afs-chrome-dim text-afs-chrome-mid hover:bg-afs-bg-surface'
+              ? 'border-afs-crimson bg-[var(--afs-crimson-ghost)] text-afs-ink-900'
+              : 'border-afs-chrome-dim text-afs-ink-700 hover:bg-afs-bg-surface'
           }`}
         >
           Create Account

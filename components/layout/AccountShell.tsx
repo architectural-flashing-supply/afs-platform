@@ -26,7 +26,7 @@ export default function AccountShell({ children }: { children: React.ReactNode }
     <div className="flex min-h-screen bg-afs-bg-base">
       <aside className="fixed top-11 left-48 bottom-0 w-[220px] z-30 bg-afs-bg-raised border-r border-afs-border overflow-y-auto">
         <div className="px-4 pt-6 pb-2">
-          <p className="font-label text-xs uppercase tracking-widest text-afs-chrome-dim">My Account</p>
+          <p className="font-label text-xs uppercase tracking-widest text-afs-crimson">My Account</p>
         </div>
         <nav className="flex flex-col gap-1 px-3 pb-6">
           {NAV_LINKS.map((link) => {
@@ -37,8 +37,8 @@ export default function AccountShell({ children }: { children: React.ReactNode }
                 href={link.href}
                 className={`font-label text-sm px-4 py-2.5 rounded-sm border-l-2 transition-colors ${
                   active
-                    ? 'border-afs-crimson bg-afs-bg-surface text-white'
-                    : 'border-transparent text-afs-chrome-mid hover:bg-afs-bg-surface hover:text-white'
+                    ? 'border-afs-crimson bg-afs-bg-surface text-afs-ink-900'
+                    : 'border-transparent text-afs-ink-700 hover:bg-afs-bg-surface hover:text-afs-ink-900'
                 }`}
               >
                 {link.label}

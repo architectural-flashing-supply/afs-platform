@@ -60,15 +60,15 @@ export default async function AccountInvoicesPage({
     <div className="max-w-[1100px] mx-auto">
       <div className="flex items-start justify-between gap-6 mb-8 flex-wrap">
         <div>
-          <h1 className="font-heading text-3xl text-afs-chrome-high">Invoices</h1>
-          <p className="font-body text-sm text-afs-chrome-mid mt-1">
+          <h1 className="font-heading text-3xl text-afs-ink-900">Invoices</h1>
+          <p className="font-body text-sm text-afs-ink-700 mt-1">
             AFS-generated invoices for every order — download PDFs for job costing and lender documentation.
           </p>
         </div>
         <a
           href="/api/invoices/statement"
           data-testid="download-statement"
-          className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label font-semibold px-5 py-2.5 rounded text-sm transition-colors"
+          className="border border-afs-border bg-afs-bg-overlay text-afs-ink-900 hover:bg-afs-bg-surface font-label font-semibold px-5 py-2.5 rounded text-sm transition-colors"
         >
           Download Account Statement
         </a>
@@ -81,8 +81,8 @@ export default async function AccountInvoicesPage({
             href={buildTabHref(tab.key)}
             className={`font-label text-sm px-4 py-2 rounded border transition-colors ${
               activeTab === tab.key
-                ? 'border-afs-crimson bg-[var(--afs-crimson-ghost)] text-afs-chrome-high'
-                : 'border-afs-chrome-dim text-afs-chrome-mid hover:bg-afs-bg-surface'
+                ? 'border-afs-crimson bg-[var(--afs-crimson-ghost)] text-afs-ink-900'
+                : 'border-afs-chrome-dim text-afs-ink-700 hover:bg-afs-bg-surface'
             }`}
           >
             {tab.label}
@@ -102,22 +102,22 @@ export default async function AccountInvoicesPage({
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-afs-bg-surface border-b border-afs-chrome-dim">
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                   Invoice #
                 </th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                   Order #
                 </th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                   Date
                 </th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-right px-4 py-3">
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-right px-4 py-3">
                   Amount
                 </th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                   Status
                 </th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-right px-4 py-3">
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-right px-4 py-3">
                   Actions
                 </th>
               </tr>
@@ -125,7 +125,7 @@ export default async function AccountInvoicesPage({
             <tbody>
               {invoices.map((invoice) => (
                 <tr key={invoice.id} className="border-b border-afs-chrome-dim last:border-b-0 hover:bg-afs-bg-surface transition-colors">
-                  <td className="font-data text-sm text-afs-chrome-high px-4 py-3">{invoice.invoiceNumber}</td>
+                  <td className="font-data text-sm text-afs-ink-900 px-4 py-3">{invoice.invoiceNumber}</td>
                   <td className="px-4 py-3">
                     <Link
                       href={`/account/orders/${invoice.orderId}`}
@@ -134,8 +134,8 @@ export default async function AccountInvoicesPage({
                       {invoice.orderNumber}
                     </Link>
                   </td>
-                  <td className="font-data text-sm text-afs-chrome-mid px-4 py-3">{formatDate(invoice.date)}</td>
-                  <td className="font-data text-sm text-afs-chrome-high text-right px-4 py-3">{currency.format(invoice.amount)}</td>
+                  <td className="font-data text-sm text-afs-ink-700 px-4 py-3">{formatDate(invoice.date)}</td>
+                  <td className="font-data text-sm text-afs-ink-900 text-right px-4 py-3">{currency.format(invoice.amount)}</td>
                   <td className="px-4 py-3">
                     <Badge variant={STATUS_VARIANT[invoice.status]}>{statusDisplay(invoice.status, invoice.dueDate)}</Badge>
                   </td>
@@ -143,7 +143,7 @@ export default async function AccountInvoicesPage({
                     <a
                       href={`/api/invoices/${invoice.id}/pdf`}
                       data-testid="download-invoice"
-                      className="font-label text-xs text-afs-chrome-mid hover:text-afs-crimson transition-colors"
+                      className="font-label text-xs text-afs-ink-700 hover:text-afs-crimson transition-colors"
                     >
                       Download PDF
                     </a>

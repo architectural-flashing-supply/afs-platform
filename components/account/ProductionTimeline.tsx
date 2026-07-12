@@ -167,15 +167,15 @@ export default function ProductionTimeline({
           <svg className="w-4 h-4 text-afs-crimson shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
-          <p className="font-label text-sm text-afs-chrome-high">
+          <p className="font-label text-sm text-afs-ink-900">
             This order was cancelled{cancelledEntry ? ` on ${formatDateTime(cancelledEntry.changedAt)}` : ''}.
           </p>
         </div>
       )}
 
       {!isCancelled && estimatedShipDate && currentStatus !== 'shipped' && currentStatus !== 'delivered' && (
-        <p className="font-body text-xs text-afs-chrome-mid mb-6">
-          Estimated ship date: <span className="font-data text-afs-chrome-high">{formatDateTime(estimatedShipDate)}</span>
+        <p className="font-body text-xs text-afs-ink-700 mb-6">
+          Estimated ship date: <span className="font-data text-afs-ink-900">{formatDateTime(estimatedShipDate)}</span>
         </p>
       )}
 
@@ -207,25 +207,25 @@ export default function ProductionTimeline({
                 <div className="flex items-baseline justify-between gap-4 flex-wrap">
                   <span
                     className={`font-heading text-base ${struckThrough ? 'line-through' : ''} ${
-                      state === 'pending' ? 'text-afs-chrome-dim' : 'text-afs-chrome-high'
+                      state === 'pending' ? 'text-afs-ink-700' : 'text-afs-ink-900'
                     }`}
                   >
                     {displayLabel}
                   </span>
                   {history && (
-                    <span className="font-data text-xs text-afs-chrome-base shrink-0">
+                    <span className="font-data text-xs text-afs-ink-700 shrink-0">
                       {formatDateTime(history.changedAt)}
                     </span>
                   )}
                 </div>
                 {showDescription && state !== 'pending' && (
-                  <p className="font-body text-sm text-afs-chrome-mid mt-1">{stage.description}</p>
+                  <p className="font-body text-sm text-afs-ink-700 mt-1">{stage.description}</p>
                 )}
                 {state === 'active' && (
                   <p className="font-label text-xs text-afs-crimson uppercase tracking-wide mt-1">In progress</p>
                 )}
                 {variant === 'admin' && history?.note && (
-                  <p className="font-body text-xs text-afs-chrome-dim italic mt-1">Note: {history.note}</p>
+                  <p className="font-body text-xs text-afs-ink-700 italic mt-1">Note: {history.note}</p>
                 )}
                 {stage.key === 'shipped' && showTrackingBlock && (
                   <div className="mt-2">
@@ -240,7 +240,7 @@ export default function ProductionTimeline({
                         {carrier ? ` (${carrier})` : ''}
                       </a>
                     ) : (
-                      <p className="font-data text-xs text-afs-chrome-mid">
+                      <p className="font-data text-xs text-afs-ink-700">
                         Tracking: {trackingNumber}
                         {carrier ? ` · ${carrier}` : ''}
                       </p>
@@ -263,7 +263,7 @@ export default function ProductionTimeline({
                     alt="Your completed order — ready to ship"
                     className="rounded border border-afs-chrome-dim max-w-xs"
                   />
-                  <p className="font-body text-xs text-afs-chrome-mid mt-2">Your completed order — ready to ship</p>
+                  <p className="font-body text-xs text-afs-ink-700 mt-2">Your completed order — ready to ship</p>
                 </div>
               </div>
             )}

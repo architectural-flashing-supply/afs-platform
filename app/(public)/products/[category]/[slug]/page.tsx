@@ -31,16 +31,16 @@ export default function ProductDetailPage({ params }: ProductPageParams) {
   return (
     <main className="min-h-screen bg-afs-bg-base">
       <div className="max-w-[1400px] mx-auto px-6 pt-8">
-        <nav className="font-body text-xs text-afs-chrome-dim mb-6" aria-label="Breadcrumb">
-          <Link href="/" className="hover:text-afs-chrome-mid transition-colors">Home</Link>
+        <nav className="font-body text-xs text-afs-ink-700 mb-6" aria-label="Breadcrumb">
+          <Link href="/" className="hover:text-afs-ink-700 transition-colors">Home</Link>
           <span className="mx-2">/</span>
-          <Link href="/products" className="hover:text-afs-chrome-mid transition-colors">Products</Link>
+          <Link href="/products" className="hover:text-afs-ink-700 transition-colors">Products</Link>
           <span className="mx-2">/</span>
-          <Link href={`/products/${category.slug}`} className="hover:text-afs-chrome-mid transition-colors">
+          <Link href={`/products/${category.slug}`} className="hover:text-afs-ink-700 transition-colors">
             {category.name}
           </Link>
           <span className="mx-2">/</span>
-          <span className="text-afs-chrome-mid">{product.name}</span>
+          <span className="text-afs-ink-700">{product.name}</span>
         </nav>
       </div>
 

@@ -60,8 +60,8 @@ export default async function CustomProfilesPage() {
       <div className="max-w-[1280px] mx-auto px-6 py-16">
         <div className="mb-10">
           <ArchitectEyebrow>Saved Custom Profile Library</ArchitectEyebrow>
-          <h1 className="font-display text-6xl text-afs-chrome-high leading-none mb-4">YOUR CUSTOM PROFILES</h1>
-          <p className="font-body text-afs-chrome-mid text-base max-w-2xl">
+          <h1 className="font-display text-6xl text-afs-ink-900 leading-none mb-4">YOUR CUSTOM PROFILES</h1>
+          <p className="font-body text-afs-ink-700 text-base max-w-2xl">
             Past custom designs, saved for easy reference and reordering — no need to start from scratch.
           </p>
         </div>

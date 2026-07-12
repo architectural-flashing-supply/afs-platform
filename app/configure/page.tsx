@@ -134,17 +134,17 @@ function isValidOptionalPositive(v: string): boolean {
 }
 
 const inputClass =
-  'w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 font-body text-sm text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors disabled:opacity-40 disabled:pointer-events-none';
+  'w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 font-body text-sm text-afs-ink-900 placeholder:text-afs-ink-700 focus:outline-none focus:border-afs-crimson transition-colors disabled:opacity-40 disabled:pointer-events-none';
 
 const dataInputClass =
-  'w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 font-data text-sm text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors disabled:opacity-40 disabled:pointer-events-none';
+  'w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 font-data text-sm text-afs-ink-900 placeholder:text-afs-ink-700 focus:outline-none focus:border-afs-crimson transition-colors disabled:opacity-40 disabled:pointer-events-none';
 
 const selectClass =
-  'w-full bg-afs-bg-overlay text-white border border-afs-border rounded px-3 py-2.5 font-body text-sm focus:outline-none focus:border-afs-crimson transition-colors disabled:opacity-40 disabled:pointer-events-none';
+  'w-full bg-afs-bg-overlay text-afs-ink-900 border border-afs-border rounded px-3 py-2.5 font-body text-sm focus:outline-none focus:border-afs-crimson transition-colors disabled:opacity-40 disabled:pointer-events-none';
 
-const optionClass = 'bg-afs-bg-overlay text-afs-chrome-high';
+const optionClass = 'bg-afs-bg-overlay text-afs-ink-900';
 
-const labelClass = 'font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1.5 block';
+const labelClass = 'font-label text-xs uppercase tracking-wide text-afs-ink-700 mb-1.5 block';
 
 export default function ConfiguratorPage() {
   const [profileType, setProfileType] = useState<ProfileType | ''>('');
@@ -380,11 +380,11 @@ export default function ConfiguratorPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h2 className="font-heading text-3xl text-afs-chrome-high mb-3">Quote Request Submitted</h2>
+            <h2 className="font-heading text-3xl text-afs-ink-900 mb-3">Quote Request Submitted</h2>
             {requestNumber && (
               <p className="font-data text-sm text-afs-crimson mb-3">{requestNumber}</p>
             )}
-            <p className="font-body text-sm text-afs-chrome-mid mb-8">
+            <p className="font-body text-sm text-afs-ink-700 mb-8">
               AFS will review your custom specification and follow up with a formal quote.
             </p>
             <div className="flex gap-4 justify-center flex-wrap">
@@ -396,7 +396,7 @@ export default function ConfiguratorPage() {
               </a>
               <button
                 onClick={startOver}
-                className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label font-semibold px-6 py-3 rounded text-sm transition-colors"
+                className="border border-afs-border bg-afs-bg-overlay text-afs-ink-900 hover:bg-afs-bg-surface font-label font-semibold px-6 py-3 rounded text-sm transition-colors"
               >
                 Configure Another
               </button>
@@ -413,10 +413,10 @@ export default function ConfiguratorPage() {
         <p className="font-label text-afs-crimson text-sm tracking-widest uppercase mb-3">
           CUSTOM FLASHING CONFIGURATOR
         </p>
-        <h1 className="font-display text-5xl text-afs-chrome-high leading-none mb-2">
+        <h1 className="font-display text-5xl text-afs-ink-900 leading-none mb-2">
           CONFIGURE YOUR PROFILE
         </h1>
-        <p className="font-body text-afs-chrome-mid text-sm max-w-xl mx-auto">
+        <p className="font-body text-afs-ink-700 text-sm max-w-xl mx-auto">
           Specify exact dimensions and see a live diagram update as you type. No prices shown —
           AFS follows up with a formal quote.
         </p>
@@ -437,7 +437,7 @@ export default function ConfiguratorPage() {
                 className={`font-label text-sm px-3 py-2.5 rounded border text-left transition-colors ${
                   profileType === p.value
                     ? 'bg-afs-crimson text-white border-afs-crimson'
-                    : 'bg-afs-bg-overlay text-white border-afs-border'
+                    : 'bg-afs-bg-overlay text-afs-ink-900 border-afs-border'
                 }`}
               >
                 {p.label}
@@ -521,20 +521,20 @@ export default function ConfiguratorPage() {
           {queue.length > 0 && (
             <div className="mb-6 bg-afs-bg-surface border border-afs-chrome-dim rounded overflow-hidden">
               <div className="px-3 py-2 border-b border-afs-chrome-dim">
-                <span className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid">
+                <span className="font-label text-xs uppercase tracking-wide text-afs-ink-700">
                   Quote Items ({queue.length})
                 </span>
               </div>
               <ul>
                 {queue.map(item => (
                   <li key={item.key} className="flex items-center justify-between px-3 py-2 border-b border-afs-chrome-dim last:border-b-0">
-                    <span className="font-body text-xs text-afs-chrome-high">
+                    <span className="font-body text-xs text-afs-ink-900">
                       {PROFILE_OPTIONS.find(p => p.value === item.profileType)?.label} — {item.material}, {item.lengthFt} ft × {item.quantity}
                     </span>
                     <button
                       type="button"
                       onClick={() => removeQueuedItem(item.key)}
-                      className="font-body text-xs text-afs-chrome-mid hover:text-afs-crimson transition-colors ml-2 shrink-0"
+                      className="font-body text-xs text-afs-ink-700 hover:text-afs-crimson transition-colors ml-2 shrink-0"
                     >
                       Remove
                     </button>
@@ -555,7 +555,7 @@ export default function ConfiguratorPage() {
           {showEmailCapture && (
             <div className="bg-afs-bg-surface border border-afs-chrome-dim rounded p-4 mb-4">
               <label className={labelClass} htmlFor="guestEmail">Email Address</label>
-              <p className="font-body text-xs text-afs-chrome-mid mb-3">
+              <p className="font-body text-xs text-afs-ink-700 mb-3">
                 Sign in for full account access, or submit as a guest with your email.
               </p>
               <div className="flex gap-2 flex-wrap">
@@ -592,7 +592,7 @@ export default function ConfiguratorPage() {
               type="button"
               onClick={addToQuoteRequest}
               disabled={!currentItemValid || submitState === 'submitting'}
-              className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label font-semibold px-6 py-3 rounded text-sm transition-colors disabled:opacity-40 disabled:pointer-events-none"
+              className="border border-afs-border bg-afs-bg-overlay text-afs-ink-900 hover:bg-afs-bg-surface font-label font-semibold px-6 py-3 rounded text-sm transition-colors disabled:opacity-40 disabled:pointer-events-none"
             >
               Add to Quote Request
             </button>
@@ -600,7 +600,7 @@ export default function ConfiguratorPage() {
               type="button"
               onClick={startOver}
               disabled={submitState === 'submitting'}
-              className="font-label text-sm text-afs-chrome-mid hover:text-afs-crimson transition-colors px-6 py-2 disabled:opacity-40 disabled:pointer-events-none"
+              className="font-label text-sm text-afs-ink-700 hover:text-afs-crimson transition-colors px-6 py-2 disabled:opacity-40 disabled:pointer-events-none"
             >
               Start Over
             </button>
@@ -617,10 +617,10 @@ export default function ConfiguratorPage() {
               />
             ) : (
               <div className="text-center px-6">
-                <p className="font-heading text-xl text-afs-chrome-mid mb-2">
+                <p className="font-heading text-xl text-afs-ink-700 mb-2">
                   Select a Profile Type
                 </p>
-                <p className="font-body text-sm text-afs-chrome-dim max-w-xs mx-auto">
+                <p className="font-body text-sm text-afs-ink-700 max-w-xs mx-auto">
                   Choose a profile from the left to see a live diagram update as you enter dimensions.
                 </p>
               </div>
@@ -629,19 +629,19 @@ export default function ConfiguratorPage() {
 
           {specSummary && (
             <div className="mt-4 bg-afs-bg-surface border border-afs-chrome-dim rounded p-5">
-              <span className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-3">
+              <span className="font-label text-xs uppercase tracking-wide text-afs-ink-700 block mb-3">
                 Spec Summary
               </span>
-              <div className="font-data text-sm text-afs-chrome-high space-y-1.5">
+              <div className="font-data text-sm text-afs-ink-900 space-y-1.5">
                 <p>{specSummary.label.toUpperCase()}</p>
-                <p className="text-afs-chrome-mid">{specSummary.material} — {specSummary.gauge}</p>
+                <p className="text-afs-ink-700">{specSummary.material} — {specSummary.gauge}</p>
                 <p className="text-afs-crimson">{specSummary.dims}</p>
-                <p className="text-afs-chrome-mid">{specSummary.lengthFt} FT × QTY {specSummary.quantity}</p>
+                <p className="text-afs-ink-700">{specSummary.lengthFt} FT × QTY {specSummary.quantity}</p>
               </div>
             </div>
           )}
 
-          <p className="font-body text-xs text-afs-chrome-dim mt-4 text-center">
+          <p className="font-body text-xs text-afs-ink-700 mt-4 text-center">
             Estimated CAD preview — for reference only. No prices shown here; AFS delivers a
             formal quote after review.
           </p>

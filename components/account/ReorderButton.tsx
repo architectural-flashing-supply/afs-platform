@@ -49,7 +49,7 @@ export default function ReorderButton({ orderId, className, label = 'Reorder' }:
         data-testid="reorder-button"
         className={
           className ??
-          'font-label text-xs text-afs-chrome-mid hover:text-afs-crimson transition-colors disabled:opacity-50 disabled:pointer-events-none'
+          'font-label text-xs text-afs-ink-700 hover:text-afs-crimson transition-colors disabled:opacity-50 disabled:pointer-events-none'
         }
       >
         {loading ? 'Preparing…' : label}

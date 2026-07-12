@@ -110,8 +110,8 @@ export default function TemplateCreateModal({ hasCompany }: TemplateCreateModalP
         >
           <div className="w-full max-w-[640px] bg-afs-bg-raised border border-afs-chrome-dim rounded metal-edge p-6">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="font-heading text-xl text-afs-chrome-high">Create Template</h2>
-              <button type="button" onClick={close} className="text-afs-chrome-mid hover:text-afs-chrome-high" aria-label="Close">
+              <h2 className="font-heading text-xl text-afs-ink-900">Create Template</h2>
+              <button type="button" onClick={close} className="text-afs-ink-700 hover:text-afs-ink-900" aria-label="Close">
                 ✕
               </button>
             </div>
@@ -119,7 +119,7 @@ export default function TemplateCreateModal({ hasCompany }: TemplateCreateModalP
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="template-name" className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-1.5">
+                  <label htmlFor="template-name" className="font-label text-xs uppercase tracking-wide text-afs-ink-700 block mb-1.5">
                     Template Name
                   </label>
                   <input
@@ -127,13 +127,13 @@ export default function TemplateCreateModal({ hasCompany }: TemplateCreateModalP
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body"
+                    className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-ink-900 focus:border-afs-crimson outline-none font-body"
                     placeholder="Standard Ranch Package"
                     required
                   />
                 </div>
                 <div>
-                  <label htmlFor="template-description" className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-1.5">
+                  <label htmlFor="template-description" className="font-label text-xs uppercase tracking-wide text-afs-ink-700 block mb-1.5">
                     Description
                   </label>
                   <input
@@ -141,14 +141,14 @@ export default function TemplateCreateModal({ hasCompany }: TemplateCreateModalP
                     type="text"
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body"
+                    className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-ink-900 focus:border-afs-crimson outline-none font-body"
                     placeholder="Optional"
                   />
                 </div>
               </div>
 
               {hasCompany && (
-                <label className="flex items-center gap-2 font-body text-sm text-afs-chrome-mid">
+                <label className="flex items-center gap-2 font-body text-sm text-afs-ink-700">
                   <input
                     type="checkbox"
                     checked={isCompanyShared}
@@ -161,7 +161,7 @@ export default function TemplateCreateModal({ hasCompany }: TemplateCreateModalP
 
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid">Items</span>
+                  <span className="font-label text-xs uppercase tracking-wide text-afs-ink-700">Items</span>
                   <button type="button" onClick={addRow} className="font-label text-xs text-afs-crimson hover:text-afs-crimson-hover">
                     + Add Item
                   </button>
@@ -174,14 +174,14 @@ export default function TemplateCreateModal({ hasCompany }: TemplateCreateModalP
                         value={item.profileType}
                         onChange={(e) => updateItem(index, 'profileType', e.target.value)}
                         placeholder="Profile (e.g. Coping Cap)"
-                        className="bg-afs-bg-overlay border border-afs-border rounded px-2.5 py-2 text-xs text-afs-chrome-high focus:border-afs-crimson outline-none font-body"
+                        className="bg-afs-bg-overlay border border-afs-border rounded px-2.5 py-2 text-xs text-afs-ink-900 focus:border-afs-crimson outline-none font-body"
                       />
                       <input
                         type="text"
                         value={item.material}
                         onChange={(e) => updateItem(index, 'material', e.target.value)}
                         placeholder="Material"
-                        className="bg-afs-bg-overlay border border-afs-border rounded px-2.5 py-2 text-xs text-afs-chrome-high focus:border-afs-crimson outline-none font-body"
+                        className="bg-afs-bg-overlay border border-afs-border rounded px-2.5 py-2 text-xs text-afs-ink-900 focus:border-afs-crimson outline-none font-body"
                       />
                       <input
                         type="number"
@@ -190,7 +190,7 @@ export default function TemplateCreateModal({ hasCompany }: TemplateCreateModalP
                         value={item.lengthFt}
                         onChange={(e) => updateItem(index, 'lengthFt', e.target.value)}
                         placeholder="LF"
-                        className="bg-afs-bg-overlay border border-afs-border rounded px-2.5 py-2 text-xs text-afs-chrome-high focus:border-afs-crimson outline-none font-data"
+                        className="bg-afs-bg-overlay border border-afs-border rounded px-2.5 py-2 text-xs text-afs-ink-900 focus:border-afs-crimson outline-none font-data"
                       />
                       <input
                         type="number"
@@ -199,13 +199,13 @@ export default function TemplateCreateModal({ hasCompany }: TemplateCreateModalP
                         value={item.quantity}
                         onChange={(e) => updateItem(index, 'quantity', e.target.value)}
                         placeholder="Qty"
-                        className="bg-afs-bg-overlay border border-afs-border rounded px-2.5 py-2 text-xs text-afs-chrome-high focus:border-afs-crimson outline-none font-data"
+                        className="bg-afs-bg-overlay border border-afs-border rounded px-2.5 py-2 text-xs text-afs-ink-900 focus:border-afs-crimson outline-none font-data"
                       />
                       <button
                         type="button"
                         onClick={() => removeRow(index)}
                         disabled={items.length === 1}
-                        className="text-afs-chrome-dim hover:text-afs-crimson disabled:opacity-30 text-sm px-2"
+                        className="text-afs-ink-700 hover:text-afs-crimson disabled:opacity-30 text-sm px-2"
                         aria-label="Remove item"
                       >
                         ✕
@@ -221,7 +221,7 @@ export default function TemplateCreateModal({ hasCompany }: TemplateCreateModalP
                 <button
                   type="button"
                   onClick={close}
-                  className="border border-afs-border text-afs-chrome-mid hover:bg-afs-bg-surface font-label font-semibold px-5 py-2.5 rounded text-sm transition-colors"
+                  className="border border-afs-border text-afs-ink-700 hover:bg-afs-bg-surface font-label font-semibold px-5 py-2.5 rounded text-sm transition-colors"
                 >
                   Cancel
                 </button>

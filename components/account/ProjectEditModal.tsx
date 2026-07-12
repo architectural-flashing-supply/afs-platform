@@ -63,7 +63,7 @@ export default function ProjectEditModal({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label font-semibold px-4 py-2 rounded text-sm transition-colors"
+        className="border border-afs-border bg-afs-bg-overlay text-afs-ink-900 hover:bg-afs-bg-surface font-label font-semibold px-4 py-2 rounded text-sm transition-colors"
       >
         Edit
       </button>
@@ -76,11 +76,11 @@ export default function ProjectEditModal({
         >
           <div className="w-full max-w-[480px] bg-afs-bg-raised border border-afs-chrome-dim rounded metal-edge p-6">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="font-heading text-xl text-afs-chrome-high">Edit Project</h2>
+              <h2 className="font-heading text-xl text-afs-ink-900">Edit Project</h2>
               <button
                 type="button"
                 onClick={close}
-                className="text-afs-chrome-mid hover:text-afs-chrome-high"
+                className="text-afs-ink-700 hover:text-afs-ink-900"
                 aria-label="Close"
               >
                 ✕
@@ -91,7 +91,7 @@ export default function ProjectEditModal({
               <div>
                 <label
                   htmlFor="edit-project-name"
-                  className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-1.5"
+                  className="font-label text-xs uppercase tracking-wide text-afs-ink-700 block mb-1.5"
                 >
                   Project Name
                 </label>
@@ -101,14 +101,14 @@ export default function ProjectEditModal({
                   maxLength={100}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body"
+                  className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-ink-900 focus:border-afs-crimson outline-none font-body"
                   required
                 />
               </div>
               <div>
                 <label
                   htmlFor="edit-project-description"
-                  className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-1.5"
+                  className="font-label text-xs uppercase tracking-wide text-afs-ink-700 block mb-1.5"
                 >
                   Description
                 </label>
@@ -117,13 +117,13 @@ export default function ProjectEditModal({
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={3}
-                  className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body resize-y"
+                  className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-ink-900 focus:border-afs-crimson outline-none font-body resize-y"
                 />
               </div>
               <div>
                 <label
                   htmlFor="edit-project-address"
-                  className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-1.5"
+                  className="font-label text-xs uppercase tracking-wide text-afs-ink-700 block mb-1.5"
                 >
                   Jobsite Address
                 </label>
@@ -132,7 +132,7 @@ export default function ProjectEditModal({
                   type="text"
                   value={jobsiteAddress}
                   onChange={(e) => setJobsiteAddress(e.target.value)}
-                  className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body"
+                  className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-ink-900 focus:border-afs-crimson outline-none font-body"
                 />
               </div>
 
@@ -142,7 +142,7 @@ export default function ProjectEditModal({
                 <button
                   type="button"
                   onClick={close}
-                  className="border border-afs-border text-afs-chrome-mid hover:bg-afs-bg-surface font-label font-semibold px-5 py-2.5 rounded text-sm transition-colors"
+                  className="border border-afs-border text-afs-ink-700 hover:bg-afs-bg-surface font-label font-semibold px-5 py-2.5 rounded text-sm transition-colors"
                 >
                   Cancel
                 </button>

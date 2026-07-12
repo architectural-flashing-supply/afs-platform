@@ -49,8 +49,8 @@ export default function NotificationSettingsForm({ initialEmailOptIn, initialSms
     <div className="flex flex-col gap-4" data-testid="notification-settings-form">
       <label className="flex items-center justify-between gap-4 cursor-pointer">
         <div>
-          <p className="font-body text-sm text-afs-chrome-high">Email Notifications</p>
-          <p className="font-body text-xs text-afs-chrome-mid">Quote updates, order status changes, delivery alerts.</p>
+          <p className="font-body text-sm text-afs-ink-900">Email Notifications</p>
+          <p className="font-body text-xs text-afs-ink-700">Quote updates, order status changes, delivery alerts.</p>
         </div>
         <input
           type="checkbox"
@@ -63,8 +63,8 @@ export default function NotificationSettingsForm({ initialEmailOptIn, initialSms
       </label>
       <label className="flex items-center justify-between gap-4 cursor-pointer">
         <div>
-          <p className="font-body text-sm text-afs-chrome-high">SMS Notifications</p>
-          <p className="font-body text-xs text-afs-chrome-mid">Production updates and delivery text alerts.</p>
+          <p className="font-body text-sm text-afs-ink-900">SMS Notifications</p>
+          <p className="font-body text-xs text-afs-ink-700">Production updates and delivery text alerts.</p>
         </div>
         <input
           type="checkbox"

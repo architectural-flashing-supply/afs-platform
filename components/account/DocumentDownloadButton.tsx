@@ -37,7 +37,7 @@ export default function DocumentDownloadButton({ documentId, className, label = 
       disabled={loading}
       className={
         className ??
-        'font-label text-xs text-afs-chrome-mid hover:text-afs-crimson transition-colors disabled:opacity-50'
+        'font-label text-xs text-afs-ink-700 hover:text-afs-crimson transition-colors disabled:opacity-50'
       }
     >
       {loading ? 'Preparing…' : label}

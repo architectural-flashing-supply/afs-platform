@@ -71,7 +71,7 @@ export default function AdminShell({ adminName, children }: AdminShellProps) {
           <Link href="/admin" className="inline-block bg-afs-bg-dim rounded-sm px-3 py-2">
             <Image src="/afs-logo.png" alt="AFS" width={116} height={83} className="w-full h-auto object-contain" />
           </Link>
-          <p className="font-label text-[10px] tracking-widest text-afs-chrome-dim uppercase mt-2 px-1">
+          <p className="font-label text-[10px] tracking-widest text-afs-crimson uppercase mt-2 px-1">
             Admin Portal
           </p>
         </div>
@@ -79,7 +79,7 @@ export default function AdminShell({ adminName, children }: AdminShellProps) {
         <nav className="flex-1 flex flex-col gap-5 px-3 pb-6">
           {NAV_SECTIONS.map((section) => (
             <div key={section.title}>
-              <p className="font-label text-[11px] uppercase tracking-widest text-afs-chrome-dim px-4 mb-1.5">
+              <p className="font-label text-[11px] uppercase tracking-widest text-afs-crimson px-4 mb-1.5">
                 {section.title}
               </p>
               <div className="flex flex-col gap-1">
@@ -91,8 +91,8 @@ export default function AdminShell({ adminName, children }: AdminShellProps) {
                       href={item.href}
                       className={`font-label text-sm px-4 py-2.5 rounded-sm border-l-2 transition-colors ${
                         active
-                          ? 'border-afs-crimson bg-afs-bg-surface text-white'
-                          : 'border-transparent text-afs-chrome-mid hover:bg-afs-bg-surface hover:text-white'
+                          ? 'border-afs-crimson bg-afs-bg-surface text-afs-ink-900'
+                          : 'border-transparent text-afs-ink-700 hover:bg-afs-bg-surface hover:text-afs-ink-900'
                       }`}
                     >
                       {item.label}
@@ -105,11 +105,11 @@ export default function AdminShell({ adminName, children }: AdminShellProps) {
         </nav>
 
         <div className="px-4 py-4 border-t border-afs-border">
-          <p className="font-label text-sm text-afs-chrome-high truncate">{adminName}</p>
+          <p className="font-label text-sm text-afs-ink-900 truncate">{adminName}</p>
           <button
             type="button"
             onClick={handleSignOut}
-            className="font-label text-xs text-afs-chrome-dim hover:text-afs-crimson transition-colors mt-1"
+            className="font-label text-xs text-afs-ink-700 hover:text-afs-crimson transition-colors mt-1"
           >
             Sign Out
           </button>

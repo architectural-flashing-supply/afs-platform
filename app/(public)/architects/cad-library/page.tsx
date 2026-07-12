@@ -89,8 +89,8 @@ export default async function CADLibraryPage() {
     <ArchitectShell>
       <section className="metal-edge metal-edge-copper px-6 pt-16 pb-12 text-center border-b border-afs-border">
         <ArchitectEyebrow>Technical Drawing Library</ArchitectEyebrow>
-        <h1 className="font-display text-6xl text-afs-chrome-high leading-none mb-4">CAD &amp; BIM LIBRARY</h1>
-        <p className="font-body text-afs-chrome-mid text-base max-w-2xl mx-auto">
+        <h1 className="font-display text-6xl text-afs-ink-900 leading-none mb-4">CAD &amp; BIM LIBRARY</h1>
+        <p className="font-body text-afs-ink-700 text-base max-w-2xl mx-auto">
           DWG, DXF, and Revit families for every AFS profile — drop them straight into your drawings.
         </p>
       </section>
@@ -115,7 +115,7 @@ export default async function CADLibraryPage() {
         )}
 
         <div className="mt-14 text-center border-t border-afs-border pt-10">
-          <p className="font-body text-sm text-afs-chrome-mid mb-4">
+          <p className="font-body text-sm text-afs-ink-700 mb-4">
             Don&apos;t see your profile? Request a detail.
           </p>
           <Link

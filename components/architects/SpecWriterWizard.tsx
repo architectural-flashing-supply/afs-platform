@@ -119,7 +119,7 @@ export default function SpecWriterWizard() {
       <div className="max-w-4xl mx-auto py-16 px-6">
         <div className="mb-10 text-center">
           <ArchitectEyebrow>AI Spec Writer</ArchitectEyebrow>
-          <h1 className="font-display text-6xl text-afs-chrome-high leading-none mb-4">SPECIFICATION READY</h1>
+          <h1 className="font-display text-6xl text-afs-ink-900 leading-none mb-4">SPECIFICATION READY</h1>
         </div>
         <SpecPreview spec={spec} isSoleSource={state.soleSource} onStartOver={startOver} />
       </div>
@@ -130,8 +130,8 @@ export default function SpecWriterWizard() {
     <div className="max-w-3xl mx-auto py-16 px-6">
       <div className="mb-10 text-center">
         <ArchitectEyebrow>AI Spec Writer</ArchitectEyebrow>
-        <h1 className="font-display text-6xl text-afs-chrome-high leading-none mb-4">WRITE YOUR SPEC</h1>
-        <p className="font-body text-afs-chrome-mid text-base max-w-xl mx-auto">
+        <h1 className="font-display text-6xl text-afs-ink-900 leading-none mb-4">WRITE YOUR SPEC</h1>
+        <p className="font-body text-afs-ink-700 text-base max-w-xl mx-auto">
           Complete CSI Division 07 specification sections for AFS products — generated in minutes, editable, and
           downloadable as DOCX.
         </p>
@@ -146,15 +146,15 @@ export default function SpecWriterWizard() {
                   step === s.n
                     ? 'border-afs-copper bg-afs-copper text-white'
                     : step > s.n
-                    ? 'border-afs-chrome-base bg-afs-bg-surface text-afs-chrome-high'
-                    : 'border-afs-chrome-dim text-afs-chrome-dim'
+                    ? 'border-afs-chrome-base bg-afs-bg-surface text-afs-ink-900'
+                    : 'border-afs-chrome-dim text-afs-ink-700'
                 }`}
               >
                 {step > s.n ? '✓' : s.n}
               </div>
               <span
                 className={`font-label text-xs uppercase tracking-wide text-center ${
-                  step >= s.n ? 'text-afs-chrome-high' : 'text-afs-chrome-dim'
+                  step >= s.n ? 'text-afs-ink-900' : 'text-afs-ink-700'
                 }`}
               >
                 {s.label}
@@ -170,7 +170,7 @@ export default function SpecWriterWizard() {
       <div className="bg-afs-bg-overlay border border-afs-chrome-dim rounded p-8 md:p-10">
         {step === 1 && (
           <div>
-            <h2 className="font-heading text-2xl text-afs-chrome-high mb-6">Select a CSI Section</h2>
+            <h2 className="font-heading text-2xl text-afs-ink-900 mb-6">Select a CSI Section</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {CSI_SECTIONS.map((section) => (
                 <button
@@ -180,7 +180,7 @@ export default function SpecWriterWizard() {
                   className={`text-left rounded border p-5 transition-colors ${
                     state.csiSection === section.code
                       ? 'bg-afs-copper border-afs-copper text-white'
-                      : 'bg-afs-bg-surface border-afs-border text-afs-chrome-high hover:border-afs-copper'
+                      : 'bg-afs-bg-surface border-afs-border text-afs-ink-900 hover:border-afs-copper'
                   }`}
                 >
                   <p className="font-data text-sm mb-1 opacity-80">{section.code}</p>
@@ -193,9 +193,9 @@ export default function SpecWriterWizard() {
 
         {step === 2 && (
           <div>
-            <h2 className="font-heading text-2xl text-afs-chrome-high mb-6">Profiles &amp; Materials</h2>
+            <h2 className="font-heading text-2xl text-afs-ink-900 mb-6">Profiles &amp; Materials</h2>
 
-            <span className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-2 block">
+            <span className="font-label text-xs uppercase tracking-wide text-afs-ink-700 mb-2 block">
               AFS Profiles to Specify
             </span>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-8">
@@ -205,7 +205,7 @@ export default function SpecWriterWizard() {
                   className={`flex items-center gap-2 font-label text-sm px-4 py-3 rounded border cursor-pointer transition-colors ${
                     state.profiles.includes(profile)
                       ? 'bg-afs-copper border-afs-copper text-white'
-                      : 'bg-afs-bg-surface text-afs-chrome-high border-afs-border hover:border-afs-copper'
+                      : 'bg-afs-bg-surface text-afs-ink-900 border-afs-border hover:border-afs-copper'
                   }`}
                 >
                   <input
@@ -219,7 +219,7 @@ export default function SpecWriterWizard() {
               ))}
             </div>
 
-            <span className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-2 block">Materials</span>
+            <span className="font-label text-xs uppercase tracking-wide text-afs-ink-700 mb-2 block">Materials</span>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               {ALL_MATERIALS.map((material) => (
                 <label
@@ -227,7 +227,7 @@ export default function SpecWriterWizard() {
                   className={`flex items-center gap-2 font-label text-sm px-4 py-3 rounded border cursor-pointer transition-colors ${
                     state.materials.includes(material)
                       ? 'bg-afs-copper border-afs-copper text-white'
-                      : 'bg-afs-bg-surface text-afs-chrome-high border-afs-border hover:border-afs-copper'
+                      : 'bg-afs-bg-surface text-afs-ink-900 border-afs-border hover:border-afs-copper'
                   }`}
                 >
                   <input
@@ -245,12 +245,12 @@ export default function SpecWriterWizard() {
 
         {step === 3 && (
           <div>
-            <h2 className="font-heading text-2xl text-afs-chrome-high mb-2">Project Context</h2>
-            <p className="font-body text-sm text-afs-chrome-mid mb-6">
+            <h2 className="font-heading text-2xl text-afs-ink-900 mb-2">Project Context</h2>
+            <p className="font-body text-sm text-afs-ink-700 mb-6">
               Optional — improves generated output, but not required.
             </p>
 
-            <span className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-2 block">Project Type</span>
+            <span className="font-label text-xs uppercase tracking-wide text-afs-ink-700 mb-2 block">Project Type</span>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-8">
               {PROJECT_TYPES.map((type) => (
                 <button
@@ -260,7 +260,7 @@ export default function SpecWriterWizard() {
                   className={`font-label text-sm px-4 py-3 rounded border transition-colors ${
                     state.projectType === type
                       ? 'bg-afs-copper border-afs-copper text-white'
-                      : 'bg-afs-bg-surface text-afs-chrome-high border-afs-border hover:border-afs-copper'
+                      : 'bg-afs-bg-surface text-afs-ink-900 border-afs-border hover:border-afs-copper'
                   }`}
                 >
                   {type}
@@ -268,8 +268,8 @@ export default function SpecWriterWizard() {
               ))}
             </div>
 
-            <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-2 block" htmlFor="climateZone">
-              Climate Zone / Exposure <span className="normal-case text-afs-chrome-dim">(optional)</span>
+            <label className="font-label text-xs uppercase tracking-wide text-afs-ink-700 mb-2 block" htmlFor="climateZone">
+              Climate Zone / Exposure <span className="normal-case text-afs-crimson">(optional)</span>
             </label>
             <input
               id="climateZone"
@@ -277,10 +277,10 @@ export default function SpecWriterWizard() {
               value={state.climateZone}
               onChange={(e) => setState((prev) => ({ ...prev, climateZone: e.target.value }))}
               placeholder="e.g. Coastal, high-wind, freeze-thaw"
-              className="w-full bg-afs-bg-overlay border border-afs-border rounded px-4 py-3 font-body text-sm text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-copper transition-colors mb-8"
+              className="w-full bg-afs-bg-overlay border border-afs-border rounded px-4 py-3 font-body text-sm text-afs-ink-900 placeholder:text-afs-ink-700 focus:outline-none focus:border-afs-copper transition-colors mb-8"
             />
 
-            <span className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-2 block">Sole Source</span>
+            <span className="font-label text-xs uppercase tracking-wide text-afs-ink-700 mb-2 block">Sole Source</span>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <button
                 type="button"
@@ -288,7 +288,7 @@ export default function SpecWriterWizard() {
                 className={`font-label text-sm px-4 py-3 rounded border text-left transition-colors ${
                   state.soleSource
                     ? 'bg-afs-copper border-afs-copper text-white'
-                    : 'bg-afs-bg-surface text-afs-chrome-high border-afs-border hover:border-afs-copper'
+                    : 'bg-afs-bg-surface text-afs-ink-900 border-afs-border hover:border-afs-copper'
                 }`}
               >
                 Specify AFS exclusively
@@ -299,7 +299,7 @@ export default function SpecWriterWizard() {
                 className={`font-label text-sm px-4 py-3 rounded border text-left transition-colors ${
                   !state.soleSource
                     ? 'bg-afs-copper border-afs-copper text-white'
-                    : 'bg-afs-bg-surface text-afs-chrome-high border-afs-border hover:border-afs-copper'
+                    : 'bg-afs-bg-surface text-afs-ink-900 border-afs-border hover:border-afs-copper'
                 }`}
               >
                 Allow substitutions (or-equal)
@@ -310,34 +310,34 @@ export default function SpecWriterWizard() {
 
         {step === 4 && (
           <div>
-            <h2 className="font-heading text-2xl text-afs-chrome-high mb-6">Review &amp; Generate</h2>
+            <h2 className="font-heading text-2xl text-afs-ink-900 mb-6">Review &amp; Generate</h2>
 
             <dl className="space-y-3 mb-8 font-body text-sm">
               <div className="flex justify-between border-b border-afs-chrome-dim pb-2">
-                <dt className="text-afs-chrome-mid">CSI Section</dt>
-                <dd className="text-afs-chrome-high">
+                <dt className="text-afs-ink-700">CSI Section</dt>
+                <dd className="text-afs-ink-900">
                   {selectedCsi ? `${selectedCsi.code} — ${selectedCsi.title}` : '—'}
                 </dd>
               </div>
               <div className="flex justify-between border-b border-afs-chrome-dim pb-2">
-                <dt className="text-afs-chrome-mid">Profiles</dt>
-                <dd className="text-afs-chrome-high text-right">{state.profiles.join(', ') || '—'}</dd>
+                <dt className="text-afs-ink-700">Profiles</dt>
+                <dd className="text-afs-ink-900 text-right">{state.profiles.join(', ') || '—'}</dd>
               </div>
               <div className="flex justify-between border-b border-afs-chrome-dim pb-2">
-                <dt className="text-afs-chrome-mid">Materials</dt>
-                <dd className="text-afs-chrome-high text-right">{state.materials.join(', ') || '—'}</dd>
+                <dt className="text-afs-ink-700">Materials</dt>
+                <dd className="text-afs-ink-900 text-right">{state.materials.join(', ') || '—'}</dd>
               </div>
               <div className="flex justify-between border-b border-afs-chrome-dim pb-2">
-                <dt className="text-afs-chrome-mid">Project Type</dt>
-                <dd className="text-afs-chrome-high">{state.projectType || 'Not specified'}</dd>
+                <dt className="text-afs-ink-700">Project Type</dt>
+                <dd className="text-afs-ink-900">{state.projectType || 'Not specified'}</dd>
               </div>
               <div className="flex justify-between border-b border-afs-chrome-dim pb-2">
-                <dt className="text-afs-chrome-mid">Climate Zone</dt>
-                <dd className="text-afs-chrome-high">{state.climateZone || 'Not specified'}</dd>
+                <dt className="text-afs-ink-700">Climate Zone</dt>
+                <dd className="text-afs-ink-900">{state.climateZone || 'Not specified'}</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-afs-chrome-mid">Sole Source</dt>
-                <dd className="text-afs-chrome-high">{state.soleSource ? 'AFS exclusive' : 'Or-equal'}</dd>
+                <dt className="text-afs-ink-700">Sole Source</dt>
+                <dd className="text-afs-ink-900">{state.soleSource ? 'AFS exclusive' : 'Or-equal'}</dd>
               </div>
             </dl>
 

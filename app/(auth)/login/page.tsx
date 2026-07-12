@@ -104,28 +104,28 @@ function LoginForm() {
 
   return (
     <div>
-      <h1 className="font-heading text-3xl font-bold text-afs-chrome-high mb-1 text-center">Sign In</h1>
-      <p className="font-body text-sm text-afs-chrome-base text-center mb-8">Access your AFS account</p>
+      <h1 className="font-heading text-3xl font-bold text-afs-ink-900 mb-1 text-center">Sign In</h1>
+      <p className="font-body text-sm text-afs-ink-700 text-center mb-8">Access your AFS account</p>
 
       {notice && (
         <div className={authSuccessClass}>
-          <p className="font-body text-sm text-afs-chrome-high">{notice}</p>
+          <p className="font-body text-sm text-afs-ink-900">{notice}</p>
         </div>
       )}
 
       {error && (
         <div className={authErrorClass}>
-          <p className="font-body text-sm text-afs-chrome-high">{error}</p>
+          <p className="font-body text-sm text-afs-ink-900">{error}</p>
         </div>
       )}
 
       {mode === 'magic' && magicLinkSent ? (
         <div className="text-center">
-          <p className="font-body text-sm text-afs-chrome-mid mb-2">
+          <p className="font-body text-sm text-afs-ink-700 mb-2">
             Check your email. We sent a sign-in link to{' '}
-            <span className="text-afs-chrome-high">{email}</span>.
+            <span className="text-afs-ink-900">{email}</span>.
           </p>
-          <p className="font-body text-xs text-afs-chrome-dim">Link expires in 1 hour.</p>
+          <p className="font-body text-xs text-afs-ink-700">Link expires in 1 hour.</p>
         </div>
       ) : mode === 'password' ? (
         <form onSubmit={handlePasswordSubmit} className="space-y-5">
@@ -146,10 +146,10 @@ function LoginForm() {
           </div>
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="font-label text-xs uppercase tracking-widest text-afs-chrome-mid" htmlFor="password">
+              <label className="font-label text-xs uppercase tracking-widest text-afs-ink-700" htmlFor="password">
                 Password
               </label>
-              <Link href="/forgot-password" className="font-label text-xs text-afs-chrome-base hover:text-afs-crimson">
+              <Link href="/forgot-password" className="font-label text-xs text-afs-ink-700 hover:text-afs-crimson">
                 Forgot password?
               </Link>
             </div>
@@ -171,7 +171,7 @@ function LoginForm() {
             type="button"
             data-testid="magic-link-toggle"
             onClick={() => switchMode('magic')}
-            className="w-full text-center font-label text-sm text-afs-chrome-base hover:text-afs-chrome-high py-2"
+            className="w-full text-center font-label text-sm text-afs-ink-700 hover:text-afs-ink-900 py-2"
           >
             Sign in with magic link instead
           </button>
@@ -199,14 +199,14 @@ function LoginForm() {
           <button
             type="button"
             onClick={() => switchMode('password')}
-            className="w-full text-center font-label text-sm text-afs-chrome-base hover:text-afs-chrome-high py-2"
+            className="w-full text-center font-label text-sm text-afs-ink-700 hover:text-afs-ink-900 py-2"
           >
             Sign in with password instead
           </button>
         </form>
       )}
 
-      <p className="text-center font-body text-sm text-afs-chrome-base mt-8">
+      <p className="text-center font-body text-sm text-afs-ink-700 mt-8">
         Don&apos;t have an account?{' '}
         <Link href="/register" className="text-afs-crimson hover:text-afs-crimson-hover">
           Create one

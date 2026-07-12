@@ -28,7 +28,7 @@ export default function CancelInvitationButton({ invitationId, email }: CancelIn
       type="button"
       onClick={handleCancel}
       disabled={loading}
-      className="font-label text-xs text-afs-chrome-mid hover:text-afs-crimson transition-colors disabled:opacity-50"
+      className="font-label text-xs text-afs-ink-700 hover:text-afs-crimson transition-colors disabled:opacity-50"
     >
       {loading ? 'Cancelling…' : 'Cancel Invitation'}
     </button>

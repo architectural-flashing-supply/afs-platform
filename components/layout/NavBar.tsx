@@ -23,7 +23,7 @@ export default function NavBar() {
 
   const panelLinkClass = (href: string) => {
     const active = pathname === href;
-    return `font-label text-sm text-white px-4 py-2.5 rounded transition-colors ${
+    return `font-label text-sm text-afs-ink-900 px-4 py-2.5 rounded transition-colors ${
       active
         ? 'bg-afs-bg-surface border-l-2 border-afs-crimson'
         : 'hover:bg-afs-bg-surface'
@@ -65,7 +65,7 @@ export default function NavBar() {
         <div className="flex-1" />
 
         <div className="px-4 py-4 border-t border-afs-chrome-dim">
-          <p className="font-label text-xs text-afs-chrome-dim tracking-widest uppercase text-center">
+          <p className="font-label text-xs text-afs-crimson tracking-widest uppercase text-center">
             Est. Texas
           </p>
         </div>
@@ -73,19 +73,19 @@ export default function NavBar() {
 
       <header className="fixed top-0 left-48 right-0 z-40 h-11 bg-afs-bg-raised border-b border-afs-chrome-dim flex items-center px-8">
         <div className="hidden md:flex items-center gap-8">
-          <Link href="/products" className="font-label text-sm text-white transition-colors">
+          <Link href="/products" className="font-label text-sm text-afs-ink-900 transition-colors">
             Products
           </Link>
-          <Link href="/quote" className="font-label text-sm text-white transition-colors">
+          <Link href="/quote" className="font-label text-sm text-afs-ink-900 transition-colors">
             Request a Quote
           </Link>
-          <Link href="/configure" className="font-label text-sm text-white transition-colors">
+          <Link href="/configure" className="font-label text-sm text-afs-ink-900 transition-colors">
             Configure
           </Link>
-          <Link href="/upload" className="font-label text-sm text-white transition-colors">
+          <Link href="/upload" className="font-label text-sm text-afs-ink-900 transition-colors">
             Upload Drawing
           </Link>
-          <Link href="/architects" className="font-label text-sm text-white transition-colors">
+          <Link href="/architects" className="font-label text-sm text-afs-ink-900 transition-colors">
             Architects
           </Link>
         </div>

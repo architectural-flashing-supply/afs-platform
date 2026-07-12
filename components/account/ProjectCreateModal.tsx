@@ -83,11 +83,11 @@ export default function ProjectCreateModal({ triggerClassName, triggerLabel = 'C
         >
           <div className="w-full max-w-[480px] bg-afs-bg-raised border border-afs-chrome-dim rounded metal-edge p-6">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="font-heading text-xl text-afs-chrome-high">Create Project</h2>
+              <h2 className="font-heading text-xl text-afs-ink-900">Create Project</h2>
               <button
                 type="button"
                 onClick={resetAndClose}
-                className="text-afs-chrome-mid hover:text-afs-chrome-high"
+                className="text-afs-ink-700 hover:text-afs-ink-900"
                 aria-label="Close"
               >
                 ✕
@@ -98,7 +98,7 @@ export default function ProjectCreateModal({ triggerClassName, triggerLabel = 'C
               <div>
                 <label
                   htmlFor="project-name"
-                  className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-1.5"
+                  className="font-label text-xs uppercase tracking-wide text-afs-ink-700 block mb-1.5"
                 >
                   Project Name
                 </label>
@@ -109,7 +109,7 @@ export default function ProjectCreateModal({ triggerClassName, triggerLabel = 'C
                   maxLength={100}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body"
+                  className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-ink-900 focus:border-afs-crimson outline-none font-body"
                   placeholder="Riverside Commons Phase 2"
                   required
                 />
@@ -117,7 +117,7 @@ export default function ProjectCreateModal({ triggerClassName, triggerLabel = 'C
               <div>
                 <label
                   htmlFor="project-description"
-                  className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-1.5"
+                  className="font-label text-xs uppercase tracking-wide text-afs-ink-700 block mb-1.5"
                 >
                   Description
                 </label>
@@ -127,14 +127,14 @@ export default function ProjectCreateModal({ triggerClassName, triggerLabel = 'C
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={3}
-                  className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body resize-y"
+                  className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-ink-900 focus:border-afs-crimson outline-none font-body resize-y"
                   placeholder="Optional project notes"
                 />
               </div>
               <div>
                 <label
                   htmlFor="project-address"
-                  className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-1.5"
+                  className="font-label text-xs uppercase tracking-wide text-afs-ink-700 block mb-1.5"
                 >
                   Jobsite Address
                 </label>
@@ -144,7 +144,7 @@ export default function ProjectCreateModal({ triggerClassName, triggerLabel = 'C
                   type="text"
                   value={jobsiteAddress}
                   onChange={(e) => setJobsiteAddress(e.target.value)}
-                  className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body"
+                  className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-ink-900 focus:border-afs-crimson outline-none font-body"
                   placeholder="Optional — pre-fills delivery in the quote wizard"
                 />
               </div>
@@ -155,7 +155,7 @@ export default function ProjectCreateModal({ triggerClassName, triggerLabel = 'C
                 <button
                   type="button"
                   onClick={resetAndClose}
-                  className="border border-afs-border text-afs-chrome-mid hover:bg-afs-bg-surface font-label font-semibold px-5 py-2.5 rounded text-sm transition-colors"
+                  className="border border-afs-border text-afs-ink-700 hover:bg-afs-bg-surface font-label font-semibold px-5 py-2.5 rounded text-sm transition-colors"
                 >
                   Cancel
                 </button>

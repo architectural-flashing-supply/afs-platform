@@ -12,7 +12,7 @@ const TEXT_CLASS: Record<BadgeVariant, string> = {
   success: 'text-afs-success',
   warning: 'text-afs-warning',
   error: 'text-afs-crimson',
-  chrome: 'text-afs-chrome-mid',
+  chrome: 'text-afs-ink-700',
   info: 'text-afs-info',
 };
 

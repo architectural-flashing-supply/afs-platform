@@ -25,7 +25,7 @@ export default function SavedProfilesBrowser({ configs }: { configs: SavedConfig
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by profile type or material…"
-          className="w-full bg-afs-bg-overlay border border-afs-border rounded px-4 py-2.5 font-body text-sm text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-copper transition-colors"
+          className="w-full bg-afs-bg-overlay border border-afs-border rounded px-4 py-2.5 font-body text-sm text-afs-ink-900 placeholder:text-afs-ink-700 focus:outline-none focus:border-afs-copper transition-colors"
         />
       </div>
 

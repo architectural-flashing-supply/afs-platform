@@ -137,14 +137,14 @@ function isValidOptionalPositive(v: string): boolean {
 }
 
 const inputClass =
-  'w-full bg-afs-bg-overlay border border-afs-border rounded px-4 py-3 font-body text-sm text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors disabled:opacity-50 disabled:pointer-events-none';
+  'w-full bg-afs-bg-overlay border border-afs-border rounded px-4 py-3 font-body text-sm text-afs-ink-900 placeholder:text-afs-ink-700 focus:outline-none focus:border-afs-crimson transition-colors disabled:opacity-50 disabled:pointer-events-none';
 
 const selectClass =
-  'w-full bg-afs-bg-overlay text-white border border-afs-border rounded px-4 py-3 font-body text-sm focus:outline-none focus:border-afs-crimson transition-colors disabled:opacity-50 disabled:pointer-events-none';
+  'w-full bg-afs-bg-overlay text-afs-ink-900 border border-afs-border rounded px-4 py-3 font-body text-sm focus:outline-none focus:border-afs-crimson transition-colors disabled:opacity-50 disabled:pointer-events-none';
 
-const optionClass = 'bg-afs-bg-overlay text-afs-chrome-high';
+const optionClass = 'bg-afs-bg-overlay text-afs-ink-900';
 
-const labelClass = 'font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-2 block';
+const labelClass = 'font-label text-xs uppercase tracking-wide text-afs-ink-700 mb-2 block';
 
 export default function QuotePage() {
   const [step, setStep]         = useState<Step>(1);
@@ -307,15 +307,15 @@ export default function QuotePage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h2 className="font-heading text-3xl text-afs-chrome-high mb-3">Quote Request Submitted</h2>
+            <h2 className="font-heading text-3xl text-afs-ink-900 mb-3">Quote Request Submitted</h2>
             {requestNumber && (
               <p className="font-data text-sm text-afs-crimson mb-3">{requestNumber}</p>
             )}
-            <p className="font-body text-sm text-afs-chrome-mid mb-8">
+            <p className="font-body text-sm text-afs-ink-700 mb-8">
               We&apos;ve received your request
               {form.projectName ? (
                 <>
-                  {' '}for <span className="text-afs-chrome-high">{form.projectName}</span>
+                  {' '}for <span className="text-afs-ink-900">{form.projectName}</span>
                 </>
               ) : null}. Our team will follow up with a formal quote within 1–2 business days.
             </p>
@@ -328,7 +328,7 @@ export default function QuotePage() {
               </a>
               <button
                 onClick={startOver}
-                className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label font-semibold px-6 py-3 rounded text-sm transition-colors"
+                className="border border-afs-border bg-afs-bg-overlay text-afs-ink-900 hover:bg-afs-bg-surface font-label font-semibold px-6 py-3 rounded text-sm transition-colors"
               >
                 Submit Another
               </button>
@@ -347,10 +347,10 @@ export default function QuotePage() {
           <p className="font-label text-afs-crimson text-sm tracking-widest uppercase mb-4">
             REQUEST A QUOTE
           </p>
-          <h1 className="font-display text-6xl text-afs-chrome-high leading-none mb-4">
+          <h1 className="font-display text-6xl text-afs-ink-900 leading-none mb-4">
             BUILD YOUR QUOTE
           </h1>
-          <p className="font-body text-afs-chrome-mid text-base max-w-xl mx-auto">
+          <p className="font-body text-afs-ink-700 text-base max-w-xl mx-auto">
             Tell us what you need fabricated and we&apos;ll follow up with formal pricing.
           </p>
         </div>
@@ -364,15 +364,15 @@ export default function QuotePage() {
                     step === s.n
                       ? 'border-afs-crimson bg-afs-crimson text-white'
                       : step > s.n
-                      ? 'border-afs-chrome-base bg-afs-bg-surface text-afs-chrome-high'
-                      : 'border-afs-chrome-dim text-afs-chrome-dim'
+                      ? 'border-afs-chrome-base bg-afs-bg-surface text-afs-ink-900'
+                      : 'border-afs-chrome-dim text-afs-ink-700'
                   }`}
                 >
                   {step > s.n ? '✓' : s.n}
                 </div>
                 <span
                   className={`font-label text-xs uppercase tracking-wide ${
-                    step >= s.n ? 'text-afs-chrome-high' : 'text-afs-chrome-dim'
+                    step >= s.n ? 'text-afs-ink-900' : 'text-afs-ink-700'
                   }`}
                 >
                   {s.label}
@@ -393,7 +393,7 @@ export default function QuotePage() {
 
           {step === 1 && (
             <div>
-              <h2 className="font-heading text-2xl text-afs-chrome-high mb-6">Profile &amp; Material</h2>
+              <h2 className="font-heading text-2xl text-afs-ink-900 mb-6">Profile &amp; Material</h2>
 
               <span className={labelClass}>Profile Type</span>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-8">
@@ -406,7 +406,7 @@ export default function QuotePage() {
                       onClick={() => updateField('profileType', p)}
                       onMouseEnter={() => setHoveredProfile(p)}
                       onMouseLeave={() => setHoveredProfile(null)}
-                      className={`font-label text-sm px-4 py-3 rounded border text-left transition-colors ${active ? 'bg-afs-crimson text-white border-afs-crimson' : 'bg-afs-bg-overlay text-white border-afs-border'}`}
+                      className={`font-label text-sm px-4 py-3 rounded border text-left transition-colors ${active ? 'bg-afs-crimson text-white border-afs-crimson' : 'bg-afs-bg-overlay text-afs-ink-900 border-afs-border'}`}
                     >
                       {p}
                     </button>
@@ -457,9 +457,9 @@ export default function QuotePage() {
 
           {step === 2 && (
             <div>
-              <h2 className="font-heading text-2xl text-afs-chrome-high mb-6">Dimensions &amp; Quantity</h2>
+              <h2 className="font-heading text-2xl text-afs-ink-900 mb-6">Dimensions &amp; Quantity</h2>
 
-              <p className="font-body text-xs text-afs-chrome-mid mb-6">
+              <p className="font-body text-xs text-afs-ink-700 mb-6">
                 Enter the dimensions in inches. Leave leg measurements blank if this profile is flat or
                 single-plane.
               </p>
@@ -504,7 +504,7 @@ export default function QuotePage() {
 
           {step === 3 && (
             <div>
-              <h2 className="font-heading text-2xl text-afs-chrome-high mb-6">Project Details</h2>
+              <h2 className="font-heading text-2xl text-afs-ink-900 mb-6">Project Details</h2>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
@@ -548,7 +548,7 @@ export default function QuotePage() {
                       }`}
                     />
                   </span>
-                  <span className="font-label text-sm text-afs-chrome-high">
+                  <span className="font-label text-sm text-afs-ink-900">
                     {form.rush ? 'Rush requested' : 'Standard timeline'}
                   </span>
                 </button>
@@ -571,30 +571,30 @@ export default function QuotePage() {
 
           {step === 4 && (
             <div>
-              <h2 className="font-heading text-2xl text-afs-chrome-high mb-6">Review Your Request</h2>
+              <h2 className="font-heading text-2xl text-afs-ink-900 mb-6">Review Your Request</h2>
 
               <div className="bg-afs-bg-surface border border-afs-chrome-dim rounded overflow-hidden mb-4">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-afs-chrome-dim">
-                  <span className="font-heading text-sm text-afs-chrome-mid uppercase tracking-wide">
+                  <span className="font-heading text-sm text-afs-ink-700 uppercase tracking-wide">
                     Profile Specification
                   </span>
-                  <button onClick={() => goToStep(1)} className="font-body text-xs text-afs-chrome-mid hover:text-afs-crimson transition-colors">
+                  <button onClick={() => goToStep(1)} className="font-body text-xs text-afs-ink-700 hover:text-afs-crimson transition-colors">
                     Edit
                   </button>
                 </div>
                 <table className="w-full text-sm">
                   <tbody>
                     <tr className="border-b border-afs-chrome-dim">
-                      <td className="font-label text-xs uppercase text-afs-chrome-mid px-4 py-3 w-40">Profile Type</td>
-                      <td className="font-body text-afs-chrome-high px-4 py-3">{form.profileType}</td>
+                      <td className="font-label text-xs uppercase text-afs-ink-700 px-4 py-3 w-40">Profile Type</td>
+                      <td className="font-body text-afs-ink-900 px-4 py-3">{form.profileType}</td>
                     </tr>
                     <tr className="border-b border-afs-chrome-dim">
-                      <td className="font-label text-xs uppercase text-afs-chrome-mid px-4 py-3">Material</td>
-                      <td className="font-body text-afs-chrome-high px-4 py-3">{form.material}</td>
+                      <td className="font-label text-xs uppercase text-afs-ink-700 px-4 py-3">Material</td>
+                      <td className="font-body text-afs-ink-900 px-4 py-3">{form.material}</td>
                     </tr>
                     <tr>
-                      <td className="font-label text-xs uppercase text-afs-chrome-mid px-4 py-3">Gauge / Thickness</td>
-                      <td className="font-data text-afs-chrome-high px-4 py-3">{form.gauge}</td>
+                      <td className="font-label text-xs uppercase text-afs-ink-700 px-4 py-3">Gauge / Thickness</td>
+                      <td className="font-data text-afs-ink-900 px-4 py-3">{form.gauge}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -602,26 +602,26 @@ export default function QuotePage() {
 
               <div className="bg-afs-bg-surface border border-afs-chrome-dim rounded overflow-hidden mb-4">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-afs-chrome-dim">
-                  <span className="font-heading text-sm text-afs-chrome-mid uppercase tracking-wide">
+                  <span className="font-heading text-sm text-afs-ink-700 uppercase tracking-wide">
                     Dimensions &amp; Quantity
                   </span>
-                  <button onClick={() => goToStep(2)} className="font-body text-xs text-afs-chrome-mid hover:text-afs-crimson transition-colors">
+                  <button onClick={() => goToStep(2)} className="font-body text-xs text-afs-ink-700 hover:text-afs-crimson transition-colors">
                     Edit
                   </button>
                 </div>
                 <table className="w-full text-sm">
                   <tbody>
                     <tr className="border-b border-afs-chrome-dim">
-                      <td className="font-label text-xs uppercase text-afs-chrome-mid px-4 py-3 w-40">Dimensions</td>
-                      <td className="font-data text-afs-chrome-high px-4 py-3">{dimensionSummary || '—'}</td>
+                      <td className="font-label text-xs uppercase text-afs-ink-700 px-4 py-3 w-40">Dimensions</td>
+                      <td className="font-data text-afs-ink-900 px-4 py-3">{dimensionSummary || '—'}</td>
                     </tr>
                     <tr className="border-b border-afs-chrome-dim">
-                      <td className="font-label text-xs uppercase text-afs-chrome-mid px-4 py-3">Length</td>
-                      <td className="font-data text-afs-chrome-high px-4 py-3">{form.lengthFt} ft</td>
+                      <td className="font-label text-xs uppercase text-afs-ink-700 px-4 py-3">Length</td>
+                      <td className="font-data text-afs-ink-900 px-4 py-3">{form.lengthFt} ft</td>
                     </tr>
                     <tr>
-                      <td className="font-label text-xs uppercase text-afs-chrome-mid px-4 py-3">Quantity</td>
-                      <td className="font-data text-afs-chrome-high px-4 py-3">{form.quantity}</td>
+                      <td className="font-label text-xs uppercase text-afs-ink-700 px-4 py-3">Quantity</td>
+                      <td className="font-data text-afs-ink-900 px-4 py-3">{form.quantity}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -629,53 +629,53 @@ export default function QuotePage() {
 
               <div className="bg-afs-bg-surface border border-afs-chrome-dim rounded overflow-hidden mb-8">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-afs-chrome-dim">
-                  <span className="font-heading text-sm text-afs-chrome-mid uppercase tracking-wide">
+                  <span className="font-heading text-sm text-afs-ink-700 uppercase tracking-wide">
                     Project Details
                   </span>
-                  <button onClick={() => goToStep(3)} className="font-body text-xs text-afs-chrome-mid hover:text-afs-crimson transition-colors">
+                  <button onClick={() => goToStep(3)} className="font-body text-xs text-afs-ink-700 hover:text-afs-crimson transition-colors">
                     Edit
                   </button>
                 </div>
                 <table className="w-full text-sm">
                   <tbody>
                     <tr className="border-b border-afs-chrome-dim">
-                      <td className="font-label text-xs uppercase text-afs-chrome-mid px-4 py-3 w-40">Project Name</td>
-                      <td className="font-body text-afs-chrome-high px-4 py-3">{form.projectName}</td>
+                      <td className="font-label text-xs uppercase text-afs-ink-700 px-4 py-3 w-40">Project Name</td>
+                      <td className="font-body text-afs-ink-900 px-4 py-3">{form.projectName}</td>
                     </tr>
                     <tr className="border-b border-afs-chrome-dim">
-                      <td className="font-label text-xs uppercase text-afs-chrome-mid px-4 py-3">Jobsite Address</td>
-                      <td className="font-body text-afs-chrome-high px-4 py-3 whitespace-pre-line">{form.jobsiteAddress}</td>
+                      <td className="font-label text-xs uppercase text-afs-ink-700 px-4 py-3">Jobsite Address</td>
+                      <td className="font-body text-afs-ink-900 px-4 py-3 whitespace-pre-line">{form.jobsiteAddress}</td>
                     </tr>
                     <tr className="border-b border-afs-chrome-dim">
-                      <td className="font-label text-xs uppercase text-afs-chrome-mid px-4 py-3">PO Number</td>
-                      <td className="font-body text-afs-chrome-high px-4 py-3">{form.poNumber || '—'}</td>
+                      <td className="font-label text-xs uppercase text-afs-ink-700 px-4 py-3">PO Number</td>
+                      <td className="font-body text-afs-ink-900 px-4 py-3">{form.poNumber || '—'}</td>
                     </tr>
                     <tr className="border-b border-afs-chrome-dim">
-                      <td className="font-label text-xs uppercase text-afs-chrome-mid px-4 py-3">Rush</td>
+                      <td className="font-label text-xs uppercase text-afs-ink-700 px-4 py-3">Rush</td>
                       <td className="px-4 py-3">
                         <span className={`font-label text-xs border px-2 py-0.5 rounded ${
-                          form.rush ? 'text-afs-crimson border-afs-crimson' : 'text-afs-chrome-mid border-afs-chrome-dim'
+                          form.rush ? 'text-afs-crimson border-afs-crimson' : 'text-afs-ink-700 border-afs-chrome-dim'
                         }`}>
                           {form.rush ? 'RUSH REQUESTED' : 'STANDARD'}
                         </span>
                       </td>
                     </tr>
                     <tr>
-                      <td className="font-label text-xs uppercase text-afs-chrome-mid px-4 py-3">Notes</td>
-                      <td className="font-body text-afs-chrome-high px-4 py-3 whitespace-pre-line">{form.notes || '—'}</td>
+                      <td className="font-label text-xs uppercase text-afs-ink-700 px-4 py-3">Notes</td>
+                      <td className="font-body text-afs-ink-900 px-4 py-3 whitespace-pre-line">{form.notes || '—'}</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
 
-              <p className="font-body text-xs text-afs-chrome-mid mb-2">
+              <p className="font-body text-xs text-afs-ink-700 mb-2">
                 Pricing is not shown here — our team will follow up with a formal quote.
               </p>
 
               {showEmailCapture && (
                 <div className="bg-afs-bg-surface border border-afs-chrome-dim rounded p-6 mt-6">
                   <label className={labelClass} htmlFor="guestEmail">Email Address</label>
-                  <p className="font-body text-xs text-afs-chrome-mid mb-3">
+                  <p className="font-body text-xs text-afs-ink-700 mb-3">
                     Sign in for full account access, or submit this request as a guest with your email.
                   </p>
                   <div className="flex gap-3 flex-wrap">

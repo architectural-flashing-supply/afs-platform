@@ -24,7 +24,7 @@ function toPercentString(fraction: number | null): string {
 }
 
 const inputClass =
-  'w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-data';
+  'w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2 text-sm text-afs-ink-900 focus:border-afs-crimson outline-none font-data';
 
 export default function PricingRulesEditorTable({ rows }: PricingRulesEditorTableProps) {
   const [state, setState] = useState<Record<string, RowState>>(() => {
@@ -78,21 +78,21 @@ export default function PricingRulesEditorTable({ rows }: PricingRulesEditorTabl
       <table className="w-full text-sm">
         <thead>
           <tr className="bg-afs-bg-surface border-b border-afs-border">
-            <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">Product</th>
-            <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">Material</th>
-            <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3 w-56">
+            <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">Product</th>
+            <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">Material</th>
+            <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3 w-56">
               Cost Notes
             </th>
-            <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-right px-4 py-3 w-32">
+            <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-right px-4 py-3 w-32">
               Target Margin %
             </th>
-            <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-right px-4 py-3 w-28">
+            <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-right px-4 py-3 w-28">
               Waste Factor
             </th>
-            <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-right px-4 py-3 w-24">
+            <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-right px-4 py-3 w-24">
               Rush %
             </th>
-            <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3 w-24">
+            <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3 w-24">
               Actions
             </th>
           </tr>
@@ -102,8 +102,8 @@ export default function PricingRulesEditorTable({ rows }: PricingRulesEditorTabl
             const rs = state[row.productId];
             return (
               <tr key={row.productId} className="border-b border-afs-border last:border-b-0 align-top">
-                <td className="font-body text-sm text-afs-chrome-high px-4 py-3">{row.productName}</td>
-                <td className="font-body text-sm text-afs-chrome-mid px-4 py-3">{row.materialName ?? '—'}</td>
+                <td className="font-body text-sm text-afs-ink-900 px-4 py-3">{row.productName}</td>
+                <td className="font-body text-sm text-afs-ink-700 px-4 py-3">{row.materialName ?? '—'}</td>
                 <td className="px-4 py-3">
                   <input
                     type="text"

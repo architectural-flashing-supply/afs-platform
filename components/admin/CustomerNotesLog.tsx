@@ -55,13 +55,13 @@ export default function CustomerNotesLog({ customerId, notes }: CustomerNotesLog
 
   return (
     <div className="bg-afs-bg-raised border border-afs-border rounded p-6">
-      <h2 className="font-heading text-lg text-afs-chrome-high mb-4">Admin Notes</h2>
+      <h2 className="font-heading text-lg text-afs-ink-900 mb-4">Admin Notes</h2>
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
         rows={3}
         placeholder="Internal note about this customer — not visible to them"
-        className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body resize-y mb-3"
+        className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-ink-900 focus:border-afs-crimson outline-none font-body resize-y mb-3"
       />
       <div className="flex items-center justify-between mb-4 gap-4">
         {error && <p className="font-body text-xs text-afs-crimson">{error}</p>}
@@ -76,13 +76,13 @@ export default function CustomerNotesLog({ customerId, notes }: CustomerNotesLog
       </div>
 
       {localNotes.length === 0 ? (
-        <p className="font-body text-sm text-afs-chrome-mid">No notes yet.</p>
+        <p className="font-body text-sm text-afs-ink-700">No notes yet.</p>
       ) : (
         <ul className="flex flex-col gap-3">
           {localNotes.map((note, i) => (
             <li key={i} className="border-t border-afs-border pt-3 first:border-t-0 first:pt-0">
-              <p className="font-body text-sm text-afs-chrome-high whitespace-pre-line">{note.text}</p>
-              <p className="font-data text-xs text-afs-chrome-dim mt-1">
+              <p className="font-body text-sm text-afs-ink-900 whitespace-pre-line">{note.text}</p>
+              <p className="font-data text-xs text-afs-ink-700 mt-1">
                 {note.author}
                 {note.at ? ` · ${formatTimestamp(note.at)}` : ''}
               </p>

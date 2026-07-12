@@ -77,11 +77,11 @@ export default async function AdminQuoteRequestDetailPage({ params }: { params: 
     <div>
       <div className="flex items-start justify-between gap-6 mb-8">
         <div>
-          <Link href="/admin/quote-requests" className="font-label text-xs text-afs-chrome-mid hover:text-afs-crimson">
+          <Link href="/admin/quote-requests" className="font-label text-xs text-afs-ink-700 hover:text-afs-crimson">
             ← Back to Quote Requests
           </Link>
-          <h1 className="font-data text-3xl text-afs-chrome-high mt-2">{request.request_number}</h1>
-          <p className="font-body text-sm text-afs-chrome-mid mt-1">Submitted {formatDate(request.submitted_at)}</p>
+          <h1 className="font-data text-3xl text-afs-ink-900 mt-2">{request.request_number}</h1>
+          <p className="font-body text-sm text-afs-ink-700 mt-1">Submitted {formatDate(request.submitted_at)}</p>
         </div>
         <div className="flex flex-col items-end gap-2">
           {request.is_rush && (
@@ -98,37 +98,37 @@ export default async function AdminQuoteRequestDetailPage({ params }: { params: 
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <div className="bg-afs-bg-raised border border-afs-border rounded p-6">
-          <h2 className="font-heading text-lg text-afs-chrome-high mb-3">Customer</h2>
+          <h2 className="font-heading text-lg text-afs-ink-900 mb-3">Customer</h2>
           <dl className="flex flex-col gap-1.5 font-body text-sm">
             <div className="flex justify-between">
-              <dt className="text-afs-chrome-mid">Name</dt>
-              <dd className="text-afs-chrome-high">{customerName}</dd>
+              <dt className="text-afs-ink-700">Name</dt>
+              <dd className="text-afs-ink-900">{customerName}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-afs-chrome-mid">Email</dt>
-              <dd className="text-afs-chrome-high">{request.profiles?.email ?? request.guest_email ?? '—'}</dd>
+              <dt className="text-afs-ink-700">Email</dt>
+              <dd className="text-afs-ink-900">{request.profiles?.email ?? request.guest_email ?? '—'}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-afs-chrome-mid">Phone</dt>
-              <dd className="text-afs-chrome-high">{request.profiles?.phone ?? '—'}</dd>
+              <dt className="text-afs-ink-700">Phone</dt>
+              <dd className="text-afs-ink-900">{request.profiles?.phone ?? '—'}</dd>
             </div>
           </dl>
         </div>
         <div className="bg-afs-bg-raised border border-afs-border rounded p-6">
-          <h2 className="font-heading text-lg text-afs-chrome-high mb-3">Project Details</h2>
+          <h2 className="font-heading text-lg text-afs-ink-900 mb-3">Project Details</h2>
           <dl className="flex flex-col gap-1.5 font-body text-sm">
             <div className="flex justify-between">
-              <dt className="text-afs-chrome-mid">Jobsite Address</dt>
-              <dd className="text-afs-chrome-high text-right">{jobsiteAddress ?? '—'}</dd>
+              <dt className="text-afs-ink-700">Jobsite Address</dt>
+              <dd className="text-afs-ink-900 text-right">{jobsiteAddress ?? '—'}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-afs-chrome-mid">PO Number</dt>
-              <dd className="text-afs-chrome-high">{request.po_number ?? '—'}</dd>
+              <dt className="text-afs-ink-700">PO Number</dt>
+              <dd className="text-afs-ink-900">{request.po_number ?? '—'}</dd>
             </div>
             {request.notes && (
               <div className="flex flex-col gap-1 pt-1 border-t border-afs-border mt-1">
-                <dt className="text-afs-chrome-mid">Customer Notes</dt>
-                <dd className="text-afs-chrome-high whitespace-pre-line">{request.notes}</dd>
+                <dt className="text-afs-ink-700">Customer Notes</dt>
+                <dd className="text-afs-ink-900 whitespace-pre-line">{request.notes}</dd>
               </div>
             )}
           </dl>
@@ -137,26 +137,26 @@ export default async function AdminQuoteRequestDetailPage({ params }: { params: 
 
       <div className="bg-afs-bg-raised border border-afs-border rounded overflow-hidden mb-8">
         <div className="px-4 py-3 border-b border-afs-border">
-          <span className="font-heading text-sm text-afs-chrome-mid uppercase tracking-wide">
+          <span className="font-heading text-sm text-afs-ink-700 uppercase tracking-wide">
             Submitted Specification
           </span>
         </div>
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-afs-bg-surface border-b border-afs-border">
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                 Profile
               </th>
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                 Material / Gauge
               </th>
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                 Dimensions
               </th>
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                 Length
               </th>
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                 Qty
               </th>
             </tr>
@@ -164,13 +164,13 @@ export default async function AdminQuoteRequestDetailPage({ params }: { params: 
           <tbody>
             {items.map((item, idx) => (
               <tr key={idx} className="border-b border-afs-border last:border-b-0">
-                <td className="font-body text-sm text-afs-chrome-high px-4 py-3">{item.profileType}</td>
-                <td className="font-body text-sm text-afs-chrome-high px-4 py-3">
+                <td className="font-body text-sm text-afs-ink-900 px-4 py-3">{item.profileType}</td>
+                <td className="font-body text-sm text-afs-ink-900 px-4 py-3">
                   {[item.material, item.gauge].filter(Boolean).join(', ') || '—'}
                 </td>
-                <td className="font-data text-xs text-afs-chrome-mid px-4 py-3">{formatDimensions(item)}</td>
-                <td className="font-data text-sm text-afs-chrome-high px-4 py-3">{item.lengthFt} ft</td>
-                <td className="font-data text-sm text-afs-chrome-high px-4 py-3">
+                <td className="font-data text-xs text-afs-ink-700 px-4 py-3">{formatDimensions(item)}</td>
+                <td className="font-data text-sm text-afs-ink-900 px-4 py-3">{item.lengthFt} ft</td>
+                <td className="font-data text-sm text-afs-ink-900 px-4 py-3">
                   {item.quantity} {item.unit ?? 'LF'}
                 </td>
               </tr>
@@ -181,19 +181,19 @@ export default async function AdminQuoteRequestDetailPage({ params }: { params: 
 
       {request.status === 'quoted' ? (
         <div className="bg-[var(--afs-crimson-ghost)] border border-afs-success rounded px-6 py-4">
-          <p className="font-body text-sm text-afs-chrome-high">
+          <p className="font-body text-sm text-afs-ink-900">
             This request has already been quoted{linkedQuoteNumber ? ` as ${linkedQuoteNumber}` : ''}.
           </p>
         </div>
       ) : request.status === 'cancelled' || request.status === 'expired' ? (
         <div className="bg-afs-bg-surface border border-afs-border rounded px-6 py-4">
-          <p className="font-body text-sm text-afs-chrome-mid">
+          <p className="font-body text-sm text-afs-ink-700">
             This request is {request.status} and can no longer be quoted.
           </p>
         </div>
       ) : !request.user_id ? (
         <div className="bg-afs-bg-surface border border-afs-border rounded px-6 py-4">
-          <p className="font-body text-sm text-afs-chrome-mid">
+          <p className="font-body text-sm text-afs-ink-700">
             This was submitted as a guest ({request.guest_email}). The customer needs an AFS account before a formal
             quote can be delivered to a portal.
           </p>

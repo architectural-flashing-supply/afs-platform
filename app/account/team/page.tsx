@@ -107,8 +107,8 @@ export default async function AccountTeamPage() {
     <div className="max-w-[1100px] mx-auto">
       <div className="flex items-start justify-between gap-6 mb-8 flex-wrap">
         <div>
-          <h1 className="font-heading text-3xl text-afs-chrome-high">Team</h1>
-          <p className="font-body text-sm text-afs-chrome-mid mt-1">
+          <h1 className="font-heading text-3xl text-afs-ink-900">Team</h1>
+          <p className="font-body text-sm text-afs-ink-700 mt-1">
             {companyName
               ? `Manage who at ${companyName} has AFS access.`
               : 'Invite teammates to give your company shared access to quotes, orders, and tracking.'}
@@ -121,33 +121,33 @@ export default async function AccountTeamPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-afs-bg-surface border-b border-afs-chrome-dim">
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">Name</th>
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">Email</th>
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">Role</th>
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">Status</th>
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-right px-4 py-3">Actions</th>
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">Name</th>
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">Email</th>
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">Role</th>
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">Status</th>
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-right px-4 py-3">Actions</th>
             </tr>
           </thead>
           <tbody>
             {members.map((member) => (
               <tr key={member.id} className="border-b border-afs-chrome-dim last:border-b-0 hover:bg-afs-bg-surface transition-colors" data-testid="member-row">
-                <td className="font-body text-sm text-afs-chrome-high px-4 py-3">
+                <td className="font-body text-sm text-afs-ink-900 px-4 py-3">
                   {member.name}
-                  {member.isSelf && <span className="font-label text-xs text-afs-chrome-dim ml-2">(You)</span>}
+                  {member.isSelf && <span className="font-label text-xs text-afs-ink-700 ml-2">(You)</span>}
                 </td>
-                <td className="font-data text-sm text-afs-chrome-mid px-4 py-3">{member.email}</td>
-                <td className="font-body text-sm text-afs-chrome-mid px-4 py-3">{ROLE_LABEL[member.role]}</td>
+                <td className="font-data text-sm text-afs-ink-700 px-4 py-3">{member.email}</td>
+                <td className="font-body text-sm text-afs-ink-700 px-4 py-3">{ROLE_LABEL[member.role]}</td>
                 <td className="px-4 py-3">
                   <Badge variant={STATUS_VARIANT.active}>Active</Badge>
                 </td>
-                <td className="px-4 py-3 text-right font-body text-xs text-afs-chrome-dim">—</td>
+                <td className="px-4 py-3 text-right font-body text-xs text-afs-ink-700">—</td>
               </tr>
             ))}
             {pendingInvitations.map((invite) => (
               <tr key={invite.id} className="border-b border-afs-chrome-dim last:border-b-0 hover:bg-afs-bg-surface transition-colors" data-testid="pending-invitation-row">
-                <td className="font-body text-sm text-afs-chrome-dim px-4 py-3 italic">Pending</td>
-                <td className="font-data text-sm text-afs-chrome-mid px-4 py-3">{invite.email}</td>
-                <td className="font-body text-sm text-afs-chrome-mid px-4 py-3">{ROLE_LABEL[invite.role]}</td>
+                <td className="font-body text-sm text-afs-ink-700 px-4 py-3 italic">Pending</td>
+                <td className="font-data text-sm text-afs-ink-700 px-4 py-3">{invite.email}</td>
+                <td className="font-body text-sm text-afs-ink-700 px-4 py-3">{ROLE_LABEL[invite.role]}</td>
                 <td className="px-4 py-3">
                   <Badge variant={STATUS_VARIANT.invited}>Invited {formatDate(invite.createdAt)}</Badge>
                 </td>

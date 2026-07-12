@@ -110,11 +110,11 @@ export default async function AccountQuoteDetailPage({ params }: { params: { id:
       <div className="max-w-[1000px] mx-auto">
         <div className="flex items-start justify-between gap-6 mb-8">
           <div>
-            <Link href="/account/quotes" className="font-label text-xs text-afs-chrome-mid hover:text-afs-crimson">
+            <Link href="/account/quotes" className="font-label text-xs text-afs-ink-700 hover:text-afs-crimson">
               ← Back to My Quotes
             </Link>
-            <h1 className="font-data text-3xl text-afs-chrome-high mt-2">{formalQuote.quote_number}</h1>
-            <p className="font-body text-sm text-afs-chrome-mid mt-1">
+            <h1 className="font-data text-3xl text-afs-ink-900 mt-2">{formalQuote.quote_number}</h1>
+            <p className="font-body text-sm text-afs-ink-700 mt-1">
               {formalQuote.sent_at ? `Sent ${formatDate(formalQuote.sent_at)}` : 'Formal quote from AFS'}
               {formalQuote.valid_until ? ` · Valid until ${formatDate(formalQuote.valid_until)}` : ''}
             </p>
@@ -128,22 +128,22 @@ export default async function AccountQuoteDetailPage({ params }: { params: { id:
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-afs-bg-surface border-b border-afs-chrome-dim">
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                   Description
                 </th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                   Dimensions
                 </th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                   Length
                 </th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                   Qty
                 </th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-right px-4 py-3">
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-right px-4 py-3">
                   Unit Price
                 </th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-right px-4 py-3">
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-right px-4 py-3">
                   Line Total
                 </th>
               </tr>
@@ -151,20 +151,20 @@ export default async function AccountQuoteDetailPage({ params }: { params: { id:
             <tbody>
               {lineItems.map((item) => (
                 <tr key={item.id} className="border-b border-afs-chrome-dim last:border-b-0">
-                  <td className="font-body text-sm text-afs-chrome-high px-4 py-3">{item.description}</td>
-                  <td className="font-data text-xs text-afs-chrome-mid px-4 py-3">
+                  <td className="font-body text-sm text-afs-ink-900 px-4 py-3">{item.description}</td>
+                  <td className="font-data text-xs text-afs-ink-700 px-4 py-3">
                     {formatDimensions(item.width_in, item.height_in, item.leg_a_in, item.leg_b_in)}
                   </td>
-                  <td className="font-data text-sm text-afs-chrome-high px-4 py-3">
+                  <td className="font-data text-sm text-afs-ink-900 px-4 py-3">
                     {item.length_ft} ft
                   </td>
-                  <td className="font-data text-sm text-afs-chrome-high px-4 py-3">
+                  <td className="font-data text-sm text-afs-ink-900 px-4 py-3">
                     {item.quantity} {item.unit}
                   </td>
-                  <td className="font-data text-sm text-afs-chrome-high text-right px-4 py-3">
+                  <td className="font-data text-sm text-afs-ink-900 text-right px-4 py-3">
                     {currency.format(item.unit_price)}
                   </td>
-                  <td className="font-data text-sm text-afs-chrome-high text-right px-4 py-3">
+                  <td className="font-data text-sm text-afs-ink-900 text-right px-4 py-3">
                     {currency.format(item.line_total)}
                   </td>
                 </tr>
@@ -175,32 +175,32 @@ export default async function AccountQuoteDetailPage({ params }: { params: { id:
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-6">
-            <h2 className="font-heading text-lg text-afs-chrome-high mb-4">Payment Summary</h2>
+            <h2 className="font-heading text-lg text-afs-ink-900 mb-4">Payment Summary</h2>
             <dl className="flex flex-col gap-2 font-body text-sm">
               <div className="flex justify-between">
-                <dt className="text-afs-chrome-mid">Subtotal</dt>
-                <dd className="font-data text-afs-chrome-high">{currency.format(formalQuote.subtotal)}</dd>
+                <dt className="text-afs-ink-700">Subtotal</dt>
+                <dd className="font-data text-afs-ink-900">{currency.format(formalQuote.subtotal)}</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-afs-chrome-mid">Freight</dt>
-                <dd className="font-data text-afs-chrome-high">
+                <dt className="text-afs-ink-700">Freight</dt>
+                <dd className="font-data text-afs-ink-900">
                   {formalQuote.freight != null ? currency.format(formalQuote.freight) : '—'}
                 </dd>
               </div>
               {formalQuote.rush_surcharge > 0 && (
                 <div className="flex justify-between">
-                  <dt className="text-afs-chrome-mid">Rush Surcharge</dt>
-                  <dd className="font-data text-afs-chrome-high">{currency.format(formalQuote.rush_surcharge)}</dd>
+                  <dt className="text-afs-ink-700">Rush Surcharge</dt>
+                  <dd className="font-data text-afs-ink-900">{currency.format(formalQuote.rush_surcharge)}</dd>
                 </div>
               )}
               <div className="flex justify-between">
-                <dt className="text-afs-chrome-mid">Tax</dt>
-                <dd className="font-data text-afs-chrome-high">
+                <dt className="text-afs-ink-700">Tax</dt>
+                <dd className="font-data text-afs-ink-900">
                   {formalQuote.tax != null ? currency.format(formalQuote.tax) : '—'}
                 </dd>
               </div>
               <div className="flex justify-between border-t border-afs-chrome-dim pt-2 mt-1">
-                <dt className="font-label text-afs-chrome-high font-semibold">Total</dt>
+                <dt className="font-label text-afs-ink-900 font-semibold">Total</dt>
                 <dd className="font-data text-lg text-afs-crimson">{currency.format(formalQuote.total)}</dd>
               </div>
             </dl>
@@ -208,8 +208,8 @@ export default async function AccountQuoteDetailPage({ params }: { params: { id:
 
           {formalQuote.estimator_notes && (
             <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-6">
-              <h2 className="font-heading text-lg text-afs-chrome-high mb-4">Notes from Your Estimator</h2>
-              <p className="font-body text-sm text-afs-chrome-mid whitespace-pre-line">
+              <h2 className="font-heading text-lg text-afs-ink-900 mb-4">Notes from Your Estimator</h2>
+              <p className="font-body text-sm text-afs-ink-700 whitespace-pre-line">
                 {formalQuote.estimator_notes}
               </p>
             </div>
@@ -244,11 +244,11 @@ export default async function AccountQuoteDetailPage({ params }: { params: { id:
     <div className="max-w-[900px] mx-auto">
       <div className="flex items-start justify-between gap-6 mb-8">
         <div>
-          <Link href="/account/quotes" className="font-label text-xs text-afs-chrome-mid hover:text-afs-crimson">
+          <Link href="/account/quotes" className="font-label text-xs text-afs-ink-700 hover:text-afs-crimson">
             ← Back to My Quotes
           </Link>
-          <h1 className="font-data text-3xl text-afs-chrome-high mt-2">{request.request_number}</h1>
-          <p className="font-body text-sm text-afs-chrome-mid mt-1">
+          <h1 className="font-data text-3xl text-afs-ink-900 mt-2">{request.request_number}</h1>
+          <p className="font-body text-sm text-afs-ink-700 mt-1">
             Submitted {formatDate(request.submitted_at)}
           </p>
         </div>
@@ -258,7 +258,7 @@ export default async function AccountQuoteDetailPage({ params }: { params: { id:
       </div>
 
       <div className="bg-[var(--afs-crimson-ghost)] border border-afs-crimson rounded px-6 py-4 mb-8">
-        <p className="font-body text-sm text-afs-chrome-high">
+        <p className="font-body text-sm text-afs-ink-900">
           Your request has been received. Our estimating team is preparing a formal quote — you&apos;ll
           be notified as soon as it&apos;s ready to review.
         </p>
@@ -266,29 +266,29 @@ export default async function AccountQuoteDetailPage({ params }: { params: { id:
 
       <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded overflow-hidden mb-6">
         <div className="px-4 py-3 border-b border-afs-chrome-dim">
-          <span className="font-heading text-sm text-afs-chrome-mid uppercase tracking-wide">
+          <span className="font-heading text-sm text-afs-ink-700 uppercase tracking-wide">
             Submitted Specification
           </span>
         </div>
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-afs-bg-surface border-b border-afs-chrome-dim">
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                 Profile
               </th>
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                 Material
               </th>
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                 Gauge
               </th>
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                 Dimensions
               </th>
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                 Length
               </th>
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                 Qty
               </th>
             </tr>
@@ -296,14 +296,14 @@ export default async function AccountQuoteDetailPage({ params }: { params: { id:
           <tbody>
             {items.map((item, idx) => (
               <tr key={idx} className="border-b border-afs-chrome-dim last:border-b-0">
-                <td className="font-body text-sm text-afs-chrome-high px-4 py-3">{item.profileType}</td>
-                <td className="font-body text-sm text-afs-chrome-high px-4 py-3">{item.material ?? '—'}</td>
-                <td className="font-data text-sm text-afs-chrome-high px-4 py-3">{item.gauge ?? '—'}</td>
-                <td className="font-data text-xs text-afs-chrome-mid px-4 py-3">
+                <td className="font-body text-sm text-afs-ink-900 px-4 py-3">{item.profileType}</td>
+                <td className="font-body text-sm text-afs-ink-900 px-4 py-3">{item.material ?? '—'}</td>
+                <td className="font-data text-sm text-afs-ink-900 px-4 py-3">{item.gauge ?? '—'}</td>
+                <td className="font-data text-xs text-afs-ink-700 px-4 py-3">
                   {formatDimensions(item.width, item.height, item.legA, item.legB)}
                 </td>
-                <td className="font-data text-sm text-afs-chrome-high px-4 py-3">{item.lengthFt} ft</td>
-                <td className="font-data text-sm text-afs-chrome-high px-4 py-3">
+                <td className="font-data text-sm text-afs-ink-900 px-4 py-3">{item.lengthFt} ft</td>
+                <td className="font-data text-sm text-afs-ink-900 px-4 py-3">
                   {item.quantity} {item.unit ?? 'LF'}
                 </td>
               </tr>
@@ -314,26 +314,26 @@ export default async function AccountQuoteDetailPage({ params }: { params: { id:
 
       <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded overflow-hidden">
         <div className="px-4 py-3 border-b border-afs-chrome-dim">
-          <span className="font-heading text-sm text-afs-chrome-mid uppercase tracking-wide">Project Details</span>
+          <span className="font-heading text-sm text-afs-ink-700 uppercase tracking-wide">Project Details</span>
         </div>
         <table className="w-full text-sm">
           <tbody>
             <tr className="border-b border-afs-chrome-dim">
-              <td className="font-label text-xs uppercase text-afs-chrome-mid px-4 py-3 w-40">Jobsite Address</td>
-              <td className="font-body text-afs-chrome-high px-4 py-3 whitespace-pre-line">
+              <td className="font-label text-xs uppercase text-afs-ink-700 px-4 py-3 w-40">Jobsite Address</td>
+              <td className="font-body text-afs-ink-900 px-4 py-3 whitespace-pre-line">
                 {typeof request.jobsite_address === 'string' ? request.jobsite_address : '—'}
               </td>
             </tr>
             <tr className="border-b border-afs-chrome-dim">
-              <td className="font-label text-xs uppercase text-afs-chrome-mid px-4 py-3">PO Number</td>
-              <td className="font-body text-afs-chrome-high px-4 py-3">{request.po_number ?? '—'}</td>
+              <td className="font-label text-xs uppercase text-afs-ink-700 px-4 py-3">PO Number</td>
+              <td className="font-body text-afs-ink-900 px-4 py-3">{request.po_number ?? '—'}</td>
             </tr>
             <tr className="border-b border-afs-chrome-dim">
-              <td className="font-label text-xs uppercase text-afs-chrome-mid px-4 py-3">Rush</td>
+              <td className="font-label text-xs uppercase text-afs-ink-700 px-4 py-3">Rush</td>
               <td className="px-4 py-3">
                 <span
                   className={`font-label text-xs border px-2 py-0.5 rounded ${
-                    request.is_rush ? 'text-afs-crimson border-afs-crimson' : 'text-afs-chrome-mid border-afs-chrome-dim'
+                    request.is_rush ? 'text-afs-crimson border-afs-crimson' : 'text-afs-ink-700 border-afs-chrome-dim'
                   }`}
                 >
                   {request.is_rush ? 'RUSH REQUESTED' : 'STANDARD'}
@@ -341,8 +341,8 @@ export default async function AccountQuoteDetailPage({ params }: { params: { id:
               </td>
             </tr>
             <tr>
-              <td className="font-label text-xs uppercase text-afs-chrome-mid px-4 py-3">Notes</td>
-              <td className="font-body text-afs-chrome-high px-4 py-3 whitespace-pre-line">
+              <td className="font-label text-xs uppercase text-afs-ink-700 px-4 py-3">Notes</td>
+              <td className="font-body text-afs-ink-900 px-4 py-3 whitespace-pre-line">
                 {request.notes ?? '—'}
               </td>
             </tr>

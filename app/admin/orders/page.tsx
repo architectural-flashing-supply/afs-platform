@@ -36,8 +36,8 @@ export default async function AdminOrdersPage({ searchParams }: { searchParams: 
       <ProductionQueueRealtime />
 
       <div className="mb-6">
-        <h1 className="font-heading text-3xl text-afs-chrome-high">Production Queue</h1>
-        <p className="font-body text-sm text-afs-chrome-mid mt-1">
+        <h1 className="font-heading text-3xl text-afs-ink-900">Production Queue</h1>
+        <p className="font-body text-sm text-afs-ink-700 mt-1">
           Active orders in fabrication — rush orders first, then oldest first.
         </p>
       </div>
@@ -52,11 +52,11 @@ export default async function AdminOrdersPage({ searchParams }: { searchParams: 
               href={href}
               className={`font-label text-sm px-4 py-2.5 border-b-2 transition-colors whitespace-nowrap ${
                 active
-                  ? 'border-afs-crimson text-afs-chrome-high'
-                  : 'border-transparent text-afs-chrome-mid hover:text-afs-chrome-high'
+                  ? 'border-afs-crimson text-afs-ink-900'
+                  : 'border-transparent text-afs-ink-700 hover:text-afs-ink-900'
               }`}
             >
-              {tab.label} <span className="font-data text-xs text-afs-chrome-dim">({counts[tab.value]})</span>
+              {tab.label} <span className="font-data text-xs text-afs-ink-700">({counts[tab.value]})</span>
             </Link>
           );
         })}

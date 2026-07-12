@@ -74,15 +74,15 @@ export default function PublicOrderTrackerPage({ params }: { params: { orderId: 
   };
 
   const inputClass =
-    'w-full bg-afs-bg-overlay border border-afs-border rounded px-4 py-3 font-body text-sm text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors';
+    'w-full bg-afs-bg-overlay border border-afs-border rounded px-4 py-3 font-body text-sm text-afs-ink-900 placeholder:text-afs-ink-700 focus:outline-none focus:border-afs-crimson transition-colors';
 
   return (
     <main className="min-h-screen bg-afs-bg-base py-16 px-6">
       <div className="max-w-xl mx-auto">
         <div className="mb-10 text-center">
           <p className="font-label text-afs-crimson text-sm tracking-widest uppercase mb-4">Order Tracker</p>
-          <h1 className="font-display text-5xl text-afs-chrome-high leading-none mb-4">TRACK YOUR ORDER</h1>
-          <p className="font-body text-afs-chrome-mid text-base">
+          <h1 className="font-display text-5xl text-afs-ink-900 leading-none mb-4">TRACK YOUR ORDER</h1>
+          <p className="font-body text-afs-ink-700 text-base">
             Enter your order number and the email address on file to see fabrication status.
           </p>
         </div>
@@ -93,7 +93,7 @@ export default function PublicOrderTrackerPage({ params }: { params: { orderId: 
             className="bg-afs-bg-overlay border border-afs-chrome-dim rounded p-8"
             data-testid="track-form"
           >
-            <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-2 block" htmlFor="orderId">
+            <label className="font-label text-xs uppercase tracking-wide text-afs-ink-700 mb-2 block" htmlFor="orderId">
               Order Number
             </label>
             <input
@@ -107,7 +107,7 @@ export default function PublicOrderTrackerPage({ params }: { params: { orderId: 
               placeholder="AFS-2026-00001"
             />
 
-            <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-2 block" htmlFor="email">
+            <label className="font-label text-xs uppercase tracking-wide text-afs-ink-700 mb-2 block" htmlFor="email">
               Email Address
             </label>
             <input
@@ -135,8 +135,8 @@ export default function PublicOrderTrackerPage({ params }: { params: { orderId: 
           <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-8">
             <div className="flex items-start justify-between gap-4 mb-6 flex-wrap">
               <div>
-                <h2 className="font-data text-2xl text-afs-chrome-high">{order.orderNumber}</h2>
-                <p className="font-body text-sm text-afs-chrome-mid mt-1">Ordered {formatDate(order.orderDate)}</p>
+                <h2 className="font-data text-2xl text-afs-ink-900">{order.orderNumber}</h2>
+                <p className="font-body text-sm text-afs-ink-700 mt-1">Ordered {formatDate(order.orderDate)}</p>
               </div>
               <Badge variant={ORDER_STATUS_VARIANT[order.status] ?? 'chrome'} size="md">
                 {ORDER_STATUS_LABEL[order.status] ?? order.status}
@@ -153,9 +153,9 @@ export default function PublicOrderTrackerPage({ params }: { params: { orderId: 
             />
 
             {order.deliveryScheduledAt && (
-              <p className="font-body text-sm text-afs-chrome-mid mt-4">
+              <p className="font-body text-sm text-afs-ink-700 mt-4">
                 {order.deliveryMethod === 'pickup' ? 'Pickup scheduled' : 'Delivery scheduled'} for{' '}
-                <span className="font-data text-afs-chrome-high">{formatDate(order.deliveryScheduledAt)}</span>
+                <span className="font-data text-afs-ink-900">{formatDate(order.deliveryScheduledAt)}</span>
                 {order.deliveryWindow ? ` · ${order.deliveryWindow}` : ''}
               </p>
             )}
@@ -166,7 +166,7 @@ export default function PublicOrderTrackerPage({ params }: { params: { orderId: 
                 setOrder(null);
                 setError(null);
               }}
-              className="font-label text-xs text-afs-chrome-mid hover:text-afs-crimson transition-colors mt-8"
+              className="font-label text-xs text-afs-ink-700 hover:text-afs-crimson transition-colors mt-8"
             >
               ← Track a different order
             </button>

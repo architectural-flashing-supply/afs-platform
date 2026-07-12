@@ -21,7 +21,7 @@ export default function QuickAdvanceButton({ orderId, status, testId, onAdvanced
   const next = getNextStage(status);
 
   if (status === 'cancelled') {
-    return <span className="font-label text-xs text-afs-chrome-dim">Cancelled</span>;
+    return <span className="font-label text-xs text-afs-ink-700">Cancelled</span>;
   }
 
   if (!next) {
@@ -29,7 +29,7 @@ export default function QuickAdvanceButton({ orderId, status, testId, onAdvanced
       <button
         type="button"
         disabled
-        className="font-label text-xs text-afs-chrome-dim px-3 py-1.5 rounded border border-afs-border cursor-not-allowed"
+        className="font-label text-xs text-afs-ink-700 px-3 py-1.5 rounded border border-afs-border cursor-not-allowed"
       >
         Delivered
       </button>

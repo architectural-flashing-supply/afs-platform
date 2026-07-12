@@ -29,8 +29,8 @@ export default async function AccountQuotesPage() {
   return (
     <div className="max-w-[1100px] mx-auto">
       <div className="mb-8">
-        <h1 className="font-heading text-3xl text-afs-chrome-high">My Quotes</h1>
-        <p className="font-body text-sm text-afs-chrome-mid mt-1">
+        <h1 className="font-heading text-3xl text-afs-ink-900">My Quotes</h1>
+        <p className="font-body text-sm text-afs-ink-700 mt-1">
           Quote requests you&apos;ve submitted and formal quotes from AFS.
         </p>
       </div>
@@ -49,16 +49,16 @@ export default async function AccountQuotesPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-afs-bg-surface border-b border-afs-chrome-dim">
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                   Request #
                 </th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                   Profiles
                 </th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                   Submitted
                 </th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                   Status
                 </th>
               </tr>
@@ -77,8 +77,8 @@ export default async function AccountQuotesPage() {
                       {row.quoteNumber ?? row.requestNumber}
                     </Link>
                   </td>
-                  <td className="font-body text-sm text-afs-chrome-high px-4 py-3">{row.profilesSummary}</td>
-                  <td className="font-data text-sm text-afs-chrome-mid px-4 py-3">{formatDate(row.submittedAt)}</td>
+                  <td className="font-body text-sm text-afs-ink-900 px-4 py-3">{row.profilesSummary}</td>
+                  <td className="font-data text-sm text-afs-ink-700 px-4 py-3">{formatDate(row.submittedAt)}</td>
                   <td className="px-4 py-3">
                     <Badge variant={QUOTE_STATUS_VARIANT[row.status]} pulse={row.status === 'ready'}>
                       {QUOTE_STATUS_LABEL[row.status]}

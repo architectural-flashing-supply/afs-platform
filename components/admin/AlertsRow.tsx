@@ -26,13 +26,13 @@ export default function AlertsRow({ alerts }: AlertsRowProps) {
           key={alert.id}
           className="flex items-center justify-between gap-4 bg-afs-bg-surface border-l-4 border-afs-warning rounded-sm px-4 py-3"
         >
-          <Link href={alert.href} className="font-body text-sm text-afs-chrome-high hover:text-white">
+          <Link href={alert.href} className="font-body text-sm text-afs-ink-900">
             {alert.message}
           </Link>
           <button
             type="button"
             onClick={() => setDismissed((prev) => new Set(prev).add(alert.id))}
-            className="font-label text-xs text-afs-chrome-dim hover:text-afs-chrome-high shrink-0"
+            className="font-label text-xs text-afs-ink-700 hover:text-afs-ink-900 shrink-0"
           >
             Dismiss
           </button>

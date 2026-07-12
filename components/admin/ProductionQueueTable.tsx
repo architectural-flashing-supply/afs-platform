@@ -47,32 +47,32 @@ export default function ProductionQueueTable({ rows }: ProductionQueueTableProps
     <div className="relative">
       {toast && (
         <div className="fixed bottom-6 right-6 z-50 bg-afs-bg-raised border border-afs-crimson rounded px-5 py-3 shadow-raised">
-          <p className="font-body text-sm text-afs-chrome-high">{toast}</p>
+          <p className="font-body text-sm text-afs-ink-900">{toast}</p>
         </div>
       )}
       <div className="bg-afs-bg-raised border border-afs-border rounded overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-afs-bg-surface border-b border-afs-border">
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                 Order #
               </th>
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                 Customer
               </th>
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                 Profiles
               </th>
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                 Created
               </th>
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                 Rush
               </th>
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                 Status
               </th>
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-ink-700 text-left px-4 py-3">
                 Advance
               </th>
             </tr>
@@ -89,14 +89,14 @@ export default function ProductionQueueTable({ rows }: ProductionQueueTableProps
                 <td className="px-4 py-3">
                   <Link
                     href={`/admin/orders/${row.id}`}
-                    className="font-data text-sm text-afs-chrome-high hover:text-afs-crimson"
+                    className="font-data text-sm text-afs-ink-900 hover:text-afs-crimson"
                   >
                     {row.orderNumber}
                   </Link>
                 </td>
-                <td className="font-body text-sm text-afs-chrome-high px-4 py-3">{row.customerName}</td>
-                <td className="font-body text-sm text-afs-chrome-mid px-4 py-3">{row.profileSummary}</td>
-                <td className="font-data text-xs text-afs-chrome-dim px-4 py-3">{formatTimeAgo(row.createdAt)}</td>
+                <td className="font-body text-sm text-afs-ink-900 px-4 py-3">{row.customerName}</td>
+                <td className="font-body text-sm text-afs-ink-700 px-4 py-3">{row.profileSummary}</td>
+                <td className="font-data text-xs text-afs-ink-700 px-4 py-3">{formatTimeAgo(row.createdAt)}</td>
                 <td className="px-4 py-3">
                   {row.isRush && (
                     <span className="bg-afs-crimson text-white font-label text-xs font-bold px-2 py-1 rounded">

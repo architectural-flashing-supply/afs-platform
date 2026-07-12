@@ -18,8 +18,8 @@ export default async function SpecWriterPage() {
       <ArchitectShell>
         <div className="max-w-lg mx-auto py-24 px-6 text-center">
           <ArchitectEyebrow>AI Spec Writer</ArchitectEyebrow>
-          <h1 className="font-heading text-3xl text-afs-chrome-high mb-4">Access Restricted</h1>
-          <p className="font-body text-sm text-afs-chrome-mid mb-8">
+          <h1 className="font-heading text-3xl text-afs-ink-900 mb-4">Access Restricted</h1>
+          <p className="font-body text-sm text-afs-ink-700 mb-8">
             This feature requires an architect account. Contact us to request access, or continue with our
             standard quote tools.
           </p>
@@ -32,7 +32,7 @@ export default async function SpecWriterPage() {
             </a>
             <a
               href="/quote"
-              className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label font-semibold px-6 py-3 rounded text-sm transition-colors"
+              className="border border-afs-border bg-afs-bg-overlay text-afs-ink-900 hover:bg-afs-bg-surface font-label font-semibold px-6 py-3 rounded text-sm transition-colors"
             >
               Request a Quote
             </a>

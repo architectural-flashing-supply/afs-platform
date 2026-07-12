@@ -49,33 +49,33 @@ export default function RegisterConfirmPage() {
           />
         </svg>
       </div>
-      <h1 className="font-heading text-2xl font-bold text-afs-chrome-high mb-3">Check Your Email</h1>
-      <p className="font-body text-sm text-afs-chrome-mid mb-8">
+      <h1 className="font-heading text-2xl font-bold text-afs-ink-900 mb-3">Check Your Email</h1>
+      <p className="font-body text-sm text-afs-ink-700 mb-8">
         We sent a confirmation link to{' '}
-        {email ? <span className="text-afs-chrome-high">{email}</span> : 'your email address'}. Click the link
+        {email ? <span className="text-afs-ink-900">{email}</span> : 'your email address'}. Click the link
         to activate your account.
       </p>
 
       {resendError && (
         <div className={authErrorClass}>
-          <p className="font-body text-sm text-afs-chrome-high">{resendError}</p>
+          <p className="font-body text-sm text-afs-ink-900">{resendError}</p>
         </div>
       )}
       {resendSuccess && (
         <div className={authSuccessClass}>
-          <p className="font-body text-sm text-afs-chrome-high">Confirmation email resent.</p>
+          <p className="font-body text-sm text-afs-ink-900">Confirmation email resent.</p>
         </div>
       )}
 
       <button
         onClick={handleResend}
         disabled={cooldown > 0 || !email}
-        className="font-label text-sm text-afs-chrome-base hover:text-afs-chrome-high disabled:text-afs-chrome-dim disabled:cursor-not-allowed"
+        className="font-label text-sm text-afs-ink-700 hover:text-afs-ink-900 disabled:text-afs-ink-700 disabled:cursor-not-allowed"
       >
         {cooldown > 0 ? `Resend confirmation email (${cooldown}s)` : 'Resend confirmation email'}
       </button>
 
-      <p className="font-body text-sm text-afs-chrome-base mt-8">
+      <p className="font-body text-sm text-afs-ink-700 mt-8">
         Wrong email?{' '}
         <Link href="/register" className="text-afs-crimson hover:text-afs-crimson-hover">
           Go back

@@ -1,19 +1,20 @@
 # DESIGN_TOKENS.md
 ## AFS — Design System
-**Derived from AFS chrome/red/black shield logo. Single fixed gunmetal theme.**
-**No toggles. No modes. The interior of the shield is the site.**
+**Derived from AFS chrome/red/black shield logo. Single fixed light silver theme.**
+**No toggles. No modes. Rebranded from the original dark gunmetal theme (see §10 for history).**
 
 ---
 
 ## 1. DESIGN CHARACTER
 
-The AFS logo is a dimensional chrome-beveled shield with deep crimson letterforms
-set against a near-absolute graphite background. The site earns that energy by
-being its precise, disciplined counterpart.
+The AFS logo is a dimensional chrome-beveled shield with deep crimson letterforms.
+The site now runs a light silver gray palette — daylight-lit fabrication shop
+surfaces rather than the original graphite-background treatment — with the
+crimson identity accent and chrome type hierarchy unchanged.
 
 **Character:** A fabrication shop lit by daylight through skylights. Concrete
-floors, steel surfaces, polished tooling. Not a dark nightclub. Not a bright
-tech startup. An industrial workspace with precision and authority.
+floors, steel surfaces, polished tooling. Bright, disciplined, industrial —
+not a dark nightclub, not a stark white tech-startup page.
 
 **The rule:** One loud element per viewport. The crimson CTA is the loudest
 thing on the page. Everything else is the disciplined arena around it.
@@ -39,27 +40,33 @@ Derived from the four tonal zones visible in the logo:
    ───────────────────────────────────── */
 
 :root {
-  /* BACKGROUNDS — Gunmetal scale from shield interior */
-  --afs-bg-dim:       #14151A;  /* Depressed: code blocks, admin rows */
-  --afs-bg-base:      #1A1A1E;  /* Page background — shield interior */
-  --afs-bg-raised:    #22242A;  /* Cards, nav, dropdowns, modals */
-  --afs-bg-surface:   #2A2D35;  /* Table row alt, sidebars, sections */
-  --afs-bg-overlay:   #32363F;  /* Hover states, input field backgrounds */
-  --afs-bg-modal:     rgba(26, 26, 30, 0.92);
+  /* BACKGROUNDS — Light silver scale (rebranded from dark gunmetal) */
+  --afs-bg-dim:       #D0D0D0;  /* Depressed: code blocks, admin rows */
+  --afs-bg-base:      #D4D4D4;  /* Page background */
+  --afs-bg-raised:    #DADADA;  /* Cards, nav, dropdowns, modals */
+  --afs-bg-surface:   #E0E0E0;  /* Table row alt, sidebars, sections */
+  --afs-bg-overlay:   #E6E6E6;  /* Hover states, input field backgrounds */
+  --afs-bg-modal:     rgba(212, 212, 212, 0.92);
 
-  /* CHROME TYPE HIERARCHY — from bevel gradient */
-  --afs-chrome-high:  #D8E0EC;  /* Bevel highlight — H1 headlines */
-  --afs-chrome-mid:   #A0AABC;  /* Bevel mid — subheadings, nav labels */
-  --afs-chrome-base:  #6B7A94;  /* Bevel shadow — body text */
+  /* CHROME TYPE HIERARCHY — from bevel gradient (still used for light-on-color
+     contexts, e.g. text-white on the crimson CTA); on the light backgrounds
+     above, use the INK tokens below instead for on-page text */
+  --afs-chrome-high:  #D8E0EC;
+  --afs-chrome-mid:   #A0AABC;
+  --afs-chrome-base:  #6B7A94;
   --afs-chrome-dim:   #48526A;  /* Borders, dividers, placeholders */
   --afs-chrome-ghost: rgba(107, 122, 148, 0.15);
 
+  /* INK — on-page text for the light theme */
+  --afs-ink-900:      #111111;  /* Page titles, section headings, body text */
+  --afs-ink-700:       #374151;  /* Subheadings, supporting/muted text */
+
   /* TEXT ALIASES */
-  --afs-text-primary:  var(--afs-chrome-high);
-  --afs-text-body:     var(--afs-chrome-mid);
-  --afs-text-muted:    var(--afs-chrome-base);
+  --afs-text-primary:  var(--afs-ink-900);
+  --afs-text-body:     var(--afs-ink-700);
+  --afs-text-muted:    var(--afs-ink-700);
   --afs-text-disabled: var(--afs-chrome-dim);
-  --afs-text-inverse:  #1A1A1E;   /* On crimson backgrounds */
+  --afs-text-inverse:  #FFFFFF;   /* On crimson/copper backgrounds */
 
   /* CRIMSON — Fixed identity constant. Never changes. */
   --afs-crimson:       #C0001A;
@@ -143,11 +150,16 @@ const config: Config = {
           'bg-surface': 'var(--afs-bg-surface)',
           'bg-overlay': 'var(--afs-bg-overlay)',
 
-          // Chrome type hierarchy (semantic)
+          // Chrome type hierarchy (semantic — use for text on solid crimson/
+          // copper accent surfaces, not on-page text)
           'chrome-high':  'var(--afs-chrome-high)',
           'chrome-mid':   'var(--afs-chrome-mid)',
           'chrome-base':  'var(--afs-chrome-base)',
           'chrome-dim':   'var(--afs-chrome-dim)',
+
+          // Ink — on-page text for the light theme
+          'ink-900': 'var(--afs-ink-900)',
+          'ink-700': 'var(--afs-ink-700)',
 
           // Text (semantic aliases)
           'text-primary':  'var(--afs-text-primary)',
@@ -212,8 +224,8 @@ export default config;
 
 /* Base */
 html {
-  background-color: #1A1A1E;
-  color: #A0AABC;
+  background-color: #D4D4D4;
+  color: #374151;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -222,6 +234,18 @@ body {
   background-color: var(--afs-bg-base);
   color: var(--afs-text-body);
   font-family: var(--font-inter), 'Inter', sans-serif;
+}
+
+/* Chrome metallic CTA — Request a Quote button and similar secondary CTAs */
+.afs-btn-chrome {
+  background: linear-gradient(135deg, #C8CDD6 0%, #E8EAED 50%, #B8BFC9 100%);
+  color: #1a1a1a;
+  border: 1px solid #9CA3AF;
+  font-weight: 700;
+  transition: filter 0.15s ease;
+}
+.afs-btn-chrome:hover {
+  filter: brightness(0.96);
 }
 
 /* ── THE METAL EDGE ──────────────────────────────────────
@@ -369,17 +393,29 @@ Input fields:     bg-afs-bg-overlay border border-[var(--afs-border)]
                   focus:border-afs-crimson outline-none
 Table row alt:    bg-afs-bg-surface
 Badges:           bg-afs-bg-surface border border-[var(--afs-border)]
-                  text-afs-chrome-mid text-xs font-label
+                  text-afs-ink-700 text-xs font-label
 
 Primary CTA:      bg-afs-crimson hover:bg-afs-crimson-hover text-white
                   font-label font-semibold metal-edge-red shadow-crimson
-Secondary CTA:    border border-[var(--afs-border)] text-afs-chrome-mid
+                  (unchanged by the light rebrand — crimson CTAs keep white text)
+Chrome CTA:       afs-btn-chrome (metallic gradient, #1a1a1a text, used for
+                  secondary CTAs like "Request a Quote")
+Secondary CTA:    border border-[var(--afs-border)] text-afs-ink-700
                   hover:bg-afs-bg-surface font-label
-Ghost CTA:        text-afs-chrome-base hover:text-afs-chrome-mid font-label
+Ghost CTA:        text-afs-ink-700 hover:text-afs-ink-900 font-label
 
 Admin rows:       bg-afs-bg-dim (slightly recessed)
 Rush badge:       bg-afs-crimson text-white font-label text-xs font-bold
 Architect accent: Replace crimson with copper in architect portal sections
+
+ON-PAGE TEXT MAPPING (light theme):
+  Page titles, section headings, body text  → text-afs-ink-900
+  Accent text, eyebrows, labels              → text-afs-crimson
+  Subheadings, supporting/muted text         → text-afs-ink-700
+  Text ON a solid crimson/copper CTA or badge fill → keep text-white
+    (chrome-high/mid/base/dim tokens remain defined for this on-color-fill
+    case; they are no longer used for on-page text against the light
+    backgrounds above)
 ```
 
 ---
@@ -387,11 +423,15 @@ Architect accent: Replace crimson with copper in architect portal sections
 ## 8. TONAL SCALE QUICK REFERENCE
 
 ```
-DARKEST                                                    MID-TONE
-  #14151A → #1A1A1E → #22242A → #2A2D35 → #32363F
+LIGHT SILVER BACKGROUNDS (darkest to lightest)
+  #D0D0D0 → #D4D4D4 → #DADADA → #E0E0E0 → #E6E6E6
   bg-dim    bg-base   bg-raised bg-surface bg-overlay
 
-CHROME TYPE (darkest to lightest)
+INK TEXT (for the light backgrounds above)
+  #111111 → #374151
+  ink-900   ink-700
+
+CHROME TYPE (retained for text on solid crimson/copper fills only)
   #48526A → #6B7A94 → #A0AABC → #D8E0EC
   dim       base      mid       high
 
@@ -420,6 +460,26 @@ Usage on bg-base (#1A1A1E):
   </div>
 
   Request SVG or transparent PNG from client to resolve permanently.
+```
+
+---
+
+## 10. REBRAND HISTORY
+
+```
+June 2026:    Original dark gunmetal theme, derived from the shield logo's
+              graphite interior. bg-* tokens ran #14151A → #32363F (darkest
+              to lightest); on-page text used the chrome-high/mid/base scale
+              (light colors, readable on dark backgrounds).
+
+2026-07-12:   Site-wide light silver rebrand. bg-* tokens now run
+              #D0D0D0 → #E6E6E6. On-page text moved to the new ink-900/
+              ink-700 tokens (dark colors, readable on light backgrounds).
+              The chrome-high/mid/base/dim scale was kept, unchanged, for
+              its original purpose — text on solid crimson/copper accent
+              fills — but is no longer used for on-page text. Crimson/copper
+              accent colors, the Metal Edge signature element, and all
+              existing crimson CTAs were left unchanged.
 ```
 
 ---
