@@ -35,17 +35,29 @@ API keys in .env.local:  Present locally (not committed). STRIPE_SECRET_KEY,
 pnpm install:            DONE (afs-025) — stripe, @stripe/stripe-js,
                          @stripe/react-stripe-js, docx all present in
                          pnpm-lock.yaml and node_modules.
-pnpm tsc --noEmit:       PASSES — 0 errors (afs-032, re-verified after every change).
-pnpm run build:          PASSES — exit 0, all 106 routes generated (afs-032 — +8 vs.
-                         afs-031's 98: /admin/command-center, /api/machine-bridge/
-                         {pending-jobs,job-delivered,status}, /api/admin/command-center/
-                         {approve,reject,request-changes,mark-delivered}).
-git commits:             All afs-website work through afs-032 is committed and pushed
+pnpm tsc --noEmit:       PASSES — 0 errors (afs-033, re-verified after every change).
+pnpm run build:          PASSES — exit 0, 111 routes generated (afs-033 adds one new
+                         page route: /studio/profile-viewer/[profileId]).
+git commits:             All afs-website work through afs-033 is committed and pushed
                          to origin/main. Working tree is clean. A SEPARATE standalone
                          project, C:\Users\manag\Documents\afs-machine-bridge, has its
                          own independent git repo (not part of this repo, not pushed
                          anywhere — no remote was given) — see Machine Bridge status
                          below.
+3D Profile Configurator  NEW (afs-033) — components/studio/ProfileViewer3D.tsx, a
+(afs-033):               Three.js viewer (ExtrudeGeometry + CSS2DRenderer dimension
+                         labels) integrated into FlashDraft (2D/3D toggle), the
+                         upload/AI-takeoff results page (per-item "View 3D" modal),
+                         and a new standalone shareable route,
+                         app/studio/profile-viewer/[profileId]. See BUILD PHASE
+                         STATUS below for full detail, including the two
+                         literal-premise gaps found and resolved: TakeoffItem has
+                         no "matched machine profile" link (built from the item's
+                         own width/height/legA/legB instead), and machine_profiles
+                         RLS requires auth.uid() IS NOT NULL even on is_public rows
+                         (the standalone route uses the service-role client for the
+                         lookup and enforces the public/admin-only gate in
+                         application code instead).
 Machine Profile Data     004_machine_profiles.sql was applied to the live Supabase
 Status (afs-031):        project (pasted into the SQL Editor by the user) and
                          `pnpm run import:machine-profiles` was run against it
@@ -418,6 +430,127 @@ Machine Bridge + Command Center          NEW (afs-032). Two investigations, both
                                         say so explicitly rather than
                                         claiming a browser check that didn't
                                         happen.
+
+3D Profile Configurator                  NEW (afs-033). Three.js added as a
+(afs-033):                             dependency (three@0.185.1,
+                                        @types/three@0.185.1). Four parts:
+
+  1. components/studio/               ExtrudeGeometry solid built from a
+     ProfileViewer3D.tsx:              turtle-graphics walk of the `bends`
+                                        array (same reconstruction
+                                        convention as FlashDraft's Load from
+                                        Library and BendSequenceDiagram),
+                                        offset into a thin ribbon outline by
+                                        `thicknessMm` (averaged/miter
+                                        normals at interior vertices —
+                                        labeled in code as an approximation,
+                                        not CAD-precision mitering), bevel
+                                        per spec (0.5/0.3), extruded 304.8mm.
+                                        Material color/metalness/roughness
+                                        table and lighting rig match the
+                                        spec exactly. PerspectiveCamera
+                                        (fov 45, [200,150,300]) + OrbitControls
+                                        (damping, zoom, pan), 3s auto-rotate
+                                        then stop, animated Reset View /
+                                        Top / Side / End presets.
+                                        CSS2DRenderer dimension labels: red
+                                        15mm perpendicular leg-length lines
+                                        (inches-as-fraction + mm), bend-angle
+                                        labels, blank-width end-cap label —
+                                        all JetBrains Mono 11px on white,
+                                        afs-ink-900/afs-crimson per spec. The
+                                        `[2D][3D]` toggle listed in the
+                                        spec's own CONTROLS UI section was
+                                        deliberately NOT duplicated inside
+                                        this component — it lives once, in
+                                        FlashDraft's Part 2 integration,
+                                        which is the only place that actually
+                                        has two renderers to switch between.
+
+  2. FlashDraft integration            app/studio/draft/page.tsx: [2D View]
+     (app/studio/draft/page.tsx):      [3D View] toggle atop the right
+                                        panel. A new debounced (300ms)
+                                        effect converts the existing
+                                        inch-unit `points` into mm-unit
+                                        `ProfileBend[]` (mirroring the
+                                        existing profile-match effect's
+                                        bend-shape convention) and feeds
+                                        ProfileViewer3D live. Before any
+                                        profile is drawn, shows a placeholder
+                                        generic coping-cap bend sequence with
+                                        "Draw a profile to see your 3D
+                                        preview" overlaid.
+
+  3. Upload/AI-results integration    app/upload/page.tsx: a "View 3D"
+     (app/upload/page.tsx):           button next to each line item's
+                                        profile-name field opens an 800×600
+                                        modal (dark overlay, centered, close
+                                        button) rendering ProfileViewer3D.
+                                        IMPORTANT PREMISE GAP FOUND: the
+                                        task described this as "a matched
+                                        machine profile," but TakeoffItem
+                                        (the AI takeoff's actual output
+                                        shape) has no machine-profile-match
+                                        field at all — only its own
+                                        width/height/legA/legB. Built a
+                                        local `buildBendsFromItem()` helper
+                                        that constructs an illustrative
+                                        3-segment, two-90°-bend cross-section
+                                        directly from those fields (falling
+                                        back to lib/utils/profile-svg.ts's
+                                        same generic defaults when a
+                                        dimension wasn't extracted), instead
+                                        of gating the button behind a link
+                                        that doesn't exist in the data model.
+                                        New shared helper:
+                                        lib/utils/gauge-thickness.ts
+                                        (approximates a sheet thickness in
+                                        mm from the mixed gauge/inch/mm/oz
+                                        strings GAUGES_BY_MATERIAL already
+                                        uses) — also used by parts 2 and 4.
+
+  4. Standalone shareable route        app/studio/profile-viewer/
+     (afs-033):                       [profileId]/page.tsx: server
+                                        component, fetches the
+                                        `machine_profiles` row + its
+                                        `machine_profile_bends` (ordered by
+                                        step_number), full-screen
+                                        ProfileViewer3D, ShareProfileButton
+                                        (client component, copies the
+                                        current URL to the clipboard).
+                                        PRIVACY-BOUNDARY NOTE: the
+                                        machine_profiles/machine_profile_bends
+                                        RLS policies (004_machine_profiles.sql)
+                                        require `auth.uid() IS NOT NULL` even
+                                        on `is_public = true` rows — so a
+                                        truly anonymous share-link visitor
+                                        (the whole point of "an architect can
+                                        send a customer a link") could not
+                                        read even a public profile through
+                                        the normal session client. The route
+                                        uses `createAdminClient()` (service
+                                        role, bypasses RLS) for the lookup
+                                        itself, then enforces the actual
+                                        privacy rule in application code:
+                                        `is_public = true` renders for
+                                        anyone; `is_public = false` requires
+                                        a logged-in admin (profiles.role =
+                                        'admin'), otherwise `notFound()` —
+                                        a private profile 404s exactly like a
+                                        nonexistent one, rather than
+                                        revealing it exists behind a login
+                                        wall. Material/gauge aren't stored on
+                                        a machine_profiles bend template (it's
+                                        chosen later, at quote time), so the
+                                        viewer defaults to a representative
+                                        Galvanized Steel / 24 ga appearance
+                                        purely for visualization.
+
+  Gates:                               pnpm tsc --noEmit 0 errors. pnpm run
+                                        build exit 0, 111/111 routes (+1 vs.
+                                        the prior count: the new
+                                        /studio/profile-viewer/[profileId]
+                                        route).
 ```
 
 ---
@@ -439,10 +572,24 @@ its original dark gunmetal theme (afs-028 reverted afs-027's light rebrand).
 The Design Studio (afs-030) is built and its data is live (afs-031). The
 Machine Bridge + Command Center (afs-032) is built — a standalone polling
 service plus an admin approval dashboard — but its migration
-(005_machine_jobs.sql) is NOT yet applied to the live project.** The
-tool-approval gate logged in afs-023/024 has not recurred since afs-025.
+(005_machine_jobs.sql) is NOT yet applied to the live project. The 3D
+Profile Configurator (afs-033) is built** — a Three.js viewer integrated
+into FlashDraft, the upload/AI-results page, and a new standalone shareable
+route. The tool-approval gate logged in afs-023/024 has not recurred since
+afs-025.
 
-1. **Done (afs-032 — this build):** Machine Bridge + Command Center. See
+1. **Done (afs-033 — this build):** 3D Profile Configurator. See BUILD
+   PHASE STATUS above for full detail. Two premise gaps found and resolved
+   without breaking the build: (a) the upload page's "matched machine
+   profile" doesn't exist in TakeoffItem's actual shape — built the 3D
+   preview from the item's own width/height/legA/legB instead; (b)
+   machine_profiles' RLS requires a logged-in session even for public rows,
+   which would have broken the whole point of a shareable link for
+   anonymous customers — the standalone route now does the lookup with the
+   service-role client and enforces public/admin-only access in
+   application code. `pnpm tsc --noEmit` (0 errors), `pnpm run build`
+   (111/111 routes).
+2. **Done (afs-032):** Machine Bridge + Command Center. See
    BUILD PHASE STATUS above for full detail. Two investigations before
    writing code: the `.ds1` binary format didn't match the task's assumed
    layout (real header is Pascal-length-prefixed strings, not
@@ -456,7 +603,7 @@ tool-approval gate logged in afs-023/024 has not recurred since afs-025.
    actually read/write real data. The standalone `afs-machine-bridge`
    project has its own separate git repo (not pushed anywhere — no remote
    given).
-2. **Done (afs-031):** Applied `004_machine_profiles.sql` to
+3. **Done (afs-031):** Applied `004_machine_profiles.sql` to
    the live Supabase project (user ran it via the SQL Editor). Ran
    `pnpm run import:machine-profiles` — first attempt failed
    ("Node.js detected but native WebSocket not found": supabase-js always
@@ -471,13 +618,13 @@ tool-approval gate logged in afs-023/024 has not recurred since afs-025.
    expose and **not run** — user confirmed keeping the 70/841 split.
    `pnpm tsc --noEmit` (0 errors) and `pnpm run build` (98/98 routes) both
    pass.
-3. **Done (afs-030):** Design Studio built. See BUILD PHASE STATUS above
+4. **Done (afs-030):** Design Studio built. See BUILD PHASE STATUS above
    for full detail: `app/studio` + `app/studio/draft` (FlashDraft canvas),
    `app/api/studio/match-profile`, `lib/integrations/pathfinder-edge.ts`
    (stub — no real PathfinderEdge API was discoverable) + its 3 admin
    routes, NavBar entry. Re-added `afs-ink-900`/`afs-ink-700` tokens (only
    these two) for the FlashDraft canvas's dimension labels.
-4. **Done (afs-029):** Scoped fix on top of the reverted dark theme —
+5. **Done (afs-029):** Scoped fix on top of the reverted dark theme —
    `app/(public)/products/page.tsx`, `app/configure/page.tsx`,
    `app/quote/page.tsx` each got an inline `#B8BEC8` background on their
    main content div and `text-afs-crimson font-bold` / `text-black
@@ -485,35 +632,35 @@ tool-approval gate logged in afs-023/024 has not recurred since afs-025.
    ("do not touch any other file/token"). Not committed to governance docs
    at the time per that instruction's own scope — logged here now for
    completeness.
-5. **Done (afs-028):** `git revert b3512f1` — reverted the afs-027 site-wide
+6. **Done (afs-028):** `git revert b3512f1` — reverted the afs-027 site-wide
    light rebrand back to the original dark gunmetal theme per explicit
    instruction. `pnpm tsc --noEmit` and `pnpm run build` both re-verified
    passing after the revert.
-6. **Remaining — not a code task:** `supabase/migrations/001-003` have not
+7. **Remaining — not a code task:** `supabase/migrations/001-003` have not
    been applied to a live Supabase project yet; `005_machine_jobs.sql` is
-   also pending (see item 1 above). 004 has been applied (afs-031).
-7. Confirm chat_conversations retention policy (#65) before relying on
+   also pending (see item 2 above). 004 has been applied (afs-031).
+8. Confirm chat_conversations retention policy (#65) before relying on
    chat history persistence in production.
-8. If/when the client confirms QuickBooks scope (checklist #52-54) or a
+9. If/when the client confirms QuickBooks scope (checklist #52-54) or a
    real PathfinderEdge API is documented, build the real integrations out
    against the existing stub function signatures in `lib/integrations/
    quickbooks.ts` and `lib/integrations/pathfinder-edge.ts`.
-9. The 841 private profiles are real customer/contractor/hospital/project
-   job history, now live in the production database (RLS-protected,
-   admin-only read). If specific ones are ever needed publicly, a human
-   should review and flip them individually — do not bulk-flip
-   `is_public`, per the explicit decision in afs-031.
-10. Once `005_machine_jobs.sql` is applied, the Command Center's "Pending
+10. The 841 private profiles are real customer/contractor/hospital/project
+    job history, now live in the production database (RLS-protected,
+    admin-only read). If specific ones are ever needed publicly, a human
+    should review and flip them individually — do not bulk-flip
+    `is_public`, per the explicit decision in afs-031.
+11. Once `005_machine_jobs.sql` is applied, the Command Center's "Pending
     Approval" tab will still be empty — nothing currently creates
     `machine_jobs` rows from real customer submissions (see afs-032 note
     in BUILD PHASE STATUS). That population step needs to be built
     separately.
-11. Before removing the Machine Bridge's mandatory human-review gate
+12. Before removing the Machine Bridge's mandatory human-review gate
     (i.e. before letting it write directly into `THALMANN_DS2801_PATH`),
     someone with real Thalmann DS2801 format knowledge needs to confirm a
     generated `.ds1` file actually loads correctly — see
     afs-machine-bridge/README.md and afs-machine-bridge/src/ds1-generator.js.
-12. DATA BLOCKERS table below is the remaining pre-launch punch list —
+13. DATA BLOCKERS table below is the remaining pre-launch punch list —
     nothing left is a FORGE code task; all remaining items need data/assets
     from the client.
 

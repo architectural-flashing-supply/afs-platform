@@ -2,6 +2,34 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { gaugeToThicknessMm } from '@/lib/utils/gauge-thickness';
+import ProfileViewer3D, { type ProfileBend } from '@/components/studio/ProfileViewer3D';
+
+const MM_PER_INCH = 25.4;
+const DEFAULT_DIMENSIONS_IN = { width: 12, legA: 2, legB: 2 };
+
+// The AI takeoff extracts width/height/legA/legB per line item, not a
+// linked machine_profile record — there is no "matched profile" to look
+// up. This builds an illustrative 3-segment, two-90°-bend cross-section
+// from the item's own extracted dimensions (falling back to generic
+// defaults when a dimension wasn't captured), the same 90°-corner
+// assumption lib/utils/profile-svg.ts already makes for these fields.
+function buildBendsFromItem(item: TakeoffItem): { bends: ProfileBend[]; blankWidthMm: number } {
+  const legAIn = item.legA ?? DEFAULT_DIMENSIONS_IN.legA;
+  const legBIn = item.legB ?? DEFAULT_DIMENSIONS_IN.legB;
+  const widthIn = item.width ?? item.height ?? DEFAULT_DIMENSIONS_IN.width;
+
+  const legAMm = legAIn * MM_PER_INCH;
+  const legBMm = legBIn * MM_PER_INCH;
+  const widthMm = widthIn * MM_PER_INCH;
+
+  const bends: ProfileBend[] = [
+    { leftLeg: legAMm, rightLeg: 0, angle: 90, radius: 0 },
+    { leftLeg: widthMm, rightLeg: legBMm, angle: 90, radius: 0 },
+  ];
+
+  return { bends, blankWidthMm: legAMm + widthMm + legBMm };
+}
 
 type UploadState = 'idle' | 'uploading' | 'processing' | 'results' | 'submitting' | 'submitted' | 'failed';
 type Confidence = 'high' | 'medium' | 'low';
@@ -51,6 +79,7 @@ export default function UploadPage() {
   const [guestEmail, setGuestEmail] = useState('');
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [requestNumber, setRequestNumber] = useState<string | null>(null);
+  const [viewingIndex, setViewingIndex] = useState<number | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -342,8 +371,14 @@ export default function UploadPage() {
                     <tr key={i} style={{ borderBottom: '1px solid var(--afs-bg-surface)', borderLeft: item.confidence === 'low' ? '3px solid var(--afs-warning)' : '3px solid transparent' }}>
                       <td style={{ padding: '12px 16px', color: 'var(--afs-chrome-dim)', fontFamily: 'var(--font-jetbrains)' }}>{i + 1}</td>
                       <td style={{ padding: '12px 16px' }}>
-                        <input value={item.profileType} disabled={state === 'submitting'} onChange={(e) => updateItem(i, 'profileType', e.target.value)}
-                          style={{ background: 'transparent', border: 'none', color: 'var(--afs-chrome-high)', fontFamily: 'var(--font-inter)', fontSize: '13px', width: '100%', outline: 'none' }} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <input value={item.profileType} disabled={state === 'submitting'} onChange={(e) => updateItem(i, 'profileType', e.target.value)}
+                            style={{ background: 'transparent', border: 'none', color: 'var(--afs-chrome-high)', fontFamily: 'var(--font-inter)', fontSize: '13px', width: '100%', outline: 'none' }} />
+                          <button onClick={() => setViewingIndex(i)} type="button"
+                            style={{ background: 'none', border: '1px solid var(--afs-chrome-dim)', borderRadius: '4px', color: 'var(--afs-chrome-mid)', cursor: 'pointer', fontSize: '11px', fontFamily: 'var(--font-barlow)', padding: '3px 8px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                            View 3D
+                          </button>
+                        </div>
                         {item.aiNote && <p style={{ fontFamily: 'var(--font-inter)', fontSize: '11px', color: 'var(--afs-chrome-dim)', marginTop: '2px' }}>{item.aiNote}</p>}
                       </td>
                       <td style={{ padding: '12px 16px' }}>
@@ -487,6 +522,43 @@ export default function UploadPage() {
         )}
 
       </div>
+
+      {viewingIndex !== null && items[viewingIndex] && (
+        <div
+          onClick={() => setViewingIndex(null)}
+          style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ backgroundColor: 'var(--afs-bg-raised)', border: '1px solid var(--afs-bg-overlay)', borderRadius: '8px', width: '800px', maxWidth: '100%', overflow: 'hidden' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid var(--afs-bg-overlay)' }}>
+              <h3 style={{ fontFamily: 'var(--font-barlow-condensed)', fontSize: '20px', color: 'var(--afs-chrome-high)' }}>
+                {items[viewingIndex].profileType || 'Custom Profile'}
+              </h3>
+              <button onClick={() => setViewingIndex(null)} type="button"
+                style={{ background: 'none', border: 'none', color: 'var(--afs-chrome-dim)', cursor: 'pointer', fontSize: '20px', lineHeight: 1, padding: '4px' }}>
+                ×
+              </button>
+            </div>
+            {(() => {
+              const item = items[viewingIndex];
+              const { bends, blankWidthMm } = buildBendsFromItem(item);
+              return (
+                <ProfileViewer3D
+                  bends={bends}
+                  blankWidth={blankWidthMm}
+                  material={item.material || 'Galvanized Steel'}
+                  gauge={item.gauge || '24 ga'}
+                  thicknessMm={gaugeToThicknessMm(item.gauge)}
+                  profileName={item.profileType || 'Custom Profile'}
+                  className="w-full h-[600px]"
+                />
+              );
+            })()}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

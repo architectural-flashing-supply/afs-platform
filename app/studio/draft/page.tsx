@@ -3,9 +3,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { ALL_MATERIALS, GAUGES_BY_MATERIAL } from '@/lib/data/catalog';
+import { gaugeToThicknessMm } from '@/lib/utils/gauge-thickness';
+import ProfileViewer3D, { type ProfileBend } from '@/components/studio/ProfileViewer3D';
 
 type ToolMode = 'draw' | 'select' | 'erase';
 type SubmitState = 'idle' | 'submitting' | 'submitted';
+type ViewMode = '2d' | '3d';
 
 interface Point {
   x: number;
@@ -18,6 +21,17 @@ interface ProfileMatch {
   profileNumber: string;
   score: number;
 }
+
+const MM_PER_INCH = 25.4;
+const VIEWER_DEBOUNCE_MS = 300;
+
+// Shown in the 3D panel before the user has drawn anything, so the
+// viewer never renders empty — a generic coping cap silhouette in mm.
+const PLACEHOLDER_COPING_CAP_BENDS: ProfileBend[] = [
+  { leftLeg: 76.2, rightLeg: 254, angle: 90, radius: 3 },
+  { leftLeg: 254, rightLeg: 76.2, angle: 90, radius: 3 },
+];
+const PLACEHOLDER_BLANK_WIDTH_MM = 76.2 + 254 + 76.2;
 
 interface LibraryProfile {
   id: string;
@@ -116,6 +130,10 @@ export default function FlashDraftPage() {
 
   const [matches, setMatches] = useState<ProfileMatch[]>([]);
   const [matchLoading, setMatchLoading] = useState(false);
+
+  const [viewMode, setViewMode] = useState<ViewMode>('2d');
+  const [viewerBends, setViewerBends] = useState<ProfileBend[]>(PLACEHOLDER_COPING_CAP_BENDS);
+  const [viewerBlankWidthMm, setViewerBlankWidthMm] = useState(PLACEHOLDER_BLANK_WIDTH_MM);
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [submitState, setSubmitState] = useState<SubmitState>('idle');
@@ -314,6 +332,41 @@ export default function FlashDraftPage() {
         setMatchLoading(false);
       }
     }, MATCH_DEBOUNCE_MS);
+    return () => clearTimeout(handle);
+  }, [points]);
+
+  // --- Debounced 3D viewer sync (mirrors the profile-match bend shape, in mm) ---
+  useEffect(() => {
+    if (points.length < 2) {
+      const handle = setTimeout(() => {
+        setViewerBends(PLACEHOLDER_COPING_CAP_BENDS);
+        setViewerBlankWidthMm(PLACEHOLDER_BLANK_WIDTH_MM);
+      }, VIEWER_DEBOUNCE_MS);
+      return () => clearTimeout(handle);
+    }
+    const handle = setTimeout(() => {
+      const bends: ProfileBend[] = [];
+      for (let i = 1; i < points.length - 1; i++) {
+        bends.push({
+          angle: bendAngleAt(points[i - 1], points[i], points[i + 1]),
+          leftLeg: dist(points[i - 1], points[i]) * MM_PER_INCH,
+          rightLeg: dist(points[i], points[i + 1]) * MM_PER_INCH,
+          radius: 3,
+        });
+      }
+      let blankWidth = 0;
+      for (let i = 0; i < points.length - 1; i++) {
+        blankWidth += dist(points[i], points[i + 1]) * MM_PER_INCH;
+      }
+      // A single segment (no interior bend point yet) still has a real
+      // blank width — represent it as one "bend" with a straight 180° angle
+      // so the extrusion renders a flat strip instead of staying empty.
+      if (bends.length === 0 && points.length === 2) {
+        bends.push({ leftLeg: blankWidth, rightLeg: 0, angle: 180, radius: 0 });
+      }
+      setViewerBends(bends);
+      setViewerBlankWidthMm(blankWidth);
+    }, VIEWER_DEBOUNCE_MS);
     return () => clearTimeout(handle);
   }, [points]);
 
@@ -849,41 +902,81 @@ export default function FlashDraftPage() {
 
         {/* RIGHT PANEL — CANVAS */}
         <div ref={containerRef} className="flex-1 min-w-0 flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setZoom((z) => Math.max(0.25, z - 0.25))}
-                className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label text-xs px-3 py-1.5 rounded transition-colors"
-              >
-                Zoom −
-              </button>
-              <button
-                type="button"
-                onClick={() => setZoom((z) => Math.min(4, z + 0.25))}
-                className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label text-xs px-3 py-1.5 rounded transition-colors"
-              >
-                Zoom +
-              </button>
-              <span className="font-data text-xs text-afs-chrome-mid self-center">{Math.round(zoom * 100)}%</span>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex gap-1 bg-afs-bg-overlay border border-afs-border rounded p-1">
+              {(['2d', '3d'] as ViewMode[]).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setViewMode(v)}
+                  className={`font-label text-xs px-3 py-1.5 rounded transition-colors ${
+                    viewMode === v ? 'bg-afs-crimson text-white' : 'text-afs-chrome-mid hover:text-white'
+                  }`}
+                >
+                  {v === '2d' ? '2D View' : '3D View'}
+                </button>
+              ))}
             </div>
-            <p className="font-body text-xs text-afs-chrome-dim">Ctrl+Z undo · Ctrl+Y redo · middle-mouse or Space+drag to pan</p>
+
+            {viewMode === '2d' ? (
+              <>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setZoom((z) => Math.max(0.25, z - 0.25))}
+                    className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label text-xs px-3 py-1.5 rounded transition-colors"
+                  >
+                    Zoom −
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setZoom((z) => Math.min(4, z + 0.25))}
+                    className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label text-xs px-3 py-1.5 rounded transition-colors"
+                  >
+                    Zoom +
+                  </button>
+                  <span className="font-data text-xs text-afs-chrome-mid self-center">{Math.round(zoom * 100)}%</span>
+                </div>
+                <p className="font-body text-xs text-afs-chrome-dim">Ctrl+Z undo · Ctrl+Y redo · middle-mouse or Space+drag to pan</p>
+              </>
+            ) : (
+              <p className="font-body text-xs text-afs-chrome-dim">Live preview — updates as you draw</p>
+            )}
           </div>
 
-          <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded metal-edge overflow-hidden">
-            <canvas
-              ref={canvasRef}
-              width={canvasWidth}
-              height={CANVAS_MIN_HEIGHT}
-              onMouseDown={handleMouseDown}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              onMouseLeave={handleMouseUp}
-              onWheel={handleWheel}
-              onContextMenu={(e) => e.preventDefault()}
-              className="w-full cursor-crosshair"
-              style={{ minWidth: CANVAS_MIN_WIDTH, minHeight: CANVAS_MIN_HEIGHT }}
-            />
+          <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded metal-edge overflow-hidden relative">
+            {viewMode === '2d' ? (
+              <canvas
+                ref={canvasRef}
+                width={canvasWidth}
+                height={CANVAS_MIN_HEIGHT}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
+                onWheel={handleWheel}
+                onContextMenu={(e) => e.preventDefault()}
+                className="w-full cursor-crosshair"
+                style={{ minWidth: CANVAS_MIN_WIDTH, minHeight: CANVAS_MIN_HEIGHT }}
+              />
+            ) : (
+              <div style={{ minHeight: CANVAS_MIN_HEIGHT }}>
+                {points.length < 2 && (
+                  <p className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 font-body text-sm text-afs-chrome-mid bg-afs-bg-raised/90 px-4 py-2 rounded border border-afs-chrome-dim pointer-events-none">
+                    Draw a profile to see your 3D preview
+                  </p>
+                )}
+                <ProfileViewer3D
+                  bends={viewerBends}
+                  blankWidth={viewerBlankWidthMm}
+                  material={material || 'Galvanized Steel'}
+                  gauge={gauge || GAUGES_BY_MATERIAL[material || 'Galvanized Steel']?.[1] || '24 ga'}
+                  thicknessMm={gaugeToThicknessMm(gauge || GAUGES_BY_MATERIAL[material || 'Galvanized Steel']?.[1])}
+                  profileName={points.length < 2 ? 'Standard Coping Cap (example)' : undefined}
+                  className="w-full"
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>
