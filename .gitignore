@@ -18,3 +18,9 @@ tsconfig.tsbuildinfo
 # Misc
 .DS_Store
 *.pem
+
+# Source machine data — the raw Thalmann DS2801 database files are the shop's
+# actual job history (real customer/project names, per the privacy audit in
+# scripts/import-machine-profiles.ts), not something to keep in git history.
+# Required locally only when running `pnpm run import:machine-profiles`.
+machine-data/

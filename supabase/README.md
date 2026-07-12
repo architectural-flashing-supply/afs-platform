@@ -10,6 +10,7 @@ migrations/
   001_initial_schema.sql              All 36 tables, RLS policies, FK indexes
   002_seed_afs_data.sql               Materials, gauges, product_profiles reference data
   003_pricing_rules_cost_notes.sql    Adds pricing_rules.cost_notes (manual pricing mode)
+  004_machine_profiles.sql            Thalmann DS2801 machine profile library (Design Studio)
 ```
 
 Run them in numeric order. Each file is idempotent-safe to re-run only where it
@@ -24,7 +25,42 @@ re-running against a database that already has the schema will error on
 3. Paste the contents of `001_initial_schema.sql`, run it
 4. Paste the contents of `002_seed_afs_data.sql`, run it
 5. Paste the contents of `003_pricing_rules_cost_notes.sql`, run it
-6. Verify: **Table Editor** should show 36 tables, all with the RLS lock icon enabled
+6. Paste the contents of `004_machine_profiles.sql`, run it
+7. Verify: **Table Editor** should show 39 tables, all with the RLS lock icon enabled
+
+## 004_machine_profiles.sql — Design Studio machine profile library
+
+This migration was **not** run automatically — paste it into the SQL Editor
+yourself per Option A step 6 above, or apply it via `supabase db push` (Option
+B) once you've reviewed it. It adds three tables (`machine_profile_categories`,
+`machine_profiles`, `machine_profile_bends`) that back the Design Studio /
+FlashDraft profile-matching feature.
+
+After running it, populate the tables from the Thalmann DS2801 bending
+machine's own database:
+
+```powershell
+pnpm run import:machine-profiles
+```
+
+This reads `machine-data/ds2801db.bdb` (a Microsoft Jet/Access database — the
+script uses the `mdb-reader` npm package rather than the system `mdbtools`
+CLI, since this repo's dev environment has no apt-get/mdbtools available),
+translates German category and profile names to English trade terminology,
+and upserts everything via the Supabase service role client (`.env.local`
+must have `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` set — the
+script loads `.env.local` itself, no extra flags needed). It's safe to re-run;
+every table has a natural-key unique constraint the script upserts against.
+
+**Read before running:** the source database is the shop's actual job
+history, not a clean generic catalog — most category and profile names are
+real customer/project names. Only categories 23 (Rheinzink-Profile) and 42-61
+(the numbered "00"-"19" series) are imported as `is_public = true`; everything
+else is imported `is_public = false` for admin/internal reference only. Within
+those public categories, any individual profile whose name doesn't resolve to
+a recognized generic term is also forced private as a safety net. See the
+comments at the top of `scripts/import-machine-profiles.ts` and the
+`004_machine_profiles.sql` migration for the full reasoning.
 
 ## Option B — Supabase CLI
 

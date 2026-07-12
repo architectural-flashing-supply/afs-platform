@@ -18,6 +18,8 @@ module.exports = {
           'chrome-base':   '#9AA0B8',
           'chrome-dim':    '#7A8299',
           'chrome-silver': '#C8D0E0',
+          'ink-900':       '#111111',
+          'ink-700':       '#374151',
           'crimson':       '#C0001A',
           'crimson-hover': '#E8001F',
           'crimson-dim':   '#7A0010',

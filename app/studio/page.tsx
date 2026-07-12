@@ -1,0 +1,88 @@
+import type { Metadata } from 'next';
+import Link from 'next/link';
+
+export const metadata: Metadata = {
+  title: 'Design Studio | AFS Architectural Flashing Supply',
+  description:
+    'Three ways to spec your flashing: scan a construction drawing, photograph existing flashing, or draw your exact profile with FlashDraft.',
+};
+
+interface StudioTab {
+  title: string;
+  body: string;
+  ctaLabel: string;
+  ctaHref: string;
+  icon: React.ReactNode;
+}
+
+const TABS: StudioTab[] = [
+  {
+    title: 'Scan to Quote',
+    body: 'Upload construction drawings in PDF, DWG, or DXF. AI extracts every profile, dimension, and quantity automatically.',
+    ctaLabel: 'Upload a Drawing',
+    ctaHref: '/upload',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-8 h-8">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 2.25H6a2.25 2.25 0 00-2.25 2.25v15A2.25 2.25 0 006 21.75h12a2.25 2.25 0 002.25-2.25v-15A2.25 2.25 0 0018 2.25h-3" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 2.25v3a.75.75 0 00.75.75h4.5A.75.75 0 0015 5.25v-3M8 12h8M8 15.5h8M8 8.5h3" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Photo to Quote',
+    body: 'Photograph existing flashing in the field. AI identifies profile type and material. You enter site measurements.',
+    ctaLabel: 'Upload Photos',
+    ctaHref: '/upload?tab=photos',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-8 h-8">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.25 2.25 0 018.978 4.5h6.044a2.25 2.25 0 012.151 1.675l.107.376a1.5 1.5 0 001.436 1.099h.594c1.036 0 1.875.84 1.875 1.875v10.126c0 1.035-.84 1.875-1.875 1.875H4.75A1.875 1.875 0 012.875 19.65V9.525c0-1.036.84-1.875 1.875-1.875h.594a1.5 1.5 0 001.436-1.099l.047-.376z" />
+        <circle cx="12" cy="14" r="3.25" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
+    title: 'FlashDraft',
+    body: 'Draw your exact profile on a canvas. Specify dimensions precisely. Matched against our machine library for instant fabrication.',
+    ctaLabel: 'Open FlashDraft',
+    ctaHref: '/studio/draft',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-8 h-8">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v18h18M7 15l3-3 3 2 4-5" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 3.5a1.5 1.5 0 012.121 2.121L11 13.25l-3 .75.75-3 7.75-7.5z" />
+      </svg>
+    ),
+  },
+];
+
+export default function DesignStudioPage() {
+  return (
+    <main className="min-h-screen bg-afs-bg-base">
+      <div className="px-6 pt-14 pb-10 text-center">
+        <p className="font-label text-afs-crimson text-sm tracking-widest uppercase mb-3">Design Studio</p>
+        <h1 className="font-display text-6xl text-afs-chrome-high leading-none mb-4">Design Studio</h1>
+        <p className="font-body text-afs-chrome-mid text-base max-w-xl mx-auto">
+          Three ways to spec your flashing. One destination.
+        </p>
+      </div>
+
+      <div className="max-w-6xl mx-auto px-6 pb-16 grid grid-cols-1 md:grid-cols-3 gap-6">
+        {TABS.map((tab) => (
+          <div
+            key={tab.title}
+            className="bg-afs-bg-raised border border-afs-chrome-dim rounded metal-edge p-6 flex flex-col"
+          >
+            <div className="text-afs-crimson mb-4">{tab.icon}</div>
+            <h2 className="font-heading text-2xl text-afs-chrome-high mb-2">{tab.title}</h2>
+            <p className="font-body text-sm text-afs-chrome-mid mb-6 flex-1">{tab.body}</p>
+            <Link
+              href={tab.ctaHref}
+              className="bg-afs-crimson hover:bg-afs-crimson-hover text-white text-center font-label font-semibold text-sm px-4 py-2.5 rounded transition-colors"
+            >
+              {tab.ctaLabel}
+            </Link>
+          </div>
+        ))}
+      </div>
+    </main>
+  );
+}

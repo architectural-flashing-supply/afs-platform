@@ -10,6 +10,7 @@ const PANEL_LINKS = [
   { label: 'Request a Quote', href: '/quote' },
   { label: 'Configure', href: '/configure' },
   { label: 'Upload Drawing', href: '/upload' },
+  { label: 'Design Studio', href: '/studio' },
   { label: 'Architects', href: '/architects' },
 ];
 
@@ -84,6 +85,9 @@ export default function NavBar() {
           </Link>
           <Link href="/upload" className="font-label text-sm text-white transition-colors">
             Upload Drawing
+          </Link>
+          <Link href="/studio" className="font-label text-sm text-white transition-colors">
+            Design Studio
           </Link>
           <Link href="/architects" className="font-label text-sm text-white transition-colors">
             Architects
