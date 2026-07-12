@@ -38,37 +38,48 @@ const EMPTY_FORM: QuoteFormData = {
   notes:          '',
 };
 
-// Placeholder catalog — swap for real product/material data when the catalog lands.
 const PROFILE_TYPES = [
   'Coping Cap',
-  'Counterflashing',
   'Base Flashing',
-  'Gravel Stop',
-  'Reglet Flashing',
+  'Counter Flashing',
+  'Step Flashing',
   'Drip Edge',
-  'Fascia Cover',
-  'Parapet Cap',
-  'Scupper Box',
-  'Cleat',
+  'Gravel Stop',
+  'Fascia',
+  'Valley Flashing',
+  'Scupper',
+  'Conductor Head',
+  'Downspout',
+  'Expansion Joint Cover',
+  'Reglet',
+  'Window / Door Flashing',
+  'Wall Panel / Cladding',
+  'Standing Seam Roofing Panel',
   'Custom Profile',
 ];
 
 const MATERIALS = [
   'Galvanized Steel',
-  'Stainless Steel',
-  'Painted Steel (Kynar 500)',
-  'Aluminum',
+  'Galvanized Galvalume',
   'Copper',
+  'Lead Coated Copper',
+  'Anodized Aluminum',
+  'Stainless Steel',
   'Zinc',
+  'Kynar 500 (Painted Steel)',
+  'Vintage Steel',
 ];
 
-const GAUGE_OPTIONS: Record<string, string[]> = {
-  'Galvanized Steel':           ['24 ga', '22 ga', '20 ga', '18 ga'],
-  'Stainless Steel':            ['24 ga', '22 ga', '20 ga'],
-  'Painted Steel (Kynar 500)':  ['24 ga', '22 ga'],
-  'Aluminum':                   ['.032"', '.040"', '.050"', '.063"'],
-  'Copper':                     ['16 oz', '20 oz', '24 oz'],
-  'Zinc':                       ['0.7mm', '0.8mm', '1.0mm'],
+const GAUGES: Record<string, string[]> = {
+  'Galvanized Steel':           ['26 ga', '24 ga', '22 ga', '20 ga', '18 ga'],
+  'Galvanized Galvalume':       ['26 ga', '24 ga', '22 ga', '20 ga', '18 ga'],
+  'Copper':                     ['16 oz', '20 oz'],
+  'Lead Coated Copper':         ['16 oz', '18 ga'],
+  'Anodized Aluminum':          ['0.032"', '0.040"', '0.050"', '0.063"', '18 ga'],
+  'Stainless Steel':            ['26 ga', '24 ga', '22 ga', '20 ga', '18 ga'],
+  'Zinc':                       ['0.7mm', '0.8mm', '1.0mm', '1.5mm'],
+  'Kynar 500 (Painted Steel)':  ['26 ga', '24 ga', '22 ga'],
+  'Vintage Steel':              ['26 ga', '24 ga'],
 };
 
 const STEPS: { n: Step; label: string }[] = [
@@ -94,7 +105,7 @@ const inputClass =
   'w-full bg-afs-bg-overlay border border-afs-border rounded px-4 py-3 font-body text-sm text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors disabled:opacity-50 disabled:pointer-events-none';
 
 const selectClass =
-  'w-full bg-[#8090AA] text-white border border-[#9AA8C0] rounded px-4 py-3 font-body text-sm focus:outline-none focus:border-afs-crimson transition-colors disabled:opacity-50 disabled:pointer-events-none';
+  'w-full bg-afs-bg-overlay text-white border border-afs-border rounded px-4 py-3 font-body text-sm focus:outline-none focus:border-afs-crimson transition-colors disabled:opacity-50 disabled:pointer-events-none';
 
 const optionClass = 'bg-afs-bg-overlay text-afs-chrome-high';
 
@@ -104,6 +115,7 @@ export default function QuotePage() {
   const [step, setStep]         = useState<Step>(1);
   const [submitted, setSubmitted] = useState(false);
   const [form, setForm]         = useState<QuoteFormData>(EMPTY_FORM);
+  const [hoveredProfile, setHoveredProfile] = useState<string | null>(null);
 
   const updateField = (field: Exclude<keyof QuoteFormData, 'rush'>, value: string) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -117,7 +129,7 @@ export default function QuotePage() {
     setForm(prev => ({ ...prev, rush: !prev.rush }));
   };
 
-  const gaugeOptions = form.material ? GAUGE_OPTIONS[form.material] ?? [] : [];
+  const gaugeOptions = form.material ? GAUGES[form.material] ?? [] : [];
 
   const step1Valid = form.profileType !== '' && form.material !== '' && form.gauge !== '';
   const step2Valid =
@@ -152,7 +164,7 @@ export default function QuotePage() {
 
   if (submitted) {
     return (
-      <main className="min-h-screen bg-[#2A2D35] py-16 px-6">
+      <main className="min-h-screen bg-afs-bg-base py-16 px-6">
         <div className="max-w-lg mx-auto">
           <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-12 text-center">
             <div className="w-14 h-14 rounded-full border-2 border-afs-success flex items-center justify-center mx-auto mb-6">
@@ -187,7 +199,7 @@ export default function QuotePage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#2A2D35] py-16 px-6">
+    <main className="min-h-screen bg-afs-bg-base py-16 px-6">
       <div className="max-w-3xl mx-auto">
 
         <div className="mb-10 text-center">
@@ -236,7 +248,7 @@ export default function QuotePage() {
           ))}
         </div>
 
-        <div className="bg-[#4A5568] border border-afs-chrome-dim rounded p-8 md:p-10">
+        <div className="bg-afs-bg-overlay border border-afs-chrome-dim rounded p-8 md:p-10">
 
           {step === 1 && (
             <div>
@@ -244,20 +256,22 @@ export default function QuotePage() {
 
               <span className={labelClass}>Profile Type</span>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-8">
-                {PROFILE_TYPES.map(p => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => updateField('profileType', p)}
-                    className={`font-label text-sm px-4 py-3 rounded border text-left transition-colors ${
-                      form.profileType === p
-                        ? 'bg-[#C0001A] text-white border-[#C0001A]'
-                        : 'bg-[#8090AA] text-white border border-[#9AA8C0] hover:bg-[#9AA8C0]'
-                    }`}
-                  >
-                    {p}
-                  </button>
-                ))}
+                {PROFILE_TYPES.map(p => {
+                  const active = form.profileType === p || hoveredProfile === p;
+                  return (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => updateField('profileType', p)}
+                      onMouseEnter={() => setHoveredProfile(p)}
+                      onMouseLeave={() => setHoveredProfile(null)}
+                      className="font-label text-sm px-4 py-3 rounded border text-left transition-colors bg-afs-bg-overlay text-white border-afs-border"
+                      style={active ? { backgroundColor: '#C0001A', color: '#FFFFFF', borderColor: '#C0001A' } : undefined}
+                    >
+                      {p}
+                    </button>
+                  );
+                })}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

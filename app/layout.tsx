@@ -44,8 +44,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${bebasNeue.variable} ${barlowCondensed.variable} ${barlow.variable} ${inter.variable} ${jetbrainsMono.variable}`}>
       <body className="bg-afs-bg-base text-afs-chrome-mid font-body">
         <NavBar />
-        {/* Offset content for fixed left panel (w-60) and fixed top nav (h-16) */}
-        <div className="ml-60 pt-16">
+        {/* Offset content for fixed left panel (w-48) and fixed top nav (h-11) */}
+        <div className="ml-48 pt-11">
           {children}
           <Footer />
         </div>

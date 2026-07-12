@@ -4,30 +4,30 @@
 
 :root {
   --afs-bg-dim:       #1C1F26;
-  --afs-bg-base:      #242830;
-  --afs-bg-raised:    #2E3340;
-  --afs-bg-surface:   #363C4A;
-  --afs-bg-overlay:   #404656;
-  --afs-bg-modal:     rgba(36, 40, 48, 0.92);
+  --afs-bg-base:      #2A2D35;
+  --afs-bg-raised:    #363C4A;
+  --afs-bg-surface:   #404858;
+  --afs-bg-overlay:   #4E5568;
+  --afs-bg-modal:     rgba(42, 45, 53, 0.92);
   --afs-chrome-high:   #FFFFFF;
-  --afs-chrome-mid:    #E2E6EE;
-  --afs-chrome-base:   #B8BFD0;
+  --afs-chrome-mid:    #B8BFD0;
+  --afs-chrome-base:   #9AA0B8;
   --afs-chrome-dim:    #7A8299;
   --afs-chrome-silver: #C8D0E0;
-  --afs-chrome-ghost:  rgba(184, 191, 208, 0.15);
+  --afs-chrome-ghost:  rgba(154, 160, 184, 0.15);
   --afs-crimson:       #C0001A;
   --afs-crimson-hover: #E8001F;
   --afs-crimson-dim:   #7A0010;
   --afs-crimson-ghost: rgba(192, 0, 26, 0.12);
   --afs-crimson-glow:  0 0 20px rgba(192, 0, 26, 0.30);
-  --afs-btn-secondary: #4A5166;
+  --afs-btn-secondary: #4E5568;
   --afs-copper:        #B87333;
   --afs-copper-hover:  #D4956A;
   --afs-copper-ghost:  rgba(184, 115, 51, 0.12);
   --afs-amber:         #F59E0B;
   --afs-amber-dim:     #92650A;
   --afs-amber-ghost:   rgba(245, 158, 11, 0.12);
-  --afs-border:        rgba(180, 190, 210, 0.20);
+  --afs-border:        rgba(78, 85, 104, 0.8);
   --afs-border-strong: rgba(180, 190, 210, 0.35);
   --afs-success:       #1E8A52;
   --afs-warning:       #C48A00;
@@ -35,8 +35,8 @@
 }
 
 html {
-  background-color: #242830;
-  color: #E2E6EE;
+  background-color: #2A2D35;
+  color: #B8BFD0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

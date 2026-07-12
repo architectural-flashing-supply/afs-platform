@@ -22,16 +22,16 @@ export default function NavBar() {
 
   const panelLinkClass = (href: string) => {
     const active = pathname === href;
-    return `font-label text-sm px-4 py-2.5 rounded transition-colors ${
+    return `font-label text-sm text-white px-4 py-2.5 rounded transition-colors ${
       active
-        ? 'text-white bg-afs-bg-surface border-l-2 border-afs-crimson'
-        : 'text-afs-chrome-mid hover:text-white hover:bg-afs-bg-surface'
+        ? 'bg-afs-bg-surface border-l-2 border-afs-crimson'
+        : 'hover:bg-afs-bg-surface'
     }`;
   };
 
   return (
     <>
-      <div className="fixed top-0 left-0 bottom-0 w-60 z-50 bg-afs-bg-dim border-r border-afs-chrome-dim flex flex-col">
+      <div className="fixed top-0 left-0 bottom-0 w-48 z-50 bg-afs-bg-dim border-r border-afs-chrome-dim flex flex-col">
         <div className="flex items-center justify-center px-2 pt-2 pb-3">
           <Link href="/">
             <Image
@@ -70,18 +70,18 @@ export default function NavBar() {
         </div>
       </div>
 
-      <header className="fixed top-0 left-60 right-0 z-40 h-16 bg-afs-bg-raised border-b border-afs-chrome-dim flex items-center px-8">
+      <header className="fixed top-0 left-48 right-0 z-40 h-11 bg-afs-bg-raised border-b border-afs-chrome-dim flex items-center px-8">
         <div className="hidden md:flex items-center gap-8">
-          <Link href="/products" className="font-label text-sm text-afs-chrome-mid hover:text-afs-chrome-high transition-colors">
+          <Link href="/products" className="font-label text-sm text-white transition-colors">
             Products
           </Link>
-          <Link href="/quote" className="font-label text-sm text-afs-chrome-mid hover:text-afs-chrome-high transition-colors">
+          <Link href="/quote" className="font-label text-sm text-white transition-colors">
             Request a Quote
           </Link>
-          <Link href="/upload" className="font-label text-sm text-afs-chrome-mid hover:text-afs-chrome-high transition-colors">
+          <Link href="/upload" className="font-label text-sm text-white transition-colors">
             Upload Drawing
           </Link>
-          <Link href="/architects" className="font-label text-sm text-afs-chrome-mid hover:text-afs-chrome-high transition-colors">
+          <Link href="/architects" className="font-label text-sm text-white transition-colors">
             Architects
           </Link>
         </div>
