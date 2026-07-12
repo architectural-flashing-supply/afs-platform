@@ -32,6 +32,16 @@ import path from 'path';
 import MDBReader from 'mdb-reader';
 import type { Value } from 'mdb-reader';
 import { createClient } from '@supabase/supabase-js';
+import { WebSocket } from 'ws';
+
+// supabase-js always constructs a Realtime client, which requires a global
+// WebSocket implementation. Node 22+ has one natively; this script targets
+// whatever Node the repo's package.json/CI actually pins (20 here), so
+// polyfill it via the `ws` package rather than bumping the whole project's
+// Node version just for this one standalone script.
+if (typeof globalThis.WebSocket === 'undefined') {
+  (globalThis as unknown as { WebSocket: typeof WebSocket }).WebSocket = WebSocket;
+}
 
 loadEnvLocal();
 
