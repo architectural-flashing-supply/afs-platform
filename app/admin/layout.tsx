@@ -6,5 +6,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const supabase = await createClient();
   const admin = await requireAdminUser(supabase);
 
-  return <AdminShell adminName={admin.fullName}>{children}</AdminShell>;
+  const { count } = await supabase
+    .from('machine_jobs')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'pending_approval');
+
+  return (
+    <AdminShell adminName={admin.fullName} pendingMachineJobs={count ?? 0}>
+      {children}
+    </AdminShell>
+  );
 }

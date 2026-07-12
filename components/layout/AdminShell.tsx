@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client';
 interface NavItem {
   label: string;
   href: string;
+  badgeKey?: 'commandCenter';
 }
 
 interface NavSection {
@@ -19,6 +20,7 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: 'Operations',
     items: [
+      { label: 'Command Center', href: '/admin/command-center', badgeKey: 'commandCenter' },
       { label: 'Quote Requests', href: '/admin/quote-requests' },
       { label: 'Production Queue', href: '/admin/orders' },
       { label: 'Consultations', href: '/admin/consultations' },
@@ -48,10 +50,11 @@ const NAV_SECTIONS: NavSection[] = [
 
 interface AdminShellProps {
   adminName: string;
+  pendingMachineJobs?: number;
   children: React.ReactNode;
 }
 
-export default function AdminShell({ adminName, children }: AdminShellProps) {
+export default function AdminShell({ adminName, pendingMachineJobs = 0, children }: AdminShellProps) {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -85,17 +88,23 @@ export default function AdminShell({ adminName, children }: AdminShellProps) {
               <div className="flex flex-col gap-1">
                 {section.items.map((item) => {
                   const active = isActive(item.href);
+                  const badgeCount = item.badgeKey === 'commandCenter' ? pendingMachineJobs : 0;
                   return (
                     <Link
                       key={item.href}
                       href={item.href}
-                      className={`font-label text-sm px-4 py-2.5 rounded-sm border-l-2 transition-colors ${
+                      className={`flex items-center justify-between font-label text-sm px-4 py-2.5 rounded-sm border-l-2 transition-colors ${
                         active
                           ? 'border-afs-crimson bg-afs-bg-surface text-white'
                           : 'border-transparent text-afs-chrome-mid hover:bg-afs-bg-surface hover:text-white'
                       }`}
                     >
                       {item.label}
+                      {badgeCount > 0 && (
+                        <span className="bg-afs-crimson text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                          {badgeCount}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}

@@ -1,0 +1,62 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
+import { logAdminAction } from '@/lib/admin/audit';
+
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { data: adminProfile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    if (adminProfile?.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const raw: unknown = await request.json().catch(() => null);
+    const body = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+    const jobId = typeof body.jobId === 'string' ? body.jobId : null;
+    const reason = typeof body.reason === 'string' ? body.reason.trim() : '';
+    if (!jobId) {
+      return NextResponse.json({ error: 'jobId is required.' }, { status: 400 });
+    }
+    if (!reason) {
+      return NextResponse.json({ error: 'A rejection reason is required.' }, { status: 400 });
+    }
+
+    const { data: job, error: jobError } = await supabase
+      .from('machine_jobs')
+      .select('id, status')
+      .eq('id', jobId)
+      .maybeSingle();
+    if (jobError || !job) {
+      return NextResponse.json({ error: 'Job not found.' }, { status: 404 });
+    }
+
+    const now = new Date().toISOString();
+    const { error: updateError } = await supabase
+      .from('machine_jobs')
+      .update({ status: 'rejected', rejection_reason: reason, updated_at: now })
+      .eq('id', jobId);
+    if (updateError) {
+      return NextResponse.json({ error: 'Could not reject job.' }, { status: 500 });
+    }
+
+    await logAdminAction({
+      adminId: user.id,
+      action: 'reject_machine_job',
+      resourceType: 'machine_job',
+      resourceId: jobId,
+      afterValue: { status: 'rejected', reason },
+    });
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error('[Command Center Reject Error]', error);
+    return NextResponse.json({ error: 'Could not reject job. Please try again.' }, { status: 500 });
+  }
+}

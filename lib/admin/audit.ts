@@ -1,7 +1,8 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 
 export interface LogAdminActionInput {
-  adminId: string;
+  /** null for automated/system actions (e.g. the Machine Bridge service) — no logged-in admin session to attribute the entry to. */
+  adminId: string | null;
   action: string;
   resourceType: string;
   resourceId: string;
