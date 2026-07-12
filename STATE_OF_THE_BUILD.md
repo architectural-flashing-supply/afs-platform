@@ -9,26 +9,28 @@
 ```
 Governance documents:    COMPLETE (12 files)
 Feature specs:           COMPLETE (52 files)
-FORGE queue:             RUNNING — Phase 7 complete, Phase 8 not started
-Application code:        Phases 0–7 built (see BUILD PHASE STATUS). Phase 8 not started.
+FORGE queue:             Phase 8 built (QuickBooks stubbed/deferred, Vercel deploy
+                         prep done). ALL PHASES (0–8) NOW BUILT.
+Application code:        Phases 0–8 built (see BUILD PHASE STATUS).
 Database migration:      supabase/migrations/001_initial_schema.sql (all 35 tables,
                          RLS + FK indexes), 002_seed_afs_data.sql (materials/gauges/
                          product_profiles reference data), 003_pricing_rules_cost_notes.sql
                          (renamed from 002 to preserve numeric order). Not yet applied to
                          a live Supabase project — see supabase/README.md to run.
-API keys in .env.local:  Present locally (not committed). STRIPE_SECRET_KEY is present
-                         as a key but its value is an empty string — Stripe checkout/
-                         webhook calls will fail at runtime until a real key is added.
-                         This no longer blocks the build (see afs-025 below).
+API keys in .env.local:  Present locally (not committed). STRIPE_SECRET_KEY,
+                         STRIPE_WEBHOOK_SECRET, and NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+                         are all confirmed populated with live-mode values (sk_live_/
+                         whsec_/pk_live_ prefixes) as of afs-026 — the empty-Stripe-key
+                         condition logged in afs-025 no longer applies. Stripe checkout/
+                         webhooks are live-key-ready.
 pnpm install:            DONE (afs-025) — stripe, @stripe/stripe-js,
                          @stripe/react-stripe-js, docx all present in
                          pnpm-lock.yaml and node_modules.
-pnpm tsc --noEmit:       PASSES — 0 errors (afs-025, re-verified after every change).
-pnpm run build:          PASSES — exit 0, all 90 routes generated (afs-025). The prior
-                         "tool-approval gate" blocking pnpm/git described in afs-023/024
-                         below did not reproduce this session; those commands ran
-                         directly with no approval issue.
-git commits:             All work through afs-025 is committed (see SESSION LOG).
+pnpm tsc --noEmit:       PASSES — 0 errors (afs-026, re-verified after every change).
+pnpm run build:          PASSES — exit 0, all 92 routes generated (afs-026, +2 routes
+                         for /admin/quickbooks and /api/admin/quickbooks/status vs.
+                         afs-025's 90).
+git commits:             All work through afs-026 is committed (see SESSION LOG).
                          Working tree is clean.
 ```
 
@@ -113,86 +115,68 @@ Phase 7 — AI Layer:                    BUILT — all 5 specs confirmed impleme
                                         server-side only.
   p7-003 AI Installation Advisor:      BUILT — components/ai/AIInstallationAdvisor.tsx,
                                         app/api/architects/installation-advisor/route.ts
-Phase 8 — Integrations + Deploy:       NOT STARTED. No lib/quickbooks or
-                                        app/api/**/quickbooks* files exist yet
-                                        (SPEC_QUICKBOOKS_INTEGRATION.md unbuilt).
-                                        Supabase integration (SPEC_SUPABASE_INTEGRATION.md)
-                                        is functionally done via lib/supabase/{client,
-                                        server,admin}.ts + the 3 migrations, but Vercel
-                                        deploy config has not been touched this session.
+Phase 8 — Integrations + Deploy:       BUILT (afs-026). QuickBooks per
+                                        SPEC_QUICKBOOKS_INTEGRATION.md §1 is a
+                                        CONDITIONAL build, still blocked on client
+                                        confirmation (#52-54) — stubbed, not fully
+                                        implemented: lib/integrations/quickbooks.ts
+                                        (connectQuickBooks/syncInvoice/syncCustomer/
+                                        getConnectionStatus, all return
+                                        { status: 'not_configured' }, zero QBO API
+                                        calls), app/api/admin/quickbooks/status/route.ts
+                                        (GET, admin-only, returns
+                                        { connected: false }), app/admin/quickbooks/page.tsx
+                                        (connection status card, disabled "Connect
+                                        QuickBooks" button with "Coming Soon" badge,
+                                        sync feature preview: invoices/customers/
+                                        payments). Added to AdminShell nav under a new
+                                        "Integrations" section. Supabase integration
+                                        (SPEC_SUPABASE_INTEGRATION.md) is functionally
+                                        done via lib/supabase/{client,server,admin}.ts +
+                                        the 3 migrations. Vercel deploy prep done:
+                                        vercel.json created (framework: nextjs, pnpm
+                                        build/install/dev commands, no cron entries —
+                                        BLUEPRINT.md's commodity-price/pricing-trend
+                                        cron jobs referenced in app/admin/settings/
+                                        page.tsx are UI-only placeholders, no actual
+                                        cron routes exist yet to schedule), .env.example
+                                        already existed with 16 documented keys —
+                                        added the missing METALS_API_KEY (17th key,
+                                        already read by app/admin/settings/page.tsx
+                                        but absent from the example file), next.config.js
+                                        already had the Supabase Storage remotePattern
+                                        — no change needed.
 ```
 
 ---
 
 ## NEXT ACTION
 
-**The tool-approval blocker described in afs-023/afs-024 below (4 straight
-sessions unable to run `pnpm install`/`tsc`/`build`/`git`) did not reproduce
-in afs-025 — every one of those commands ran directly this session with no
-approval prompt encountered.** Whatever caused it in prior sessions appears
-to have been environment-specific to those sessions, not a standing
-restriction. Do not assume it will recur, but if a future session hits it
-again, log it fresh rather than assuming afs-025's account is stale.
+**All 9 build phases (0–8) are now built.** The tool-approval gate logged in
+afs-023/024 has not recurred since afs-025; every pnpm/git command in
+afs-026 ran directly with no approval issue.
 
-1. **Done (afs-025):** `pnpm install` — `stripe`, `@stripe/stripe-js`,
-   `@stripe/react-stripe-js`, `docx` all now present in `pnpm-lock.yaml` and
-   `node_modules`.
-2. **Done (afs-025):** `pnpm tsc --noEmit` — 0 errors.
-3. **Done (afs-025):** `pnpm run build` — now succeeds (exit 0, 90/90 routes
-   generated). Two real bugs were found and fixed to get here, both were
-   genuine defects independent of the tool-approval question:
-   - `app/api/webhooks/stripe/route.ts` and
-     `app/api/checkout/create-intent/route.ts` both called
-     `new Stripe(process.env.STRIPE_SECRET_KEY!)` at module scope. Next's
-     build-time page-data collection imports every route module, so an
-     empty `STRIPE_SECRET_KEY` (confirmed empty in `.env.local` — the key
-     exists but its value is `""`) crashed the entire build, not just
-     Stripe requests. Fixed by lazy-instantiating the client inside a
-     `getStripe()` helper in both files — the SDK is now only constructed
-     when a request actually hits the route, so a missing/empty key no
-     longer blocks `next build`. Runtime Stripe calls will still fail until
-     a real `STRIPE_SECRET_KEY` is supplied — that's expected and correct.
-   - `app/checkout/page.tsx` called `useSearchParams()` in the top-level
-     page component without a `<Suspense>` boundary, which the App Router
-     requires for static export. Split into a `CheckoutPageInner` component
-     wrapped in `<Suspense>` by the default-exported `CheckoutPage`.
-   - Both fixes committed separately: `ad28d1c` ("fix: unblock pnpm run
-     build").
-4. **Done (afs-025):** The six dynamic route pages the user believed were
-   missing — `products/[category]`, `products/[category]/[slug]`,
-   `account/quotes/[id]`, `account/orders/[id]`, `track/[orderId]`,
-   `invite/[token]` — were already fully implemented on disk from an
-   earlier, uncommitted FORGE run (git showed the entire `app/`, `lib/`,
-   `components/` tree as untracked). None were recreated — recreating
-   working, spec-compliant code would have been destructive. Verified each
-   against its governing spec (SPEC_PRODUCT_CATALOG.md, SPEC_ORDER_PORTAL.md,
-   SPEC_TEAM_ACCOUNTS.md) instead, then committed everything with
-   `git add -A` per instruction: `5c0d33f` ("fix: missing dynamic route pages
-   from FORGE run", 194 files). **Working tree is now clean — nothing
-   uncommitted.**
-5. What else was verified this session (afs-024's static audit, re-confirmed
-   afs-025 — no changes needed):
-   - Zero broken `@/` imports; every `page.tsx`/`layout.tsx` has a default
-     export; every `app/api/**/route.ts` exports an HTTP verb handler; zero
-     client components missing `'use client'`; zero default-Tailwind color
-     classes; zero hardcoded hex outside the two documented Stripe
-     `CardElement` exceptions (iframe can't read CSS custom properties).
-   - Zero customer-facing pricing: `/quote`, `/configure`, `/upload`,
-     `/products/**` never render a price. `account/quotes/[id]` is the
-     correct first-price page (only once a `quotes` row exists, i.e. AFS has
-     issued a formal quote) — the `quote_requests`-only branch of that same
-     page (before AFS prices it) has no price column, matching
-     SPEC_QUOTE_BUILDER.md §4. `account/orders/[id]` only renders prices
-     already committed to real `orders`/`order_line_items` rows.
-6. **Remaining before Phase 8:** `STRIPE_SECRET_KEY` in `.env.local` is
-   present but empty — checkout and the Stripe webhook will 500 at runtime
-   until a real test/live key is added. Not a code defect; needs a human to
-   supply the key.
-7. Phase 8 — Integrations + Deploy is next and NOT STARTED: QuickBooks
-   integration (SPEC_QUICKBOOKS_INTEGRATION.md) has no code yet; Vercel
-   deploy config untouched.
-8. Confirm chat_conversations retention policy (#65) before relying on
+1. **Done (afs-026):** Phase 8 — QuickBooks stub + Vercel deploy prep.
+   `lib/integrations/quickbooks.ts`, `app/api/admin/quickbooks/status/route.ts`,
+   `app/admin/quickbooks/page.tsx`, AdminShell nav entry, `vercel.json`,
+   `.env.example` METALS_API_KEY addition. `pnpm run build` (exit 0, 92/92
+   routes) and `pnpm tsc --noEmit` (0 errors) both pass. Committed.
+2. **Remaining — not a code task:** `supabase/migrations/*` have not been
+   applied to a live Supabase project yet (see `supabase/README.md`).
+3. Confirm chat_conversations retention policy (#65) before relying on
    chat history persistence in production.
+4. If/when the client confirms QuickBooks scope (checklist #52-54), build
+   out real OAuth + sync per SPEC_QUICKBOOKS_INTEGRATION.md §3-5 — the stub
+   module's function signatures already match what that implementation
+   will fill in.
+5. DATA BLOCKERS table below is the remaining pre-launch punch list —
+   nothing left is a FORGE code task; all remaining items need data/assets
+   from the client.
+
+Historical detail on the afs-023 → afs-025 build-blocker investigation and
+the two real build bugs fixed in afs-025 (eager `new Stripe(...)` at module
+scope; missing `<Suspense>` around `useSearchParams()` in
+`app/checkout/page.tsx`) is preserved in SESSION_STATE.md's SESSION LOG.
 
 ---
 
