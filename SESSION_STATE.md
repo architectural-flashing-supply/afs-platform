@@ -12,10 +12,24 @@
 **Build status:** ALL 9 ORIGINAL PHASES (0–8) BUILT, the Design Studio
 (afs-030, data live as of afs-031), the Machine Bridge + Command
 Center (afs-032, migration NOT yet applied — see below), the 3D
-Profile Configurator (afs-033), and the FlashDraft UX improvements
-(afs-034). `pnpm tsc --noEmit` passes (0 errors) and `pnpm run build`
-succeeds (exit 0, 111/111 routes) as of afs-034. Working tree is clean;
-all afs-website work through afs-034 is committed and pushed to origin/main.
+Profile Configurator (afs-033), the FlashDraft UX improvements
+(afs-034), and two new design tokens (afs-035). `pnpm tsc --noEmit`
+passes (0 errors) and `pnpm run build` succeeds (exit 0, 106/106 routes)
+as of afs-035. Working tree is clean; all afs-website work through
+afs-035 is committed and pushed to origin/main.
+**Design tokens (afs-035):** Added `afs-accent-green` (`#00C853`) and
+`afs-accent-purple` (`#4A0072`) to `tailwind.config.js` and
+DESIGN_TOKENS.md. These are new, distinct token names — NOT a redefinition
+of the pre-existing `afs-success` (`#1E8A52`, used across 22 files for real
+semantic success states), which was flagged as a naming collision and
+deliberately kept separate per explicit instruction. Replaced the one
+non-canvas hardcoded hex this unblocked: `app/studio/draft/page.tsx`'s
+Bend Radius input border (previously an inline `style={{ borderColor:
+'#00C853' }}`, now `className="border-afs-accent-green"`). The
+`CANVAS_COLORS` object in the same file (Canvas 2D fillStyle/strokeStyle,
+including its own `#00C853`/`#4A0072` entries) is unchanged — it's the
+documented pre-existing exception for canvas-drawing code that can't
+consume Tailwind tokens.
 **FlashDraft UX (afs-034):** `app/studio/draft/page.tsx` +
 `components/studio/ProfileViewer3D.tsx` — click-and-drag segment drawing
 (Pointer Events, mouse + touch) with a live floating measurement label,

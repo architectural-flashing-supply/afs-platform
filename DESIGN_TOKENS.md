@@ -87,6 +87,10 @@ Derived from the four tonal zones visible in the logo:
   --afs-error:         #C0001A;
   --afs-info:          #3478B0;
 
+  /* ACCENT — non-semantic, feature-specific accents (e.g. FlashDraft radius handles) */
+  --afs-accent-green:  #00C853;
+  --afs-accent-purple: #4A0072;
+
   /* METAL EDGE GRADIENTS */
   --afs-edge-chrome: linear-gradient(
     90deg,
@@ -170,6 +174,10 @@ const config: Config = {
           'warning': 'var(--afs-warning)',
           'error':   '#C0001A',
           'info':    'var(--afs-info)',
+
+          // Accent — non-semantic, feature-specific
+          'accent-green':  'var(--afs-accent-green)',
+          'accent-purple': 'var(--afs-accent-purple)',
         }
       },
       fontFamily: {

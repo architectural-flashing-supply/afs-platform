@@ -1204,8 +1204,7 @@ export default function FlashDraftPage() {
                 // tokens (see CANVAS_COLORS above) — this input mirrors that
                 // exact bright-green so the panel field and the canvas handle
                 // read as the same control.
-                style={{ borderColor: '#00C853', borderWidth: 2 }}
-                className="w-full bg-afs-bg-overlay rounded px-3 py-2 font-data text-sm text-afs-chrome-high focus:outline-none transition-colors"
+                className="w-full bg-afs-bg-overlay border-afs-accent-green border-2 rounded px-3 py-2 font-data text-sm text-afs-chrome-high focus:outline-none transition-colors"
               />
             </div>
           )}

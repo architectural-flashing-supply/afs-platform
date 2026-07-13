@@ -32,6 +32,8 @@ module.exports = {
           'success':       '#1E8A52',
           'warning':       '#C48A00',
           'info':          '#3478B0',
+          'accent-green':  '#00C853',
+          'accent-purple': '#4A0072',
         }
       },
       fontFamily: {

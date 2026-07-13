@@ -35,16 +35,32 @@ API keys in .env.local:  Present locally (not committed). STRIPE_SECRET_KEY,
 pnpm install:            DONE (afs-025) — stripe, @stripe/stripe-js,
                          @stripe/react-stripe-js, docx all present in
                          pnpm-lock.yaml and node_modules.
-pnpm tsc --noEmit:       PASSES — 0 errors (afs-034, re-verified after every change).
-pnpm run build:          PASSES — exit 0, 111 routes generated (afs-034 changed no
-                         routes — only app/studio/draft/page.tsx and
-                         components/studio/ProfileViewer3D.tsx were edited).
-git commits:             All afs-website work through afs-034 is committed and pushed
+pnpm tsc --noEmit:       PASSES — 0 errors (afs-035, re-verified after every change).
+pnpm run build:          PASSES — exit 0, 106 routes generated (afs-035 changed no
+                         routes — only tailwind.config.js, DESIGN_TOKENS.md, and
+                         app/studio/draft/page.tsx were edited).
+git commits:             All afs-website work through afs-035 is committed and pushed
                          to origin/main. Working tree is clean. A SEPARATE standalone
                          project, C:\Users\manag\Documents\afs-machine-bridge, has its
                          own independent git repo (not part of this repo, not pushed
                          anywhere — no remote was given) — see Machine Bridge status
                          below.
+Design tokens            NEW (afs-035) — added afs-accent-green (#00C853) and
+(afs-035):               afs-accent-purple (#4A0072) to tailwind.config.js and
+                         DESIGN_TOKENS.md as new, distinct token names. Note:
+                         afs-success (#1E8A52) already existed as the platform's
+                         semantic success color across 22 files — the new green
+                         was deliberately NOT merged into that name (flagged as a
+                         naming collision, resolved per explicit instruction to
+                         keep them separate). Replaced the one non-canvas hardcoded
+                         hex this unblocked: the Bend Radius input border in
+                         app/studio/draft/page.tsx (afs-034's inline
+                         style={{ borderColor: '#00C853' }} → className
+                         "border-afs-accent-green"). The CANVAS_COLORS object in
+                         that same file (canvas 2D fillStyle/strokeStyle, including
+                         its own #00C853/#4A0072 entries) is untouched — documented
+                         pre-existing exception, canvas drawing can't consume
+                         Tailwind tokens.
 FlashDraft UX            NEW (afs-034) — five changes to app/studio/draft/page.tsx
 (afs-034):               and components/studio/ProfileViewer3D.tsx: (1) click-to-
                          place drawing replaced with click-and-drag (Pointer Events,
