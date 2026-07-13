@@ -2,8 +2,13 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type CommandCenterTab = 'pending' | 'sent' | 'completed';
 
-const STATUSES_BY_TAB: Record<CommandCenterTab, string[]> = {
-  pending: ['pending_approval'],
+// 'pending' is intentionally absent here — the Pending Approval tab is
+// sourced directly from quote_requests (status = 'submitted'), not
+// machine_jobs, since nothing creates a machine_jobs row until an admin
+// approves a quote request. See lib/data/pending-quote-requests.ts.
+type MachineJobTab = 'sent' | 'completed';
+
+const STATUSES_BY_TAB: Record<MachineJobTab, string[]> = {
   sent: ['approved_for_machine', 'staged_for_review', 'sent_to_machine'],
   completed: ['completed'],
 };
@@ -58,7 +63,7 @@ interface MachineJobSource {
   created_at: string;
 }
 
-export async function getMachineJobs(supabase: SupabaseClient, tab: CommandCenterTab): Promise<MachineJobRow[]> {
+export async function getMachineJobs(supabase: SupabaseClient, tab: MachineJobTab): Promise<MachineJobRow[]> {
   const { data: jobs, error } = await supabase
     .from('machine_jobs')
     .select(
@@ -161,14 +166,21 @@ export async function getMachineJobs(supabase: SupabaseClient, tab: CommandCente
 }
 
 export async function getMachineJobCounts(supabase: SupabaseClient): Promise<Record<CommandCenterTab, number>> {
-  const entries = await Promise.all(
-    (Object.keys(STATUSES_BY_TAB) as CommandCenterTab[]).map(async (tab) => {
-      const { count } = await supabase
-        .from('machine_jobs')
-        .select('id', { count: 'exact', head: true })
-        .in('status', STATUSES_BY_TAB[tab]);
-      return [tab, count ?? 0] as const;
-    })
-  );
-  return Object.fromEntries(entries) as Record<CommandCenterTab, number>;
+  const [pendingResult, machineJobEntries] = await Promise.all([
+    supabase.from('quote_requests').select('id', { count: 'exact', head: true }).eq('status', 'submitted'),
+    Promise.all(
+      (Object.keys(STATUSES_BY_TAB) as MachineJobTab[]).map(async (tab) => {
+        const { count } = await supabase
+          .from('machine_jobs')
+          .select('id', { count: 'exact', head: true })
+          .in('status', STATUSES_BY_TAB[tab]);
+        return [tab, count ?? 0] as const;
+      })
+    ),
+  ]);
+
+  return {
+    pending: pendingResult.count ?? 0,
+    ...Object.fromEntries(machineJobEntries),
+  } as Record<CommandCenterTab, number>;
 }

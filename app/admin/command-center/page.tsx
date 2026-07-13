@@ -2,8 +2,10 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { requireAdminUser } from '@/lib/admin/auth';
 import { getMachineJobs, getMachineJobCounts, type CommandCenterTab } from '@/lib/data/machine-jobs';
+import { getPendingQuoteRequests } from '@/lib/data/pending-quote-requests';
 import EmptyState from '@/components/ui/EmptyState';
 import CommandCenterJobCard from '@/components/admin/CommandCenterJobCard';
+import PendingQuoteRequestCard from '@/components/admin/PendingQuoteRequestCard';
 import MachineBridgeStatusDot from '@/components/admin/MachineBridgeStatusDot';
 
 const TABS: { value: CommandCenterTab; label: string }[] = [
@@ -21,7 +23,17 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
   await requireAdminUser(supabase);
 
   const activeTab: CommandCenterTab = isTab(searchParams.tab) ? searchParams.tab : 'pending';
-  const [jobs, counts] = await Promise.all([getMachineJobs(supabase, activeTab), getMachineJobCounts(supabase)]);
+
+  // Pending Approval reads from quote_requests directly — nothing creates a
+  // machine_jobs row until this page's own "Approve & Send to Machine"
+  // action does. Sent/Completed continue to read real machine_jobs rows.
+  const [pendingRequests, jobs, counts] = await Promise.all([
+    activeTab === 'pending' ? getPendingQuoteRequests(supabase) : Promise.resolve([]),
+    activeTab === 'sent' || activeTab === 'completed' ? getMachineJobs(supabase, activeTab) : Promise.resolve([]),
+    getMachineJobCounts(supabase),
+  ]);
+
+  const isEmpty = activeTab === 'pending' ? pendingRequests.length === 0 : jobs.length === 0;
 
   return (
     <div>
@@ -56,17 +68,23 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
         })}
       </div>
 
-      {jobs.length === 0 ? (
+      {isEmpty ? (
         <EmptyState
           title="Nothing here."
           description={
             activeTab === 'pending'
-              ? 'No jobs are waiting for approval right now.'
+              ? 'No quote requests are waiting for approval right now.'
               : activeTab === 'sent'
                 ? 'No jobs are currently approved, staged, or sent to the machine.'
                 : 'No jobs have been completed yet.'
           }
         />
+      ) : activeTab === 'pending' ? (
+        <div className="flex flex-col gap-4">
+          {pendingRequests.map((request) => (
+            <PendingQuoteRequestCard key={request.id} request={request} />
+          ))}
+        </div>
       ) : (
         <div className="flex flex-col gap-4">
           {jobs.map((job) => (

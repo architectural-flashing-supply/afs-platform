@@ -6,10 +6,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const supabase = await createClient();
   const admin = await requireAdminUser(supabase);
 
+  // The Command Center's Pending Approval tab reads quote_requests directly
+  // (nothing creates a machine_jobs row until an admin approves one there),
+  // so the nav badge counts the same thing the tab actually shows.
   const { count } = await supabase
-    .from('machine_jobs')
+    .from('quote_requests')
     .select('id', { count: 'exact', head: true })
-    .eq('status', 'pending_approval');
+    .eq('status', 'submitted');
 
   return (
     <AdminShell adminName={admin.fullName} pendingMachineJobs={count ?? 0}>
