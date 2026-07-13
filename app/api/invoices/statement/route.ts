@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import { getInvoiceRows, INVOICE_STATUS_LABEL } from '@/lib/data/invoices';
 import { buildSimplePdf, type SimplePdfLine } from '@/lib/utils/simple-pdf';
 
+export const dynamic = 'force-dynamic';
+
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
 function formatDate(iso: string): string {
