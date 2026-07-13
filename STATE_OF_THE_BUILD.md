@@ -35,15 +35,54 @@ API keys in .env.local:  Present locally (not committed). STRIPE_SECRET_KEY,
 pnpm install:            DONE (afs-025) — stripe, @stripe/stripe-js,
                          @stripe/react-stripe-js, docx all present in
                          pnpm-lock.yaml and node_modules.
-pnpm tsc --noEmit:       PASSES — 0 errors (afs-033, re-verified after every change).
-pnpm run build:          PASSES — exit 0, 111 routes generated (afs-033 adds one new
-                         page route: /studio/profile-viewer/[profileId]).
-git commits:             All afs-website work through afs-033 is committed and pushed
+pnpm tsc --noEmit:       PASSES — 0 errors (afs-034, re-verified after every change).
+pnpm run build:          PASSES — exit 0, 111 routes generated (afs-034 changed no
+                         routes — only app/studio/draft/page.tsx and
+                         components/studio/ProfileViewer3D.tsx were edited).
+git commits:             All afs-website work through afs-034 is committed and pushed
                          to origin/main. Working tree is clean. A SEPARATE standalone
                          project, C:\Users\manag\Documents\afs-machine-bridge, has its
                          own independent git repo (not part of this repo, not pushed
                          anywhere — no remote was given) — see Machine Bridge status
                          below.
+FlashDraft UX            NEW (afs-034) — five changes to app/studio/draft/page.tsx
+(afs-034):               and components/studio/ProfileViewer3D.tsx: (1) click-to-
+                         place drawing replaced with click-and-drag (Pointer Events,
+                         mouse + touch) — a live dashed segment and a floating
+                         HTML measurement label follow the cursor while dragging,
+                         snapping to 15°/1/8" when those toggles are on; the first
+                         point of a blank canvas is still placed by a single
+                         click/tap since there's no prior point to drag from;
+                         (2) the single Length (ft) field is now separate Feet +
+                         Inches inputs (inches capped at 11.875, step 0.125),
+                         combined into decimal feet at submission time;
+                         (3) the 3D viewer's solid-black background is now a
+                         renderer.setClearColor('#4A4A4A') plus a large inside-
+                         facing (THREE.BackSide) sphere dome in '#3A3A3A';
+                         (4) the 3D viewer's floating CSS2D leg-length and blank-
+                         width labels now show inches only — the millimeter line
+                         was removed from those labels (panel/API mm values are
+                         unaffected); (5) each interior bend point gets a
+                         draggable bright-green (#00C853) radius handle on the 2D
+                         canvas — drag to resize, live "R: 0.5""-style label in
+                         deep purple (#4A0072, JetBrains Mono), red label +
+                         native-tooltip warning when radius < thickness×1.5 on
+                         18ga-or-thicker gauges — mirrored by a BEND RADIUS (in)
+                         field in the left panel when a bend point is selected.
+                         Default radius by material family: 0.5" steel/
+                         galvanized/stainless, 0.75" copper/zinc, 0.375"
+                         aluminum. The 3D mesh now runs the polyline through a
+                         circular-fillet function (tangent-point + arc-sample,
+                         clamped to each leg's length) before extruding, so
+                         bends render as curved surfaces instead of sharp
+                         miters, and radii are included in the quote-request
+                         payload as bendRadiiIn per item. The bright green /
+                         deep purple hex values are literal, not afs-* tokens —
+                         same documented exception as the pre-existing
+                         CANVAS_COLORS object, extended here to the one JSX
+                         input (BEND RADIUS) that needs to match the canvas
+                         handle's exact color; everything else in the panel
+                         still uses afs-* tokens.
 3D Profile Configurator  NEW (afs-033) — components/studio/ProfileViewer3D.tsx, a
 (afs-033):               Three.js viewer (ExtrudeGeometry + CSS2DRenderer dimension
                          labels) integrated into FlashDraft (2D/3D toggle), the
@@ -575,10 +614,23 @@ service plus an admin approval dashboard — but its migration
 (005_machine_jobs.sql) is NOT yet applied to the live project. The 3D
 Profile Configurator (afs-033) is built** — a Three.js viewer integrated
 into FlashDraft, the upload/AI-results page, and a new standalone shareable
-route. The tool-approval gate logged in afs-023/024 has not recurred since
-afs-025.
+route. **FlashDraft's drawing UX (afs-034) is built** — click-and-drag
+segment drawing, feet/inches length fields, a neutral 3D background, inches-
+only 3D annotations, and draggable per-bend radius handles feeding curved
+3D geometry. The tool-approval gate logged in afs-023/024 has not recurred
+since afs-025.
 
-1. **Done (afs-033 — this build):** 3D Profile Configurator. See BUILD
+1. **Done (afs-034 — this build):** FlashDraft UX — five changes across
+   `app/studio/draft/page.tsx` and `components/studio/ProfileViewer3D.tsx`.
+   See BUILD PHASE STATUS above for the full breakdown (drag-to-draw via
+   Pointer Events, feet/inches length inputs, the '#4A4A4A' clear-color +
+   BackSide dome background, inches-only CSS2D annotations, and the
+   click-and-drag bend-radius handle with its fillet-arc 3D geometry and
+   gauge-thickness warning). No new routes, no schema changes — `bendRadiiIn`
+   rides inside the existing `quote_requests.line_items` jsonb column, which
+   already accepts arbitrary per-item fields. `pnpm tsc --noEmit` (0 errors),
+   `pnpm run build` (111/111 routes, unchanged route count).
+2. **Done (afs-033):** 3D Profile Configurator. See BUILD
    PHASE STATUS above for full detail. Two premise gaps found and resolved
    without breaking the build: (a) the upload page's "matched machine
    profile" doesn't exist in TakeoffItem's actual shape — built the 3D
@@ -589,7 +641,7 @@ afs-025.
    service-role client and enforces public/admin-only access in
    application code. `pnpm tsc --noEmit` (0 errors), `pnpm run build`
    (111/111 routes).
-2. **Done (afs-032):** Machine Bridge + Command Center. See
+3. **Done (afs-032):** Machine Bridge + Command Center. See
    BUILD PHASE STATUS above for full detail. Two investigations before
    writing code: the `.ds1` binary format didn't match the task's assumed
    layout (real header is Pascal-length-prefixed strings, not
@@ -603,7 +655,7 @@ afs-025.
    actually read/write real data. The standalone `afs-machine-bridge`
    project has its own separate git repo (not pushed anywhere — no remote
    given).
-3. **Done (afs-031):** Applied `004_machine_profiles.sql` to
+4. **Done (afs-031):** Applied `004_machine_profiles.sql` to
    the live Supabase project (user ran it via the SQL Editor). Ran
    `pnpm run import:machine-profiles` — first attempt failed
    ("Node.js detected but native WebSocket not found": supabase-js always
@@ -618,13 +670,13 @@ afs-025.
    expose and **not run** — user confirmed keeping the 70/841 split.
    `pnpm tsc --noEmit` (0 errors) and `pnpm run build` (98/98 routes) both
    pass.
-4. **Done (afs-030):** Design Studio built. See BUILD PHASE STATUS above
+5. **Done (afs-030):** Design Studio built. See BUILD PHASE STATUS above
    for full detail: `app/studio` + `app/studio/draft` (FlashDraft canvas),
    `app/api/studio/match-profile`, `lib/integrations/pathfinder-edge.ts`
    (stub — no real PathfinderEdge API was discoverable) + its 3 admin
    routes, NavBar entry. Re-added `afs-ink-900`/`afs-ink-700` tokens (only
    these two) for the FlashDraft canvas's dimension labels.
-5. **Done (afs-029):** Scoped fix on top of the reverted dark theme —
+6. **Done (afs-029):** Scoped fix on top of the reverted dark theme —
    `app/(public)/products/page.tsx`, `app/configure/page.tsx`,
    `app/quote/page.tsx` each got an inline `#B8BEC8` background on their
    main content div and `text-afs-crimson font-bold` / `text-black
@@ -632,35 +684,40 @@ afs-025.
    ("do not touch any other file/token"). Not committed to governance docs
    at the time per that instruction's own scope — logged here now for
    completeness.
-6. **Done (afs-028):** `git revert b3512f1` — reverted the afs-027 site-wide
+7. **Done (afs-028):** `git revert b3512f1` — reverted the afs-027 site-wide
    light rebrand back to the original dark gunmetal theme per explicit
    instruction. `pnpm tsc --noEmit` and `pnpm run build` both re-verified
    passing after the revert.
-7. **Remaining — not a code task:** `supabase/migrations/001-003` have not
+8. **Remaining — not a code task:** `supabase/migrations/001-003` have not
    been applied to a live Supabase project yet; `005_machine_jobs.sql` is
-   also pending (see item 2 above). 004 has been applied (afs-031).
-8. Confirm chat_conversations retention policy (#65) before relying on
+   also pending (see item 3 above). 004 has been applied (afs-031).
+9. Confirm chat_conversations retention policy (#65) before relying on
    chat history persistence in production.
-9. If/when the client confirms QuickBooks scope (checklist #52-54) or a
-   real PathfinderEdge API is documented, build the real integrations out
-   against the existing stub function signatures in `lib/integrations/
-   quickbooks.ts` and `lib/integrations/pathfinder-edge.ts`.
-10. The 841 private profiles are real customer/contractor/hospital/project
+10. If/when the client confirms QuickBooks scope (checklist #52-54) or a
+    real PathfinderEdge API is documented, build the real integrations out
+    against the existing stub function signatures in `lib/integrations/
+    quickbooks.ts` and `lib/integrations/pathfinder-edge.ts`.
+11. The 841 private profiles are real customer/contractor/hospital/project
     job history, now live in the production database (RLS-protected,
     admin-only read). If specific ones are ever needed publicly, a human
     should review and flip them individually — do not bulk-flip
     `is_public`, per the explicit decision in afs-031.
-11. Once `005_machine_jobs.sql` is applied, the Command Center's "Pending
+12. Once `005_machine_jobs.sql` is applied, the Command Center's "Pending
     Approval" tab will still be empty — nothing currently creates
     `machine_jobs` rows from real customer submissions (see afs-032 note
     in BUILD PHASE STATUS). That population step needs to be built
     separately.
-12. Before removing the Machine Bridge's mandatory human-review gate
+13. Before removing the Machine Bridge's mandatory human-review gate
     (i.e. before letting it write directly into `THALMANN_DS2801_PATH`),
     someone with real Thalmann DS2801 format knowledge needs to confirm a
     generated `.ds1` file actually loads correctly — see
     afs-machine-bridge/README.md and afs-machine-bridge/src/ds1-generator.js.
-13. DATA BLOCKERS table below is the remaining pre-launch punch list —
+14. The FlashDraft bend-radius fillet arc drawn on the 2D canvas is a visual
+    approximation (centered on the vertex, not offset to true tangent
+    points) — good enough to communicate "this corner has radius X" but not
+    millimeter-precise CAD geometry. The 3D viewer's fillet (tangent-point +
+    arc-sample) is the more accurate of the two.
+15. DATA BLOCKERS table below is the remaining pre-launch punch list —
     nothing left is a FORGE code task; all remaining items need data/assets
     from the client.
 

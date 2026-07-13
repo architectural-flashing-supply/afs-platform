@@ -160,6 +160,70 @@ function bendAngleLabel(bend: ProfileBend): string {
   return `${Math.round(bend.angle)}°`;
 }
 
+/**
+ * Replaces each interior vertex of a polyline with a circular fillet of the
+ * given radius (tangent to both adjacent legs), sampled into line segments —
+ * so the extruded ribbon shows an actual curved bend instead of a sharp miter.
+ * Radii are indexed the same as `bends` (one entry per interior vertex).
+ */
+function filletPolyline(points: Point2D[], radiiMm: number[], segmentsPerArc = 8): Point2D[] {
+  if (points.length < 3) return points;
+  const result: Point2D[] = [points[0]];
+  for (let i = 1; i < points.length - 1; i++) {
+    const prev = points[i - 1];
+    const curr = points[i];
+    const next = points[i + 1];
+    const radius = radiiMm[i - 1] ?? 0;
+
+    if (radius <= 0) {
+      result.push(curr);
+      continue;
+    }
+
+    const v1 = { x: prev.x - curr.x, y: prev.y - curr.y };
+    const v2 = { x: next.x - curr.x, y: next.y - curr.y };
+    const len1 = Math.hypot(v1.x, v1.y) || 1;
+    const len2 = Math.hypot(v2.x, v2.y) || 1;
+    const u1 = { x: v1.x / len1, y: v1.y / len1 };
+    const u2 = { x: v2.x / len2, y: v2.y / len2 };
+    const dot = Math.max(-1, Math.min(1, u1.x * u2.x + u1.y * u2.y));
+    const theta = Math.acos(dot);
+    if (theta < 1e-3 || theta > Math.PI - 1e-3) {
+      // Nearly straight or folded fully back on itself — no stable fillet.
+      result.push(curr);
+      continue;
+    }
+
+    const tanDist = Math.min(radius / Math.tan(theta / 2), len1 * 0.49, len2 * 0.49);
+    const actualRadius = tanDist * Math.tan(theta / 2);
+
+    const p1 = { x: curr.x + u1.x * tanDist, y: curr.y + u1.y * tanDist };
+    const p2 = { x: curr.x + u2.x * tanDist, y: curr.y + u2.y * tanDist };
+
+    const bisector = { x: u1.x + u2.x, y: u1.y + u2.y };
+    const bisLen = Math.hypot(bisector.x, bisector.y) || 1;
+    const bisUnit = { x: bisector.x / bisLen, y: bisector.y / bisLen };
+    const centerDist = actualRadius / Math.sin(theta / 2);
+    const center = { x: curr.x + bisUnit.x * centerDist, y: curr.y + bisUnit.y * centerDist };
+
+    const a1 = Math.atan2(p1.y - center.y, p1.x - center.x);
+    const a2 = Math.atan2(p2.y - center.y, p2.x - center.x);
+    let delta = a2 - a1;
+    while (delta > Math.PI) delta -= Math.PI * 2;
+    while (delta < -Math.PI) delta += Math.PI * 2;
+
+    result.push(p1);
+    for (let s = 1; s < segmentsPerArc; s++) {
+      const t = s / segmentsPerArc;
+      const ang = a1 + delta * t;
+      result.push({ x: center.x + Math.cos(ang) * actualRadius, y: center.y + Math.sin(ang) * actualRadius });
+    }
+    result.push(p2);
+  }
+  result.push(points[points.length - 1]);
+  return result;
+}
+
 export default function ProfileViewer3D({
   bends,
   blankWidth,
@@ -202,8 +266,16 @@ export default function ProfileViewer3D({
     if (!container) return;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color('#1A1A1E');
     sceneRef.current = scene;
+
+    // Neutral gradient dome (mid-gray clear color + a slightly darker inside-
+    // facing sphere) gives contrast for both light metals (aluminum,
+    // stainless) and dark ones (painted steel, vintage) — a solid black
+    // background washed out the light metals and made the dark ones vanish.
+    const domeGeometry = new THREE.SphereGeometry(2000, 32, 16);
+    const domeMaterial = new THREE.MeshBasicMaterial({ color: '#3A3A3A', side: THREE.BackSide });
+    const dome = new THREE.Mesh(domeGeometry, domeMaterial);
+    scene.add(dome);
 
     const width = container.clientWidth || 600;
     const height = container.clientHeight || 500;
@@ -215,6 +287,7 @@ export default function ProfileViewer3D({
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setClearColor('#4A4A4A', 1);
     renderer.shadowMap.enabled = true;
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
@@ -292,6 +365,8 @@ export default function ProfileViewer3D({
       resizeObserver.disconnect();
       controls.dispose();
       renderer.dispose();
+      domeGeometry.dispose();
+      domeMaterial.dispose();
       container.removeChild(renderer.domElement);
       container.removeChild(labelRenderer.domElement);
     };
@@ -322,7 +397,9 @@ export default function ProfileViewer3D({
 
     const points = buildProfilePoints(bends);
     if (points.length >= 2) {
-      const outline = buildRibbonOutline(points, thicknessMm || 0.6);
+      const radiiMm = bends.map((b) => b.radius || 0);
+      const filletedPoints = filletPolyline(points, radiiMm);
+      const outline = buildRibbonOutline(filletedPoints, thicknessMm || 0.6);
       const shape = new THREE.Shape();
       outline.forEach((p, i) => {
         if (i === 0) shape.moveTo(p.x, p.y);
@@ -383,7 +460,7 @@ export default function ProfileViewer3D({
           div.className =
             'font-data text-[11px] text-afs-ink-900 bg-white px-0.5 py-0.5 border border-afs-chrome-dim rounded-sm text-center leading-tight';
           const legLenMm = Math.hypot(dx, dy);
-          div.innerHTML = `${formatInches(mmToIn(legLenMm))}<br/><span style="font-size:9px;opacity:0.7">${legLenMm.toFixed(0)}mm</span>`;
+          div.textContent = formatInches(mmToIn(legLenMm));
           const label = new CSS2DObject(div);
           label.position.set(midX + nx * DIM_LINE_OFFSET_MM, midY + ny * DIM_LINE_OFFSET_MM, 0);
           labelGroup.add(label);
@@ -403,7 +480,7 @@ export default function ProfileViewer3D({
         const blankDiv = document.createElement('div');
         blankDiv.className =
           'font-data text-[11px] text-afs-ink-900 bg-white px-0.5 py-0.5 border border-afs-chrome-dim rounded-sm text-center';
-        blankDiv.innerHTML = `Blank Width: ${formatInches(mmToIn(blankWidth))} <span style="opacity:0.7">(${blankWidth.toFixed(0)}mm)</span>`;
+        blankDiv.textContent = `Blank Width: ${formatInches(mmToIn(blankWidth))}`;
         const blankLabel = new CSS2DObject(blankDiv);
         const minY = Math.min(...points.map((p) => p.y)) + shiftY;
         blankLabel.position.set(0, minY - DIM_LINE_OFFSET_MM * 2, EXTRUDE_DEPTH_MM / 2);
