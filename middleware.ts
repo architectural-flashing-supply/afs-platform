@@ -1,5 +1,21 @@
 import { createServerClient } from '@supabase/ssr';
+import { createClient as createServiceRoleClient } from '@supabase/supabase-js';
 import { NextResponse, type NextRequest } from 'next/server';
+
+// Reads role via the service-role client (bypasses RLS) rather than the
+// request-scoped session client — the session client's `profiles` read
+// depends on RLS/cookie propagation timing in the Edge runtime, which is
+// exactly what let non-admins (and even admins) get silently misrouted.
+async function getUserRole(userId: string): Promise<string | null> {
+  const admin = createServiceRoleClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  );
+  const { data, error } = await admin.from('profiles').select('role').eq('id', userId).single();
+  if (error || !data) return null;
+  return data.role as string;
+}
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -36,38 +52,35 @@ export async function middleware(request: NextRequest) {
   const isAuthEntryRoute = pathname === '/login' || pathname === '/register';
 
   // Unauthenticated users cannot reach protected routes.
-  if (!user && (isAccountRoute || isCheckoutRoute || isAdminRoute)) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/login';
-    url.searchParams.set('redirect', pathname);
-    return NextResponse.redirect(url);
-  }
-
-  // Admin routes require the admin role, verified server-side on every request.
-  if (user && isAdminRoute) {
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    if (profileError) {
+  if (!user) {
+    if (isAccountRoute || isCheckoutRoute || isAdminRoute) {
       const url = request.nextUrl.clone();
       url.pathname = '/login';
+      url.searchParams.set('redirect', pathname);
       return NextResponse.redirect(url);
     }
+    return supabaseResponse;
+  }
 
-    if (profile.role !== 'admin') {
+  // From here on, user is authenticated. Role is only ever needed for the
+  // two route classes below, so it's fetched at most once per request.
+  if (isAdminRoute) {
+    const role = await getUserRole(user.id);
+    if (role !== 'admin') {
       const url = request.nextUrl.clone();
       url.pathname = '/account';
       return NextResponse.redirect(url);
     }
+    // Admin confirmed — allow through, no redirect.
+    return supabaseResponse;
   }
 
-  // Already-authenticated users don't need the login/register entry points.
-  if (user && isAuthEntryRoute) {
+  // Already-authenticated users don't need the login/register entry points —
+  // admins land on /admin, everyone else on /account.
+  if (isAuthEntryRoute) {
+    const role = await getUserRole(user.id);
     const url = request.nextUrl.clone();
-    url.pathname = '/account';
+    url.pathname = role === 'admin' ? '/admin' : '/account';
     url.search = '';
     return NextResponse.redirect(url);
   }
