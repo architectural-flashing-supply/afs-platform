@@ -35,16 +35,40 @@ API keys in .env.local:  Present locally (not committed). STRIPE_SECRET_KEY,
 pnpm install:            DONE (afs-025) — stripe, @stripe/stripe-js,
                          @stripe/react-stripe-js, docx all present in
                          pnpm-lock.yaml and node_modules.
-pnpm tsc --noEmit:       PASSES — 0 errors (afs-035, re-verified after every change).
-pnpm run build:          PASSES — exit 0, 106 routes generated (afs-035 changed no
-                         routes — only tailwind.config.js, DESIGN_TOKENS.md, and
-                         app/studio/draft/page.tsx were edited).
-git commits:             All afs-website work through afs-035 is committed and pushed
+pnpm tsc --noEmit:       PASSES — 0 errors (afs-036, re-verified after every change).
+pnpm run build:          PASSES — exit 0, 106 routes generated (afs-036 changed no
+                         routes — only components/layout/AppChrome.tsx,
+                         components/layout/AdminShell.tsx, and
+                         components/layout/AccountShell.tsx were edited).
+git commits:             All afs-website work through afs-036 is committed and pushed
                          to origin/main. Working tree is clean. A SEPARATE standalone
                          project, C:\Users\manag\Documents\afs-machine-bridge, has its
                          own independent git repo (not part of this repo, not pushed
                          anywhere — no remote was given) — see Machine Bridge status
                          below.
+Portal double-nav        FIXED (afs-036) — /admin/** and /account/** were rendering
+fix (afs-036):           the public NavBar (left icon rail + top link strip) above
+                         their own AdminShell/AccountShell sidebar. The requested
+                         target file, app/admin/layout.tsx (and app/account/layout.tsx),
+                         does NOT import NavBar — the actual source was
+                         components/layout/AppChrome.tsx, which wraps every route
+                         from the root layout and only skipped NavBar/Footer/
+                         ChatWidget for a short login/register allowlist that never
+                         included /admin or /account. Fix: AppChrome now also
+                         renders bare {children} (no NavBar, no Footer, no
+                         ChatWidget) for any /admin or /account route, since
+                         AdminShell/AccountShell already supply their own full
+                         sidebar + content layout. AdminShell's and AccountShell's
+                         <aside> repositioned from `fixed top-11 left-48` to
+                         `fixed top-0 left-0` (that offset existed only to clear
+                         NavBar's reserved 192px-left/44px-top space, which no
+                         longer renders on these routes). Verified via dev server
+                         that /admin, /admin/command-center, /account, and
+                         /account/quotes all render without a server error
+                         (307 → /login, expected for unauthenticated requests) —
+                         full authenticated visual check of the sidebar-only layout
+                         still needs a human pass, no test login was available this
+                         session.
 Design tokens            NEW (afs-035) — added afs-accent-green (#00C853) and
 (afs-035):               afs-accent-purple (#4A0072) to tailwind.config.js and
                          DESIGN_TOKENS.md as new, distinct token names. Note:

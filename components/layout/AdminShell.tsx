@@ -70,7 +70,7 @@ export default function AdminShell({ adminName, pendingMachineJobs = 0, children
 
   return (
     <div className="flex min-h-screen bg-afs-bg-base">
-      <aside className="fixed top-11 left-48 bottom-0 w-[240px] z-30 bg-afs-bg-raised border-r border-afs-border flex flex-col">
+      <aside className="fixed top-0 left-0 bottom-0 w-[240px] z-30 bg-afs-bg-raised border-r border-afs-border flex flex-col">
         <div className="px-4 pt-6 pb-4 shrink-0">
           <Link href="/admin" className="inline-block bg-afs-bg-dim rounded-sm px-3 py-2">
             <Image src="/afs-logo.png" alt="AFS" width={116} height={83} className="w-full h-auto object-contain" />

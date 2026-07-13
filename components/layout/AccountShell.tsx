@@ -33,7 +33,7 @@ export default function AccountShell({ children }: { children: React.ReactNode }
 
   return (
     <div className="flex min-h-screen bg-afs-bg-base">
-      <aside className="fixed top-11 left-48 bottom-0 w-[220px] z-30 bg-afs-bg-raised border-r border-afs-border flex flex-col">
+      <aside className="fixed top-0 left-0 bottom-0 w-[220px] z-30 bg-afs-bg-raised border-r border-afs-border flex flex-col">
         <div className="px-4 pt-6 pb-2 shrink-0">
           <p className="font-label text-xs uppercase tracking-widest text-afs-chrome-dim">My Account</p>
         </div>

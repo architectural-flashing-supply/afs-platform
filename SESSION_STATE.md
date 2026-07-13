@@ -13,10 +13,34 @@
 (afs-030, data live as of afs-031), the Machine Bridge + Command
 Center (afs-032, migration NOT yet applied — see below), the 3D
 Profile Configurator (afs-033), the FlashDraft UX improvements
-(afs-034), and two new design tokens (afs-035). `pnpm tsc --noEmit`
-passes (0 errors) and `pnpm run build` succeeds (exit 0, 106/106 routes)
-as of afs-035. Working tree is clean; all afs-website work through
-afs-035 is committed and pushed to origin/main.
+(afs-034), two new design tokens (afs-035), and an admin/account portal
+double-nav fix (afs-036). `pnpm tsc --noEmit` passes (0 errors) and
+`pnpm run build` succeeds (exit 0, 106/106 routes) as of afs-036. Working
+tree is clean; all afs-website work through afs-036 is committed and
+pushed to origin/main.
+**Portal double-nav fix (afs-036):** `/admin/**` and `/account/**` pages
+were rendering the public `NavBar` (its left icon-rail + top link strip —
+Products/Request a Quote/Configure/Upload Drawing/Design Studio/Architects)
+above their own AdminShell/AccountShell sidebar. Root cause was NOT
+`app/admin/layout.tsx` or `app/account/layout.tsx` — neither file imports
+`NavBar`; it's `components/layout/AppChrome.tsx` (rendered once in the root
+`app/layout.tsx`, wraps every route) that unconditionally rendered `NavBar`
++ `Footer` + `ChatWidget` for any route not in a short login/register
+allowlist, which never included `/admin` or `/account`. Fix: added a
+`PORTAL_PREFIXES = ['/admin', '/account']` check in AppChrome that renders
+bare `{children}` for those routes (no NavBar, no Footer, no ChatWidget —
+matches the instruction that these portals show only their sidebar and
+page content). `AdminShell.tsx` and `AccountShell.tsx`'s `<aside>` elements
+were then repositioned from `fixed top-11 left-48` to `fixed top-0 left-0`,
+since that offset existed only to sit their sidebar to the right of/below
+NavBar's reserved space (192px left rail + 44px top strip), which no
+longer renders on these routes. Verified via dev server: unauthenticated
+requests to `/admin`, `/admin/command-center`, `/account`, `/account/quotes`
+all 307-redirect to `/login` with no server error, confirming the routes
+render cleanly; full authenticated visual confirmation of the sidebar-only
+layout was not done in this session (no test credentials available) — a
+human should click through those four routes once logged in before
+considering this closed.
 **Design tokens (afs-035):** Added `afs-accent-green` (`#00C853`) and
 `afs-accent-purple` (`#4A0072`) to `tailwind.config.js` and
 DESIGN_TOKENS.md. These are new, distinct token names — NOT a redefinition
