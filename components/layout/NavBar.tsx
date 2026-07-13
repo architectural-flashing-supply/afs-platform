@@ -1,8 +1,10 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
 
 const PANEL_LINKS = [
   { label: 'Home', href: '/' },
@@ -14,13 +16,22 @@ const PANEL_LINKS = [
   { label: 'Architects', href: '/architects' },
 ];
 
-const PANEL_ACCOUNT_LINKS = [
-  { label: 'My Account', href: '/account' },
-  { label: 'Sign In', href: '/login' },
-];
-
 export default function NavBar() {
   const pathname = usePathname();
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => setIsAuthenticated(!!data.user));
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => setIsAuthenticated(!!session?.user));
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const accountLink = isAuthenticated
+    ? { label: 'My Account', href: '/account' }
+    : { label: 'Sign In', href: '/login' };
 
   const panelLinkClass = (href: string) => {
     const active = pathname === href;
@@ -56,11 +67,9 @@ export default function NavBar() {
 
           <div className="my-2 border-t border-afs-chrome-dim mx-1" />
 
-          {PANEL_ACCOUNT_LINKS.map(link => (
-            <Link key={link.href} href={link.href} className={panelLinkClass(link.href)}>
-              {link.label}
-            </Link>
-          ))}
+          <Link href={accountLink.href} className={panelLinkClass(accountLink.href)}>
+            {accountLink.label}
+          </Link>
         </nav>
 
         <div className="flex-1" />
