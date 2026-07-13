@@ -33,6 +33,13 @@ export default function NavBar() {
     ? { label: 'My Account', href: '/account' }
     : { label: 'Sign In', href: '/login' };
 
+  const handleSignOut = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    // Hard redirect so any stale client-side auth state is guaranteed gone.
+    window.location.href = '/login';
+  };
+
   const panelLinkClass = (href: string) => {
     const active = pathname === href;
     return `font-label text-sm text-white px-4 py-2.5 rounded transition-colors ${
@@ -70,6 +77,16 @@ export default function NavBar() {
           <Link href={accountLink.href} className={panelLinkClass(accountLink.href)}>
             {accountLink.label}
           </Link>
+
+          {isAuthenticated && (
+            <button
+              type="button"
+              onClick={handleSignOut}
+              className="font-label text-sm text-afs-crimson font-semibold px-4 py-2.5 rounded text-left hover:bg-afs-bg-surface transition-colors"
+            >
+              Sign Out
+            </button>
+          )}
         </nav>
 
         <div className="flex-1" />

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
 const NAV_LINKS = [
@@ -19,15 +19,16 @@ const NAV_LINKS = [
 
 export default function AccountShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
 
   const isActive = (href: string) =>
     href === '/account' ? pathname === '/account' : pathname?.startsWith(href) ?? false;
 
+  // Hard redirect (not router.push) so any stale client-side auth state is
+  // guaranteed to be gone, not just navigated away from.
   const handleSignOut = async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
-    router.push('/login');
+    window.location.href = '/login';
   };
 
   return (
@@ -57,15 +58,13 @@ export default function AccountShell({ children }: { children: React.ReactNode }
           })}
         </nav>
 
-        <div className="shrink-0 px-4 py-4 border-t border-afs-border">
-          <button
-            type="button"
-            onClick={handleSignOut}
-            className="font-label text-sm text-afs-chrome-dim hover:text-afs-crimson transition-colors"
-          >
-            Sign Out
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={handleSignOut}
+          className="shrink-0 w-full text-left px-4 py-3 text-afs-crimson font-semibold border-t border-afs-border hover:bg-afs-bg-surface transition-colors"
+        >
+          Sign Out
+        </button>
       </aside>
 
       <main className="flex-1 ml-[220px] pt-16 px-8 pb-16">{children}</main>

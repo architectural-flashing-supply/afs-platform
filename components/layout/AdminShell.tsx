@@ -56,15 +56,16 @@ interface AdminShellProps {
 
 export default function AdminShell({ adminName, pendingMachineJobs = 0, children }: AdminShellProps) {
   const pathname = usePathname();
-  const router = useRouter();
 
   const isActive = (href: string) =>
     href === '/admin' ? pathname === '/admin' : pathname?.startsWith(href) ?? false;
 
+  // Hard redirect (not router.push) so any stale client-side auth state is
+  // guaranteed to be gone, not just navigated away from.
   const handleSignOut = async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
-    router.push('/login');
+    window.location.href = '/login';
   };
 
   return (
@@ -115,16 +116,16 @@ export default function AdminShell({ adminName, pendingMachineJobs = 0, children
           ))}
         </nav>
 
-        <div className="shrink-0 px-4 py-4 border-t border-afs-border">
+        <div className="shrink-0 px-4 pt-4 border-t border-afs-border">
           <p className="font-label text-sm text-afs-chrome-high truncate">{adminName}</p>
-          <button
-            type="button"
-            onClick={handleSignOut}
-            className="font-label text-xs text-afs-chrome-dim hover:text-afs-crimson transition-colors mt-1"
-          >
-            Sign Out
-          </button>
         </div>
+        <button
+          type="button"
+          onClick={handleSignOut}
+          className="shrink-0 w-full text-left px-4 py-3 text-afs-crimson font-semibold border-t border-afs-border hover:bg-afs-bg-surface transition-colors"
+        >
+          Sign Out
+        </button>
       </aside>
 
       <main className="flex-1 ml-[240px] pt-16 px-8 pb-16">{children}</main>
