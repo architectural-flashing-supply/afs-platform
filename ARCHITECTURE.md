@@ -68,6 +68,49 @@ auth/       — Supabase auth callback handler.
 //   — AI API calls (always server-side)
 ```
 
+### AppChrome Portal Exclusion Pattern
+
+`components/layout/AppChrome.tsx` wraps every route from the root
+`app/layout.tsx` and decides which global chrome (public `NavBar`,
+`Footer`, `ChatWidget`) a route gets. It is the single place this
+decision is made — individual route `layout.tsx` files (e.g.
+`app/admin/layout.tsx`, `app/account/layout.tsx`) never import `NavBar`
+themselves.
+
+```typescript
+const NO_CHROME_PREFIXES = ['/login', '/register', '/forgot-password', '/reset-password', '/invite'];
+const PORTAL_PREFIXES = ['/admin', '/account'];
+
+export default function AppChrome({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const hideChrome = NO_CHROME_PREFIXES.some((prefix) => pathname?.startsWith(prefix));
+  const isPortalRoute = PORTAL_PREFIXES.some((prefix) => pathname?.startsWith(prefix));
+
+  if (hideChrome || isPortalRoute) {
+    return <>{children}</>;              // no NavBar, no Footer, no ChatWidget
+  }
+
+  return (
+    <>
+      <NavBar />
+      <div className="ml-48 pt-11">{children}<Footer /></div>
+      <ChatWidget />
+    </>
+  );
+}
+```
+
+`/admin/**` and `/account/**` render bare `{children}` — no public nav, no
+footer, no chat widget — because their own `layout.tsx` already renders a
+complete shell (`AdminShell.tsx` / `AccountShell.tsx`) with its own
+sidebar, sign-out, and content area. Those shells' `<aside>` elements are
+positioned `fixed top-0 left-0`, since there is no public NavBar reserving
+space above or to the left of them on these routes. Adding a new
+auth-gated portal in the future means adding its prefix to
+`PORTAL_PREFIXES` — forgetting this step is exactly what caused the
+double-nav bug fixed in afs-036 (public NavBar rendering on top of the
+portal's own sidebar).
+
 ### Data Fetching Pattern
 
 ```typescript
@@ -328,6 +371,34 @@ orders.status = 'delivered'
 Customer follow-up email
 ```
 
+### Machine Job Lifecycle (Parallel to Order Lifecycle)
+
+A `machine_jobs` row tracks whether an order/quote request's bend program
+has been approved, generated, and delivered to the Thalmann DS2801 — a
+separate lifecycle from `orders.status`, which only tracks physical
+fabrication stage and has no machine-delivery states. Nothing currently
+auto-creates `machine_jobs` rows from real `orders`/`quote_requests` — an
+admin (or a future feature) creates them; the Command Center at
+`/admin/command-center` is where they're reviewed. See ARCHITECTURE.md §11
+for the bridge that consumes `approved_for_machine` jobs.
+
+```
+machine_jobs.status:
+  pending_approval      → awaiting admin review in Command Center
+  approved_for_machine  → admin approved; the Machine Bridge will pick it up
+       ↓ (Machine Bridge polls, generates a .ds1 file)
+  staged_for_review     → .ds1 written to the bridge's local review/ folder —
+                           NOT yet in the machine's live folder; the format is
+                           only partially verified, so a human must check it
+       ↓ (admin manually verifies + copies the file, clicks "Mark as Sent")
+  sent_to_machine       → confirmed in the machine's live folder
+       ↓
+  completed             → fabrication finished
+  machine_error          bridge failed to generate/stage the file
+  rejected                admin rejected (rejection_reason set)
+  changes_requested       admin asked the customer to revise something
+```
+
 ---
 
 ## 7. PRICING ARCHITECTURE (INTERNAL ONLY)
@@ -420,6 +491,106 @@ Order of operations in every notification function:
 ```
 
 Both routes verify `Authorization: Bearer {CRON_SECRET}` header before executing.
+
+---
+
+## 11. MACHINE BRIDGE ARCHITECTURE
+
+The Thalmann DS2801 bending machine (serial P0700707) is not integrated
+via any third-party API — it's fed by **AFS Machine Bridge**, a
+standalone Node.js polling service that afs-website's team built and
+owns, because the paid alternative (PathfinderEdge, ~$350/mo) turned out
+to have no discoverable integration surface (see §12). This is a
+**separate project, not part of this repo**: own `package.json`, own git
+repository. Dev-machine copy: `C:\Users\manag\Documents\afs-machine-bridge`.
+Its own README documents installing a copy at `C:\afs-machine-bridge` on
+the shop-floor computer (`DESKTOP-MB7AMMP`) as a Windows service via
+`npm run install-service`.
+
+```
+┌──────────────────────┐        Bearer AFS_BRIDGE_SECRET        ┌─────────────────────────┐
+│   AFS Machine Bridge  │ ───── GET  /api/machine-bridge/ ─────▶ │                         │
+│  (shop-floor Windows  │        pending-jobs (every 30s)        │   afs-website (Vercel)  │
+│   service, or dev     │                                        │                         │
+│   machine for now)    │ ───── POST /api/machine-bridge/ ─────▶ │  machine_jobs table     │
+│                       │        job-delivered                   │  machine_bridge_status  │
+└──────────┬────────────┘                                        └─────────────────────────┘
+           │ generates
+           ▼
+   review/{requestNumber}_{profileName}.ds1   ← NEVER written directly to
+           │                                     THALMANN_DS2801_PATH
+           │ human verifies + manually copies
+           ▼
+   Thalmann DS2801's watched live folder
+```
+
+### DS1 Binary File Generation Pipeline
+
+`.ds1` is the Thalmann DS2801's bend-program file format. No official
+format documentation exists — the generator (`src/ds1-generator.js` in
+the bridge project) was reverse-engineered by byte-level analysis of two
+real sample files (`machine-data/AFS_Profile_A-Profiles.ds1`,
+`AFS_Profile_Breast_plates.ds1`):
+
+- **Verified with reasonable confidence:** the string header — four
+  Pascal-style length-prefixed strings (magic `DS2801ProfileV301`,
+  version, profile name, material name).
+- **NOT verified — best-effort placeholder:** everything after the
+  header. The numeric/bend-step region does not follow a simple
+  fixed-size repeating structure, and neither sample file corresponds to
+  a known record in the imported `ds2801db.bdb` data, so there was no
+  independent way to confirm field order, count, or meaning.
+
+Because of this, **the bridge never writes directly into the machine's
+live folder.** Every generated file lands in the bridge's local `review/`
+directory. A human must open each file, confirm it loads correctly in the
+real Thalmann DS2801 software, and manually copy it into the live folder
+before that job is actually sent to the machine — this gate must not be
+removed until someone with real Thalmann format knowledge confirms a
+generated file is correct. See STATE_OF_THE_BUILD.md for the current
+audited status of this pipeline (as of 2026-07-13, it is not yet
+successfully delivering jobs — see that document for detail).
+
+### Machine Bridge Authentication
+
+The bridge is a service, not a logged-in Supabase user, so it
+authenticates with a shared Bearer secret instead of session auth:
+
+```typescript
+// lib/machine-bridge/auth.ts
+export function isAuthorizedBridgeRequest(request: NextRequest): boolean {
+  const secret = process.env.AFS_BRIDGE_SECRET;
+  // ...timing-safe comparison against the Authorization: Bearer header
+}
+```
+
+`AFS_BRIDGE_SECRET` must be set identically in afs-website's deployed
+environment and in the bridge's own `.env` — a mismatch produces an HTTP
+401 on every poll (the bridge logs, but does not crash, on auth failure).
+
+---
+
+## 12. PATHFINDEREDGE INTEGRATION (STUB)
+
+PathfinderEdge was investigated as a paid ($350/month) machine-integration
+product before the Machine Bridge was built. A live discovery pass (with
+client authorization) against `https://afs.pathfinderedge.com` found a
+real, login-gated ASP.NET Core web application with no discoverable REST
+API at any conventional path (`/api`, `/api/v1`, `/api/profiles`,
+`/api/catalogs`, `/api/jobs`, `/api/machines`, Swagger/OpenAPI discovery —
+all 404, `/` redirects to session-based `/login`).
+
+`lib/integrations/pathfinder-edge.ts` is a stub matching the same pattern
+as `lib/integrations/quickbooks.ts`: every exported function
+(`discoverApiEndpoints`, `getPathfinderCatalogs`,
+`pushProfileToPathfinder`, `submitJobToMachine`, `getJobStatus`) returns a
+`{ status: 'not_configured' }` result and makes zero network calls. This
+matters because `submitJobToMachine` would otherwise drive a real physical
+bending machine from a fabricated, undocumented request format.
+`PATHFINDER_EDGE_API_KEY` / `PATHFINDER_EDGE_BASE_URL` /
+`PATHFINDER_EDGE_MACHINE_SERIAL` are wired in `.env.example` but unused.
+Do not build this out for real unless PathfinderEdge publishes actual API
+documentation.
 
 ---
 

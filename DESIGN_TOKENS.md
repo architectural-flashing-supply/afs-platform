@@ -3,6 +3,23 @@
 **Derived from AFS chrome/red/black shield logo. Single fixed gunmetal theme.**
 **No toggles. No modes. The interior of the shield is the site.**
 
+**Locked and confirmed by a real reversal.** A site-wide light silver
+rebrand was built and shipped (`b3512f1`), then fully reverted
+(`git revert b3512f1` → `6903d00`) one session later, per explicit
+instruction that it had been "applied in error." Dark gunmetal is
+canonical — the tokens below are `app/globals.css` and
+`tailwind.config.js`'s actual current values, verified against the source
+files, not carried forward from memory. Two narrow, deliberately-scoped
+exceptions sit on top of this reverted dark theme and are not a
+design-system change: (1) `app/(public)/products/page.tsx`,
+`app/configure/page.tsx`, `app/quote/page.tsx` each have one inline
+`#B8BEC8` background on their main content div plus crimson/black bold
+titles, per an explicit instruction naming exactly those files; (2)
+`afs-ink-900`/`afs-ink-700` were re-added as real tokens (not the rest of
+the light theme) because FlashDraft's 2D canvas needs dark dimension-label
+text on its light drawing surface — they're listed below since they're
+real, current tokens.
+
 ---
 
 ## 1. DESIGN CHARACTER
@@ -35,31 +52,32 @@ Derived from the four tonal zones visible in the logo:
 
 ```css
 /* ─────────────────────────────────────
-   globals.css — paste inside @layer base
+   app/globals.css — actual current :root block, verified against source
    ───────────────────────────────────── */
 
 :root {
-  /* BACKGROUNDS — Gunmetal scale from shield interior */
-  --afs-bg-dim:       #14151A;  /* Depressed: code blocks, admin rows */
-  --afs-bg-base:      #1A1A1E;  /* Page background — shield interior */
-  --afs-bg-raised:    #22242A;  /* Cards, nav, dropdowns, modals */
-  --afs-bg-surface:   #2A2D35;  /* Table row alt, sidebars, sections */
-  --afs-bg-overlay:   #32363F;  /* Hover states, input field backgrounds */
-  --afs-bg-modal:     rgba(26, 26, 30, 0.92);
+  /* BACKGROUNDS — Gunmetal scale */
+  --afs-bg-dim:       #1C1F26;
+  --afs-bg-base:      #2A2D35;
+  --afs-bg-raised:    #363C4A;
+  --afs-bg-surface:   #404858;
+  --afs-bg-overlay:   #4E5568;
+  --afs-bg-modal:     rgba(42, 45, 53, 0.92);
 
-  /* CHROME TYPE HIERARCHY — from bevel gradient */
-  --afs-chrome-high:  #D8E0EC;  /* Bevel highlight — H1 headlines */
-  --afs-chrome-mid:   #A0AABC;  /* Bevel mid — subheadings, nav labels */
-  --afs-chrome-base:  #6B7A94;  /* Bevel shadow — body text */
-  --afs-chrome-dim:   #48526A;  /* Borders, dividers, placeholders */
-  --afs-chrome-ghost: rgba(107, 122, 148, 0.15);
+  /* CHROME TYPE HIERARCHY */
+  --afs-chrome-high:   #FFFFFF;
+  --afs-chrome-mid:    #B8BFD0;
+  --afs-chrome-base:   #9AA0B8;
+  --afs-chrome-dim:    #7A8299;
+  --afs-chrome-silver: #C8D0E0;
+  --afs-chrome-ghost:  rgba(154, 160, 184, 0.15);
 
-  /* TEXT ALIASES */
-  --afs-text-primary:  var(--afs-chrome-high);
-  --afs-text-body:     var(--afs-chrome-mid);
-  --afs-text-muted:    var(--afs-chrome-base);
-  --afs-text-disabled: var(--afs-chrome-dim);
-  --afs-text-inverse:  #1A1A1E;   /* On crimson backgrounds */
+  /* INK — dark text for use on light surfaces only (FlashDraft's 2D canvas
+     drawing area, which is intentionally light per the CANVAS_COLORS
+     exception below — see §10). Re-added after the afs-027 light-theme
+     revert specifically for this one need; not used site-wide. */
+  --afs-ink-900:       #111111;
+  --afs-ink-700:       #374151;
 
   /* CRIMSON — Fixed identity constant. Never changes. */
   --afs-crimson:       #C0001A;
@@ -68,70 +86,62 @@ Derived from the four tonal zones visible in the logo:
   --afs-crimson-ghost: rgba(192, 0, 26, 0.12);
   --afs-crimson-glow:  0 0 20px rgba(192, 0, 26, 0.30);
 
+  /* SECONDARY BUTTON FILL */
+  --afs-btn-secondary: #4E5568;
+
   /* COPPER — Architect portal only */
   --afs-copper:        #B87333;
   --afs-copper-hover:  #D4956A;
   --afs-copper-ghost:  rgba(184, 115, 51, 0.12);
 
-  /* BORDERS */
-  --afs-border:        rgba(72, 82, 106, 0.40);
-  --afs-border-strong: rgba(107, 122, 148, 0.55);
-  --afs-border-crimson:rgba(192, 0, 26, 0.45);
-  --afs-border-copper: rgba(184, 115, 51, 0.45);
+  /* AMBER — rush/warning-adjacent accent, distinct from --afs-warning */
+  --afs-amber:         #F59E0B;
+  --afs-amber-dim:     #92650A;
+  --afs-amber-ghost:   rgba(245, 158, 11, 0.12);
+
+  /* BORDERS — referenced by components via the arbitrary-value syntax
+     border-[var(--afs-border)], not exposed as a Tailwind color key */
+  --afs-border:        rgba(78, 85, 104, 0.8);
+  --afs-border-strong: rgba(180, 190, 210, 0.35);
 
   /* SEMANTIC */
   --afs-success:       #1E8A52;
   --afs-success-ghost: rgba(30, 138, 82, 0.12);
   --afs-warning:       #C48A00;
-  --afs-warning-ghost: rgba(196, 138, 0, 0.12);
-  --afs-error:         #C0001A;
   --afs-info:          #3478B0;
-
-  /* ACCENT — non-semantic, feature-specific accents (e.g. FlashDraft radius handles) */
-  --afs-accent-green:  #00C853;
-  --afs-accent-purple: #4A0072;
-
-  /* METAL EDGE GRADIENTS */
-  --afs-edge-chrome: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(107,122,148,0) 5%,
-    rgba(160,170,188,0.7) 25%,
-    rgba(216,224,236,0.9) 50%,
-    rgba(160,170,188,0.7) 75%,
-    rgba(107,122,148,0) 95%,
-    transparent 100%
-  );
-  --afs-edge-crimson: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(192,0,26,0) 5%,
-    rgba(192,0,26,0.8) 25%,
-    rgba(232,0,31,1) 50%,
-    rgba(192,0,26,0.8) 75%,
-    rgba(192,0,26,0) 95%,
-    transparent 100%
-  );
-  --afs-edge-subtle: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(72,82,106,0.5) 30%,
-    rgba(72,82,106,0.5) 70%,
-    transparent 100%
-  );
 }
 ```
+
+The Metal Edge gradients (`.metal-edge`/`.metal-edge-red`/`.metal-edge-copper`)
+are defined as literal `linear-gradient(...)` values directly inside those
+CSS classes in `globals.css`, not as separate `--afs-edge-*` custom
+properties — there is no standalone edge-gradient token to reference from
+JSX; use the `.metal-edge`/`.metal-edge-red`/`.metal-edge-copper` classes
+themselves.
+
+**`afs-accent-green` (`#00C853`) and `afs-accent-purple` (`#4A0072`)** are
+real Tailwind color keys (`tailwind.config.js`) but are **not** defined as
+`--afs-*` CSS custom properties in `globals.css` — they're only reachable
+via the `afs-accent-green`/`afs-accent-purple` Tailwind utility classes
+(`text-afs-accent-green`, `border-afs-accent-green`, etc.), not via
+`var(--afs-accent-green)`. They are non-semantic, feature-specific accents
+(currently used only by FlashDraft's bend-radius UI) — deliberately kept
+separate from `afs-success` (`#1E8A52`), which remains the platform's real
+semantic success color across ~22 files.
 
 ---
 
 ## 3. TAILWIND CONFIGURATION
 
-```typescript
-// tailwind.config.ts — complete configuration
+```javascript
+// tailwind.config.js — actual current file (plain JS, not .ts — the
+// project uses .js despite BLUEPRINT.md's directory listing showing
+// tailwind.config.ts; Next.js accepts either, this repo picked .js).
+// Colors are literal hex duplicated from globals.css's :root block, NOT
+// var(--afs-*) references — the two files must be kept in sync by hand.
 
-import type { Config } from 'tailwindcss';
-
-const config: Config = {
+/** @type {import('tailwindcss').Config} */
+module.exports = {
   content: [
     './app/**/*.{ts,tsx,mdx}',
     './components/**/*.{ts,tsx}',
@@ -140,44 +150,32 @@ const config: Config = {
     extend: {
       colors: {
         afs: {
-          // Backgrounds (semantic — reference CSS vars)
-          'bg-dim':     'var(--afs-bg-dim)',
-          'bg-base':    'var(--afs-bg-base)',
-          'bg-raised':  'var(--afs-bg-raised)',
-          'bg-surface': 'var(--afs-bg-surface)',
-          'bg-overlay': 'var(--afs-bg-overlay)',
-
-          // Chrome type hierarchy (semantic)
-          'chrome-high':  'var(--afs-chrome-high)',
-          'chrome-mid':   'var(--afs-chrome-mid)',
-          'chrome-base':  'var(--afs-chrome-base)',
-          'chrome-dim':   'var(--afs-chrome-dim)',
-
-          // Text (semantic aliases)
-          'text-primary':  'var(--afs-text-primary)',
-          'text-body':     'var(--afs-text-body)',
-          'text-muted':    'var(--afs-text-muted)',
-          'text-disabled': 'var(--afs-text-disabled)',
-          'text-inverse':  'var(--afs-text-inverse)',
-
-          // Crimson (fixed — not CSS vars — same in all contexts)
+          'bg-dim':     '#1C1F26',
+          'bg-base':    '#2A2D35',
+          'bg-raised':  '#363C4A',
+          'bg-surface': '#404858',
+          'bg-overlay': '#4E5568',
+          'chrome-high':   '#FFFFFF',
+          'chrome-mid':    '#B8BFD0',
+          'chrome-base':   '#9AA0B8',
+          'chrome-dim':    '#7A8299',
+          'chrome-silver': '#C8D0E0',
+          'ink-900':       '#111111',
+          'ink-700':       '#374151',
           'crimson':       '#C0001A',
           'crimson-hover': '#E8001F',
           'crimson-dim':   '#7A0010',
-
-          // Copper (fixed)
-          'copper':      '#B87333',
-          'copper-hover':'#D4956A',
-
-          // Semantic
-          'success': 'var(--afs-success)',
-          'warning': 'var(--afs-warning)',
-          'error':   '#C0001A',
-          'info':    'var(--afs-info)',
-
-          // Accent — non-semantic, feature-specific
-          'accent-green':  'var(--afs-accent-green)',
-          'accent-purple': 'var(--afs-accent-purple)',
+          'btn-secondary': '#4E5568',
+          'border':        'rgba(78,85,104,0.8)',
+          'copper':        '#B87333',
+          'copper-hover':  '#D4956A',
+          'amber':         '#F59E0B',
+          'amber-dim':     '#92650A',
+          'success':       '#1E8A52',
+          'warning':       '#C48A00',
+          'info':          '#3478B0',
+          'accent-green':  '#00C853',
+          'accent-purple': '#4A0072',
         }
       },
       fontFamily: {
@@ -191,51 +189,52 @@ const config: Config = {
         DEFAULT: '4px',
         sm:      '2px',
         lg:      '6px',
-        none:    '0px',
       },
       boxShadow: {
         card:    '0 1px 3px rgba(0,0,0,0.35), 0 4px 16px rgba(0,0,0,0.25)',
         raised:  '0 4px 24px rgba(0,0,0,0.40)',
-        crimson: 'var(--afs-crimson-glow)',
-        chrome:  '0 0 12px rgba(160,170,188,0.18)',
+        crimson: '0 0 20px rgba(192,0,26,0.30)',
+        chrome:  '0 0 12px rgba(200,208,224,0.22)',
       },
     },
   },
   plugins: [],
 };
-
-export default config;
 ```
+
+Note there is no `text-primary`/`text-body`/`text-muted`/`text-disabled`/
+`text-inverse` alias group and no `error` key in the real file — components
+use `text-afs-chrome-mid`, `text-afs-chrome-high`, etc. directly, and
+`afs-crimson` doubles as the error color where needed. `border` is a
+single fixed rgba string (not `border-strong`, which is CSS-var-only —
+see §2).
 
 ---
 
 ## 4. GLOBAL CSS (globals.css)
+
+The real file (verified current as of this writing):
 
 ```css
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* All CSS custom properties defined above go here */
+:root {
+  /* ...the full --afs-* custom property block from §2 above... */
+}
 
-/* Base */
 html {
-  background-color: #1A1A1E;
-  color: #A0AABC;
+  background-color: #2A2D35;
+  color: #B8BFD0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 body {
   background-color: var(--afs-bg-base);
-  color: var(--afs-text-body);
-  font-family: var(--font-inter), 'Inter', sans-serif;
+  color: var(--afs-chrome-mid);
 }
-
-/* ── THE METAL EDGE ──────────────────────────────────────
-   Signature element. Applied to hero sections, cards, CTAs.
-   References the bevel cut geometry of the AFS shield logo.
-   ──────────────────────────────────────────────────────── */
 
 .metal-edge {
   position: relative;
@@ -245,38 +244,48 @@ body {
   position: absolute;
   top: 0; left: 0; right: 0;
   height: 1px;
-  background: var(--afs-edge-chrome);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(200,208,224,0.7) 25%,
+    rgba(255,255,255,0.9) 50%,
+    rgba(200,208,224,0.7) 75%,
+    transparent 100%
+  );
   transform: skewX(-12deg);
-  transform-origin: left center;
-  pointer-events: none;
-  z-index: 1;
-}
-.metal-edge::after {
-  content: '';
-  position: absolute;
-  bottom: 0; left: 0; right: 0;
-  height: 1px;
-  background: var(--afs-edge-subtle);
   pointer-events: none;
 }
-
-/* Crimson variant — primary CTA containers */
 .metal-edge-red::before {
-  background: var(--afs-edge-crimson);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(192,0,26,0.8) 25%,
+    rgba(232,0,31,1) 50%,
+    rgba(192,0,26,0.8) 75%,
+    transparent 100%
+  );
 }
-
-/* Copper variant — architect portal sections */
 .metal-edge-copper::before {
   background: linear-gradient(
     90deg,
-    transparent 0%, rgba(184,115,51,0) 5%,
-    rgba(184,115,51,0.8) 25%, rgba(212,149,106,1) 50%,
-    rgba(184,115,51,0.8) 75%, rgba(184,115,51,0) 95%,
+    transparent 0%,
+    rgba(184,115,51,0.8) 25%,
+    rgba(212,149,106,1) 50%,
+    rgba(184,115,51,0.8) 75%,
     transparent 100%
   );
 }
 
-/* ── REDUCED MOTION ────────────────────────────────────── */
+.hero-glow-red {
+  color: #C0001A;
+  text-shadow: 0 0 30px rgba(192,0,26,0.6), 0 0 60px rgba(192,0,26,0.3), 0 2px 4px rgba(0,0,0,0.8);
+}
+
+.hero-glow-chrome {
+  color: #D0D6E8;
+  text-shadow: 0 0 20px rgba(200,210,230,0.4), 0 1px 3px rgba(0,0,0,0.8);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -284,6 +293,13 @@ body {
   }
 }
 ```
+
+Differences from the originally-designed version: no `.metal-edge::after`
+subtle-bottom-rule (dropped), no font-family declaration on `body` (fonts
+are applied via the `<html>` class list in `layout.tsx` per §5, not
+redeclared here), and `.hero-glow-red`/`.hero-glow-chrome` (homepage hero
+text-shadow treatments) were added and are not otherwise documented
+elsewhere in this file.
 
 ---
 
@@ -396,16 +412,19 @@ Architect accent: Replace crimson with copper in architect portal sections
 
 ```
 DARKEST                                                    MID-TONE
-  #14151A → #1A1A1E → #22242A → #2A2D35 → #32363F
+  #1C1F26 → #2A2D35 → #363C4A → #404858 → #4E5568
   bg-dim    bg-base   bg-raised bg-surface bg-overlay
 
 CHROME TYPE (darkest to lightest)
-  #48526A → #6B7A94 → #A0AABC → #D8E0EC
-  dim       base      mid       high
+  #7A8299 → #9AA0B8 → #B8BFD0 → #FFFFFF
+  dim       base      mid       high     (+ #C8D0E0 chrome-silver)
 
 CRIMSON (fixed warm accent)
   #7A0010 → #C0001A → #E8001F
   dim       base      hover
+
+ACCENT (non-semantic, feature-specific — FlashDraft radius UI only)
+  #00C853 accent-green   #4A0072 accent-purple
 ```
 
 ---
@@ -429,6 +448,52 @@ Usage on bg-base (#1A1A1E):
 
   Request SVG or transparent PNG from client to resolve permanently.
 ```
+
+---
+
+## 10. THE CANVAS_COLORS EXCEPTION
+
+A `<canvas>` 2D drawing context (`fillStyle`/`strokeStyle`) cannot consume
+Tailwind classes or CSS custom properties — it needs literal color values
+at the JS call site. The same is true of third-party embedded iframes
+(Stripe's `CardElement`). The established, sanctioned pattern for this is
+a single documented constant object that mirrors the real afs-* token
+values as literal hex, with a comment citing this exception:
+
+```typescript
+// app/studio/draft/page.tsx — Canvas 2D fillStyle/strokeStyle can't
+// consume Tailwind classes or CSS custom properties — mirrors the
+// afs-crimson / afs-ink-900 tokens for the canvas-drawn profile and its
+// dimension labels (same documented exception pattern already used for
+// the Stripe CardElement in app/checkout/page.tsx).
+const CANVAS_COLORS = {
+  background: '#F5F5F0',
+  grid: 'rgba(17, 17, 17, 0.08)',
+  profile: '#C0001A',            // mirrors afs-crimson
+  profileSelected: '#2563EB',
+  point: '#C0001A',
+  ink: '#111111',                // mirrors afs-ink-900
+  dragLabelBg: 'rgba(17, 17, 17, 0.92)',
+  dragLabelText: '#FFFFFF',
+  radiusHandle: '#00C853',       // mirrors afs-accent-green
+  radiusHandleWarn: '#D32F2F',
+  radiusLabelBg: '#4A0072',      // mirrors afs-accent-purple
+  radiusLabelText: '#FFFFFF',
+};
+```
+
+The same pattern exists as `STRIPE_CARD_ELEMENT_COLORS` in
+`app/checkout/page.tsx` for Stripe's `CardElement` iframe styling.
+
+**This is the only sanctioned way to use a literal hex value in this
+codebase.** A literal hex directly in a `className` or inline `style` on a
+normal DOM element is still a rule #4 violation — including inside a
+`CANVAS_COLORS`-adjacent component. The one place this line gets crossed
+deliberately was FlashDraft's Bend Radius input border, which briefly used
+an inline `style={{ borderColor: '#00C853' }}` to visually match the
+canvas handle before real `afs-accent-green`/`afs-accent-purple` tokens
+existed — now fixed to use `className="border-afs-accent-green"` (see
+STATE_OF_THE_BUILD.md, afs-035).
 
 ---
 

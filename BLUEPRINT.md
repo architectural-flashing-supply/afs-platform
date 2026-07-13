@@ -49,6 +49,24 @@ logo. See DESIGN_TOKENS.md for complete specification.
 **Theme:** Single fixed gunmetal theme. Not dark mode. Not light mode.
 The interior of the shield is the site.
 
+**Locked means locked — confirmed by a real reversal, not just this
+document's original wording.** A site-wide light silver rebrand was built
+and shipped (`b3512f1`) per an explicit instruction, then fully reverted
+(`git revert b3512f1` → `6903d00`) one session later per an equally
+explicit instruction that the light theme had been "applied in error."
+Dark gunmetal is canonical. Two narrow, deliberately-scoped exceptions
+remain layered on top of the reverted dark theme — they are not a
+design-system change and do not reopen the light-theme question:
+  - `app/(public)/products/page.tsx`, `app/configure/page.tsx`,
+    `app/quote/page.tsx` each have one inline `#B8BEC8` background on their
+    main content div, plus crimson/black bold titles — per an explicit
+    instruction naming exactly these files and forbidding any other change.
+  - `afs-ink-900`/`afs-ink-700` were re-added as real afs-* tokens (not the
+    rest of the light theme) because FlashDraft's 2D canvas needs dark
+    dimension-label text on its light drawing surface.
+See DESIGN_TOKENS.md and STATE_OF_THE_BUILD.md for the full afs-027 →
+afs-028 → afs-029 sequence.
+
 **Background scale (darkest to mid-tone):**
 ```
 #14151A  — depressed states, code blocks
@@ -113,7 +131,13 @@ afs-web/
 │   ├── auth/callback/                  /auth/callback
 │   ├── account/                        /account/...
 │   ├── checkout/                       /checkout
-│   ├── admin/                          /admin/...
+│   ├── studio/                         /studio/... (Design Studio — primary
+│   │   ├── page.tsx                    nav destination, see NavBar.tsx)
+│   │   ├── draft/                      /studio/draft (FlashDraft canvas tool)
+│   │   └── profile-viewer/[profileId]/ /studio/profile-viewer/[id] (3D viewer,
+│   │                                    standalone shareable route)
+│   ├── admin/                          /admin/... (includes command-center,
+│   │                                    quickbooks, pathfinder — see SITEMAP.md)
 │   └── api/                            All server-side routes
 ├── components/
 │   ├── ui/                             Primitive components
@@ -149,6 +173,18 @@ afs-web/
 ├── next.config.ts
 └── .env.local
 ```
+
+**Not part of this tree — a separate service.** The Thalmann DS2801
+bending machine is fed by `afs-machine-bridge`, a standalone Node.js
+project with its own `package.json` and its own git repository — not a
+directory inside this repo, not a Next.js route. Its dev-machine working
+copy lives at `C:\Users\manag\Documents\afs-machine-bridge`; its own
+README documents installing a copy at `C:\afs-machine-bridge` on the
+shop-floor computer (`DESKTOP-MB7AMMP`) as a Windows service. It
+authenticates to this repo's `app/api/machine-bridge/*` routes via a
+shared `AFS_BRIDGE_SECRET` Bearer token instead of Supabase session auth.
+See ARCHITECTURE.md §11 and STATE_OF_THE_BUILD.md for its current audited
+status.
 
 ---
 
@@ -199,6 +235,22 @@ AI Installation Advisor. AI Cross-Sell recommendations.
 QuickBooks sync (conditional). Vercel Cron jobs for commodity pricing.
 Full Playwright test suite. Vercel production deploy. DNS configuration.
 
+### Phase 9 (beyond the original queue) — Design Studio + Machine Integration
+Not part of the original 9-phase plan — added after Phase 0–8 shipped.
+Built: the Design Studio (`/studio`, a primary NavBar destination alongside
+Products/Quote/Configure/Upload/Architects), FlashDraft (`/studio/draft` —
+2D bend-profile canvas tool with drag-to-draw, snapping, undo/redo, and
+per-bend radius handles), the 3D Profile Viewer
+(`components/studio/ProfileViewer3D.tsx`, integrated into FlashDraft, the
+upload results page, and a standalone shareable route at
+`/studio/profile-viewer/[profileId]`), the Thalmann DS2801 machine profile
+library import (911 real shop profiles, 70 public / 841 private — see
+SCHEMA.md), a PathfinderEdge integration stub (no discoverable REST API —
+see ARCHITECTURE.md), and the AFS Machine Bridge + admin Command Center
+(`/admin/command-center`) for routing admin-approved jobs to a `.ds1` bend
+program file. See STATE_OF_THE_BUILD.md for exact build status and the
+Machine Bridge's current audited (not yet fully working) state.
+
 ---
 
 ## 6. ENVIRONMENT VARIABLES
@@ -221,6 +273,13 @@ NEXT_PUBLIC_GOOGLE_MAPS_KEY=
 METALS_API_KEY=
 CRON_SECRET=
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# Machine integration — see CLAUDE.md's MACHINE INTEGRATION section and
+# ARCHITECTURE.md §11
+AFS_BRIDGE_SECRET=
+PATHFINDER_EDGE_API_KEY=
+PATHFINDER_EDGE_BASE_URL=
+PATHFINDER_EDGE_MACHINE_SERIAL=
 ```
 
 ---

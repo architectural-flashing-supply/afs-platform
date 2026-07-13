@@ -208,7 +208,20 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
 
 4. **afs-* tokens only.** No default Tailwind colors. No hardcoded hex values
    in JSX. Every color comes from the afs-* token system defined in
-   DESIGN_TOKENS.md and tailwind.config.ts.
+   DESIGN_TOKENS.md and tailwind.config.js — including `afs-accent-green`
+   (#00C853) and `afs-accent-purple` (#4A0072), added for FlashDraft's
+   bend-radius UI.
+
+   **CANVAS_COLORS exception.** A `<canvas>` 2D drawing context (`fillStyle`/
+   `strokeStyle`) and third-party embedded iframes (Stripe's `CardElement`)
+   cannot consume Tailwind classes or CSS custom properties — they need
+   literal color values. The established pattern is a single documented
+   constant object (e.g. `CANVAS_COLORS` in `app/studio/draft/page.tsx`,
+   `STRIPE_CARD_ELEMENT_COLORS` in `app/checkout/page.tsx`) that mirrors the
+   afs-* token values as literal hex, with a comment citing this exception.
+   This is the ONLY sanctioned way to use a literal hex value outside real
+   JSX — a literal hex directly in a `className`/`style` on a normal DOM
+   element is still a rule #4 violation.
 
 5. **No client-side AI calls.** All Anthropic API calls go through
    `app/api/` routes. The API key never touches the client bundle.
@@ -222,6 +235,33 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
 8. **Governance updated last.** The final action of every FORGE prompt is
    to update STATE_OF_THE_BUILD.md and SESSION_STATE.md from an actual
    audit of the codebase — never from memory.
+
+---
+
+## MACHINE INTEGRATION — THALMANN DS2801 / AFS MACHINE BRIDGE
+
+The shop's Thalmann DS2801 bending machine (serial P0700707) is fed by a
+**separate standalone Node.js project**, `afs-machine-bridge` — its own
+`package.json`, its own git repo, not part of this repo. See
+ARCHITECTURE.md and STATE_OF_THE_BUILD.md for full detail and current
+status.
+
+```
+Env vars (see .env.example):
+  AFS_BRIDGE_SECRET               Shared Bearer secret between afs-website's
+                                   app/api/machine-bridge/* routes and the
+                                   bridge's own .env — must match exactly.
+  PATHFINDER_EDGE_API_KEY         PathfinderEdge integration — stubbed, see
+  PATHFINDER_EDGE_BASE_URL        lib/integrations/pathfinder-edge.ts. No
+  PATHFINDER_EDGE_MACHINE_SERIAL  discoverable REST API was found at this
+                                   base URL; these vars are wired but unused.
+
+Gitignored locally:
+  machine-data/    The raw Thalmann DS2801 database (ds2801db.bdb) and
+                    sample .ds1 files — real shop job history with real
+                    customer/project names, required only when running
+                    `pnpm run import:machine-profiles`. Never committed.
+```
 
 ---
 

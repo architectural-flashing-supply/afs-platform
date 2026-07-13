@@ -1,6 +1,16 @@
 # SITEMAP.md
 ## AFS — Complete Route Map
-**83 routes. Every route mapped to its spec, auth requirement, and role gate.**
+**106 routes (`pnpm run build`'s route-summary count — see PAGE + ROUTE
+COUNT below for the exact filesystem breakdown: 111 page.tsx/route.ts
+files, 57 pages + 54 route handlers). Rewritten from a full audit of the
+actual `app/` directory on 2026-07-13 — the previous version of this
+document described several routes that were never built
+(`/login/magic-sent`, `/account/delivery`, `/admin/cad-library`,
+`/admin/consultations`, most of the originally-planned `/api/**` tree) and
+omitted several that were (`/studio/**`, `/admin/command-center`,
+`/admin/quickbooks`, `/admin/pathfinder`, the real `/api/machine-bridge/**`
+and `/api/studio/**` routes). This version reflects only routes that exist
+as real files.**
 **Reflects the RFQ model — no customer-facing pricing anywhere.**
 
 ---
@@ -8,359 +18,167 @@
 ## ROUTE TREE
 
 ```
-afs-web/app/
+app/
 │
-├── (public)/                        No auth required on these routes
-│   │
-│   ├── page.tsx
-│   │   URL:      /
-│   │   Page:     Homepage
-│   │   Spec:     SPEC_HOMEPAGE.md
-│   │   Purpose:  Qualifies 4 audiences. Drives to /quote or /upload.
-│   │             No prices. CTAs: "Submit a Drawing" "Request a Quote"
-│   │
+├── (public)/                        No auth required (route group — no URL segment)
+│   ├── page.tsx                     / — Homepage
 │   ├── products/
-│   │   ├── page.tsx
-│   │   │   URL:      /products
-│   │   │   Page:     Product Catalog
-│   │   │   Spec:     SPEC_PRODUCT_CATALOG.md
-│   │   │   Purpose:  Browse what AFS fabricates. No prices.
-│   │   │             Every product drives to "Request a Quote"
-│   │   │
+│   │   ├── page.tsx                 /products — catalog, no prices
 │   │   └── [category]/
-│   │       ├── page.tsx
-│   │       │   URL:      /products/[category]
-│   │       │   Example:  /products/coping-caps
-│   │       │   Spec:     SPEC_PRODUCT_CATALOG.md
-│   │       │   Params:   generateStaticParams from product_profiles.slug
-│   │       │
-│   │       └── [slug]/
-│   │           └── page.tsx
-│   │               URL:      /products/[category]/[slug]
-│   │               Example:  /products/coping-caps/galvanized-20ga
-│   │               Spec:     SPEC_PRODUCT_CATALOG.md §4
-│   │               Params:   generateStaticParams from products joined to profiles
-│   │
-│   ├── quote/
-│   │   └── page.tsx
-│   │       URL:      /quote
-│   │       Page:     Quote Request Wizard (4 steps, client-side state)
-│   │       Spec:     SPEC_QUOTE_BUILDER.md
-│   │       Purpose:  Customer specifies profiles, materials, dimensions.
-│   │                 Submits request. AFS prices internally. No prices shown.
-│   │       Params:   ?step=1-4 ?product={id} ?profile={id} ?project={id}
-│   │                 ?from_order={id} ?from_template={id}
-│   │
-│   ├── configure/
-│   │   └── page.tsx
-│   │       URL:      /configure
-│   │       Page:     Custom Flashing Configurator
-│   │       Spec:     SPEC_FLASHING_CONFIGURATOR.md
-│   │       Purpose:  Precise custom profile specification with live SVG diagram.
-│   │                 Output is a quote request submission. No prices shown.
-│   │       Params:   ?profile={id} ?saved={configId}
-│   │
-│   ├── upload/
-│   │   └── page.tsx
-│   │       URL:      /upload
-│   │       Page:     Blueprint Takeoff AI
-│   │       Spec:     SPEC_DRAWING_TOOL.md
-│   │       Purpose:  Upload DWG/DXF/PDF. AI extracts profiles and dimensions.
-│   │                 Result converts to quote request. No prices shown.
-│   │       Params:   ?mode=blueprint|photo ?project={id}
-│   │
-│   ├── track/
-│   │   └── [orderId]/
-│   │       └── page.tsx
-│   │           URL:      /track/[orderId]
-│   │           Page:     Public Order Tracker
-│   │           Spec:     SPEC_ORDER_PORTAL.md §6
-│   │           Auth:     Email verification (not full auth — order ID + email)
-│   │           Purpose:  Track fabrication and delivery without logging in.
-│   │                     Shows production timeline, ship date, tracking link.
-│   │                     Does NOT show pricing.
-│   │           Rate limit: 10 lookups per IP per hour
-│   │
+│   │       ├── page.tsx             /products/[category]
+│   │       └── [slug]/page.tsx      /products/[category]/[slug]
 │   ├── architects/
-│   │   ├── page.tsx
-│   │   │   URL:      /architects
-│   │   │   Page:     Architect Portal Landing
-│   │   │   Spec:     SPEC_ARCHITECT_PORTAL.md
-│   │   │   Design:   Copper accent replaces crimson. Same dark gunmetal base.
-│   │   │
-│   │   ├── spec-writer/
-│   │   │   └── page.tsx
-│   │   │       URL:      /architects/spec-writer
-│   │   │       Page:     AI CSI Specification Generator
-│   │   │       Spec:     SPEC_AI_SPEC_WRITER.md
-│   │   │       Auth:     Required — architect or admin role
-│   │   │       Purpose:  Generates CSI Division 07 spec sections.
-│   │   │                 Output: editable DOCX. No pricing in specs.
-│   │   │
-│   │   ├── cad-library/
-│   │   │   └── page.tsx
-│   │   │       URL:      /architects/cad-library
-│   │   │       Page:     Technical Drawing Library
-│   │   │       Spec:     SPEC_CAD_BIM_LIBRARY.md
-│   │   │       Auth:     Browse public. Download requires auth (any role).
-│   │   │       Purpose:  DWG, DXF, PDF, Revit families for every AFS profile.
-│   │   │
-│   │   ├── finish-palette/
-│   │   │   └── page.tsx
-│   │   │       URL:      /architects/finish-palette
-│   │   │       Page:     Finish and Color Library
-│   │   │       Spec:     SPEC_FINISH_PALETTE.md
-│   │   │       Auth:     Browse public. Download requires auth.
-│   │   │
-│   │   ├── custom-profiles/
-│   │   │   └── page.tsx
-│   │   │       URL:      /architects/custom-profiles
-│   │   │       Page:     Saved Custom Profile Library
-│   │   │       Spec:     SPEC_CUSTOM_PROFILE_LIBRARY.md
-│   │   │       Auth:     Required — any role
-│   │   │
-│   │   ├── specs/
-│   │   │   └── [profileSlug]/
-│   │   │       └── page.tsx
-│   │   │           URL:      /architects/specs/[profileSlug]
-│   │   │           Example:  /architects/specs/coping-caps
-│   │   │           Page:     Material Specification + Data Sheet
-│   │   │           Spec:     SPEC_MATERIAL_SPEC_LIBRARY.md
-│   │   │
+│   │   ├── page.tsx                 /architects — portal landing, copper accent
+│   │   ├── spec-writer/page.tsx     /architects/spec-writer — auth: architect|admin
+│   │   ├── cad-library/page.tsx     /architects/cad-library — browse public, download auth
+│   │   ├── finish-palette/page.tsx  /architects/finish-palette — browse public, download auth
+│   │   ├── custom-profiles/page.tsx /architects/custom-profiles — auth required
+│   │   ├── specs/[profileSlug]/page.tsx   /architects/specs/[profileSlug]
 │   │   ├── guides/
-│   │   │   ├── page.tsx
-│   │   │   │   URL:      /architects/guides
-│   │   │   │   Page:     Architectural Resource Center
-│   │   │   │   Spec:     SPEC_ARCHITECTURAL_RESOURCE_CENTER.md
-│   │   │   │
-│   │   │   └── [profileSlug]/
-│   │   │       └── page.tsx
-│   │   │           URL:      /architects/guides/[profileSlug]
-│   │   │           Page:     Field Installation Guide
-│   │   │           Spec:     SPEC_FIELD_INSTALLATION_GUIDES.md
-│   │   │
-│   │   └── consultation/
-│   │       └── page.tsx
-│   │           URL:      /architects/consultation
-│   │           Page:     Design Consultation Request
-│   │           Spec:     SPEC_DESIGN_CONSULTATION.md
-│   │           Auth:     Public (no auth required to submit)
-│   │
-│   ├── about/
-│   │   └── page.tsx
-│   │       URL:      /about
-│   │       Page:     Company story, facility, team
-│   │       Blocked:  Photography (#9), copy (#11)
-│   │
-│   ├── contact/
-│   │   └── page.tsx
-│   │       URL:      /contact
-│   │       Params:   ?order={id} (pre-fills order reference)
-│   │       Blocked:  Address, phone, hours (#5, #6)
-│   │
+│   │   │   ├── page.tsx             /architects/guides
+│   │   │   └── [profileSlug]/page.tsx /architects/guides/[profileSlug]
+│   │   └── consultation/page.tsx    /architects/consultation — public submit
+│   ├── about/page.tsx               /about
+│   ├── contact/page.tsx             /contact
 │   └── legal/
-│       ├── terms/page.tsx          /legal/terms       — Blocked: #64, #92
-│       ├── privacy/page.tsx        /legal/privacy     — LAUNCH BLOCKER: #65
-│       └── warranty/page.tsx       /legal/warranty    — Blocked: #63
+│       ├── terms/page.tsx           /legal/terms
+│       └── privacy/page.tsx         /legal/privacy — LAUNCH BLOCKER: #65
 │
 ├── (auth)/                          Redirect to /account if already authenticated
-│   ├── login/
-│   │   ├── page.tsx                 /login
-│   │   │   Spec: SPEC_AUTH.md §2.3
-│   │   │   Params: ?redirect={url} ?error={code}
-│   │   └── magic-sent/page.tsx      /login/magic-sent
-│   │
+│   ├── login/page.tsx               /login
 │   ├── register/
 │   │   ├── page.tsx                 /register
-│   │   │   Spec: SPEC_AUTH.md §2.1
 │   │   └── confirm/page.tsx         /register/confirm
-│   │
 │   ├── forgot-password/
 │   │   ├── page.tsx                 /forgot-password
 │   │   └── sent/page.tsx            /forgot-password/sent
-│   │
-│   ├── reset-password/page.tsx      /reset-password
-│   │
-│   └── invite/[token]/page.tsx      /invite/[token]
-│       Spec: SPEC_TEAM_ACCOUNTS.md §4
+│   └── reset-password/page.tsx      /reset-password
+├── invite/[token]/page.tsx          /invite/[token] — team invitation accept flow
+├── auth/callback/route.ts           /auth/callback — Supabase auth code exchange
 │
-├── auth/callback/route.ts           /auth/callback
-│   Spec: SPEC_AUTH.md §4.1
-│   Purpose: Supabase auth code exchange for magic links and email confirmation
+├── quote/page.tsx                   /quote — Quote Request Wizard, no prices shown
+├── configure/page.tsx               /configure — Custom Flashing Configurator, no prices
+├── upload/page.tsx                  /upload — Blueprint Takeoff AI, no prices
+├── track/[orderId]/page.tsx         /track/[orderId] — public tracker, no full auth
+│
+├── studio/                          Design Studio — primary NavBar destination
+│   ├── page.tsx                     /studio — 3 tab-card landing (Scan/Photo/FlashDraft)
+│   ├── draft/page.tsx               /studio/draft — FlashDraft 2D canvas tool
+│   └── profile-viewer/[profileId]/page.tsx  /studio/profile-viewer/[id] — standalone
+│                                     3D viewer, public profiles anonymous, private admin-only
 │
 ├── account/                         Auth required — any role
-│   ├── page.tsx                     /account
-│   │   Spec: SPEC_ORDER_PORTAL.md §2
-│   │   Page: Customer Dashboard
-│   │
+│   ├── page.tsx                     /account — dashboard
 │   ├── orders/
 │   │   ├── page.tsx                 /account/orders
-│   │   │   Spec: SPEC_ORDER_PORTAL.md §3
 │   │   └── [id]/page.tsx            /account/orders/[id]
-│   │       Spec: SPEC_ORDER_PORTAL.md §4
-│   │
 │   ├── quotes/
 │   │   ├── page.tsx                 /account/quotes
-│   │   │   Purpose: List of quote_requests and formal quotes from AFS
-│   │   └── [id]/page.tsx            /account/quotes/[id]
-│   │       Purpose: View formal AFS quote. First time customer sees prices.
-│   │                [Approve & Pay] button triggers checkout.
-│   │
+│   │   └── [id]/page.tsx            /account/quotes/[id] — first place customer sees prices
 │   ├── projects/
 │   │   ├── page.tsx                 /account/projects
-│   │   │   Spec: SPEC_MULTI_PROJECT_MANAGEMENT.md §3
 │   │   └── [id]/page.tsx            /account/projects/[id]
-│   │       Spec: SPEC_MULTI_PROJECT_MANAGEMENT.md §4
-│   │
 │   ├── documents/page.tsx           /account/documents
-│   │   Spec: SPEC_DOCUMENT_UPLOAD.md §5
-│   │
 │   ├── invoices/page.tsx            /account/invoices
-│   │   Spec: SPEC_INVOICE_PORTAL.md
-│   │   Purpose: AFS-generated invoices. Prices set by AFS.
-│   │
-│   ├── delivery/page.tsx            /account/delivery
-│   │   Spec: SPEC_DELIVERY_SCHEDULER.md
-│   │
 │   ├── templates/page.tsx           /account/templates
-│   │   Spec: SPEC_SAVED_PROJECT_TEMPLATES.md
-│   │
 │   ├── team/page.tsx                /account/team
-│   │   Spec: SPEC_TEAM_ACCOUNTS.md §5
-│   │
 │   ├── credit-application/page.tsx  /account/credit-application
-│   │   Spec: SPEC_ONLINE_CREDIT_APPLICATION.md
-│   │
 │   └── settings/page.tsx            /account/settings
-│       Spec: SPEC_AUTH.md §8
 │
-├── checkout/page.tsx                /checkout
-│   Auth: Required — any role
-│   Spec: SPEC_CHECKOUT.md
-│   Purpose: Triggered ONLY from /account/quotes/[id] after customer
-│             approves formal AFS quote. Collects payment.
-│   Params: ?quote={id}
+├── checkout/page.tsx                /checkout — auth required, triggered only from
+│                                     /account/quotes/[id] after quote approval
 │
 ├── admin/                           Auth required — admin role only
-│   ├── page.tsx                     /admin
-│   │   Spec: SPEC_ADMIN_PORTAL.md §3
-│   │   Page: Admin Dashboard
-│   │
+│   ├── page.tsx                     /admin — dashboard
+│   ├── command-center/page.tsx      /admin/command-center — Machine Bridge approval
+│   │                                 queue (Pending Approval / Sent to Machine / Completed)
 │   ├── quote-requests/
 │   │   ├── page.tsx                 /admin/quote-requests
-│   │   │   Purpose: Queue of incoming quote requests. Core admin workflow.
-│   │   └── [id]/page.tsx            /admin/quote-requests/[id]
-│   │       Purpose: View request, run pricing engine, send formal quote.
-│   │       Spec: PRICING_ENGINE.md §6
-│   │
+│   │   └── [id]/page.tsx            /admin/quote-requests/[id] — run pricing engine, send quote
 │   ├── orders/
 │   │   ├── page.tsx                 /admin/orders
-│   │   │   Spec: SPEC_PRODUCTION_QUEUE.md §2
 │   │   └── [id]/page.tsx            /admin/orders/[id]
-│   │       Spec: SPEC_PRODUCTION_QUEUE.md §4
-│   │
 │   ├── customers/
 │   │   ├── page.tsx                 /admin/customers
-│   │   │   Spec: SPEC_CUSTOMER_MANAGEMENT.md §1
 │   │   └── [id]/page.tsx            /admin/customers/[id]
-│   │       Spec: SPEC_CUSTOMER_MANAGEMENT.md §2
-│   │
-│   ├── pricing/page.tsx             /admin/pricing
-│   │   Spec: SPEC_PRICING_ADMIN.md
-│   │   Purpose: Pricing rules editor, commodity dashboard, trend alerts.
-│   │
-│   ├── cad-library/page.tsx         /admin/cad-library
-│   │   Spec: SPEC_CAD_BIM_LIBRARY.md §5
-│   │
-│   ├── consultations/page.tsx       /admin/consultations
-│   │   Spec: SPEC_DESIGN_CONSULTATION.md §4
-│   │
+│   ├── pricing/page.tsx             /admin/pricing — pricing rules editor, commodity dashboard
 │   ├── credit-applications/page.tsx /admin/credit-applications
-│   │   Spec: SPEC_ONLINE_CREDIT_APPLICATION.md §4
-│   │
-│   └── settings/page.tsx            /admin/settings
-│       Purpose: Integration status, QuickBooks connect, system settings
+│   ├── quickbooks/page.tsx          /admin/quickbooks — connection status, stubbed (not live)
+│   └── settings/page.tsx            /admin/settings — integration status, system settings
+│                                     (NOTE: /admin/pathfinder has no page.tsx — it's API-only,
+│                                      see below; /admin/cad-library and /admin/consultations
+│                                      described in earlier drafts of this doc were never built)
 │
-└── api/                             All server-side — never callable for AI from client
+└── api/                             All server-side
+    ├── upload/route.ts                              POST
+    ├── takeoff/route.ts                              POST
+    ├── quote-requests/route.ts                       GET POST
+    ├── products/ai-search/route.ts                   POST — Claude-backed search
+    ├── orders/[id]/reorder/route.ts                   POST
+    ├── chat/route.ts                                  POST — streaming AI chatbot
+    ├── spec/route.ts                                  POST
+    ├── spec/save/route.ts                             POST
+    ├── spec/[id]/docx/route.ts                        GET
+    ├── documents/upload/route.ts                      POST
+    ├── documents/download/route.ts                    POST
+    ├── documents/[id]/route.ts                        DELETE
+    ├── documents/[id]/download/route.ts                GET
+    ├── account/profile/route.ts                       PATCH
+    ├── account/notifications/route.ts                  PATCH
+    ├── team/invite/route.ts                           POST
+    ├── credit/apply/route.ts                          POST
+    ├── consultation/request/route.ts                   POST
+    ├── contact/route.ts                               POST
+    ├── auth/register/route.ts                         POST
+    ├── checkout/create-intent/route.ts                 POST
+    ├── projects/route.ts                              GET POST
+    ├── projects/[id]/route.ts                          GET PATCH
+    ├── invoices/statement/route.ts                     GET
+    ├── invoices/[id]/pdf/route.ts                      GET
+    ├── templates/route.ts                             GET POST
+    ├── templates/[id]/use/route.ts                     POST
+    ├── track/verify/route.ts                          POST — order tracker email verify
+    ├── recommendations/material/route.ts               POST
+    ├── recommendations/cross-sell/route.ts             POST
+    ├── architects/installation-advisor/route.ts        POST
+    ├── architects/palette/[materialSlug]/pdf/route.ts   GET
+    ├── studio/match-profile/route.ts                   POST — debounced profile matching
+    ├── webhooks/stripe/route.ts                        POST
     │
-    ├── upload/route.ts              POST /api/upload
-    ├── takeoff/route.ts             POST /api/takeoff
-    ├── takeoff/confirm/route.ts     POST /api/takeoff/confirm
+    ├── machine-bridge/                                  Bearer AFS_BRIDGE_SECRET, not session auth
+    │   ├── pending-jobs/route.ts                        GET — bridge polls this
+    │   ├── job-delivered/route.ts                       POST — bridge reports staged/failed
+    │   └── status/route.ts                              GET — connection-status ping
     │
-    ├── quote-requests/
-    │   ├── route.ts                 GET POST /api/quote-requests
-    │   └── [id]/route.ts           GET /api/quote-requests/[id]
-    │
-    ├── quotes/
-    │   ├── route.ts                 GET /api/quotes
-    │   └── [id]/
-    │       ├── route.ts            GET /api/quotes/[id]
-    │       └── approve/route.ts    POST /api/quotes/[id]/approve
-    │
-    ├── products/
-    │   ├── route.ts                 GET /api/products
-    │   ├── search/route.ts          GET /api/products/search?q=
-    │   └── [id]/route.ts           GET /api/products/[id]
-    │
-    ├── orders/
-    │   ├── route.ts                 GET POST /api/orders
-    │   └── [id]/
-    │       ├── route.ts            GET PATCH /api/orders/[id]
-    │       ├── reorder/route.ts    POST /api/orders/[id]/reorder
-    │       └── status/route.ts     PATCH /api/orders/[id]/status (admin)
-    │
-    ├── chat/route.ts                POST /api/chat (streaming)
-    ├── spec/route.ts                POST /api/spec
-    ├── spec/[id]/docx/route.ts      GET /api/spec/[id]/docx
-    │
-    ├── delivery/
-    │   ├── schedule/route.ts        POST /api/delivery/schedule
-    │   ├── reschedule/route.ts      POST /api/delivery/reschedule
-    │   └── availability/route.ts    GET /api/delivery/availability
-    │
-    ├── pickup/schedule/route.ts     POST /api/pickup/schedule
-    │
-    ├── documents/
-    │   ├── route.ts                 GET /api/documents
-    │   ├── upload/route.ts          POST /api/documents/upload
-    │   ├── [id]/route.ts           DELETE /api/documents/[id]
-    │   └── [id]/download/route.ts   GET /api/documents/[id]/download
-    │
-    ├── account/
-    │   ├── profile/route.ts         PATCH /api/account/profile
-    │   └── notifications/route.ts   PATCH /api/account/notifications
-    │
-    ├── team/invite/route.ts         POST /api/team/invite
-    ├── credit/apply/route.ts        POST /api/credit/apply
-    ├── consultation/request/route.ts POST /api/consultation/request
-    │
-    ├── configurator/
-    │   ├── profile/[id]/route.ts    GET /api/configurator/profile/[id]
-    │   ├── save/route.ts            POST /api/configurator/save
-    │   └── submit/route.ts          POST /api/configurator/submit
-    │
-    ├── architects/
-    │   └── palette/[slug]/pdf/route.ts GET /api/architects/palette/[slug]/pdf
-    │
-    ├── invoices/
-    │   ├── route.ts                 GET /api/invoices
-    │   └── [id]/pdf/route.ts        GET /api/invoices/[id]/pdf
-    │
-    ├── admin/
-    │   ├── quote-requests/[id]/price/route.ts  POST — run pricing engine
-    │   ├── quote-requests/[id]/send/route.ts   POST — send formal quote
-    │   ├── customers/[id]/route.ts  PATCH
-    │   ├── pricing/commodity/route.ts GET PATCH
-    │   └── pricing/rules/route.ts   GET PATCH
-    │
-    ├── cron/
-    │   ├── commodity-prices/route.ts GET — daily commodity fetch
-    │   └── pricing-trends/route.ts  GET — nightly trend analysis
-    │
-    └── webhooks/
-        ├── stripe/route.ts          POST — payment events
-        └── twilio/route.ts          POST — SMS opt-out handling
+    └── admin/                                           admin role required
+        ├── customers/[id]/route.ts                      PATCH
+        ├── credit-applications/[id]/route.ts             PATCH
+        ├── orders/[id]/status/route.ts                   PATCH
+        ├── orders/[id]/notes/route.ts                    POST
+        ├── orders/[id]/photos/route.ts                   POST
+        ├── pricing/rules/[productId]/route.ts             GET PATCH
+        ├── quote-requests/[id]/send/route.ts              POST
+        ├── quickbooks/status/route.ts                     GET — stubbed, not live
+        ├── pathfinder/route.ts                            GET — stubbed, not live
+        ├── pathfinder/push-profile/route.ts                POST — stubbed, not live
+        ├── pathfinder/submit-job/route.ts                  POST — stubbed, not live
+        └── command-center/
+            ├── approve/route.ts                          POST — approve a machine_jobs row
+            ├── approve-quote-request/route.ts             POST — approve a quote_requests row directly
+            ├── reject/route.ts                            POST — reason required
+            ├── request-changes/route.ts                   POST — sets changes_requested + emails customer
+            └── mark-delivered/route.ts                    POST — closes the human-review-gate loop
 ```
+
+**Routes described in earlier drafts of this document that were never
+built and do not exist:** `/login/magic-sent`, `/account/delivery`,
+`/admin/cad-library`, `/admin/consultations`, `/legal/warranty`, and most
+of the originally-planned `/api/quotes/**`, `/api/products/search`,
+`/api/products/[id]`, `/api/orders` (GET/POST — only `[id]/reorder`
+exists), `/api/delivery/**`, `/api/pickup/**`, `/api/configurator/**`,
+`/api/invoices` (GET list — only `statement` and `[id]/pdf` exist),
+`/api/cron/**` (no cron routes exist yet — see PRICING_ENGINE.md §8,
+still speculative), and `/api/webhooks/twilio`.
 
 ---
 
@@ -374,6 +192,10 @@ Route Pattern                Auth Required   Role           Notes
 /quote                       No             —              Public
 /configure                   No             —              Public
 /upload                      No             —              Public
+/studio                      No             —              Public
+/studio/draft                No             —              Public
+/studio/profile-viewer/[id]  Partial        —              Public profile: anyone. Private
+                                                             profile: admin only (404s otherwise)
 /track/[id]                  No             —              Email verify
 /architects                  No             —              Public
 /architects/spec-writer      Yes            architect|admin
@@ -392,11 +214,14 @@ Route Pattern                Auth Required   Role           Notes
 /reset-password              No             —              Public
 /invite/[token]              No             —              Token validates identity
 /auth/callback               No             —              Supabase handler
-/account/**                  Yes            any            middleware.ts
+/account/**                  Yes            any            middleware.ts + AppChrome portal exclusion
 /checkout                    Yes            any            middleware.ts
-/admin/**                    Yes            admin          middleware.ts + route check
+/admin/**                    Yes            admin          middleware.ts + route check +
+                                                             AppChrome portal exclusion
 /api/admin/**                Yes (server)   admin          Server-side check in handler
-/api/cron/**                 Bearer token   —              CRON_SECRET required
+/api/machine-bridge/**       Bearer token   —              AFS_BRIDGE_SECRET required, not
+                                                             Supabase session auth — see
+                                                             ARCHITECTURE.md §11
 ```
 
 ---
@@ -429,19 +254,32 @@ Query params:
 
 ## PAGE + ROUTE COUNT
 
+Verified 2026-07-13 against the actual `app/` directory (`find app -name
+page.tsx` / `find app -name route.ts`):
+
 ```
-Public pages:        18  (including legal placeholders)
-Auth pages:           7
-Account pages:       11
-Admin pages:          7
-API routes:          40
-Cron routes:          2
-Webhook routes:       2
+Public pages:        24  (includes Design Studio: /studio, /studio/draft,
+                          /studio/profile-viewer/[id])
+Auth pages:            7
+Account pages:        13
+Admin pages:          12
+Checkout:              1
+Auth callback route:   1
+API routes:           53
 ─────────────────────
-Total:               87 routes
+Total (filesystem):  111  (57 page.tsx + 54 route.ts)
 ```
+
+`pnpm run build` reports **106 routes** in its route-summary table — the
+build output collapses each dynamic route's `generateStaticParams`-
+generated paths (e.g. every individual `/products/[category]` slug) under
+one parent entry rather than listing each file separately, which accounts
+for the difference from the 111 raw-file count above. **106 is the number
+to cite as "the route count"** — it's what `pnpm run build`'s own output
+reports and what STATE_OF_THE_BUILD.md tracks release-to-release.
 
 ---
 
 *SITEMAP.md | AFS | Reid Whitesides | June 2026*
+*Rewritten from a full app/ directory audit, 2026-07-13.*
 *RFQ model. No customer-facing pricing on any public or account route.*

@@ -117,23 +117,31 @@ FileTypeIcon.tsx
 ## LAYER 2 — LAYOUT (`components/layout/`)
 
 ```
-NavBar.tsx
-  Fixed top, z-50, height 64px (h-16)
-  Background: bg-afs-bg-raised border-b border-[var(--afs-border)]
-  Left: AFS logo mark in bg-afs-bg-dim container
-        "AFS" font-display text-3xl text-afs-chrome-high
-        "ARCHITECTURAL FLASHING SUPPLY" font-label text-xs tracking-widest text-afs-chrome-dim
-  Center (desktop): Products | Request a Quote | Upload Drawing | Architects
-        Links: font-label text-sm text-afs-chrome-mid hover:text-afs-chrome-high
-  Right: "Submit a Drawing" primary Button + account icon (if authenticated)
-  Mobile (<768px): Hamburger → MobileNav drawer
+AppChrome.tsx
+  Client component wrapping every route from the root app/layout.tsx.
+  Decides which global chrome a route gets — the ONLY place this
+  decision is made; individual layout.tsx files never import NavBar.
+  NO_CHROME_PREFIXES (/login, /register, /forgot-password,
+  /reset-password, /invite) → bare {children}, no chrome at all.
+  PORTAL_PREFIXES (/admin, /account) → bare {children} — no NavBar, no
+  Footer, no ChatWidget — since AdminShell/AccountShell already supply a
+  complete sidebar + content shell. Everything else → <NavBar/> +
+  <div className="ml-48 pt-11">{children}<Footer/></div> + <ChatWidget/>.
+  See ARCHITECTURE.md's "AppChrome Portal Exclusion Pattern" for the full
+  pattern and the afs-036 double-nav bug this fixed.
 
-MobileNav.tsx
-  Slide-out drawer from right
-  fixed right-0 top-0 h-full w-80 bg-afs-bg-raised border-l border-[var(--afs-border)]
-  Backdrop: fixed inset-0 bg-black/60 (click to close)
-  Same links as desktop nav, stacked vertically
-  Close X button top-right
+NavBar.tsx
+  NOT a single top bar — an L-shaped chrome rendered as two fixed elements:
+    Left rail: fixed top-0 left-0 bottom-0 w-48 (192px), bg-afs-bg-dim,
+      logo, then a vertical link list (Home, Products, Request a Quote,
+      Configure, Upload Drawing, Design Studio, Architects, My Account/
+      Sign In, Sign Out if authenticated), "Est. Texas" footer line.
+    Top header: fixed top-0 left-48 right-0 h-11 (44px), bg-afs-bg-raised,
+      horizontal desktop-only (md:flex) link row duplicating the same 6
+      content links (Products through Architects).
+  Only rendered by AppChrome for non-portal, non-auth routes — see
+  AppChrome.tsx above. The ml-48 pt-11 wrapper AppChrome applies to
+  {children} exists specifically to clear this rail+header combination.
 
 Footer.tsx
   bg-afs-bg-raised border-t border-[var(--afs-border)]
@@ -142,6 +150,7 @@ Footer.tsx
   Bottom bar: copyright, Privacy, Terms
   All text: text-afs-chrome-dim text-sm
   Column headings: font-label font-semibold text-afs-chrome-mid text-sm tracking-wider uppercase
+  Rendered by AppChrome only on non-portal, non-auth routes.
 
 PageShell.tsx
   max-w-[1280px] mx-auto px-6
@@ -156,15 +165,26 @@ SectionDivider.tsx
   1px with chrome gradient at 12° skew
 
 AdminShell.tsx
-  Two-panel: sidebar (240px fixed) + main content (flex-1)
-  Sidebar: bg-afs-bg-raised border-r border-[var(--afs-border)]
-  Active nav item: border-l-2 border-afs-crimson bg-afs-bg-surface text-afs-chrome-high
-  Route-aware active state
+  Two-panel: <aside> sidebar (240px fixed) + <main> content (flex-1)
+  Sidebar: fixed top-0 left-0 bottom-0 w-[240px] (positioned from the true
+    viewport edge — AppChrome renders no public NavBar on /admin/** to
+    clear, see AppChrome.tsx above), bg-afs-bg-raised border-r
+    border-afs-border, logo, then nav sections (Operations: Command
+    Center w/ live pending-job-count badge, Quote Requests, Production
+    Queue, Consultations; Business: Customers, Credit Apps, Pricing;
+    Content: CAD Library; Integrations: QuickBooks; Settings: Settings),
+    admin name + Sign Out button pinned to the bottom.
+  Active nav item: border-l-2 border-afs-crimson bg-afs-bg-surface text-white
+  main: flex-1 ml-[240px] pt-16 px-8 pb-16
 
 AccountShell.tsx
-  Sidebar nav for customer account pages
-  Links: Dashboard | Orders | Quotes | Projects | Documents | Invoices | Templates | Team | Settings
-  Mobile: collapsible into top tab bar
+  Same two-panel pattern as AdminShell.tsx, aside width 220px, positioned
+  fixed top-0 left-0 bottom-0 (same reasoning — no public NavBar to
+  clear on /account/**).
+  Links: Dashboard | My Orders | My Quotes | My Projects | Documents |
+  Invoices | Templates | Team | Credit Application | Settings
+  Sign Out button pinned to the bottom, same hard-redirect pattern as
+  AdminShell (supabase.auth.signOut() then window.location.href = '/login').
 
 ArchitectShell.tsx
   Extends PageShell with copper accent treatment
@@ -614,6 +634,35 @@ PricingAdminDashboard.tsx
   MarginRiskAlerts (for flagged materials)
   PricingRulesEditor (per-product editable table)
   HistoricalPriceChart (recharts)
+
+--- Command Center (/admin/command-center) — beyond the original 10 layers,
+    added for the Machine Bridge feature (see ARCHITECTURE.md §11) ---
+
+PendingQuoteRequestCard.tsx
+  Renders one quote_requests row (status = 'submitted') in the Pending
+  Approval tab — reads from lib/data/pending-quote-requests.ts
+  (PendingQuoteRequestRow type). Approve action → POST
+  /api/admin/command-center/approve-quote-request. Exists because nothing
+  currently auto-creates machine_jobs rows from real customer submissions
+  (see SCHEMA.md's MACHINE BRIDGE TABLES note) — this card is what
+  actually makes the Pending Approval tab show real incoming work, by
+  reading quote_requests directly rather than waiting on machine_jobs.
+
+CommandCenterJobCard.tsx
+  Renders one machine_jobs row. Approve / Reject (reason required) /
+  Request Changes / Mark as Sent to Machine actions depending on status —
+  see ARCHITECTURE.md's Machine Job Lifecycle for the full state machine.
+
+BendSequenceDiagram.tsx
+  SVG reconstruction of a bend sequence from its stored steps — same
+  turtle-graphics approach as FlashDraft's "Load from Library" — labeled
+  approximate, not CAD-precision.
+
+MachineBridgeStatusDot.tsx
+  Polls /api/machine-bridge/status every 30s. Green if the bridge pinged
+  within the last 90s (2x the bridge's own 30s poll interval), red
+  otherwise. See STATE_OF_THE_BUILD.md for the bridge's current audited
+  connectivity status.
 ```
 
 ---
@@ -654,6 +703,60 @@ CrossSellPanel.tsx
   Shown after AutoMaterialCalculator in quote wizard
   Required accessories auto-added (with remove option)
   Recommended accessories with add checkbox
+```
+
+---
+
+## LAYER 12 — DESIGN STUDIO (`components/studio/`, `app/studio/`)
+
+Beyond the original 10 layers — added after Phase 0–8 shipped. `/studio` is
+a primary NavBar destination (see LAYER 2).
+
+```
+ProfileViewer3D.tsx (components/studio/)
+  Three.js viewer — ExtrudeGeometry built from a turtle-graphics walk of a
+  `bends` array, offset into a thin ribbon by thicknessMm, then extruded.
+  PerspectiveCamera + OrbitControls (3s auto-rotate then stop), Reset
+  View/Top/Side/End presets. CSS2DRenderer dimension labels (leg lengths,
+  bend angles, blank-width end cap) in JetBrains Mono. Material color/
+  metalness/roughness table per material family. Runs a filletPolyline()
+  pass (tangent-point circular fillet, clamped to ≤49% of each adjacent
+  leg) before extruding when bend radii are present, so bends render as
+  curved surfaces instead of sharp miters.
+  Used in three places: FlashDraft's [2D View][3D View] toggle, a "View
+  3D" modal on the upload/AI-results page (app/upload/page.tsx), and the
+  standalone shareable route below. Does NOT render its own [2D][3D]
+  toggle — that lives once, in FlashDraft's own integration.
+
+ShareProfileButton.tsx (components/studio/)
+  Client component — copies the current page URL to the clipboard. Used
+  on the standalone profile-viewer route.
+
+app/studio/page.tsx
+  Design Studio landing — 3 tab cards: Scan to Quote (→ /upload), Photo to
+  Quote (→ /upload?tab=photos), FlashDraft (→ /studio/draft).
+
+app/studio/draft/page.tsx ("FlashDraft")
+  A large client-component page, not a separate reusable component — the
+  2D canvas drawing tool lives directly in this file (two-panel: 380px
+  controls + flex canvas). Draw/select/erase modes, click-and-drag segment
+  drawing via Pointer Events (mouse + touch), 15°-angle and 1/8"-dimension
+  snapping, Ctrl+Z/Ctrl+Y undo/redo, wheel zoom, middle-mouse/Space+drag
+  pan, feet+inches length fields, draggable per-bend radius handles
+  (afs-accent-green handle, afs-accent-purple "R: 0.5""-style label —
+  see DESIGN_TOKENS.md §10), debounced profile matching against
+  app/api/studio/match-profile, Save Draft (localStorage), Load from
+  Library (public machine_profiles), Submit for Quote. The canvas itself
+  is drawn via a local CANVAS_COLORS constant — see DESIGN_TOKENS.md §10
+  for the exception this follows.
+
+app/studio/profile-viewer/[profileId]/page.tsx
+  Standalone shareable route — server component, fetches a machine_profiles
+  row + its machine_profile_bends via the service-role client (RLS
+  requires auth even for public rows, which would break anonymous
+  sharing), full-screen ProfileViewer3D + ShareProfileButton. Enforces
+  is_public / admin-only access in application code — a private profile
+  404s exactly like a nonexistent one.
 ```
 
 ---

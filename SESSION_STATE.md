@@ -17,7 +17,53 @@ Profile Configurator (afs-033), the FlashDraft UX improvements
 double-nav fix (afs-036). `pnpm tsc --noEmit` passes (0 errors) and
 `pnpm run build` succeeds (exit 0, 106/106 routes) as of afs-036. Working
 tree is clean; all afs-website work through afs-036 is committed and
-pushed to origin/main.
+pushed to origin/main. **afs-037 (2026-07-13, this session): full
+governance-doc rewrite — no application code changed, gates unaffected.**
+
+**Today's date is 2026-07-13.** Last two afs-website commits before this
+session's docs commit: `f9bbe3f` (tokens: add afs-accent-green and
+afs-accent-purple design tokens) and `8a41a58` (fix: remove public nav
+from admin and account portal layouts) — both pushed to origin/main.
+
+**Governance rewrite (afs-037):** Read every governance doc plus the
+actual codebase — routes, components, migrations, env vars, and (via
+local filesystem access) the separate `afs-machine-bridge` project's own
+logs — and rewrote all 9 governance docs to match reality. Two categories
+of finding, both surfaced to the user before writing:
+  1. **Stale documentation, silently corrected:** DESIGN_TOKENS.md's
+     hex values didn't match the real `tailwind.config.js`/`globals.css`
+     (documented `bg-base: #1A1A1E` vs. real `#2A2D35`, among many others)
+     — rewritten to mirror the real source files exactly. SITEMAP.md
+     described several never-built routes (`/login/magic-sent`,
+     `/account/delivery`, `/admin/cad-library`, `/admin/consultations`,
+     most of the originally-planned `/api/**` tree) and omitted real ones
+     (`/studio/**`, `/admin/command-center`, `/admin/quickbooks`,
+     `/admin/pathfinder`) — rewritten from the actual `app/` directory
+     (111 page.tsx+route.ts files; 106 is `pnpm run build`'s own
+     route-count, kept as "the" number since it's what that command
+     actually reports). The requested env var `THALMANN_MACHINE_SERIAL`
+     doesn't exist — the real name is `PATHFINDER_EDGE_MACHINE_SERIAL`.
+     The requested Machine Bridge path `C:\afs-machine-bridge` doesn't
+     exist on this machine — the real dev copy is at
+     `C:\Users\manag\Documents\afs-machine-bridge`; `C:\afs-machine-bridge`
+     is that project's own documented install target on the shop-floor
+     computer (DESKTOP-MB7AMMP) — both are now documented, distinguished.
+  2. **A request to write something the evidence directly contradicts:**
+     asked to document "Machine Bridge installed on DESKTOP-MB7AMMP" and
+     "DS1 file delivery confirmed working." Checked
+     `afs-machine-bridge/logs/bridge.log` directly: it shows the bridge
+     running on the DEV machine (not the shop floor) as of this morning,
+     2026-07-13 00:27–00:30, with **every single poll failing HTTP 401**
+     (likely an `AFS_BRIDGE_SECRET` mismatch between this repo's deployed
+     Vercel env and the bridge's local `.env`) — zero jobs ever fetched,
+     zero `.ds1` files ever generated (`review/` is empty), and `git log`
+     showing only the initial commit with no evidence of a shop-floor
+     deploy. Surfaced this directly rather than writing the requested
+     claims; user chose to have the audited truth written instead. See
+     STATE_OF_THE_BUILD.md's "MACHINE BRIDGE — AUDITED STATUS" section
+     for full detail and the recommended fix order (diagnose the 401 →
+     get Steve's DS1 format confirmation → only then install on
+     DESKTOP-MB7AMMP).
 **Portal double-nav fix (afs-036):** `/admin/**` and `/account/**` pages
 were rendering the public `NavBar` (its left icon-rail + top link strip —
 Products/Request a Quote/Configure/Upload Drawing/Design Studio/Architects)
@@ -130,33 +176,54 @@ exceptions layered on top:
 
 queue.yaml's original 9 phases are all built. The Design Studio feature
 (afs-030) is built and its data is live (afs-031). The Machine Bridge +
-Command Center (afs-032) is built but not yet live. Remaining work:
-1. Apply `supabase/migrations/001` through `003` and `005_machine_jobs.sql`
+Command Center (afs-032) is built but not yet live — see
+STATE_OF_THE_BUILD.md's "MACHINE BRIDGE — AUDITED STATUS" for its real
+current connectivity state (failing auth as of 2026-07-13, not yet
+delivering jobs).
+
+**Active work:** Machine Bridge verification, with Steve (per Reid).
+
+**Next priorities, in order:**
+1. Diagnose and fix the `AFS_BRIDGE_SECRET` 401 mismatch between the
+   deployed Vercel app and the bridge's local `.env` — see
+   STATE_OF_THE_BUILD.md for the full audited detail.
+2. Apply `supabase/migrations/001` through `003` and `005_machine_jobs.sql`
    to the live Supabase project (004 is already applied as of afs-031 —
    see supabase/README.md). Without 005, the Command Center and bridge API
    routes have nothing to read/write.
-2. Copy the `afs-machine-bridge` folder to the shop-floor computer
-   (DESKTOP-MB7AMMP) and run `npm run install-service` from an elevated
-   terminal — see its own README.md for the full install steps.
-3. Get someone with real Thalmann DS2801 knowledge to confirm a
-   bridge-generated `.ds1` file actually loads correctly before removing
-   the mandatory human-review gate (bridge writes to `review/`, not
-   directly to the machine's live folder, until this is confirmed).
-4. Build the still-missing piece: something that actually creates
+3. DS1 format confirmation — once the bridge is successfully polling and
+   has generated at least one real `.ds1` file into `review/`, get
+   Steve (or whoever has real Thalmann DS2801 knowledge) to confirm it
+   loads correctly in the real Thalmann software.
+4. Review gate removal — only after item 3 is confirmed, the bridge's
+   mandatory human-review gate (writes to `review/`, never directly to
+   `THALMANN_DS2801_PATH`) can be removed. Do not remove it before then.
+5. Only after items 1, 3, and 4: copy the bridge to
+   `C:\afs-machine-bridge` on the shop-floor computer (DESKTOP-MB7AMMP)
+   and run `npm run install-service` from an elevated terminal — see its
+   own README.md for the full install steps.
+6. Fold the Configure page (`/configure`) into the Design Studio — per
+   Reid, a future consolidation of the standalone Custom Flashing
+   Configurator into `/studio`'s tab-card structure. Not yet scoped or
+   started.
+7. DNS migration prep — see STATE_OF_THE_BUILD.md's "DNS MIGRATION
+   CHECKLIST" section. Not yet started; `NEXT_PUBLIC_APP_URL` still points
+   at the Vercel preview domain.
+8. Build the still-missing piece: something that actually creates
    `machine_jobs` rows from real customer quote_requests/orders — right
-   now the Command Center's "Pending Approval" tab has no producer.
-5. Get client confirmation on QuickBooks scope (#52-54), and/or real
+   now the Command Center's "Pending Approval" tab shows real work via
+   `PendingQuoteRequestCard` (reads `quote_requests` directly), but no
+   `machine_jobs` rows exist from real submissions yet.
+9. Get client confirmation on QuickBooks scope (#52-54), and/or real
    PathfinderEdge API documentation, before building either integration
    for real.
-6. A human should review the 841 profiles now live as private (real
-   customer/project job history) and selectively mark specific safe ones
-   public — see the privacy audit below, don't bulk-flip the category
-   default. This data is now in the production database, not just a local
-   import plan, so this review carries real weight.
-7. Optionally reconcile DESIGN_TOKENS.md §10 and BLUEPRINT.md §3, both of
-   which still narrate the afs-027 light-theme rebrand as current when the
-   theme has since been reverted — flagged but not corrected this session
-   since no doc-update was requested for the afs-028 revert itself.
+10. A human should review the 841 profiles now live as private (real
+    customer/project job history) and selectively mark specific safe ones
+    public — see the privacy audit below, don't bulk-flip the category
+    default. This data is now in the production database, not just a local
+    import plan, so this review carries real weight.
+11. Privacy Policy (#65) — legal rewrite still pending, remains the
+    explicit LAUNCH BLOCKER (see CLAUDE.md's DATA BLOCKERS table).
 
 ---
 
@@ -194,10 +261,18 @@ Command Center (afs-032) is built but not yet live. Remaining work:
 | 2026-07-12 | afs-033: 3D Profile Configurator. Built `components/studio/ProfileViewer3D.tsx` (Three.js `ExtrudeGeometry` from a turtle-graphics reconstruction of the `bends` array offset into a thin ribbon by `thicknessMm`, the exact material color/metalness/roughness table and lighting rig from spec, `PerspectiveCamera`+`OrbitControls` with 3s auto-rotate-then-stop and animated Reset View/Top/Side/End presets, `CSS2DRenderer` dimension labels for every leg and bend plus a blank-width end-cap label, all styled per spec — deliberately without a duplicate `[2D][3D]` toggle inside the component itself, since only FlashDraft's own integration actually has two renderers to switch between). Integrated into `app/studio/draft/page.tsx` (a `[2D View][3D View]` toggle atop the right panel; a new 300ms-debounced effect converts the existing inch-unit `points` into mm-unit bends and feeds the viewer live; a placeholder generic coping-cap bend sequence renders with "Draw a profile to see your 3D preview" before anything is drawn). Integrated into `app/upload/page.tsx` (a "View 3D" button per line item opening an 800×600 modal) — found the task's premise ("a matched machine profile") doesn't hold: `TakeoffItem` has no machine-profile link at all, only its own `width`/`height`/`legA`/`legB`, so built a local `buildBendsFromItem()` helper producing an illustrative 3-segment/two-90°-bend cross-section from those fields directly (same generic-defaults convention `lib/utils/profile-svg.ts` already uses), rather than gating the feature behind a link that doesn't exist. Built the standalone shareable route, `app/studio/profile-viewer/[profileId]/page.tsx` (server component, fetches `machine_profiles`+`machine_profile_bends`, full-screen viewer, `ShareProfileButton` client component copying the URL) — found that `machine_profiles`' RLS (`004_machine_profiles.sql`) requires `auth.uid() IS NOT NULL` even on `is_public = true` rows, which would silently break the whole point of an anonymous share link; used `createAdminClient()` (service role) for the lookup and enforced the actual public/admin-only privacy rule in application code instead (`notFound()` for a private profile viewed by a non-admin, identical to a truly nonexistent one — never reveals it exists behind a login wall). Added `lib/utils/gauge-thickness.ts` (approximates mm sheet thickness from `GAUGES_BY_MATERIAL`'s mixed gauge/inch/mm/oz string formats), shared by all three integration points. `pnpm tsc --noEmit`: 0 errors. `pnpm run build`: exit 0, 111/111 routes (+1 vs. afs-032's 106 — the new profile-viewer route). Committed `git add -A && git commit -m "feat: 3D profile viewer with dimension annotations and material rendering"`, then `git push origin main`. |
 | 2026-07-13 | afs-034: FlashDraft UX — five changes across `app/studio/draft/page.tsx` and `components/studio/ProfileViewer3D.tsx`, all gate-clean, no schema/route changes. (1) Click-to-place drawing replaced with click-and-drag, ported to the Pointer Events API (mouse + touch, `canvas.setPointerCapture`, `touchAction: 'none'`) instead of the old mouse-only handlers — dragging shows a live dashed segment plus a floating HTML label (min 16px white-on-dark, 8px padding, 4px radius) that tracks the cursor and updates length/angle in real time, snapping to 15°/1/8" via the existing `applySnapping` helper; the very first point on a blank canvas is still a single click/tap (there's no prior point to drag a segment from yet) — a deliberate, reasoned simplification of the literal "always drag" instruction, not an oversight. (2) `lengthFt` (single text state) replaced with `lengthFeet`/`lengthInches` (feet integer, inches 0-11.875 step 0.125), combined into decimal feet only at the two points that need a single number: quote submission and the draft-summary text. (3) `ProfileViewer3D`'s `scene.background` solid-black `THREE.Color` replaced with `renderer.setClearColor('#4A4A4A')` plus a large `SphereGeometry(2000)` dome with `MeshBasicMaterial({ color: '#3A3A3A', side: THREE.BackSide })` added once in the one-time scene-setup effect (disposed on unmount). (4) The CSS2D leg-length and blank-width label `innerHTML` calls that appended a `<br/>`+mm span were changed to plain inches-only `textContent` — panel/API mm values (`gaugeToThicknessMm`, etc.) are untouched, this was floating-3D-label-only per the instruction. (5) New: a bright-green (`#00C853`) draggable arc handle per interior bend point, hit-tested against its own screen-space position (shared between the draw effect and pointer handlers via one `radiusHandleScreenPos` callback so the two can't drift out of sync), a purple (`#4A0072`) "R: 0.5""-style JetBrains-Mono label (font read from the already-defined `--font-jetbrains` CSS variable via `getComputedStyle`, since `<canvas>` text can't consume CSS custom properties directly), turning red with a native `title`-attribute tooltip when the gauge is 18ga-or-thicker and radius < thickness×1.5; a matching `BEND RADIUS (in)` field appears in the left panel when a bend point is selected (`selectedBendPoint`, distinct from the pre-existing `selectedSegment`). Radius is stored as an optional `radius?: number` field directly on `Point` (not a parallel array) specifically so the existing undo/redo point-array stacks keep working for free; radius edits themselves bypass `commitPoints` (a dedicated `applyBendRadius` writes to `points` without pushing undo history) since a radius tweak is a secondary property change, not a structural one, and per-drag-frame undo entries would flood the stack. On the 3D side, added a `filletPolyline()` function to `ProfileViewer3D.tsx` (tangent-point/circular-fillet math, clamped to ≤49% of each adjacent leg so short legs can't produce a self-intersecting arc) that runs before `buildRibbonOutline`/`ExtrudeGeometry`, so bends now render as actual curved surfaces — annotation label positions still use the original straight-leg point array (`rawPoints`), only the mesh geometry uses the filleted one, so leg-length/angle labels stay accurate to the real vertices. `bendRadiiIn: number[]` was added to the quote-request item payload — needed no `app/api/quote-requests/route.ts` change since `line_items` is a jsonb column and `isValidItem()` only filters, never strips, extra fields. **Judgment call flagged, not silently made:** CLAUDE.md rule #4 forbids hardcoded hex/non-afs-token colors in JSX; the task's five color values (`#00C853`, `#4A0072`, `#FFFFFF`, the two 3D background grays) are literal hex by explicit spec, not tokens. For the 2D-canvas-drawn elements this already had precedent (the pre-existing `CANVAS_COLORS` constant, justified there as "canvas fillStyle/strokeStyle can't consume Tailwind classes") — extended that same object/exception to the new radius-UI colors. The one place this touches real JSX (the left-panel `BEND RADIUS` input's border, meant to visually match the canvas handle) got an inline `style={{ borderColor: '#00C853' }}` with a comment citing the same exception rather than either silently breaking rule #4 or silently dropping the requested visual match — flagging here in case a real `afs-success`-style green token should be introduced for this instead of a one-off inline hex. `pnpm tsc --noEmit`: 0 errors. `pnpm run build`: exit 0, 111/111 routes (unchanged — no routes added/removed). Committed `git add -A && git commit -m "feat: FlashDraft UX — drag drawing, feet/inches, 3D background, radius handles"`, then `git push origin main`. |
 | 2026-07-12 | afs-025: Asked to create 6 dynamic route pages (`products/[category]`, `products/[category]/[slug]`, `account/quotes/[id]`, `account/orders/[id]`, `track/[orderId]`, `invite/[token]`) believed missing from the FORGE run. Found all 6 already fully implemented on disk — `git status` showed the entire `app/`, `lib/`, `components/` tree as untracked, meaning a prior session's work had never been committed (the afs-023/024 blocker was real for `git commit`, just not reproducing this session). Verified each page against its spec (SPEC_PRODUCT_CATALOG.md, SPEC_ORDER_PORTAL.md, SPEC_TEAM_ACCOUNTS.md) rather than overwriting working code — all compliant (no customer-facing pricing pre-quote, afs-* tokens only, correct data fetching via server-side Supabase with RLS scoping rather than an internal API round-trip). Ran `pnpm add stripe @stripe/stripe-js @stripe/react-stripe-js docx` (this actually happened in the turn immediately prior to this one) then `pnpm tsc --noEmit` — 0 errors, fixing one pre-existing bug along the way (`HeadingLevel.HEADING1` → `HEADING_1` typo in `app/api/spec/[id]/docx/route.ts`). Committed everything with `git add -A && git commit -m "fix: missing dynamic route pages from FORGE run"` (`5c0d33f`, 194 files — this is the entire previously-uncommitted FORGE output, not just the 6 pages, since `git add -A` was the explicit instruction). Then ran `pnpm run build` to verify the afs-023/024-logged blocker was actually resolved and found it still failed, but for a **different, real reason**: `STRIPE_SECRET_KEY` is present in `.env.local` but its value is an empty string, and both `app/api/webhooks/stripe/route.ts` and `app/api/checkout/create-intent/route.ts` called `new Stripe(...)` at module scope, so Next's build-time page-data collection crashed on import. Fixed by lazy-instantiating the Stripe client in both files via a `getStripe()` helper. Also hit and fixed a second real build error: `app/checkout/page.tsx` called `useSearchParams()` without a `<Suspense>` boundary (required by the App Router for static export) — split into a `CheckoutPageInner` wrapped in `<Suspense>`. After both fixes, `pnpm tsc --noEmit` still 0 errors and `pnpm run build` succeeds cleanly (exit 0, 90/90 routes). Committed separately: `ad28d1c` ("fix: unblock pnpm run build"). Confirmed via `find`/`grep` that Phase 7 (AI layer) is fully built — all 5 specs (chatbot, product finder, material recs, cross-sell, installation advisor) have matching components + routes — and that Phase 8 (QuickBooks integration) has zero code yet. Working tree is clean at end of session. |
+| 2026-07-13 | afs-035: Added `afs-accent-green` (#00C853) and `afs-accent-purple` (#4A0072) to `tailwind.config.js` and `DESIGN_TOKENS.md` — new, distinct token names, deliberately not merged into the pre-existing `afs-success` (#1E8A52, used across ~22 files) after that naming collision was flagged and the user chose to keep them separate. Replaced the one non-canvas hardcoded hex this unblocked: FlashDraft's Bend Radius input border. `pnpm tsc --noEmit` 0 errors, `pnpm run build` 106/106 routes. Committed `f9bbe3f`, pushed. |
+| 2026-07-13 | afs-036: Fixed a double-nav bug — `/admin/**` and `/account/**` were rendering the public NavBar above their own portal sidebar. Root cause was `components/layout/AppChrome.tsx` (not `app/admin/layout.tsx`, which the task named but which never imported NavBar) — added a `PORTAL_PREFIXES` check so those routes render bare `{children}`. Repositioned `AdminShell`/`AccountShell`'s `<aside>` from `fixed top-11 left-48` to `fixed top-0 left-0`. `pnpm tsc --noEmit` 0 errors, `pnpm run build` 106/106 routes. Verified via dev server (307 → /login for unauthenticated requests, no server error) — full authenticated visual check still needs a human pass. Committed `8a41a58`, pushed. |
+| 2026-07-13 | afs-037: Full governance-doc rewrite from a real codebase audit (this session) — see "Governance rewrite (afs-037)" at the top of this file and STATE_OF_THE_BUILD.md's "MACHINE BRIDGE — AUDITED STATUS" for full detail. No application code changed. Corrected several stale/incorrect claims found during audit rather than writing them as requested: DESIGN_TOKENS.md's hex values didn't match the real source files (rewritten to match exactly), SITEMAP.md described never-built routes and omitted real ones (rewritten from the actual `app/` directory), the requested `THALMANN_MACHINE_SERIAL` env var doesn't exist (real name: `PATHFINDER_EDGE_MACHINE_SERIAL`), the requested Machine Bridge path doesn't exist on this machine (real dev path vs. the shop-floor install target are now both documented, distinguished), and — most significantly — the requested "Machine Bridge installed on DESKTOP-MB7AMMP, DS1 delivery confirmed working" claims were checked directly against `afs-machine-bridge/logs/bridge.log` and found false (bridge is running on the dev machine only, every poll has failed HTTP 401, zero `.ds1` files ever generated). Surfaced this to the user before writing; user chose to have the audited truth written instead. |
 
 ---
 
 ## LAST FORGE PROMPT RUN
+
+**Most recent: afs-037 (2026-07-13), a governance-doc-only rewrite — no
+application code changed, see CURRENT STATUS above and
+STATE_OF_THE_BUILD.md for full detail.** The entry below (afs-034) is the
+most recent entry that changed application code, preserved for its detail.
 
 afs-034 — Task: five FlashDraft UX improvements — click-and-drag drawing,
 feet/inches length fields, a neutral 3D viewer background, inches-only 3D

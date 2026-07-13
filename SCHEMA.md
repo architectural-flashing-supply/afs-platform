@@ -1,15 +1,30 @@
 # SCHEMA.md
 ## AFS — Supabase Database Schema
-**25 tables. RLS on every table. Indexes on every foreign key and filter column.**
-**Run this SQL in Supabase dashboard → SQL Editor before any feature is built.**
+**41 tables across 5 migration files. RLS on every table. Indexes on every
+foreign key and filter column.** (This document's "TABLE N" numbering below
+covers the original 25 sections designed in migration 001 — several of
+those sections define more than one physical table, e.g. TABLE 8 =
+`accessories` + `product_accessories`. The MACHINE INTEGRATION and MACHINE
+BRIDGE sections near the end of this document add 5 more tables via
+migrations 004 and 005. 41 is the count `supabase/README.md` verifies
+against the live database after all 5 migrations are applied.)
 
 ---
 
 ## MIGRATION FILE LOCATION
 
 ```
-afs-web/supabase/migrations/001_initial_schema.sql
+supabase/migrations/
+  001_initial_schema.sql              All tables through TABLE 25 below + ADDITIONAL/SPEC TEMPLATES sections
+  002_seed_afs_data.sql                Materials, gauges, product_profiles reference data
+  003_pricing_rules_cost_notes.sql     Adds pricing_rules.cost_notes (see TABLE 9)
+  004_machine_profiles.sql             Design Studio machine profile library (see MACHINE INTEGRATION TABLES)
+  005_machine_jobs.sql                 Machine Bridge job queue (see MACHINE BRIDGE TABLES)
 ```
+
+Run in numeric order — see `supabase/README.md` for the exact procedure and
+current live-database apply status (as of 2026-07-13: 001–003 and 005 are
+NOT yet applied to the live project; 004 has been applied and populated).
 
 ---
 
@@ -279,6 +294,14 @@ CREATE POLICY "admin_write_product_accessories" ON product_accessories
 ---
 
 ## TABLE 9 — pricing_rules (internal pricing engine)
+
+**Migration 003 (`003_pricing_rules_cost_notes.sql`) adds `cost_notes
+TEXT`** (nullable, additive — `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`)
+for `/admin/pricing`'s manual pricing mode, used while the commodity-indexed
+engine described below is still waiting on real cost/margin data (see
+PRICING_ENGINE.md §9). Not shown in the `CREATE TABLE` below since it was
+added after this table was originally designed — it is a real column on
+the live schema once 003 is applied.
 
 ```sql
 CREATE TABLE pricing_rules (
@@ -1092,6 +1115,123 @@ CREATE POLICY "admin_write_spec_templates" ON spec_templates
   FOR ALL USING (
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
   );
+```
+
+---
+
+## MACHINE INTEGRATION TABLES (migration 004_machine_profiles.sql)
+
+Backs the Design Studio / FlashDraft profile-matching feature. Populated
+from the Thalmann DS2801 bending machine's own database
+(`machine-data/ds2801db.bdb`) via `pnpm run import:machine-profiles` — see
+`supabase/README.md`. Live as of this writing: 46 categories, 911
+profiles, 4537 bend steps; 70 profiles public, 841 private (the source
+data is the shop's real job history — most profile names are real
+customer/project names, so only two generic-template category ranges are
+public; see the migration file's own header comment for the full privacy
+rationale).
+
+```sql
+CREATE TABLE machine_profile_categories (
+  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  source_category_id INTEGER NOT NULL UNIQUE,   -- source Access table's own PK (kKategorie)
+  name_en            TEXT NOT NULL,
+  name_original      TEXT NOT NULL,              -- original German name
+  sort_order         INTEGER NOT NULL DEFAULT 0,
+  is_public          BOOLEAN NOT NULL DEFAULT false,
+  is_active          BOOLEAN NOT NULL DEFAULT true
+);
+-- RLS: authenticated read where is_public AND is_active; admin read/write all
+
+CREATE TABLE machine_profiles (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  source_profile_id   INTEGER NOT NULL UNIQUE,   -- source Access PK (kBiegeprogramm)
+  category_id         UUID NOT NULL REFERENCES machine_profile_categories(id),
+  profile_number      TEXT NOT NULL,
+  name_en             TEXT NOT NULL,
+  name_original       TEXT NOT NULL,
+  blank_width_mm      DECIMAL(10,4),
+  blank_width_in      DECIMAL(10,4),
+  is_public           BOOLEAN NOT NULL DEFAULT false,
+  is_active           BOOLEAN NOT NULL DEFAULT true,
+  match_tolerance_pct DECIMAL(5,2) NOT NULL DEFAULT 5,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+-- RLS: authenticated read where is_public AND is_active; admin read/write all
+
+CREATE TABLE machine_profile_bends (
+  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  profile_id         UUID NOT NULL REFERENCES machine_profiles(id) ON DELETE CASCADE,
+  step_number        INTEGER NOT NULL,
+  left_leg_mm        DECIMAL(10,4),
+  left_leg_in        DECIMAL(10,4),
+  right_leg_mm       DECIMAL(10,4),
+  right_leg_in       DECIMAL(10,4),
+  bend_angle_degrees DECIMAL(6,2),
+  radius_mm          DECIMAL(8,4),
+  radius_in          DECIMAL(8,4),
+  UNIQUE (profile_id, step_number)
+);
+-- RLS: authenticated read where parent machine_profiles row is public+active;
+--      admin read/write all
+```
+
+---
+
+## MACHINE BRIDGE TABLES (migration 005_machine_jobs.sql)
+
+Links a customer order/quote request to a Thalmann bend sequence and
+tracks its approval → generation → delivery lifecycle, separate from
+`orders.status` (which only tracks physical fabrication stage and has no
+machine-delivery states). See ARCHITECTURE.md §11 for the full lifecycle
+and the Machine Bridge service that consumes `approved_for_machine` jobs.
+Admin-only — internal production-queue tool, not customer-facing.
+
+```sql
+CREATE TABLE machine_jobs (
+  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id           UUID REFERENCES orders(id),
+  quote_request_id   UUID REFERENCES quote_requests(id),
+  machine_profile_id UUID REFERENCES machine_profiles(id),  -- library match, if any
+  custom_bends       JSONB,                                 -- FlashDraft-drawn sequence, if no library match
+  profile_name       TEXT NOT NULL,
+  material           TEXT,
+  gauge              TEXT,
+  quantity           INTEGER NOT NULL DEFAULT 1,
+  blank_width_mm     DECIMAL(10,4),
+  is_rush            BOOLEAN NOT NULL DEFAULT false,
+  notes              TEXT,
+  status             TEXT NOT NULL DEFAULT 'pending_approval'
+                     CHECK (status IN (
+                       'pending_approval','approved_for_machine','staged_for_review',
+                       'sent_to_machine','machine_error','completed','rejected',
+                       'changes_requested'
+                     )),
+  rejection_reason   TEXT,
+  requested_by       UUID REFERENCES profiles(id),
+  approved_by        UUID REFERENCES profiles(id),
+  approved_at        TIMESTAMPTZ,
+  staged_at          TIMESTAMPTZ,
+  delivered_at       TIMESTAMPTZ,
+  completed_at       TIMESTAMPTZ,
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+-- RLS: admin only (FOR ALL)
+
+-- Singleton row tracking the last time the Machine Bridge polled
+-- pending-jobs, so the Command Center can show a connection-status dot.
+CREATE TABLE machine_bridge_status (
+  id           BOOLEAN PRIMARY KEY DEFAULT true CHECK (id = true),
+  last_ping_at TIMESTAMPTZ,
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+-- RLS: admin read only
+
+-- Also part of 005: admin_audit_log.admin_id relaxed to nullable, since the
+-- bridge's automated job-delivered report has no admin session to attribute
+-- audit entries to:
+ALTER TABLE admin_audit_log ALTER COLUMN admin_id DROP NOT NULL;
 ```
 
 ---

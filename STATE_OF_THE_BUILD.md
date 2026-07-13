@@ -44,8 +44,44 @@ git commits:             All afs-website work through afs-036 is committed and p
                          to origin/main. Working tree is clean. A SEPARATE standalone
                          project, C:\Users\manag\Documents\afs-machine-bridge, has its
                          own independent git repo (not part of this repo, not pushed
-                         anywhere — no remote was given) — see Machine Bridge status
-                         below.
+                         anywhere — no remote was given) — see MACHINE BRIDGE — AUDITED
+                         STATUS below for its real current connectivity state.
+Governance rewrite       afs-037 (2026-07-13): full audit of the actual codebase —
+(afs-037):               routes, components, migrations, env vars, the Machine
+                         Bridge's own logs — and a full rewrite of all 9 governance
+                         docs (CLAUDE.md, BLUEPRINT.md, ARCHITECTURE.md, SCHEMA.md,
+                         DESIGN_TOKENS.md, COMPONENT_MAP.md, SITEMAP.md, this file,
+                         SESSION_STATE.md) to match reality rather than memory or
+                         prior session notes, per explicit instruction. Found and
+                         corrected several real discrepancies along the way: (1)
+                         DESIGN_TOKENS.md's documented hex values did not match the
+                         real tailwind.config.js/globals.css at all (e.g. documented
+                         bg-base #1A1A1E vs. real #2A2D35) — rewritten to mirror the
+                         actual source files exactly; (2) SITEMAP.md described
+                         several routes that were never built (/login/magic-sent,
+                         /account/delivery, /admin/cad-library, /admin/consultations,
+                         most of the originally-planned /api/** tree) and omitted
+                         real ones (/studio/**, /admin/command-center,
+                         /admin/quickbooks, /admin/pathfinder) — rewritten from the
+                         actual app/ directory listing (111 page.tsx+route.ts files,
+                         106 per pnpm run build's route table); (3) the requested
+                         env var name THALMANN_MACHINE_SERIAL doesn't exist in the
+                         codebase — the real name is PATHFINDER_EDGE_MACHINE_SERIAL
+                         (.env.example), used instead; (4) the requested Machine
+                         Bridge path C:\afs-machine-bridge doesn't exist on this
+                         machine — the real dev-machine copy is at
+                         C:\Users\manag\Documents\afs-machine-bridge, while
+                         C:\afs-machine-bridge is that project's own documented
+                         install target on the shop-floor computer, DESKTOP-MB7AMMP
+                         — both are now documented correctly, distinguished; (5) most
+                         significantly, the requested claims "Machine Bridge
+                         installation on DESKTOP-MB7AMMP confirmed" and "DS1 file
+                         delivery confirmed working" were checked directly against
+                         the bridge project's own logs and found to be false — see
+                         MACHINE BRIDGE — AUDITED STATUS below. Surfaced this to the
+                         user before writing anything into this file; user chose to
+                         have the audited truth written instead of the originally-
+                         requested claims.
 Portal double-nav        FIXED (afs-036) — /admin/** and /account/** were rendering
 fix (afs-036):           the public NavBar (left icon rail + top link strip) above
                          their own AdminShell/AccountShell sidebar. The requested
@@ -192,9 +228,9 @@ Design Studio:           NEW (afs-030) — app/studio (tab-card landing page) +
 | CLAUDE.md | Complete | Master index |
 | BLUEPRINT.md | Complete | FORGE operational rules |
 | ARCHITECTURE.md | Complete | System architecture |
-| SCHEMA.md | Complete | 25 tables + RLS |
-| DESIGN_TOKENS.md | Complete | Gunmetal theme from logo |
-| SITEMAP.md | Complete | 87 routes, RFQ model |
+| SCHEMA.md | Complete | 41 tables across 5 migrations + RLS |
+| DESIGN_TOKENS.md | Complete | Gunmetal theme from logo — rewritten 2026-07-13 to match real source files |
+| SITEMAP.md | Complete | 106 routes, RFQ model — rewritten 2026-07-13 from directory audit |
 | COMPONENT_MAP.md | Complete | All components mapped |
 | PRICING_ENGINE.md | Complete | Internal commodity system |
 | PRD.md | Complete | Platform requirements |
@@ -229,6 +265,99 @@ Code is built now. Data populates when received.
 | Logo SVG (vector) | #1 | Asset quality |
 | Photography | #9 | Product/gallery images |
 | Privacy Policy | #65 | LAUNCH BLOCKER |
+
+---
+
+## MACHINE BRIDGE — AUDITED STATUS (2026-07-13)
+
+**This section reflects direct inspection of the `afs-machine-bridge`
+project's own files on 2026-07-13 — not a status report, not memory.**
+`afs-machine-bridge` is a separate repo from this one; this session had
+local filesystem read access to it at
+`C:\Users\manag\Documents\afs-machine-bridge` and read its actual logs.
+
+```
+Installed on shop-floor computer     NOT CONFIRMED. git log shows only the
+(DESKTOP-MB7AMMP):                   original "Initial commit" (d647c2d) —
+                                      no evidence of the project being
+                                      copied or deployed anywhere. The
+                                      project's own README documents
+                                      C:\afs-machine-bridge on
+                                      DESKTOP-MB7AMMP as the intended
+                                      install target, but nothing in the
+                                      repo shows that step has happened.
+
+Currently running:                   On the DEV machine only
+                                      (C:\Users\manag\Documents\
+                                      afs-machine-bridge), per
+                                      src/daemon/ service-wrapper
+                                      artifacts and logs/bridge.log —
+                                      not the shop-floor computer.
+
+Polling the deployed app:            YES, but every attempt fails.
+                                      logs/bridge.log (2026-07-13,
+                                      00:27:37–00:30:08): "AFS Machine
+                                      Bridge starting — machine serial
+                                      P0700707, polling every 30000ms,
+                                      platform https://afs-website-alpha.
+                                      vercel.app" followed by six
+                                      consecutive "Poll failed:
+                                      pending-jobs request failed: HTTP
+                                      401" lines, one per 30s interval,
+                                      zero successes.
+
+Likely cause:                        AFS_BRIDGE_SECRET mismatch between
+                                      this repo's deployed Vercel
+                                      environment and the bridge's local
+                                      .env — lib/machine-bridge/auth.ts
+                                      does a timing-safe comparison
+                                      against process.env.AFS_BRIDGE_SECRET
+                                      on every request; a 401 means either
+                                      that var isn't set on Vercel, or its
+                                      value doesn't match the bridge's
+                                      .env. NOT YET DIAGNOSED FURTHER —
+                                      this session did not have access to
+                                      Vercel's environment variable
+                                      dashboard to compare values directly.
+
+.ds1 files generated:                ZERO. The bridge's review/ folder
+                                      (where every generated file is
+                                      required to land — see the
+                                      mandatory human-review gate below)
+                                      is empty. This follows directly from
+                                      the 401s above: the bridge has never
+                                      successfully fetched a job to
+                                      generate a file for.
+
+DS1 delivery to the machine:         NOT CONFIRMED WORKING. Zero files
+                                      have ever been generated (see
+                                      above), so none have been reviewed,
+                                      confirmed, or manually copied into
+                                      THALMANN_DS2801_PATH. This directly
+                                      contradicts an earlier-assumed status
+                                      — corrected here from direct log
+                                      inspection, not from a prior claim.
+
+Mandatory human-review gate:         STILL IN PLACE, and per the bridge's
+                                      own README must remain in place until
+                                      someone with real Thalmann DS2801
+                                      format knowledge confirms a generated
+                                      .ds1 file loads correctly — the
+                                      binary format past the (verified)
+                                      string header is still only a
+                                      best-effort placeholder (see
+                                      ARCHITECTURE.md §11). Nothing in this
+                                      session's audit changes that
+                                      assessment.
+```
+
+**Immediate next step:** confirm `AFS_BRIDGE_SECRET` is set on the
+deployed Vercel project and matches the bridge's local `.env` exactly,
+then re-run the bridge and confirm `logs/bridge.log` shows a successful
+poll (HTTP 200, not 401) before attempting an install on DESKTOP-MB7AMMP.
+See NEXT ACTION below for the full remaining punch list, including DS1
+format verification (assigned to Steve, per Reid — not independently
+verified by this session).
 
 ---
 
@@ -438,6 +567,12 @@ Machine Bridge + Command Center          NEW (afs-032). Two investigations, both
                                         entries to.
 
   Built:                               C:\Users\manag\Documents\afs-machine-bridge
+                                        — see "MACHINE BRIDGE — AUDITED STATUS"
+                                        above for its real current
+                                        connectivity state (as of 2026-07-13,
+                                        it is failing to authenticate against
+                                        the deployed app — not yet delivering
+                                        real jobs).
                                         — a SEPARATE standalone Node.js project
                                         (own package.json, own git repo, NOT
                                         part of the afs-website repo per
@@ -657,10 +792,20 @@ into FlashDraft, the upload/AI-results page, and a new standalone shareable
 route. **FlashDraft's drawing UX (afs-034) is built** — click-and-drag
 segment drawing, feet/inches length fields, a neutral 3D background, inches-
 only 3D annotations, and draggable per-bend radius handles feeding curved
-3D geometry. The tool-approval gate logged in afs-023/024 has not recurred
-since afs-025.
+3D geometry. **afs-035 added afs-accent-green/afs-accent-purple design
+tokens. afs-036 fixed a double-nav bug on /admin/** and /account/**.
+afs-037 (this build) is a full governance-doc rewrite from a real
+codebase audit — no application code changed.** The tool-approval gate
+logged in afs-023/024 has not recurred since afs-025.
 
-1. **Done (afs-034 — this build):** FlashDraft UX — five changes across
+0. **Done (afs-037 — this build, governance only):** Full audit and
+   rewrite of all 9 governance docs from the real codebase — see the
+   "Governance rewrite (afs-037)" entry in OVERALL STATUS above and
+   "MACHINE BRIDGE — AUDITED STATUS" above for the most consequential
+   finding (Machine Bridge is not yet delivering real jobs — corrected
+   from an earlier assumed-working status). No application code was
+   changed in this build.
+1. **Done (afs-034):** FlashDraft UX — five changes across
    `app/studio/draft/page.tsx` and `components/studio/ProfileViewer3D.tsx`.
    See BUILD PHASE STATUS above for the full breakdown (drag-to-draw via
    Pointer Events, feet/inches length inputs, the '#4A4A4A' clear-color +
@@ -743,15 +888,27 @@ since afs-025.
     should review and flip them individually — do not bulk-flip
     `is_public`, per the explicit decision in afs-031.
 12. Once `005_machine_jobs.sql` is applied, the Command Center's "Pending
-    Approval" tab will still be empty — nothing currently creates
-    `machine_jobs` rows from real customer submissions (see afs-032 note
-    in BUILD PHASE STATUS). That population step needs to be built
-    separately.
-13. Before removing the Machine Bridge's mandatory human-review gate
-    (i.e. before letting it write directly into `THALMANN_DS2801_PATH`),
-    someone with real Thalmann DS2801 format knowledge needs to confirm a
-    generated `.ds1` file actually loads correctly — see
-    afs-machine-bridge/README.md and afs-machine-bridge/src/ds1-generator.js.
+    Approval" tab will still show real work via `PendingQuoteRequestCard`
+    (reads `quote_requests` directly — added afs-e731f2f) but no
+    `machine_jobs` rows will exist from real customer submissions yet —
+    that population step needs to be built separately.
+13. **Machine Bridge — see "MACHINE BRIDGE — AUDITED STATUS" above for
+    full detail.** In priority order: (a) diagnose and fix the
+    `AFS_BRIDGE_SECRET` mismatch causing every poll to fail with HTTP 401
+    — confirm the Vercel-deployed value matches the bridge's local `.env`;
+    (b) once polling succeeds and at least one real `.ds1` file has been
+    generated into `review/`, get someone with real Thalmann DS2801
+    format knowledge to confirm it loads correctly in the real Thalmann
+    software — **assigned to Steve** (per Reid; not independently
+    verified by this session) — before removing the mandatory
+    human-review gate (i.e. before letting the bridge write directly into
+    `THALMANN_DS2801_PATH`); (c) only after (a) and (b), copy the bridge
+    to `C:\afs-machine-bridge` on the shop-floor computer
+    (`DESKTOP-MB7AMMP`) and run `npm run install-service` — installing an
+    unauthenticated or unverified bridge onto the shop-floor machine
+    before (a)/(b) are resolved would just reproduce the same 401 loop
+    there, or worse, stage unverified `.ds1` files for a human reviewer to
+    rubber-stamp without realizing the format is still unconfirmed.
 14. The FlashDraft bend-radius fillet arc drawn on the 2D canvas is a visual
     approximation (centered on the vertex, not offset to true tangent
     points) — good enough to communicate "this corner has radius X" but not
@@ -759,7 +916,13 @@ since afs-025.
     arc-sample) is the more accurate of the two.
 15. DATA BLOCKERS table below is the remaining pre-launch punch list —
     nothing left is a FORGE code task; all remaining items need data/assets
-    from the client.
+    from the client. **Privacy Policy (#65) remains the explicit LAUNCH
+    BLOCKER** — legal rewrite still pending, blocks `/legal/privacy` going
+    live with real content.
+16. **DNS migration checklist** (see its own section below) is a
+    pre-go-live punch list, not yet started — `NEXT_PUBLIC_APP_URL` still
+    points at the Vercel preview domain
+    (`https://afs-website-alpha.vercel.app`), not a live custom domain.
 
 Historical detail on the afs-023 → afs-027 sequence (build-blocker
 investigation, the two real build bugs fixed in afs-025, and the full
