@@ -69,8 +69,8 @@ export default function AdminShell({ adminName, pendingMachineJobs = 0, children
 
   return (
     <div className="flex min-h-screen bg-afs-bg-base">
-      <aside className="fixed top-11 left-48 bottom-0 w-[240px] z-30 bg-afs-bg-raised border-r border-afs-border flex flex-col overflow-y-auto">
-        <div className="px-4 pt-6 pb-4">
+      <aside className="fixed top-11 left-48 bottom-0 w-[240px] z-30 bg-afs-bg-raised border-r border-afs-border flex flex-col">
+        <div className="px-4 pt-6 pb-4 shrink-0">
           <Link href="/admin" className="inline-block bg-afs-bg-dim rounded-sm px-3 py-2">
             <Image src="/afs-logo.png" alt="AFS" width={116} height={83} className="w-full h-auto object-contain" />
           </Link>
@@ -79,7 +79,9 @@ export default function AdminShell({ adminName, pendingMachineJobs = 0, children
           </p>
         </div>
 
-        <nav className="flex-1 flex flex-col gap-5 px-3 pb-6">
+        {/* min-h-0 lets this scroll internally instead of pushing Sign Out
+            below the fixed-height aside on shorter viewports. */}
+        <nav className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-5 px-3 pb-6">
           {NAV_SECTIONS.map((section) => (
             <div key={section.title}>
               <p className="font-label text-[11px] uppercase tracking-widest text-afs-chrome-dim px-4 mb-1.5">
@@ -113,7 +115,7 @@ export default function AdminShell({ adminName, pendingMachineJobs = 0, children
           ))}
         </nav>
 
-        <div className="px-4 py-4 border-t border-afs-border">
+        <div className="shrink-0 px-4 py-4 border-t border-afs-border">
           <p className="font-label text-sm text-afs-chrome-high truncate">{adminName}</p>
           <button
             type="button"
