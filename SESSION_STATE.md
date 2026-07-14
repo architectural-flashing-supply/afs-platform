@@ -19,14 +19,49 @@ a six-part FlashDraft/Design Studio overhaul — hem tool, bend-angle
 circle handles, inline dimension input, redesigned Profile Match panel
 with a real fabrication-count metric, a mandatory 3D submit-confirmation
 flow with painted-side selection, and a new Profile Library page
-(afs-038). `pnpm tsc --noEmit` passes (0 errors) and `pnpm run build`
-succeeds (exit 0, 112 page.tsx/route.ts files under app/) as of afs-038.
-Working tree is clean; all afs-website work through afs-038 is committed
-and pushed to origin/main.
+(afs-038), followed by a SITEMAP.md/COMPONENT_MAP.md sync-up (afs-039,
+same day) to reflect afs-038's actual file changes. `pnpm tsc --noEmit`
+passes (0 errors) and `pnpm run build` succeeds (exit 0, 112 page.tsx/
+route.ts files, 113 rows in the build's own route table) as of afs-038 —
+afs-039 changed no application code, gates unaffected. Working tree is
+clean; all afs-website work through afs-039 is committed and pushed to
+origin/main.
 
 **Today's date is 2026-07-14.** Last afs-website commit before this
-session: `b4e3ef2` (docs: full governance update July 13 2026). This
-session's work is committed as afs-038 at the end of this run.
+session: `c2c9b53` (feat: FlashDraft hem tool, bend circles, inline
+dimensions, profile library, 3D confirmation flow — afs-038). This
+session's doc-only work is committed as afs-039 at the end of this run.
+
+**afs-039 (2026-07-14, this session): SITEMAP.md + COMPONENT_MAP.md
+sync-up after afs-038.** No application code changed. Requested to add
+`/studio/library` to SITEMAP.md and five specific named items to
+COMPONENT_MAP.md — `BendSequenceDiagram`, `ProfileLibrary`, `HemTool`,
+`BendCircleHandle`, `InlineDimensionInput`, and "the 3D confirmation
+modal." Three of those five are real, separate component files
+(`BendSequenceDiagram.tsx`, `ProfileLibraryBrowser.tsx`,
+`SubmitConfirmation3DModal.tsx`) and got their own COMPONENT_MAP.md
+entries. The other two — `HemTool` and `BendCircleHandle` (and
+`InlineDimensionInput`, not separately named in the entries list but
+built the same way) — are **not** separate component files; per the
+prior session's own build notes, the hem popup, bend-angle circle
+handles, and inline dimension input all live directly inside
+`app/studio/draft/page.tsx`'s canvas draw loop, the same pattern
+COMPONENT_MAP.md already documents for that file ("A large
+client-component page, not a separate reusable component"). Rather than
+inventing three nonexistent component files to match the requested
+names literally, documented all three as named, findable sub-features
+within the existing `app/studio/draft/page.tsx` entry — silently
+correcting toward what's actually on disk, not silently complying with
+an implied file structure that isn't there. Also fixed a real, unrelated
+staleness found while re-auditing for this task: SITEMAP.md's cited
+"106 routes" (pnpm run build's reported count) didn't reconcile with a
+fresh, reproducible recount (113, which cleanly equals the 112 real
+page.tsx/route.ts files plus Next's synthetic `/_not-found` route) —
+appears to have been a measurement error in an earlier pass, not a real
+prior count; corrected and the discrepancy noted in-line rather than
+silently overwritten. `pnpm tsc --noEmit` (0 errors) and `pnpm run
+build` (exit 0) re-verified — expected to be a no-op since no
+application code changed, confirmed rather than assumed.
 
 **Governance rewrite (afs-037):** Read every governance doc plus the
 actual codebase — routes, components, migrations, env vars, and (via
@@ -267,7 +302,8 @@ delivering jobs).
 | 2026-07-13 | afs-035: Added `afs-accent-green` (#00C853) and `afs-accent-purple` (#4A0072) to `tailwind.config.js` and `DESIGN_TOKENS.md` — new, distinct token names, deliberately not merged into the pre-existing `afs-success` (#1E8A52, used across ~22 files) after that naming collision was flagged and the user chose to keep them separate. Replaced the one non-canvas hardcoded hex this unblocked: FlashDraft's Bend Radius input border. `pnpm tsc --noEmit` 0 errors, `pnpm run build` 106/106 routes. Committed `f9bbe3f`, pushed. |
 | 2026-07-13 | afs-036: Fixed a double-nav bug — `/admin/**` and `/account/**` were rendering the public NavBar above their own portal sidebar. Root cause was `components/layout/AppChrome.tsx` (not `app/admin/layout.tsx`, which the task named but which never imported NavBar) — added a `PORTAL_PREFIXES` check so those routes render bare `{children}`. Repositioned `AdminShell`/`AccountShell`'s `<aside>` from `fixed top-11 left-48` to `fixed top-0 left-0`. `pnpm tsc --noEmit` 0 errors, `pnpm run build` 106/106 routes. Verified via dev server (307 → /login for unauthenticated requests, no server error) — full authenticated visual check still needs a human pass. Committed `8a41a58`, pushed. |
 | 2026-07-13 | afs-037: Full governance-doc rewrite from a real codebase audit (this session) — see "Governance rewrite (afs-037)" at the top of this file and STATE_OF_THE_BUILD.md's "MACHINE BRIDGE — AUDITED STATUS" for full detail. No application code changed. Corrected several stale/incorrect claims found during audit rather than writing them as requested: DESIGN_TOKENS.md's hex values didn't match the real source files (rewritten to match exactly), SITEMAP.md described never-built routes and omitted real ones (rewritten from the actual `app/` directory), the requested `THALMANN_MACHINE_SERIAL` env var doesn't exist (real name: `PATHFINDER_EDGE_MACHINE_SERIAL`), the requested Machine Bridge path doesn't exist on this machine (real dev path vs. the shop-floor install target are now both documented, distinguished), and — most significantly — the requested "Machine Bridge installed on DESKTOP-MB7AMMP, DS1 delivery confirmed working" claims were checked directly against `afs-machine-bridge/logs/bridge.log` and found false (bridge is running on the dev machine only, every poll has failed HTTP 401, zero `.ds1` files ever generated). Surfaced this to the user before writing; user chose to have the audited truth written instead. |
-| 2026-07-14 | afs-038: Six-part FlashDraft/Design Studio overhaul — import-additional-profiles script (0 new/71 duplicate), full canvas-fill layout, hem tool, bend-angle circle handles replacing the old radius-drag handle, inline on-canvas dimension input, redesigned Profile Match panel (confidence bar, real bend-signature-based fabrication count, exact-match badge, floating SVG preview), a mandatory 3D submit-confirmation modal with painted-side flip, and a new /studio/library Profile Library page. See "FlashDraft overhaul + Profile Library (afs-038)" in STATE_OF_THE_BUILD.md and "## LAST FORGE PROMPT RUN" below for full detail. Flagged and resolved one spec self-contradiction (the literal fabrication-count formula always equals 1) with the user before building. Found and fixed one real bug via actual browser verification: a React hydration mismatch in the relocated BendSequenceDiagram component from unrounded SVG float coordinates. `pnpm tsc --noEmit` 0 errors, `pnpm run build` exit 0. Committed and pushed to origin/main (see `git log` for this run's hash — not fabricated here since it postdates this doc edit). |
+| 2026-07-14 | afs-038: Six-part FlashDraft/Design Studio overhaul — import-additional-profiles script (0 new/71 duplicate), full canvas-fill layout, hem tool, bend-angle circle handles replacing the old radius-drag handle, inline on-canvas dimension input, redesigned Profile Match panel (confidence bar, real bend-signature-based fabrication count, exact-match badge, floating SVG preview), a mandatory 3D submit-confirmation modal with painted-side flip, and a new /studio/library Profile Library page. See "FlashDraft overhaul + Profile Library (afs-038)" in STATE_OF_THE_BUILD.md and "## LAST FORGE PROMPT RUN" below for full detail. Flagged and resolved one spec self-contradiction (the literal fabrication-count formula always equals 1) with the user before building. Found and fixed one real bug via actual browser verification: a React hydration mismatch in the relocated BendSequenceDiagram component from unrounded SVG float coordinates. `pnpm tsc --noEmit` 0 errors, `pnpm run build` exit 0. Committed `c2c9b53`, pushed to origin/main. |
+| 2026-07-14 | afs-039: SITEMAP.md + COMPONENT_MAP.md sync-up after afs-038 — no application code changed. Added `/studio/library` to SITEMAP.md's route tree, protection matrix, and page/route counts; corrected a stale "106 routes" figure to a freshly-reproducible 113 (112 real files + Next's synthetic `/_not-found`). Rewrote COMPONENT_MAP.md's LAYER 12 for the real post-afs-038 file structure — added entries for `SubmitConfirmation3DModal.tsx`, `ProfileLibraryBrowser.tsx`, and the relocated `BendSequenceDiagram.tsx`; documented the hem tool, bend-angle circle handles, and inline dimension input as named sub-features inside `app/studio/draft/page.tsx`'s existing entry rather than inventing three component files that don't exist, since the task's requested names (`HemTool`, `BendCircleHandle`, `InlineDimensionInput`) don't correspond to real separate files. `pnpm tsc --noEmit` 0 errors, `pnpm run build` exit 0 (re-verified, expected no-op). |
 
 ---
 

@@ -653,10 +653,18 @@ CommandCenterJobCard.tsx
   Request Changes / Mark as Sent to Machine actions depending on status —
   see ARCHITECTURE.md's Machine Job Lifecycle for the full state machine.
 
-BendSequenceDiagram.tsx
+BendSequenceDiagram.tsx (components/studio/ — relocated from
+  components/admin/ in afs-038, since the Profile Library page and
+  FlashDraft's floating match preview needed to import it too; imported
+  here as `@/components/studio/BendSequenceDiagram`)
   SVG reconstruction of a bend sequence from its stored steps — same
   turtle-graphics approach as FlashDraft's "Load from Library" — labeled
-  approximate, not CAD-precision.
+  approximate, not CAD-precision. Every SVG coordinate is rounded to 2
+  decimal places before render (afs-038) — an unrounded float renders one
+  ULP differently between Node's SSR pass and the browser's V8, which
+  React flags as a hydration mismatch; this surfaced only once the
+  component was first server-rendered, by the Profile Library page below
+  (its only prior use, Command Center, is client-rendered).
 
 MachineBridgeStatusDot.tsx
   Polls /api/machine-bridge/status every 30s. Green if the bridge pinged
@@ -716,39 +724,128 @@ a primary NavBar destination (see LAYER 2).
 ProfileViewer3D.tsx (components/studio/)
   Three.js viewer — ExtrudeGeometry built from a turtle-graphics walk of a
   `bends` array, offset into a thin ribbon by thicknessMm, then extruded.
-  PerspectiveCamera + OrbitControls (3s auto-rotate then stop), Reset
-  View/Top/Side/End presets. CSS2DRenderer dimension labels (leg lengths,
-  bend angles, blank-width end cap) in JetBrains Mono. Material color/
-  metalness/roughness table per material family. Runs a filletPolyline()
-  pass (tangent-point circular fillet, clamped to ≤49% of each adjacent
-  leg) before extruding when bend radii are present, so bends render as
-  curved surfaces instead of sharp miters.
-  Used in three places: FlashDraft's [2D View][3D View] toggle, a "View
-  3D" modal on the upload/AI-results page (app/upload/page.tsx), and the
-  standalone shareable route below. Does NOT render its own [2D][3D]
-  toggle — that lives once, in FlashDraft's own integration.
+  PerspectiveCamera + OrbitControls, Reset View/Top/Side/End presets.
+  CSS2DRenderer dimension labels (leg lengths, bend angles, blank-width
+  end cap) in JetBrains Mono. Material color/metalness/roughness table
+  per material family. Runs a filletPolyline() pass (tangent-point
+  circular fillet, clamped to ≤49% of each adjacent leg) before extruding
+  when bend radii are present, so bends render as curved surfaces instead
+  of sharp miters.
+  afs-038: gained additive-only optional props — paintFace ('up'|'down'),
+  paintColor, bareColor (render one face of the mesh in a finish color via
+  a thin polygonOffset decal strip along the outer/inner ribbon boundary,
+  the opposite face bare-metal-colored — used only by
+  SubmitConfirmation3DModal below), plus autoRotateSpeed/
+  autoRotateDurationMs (default 4 / 3000ms, matching the prior hardcoded
+  behavior exactly when omitted). All default to the pre-afs-038 look, so
+  the two pre-existing call sites below are visually unchanged.
+  Used in three places: a "View 3D" modal on the upload/AI-results page
+  (app/upload/page.tsx, defaults only), the standalone shareable route
+  below (defaults only), and SubmitConfirmation3DModal (new paint-face
+  props, autoRotateSpeed=6/autoRotateDurationMs=10000 for one full 360°
+  over 10s). FlashDraft's own [2D View][3D View] toggle is GONE as of
+  afs-038 — see its entry below.
 
 ShareProfileButton.tsx (components/studio/)
   Client component — copies the current page URL to the clipboard. Used
   on the standalone profile-viewer route.
 
+SubmitConfirmation3DModal.tsx (components/studio/ — NEW, afs-038)
+  Full-screen dark-backdrop modal wrapping ProfileViewer3D at 600×500px,
+  shown by FlashDraft on every "Submit for Quote" click before the quote
+  request actually posts. For Kynar/Painted Steel/Vintage Steel materials
+  only, shows "Please confirm your painted side" + a "Flip Paint Side"
+  button (toggles the paintFace prop, which re-triggers the 10s rotation);
+  non-painted materials skip straight to the two buttons: "Go back and
+  edit" (closes, no submit) and "Looks correct — Submit Quote" (proceeds
+  to the existing auth/guest-email submit flow, passing the confirmed
+  paintFace along). Paint color is an approximation — the real Kynar
+  Slate Gray hex from lib/data/catalog.ts's FINISHES for Kynar/Painted
+  Steel, a hardcoded swatch for Vintage Steel — since FlashDraft has no
+  real finish-color picker to source an exact value from.
+
+BendSequenceDiagram.tsx (components/studio/)
+  See LAYER 10 — ADMIN PORTAL (Command Center section) for its full
+  entry; relocated there in afs-038, now shared by Command Center, the
+  Profile Library grid below, and FlashDraft's floating match preview.
+
+ProfileLibraryBrowser.tsx (components/studio/ — NEW, afs-038)
+  Client component powering app/studio/library/page.tsx below. Search +
+  category + blank-width-range + bend-count filters (all client-side,
+  over the full profile list passed in as props), a responsive card grid
+  (each card: BendSequenceDiagram SVG, name, blank width in/mm, bend
+  count, "Fabricated N times", "Load into FlashDraft" link, "Compare"
+  toggle), and a 3-item comparison tray fixed to the bottom of the
+  viewport (left-48 to clear NavBar's rail, matching the rest of the
+  site's fixed-element convention).
+
 app/studio/page.tsx
   Design Studio landing — 3 tab cards: Scan to Quote (→ /upload), Photo to
-  Quote (→ /upload?tab=photos), FlashDraft (→ /studio/draft).
+  Quote (→ /upload?tab=photos), FlashDraft (→ /studio/draft). afs-038
+  added a banner card below the 3-tile grid linking to /studio/library.
 
 app/studio/draft/page.tsx ("FlashDraft")
   A large client-component page, not a separate reusable component — the
-  2D canvas drawing tool lives directly in this file (two-panel: 380px
-  controls + flex canvas). Draw/select/erase modes, click-and-drag segment
-  drawing via Pointer Events (mouse + touch), 15°-angle and 1/8"-dimension
-  snapping, Ctrl+Z/Ctrl+Y undo/redo, wheel zoom, middle-mouse/Space+drag
-  pan, feet+inches length fields, draggable per-bend radius handles
-  (afs-accent-green handle, afs-accent-purple "R: 0.5""-style label —
-  see DESIGN_TOKENS.md §10), debounced profile matching against
-  app/api/studio/match-profile, Save Draft (localStorage), Load from
-  Library (public machine_profiles), Submit for Quote. The canvas itself
-  is drawn via a local CANVAS_COLORS constant — see DESIGN_TOKENS.md §10
-  for the exception this follows.
+  2D canvas drawing tool lives directly in this file (two-panel: 320px
+  controls + a canvas that fills all remaining viewport height/width via
+  a ResizeObserver on its wrapper div — afs-038 removed the prior fixed
+  380px-panel/500px-canvas layout). Draw/select/erase modes, click-and-
+  drag segment drawing via Pointer Events (mouse + touch), 15°-angle and
+  1/8"-dimension snapping, Ctrl+Z/Ctrl+Y undo/redo, wheel zoom, middle-
+  mouse/Space+drag pan, feet+inches length fields, debounced profile
+  matching against app/api/studio/match-profile, Save Draft
+  (localStorage), Load from Library (public machine_profiles, also
+  triggerable via ?loadProfile=<id> from the new Library page — read via
+  `window.location.search` in a mount effect, not next/navigation's
+  useSearchParams, to keep the page statically prerenderable), Submit for
+  Quote. The canvas itself is drawn via a local CANVAS_COLORS constant —
+  see DESIGN_TOKENS.md §10 for the exception this follows.
+  Three features added in afs-038 live entirely inside this one file (not
+  separate component files — flagging that explicitly, since they're
+  substantial enough to look for elsewhere):
+    • Hem tool — double-clicking either drawn endpoint opens a small
+      on-canvas popup (Open / Smashed / Teardrop); each renders real fold
+      geometry directly in the canvas draw loop and adds to the blank-
+      width calculation used by both profile matching and the 3D preview.
+      Hem data rides in the quote_requests.line_items JSONB payload as
+      { type, gapIn } per endpoint.
+    • Bend-angle circle handles — replaced the old offset arc-icon +
+      purple "R: 0.5""-style label (afs-034/afs-035) with a translucent
+      32px circle centered directly on each interior bend vertex
+      (afs-accent-green border, angle-on-top/radius-on-bottom JetBrains
+      Mono text). Dragging it now changes the bend ANGLE (rotates every
+      point downstream of that joint rigidly around it, preserving all
+      leg lengths) instead of the radius — radius is still set via the
+      existing left-panel numeric input, unchanged.
+    • Inline dimension input — selecting a leg segment now shows a real
+      `<input>` positioned at the segment's live screen midpoint (white
+      bg, afs-ink-900 text, 1px afs-accent-green border, JetBrains Mono)
+      instead of the old left-panel block, which was removed.
+  The Profile Match panel was also redesigned (afs-038): a prominent
+  percentage + color bar (green ≥90 / amber 70–89 / crimson <70), a
+  "Fabricated N times in shop history" line (see
+  lib/data/machine-profile-fabrication.ts — a bend-signature-similarity
+  count over the full public+private catalog, not a literal audit trail),
+  an "EXACT MATCH — Machine program ready" badge at ≥95%, and a floating
+  200×150px SVG preview panel (top-right of the canvas, closeable) for
+  matches ≥70%, reusing BendSequenceDiagram.
+  The [2D View][3D View] toggle is GONE — the canvas is 2D-only now.
+  Clicking "Submit for Quote" always opens SubmitConfirmation3DModal
+  first (see above) instead of submitting immediately.
+
+app/studio/library/page.tsx ("Profile Library" — NEW, afs-038)
+  Server component — fetches all is_public/is_active machine_profiles
+  (+ their bends, + a category join) via the service-role client, same
+  RLS rationale as the profile-viewer route below (public-row reads still
+  require auth.uid() under RLS, which would break anonymous browsing of
+  what's meant to be a public resource page). Also computes fabrication
+  counts once server-side via lib/data/machine-profile-fabrication.ts and
+  passes everything to ProfileLibraryBrowser (above) as plain props.
+  Linked from app/studio/page.tsx's new banner card and from NavBar.tsx
+  (a plain "Profile Library" link next to "Design Studio" in both the
+  left rail and top header link lists — no dropdown/submenu component
+  exists in this codebase to nest it under "Design Studio", so it's a
+  flat sibling link).
 
 app/studio/profile-viewer/[profileId]/page.tsx
   Standalone shareable route — server component, fetches a machine_profiles
@@ -762,3 +859,4 @@ app/studio/profile-viewer/[profileId]/page.tsx
 ---
 
 *COMPONENT_MAP.md | AFS | Reid Whitesides | June 2026*
+*LAYER 12 updated for the afs-038 FlashDraft/Design Studio overhaul, 2026-07-14.*

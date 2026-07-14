@@ -1,15 +1,27 @@
 # SITEMAP.md
 ## AFS — Complete Route Map
-**106 routes (`pnpm run build`'s route-summary count — see PAGE + ROUTE
-COUNT below for the exact filesystem breakdown: 111 page.tsx/route.ts
-files, 57 pages + 54 route handlers). Rewritten from a full audit of the
-actual `app/` directory on 2026-07-13 — the previous version of this
-document described several routes that were never built
-(`/login/magic-sent`, `/account/delivery`, `/admin/cad-library`,
-`/admin/consultations`, most of the originally-planned `/api/**` tree) and
-omitted several that were (`/studio/**`, `/admin/command-center`,
-`/admin/quickbooks`, `/admin/pathfinder`, the real `/api/machine-bridge/**`
-and `/api/studio/**` routes). This version reflects only routes that exist
+**113 routes (`pnpm run build`'s own route-table row count — see PAGE +
+ROUTE COUNT below for the exact filesystem breakdown: 112 page.tsx/
+route.ts files, 58 pages + 54 route handlers, +1 for Next's synthetic
+`/_not-found` route that has no source file). Re-verified 2026-07-14
+(afs-038) against the actual `app/` directory and a fresh `pnpm run
+build` output after that session added `/studio/library` — the only
+route-count change since the 2026-07-13 audit below. Note: this
+document previously cited "106" for the build-reported count; a fresh,
+reproducible recount (`grep` of the actual route table, not a
+remembered figure) found 113 both before and after accounting for the
+one new route, so 106 appears to have been an error in an earlier
+pass rather than a real prior count — flagged here rather than quietly
+carried forward. Original 2026-07-13 rewrite note preserved below since
+its route-existence findings are still accurate:**
+**Rewritten from a full audit of the actual `app/` directory on
+2026-07-13 — the previous version of this document described several
+routes that were never built (`/login/magic-sent`, `/account/delivery`,
+`/admin/cad-library`, `/admin/consultations`, most of the
+originally-planned `/api/**` tree) and omitted several that were
+(`/studio/**`, `/admin/command-center`, `/admin/quickbooks`,
+`/admin/pathfinder`, the real `/api/machine-bridge/**` and
+`/api/studio/**` routes). This version reflects only routes that exist
 as real files.**
 **Reflects the RFQ model — no customer-facing pricing anywhere.**
 
@@ -62,8 +74,15 @@ app/
 ├── track/[orderId]/page.tsx         /track/[orderId] — public tracker, no full auth
 │
 ├── studio/                          Design Studio — primary NavBar destination
-│   ├── page.tsx                     /studio — 3 tab-card landing (Scan/Photo/FlashDraft)
-│   ├── draft/page.tsx               /studio/draft — FlashDraft 2D canvas tool
+│   ├── page.tsx                     /studio — 3 tab-card landing (Scan/Photo/FlashDraft) +
+│   │                                 a banner link to /studio/library
+│   ├── draft/page.tsx               /studio/draft — FlashDraft 2D canvas tool (afs-038: hem
+│   │                                 tool, bend-angle circle handles, inline dimension input,
+│   │                                 mandatory 3D submit-confirmation modal — no more
+│   │                                 [2D View][3D View] toggle)
+│   ├── library/page.tsx             /studio/library — Profile Library (afs-038, NEW):
+│   │                                 browsable grid of all public machine profiles, filters,
+│   │                                 3-item compare tray, "Load into FlashDraft"
 │   └── profile-viewer/[profileId]/page.tsx  /studio/profile-viewer/[id] — standalone
 │                                     3D viewer, public profiles anonymous, private admin-only
 │
@@ -194,6 +213,9 @@ Route Pattern                Auth Required   Role           Notes
 /upload                      No             —              Public
 /studio                      No             —              Public
 /studio/draft                No             —              Public
+/studio/library              No             —              Public — service-role fetch server-
+                                                             side, same anonymous-read rationale
+                                                             as /studio/profile-viewer/[id] below
 /studio/profile-viewer/[id]  Partial        —              Public profile: anyone. Private
                                                              profile: admin only (404s otherwise)
 /track/[id]                  No             —              Email verify
@@ -254,12 +276,13 @@ Query params:
 
 ## PAGE + ROUTE COUNT
 
-Verified 2026-07-13 against the actual `app/` directory (`find app -name
-page.tsx` / `find app -name route.ts`):
+Re-verified 2026-07-14 (afs-038) against the actual `app/` directory
+(`find app -name page.tsx` / `find app -name route.ts`) — unchanged
+since 2026-07-13 except the one new page:
 
 ```
-Public pages:        24  (includes Design Studio: /studio, /studio/draft,
-                          /studio/profile-viewer/[id])
+Public pages:        25  (includes Design Studio: /studio, /studio/draft,
+                          /studio/library, /studio/profile-viewer/[id])
 Auth pages:            7
 Account pages:        13
 Admin pages:          12
@@ -267,19 +290,25 @@ Checkout:              1
 Auth callback route:   1
 API routes:           53
 ─────────────────────
-Total (filesystem):  111  (57 page.tsx + 54 route.ts)
+Total (filesystem):  112  (58 page.tsx + 54 route.ts)
 ```
 
-`pnpm run build` reports **106 routes** in its route-summary table — the
-build output collapses each dynamic route's `generateStaticParams`-
-generated paths (e.g. every individual `/products/[category]` slug) under
-one parent entry rather than listing each file separately, which accounts
-for the difference from the 111 raw-file count above. **106 is the number
-to cite as "the route count"** — it's what `pnpm run build`'s own output
-reports and what STATE_OF_THE_BUILD.md tracks release-to-release.
+`pnpm run build`'s own route table (`grep -E '^(├|└|┌).*(○|●|ƒ)'` against
+a fresh build's output — a reproducible count, not a remembered one)
+shows **113 rows**: the 112 real files above, plus Next's synthetic
+`/_not-found` route (no source file). Unlike a prior version of this
+document, the build table does **not** collapse dynamic routes below
+their file count — each dynamic `page.tsx` (e.g. `/products/[category]`)
+is still exactly one row; only its individually-generated static paths
+(e.g. every category slug) are nested *under* that row, not counted as
+separate top-level rows. **113 is the number to cite as "the route
+count"** going forward — it reconciles cleanly with the filesystem count
+above (112 + 1 synthetic route), which the previously-cited "106" did
+not.
 
 ---
 
 *SITEMAP.md | AFS | Reid Whitesides | June 2026*
-*Rewritten from a full app/ directory audit, 2026-07-13.*
+*Rewritten from a full app/ directory audit, 2026-07-13; route count
+re-verified and corrected, /studio/library added, 2026-07-14 (afs-038).*
 *RFQ model. No customer-facing pricing on any public or account route.*

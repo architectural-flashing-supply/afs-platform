@@ -334,8 +334,8 @@ Design Studio:           NEW (afs-030) — app/studio (tab-card landing page) +
 | ARCHITECTURE.md | Complete | System architecture |
 | SCHEMA.md | Complete | 41 tables across 5 migrations + RLS |
 | DESIGN_TOKENS.md | Complete | Gunmetal theme from logo — rewritten 2026-07-13 to match real source files |
-| SITEMAP.md | Stale by 1 route | 106 routes as of 2026-07-13's audit; afs-038 (2026-07-14) added `/studio/library` and wasn't back-ported into this doc — not requested for this session, flagged here instead of silently left inconsistent |
-| COMPONENT_MAP.md | Stale re: afs-038 | Still describes the pre-afs-038 FlashDraft canvas (radius-drag handle, no hem tool, `[2D View][3D View]` toggle) and doesn't list `ProfileLibraryBrowser.tsx`/`SubmitConfirmation3DModal.tsx`/`BendSequenceDiagram.tsx`'s new `components/studio/` location — not requested for this session, flagged here instead of silently left inconsistent |
+| SITEMAP.md | Complete | 113 routes (corrected from a stale "106" and re-verified by a reproducible route-table count), `/studio/library` added — updated 2026-07-14 |
+| COMPONENT_MAP.md | Complete | LAYER 12 rewritten for the afs-038 FlashDraft/Design Studio overhaul (hem tool, bend-angle circle handles, inline dimension input, SubmitConfirmation3DModal, ProfileLibraryBrowser, relocated BendSequenceDiagram) — updated 2026-07-14 |
 | PRICING_ENGINE.md | Complete | Internal commodity system |
 | PRD.md | Complete | Platform requirements |
 | STATE_OF_THE_BUILD.md | This file | Updated by FORGE |
