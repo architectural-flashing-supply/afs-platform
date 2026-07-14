@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "import:machine-profiles": "tsx scripts/import-machine-profiles.ts"
+    "import:machine-profiles": "tsx scripts/import-machine-profiles.ts",
+    "import:additional-profiles": "tsx scripts/import-additional-profiles.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.111.0",

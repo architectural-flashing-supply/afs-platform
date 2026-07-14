@@ -1,0 +1,108 @@
+import type { Metadata } from 'next';
+import Link from 'next/link';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { computeFabricationCounts } from '@/lib/data/machine-profile-fabrication';
+import ProfileLibraryBrowser, { type LibraryProfileCardData } from '@/components/studio/ProfileLibraryBrowser';
+
+export const metadata: Metadata = {
+  title: 'Profile Library | AFS Architectural Flashing Supply',
+  description:
+    'Browse every public FlashDraft profile in the AFS machine library — filter by category, blank width, and bend count, then load one straight into FlashDraft.',
+};
+
+interface ProfileRow {
+  id: string;
+  name_en: string;
+  profile_number: string;
+  blank_width_in: number | null;
+  blank_width_mm: number | null;
+  machine_profile_categories: { name_en: string } | null;
+}
+
+interface BendRow {
+  profile_id: string;
+  step_number: number;
+  left_leg_mm: number | null;
+  right_leg_mm: number | null;
+  bend_angle_degrees: number | null;
+  radius_mm: number | null;
+}
+
+// Server component using the service-role client — same rationale as
+// app/studio/profile-viewer/[profileId]/page.tsx: machine_profiles RLS
+// requires auth.uid() IS NOT NULL even for public rows, which would break
+// anonymous browsing of a page meant to be a public resource. Only public +
+// active profiles are ever selected here, so the privacy boundary from the
+// import scripts is preserved.
+export default async function ProfileLibraryPage() {
+  const admin = createAdminClient();
+
+  const { data: profileRows } = await admin
+    .from('machine_profiles')
+    .select('id, name_en, profile_number, blank_width_in, blank_width_mm, machine_profile_categories(name_en)')
+    .eq('is_public', true)
+    .eq('is_active', true)
+    .order('name_en')
+    .returns<ProfileRow[]>();
+
+  const profiles = profileRows ?? [];
+  const profileIds = profiles.map((p) => p.id);
+
+  const [bendResult, fabricationCounts] = await Promise.all([
+    profileIds.length > 0
+      ? admin
+          .from('machine_profile_bends')
+          .select('profile_id, step_number, left_leg_mm, right_leg_mm, bend_angle_degrees, radius_mm')
+          .in('profile_id', profileIds)
+          .order('step_number', { ascending: true })
+          .returns<BendRow[]>()
+      : Promise.resolve({ data: [] as BendRow[] }),
+    computeFabricationCounts(admin),
+  ]);
+
+  const bendsByProfile = new Map<string, BendRow[]>();
+  for (const row of bendResult.data ?? []) {
+    const list = bendsByProfile.get(row.profile_id) ?? [];
+    list.push(row);
+    bendsByProfile.set(row.profile_id, list);
+  }
+
+  const cards: LibraryProfileCardData[] = profiles.map((p) => {
+    const bends = bendsByProfile.get(p.id) ?? [];
+    return {
+      id: p.id,
+      nameEn: p.name_en,
+      profileNumber: p.profile_number,
+      categoryName: p.machine_profile_categories?.name_en ?? 'Uncategorized',
+      blankWidthIn: p.blank_width_in,
+      blankWidthMm: p.blank_width_mm,
+      bendCount: bends.length,
+      bends: bends.map((b) => ({
+        leftLegMm: b.left_leg_mm,
+        rightLegMm: b.right_leg_mm,
+        bendAngleDegrees: b.bend_angle_degrees,
+        radiusMm: b.radius_mm,
+      })),
+      fabricatedCount: fabricationCounts.get(p.id) ?? 1,
+    };
+  });
+
+  return (
+    <main className="min-h-screen bg-afs-bg-base">
+      <div className="px-6 pt-10 pb-6 text-center">
+        <Link href="/studio" className="font-label text-xs text-afs-chrome-dim hover:text-afs-crimson transition-colors">
+          ← Design Studio
+        </Link>
+        <p className="font-label text-afs-crimson text-sm tracking-widest uppercase mb-2 mt-3">Machine Library</p>
+        <h1 className="font-display text-5xl text-afs-chrome-high leading-none mb-3">Profile Library</h1>
+        <p className="font-body text-afs-chrome-mid text-sm max-w-xl mx-auto">
+          Every public profile in the Thalmann DS2801&apos;s machine library — {cards.length} ready to load straight into FlashDraft.
+        </p>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-6 pb-24">
+        <ProfileLibraryBrowser profiles={cards} />
+      </div>
+    </main>
+  );
+}

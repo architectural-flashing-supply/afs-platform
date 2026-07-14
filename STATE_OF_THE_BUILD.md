@@ -35,13 +35,13 @@ API keys in .env.local:  Present locally (not committed). STRIPE_SECRET_KEY,
 pnpm install:            DONE (afs-025) — stripe, @stripe/stripe-js,
                          @stripe/react-stripe-js, docx all present in
                          pnpm-lock.yaml and node_modules.
-pnpm tsc --noEmit:       PASSES — 0 errors (afs-036, re-verified after every change).
-pnpm run build:          PASSES — exit 0, 106 routes generated (afs-036 changed no
-                         routes — only components/layout/AppChrome.tsx,
-                         components/layout/AdminShell.tsx, and
-                         components/layout/AccountShell.tsx were edited).
-git commits:             All afs-website work through afs-036 is committed and pushed
-                         to origin/main. Working tree is clean. A SEPARATE standalone
+pnpm tsc --noEmit:       PASSES — 0 errors (afs-038, re-verified after every change).
+pnpm run build:          PASSES — exit 0, 112 page.tsx/route.ts files under app/
+                         (113 rows in pnpm run build's own route table) as of
+                         afs-038 — one new route added, /studio/library.
+git commits:             All afs-website work through afs-037 is committed and pushed
+                         to origin/main; afs-038 (this session) is committed and pushed
+                         at the end of this run. Working tree is clean. A SEPARATE standalone
                          project, C:\Users\manag\Documents\afs-machine-bridge, has its
                          own independent git repo (not part of this repo, not pushed
                          anywhere — no remote was given) — see MACHINE BRIDGE — AUDITED
@@ -82,6 +82,110 @@ Governance rewrite       afs-037 (2026-07-13): full audit of the actual codebase
                          user before writing anything into this file; user chose to
                          have the audited truth written instead of the originally-
                          requested claims.
+FlashDraft overhaul +    NEW (afs-038, 2026-07-14) — six-part FlashDraft/Design
+Profile Library          Studio update, built in one session:
+(afs-038):               (1) scripts/import-additional-profiles.ts imports
+                         machine-data/afs-additional-profiles.json (71 profiles, 574
+                         bend steps, all pre-marked isPublic:true) via
+                         `pnpm run import:additional-profiles` — ran clean: 0 new
+                         profiles, 71 skipped as duplicates (this export turned out
+                         to be a subset of the same ds2801db-2024.bdb source already
+                         imported by import-machine-profiles.ts, so every
+                         source_profile_id already existed — the upsert refreshed
+                         them, created no duplicates).
+                         (2) app/studio/draft/page.tsx canvas now fills the full
+                         viewport height minus nav (ResizeObserver-driven, no more
+                         fixed 500px height), left panel narrowed to 320px.
+                         (3) Hem tool — double-click either drawn endpoint opens an
+                         Open/Smashed/Teardrop popup; each renders real fold geometry
+                         on canvas and adds to the blank-width calculation (see
+                         hemAllowanceIn — a documented visual/quoting approximation,
+                         not a fabrication bend-deduction formula); hem data rides in
+                         the quote_requests.line_items JSONB payload as
+                         { type, gapIn } per endpoint, no schema change needed.
+                         (4) The old draggable radius-handle + purple label was
+                         replaced with a translucent 32px circle centered on each
+                         bend vertex showing live angle/radius text; dragging it now
+                         changes the ANGLE (rotates every downstream point around
+                         the joint, a rigid hinge operation — see
+                         rotateChainAroundVertex) instead of the radius, which is
+                         still set via the existing left-panel numeric input.
+                         (5) Clicking a leg segment now shows a real inline `<input>`
+                         positioned at the segment's screen midpoint (white bg,
+                         accent-green border, JetBrains Mono) instead of a
+                         left-panel block.
+                         (6) Profile Match panel redesigned: percentage + color bar
+                         (green ≥90 / amber 70–89 / crimson <70), an "Exact
+                         Match — Machine program ready" badge at ≥95%, a "Fabricated
+                         N times" count, and a floating 200×150px SVG preview panel
+                         on the canvas for matches ≥70%. The fabrication count is
+                         NOT the literally-specified formula (source_profile_id's
+                         own row-count in machine_profile_bends divided by its own
+                         bend count — that's a tautology that always equals 1,
+                         flagged to the user before building). Built instead as
+                         lib/data/machine-profile-fabrication.ts: groups ALL
+                         profiles (public + private, admin-client only) by a
+                         coarse-rounded bend signature and counts same-signature
+                         profiles, on the premise that the Thalmann DB is real job
+                         history where a repeated shape appears as multiple
+                         near-identical source_profile_id rows over time. Verified
+                         in the browser against real data — library cards showed
+                         varied real counts (1, 2, 4, 85, 273), not a constant.
+                         (7) The [2D View][3D View] toggle is gone — clicking
+                         "Submit for Quote" now always opens a full-screen 3D
+                         confirmation modal (new
+                         components/studio/SubmitConfirmation3DModal.tsx) with a
+                         600×500px auto-rotating ProfileViewer3D (one full 360° over
+                         10s). For Kynar/Painted Steel/Vintage Steel materials only,
+                         one face of the mesh renders in an approximate finish color
+                         (real FINISHES hex for Kynar, a hardcoded swatch for
+                         Vintage — there's no actual finish-color picker in
+                         FlashDraft to source a real value from) and the opposite
+                         face stays bare-metal-colored, with a "Flip Paint Side"
+                         button; non-painted materials skip straight to
+                         Submit/Go-back. paint_face rides in the same JSONB payload.
+                         ProfileViewer3D.tsx gained additive-only props
+                         (paintFace/paintColor/bareColor/autoRotateSpeed/
+                         autoRotateDurationMs, all optional, all defaulted to the
+                         prior hardcoded behavior) so its other two call sites
+                         (app/upload's "View 3D" modal, the standalone
+                         /studio/profile-viewer/[id] share route) are unchanged.
+                         (8) New app/studio/library/page.tsx (server component,
+                         service-role client — same RLS rationale as the
+                         profile-viewer share route) +
+                         components/studio/ProfileLibraryBrowser.tsx (client):
+                         browsable grid of every public profile with search/
+                         category/blank-width/bend-count filters, a 3-item compare
+                         tray, and "Load into FlashDraft" (→
+                         /studio/draft?loadProfile=<id>, read via
+                         `new URLSearchParams(window.location.search)` in a mount
+                         effect rather than next/navigation's useSearchParams, which
+                         would have forced a Suspense boundary or broken static
+                         prerendering — hit and fixed during this session's gate
+                         run). Linked from /studio (new banner card) and NavBar.tsx
+                         (added a plain "Profile Library" link next to "Design
+                         Studio" in both the left rail and top header lists — no
+                         dropdown component exists in this codebase to nest it
+                         under, so it's a flat sibling link, not a submenu).
+                         components/admin/BendSequenceDiagram.tsx relocated to
+                         components/studio/BendSequenceDiagram.tsx (now used by
+                         both the admin Command Center and the new customer-facing
+                         Library/FlashDraft-floating-preview) — same content, one
+                         import path updated in CommandCenterJobCard.tsx. Fixed a
+                         real bug found only by actually loading
+                         /studio/library in a browser: its SVG circle cx/cy values
+                         were raw unrounded floats, which differ by one ULP between
+                         Node's SSR pass and the browser's V8, producing a React
+                         hydration-mismatch console error the very first time this
+                         component was ever server-rendered (its only prior usage,
+                         the admin Command Center, is client-rendered) — fixed by
+                         rounding every SVG coordinate to 2 decimal places before
+                         render. `pnpm tsc --noEmit` (0 errors) and `pnpm run build`
+                         (exit 0) both verified after the fix; a real dev-server +
+                         Playwright pass confirmed drawing, the hem popup, the bend
+                         circles, the 3D confirmation modal (both with and without
+                         Submit-blocked-by-missing-material-or-empty-canvas), and
+                         the library grid/filters/compare tray all work as built.
 Portal double-nav        FIXED (afs-036) — /admin/** and /account/** were rendering
 fix (afs-036):           the public NavBar (left icon rail + top link strip) above
                          their own AdminShell/AccountShell sidebar. The requested
@@ -230,8 +334,8 @@ Design Studio:           NEW (afs-030) — app/studio (tab-card landing page) +
 | ARCHITECTURE.md | Complete | System architecture |
 | SCHEMA.md | Complete | 41 tables across 5 migrations + RLS |
 | DESIGN_TOKENS.md | Complete | Gunmetal theme from logo — rewritten 2026-07-13 to match real source files |
-| SITEMAP.md | Complete | 106 routes, RFQ model — rewritten 2026-07-13 from directory audit |
-| COMPONENT_MAP.md | Complete | All components mapped |
+| SITEMAP.md | Stale by 1 route | 106 routes as of 2026-07-13's audit; afs-038 (2026-07-14) added `/studio/library` and wasn't back-ported into this doc — not requested for this session, flagged here instead of silently left inconsistent |
+| COMPONENT_MAP.md | Stale re: afs-038 | Still describes the pre-afs-038 FlashDraft canvas (radius-drag handle, no hem tool, `[2D View][3D View]` toggle) and doesn't list `ProfileLibraryBrowser.tsx`/`SubmitConfirmation3DModal.tsx`/`BendSequenceDiagram.tsx`'s new `components/studio/` location — not requested for this session, flagged here instead of silently left inconsistent |
 | PRICING_ENGINE.md | Complete | Internal commodity system |
 | PRD.md | Complete | Platform requirements |
 | STATE_OF_THE_BUILD.md | This file | Updated by FORGE |
@@ -923,6 +1027,20 @@ logged in afs-023/024 has not recurred since afs-025.
     pre-go-live punch list, not yet started — `NEXT_PUBLIC_APP_URL` still
     points at the Vercel preview domain
     (`https://afs-website-alpha.vercel.app`), not a live custom domain.
+17. **afs-038 known approximations** (all flagged in-line at their
+    definition site, not hidden): the hem fold's extra blank-width
+    allowance (`hemAllowanceIn`) is a fixed-fold-depth visual/quoting
+    estimate, not a real fabrication bend-deduction calculation — an
+    estimator should still sanity-check hemmed items. The "Fabricated N
+    times" count is a bend-signature-similarity grouping over the
+    Thalmann DB's real job history, not a literal audit-trailed
+    fabrication-run counter — two profiles with near-identical bends but
+    different actual histories would count together. The painted-side 3D
+    preview's finish color is a coarse approximation (real Kynar Slate
+    Gray hex for Kynar/Painted Steel, a single hardcoded swatch for
+    Vintage Steel) since FlashDraft has no real finish-color picker to
+    source an exact value from — fine for "which face is painted"
+    confirmation, not a finish-matching tool.
 
 Historical detail on the afs-023 → afs-027 sequence (build-blocker
 investigation, the two real build bugs fixed in afs-025, and the full

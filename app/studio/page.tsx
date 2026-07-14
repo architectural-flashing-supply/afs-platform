@@ -65,7 +65,7 @@ export default function DesignStudioPage() {
         </p>
       </div>
 
-      <div className="max-w-6xl mx-auto px-6 pb-16 grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="max-w-6xl mx-auto px-6 pb-10 grid grid-cols-1 md:grid-cols-3 gap-6">
         {TABS.map((tab) => (
           <div
             key={tab.title}
@@ -82,6 +82,23 @@ export default function DesignStudioPage() {
             </Link>
           </div>
         ))}
+      </div>
+
+      <div className="max-w-6xl mx-auto px-6 pb-16">
+        <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded metal-edge p-6 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div>
+            <h2 className="font-heading text-xl text-afs-chrome-high mb-1">Profile Library</h2>
+            <p className="font-body text-sm text-afs-chrome-mid">
+              Browse every public profile in our machine library, compare up to three side by side, and load one straight into FlashDraft.
+            </p>
+          </div>
+          <Link
+            href="/studio/library"
+            className="border border-afs-border bg-afs-bg-overlay hover:bg-afs-bg-surface text-afs-chrome-high text-center font-label font-semibold text-sm px-5 py-2.5 rounded transition-colors shrink-0"
+          >
+            Browse Profile Library
+          </Link>
+        </div>
       </div>
     </main>
   );

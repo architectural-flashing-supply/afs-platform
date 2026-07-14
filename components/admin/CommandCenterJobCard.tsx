@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Badge from '@/components/ui/Badge';
-import BendSequenceDiagram from './BendSequenceDiagram';
+import BendSequenceDiagram from '@/components/studio/BendSequenceDiagram';
 import type { MachineJobRow } from '@/lib/data/machine-jobs';
 
 const STATUS_LABEL: Record<string, string> = {

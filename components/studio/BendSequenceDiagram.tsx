@@ -58,12 +58,22 @@ export default function BendSequenceDiagram({ bends }: { bends: Bend[] }) {
   const offsetX = PADDING - minX;
   const offsetY = PADDING - minY;
 
-  const screenPoints = points.map((p) => ({ x: p.x * SCALE_PX_PER_MM + offsetX, y: p.y * SCALE_PX_PER_MM + offsetY }));
+  // Rounded to a fixed precision immediately — an un-rounded float (e.g.
+  // 119.27593808696412) can render one ULP differently between the Node.js
+  // SSR pass and the browser's V8, which React then flags as a hydration
+  // mismatch on the exact digit string. Every SVG coordinate below derives
+  // from these already-rounded numbers, not the raw computed floats.
+  const screenPoints = points.map((p) => ({
+    x: Math.round((p.x * SCALE_PX_PER_MM + offsetX) * 100) / 100,
+    y: Math.round((p.y * SCALE_PX_PER_MM + offsetY) * 100) / 100,
+  }));
   const pathD = screenPoints.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const viewBoxWidth = Math.round(Math.max(width, 40) * 100) / 100;
+  const viewBoxHeight = Math.round(Math.max(height, 40) * 100) / 100;
 
   return (
     <svg
-      viewBox={`0 0 ${Math.max(width, 40)} ${Math.max(height, 40)}`}
+      viewBox={`0 0 ${viewBoxWidth} ${viewBoxHeight}`}
       className="w-full h-32 bg-afs-bg-dim rounded"
       preserveAspectRatio="xMidYMid meet"
     >

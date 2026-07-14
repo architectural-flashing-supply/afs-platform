@@ -20,6 +20,20 @@ export interface ProfileViewer3DProps {
   thicknessMm: number;
   profileName?: string;
   className?: string;
+  /**
+   * Paint-side confirmation (FlashDraft's 3D submit-confirmation modal
+   * only) — when set, the base mesh renders in `bareColor` and a thin
+   * coplanar decal in `paintColor` is applied to the outer ('up') or inner
+   * ('down') face of the folded sheet, so one face reads as painted finish
+   * and the opposite face reads as bare metal. Omitted everywhere else.
+   */
+  paintFace?: 'up' | 'down';
+  paintColor?: string;
+  bareColor?: string;
+  /** Degrees per second-equivalent (three.js OrbitControls convention). Defaults preserve existing behavior. */
+  autoRotateSpeed?: number;
+  /** How long auto-rotation runs before stopping. Defaults preserve existing behavior. */
+  autoRotateDurationMs?: number;
 }
 
 interface Point2D {
@@ -110,26 +124,21 @@ function buildProfilePoints(bends: ProfileBend[]): Point2D[] {
   return points;
 }
 
+function segNormal(a: Point2D, b: Point2D): Point2D {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len = Math.hypot(dx, dy) || 1;
+  return { x: -dy / len, y: dx / len };
+}
+
 /**
- * Buffers a polyline into a thin closed ribbon (outer edge + inner edge)
- * representing the sheet-metal thickness, so ExtrudeGeometry produces a
- * realistic folded-metal solid rather than a solid filled wedge. Interior
- * vertices use an averaged (miter-ish) normal — a reasonable approximation
- * for a visual preview, not millimeter-precise CAD miter geometry.
+ * Offsets a polyline along its averaged (miter-ish) per-vertex normal by
+ * `offset` — positive offsets move "outward" (same side as buildRibbonOutline's
+ * `outer`), negative move "inward" (`inner`). A reasonable approximation for
+ * a visual preview, not millimeter-precise CAD miter geometry.
  */
-function buildRibbonOutline(points: Point2D[], thickness: number): Point2D[] {
-  const half = thickness / 2;
-  const outer: Point2D[] = [];
-  const inner: Point2D[] = [];
-
-  const segNormal = (a: Point2D, b: Point2D): Point2D => {
-    const dx = b.x - a.x;
-    const dy = b.y - a.y;
-    const len = Math.hypot(dx, dy) || 1;
-    return { x: -dy / len, y: dx / len };
-  };
-
-  for (let i = 0; i < points.length; i++) {
+function offsetPolyline(points: Point2D[], offset: number): Point2D[] {
+  return points.map((p, i) => {
     let nx: number;
     let ny: number;
     if (i === 0) {
@@ -149,11 +158,47 @@ function buildRibbonOutline(points: Point2D[], thickness: number): Point2D[] {
       nx /= len;
       ny /= len;
     }
-    outer.push({ x: points[i].x + nx * half, y: points[i].y + ny * half });
-    inner.push({ x: points[i].x - nx * half, y: points[i].y - ny * half });
-  }
+    return { x: p.x + nx * offset, y: p.y + ny * offset };
+  });
+}
 
-  return [...outer, ...inner.reverse()];
+/**
+ * Buffers a polyline into a thin closed ribbon (outer edge + inner edge)
+ * representing the sheet-metal thickness, so ExtrudeGeometry produces a
+ * realistic folded-metal solid rather than a solid filled wedge. Also
+ * returns the two boundaries separately — used by the paint-side decal,
+ * which paints only one of them (see ProfileViewer3DProps.paintFace).
+ */
+function buildRibbonOutline(points: Point2D[], thickness: number): { outline: Point2D[]; outer: Point2D[]; inner: Point2D[] } {
+  const half = thickness / 2;
+  const outer = offsetPolyline(points, half);
+  const inner = offsetPolyline(points, -half);
+  return { outline: [...outer, ...inner.reverse()], outer, inner };
+}
+
+/**
+ * A thin flat strip lofted along `pts` (a single ribbon boundary, in the
+ * profile's XY plane) and extruded along Z (the linear-foot length) — the
+ * "coating" decal used to render one face of the folded sheet in a finish
+ * color while the base mesh stays bare metal. Rendered with polygonOffset
+ * (see the decal material below) so it doesn't z-fight the coplanar base
+ * mesh surface it sits directly on top of.
+ */
+function buildDecalStripGeometry(pts: Point2D[], depth: number): THREE.BufferGeometry {
+  const positions: number[] = [];
+  const indices: number[] = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i];
+    const b = pts[i + 1];
+    const base = positions.length / 3;
+    positions.push(a.x, a.y, 0, b.x, b.y, 0, b.x, b.y, depth, a.x, a.y, depth);
+    indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  }
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geom.setIndex(indices);
+  geom.computeVertexNormals();
+  return geom;
 }
 
 function bendAngleLabel(bend: ProfileBend): string {
@@ -232,6 +277,11 @@ export default function ProfileViewer3D({
   thicknessMm,
   profileName,
   className,
+  paintFace,
+  paintColor,
+  bareColor,
+  autoRotateSpeed = 4,
+  autoRotateDurationMs = 3000,
 }: ProfileViewer3DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -320,12 +370,8 @@ export default function ProfileViewer3D({
     controls.enableZoom = true;
     controls.enablePan = true;
     controls.autoRotate = true;
-    controls.autoRotateSpeed = 4;
     controlsRef.current = controls;
 
-    const autoRotateTimer = setTimeout(() => {
-      controls.autoRotate = false;
-    }, 3000);
     const hintTimer = setTimeout(() => setHintVisible(false), 5000);
 
     let frameId: number;
@@ -359,7 +405,6 @@ export default function ProfileViewer3D({
     resizeObserver.observe(container);
 
     return () => {
-      clearTimeout(autoRotateTimer);
       clearTimeout(hintTimer);
       cancelAnimationFrame(frameId);
       resizeObserver.disconnect();
@@ -372,6 +417,19 @@ export default function ProfileViewer3D({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // --- Auto-rotate for a configurable duration/speed, re-triggered whenever
+  // paintFace changes (the "Flip Paint Side" button re-plays the rotation) ---
+  useEffect(() => {
+    const controls = controlsRef.current;
+    if (!controls) return;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = autoRotateSpeed;
+    const timer = setTimeout(() => {
+      controls.autoRotate = false;
+    }, autoRotateDurationMs);
+    return () => clearTimeout(timer);
+  }, [autoRotateSpeed, autoRotateDurationMs, paintFace]);
 
   // --- Rebuild geometry + annotations whenever the profile changes ---
   useEffect(() => {
@@ -399,7 +457,7 @@ export default function ProfileViewer3D({
     if (points.length >= 2) {
       const radiiMm = bends.map((b) => b.radius || 0);
       const filletedPoints = filletPolyline(points, radiiMm);
-      const outline = buildRibbonOutline(filletedPoints, thicknessMm || 0.6);
+      const { outline, outer, inner } = buildRibbonOutline(filletedPoints, thicknessMm || 0.6);
       const shape = new THREE.Shape();
       outline.forEach((p, i) => {
         if (i === 0) shape.moveTo(p.x, p.y);
@@ -415,11 +473,17 @@ export default function ProfileViewer3D({
         bevelSegments: 2,
         curveSegments: 8,
       });
-      geometry.center();
+      // Equivalent to geometry.center(), done manually so the same shift can
+      // be re-applied to the paint-side decal geometry below and keep it
+      // coplanar with the (now-centered) base mesh.
+      geometry.computeBoundingBox();
+      const centerShift = new THREE.Vector3();
+      if (geometry.boundingBox) geometry.boundingBox.getCenter(centerShift).multiplyScalar(-1);
+      geometry.translate(centerShift.x, centerShift.y, centerShift.z);
 
       const appearance = getMaterialAppearance(material);
       const meshMaterial = new THREE.MeshStandardMaterial({
-        color: appearance.color,
+        color: bareColor ?? appearance.color,
         metalness: appearance.metalness,
         roughness: appearance.roughness,
       });
@@ -428,11 +492,25 @@ export default function ProfileViewer3D({
       mesh.receiveShadow = true;
       meshGroup.add(mesh);
 
+      if (paintFace && paintColor) {
+        const shellPoints = paintFace === 'up' ? outer : inner;
+        const decalGeometry = buildDecalStripGeometry(shellPoints, EXTRUDE_DEPTH_MM);
+        decalGeometry.translate(centerShift.x, centerShift.y, centerShift.z);
+        const decalMaterial = new THREE.MeshStandardMaterial({
+          color: paintColor,
+          metalness: 0.25,
+          roughness: 0.55,
+          side: THREE.DoubleSide,
+          polygonOffset: true,
+          polygonOffsetFactor: -2,
+          polygonOffsetUnits: -2,
+        });
+        const decalMesh = new THREE.Mesh(decalGeometry, decalMaterial);
+        meshGroup.add(decalMesh);
+      }
+
       if (dimensionsOn) {
-        const centerOffset = geometry.boundingBox
-          ? new THREE.Vector3().addVectors(geometry.boundingBox.min, geometry.boundingBox.max).multiplyScalar(0.5)
-          : new THREE.Vector3();
-        // geometry.center() already recenters the mesh itself, but our 2D
+        // geometry.center() (done manually above) already recenters the mesh itself, but our 2D
         // `points` are still in original (un-centered) profile space — use
         // the same shift so labels land on the visible, centered mesh.
         const shiftX = -(Math.min(...points.map((p) => p.x)) + Math.max(...points.map((p) => p.x))) / 2;
@@ -492,7 +570,7 @@ export default function ProfileViewer3D({
     scene.add(labelGroup);
     meshGroupRef.current = meshGroup;
     labelGroupRef.current = labelGroup;
-  }, [bends, blankWidth, material, thicknessMm, dimensionsOn]);
+  }, [bends, blankWidth, material, thicknessMm, dimensionsOn, paintFace, paintColor, bareColor]);
 
   return (
     <div className={`relative ${className ?? ''}`} style={{ minHeight: 500 }}>

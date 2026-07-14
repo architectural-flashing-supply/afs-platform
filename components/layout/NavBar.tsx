@@ -13,6 +13,7 @@ const PANEL_LINKS = [
   { label: 'Configure', href: '/configure' },
   { label: 'Upload Drawing', href: '/upload' },
   { label: 'Design Studio', href: '/studio' },
+  { label: 'Profile Library', href: '/studio/library' },
   { label: 'Architects', href: '/architects' },
 ];
 
@@ -114,6 +115,9 @@ export default function NavBar() {
           </Link>
           <Link href="/studio" className="font-label text-sm text-white transition-colors">
             Design Studio
+          </Link>
+          <Link href="/studio/library" className="font-label text-sm text-white transition-colors">
+            Profile Library
           </Link>
           <Link href="/architects" className="font-label text-sm text-white transition-colors">
             Architects
