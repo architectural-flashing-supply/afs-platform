@@ -62,7 +62,7 @@ const CANVAS_COLORS = {
   dragLabelText: '#FFFFFF',
   angleArc: '#C0001A', // afs-crimson
   angleArcWarn: '#D32F2F',
-  hemLine: '#4A0072', // mirrors afs-accent-purple
+  hemLine: '#C0001A', // afs-crimson — hem fold/gap/teardrop rendering (DESIGN_TOKENS.md §10)
 };
 
 const PIXELS_PER_INCH = 20;
@@ -656,7 +656,9 @@ export default function FlashDraftPage() {
       }
     }
 
-    // Hem folds — drawn at whichever endpoint(s) have one.
+    // Hem folds — drawn at whichever endpoint(s) have one. All hem lines
+    // continue from the last leg's direction (u), then fold back 180° —
+    // rendered in afs-crimson so they read clearly against the profile.
     const renderHemAt = (hem: Hem, endpointIdx: number, neighborIdx: number) => {
       const p = points[endpointIdx];
       const q = points[neighborIdx];
@@ -665,47 +667,87 @@ export default function FlashDraftPage() {
       const len = Math.hypot(dx, dy) || 1;
       const u = { x: dx / len, y: dy / len };
       const perp = { x: -u.y, y: u.x };
-      const foldTip = { x: p.x + u.x * HEM_FOLD_DEPTH_IN, y: p.y + u.y * HEM_FOLD_DEPTH_IN };
-      const gapWorld = hem.type === 'smashed' ? 0 : hem.type === 'teardrop' ? thicknessIn : hem.gapIn;
-      const flapEnd = { x: p.x + perp.x * gapWorld, y: p.y + perp.y * gapWorld };
-
-      const sP = worldToScreen(p, canvas);
-      const sFoldTip = worldToScreen(foldTip, canvas);
-      const sFlapEnd = worldToScreen(flapEnd, canvas);
+      const angleU = Math.atan2(u.y, u.x);
 
       ctx.strokeStyle = CANVAS_COLORS.hemLine;
-      if (hem.type === 'smashed') {
-        ctx.lineWidth = 5;
-        ctx.beginPath();
-        ctx.moveTo(sP.x, sP.y);
-        ctx.lineTo(sFoldTip.x, sFoldTip.y);
-        ctx.stroke();
-      } else if (hem.type === 'teardrop') {
+      ctx.fillStyle = CANVAS_COLORS.hemLine;
+      ctx.font = `10px ${jetbrainsFontRef.current}`;
+
+      if (hem.type === 'open') {
+        // Fold-back line runs the gap distance out from the endpoint, a
+        // parallel line offset by that same gap shows the open air space,
+        // and a perpendicular cap closes the end.
+        const foldTip = { x: p.x + u.x * hem.gapIn, y: p.y + u.y * hem.gapIn };
+        const offsetBase = { x: p.x + perp.x * hem.gapIn, y: p.y + perp.y * hem.gapIn };
+        const offsetTip = { x: foldTip.x + perp.x * hem.gapIn, y: foldTip.y + perp.y * hem.gapIn };
+
+        const sP = worldToScreen(p, canvas);
+        const sFoldTip = worldToScreen(foldTip, canvas);
+        const sOffsetBase = worldToScreen(offsetBase, canvas);
+        const sOffsetTip = worldToScreen(offsetTip, canvas);
+
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(sP.x, sP.y);
         ctx.lineTo(sFoldTip.x, sFoldTip.y);
         ctx.stroke();
-        const radiusPx = Math.max(3, (thicknessIn / 2) * PIXELS_PER_INCH * zoom);
         ctx.beginPath();
-        ctx.arc(sFoldTip.x, sFoldTip.y, radiusPx, 0, Math.PI * 2);
+        ctx.moveTo(sOffsetBase.x, sOffsetBase.y);
+        ctx.lineTo(sOffsetTip.x, sOffsetTip.y);
         ctx.stroke();
         ctx.beginPath();
         ctx.moveTo(sFoldTip.x, sFoldTip.y);
-        ctx.lineTo(sFlapEnd.x, sFlapEnd.y);
+        ctx.lineTo(sOffsetTip.x, sOffsetTip.y);
         ctx.stroke();
-      } else {
+
+        ctx.fillText(`OPEN ${formatInches(hem.gapIn)} gap`, sOffsetTip.x + 6, sOffsetTip.y - 6);
+      } else if (hem.type === 'teardrop') {
+        const foldTip = { x: p.x + u.x * HEM_FOLD_DEPTH_IN, y: p.y + u.y * HEM_FOLD_DEPTH_IN };
+        const sP = worldToScreen(p, canvas);
+        const sFoldTip = worldToScreen(foldTip, canvas);
+
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(sP.x, sP.y);
         ctx.lineTo(sFoldTip.x, sFoldTip.y);
-        ctx.lineTo(sFlapEnd.x, sFlapEnd.y);
         ctx.stroke();
-      }
 
-      ctx.fillStyle = CANVAS_COLORS.hemLine;
-      ctx.font = `10px ${jetbrainsFontRef.current}`;
-      ctx.fillText(hem.type, sFoldTip.x + 6, sFoldTip.y - 6);
+        // Arc diameter = material thickness (0.0625" default when no gauge
+        // is selected yet), floored at 8px screen radius so it always reads
+        // as a distinct teardrop shape regardless of zoom.
+        const effectiveThicknessIn = gauge ? thicknessIn : 0.0625;
+        const radiusPx = Math.max(8, (effectiveThicknessIn / 2) * PIXELS_PER_INCH * zoom);
+        ctx.beginPath();
+        ctx.moveTo(
+          sFoldTip.x + Math.cos(angleU - Math.PI / 2) * radiusPx,
+          sFoldTip.y + Math.sin(angleU - Math.PI / 2) * radiusPx
+        );
+        ctx.arc(sFoldTip.x, sFoldTip.y, radiusPx, angleU - Math.PI / 2, angleU + Math.PI / 2);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillText('TEARDROP', sFoldTip.x + radiusPx + 6, sFoldTip.y - 6);
+      } else {
+        // Smashed — two lines 2px apart on screen, doubled up to read as a
+        // flattened-over hem rather than a single open leg.
+        const foldTip = { x: p.x + u.x * HEM_FOLD_DEPTH_IN, y: p.y + u.y * HEM_FOLD_DEPTH_IN };
+        const sP = worldToScreen(p, canvas);
+        const sFoldTip = worldToScreen(foldTip, canvas);
+        const screenLen = Math.hypot(sFoldTip.x - sP.x, sFoldTip.y - sP.y) || 1;
+        const screenPerp = { x: -(sFoldTip.y - sP.y) / screenLen, y: (sFoldTip.x - sP.x) / screenLen };
+
+        ctx.lineWidth = 2;
+        for (const side of [-1, 1]) {
+          const ox = screenPerp.x * side;
+          const oy = screenPerp.y * side;
+          ctx.beginPath();
+          ctx.moveTo(sP.x + ox, sP.y + oy);
+          ctx.lineTo(sFoldTip.x + ox, sFoldTip.y + oy);
+          ctx.stroke();
+        }
+
+        ctx.fillText('SMASHED', sFoldTip.x + 6, sFoldTip.y - 6);
+      }
     };
 
     if (points.length >= 2) {
@@ -1983,7 +2025,7 @@ export default function FlashDraftPage() {
                 <div className="fixed inset-0 z-40" onClick={() => setHemPopup(null)} />
                 <div
                   className="absolute z-50 bg-afs-bg-raised border border-afs-chrome-dim rounded shadow-raised p-3 flex flex-col gap-2"
-                  style={{ left: hemPopup.screenPos.x + 16, top: Math.max(8, hemPopup.screenPos.y - 70), minWidth: 190 }}
+                  style={{ top: 16, right: 16, minWidth: 190 }}
                   onClick={(e) => e.stopPropagation()}
                 >
                   <p className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid">
