@@ -6,111 +6,50 @@
 
 ## LAYER 1 — UI PRIMITIVES (`components/ui/`)
 
-Reusable atomic components. No business logic. No data fetching.
+**Only two files actually exist here — verified 2026-07-14 (afs-041) against
+the real `components/ui/` directory listing, not assumed from an earlier
+design plan.** This layer was originally specced with ~20 shared atomic
+primitives (Button, Card, Input, DataInput, Select, Textarea, Checkbox,
+RadioGroup/RadioCard, Spinner, Tooltip, Modal, Toast, Table, Pagination,
+Tabs/Tab, Accordion/AccordionItem, ConfirmModal, FileTypeIcon) — none of
+those were ever built. Every page in this codebase hand-rolls its own
+Tailwind buttons/inputs/modals/tables inline instead of importing from
+this layer (confirmed by grep — no file outside `components/ui/` imports
+from `@/components/ui/Button`, `@/components/ui/Modal`, etc., because
+those files don't exist to import). Reusable atomic components. No
+business logic. No data fetching.
 
 ```
-Button.tsx
-  Props: variant ('primary'|'secondary'|'ghost'|'danger'|'copper')
-         size ('sm'|'md'|'lg')
-         loading (boolean)
-         disabled (boolean)
-         asChild (boolean — for link wrapping)
-  Variants:
-    primary:   bg-afs-crimson hover:bg-afs-crimson-hover text-white metal-edge-red
-    secondary: border border-[var(--afs-border)] text-afs-chrome-mid hover:bg-afs-bg-surface
-    ghost:     transparent text-afs-chrome-base hover:text-afs-chrome-mid
-    danger:    bg-afs-crimson-dim hover:bg-afs-crimson text-white
-    copper:    bg-afs-copper hover:bg-afs-copper-hover text-white (architect portal)
-
 Badge.tsx
-  Props: variant ('success'|'warning'|'error'|'chrome'|'crimson'|'copper'|'info')
-         size ('sm'|'md')
-  Purpose: Status indicators, role labels, format tags
-
-Card.tsx
-  Props: variant ('default'|'feature'|'data'|'stat'|'copper')
-  default: bg-afs-bg-raised border border-[var(--afs-border)] rounded metal-edge
-  feature: bg-afs-bg-surface border-[var(--afs-border-strong)] metal-edge-red
-  data:    bg-afs-bg-raised border-[var(--afs-border)] rounded-none (sharp edges)
-  stat:    bg-afs-bg-dim border-l-2 border-afs-crimson
-  copper:  bg-afs-bg-raised border border-afs-copper metal-edge-copper
-
-Input.tsx
-  Styles: bg-afs-bg-overlay border border-[var(--afs-border)]
-          focus:border-afs-crimson outline-none font-body text-afs-chrome-mid
-  Variants: text | number | email | tel | search
-
-DataInput.tsx
-  Extends Input.tsx
-  Font: font-data (JetBrains Mono)
-  Suffix/prefix slot (for " symbol, LF units)
-  Used for: dimension inputs, quantities, part numbers
-
-Select.tsx
-  Matches Input.tsx styling
-  Custom chevron icon in afs-chrome-base color
-
-Textarea.tsx
-  Matches Input.tsx styling
-  Resize: vertical only
-
-Checkbox.tsx
-  Crimson checked state
-  Custom styling — no browser default
-
-RadioGroup.tsx + RadioCard.tsx
-  RadioCard: full-card clickable radio with border highlight on selected
-  Selected: border-afs-crimson bg-afs-crimson-ghost
-
-Spinner.tsx
-  Sizes: sm | md | lg
-  Color: inherits currentColor — use with text-afs-crimson or text-afs-chrome-mid
-
-Tooltip.tsx
-  Dark bg-afs-bg-raised, font-body text-xs text-afs-chrome-mid
-  Arrow indicator
-
-Modal.tsx
-  Backdrop: bg-afs-bg-modal (dark overlay)
-  Panel: bg-afs-bg-raised border border-[var(--afs-border)] metal-edge
-  Max width variants: sm (480px) | md (640px) | lg (800px)
-
-Toast.tsx
-  Position: bottom-right, stacked
-  Variants: success | error | warning | info
-  Auto-dismiss: 4s default
-
-Table.tsx
-  Header: bg-afs-bg-surface text-afs-chrome-mid font-heading text-sm uppercase tracking-wide
-  Row: bg-afs-bg-raised hover:bg-afs-bg-surface
-  Row alt: bg-afs-bg-surface
-  Border: border-b border-[var(--afs-border)]
-
-Pagination.tsx
-  Used with Table.tsx
-  Crimson active page indicator
-
-Tabs.tsx + Tab.tsx
-  Underline style — active tab has border-b-2 border-afs-crimson
-
-Accordion.tsx + AccordionItem.tsx
-  Chevron rotates on open
-  Smooth height transition
-
-ConfirmModal.tsx
-  Extends Modal.tsx
-  Destructive confirm: danger Button variant
-  Text: "Type DELETE to confirm" for irreversible actions
+  Props: variant ('success'|'warning'|'error'|'chrome'|'info')
+         children (React.ReactNode)
+         pulse (boolean, default false — adds animate-pulse to the dot)
+         size ('sm'|'md', default 'sm')
+  Renders a pill: a small colored dot + text, border border-afs-chrome-dim.
+  Text/dot color per variant: success→afs-success, warning→afs-warning,
+  error→afs-crimson, chrome→afs-chrome-base/mid, info→afs-info.
+  Note: does NOT have 'crimson' or 'copper' variants — a stale earlier
+  version of this doc claimed 7 variants; the real file has 5.
 
 EmptyState.tsx
-  Props: icon | title | description | actionLabel | actionHref
-  Centered layout, muted text, optional CTA button
-
-FileTypeIcon.tsx
-  Returns correct icon per file extension
-  Types: PDF | DWG | RVT | DXF | DOC | XLS | IMG | ZIP | Generic
-  Color: afs-chrome-base, hover: afs-crimson
+  Props: title (string) | description (string) | actionLabel? (string) |
+         actionHref? (string) | secondaryLabel? (string) |
+         secondaryHref? (string) | accent? ('crimson'|'copper', default
+         'crimson')
+  Centered card (bg-afs-bg-raised border rounded p-12): heading +
+  description, then up to two CTA links — a primary filled button
+  (actionLabel/actionHref, colored by `accent`) and a secondary bordered
+  ghost button (secondaryLabel/secondaryHref). Both link pairs are
+  optional; renders no button row if neither is provided.
+  Note: does NOT take an `icon` prop — a stale earlier version of this doc
+  claimed one; the real file has no icon slot.
 ```
+
+If a future session builds any of the previously-specced primitives above,
+add them here individually as they're actually created — don't restore
+the old speculative list wholesale, since most of those component
+designs (variant names, styling details) were never validated against a
+real build either.
 
 ---
 
@@ -860,3 +799,4 @@ app/studio/profile-viewer/[profileId]/page.tsx
 
 *COMPONENT_MAP.md | AFS | Reid Whitesides | June 2026*
 *LAYER 12 updated for the afs-038 FlashDraft/Design Studio overhaul, 2026-07-14.*
+*LAYER 1 rewritten to match the real components/ui/ directory (2 files, not ~20), 2026-07-14 (afs-041).*

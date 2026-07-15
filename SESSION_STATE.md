@@ -11,30 +11,29 @@
 **Spec status:** Complete. All 52 feature specs finalized.
 **Build status:** ALL 9 ORIGINAL PHASES (0–8) BUILT, the Design Studio
 (afs-030, data live as of afs-031), the Machine Bridge + Command
-Center (afs-032, migration NOT yet applied — see below), the 3D
+Center (afs-032, migration confirmed live afs-041 — see below), the 3D
 Profile Configurator (afs-033), the FlashDraft UX improvements
 (afs-034), two new design tokens (afs-035), an admin/account portal
-double-nav fix (afs-036), a full governance-doc rewrite (afs-037), and
-a six-part FlashDraft/Design Studio overhaul — hem tool, bend-angle
-circle handles, inline dimension input, redesigned Profile Match panel
-with a real fabrication-count metric, a mandatory 3D submit-confirmation
-flow with painted-side selection, and a new Profile Library page
-(afs-038), a SITEMAP.md/COMPONENT_MAP.md sync-up (afs-039), and a second,
-larger FlashDraft redesign toward a "professional-grade" tool — a full
-two-row icon toolbar, context-sensitive canvas interaction (no more
-Draw/Select/Erase modes), a PathfinderEdge-style angle indicator with a
-numeric angle-editing panel, an automatic split-screen match panel,
-save-to-account via the (confirmed-live) `saved_configurations` table,
-and admin-gated full Profile Library visibility (afs-040). `pnpm tsc
---noEmit` passes (0 errors) and `pnpm run build` succeeds (exit 0, same
-112 page.tsx/route.ts files / 113 build-table rows as afs-038 — afs-040
-added no new routes) as of afs-040. Working tree is clean; all
-afs-website work through afs-040 is committed and pushed to origin/main.
+double-nav fix (afs-036), a full governance-doc rewrite (afs-037), a
+six-part FlashDraft/Design Studio overhaul (afs-038), a SITEMAP.md/
+COMPONENT_MAP.md sync-up (afs-039), a second "professional-grade"
+FlashDraft redesign — full toolbar, context-sensitive canvas
+interaction, angle-editing panel, split-screen match panel, save-to-
+account, admin-gated library visibility (afs-040) — and a governance
+doc-accuracy pass (afs-041): rewrote COMPONENT_MAP.md's LAYER 1 to match
+the real `components/ui/` (2 files, not ~20) and corrected
+STATE_OF_THE_BUILD.md's migration-status claims after directly querying
+the live database — migrations 001-003 and 005 are ALL applied (not
+"not yet applied" as long documented), though 002's seed data is only
+partial (`gauges` has 0 rows). `pnpm tsc --noEmit` passes (0 errors) and
+`pnpm run build` succeeds (exit 0) as of afs-040 — afs-041 is docs-only,
+gates re-verified as a no-op. Working tree is clean; all afs-website
+work through afs-041 is committed and pushed to origin/main.
 
 **Today's date is 2026-07-14.** Last afs-website commit before this
-session: `9203db3` (docs: update SITEMAP and COMPONENT_MAP after
-FlashDraft overhaul — afs-039). This session's work is committed as
-afs-040 at the end of this run.
+session: `0f1c219` (feat: FlashDraft professional toolbar, split screen
+match, angle indicators, profile save, hem fix — afs-040). This
+session's docs-only work is committed as afs-041 at the end of this run.
 
 **afs-039 (2026-07-14, this session): SITEMAP.md + COMPONENT_MAP.md
 sync-up after afs-038.** No application code changed. Requested to add
@@ -309,6 +308,7 @@ delivering jobs).
 | 2026-07-14 | afs-038: Six-part FlashDraft/Design Studio overhaul — import-additional-profiles script (0 new/71 duplicate), full canvas-fill layout, hem tool, bend-angle circle handles replacing the old radius-drag handle, inline on-canvas dimension input, redesigned Profile Match panel (confidence bar, real bend-signature-based fabrication count, exact-match badge, floating SVG preview), a mandatory 3D submit-confirmation modal with painted-side flip, and a new /studio/library Profile Library page. See "FlashDraft overhaul + Profile Library (afs-038)" in STATE_OF_THE_BUILD.md and "## LAST FORGE PROMPT RUN" below for full detail. Flagged and resolved one spec self-contradiction (the literal fabrication-count formula always equals 1) with the user before building. Found and fixed one real bug via actual browser verification: a React hydration mismatch in the relocated BendSequenceDiagram component from unrounded SVG float coordinates. `pnpm tsc --noEmit` 0 errors, `pnpm run build` exit 0. Committed `c2c9b53`, pushed to origin/main. |
 | 2026-07-14 | afs-039: SITEMAP.md + COMPONENT_MAP.md sync-up after afs-038 — no application code changed. Added `/studio/library` to SITEMAP.md's route tree, protection matrix, and page/route counts; corrected a stale "106 routes" figure to a freshly-reproducible 113 (112 real files + Next's synthetic `/_not-found`). Rewrote COMPONENT_MAP.md's LAYER 12 for the real post-afs-038 file structure — added entries for `SubmitConfirmation3DModal.tsx`, `ProfileLibraryBrowser.tsx`, and the relocated `BendSequenceDiagram.tsx`; documented the hem tool, bend-angle circle handles, and inline dimension input as named sub-features inside `app/studio/draft/page.tsx`'s existing entry rather than inventing three component files that don't exist, since the task's requested names (`HemTool`, `BendCircleHandle`, `InlineDimensionInput`) don't correspond to real separate files. `pnpm tsc --noEmit` 0 errors, `pnpm run build` exit 0 (re-verified, expected no-op). |
 | 2026-07-14 | afs-040: Second, larger FlashDraft redesign toward "professional-grade" — two-row icon toolbar, removed Draw/Select/Erase modes for context-sensitive canvas interaction, PathfinderEdge-style angle-arc indicator + numeric angle panel, fractional leg labels, automatic 60/40 split-screen match panel replacing the prior floating preview, save-to-account (`saved_configurations`, confirmed live), admin-gated full Profile Library visibility. Flagged and resolved two real conflicts before building: removing tool-mode switching entirely (bigger rework, user chose it over keeping the 3 mode buttons) and the requested "any authenticated user sees all profiles" (would leak other customers' real project names — user chose admin-only). Found and fixed one real interaction bug via live Playwright testing: clicking near the last-drawn point (the natural way to keep drawing) was being swallowed as a segment-select instead of extending the line, since the last point sits exactly on the last segment. Also discovered (not fixed, flagged) that COMPONENT_MAP.md's LAYER 1 documents ~20 shared UI primitives that don't actually exist — only Badge.tsx and EmptyState.tsx are real. `pnpm tsc --noEmit` 0 errors, `pnpm run build` exit 0. See "FlashDraft professional redesign (afs-040)" in STATE_OF_THE_BUILD.md and "## LAST FORGE PROMPT RUN" below for full detail. |
+| 2026-07-14 | afs-041: Fixed two flagged doc-accuracy issues from afs-040 — no application code changed. (1) COMPONENT_MAP.md LAYER 1 rewritten from the real `components/ui/` directory listing (only `Badge.tsx` and `EmptyState.tsx` exist) instead of the ~20-primitive speculative list that was never built; also corrected the two real components' documented props, which didn't match their actual code either (Badge has 5 variants not 7, no 'crimson'/'copper'; EmptyState has no `icon` prop but does have undocumented `secondaryLabel`/`secondaryHref`/`accent`). (2) STATE_OF_THE_BUILD.md's migration-status claim corrected after querying the live database directly (not assumed from the user's framing): all of 001-003 AND 005 are applied — a broader and more consequential finding than what was asked, since the doc previously said 005 was still pending in several places. Found one real gap in the same check, reported rather than glossed over: migration 002's seed data is only partial — `materials`/`product_profiles` are seeded but `gauges` has 0 rows despite 8 `INSERT INTO gauges` statements in the migration file. Corrected the two most prominent current-status locations in STATE_OF_THE_BUILD.md plus 3 actionable outstanding-items entries; left historical per-session narrative paragraphs (afs-032's own entry, etc.) as point-in-time records rather than rewriting history, but flagged them as stale on this point. `pnpm tsc --noEmit` 0 errors, `pnpm run build` exit 0 (re-verified, expected no-op). |
 
 ---
 

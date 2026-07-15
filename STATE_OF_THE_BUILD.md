@@ -12,27 +12,48 @@ Feature specs:           COMPLETE (52 files)
 FORGE queue:             Phase 8 built (QuickBooks stubbed/deferred, Vercel deploy
                          prep done). ALL PHASES (0–8) NOW BUILT.
 Application code:        Phases 0–8 built (see BUILD PHASE STATUS).
-Database migration:      supabase/migrations/001_initial_schema.sql (all 35 tables,
-                         RLS + FK indexes), 002_seed_afs_data.sql (materials/gauges/
-                         product_profiles reference data), 003_pricing_rules_cost_notes.sql
-                         (renamed from 002 to preserve numeric order). 001-003 were
-                         believed not yet applied to the live Supabase project — afs-040
-                         (2026-07-14) checked one specific table directly against the
-                         real database (not this doc) and found `saved_configurations`
-                         (from 001) already exists live and empty, contradicting this
-                         line. Only that one table was checked — treat "001-003 not
-                         applied" as UNVERIFIED, not confirmed, until someone runs a full
-                         `list_tables`-equivalent check against the live project; see
-                         supabase/README.md to run any of 001-003 that's genuinely still
-                         missing. 004_machine_profiles.sql (afs-030) HAS been applied
-                         (afs-031) — the machine_profile_categories/machine_profiles/
-                         machine_profile_bends tables exist live and are populated:
-                         46 categories, 911 profiles, 4537 bend steps, 70 profiles
-                         public / 841 private (see Machine Profile Data Status below).
-                         005_machine_jobs.sql (afs-032) is written but NOT YET APPLIED
-                         to the live project — adds machine_jobs (Command Center's
-                         approval queue) and machine_bridge_status (bridge connection
-                         ping), relaxes admin_audit_log.admin_id to nullable.
+Database migration:      **CORRECTED afs-041 (2026-07-14) — all 5 migrations are
+                         applied to the live Supabase project.** This line had long
+                         (incorrectly) claimed 001-003 and 005 were NOT applied; afs-041
+                         queried the live database directly (the project's own
+                         service-role client — the same technique used for every table
+                         below, not a guess or a doc cross-reference) and found:
+                         • 001_initial_schema.sql: FULLY applied — all 36 tables (35
+                           listed in the migration + the FK/RLS setup) confirmed to
+                           exist live via a per-table existence check.
+                         • 002_seed_afs_data.sql: PARTIALLY applied — `materials` (9
+                           rows) and `product_profiles` (12 rows) are genuinely seeded;
+                           `gauges` has 0 rows despite the migration file containing 8
+                           `INSERT INTO gauges` statements — those inserts didn't take,
+                           for a reason not investigated further this session (likely a
+                           failed material_id lookup at insert time). Not currently a
+                           visible app problem — FlashDraft/the quote wizard source
+                           gauge options from the hardcoded `GAUGES_BY_MATERIAL` in
+                           `lib/data/catalog.ts`, not this table — but worth fixing
+                           before anything is built that actually queries `gauges`.
+                         • 003_pricing_rules_cost_notes.sql: FULLY applied — confirmed
+                           `pricing_rules.cost_notes` column exists and is selectable.
+                         • 004_machine_profiles.sql (afs-030): FULLY applied (afs-031)
+                           — machine_profile_categories/machine_profiles/
+                           machine_profile_bends exist live and are populated: 46
+                           categories, 911 profiles, 4537 bend steps, 70 profiles public
+                           / 841 private (see Machine Profile Data Status below).
+                         • 005_machine_jobs.sql (afs-032): FULLY applied — a second,
+                           unrequested finding from the same verification pass.
+                           `machine_jobs` (3 real rows) and `machine_bridge_status` (1
+                           row) both exist live, directly contradicting this doc's own
+                           long-standing "005 NOT YET APPLIED" claim, which is repeated
+                           in several other places in this file (the "All 9 original
+                           build phases..." summary further down, the outstanding-items
+                           list, and historical afs-032/033/037 session entries). Only
+                           the two most prominent current-status locations were
+                           corrected this session — the historical per-session narrative
+                           entries were deliberately left as-is (they're point-in-time
+                           records of what was believed *during* that session, not
+                           living facts to retroactively rewrite) but are now stale on
+                           this specific point; treat any "005 not applied" or
+                           "machine_jobs has no real rows" claim elsewhere in this file
+                           as outdated in favor of this entry.
 API keys in .env.local:  Present locally (not committed). STRIPE_SECRET_KEY,
                          STRIPE_WEBHOOK_SECRET, and NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
                          are all confirmed populated with live-mode values (sk_live_/
@@ -982,8 +1003,10 @@ When migrating DNS to the live domain, these must be updated BEFORE go-live:
 its original dark gunmetal theme (afs-028 reverted afs-027's light rebrand).
 The Design Studio (afs-030) is built and its data is live (afs-031). The
 Machine Bridge + Command Center (afs-032) is built — a standalone polling
-service plus an admin approval dashboard — but its migration
-(005_machine_jobs.sql) is NOT yet applied to the live project. The 3D
+service plus an admin approval dashboard — and its migration
+(005_machine_jobs.sql) IS applied to the live project (corrected afs-041,
+2026-07-14 — machine_jobs/machine_bridge_status confirmed to exist live
+with real rows; this paragraph previously said the opposite). The 3D
 Profile Configurator (afs-033) is built** — a Three.js viewer integrated
 into FlashDraft, the upload/AI-results page, and a new standalone shareable
 route. **FlashDraft's drawing UX (afs-034) is built** — click-and-drag
@@ -1031,10 +1054,12 @@ logged in afs-023/024 has not recurred since afs-025.
    chose best-effort generation behind a mandatory human-review gate. The
    data model needed a new `machine_jobs` table rather than overloading
    `orders.status` — user confirmed. `pnpm tsc --noEmit` (0 errors),
-   `pnpm run build` (106/106 routes). **`005_machine_jobs.sql` has NOT been
-   applied to the live Supabase project yet** — paste it via the SQL Editor
-   per `supabase/README.md` before the Command Center or bridge can
-   actually read/write real data. The standalone `afs-machine-bridge`
+   `pnpm run build` (106/106 routes). **`005_machine_jobs.sql` was believed
+   not applied at the time of this session — corrected afs-041 (2026-07-14):
+   it IS applied live** (`machine_jobs`/`machine_bridge_status` both
+   confirmed to exist with real rows via a direct database check). The
+   remaining blocker is the bridge's own HTTP 401 polling failure, not a
+   missing migration — see MACHINE BRIDGE — AUDITED STATUS. The standalone `afs-machine-bridge`
    project has its own separate git repo (not pushed anywhere — no remote
    given).
 4. **Done (afs-031):** Applied `004_machine_profiles.sql` to
@@ -1070,9 +1095,13 @@ logged in afs-023/024 has not recurred since afs-025.
    light rebrand back to the original dark gunmetal theme per explicit
    instruction. `pnpm tsc --noEmit` and `pnpm run build` both re-verified
    passing after the revert.
-8. **Remaining — not a code task:** `supabase/migrations/001-003` have not
-   been applied to a live Supabase project yet; `005_machine_jobs.sql` is
-   also pending (see item 3 above). 004 has been applied (afs-031).
+8. **CORRECTED afs-041 (2026-07-14):** all of `supabase/migrations/001-003`
+   AND `005_machine_jobs.sql` are applied to the live Supabase project —
+   this item previously (incorrectly) said otherwise. One real gap found
+   in the same check: 002's seed data is only partial — `gauges` has 0
+   rows despite the migration's 8 `INSERT INTO gauges` statements, while
+   `materials`/`product_profiles` seeded correctly. See the corrected
+   "Database migration" line in OVERALL STATUS above for full detail.
 9. Confirm chat_conversations retention policy (#65) before relying on
    chat history persistence in production.
 10. If/when the client confirms QuickBooks scope (checklist #52-54) or a
@@ -1084,11 +1113,14 @@ logged in afs-023/024 has not recurred since afs-025.
     admin-only read). If specific ones are ever needed publicly, a human
     should review and flip them individually — do not bulk-flip
     `is_public`, per the explicit decision in afs-031.
-12. Once `005_machine_jobs.sql` is applied, the Command Center's "Pending
-    Approval" tab will still show real work via `PendingQuoteRequestCard`
-    (reads `quote_requests` directly — added afs-e731f2f) but no
-    `machine_jobs` rows will exist from real customer submissions yet —
-    that population step needs to be built separately.
+12. `005_machine_jobs.sql` IS applied (corrected afs-041) and `machine_jobs`
+    already has 3 real rows live — this item previously assumed the table
+    was empty/unpopulated pending migration. Worth a follow-up session
+    checking what those 3 rows actually are and whether anything already
+    populates `machine_jobs` from real customer submissions, since prior
+    sessions believed nothing did. The Command Center's "Pending Approval"
+    tab also shows work via `PendingQuoteRequestCard` (reads
+    `quote_requests` directly — added afs-e731f2f), independent of this.
 13. **Machine Bridge — see "MACHINE BRIDGE — AUDITED STATUS" above for
     full detail.** In priority order: (a) diagnose and fix the
     `AFS_BRIDGE_SECRET` mismatch causing every poll to fail with HTTP 401
