@@ -26,6 +26,7 @@ export default function ProfileLibraryBrowser({ profiles }: { profiles: LibraryP
   const [minBends, setMinBends] = useState('');
   const [maxBends, setMaxBends] = useState('');
   const [compareIds, setCompareIds] = useState<string[]>([]);
+  const [modalProfile, setModalProfile] = useState<LibraryProfileCardData | null>(null);
 
   const categories = useMemo(() => {
     return Array.from(new Set(profiles.map((p) => p.categoryName))).sort();
@@ -142,12 +143,16 @@ export default function ProfileLibraryBrowser({ profiles }: { profiles: LibraryP
           {filtered.length === 0 ? (
             <p className="font-body text-sm text-afs-chrome-mid py-12 text-center">No profiles match these filters.</p>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
               {filtered.map((p) => {
                 const isComparing = compareIds.includes(p.id);
                 return (
-                  <div key={p.id} className="bg-afs-bg-raised border border-afs-chrome-dim rounded metal-edge p-4 flex flex-col gap-2">
-                    <BendSequenceDiagram bends={p.bends} />
+                  <div
+                    key={p.id}
+                    onClick={() => setModalProfile(p)}
+                    className="bg-afs-bg-raised border border-afs-chrome-dim rounded metal-edge p-4 flex flex-col gap-2 cursor-pointer hover:border-afs-crimson transition-colors"
+                  >
+                    <BendSequenceDiagram bends={p.bends} className="w-[240px] h-[180px] bg-afs-bg-dim rounded mx-auto" />
                     <h3 className="font-heading text-base text-afs-chrome-high leading-tight">{p.nameEn}</h3>
                     <p className="font-data text-xs text-afs-chrome-dim">
                       #{p.profileNumber} · {p.categoryName}
@@ -167,13 +172,17 @@ export default function ProfileLibraryBrowser({ profiles }: { profiles: LibraryP
                     <div className="flex gap-2 mt-1">
                       <Link
                         href={`/studio/draft?loadProfile=${p.id}`}
+                        onClick={(e) => e.stopPropagation()}
                         className="flex-1 text-center bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label text-xs font-semibold px-3 py-2 rounded transition-colors"
                       >
                         Load into FlashDraft
                       </Link>
                       <button
                         type="button"
-                        onClick={() => toggleCompare(p.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleCompare(p.id);
+                        }}
                         disabled={!isComparing && compareIds.length >= MAX_COMPARE}
                         className={`font-label text-xs font-semibold px-3 py-2 rounded border transition-colors disabled:opacity-40 ${
                           isComparing
@@ -212,6 +221,55 @@ export default function ProfileLibraryBrowser({ profiles }: { profiles: LibraryP
                 </p>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {modalProfile && (
+        <div
+          className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-6"
+          onClick={() => setModalProfile(null)}
+        >
+          <div
+            className="bg-afs-bg-raised border border-afs-chrome-dim rounded metal-edge p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="font-heading text-2xl text-afs-chrome-high mb-4">{modalProfile.nameEn}</h2>
+            <BendSequenceDiagram
+              bends={modalProfile.bends}
+              className="w-[500px] h-[400px] max-w-full bg-afs-bg-dim rounded mx-auto mb-4"
+            />
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div>
+                <p className="font-label text-xs uppercase tracking-wide text-afs-chrome-dim mb-1">Blank Width</p>
+                <p className="font-data text-sm text-afs-chrome-high">
+                  {modalProfile.blankWidthIn != null ? `${modalProfile.blankWidthIn.toFixed(3)}"` : '—'}
+                  {modalProfile.blankWidthMm != null ? ` / ${modalProfile.blankWidthMm.toFixed(1)}mm` : ''}
+                </p>
+              </div>
+              <div>
+                <p className="font-label text-xs uppercase tracking-wide text-afs-chrome-dim mb-1">Bend Count</p>
+                <p className="font-data text-sm text-afs-chrome-high">{modalProfile.bendCount}</p>
+              </div>
+            </div>
+            <p className="font-body text-sm text-afs-chrome-dim mb-6">
+              Fabricated {modalProfile.fabricatedCount} time{modalProfile.fabricatedCount === 1 ? '' : 's'} in shop history
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => setModalProfile(null)}
+                className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label text-sm font-semibold px-5 py-2.5 rounded transition-colors"
+              >
+                Close
+              </button>
+              <Link
+                href={`/studio/draft?loadProfile=${modalProfile.id}`}
+                className="bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label font-semibold px-6 py-2.5 rounded text-sm transition-colors"
+              >
+                Load into FlashDraft
+              </Link>
+            </div>
           </div>
         </div>
       )}

@@ -36,8 +36,12 @@ Database migration:      **CORRECTED afs-041 (2026-07-14) — all 5 migrations a
                          • 004_machine_profiles.sql (afs-030): FULLY applied (afs-031)
                            — machine_profile_categories/machine_profiles/
                            machine_profile_bends exist live and are populated: 46
-                           categories, 911 profiles, 4537 bend steps, 70 profiles public
-                           / 841 private (see Machine Profile Data Status below).
+                           categories, 911 profiles, 4537 bend steps. The public/private
+                           split has moved twice since the original 70/841 import —
+                           75/836 after afs-038's supplemental import, now **72/839**
+                           after afs-042's fix-profile-names.ts forced 3 more rows
+                           (Messe/Toli/Toli1) private — verified directly against the
+                           live database, not carried forward from an earlier count.
                          • 005_machine_jobs.sql (afs-032): FULLY applied — a second,
                            unrequested finding from the same verification pass.
                            `machine_jobs` (3 real rows) and `machine_bridge_status` (1
@@ -63,12 +67,12 @@ API keys in .env.local:  Present locally (not committed). STRIPE_SECRET_KEY,
 pnpm install:            DONE (afs-025) — stripe, @stripe/stripe-js,
                          @stripe/react-stripe-js, docx all present in
                          pnpm-lock.yaml and node_modules.
-pnpm tsc --noEmit:       PASSES — 0 errors (afs-040, re-verified after every change).
+pnpm tsc --noEmit:       PASSES — 0 errors (afs-042, re-verified after every change).
 pnpm run build:          PASSES — exit 0, same 112 page.tsx/route.ts / 113 build-table-row
-                         count as afs-038/afs-039 — afs-040 changed no routes, only
-                         existing files plus 5 new components/utils.
-git commits:             All afs-website work through afs-039 is committed and pushed
-                         to origin/main; afs-040 (this session) is committed and pushed
+                         count as afs-038/afs-039/afs-040 — afs-042 added one new
+                         script (scripts/fix-profile-names.ts) but no new routes.
+git commits:             All afs-website work through afs-041 is committed and pushed
+                         to origin/main; afs-042 (this session) is committed and pushed
                          at the end of this run. Working tree is clean. A SEPARATE standalone
                          project, C:\Users\manag\Documents\afs-machine-bridge, has its
                          own independent git repo (not part of this repo, not pushed
@@ -300,6 +304,78 @@ redesign (afs-040):      requested as "make it a professional-grade tool matchin
                          Profile Library visibility (same reason).
                          `pnpm tsc --noEmit` 0 errors, `pnpm run build` exit 0, both
                          re-verified after the hit-test fix.
+FlashDraft targeted      NEW (afs-042, 2026-07-14) — five specific fixes from a
+fix pass (afs-042):      brutally-honest code audit the user ran against afs-040's
+                         output (see the audit transcript for what was actually true
+                         vs. assumed at each of its 20 checked items). Built exactly
+                         these five, nothing else:
+                         (1) Leg dragging — `handlePointerDown`/`Move`/`Up` gained a
+                         real drag-an-interior-vertex interaction: pointerdown on a
+                         bend point arms `draggingVertexIndex`, pointermove repositions
+                         that one point directly (snapped to the 1/8" grid when
+                         enabled) while its two neighbors stay fixed — leg lengths and
+                         the angle between them recompute live since they're derived,
+                         not stored — pointerup commits one undo entry (only if an
+                         actual drag happened, not a bare click-to-select). The dragged
+                         point renders at 12px vs. the normal 4px while active.
+                         (2) Hem on a single leg — audited first, found already true:
+                         `handleDoubleClick`'s guard was already `points.length === 0`
+                         (equivalent to "proceed at ≥1"), not the `>= 2` the fix request
+                         assumed. No code change — reported as already-satisfied rather
+                         than making a no-op edit for appearance's sake.
+                         (3) 2D/3D toggle restored — removed the single toolbar
+                         `[3D View]` button (and its now-dead `showOwn3DView` state +
+                         `MatchedProfile3DModal` usage) and replaced it with `[2D]`/
+                         `[3D]` buttons in the canvas header, crimson-active/
+                         bg-afs-bg-raised-inactive, both white text, default 2D. `[3D]`
+                         swaps the canvas for an inline `ProfileViewer3D` of the
+                         customer's current drawing — no submit required. The separate
+                         mandatory `SubmitConfirmation3DModal` on Submit is untouched.
+                         **Real regression found and fixed via live Playwright
+                         screenshots, not caught by either gate:** the draw-loop
+                         `useEffect` didn't list `viewMode` as a dependency, so
+                         switching 3D→2D remounted a fresh, blank `<canvas>` DOM node
+                         that the effect never re-ran against — the profile was still
+                         correct in state (proven by the 3D view and the Profile Info
+                         Panel both showing right values) but the 2D canvas rendered
+                         empty. Fixed by adding `viewMode` to that effect's dependency
+                         array. `MatchedProfile3DModal` itself is untouched and still
+                         used for the split-screen match panel's "View in 3D" — a
+                         different, unrelated entry point.
+                         (4) German names — new `scripts/fix-profile-names.ts`
+                         (`pnpm fix:profile-names`), matches only against
+                         `name_original` (never `name_en`, which may already be correct
+                         for unrelated rows), applied across the full 911-row
+                         `machine_profiles` table, not just currently-public rows. Ran
+                         it: **58 profiles updated (55 name_en translations, 3 forced
+                         `is_public = false`** — Messe/Toli/Toli1). Public+active count
+                         went from 75 to 72. One honest deviation from the request:
+                         the "Rheinzink" strip-prefix rule never matched anything —
+                         live `name_original` values for the Rheinzink-series numeric
+                         codes (1142422, 2139123, etc.) turned out to be bare numbers
+                         with no literal "Rheinzink" text, so they fell through to the
+                         purely-numeric rule instead, becoming "Standard Profile
+                         1142422" rather than the requested "Profile 1142422" — reported
+                         rather than silently forced to match the example.
+                         (5) Profile Library — page.tsx subtitle is now exactly "Browse
+                         every profile in our machine library" (no count clause); the
+                         "Browse Profile Library" button and the dynamic
+                         `{filtered.length} of {profiles.length}` count were both
+                         already correct from prior sessions, verified rather than
+                         re-edited. `ProfileLibraryBrowser.tsx` cards: grid now
+                         `repeat(auto-fill, minmax(280px, 1fr))`, each card's
+                         `BendSequenceDiagram` sized 240×180px, clicking a card (not its
+                         Load/Compare buttons — both got `stopPropagation`) opens a new
+                         modal with name, a 500×400px diagram, blank width in/mm, bend
+                         count, fabrication count, Load into FlashDraft, and Close.
+                         `BendSequenceDiagram.tsx` gained an additive optional
+                         `className` prop (falls back to its original `w-full h-32`
+                         default) so this sizing is scoped to the Library card/modal
+                         only — FlashDraft's floating preview and the compare tray keep
+                         their original size, unaffected.
+                         `pnpm tsc --noEmit` 0 errors, `pnpm run build` exit 0, both
+                         re-verified after the viewMode fix. Live-verified via
+                         Playwright screenshots for all 5 items plus the regression.
 Portal double-nav        FIXED (afs-036) — /admin/** and /account/** were rendering
 fix (afs-036):           the public NavBar (left icon rail + top link strip) above
                          their own AdminShell/AccountShell sidebar. The requested

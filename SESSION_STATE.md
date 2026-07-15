@@ -25,15 +25,23 @@ the real `components/ui/` (2 files, not ~20) and corrected
 STATE_OF_THE_BUILD.md's migration-status claims after directly querying
 the live database — migrations 001-003 and 005 are ALL applied (not
 "not yet applied" as long documented), though 002's seed data is only
-partial (`gauges` has 0 rows). `pnpm tsc --noEmit` passes (0 errors) and
-`pnpm run build` succeeds (exit 0) as of afs-040 — afs-041 is docs-only,
-gates re-verified as a no-op. Working tree is clean; all afs-website
-work through afs-041 is committed and pushed to origin/main.
+partial (`gauges` has 0 rows). A five-item targeted fix pass on top of a
+brutally-honest FlashDraft code audit (afs-042): real leg-point dragging,
+verified the hem-on-single-leg guard was already correct, restored a
+literal [2D]/[3D] toggle (replacing the single [3D View] button), a new
+`scripts/fix-profile-names.ts` that translated 55 German profile names
+and forced 3 personal-nickname rows private, and larger click-to-modal
+Profile Library cards. Found and fixed one real regression live
+(canvas rendered blank after a 3D→2D round-trip — the draw effect didn't
+list `viewMode` as a dependency). `pnpm tsc --noEmit` passes (0 errors)
+and `pnpm run build` succeeds (exit 0) as of afs-042. Working tree is
+clean; all afs-website work through afs-042 is committed and pushed to
+origin/main.
 
 **Today's date is 2026-07-14.** Last afs-website commit before this
-session: `0f1c219` (feat: FlashDraft professional toolbar, split screen
-match, angle indicators, profile save, hem fix — afs-040). This
-session's docs-only work is committed as afs-041 at the end of this run.
+session: `0bf7314` (docs: fix COMPONENT_MAP layer 1 and migration status
+in STATE_OF_THE_BUILD — afs-041). This session's work is committed as
+afs-042 at the end of this run.
 
 **afs-039 (2026-07-14, this session): SITEMAP.md + COMPONENT_MAP.md
 sync-up after afs-038.** No application code changed. Requested to add
@@ -309,12 +317,83 @@ delivering jobs).
 | 2026-07-14 | afs-039: SITEMAP.md + COMPONENT_MAP.md sync-up after afs-038 — no application code changed. Added `/studio/library` to SITEMAP.md's route tree, protection matrix, and page/route counts; corrected a stale "106 routes" figure to a freshly-reproducible 113 (112 real files + Next's synthetic `/_not-found`). Rewrote COMPONENT_MAP.md's LAYER 12 for the real post-afs-038 file structure — added entries for `SubmitConfirmation3DModal.tsx`, `ProfileLibraryBrowser.tsx`, and the relocated `BendSequenceDiagram.tsx`; documented the hem tool, bend-angle circle handles, and inline dimension input as named sub-features inside `app/studio/draft/page.tsx`'s existing entry rather than inventing three component files that don't exist, since the task's requested names (`HemTool`, `BendCircleHandle`, `InlineDimensionInput`) don't correspond to real separate files. `pnpm tsc --noEmit` 0 errors, `pnpm run build` exit 0 (re-verified, expected no-op). |
 | 2026-07-14 | afs-040: Second, larger FlashDraft redesign toward "professional-grade" — two-row icon toolbar, removed Draw/Select/Erase modes for context-sensitive canvas interaction, PathfinderEdge-style angle-arc indicator + numeric angle panel, fractional leg labels, automatic 60/40 split-screen match panel replacing the prior floating preview, save-to-account (`saved_configurations`, confirmed live), admin-gated full Profile Library visibility. Flagged and resolved two real conflicts before building: removing tool-mode switching entirely (bigger rework, user chose it over keeping the 3 mode buttons) and the requested "any authenticated user sees all profiles" (would leak other customers' real project names — user chose admin-only). Found and fixed one real interaction bug via live Playwright testing: clicking near the last-drawn point (the natural way to keep drawing) was being swallowed as a segment-select instead of extending the line, since the last point sits exactly on the last segment. Also discovered (not fixed, flagged) that COMPONENT_MAP.md's LAYER 1 documents ~20 shared UI primitives that don't actually exist — only Badge.tsx and EmptyState.tsx are real. `pnpm tsc --noEmit` 0 errors, `pnpm run build` exit 0. See "FlashDraft professional redesign (afs-040)" in STATE_OF_THE_BUILD.md and "## LAST FORGE PROMPT RUN" below for full detail. |
 | 2026-07-14 | afs-041: Fixed two flagged doc-accuracy issues from afs-040 — no application code changed. (1) COMPONENT_MAP.md LAYER 1 rewritten from the real `components/ui/` directory listing (only `Badge.tsx` and `EmptyState.tsx` exist) instead of the ~20-primitive speculative list that was never built; also corrected the two real components' documented props, which didn't match their actual code either (Badge has 5 variants not 7, no 'crimson'/'copper'; EmptyState has no `icon` prop but does have undocumented `secondaryLabel`/`secondaryHref`/`accent`). (2) STATE_OF_THE_BUILD.md's migration-status claim corrected after querying the live database directly (not assumed from the user's framing): all of 001-003 AND 005 are applied — a broader and more consequential finding than what was asked, since the doc previously said 005 was still pending in several places. Found one real gap in the same check, reported rather than glossed over: migration 002's seed data is only partial — `materials`/`product_profiles` are seeded but `gauges` has 0 rows despite 8 `INSERT INTO gauges` statements in the migration file. Corrected the two most prominent current-status locations in STATE_OF_THE_BUILD.md plus 3 actionable outstanding-items entries; left historical per-session narrative paragraphs (afs-032's own entry, etc.) as point-in-time records rather than rewriting history, but flagged them as stale on this point. `pnpm tsc --noEmit` 0 errors, `pnpm run build` exit 0 (re-verified, expected no-op). |
+| 2026-07-14 | afs-042: Five-item targeted fix pass against `app/studio/draft/page.tsx`, scoped to a prior self-audit's exact findings ("fix exactly these issues, do not touch anything else"). (1) Real leg-point dragging: pointer-down on an interior vertex now arms it (`draggingVertexIndex`), pointer-move pivots both adjacent legs live off a snapped world position, pointer-up commits one undo entry from a pre-drag snapshot; dragged point renders at 12px vs. the actual pre-existing baseline of 4px (the task said "vs normal 6px" — the real code was 4px, left unchanged, only the drag-state 12px is new). (2) Hem-on-single-leg: verified `handleDoubleClick`'s guard was already `points.length === 0` (equivalent to `>= 1`) — no code change made, reported as already-satisfied rather than making a cosmetic no-op edit. (3) Restored a literal `[2D]`/`[3D]` toggle in the canvas header (`viewMode` state, crimson-active/raised-inactive), removing the single old `[3D View]` toolbar button; the submit-time 3D confirmation modal is untouched and separate. (4) `scripts/fix-profile-names.ts` (service-role client, `ws` polyfill matching the established import-script pattern): translated German `machine_profiles.name_en` by keyword (Ortgang/Kehle/Randwinkel/Steckpaneel/Traufe/Pult/Rund/Trapez), forced `is_public = false` for exact nicknames (Messe/Toli/Toli1) and any name containing "BUG", renamed purely-numeric names to "Standard Profile NNN". Real run: 58 rows updated (55 renamed, 3 forced private); live public+active count dropped 75 → 72 (re-verified by direct query). Flagged rather than forced: the requested Rheinzink-prefix-stripping rule matched zero live rows — the real Rheinzink-category names had no literal "Rheinzink" substring and fell through to the numeric rule instead (e.g. "Standard Profile 1142422", not "Profile 1142422"). (5) `app/studio/library/page.tsx` subtitle reduced to the exact requested string (no more 75/Thalmann/DS2801 references), "Browse Profile Library" button recolored to crimson/white; in `components/studio/ProfileLibraryBrowser.tsx` (the real file that renders cards, not `page.tsx` itself) cards widened to a 280px-minmax grid with 240×180px diagrams, and a click-to-open modal added (name, 500×400px `BendSequenceDiagram`, blank width in/mm, bend count, fabrication count, Load into FlashDraft, Close) — Load/Compare buttons got `stopPropagation` guards so they don't also trigger the new modal; profile count was already dynamic (`{filtered.length} of {profiles.length}`), confirmed not hardcoded. Found and fixed one real regression via live Playwright testing, not requested but a direct consequence of part 3: the draw-loop `useEffect` didn't list `viewMode` in its dependency array, so the `<canvas>` rendered blank after a 3D→2D round-trip (the DOM node remounts on the conditional and the effect never reran onto the fresh node) — fixed by adding `viewMode` to the dependency array, re-verified with a fresh screenshot. `pnpm tsc --noEmit` 0 errors, `pnpm run build` exit 0. Committed `git commit -m "fix: leg dragging, hem on single leg, 2D/3D toggle, German names, library cards"`, pushed to origin/main. |
 
 ---
 
 ## LAST FORGE PROMPT RUN
 
-**Most recent: afs-040 (2026-07-14) — second FlashDraft redesign, toward
+**Most recent: afs-042 (2026-07-14) — five-item targeted fix pass against
+`app/studio/draft/page.tsx`.** Scoped to the exact findings of a prior
+self-audit, with the hard constraint "fix exactly these issues, do not
+touch anything else." Full detail is in STATE_OF_THE_BUILD.md's
+"FlashDraft targeted fix pass (afs-042)" entry. Summary:
+
+**Part 1 — leg dragging:** `handlePointerDown` now arms an interior
+vertex for dragging (`draggingVertexIndex`); `handlePointerMove` pivots
+both adjacent legs live around their fixed opposite endpoints off a
+snapped world position; `handlePointerUp` commits one undo entry from a
+pre-drag snapshot. Dragged point renders at 12px. (The task described
+the baseline as "6px" — the real pre-existing baseline was 4px and was
+left unchanged; only the new 12px drag-state radius was added.)
+
+**Part 2 — hem on a single leg:** verified, not changed.
+`handleDoubleClick`'s guard was already `points.length === 0`
+(equivalent to `>= 1`) before this session started — reported as
+already-satisfied rather than making a no-op edit for appearance's sake.
+
+**Part 3 — 2D/3D toggle:** the single old `[3D View]` toolbar button is
+gone; a literal `[2D]`/`[3D]` toggle now lives in the canvas header
+(`viewMode` state, crimson-active/raised-inactive, 2D default). The
+submit-time 3D confirmation modal (`SubmitConfirmation3DModal`) is
+unchanged and stays fully separate from this toggle.
+
+**Real regression found and fixed via live Playwright testing, not
+requested but a direct consequence of Part 3:** the draw-loop
+`useEffect` didn't list `viewMode` in its dependency array, so after a
+3D→2D round-trip the `<canvas>` rendered completely blank — the DOM node
+remounts on the `viewMode === '2d'` conditional and the effect never
+reran onto the fresh node. Fixed by adding `viewMode` to the dependency
+array; re-verified with a fresh screenshot showing the profile correctly
+redrawn.
+
+**Part 4 — German names DB fix:** new `scripts/fix-profile-names.ts`
+(service-role client, `ws` WebSocket polyfill matching the established
+`import-machine-profiles.ts` pattern) translated German
+`machine_profiles.name_en` values by keyword, forced 3 personal
+nicknames (`Messe`/`Toli`/`Toli1`) and any name containing "BUG" private,
+and renamed purely-numeric names to "Standard Profile NNN". Real run: 58
+rows updated (55 renamed, 3 forced private); live public+active count
+dropped 75 → 72, re-verified by direct query. **Deviation flagged, not
+forced:** the requested Rheinzink-prefix-stripping rule matched zero
+live rows — the real Rheinzink-category names never contained the
+literal substring "Rheinzink" and fell through to the numeric rule
+instead, producing "Standard Profile 1142422" rather than the requested
+"Profile 1142422".
+
+**Part 5 — Profile Library copy and cards:** `app/studio/library/page.tsx`
+subtitle reduced to the exact requested string (no more 75/Thalmann/
+DS2801 references); "Browse Profile Library" button recolored to
+crimson/white. Card rendering actually lives in
+`components/studio/ProfileLibraryBrowser.tsx` (not `page.tsx` itself) —
+edited there: cards widened to a 280px-minmax grid with 240×180px
+diagrams, and a click-to-open modal added (name, 500×400px
+`BendSequenceDiagram`, blank width in/mm, bend count, fabrication count,
+Load into FlashDraft, Close); Load/Compare buttons got `stopPropagation`
+guards so they don't also trigger the new modal. Profile count was
+already dynamic (`{filtered.length} of {profiles.length}`) — confirmed,
+not hardcoded.
+
+`pnpm tsc --noEmit` 0 errors, `pnpm run build` exit 0, both re-verified
+after the viewMode fix.
+
+**Everything is committed and pushed. Working tree is clean.**
+
+---
+
+## PRIOR RUN — afs-040
+
+**afs-040 (2026-07-14) — second FlashDraft redesign, toward
 "professional-grade."** Full detail is in STATE_OF_THE_BUILD.md's
 "FlashDraft professional redesign (afs-040)" entry. Summary:
 
@@ -831,10 +910,19 @@ Bridge + Command Center are built. Remaining work:
    PathfinderEdge API gets documented, build the real integrations against
    the existing stub signatures in `lib/integrations/quickbooks.ts` /
    `lib/integrations/pathfinder-edge.ts`.
-6. A human should review the 841 profiles now live as private (real
-   customer/project job history) and selectively mark specific safe ones
-   public — don't bulk-flip `is_public`. This is real production data now,
-   not a pending import decision.
+6. A human should review the 839 profiles now live as private (real
+   customer/project job history; was 841 before afs-042 forced 3 more
+   private) and selectively mark specific safe ones public — don't
+   bulk-flip `is_public`. This is real production data now, not a
+   pending import decision.
+6a. (New from afs-042) The requested Rheinzink-prefix-stripping rule in
+   `scripts/fix-profile-names.ts` matched zero live rows — the real
+   Rheinzink-category names never contained the literal substring
+   "Rheinzink" (they fell through to the numeric rule instead, producing
+   "Standard Profile 1142422"). If a literal "Profile NNNNNNN" format is
+   still wanted for that category, the script's matching condition needs
+   to be re-derived from what the live `name_original` values actually
+   look like, not the assumed format.
 7. Confirm chat_conversations retention policy (#65).
 8. Remaining DATA BLOCKERS table items (STATE_OF_THE_BUILD.md) need
    client-supplied data/assets, not more FORGE code.

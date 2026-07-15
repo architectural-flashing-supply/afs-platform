@@ -116,7 +116,7 @@ export default async function ProfileLibraryPage() {
         <p className="font-label text-afs-crimson text-sm tracking-widest uppercase mb-2 mt-3">Machine Library</p>
         <h1 className="font-display text-5xl text-afs-chrome-high leading-none mb-3">Profile Library</h1>
         <p className="font-body text-afs-chrome-mid text-sm max-w-xl mx-auto">
-          Browse every profile in our machine library — {cards.length} ready to load straight into FlashDraft.
+          Browse every profile in our machine library
         </p>
       </div>
 

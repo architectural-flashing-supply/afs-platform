@@ -232,7 +232,6 @@ const TOOLBAR_ICON_PATHS: Record<string, string> = {
   delete: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13',
   prev: 'M15 5l-7 7 7 7',
   next: 'M9 5l7 7-7 7',
-  threeDView: 'M12 3l8 4.5v9L12 21l-8-4.5v-9z M4 7.5l8 4.5 8-4.5M12 12v9',
 };
 
 function ToolbarIcon({ name }: { name: string }) {
@@ -297,6 +296,12 @@ export default function FlashDraftPage() {
   const [hoveredVertex, setHoveredVertex] = useState<number | null>(null);
   const [hoveredSegment, setHoveredSegment] = useState<number | null>(null);
 
+  // --- Leg dragging: drag an interior bend point directly, pivoting its
+  // two adjacent legs around their opposite (fixed) endpoints ---
+  const [draggingVertexIndex, setDraggingVertexIndex] = useState<number | null>(null);
+  const draggingVertexOriginalPoints = useRef<Point[] | null>(null);
+  const hasVertexDraggedRef = useRef(false);
+
   // --- Profile identity / save state (Part 2 / Part 5) ---
   const [profileName, setProfileName] = useState('Untitled Profile');
   const [editingName, setEditingName] = useState(false);
@@ -311,7 +316,7 @@ export default function FlashDraftPage() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [showOwn3DView, setShowOwn3DView] = useState(false);
+  const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
   const [showMatched3DView, setShowMatched3DView] = useState(false);
   const [splitDismissed, setSplitDismissed] = useState(false);
 
@@ -588,12 +593,13 @@ export default function FlashDraftPage() {
       ctx.fill();
     }
 
-    // Points (small dot at every vertex, including the two hem-able endpoints)
-    points.forEach((p) => {
+    // Points (small dot at every vertex, including the two hem-able endpoints).
+    // The vertex currently being leg-dragged renders larger as feedback.
+    points.forEach((p, i) => {
       const s = worldToScreen(p, canvas);
       ctx.fillStyle = CANVAS_COLORS.point;
       ctx.beginPath();
-      ctx.arc(s.x, s.y, 4, 0, Math.PI * 2);
+      ctx.arc(s.x, s.y, i === draggingVertexIndex ? 12 : 4, 0, Math.PI * 2);
       ctx.fill();
     });
 
@@ -722,6 +728,8 @@ export default function FlashDraftPage() {
     selectedBendPoint,
     hemStart,
     hemEnd,
+    draggingVertexIndex,
+    viewMode,
   ]);
 
   // --- Debounced profile matching ---
@@ -871,6 +879,9 @@ export default function FlashDraftPage() {
     if (vertexHit !== null) {
       setSelectedBendPoint(vertexHit);
       setSelectedSegment(null);
+      setDraggingVertexIndex(vertexHit);
+      draggingVertexOriginalPoints.current = points;
+      hasVertexDraggedRef.current = false;
       return;
     }
 
@@ -928,6 +939,15 @@ export default function FlashDraftPage() {
       return;
     }
 
+    if (draggingVertexIndex !== null) {
+      const raw = screenToWorld(screenPos.x, screenPos.y, canvas);
+      const snapped = snapDimension ? snapToGrid(raw) : raw;
+      hasVertexDraggedRef.current = true;
+      const idx = draggingVertexIndex;
+      setPoints((prev) => prev.map((p, i) => (i === idx ? { x: snapped.x, y: snapped.y, radius: p.radius } : p)));
+      return;
+    }
+
     if (isDragDrawing && dragAnchorRef.current) {
       const raw = screenToWorld(screenPos.x, screenPos.y, canvas);
       const snapped = applySnapping(dragAnchorRef.current, raw, snapAngle, snapDimension);
@@ -959,6 +979,17 @@ export default function FlashDraftPage() {
       panOrigin.current = null;
       return;
     }
+    if (draggingVertexIndex !== null) {
+      if (hasVertexDraggedRef.current && draggingVertexOriginalPoints.current) {
+        const original = draggingVertexOriginalPoints.current;
+        setPast((p) => [...p, original]);
+        setFuture([]);
+      }
+      setDraggingVertexIndex(null);
+      draggingVertexOriginalPoints.current = null;
+      hasVertexDraggedRef.current = false;
+      return;
+    }
     if (isDragDrawing && dragAnchorRef.current && dragPreview) {
       if (dragPreview.length >= MIN_DRAG_SEGMENT_IN) {
         commitPoints([...points, dragPreview.point]);
@@ -971,7 +1002,7 @@ export default function FlashDraftPage() {
   };
 
   const handlePointerLeave = () => {
-    if (isDragDrawing || isPanning) return;
+    if (isDragDrawing || isPanning || draggingVertexIndex !== null) return;
     setHoveredVertex(null);
     setHoveredSegment(null);
     const canvas = canvasRef.current;
@@ -1505,7 +1536,6 @@ export default function FlashDraftPage() {
           />
           <ToolbarButton icon="prev" label="Prev" onClick={() => selectAdjacentBendPoint(-1)} disabled={points.length < 3} />
           <ToolbarButton icon="next" label="Next" onClick={() => selectAdjacentBendPoint(1)} disabled={points.length < 3} />
-          <ToolbarButton icon="threeDView" label="3D View" onClick={() => setShowOwn3DView(true)} disabled={points.length < 2} />
         </div>
       </div>
 
@@ -1806,9 +1836,25 @@ export default function FlashDraftPage() {
 
         {/* RIGHT PANEL — CANVAS (+ Part 6 split-screen match panel) */}
         <div className="flex-1 min-w-0 flex flex-col gap-2 min-h-0">
-          <p className="font-body text-xs text-afs-chrome-dim shrink-0">
-            Ctrl+Z undo · Ctrl+Y redo · Delete removes the selection · middle-mouse or Space+drag to pan
-          </p>
+          <div className="flex items-center justify-between gap-2 shrink-0">
+            <div className="flex items-center gap-1 bg-afs-bg-overlay border border-afs-border rounded p-1">
+              {(['2d', '3d'] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setViewMode(v)}
+                  className={`font-label text-xs px-3 py-1.5 rounded transition-colors ${
+                    viewMode === v ? 'bg-afs-crimson text-white' : 'bg-afs-bg-raised text-white'
+                  }`}
+                >
+                  {v === '2d' ? '2D' : '3D'}
+                </button>
+              ))}
+            </div>
+            <p className="font-body text-xs text-afs-chrome-dim hidden md:block">
+              Ctrl+Z undo · Ctrl+Y redo · Delete removes the selection · middle-mouse or Space+drag to pan
+            </p>
+          </div>
 
           <div className="flex-1 min-h-0 flex overflow-hidden rounded border border-afs-chrome-dim metal-edge bg-afs-bg-raised">
             <div
@@ -1816,6 +1862,22 @@ export default function FlashDraftPage() {
               className="relative min-h-0 overflow-hidden transition-[flex-basis] duration-300 ease-in-out"
               style={{ flexBasis: showSplit ? '60%' : '100%', flexGrow: 0, flexShrink: 0, minWidth: 0 }}
             >
+              {viewMode === '3d' && (
+                <div className="absolute inset-0">
+                  <ProfileViewer3D
+                    bends={viewerBends}
+                    blankWidth={viewerBlankWidthMm}
+                    material={material || 'Galvanized Steel'}
+                    gauge={gauge || GAUGES_BY_MATERIAL['Galvanized Steel']?.[1] || '24 ga'}
+                    thicknessMm={gaugeToThicknessMm(gauge || GAUGES_BY_MATERIAL['Galvanized Steel']?.[1])}
+                    profileName={profileName}
+                    className="w-full h-full"
+                  />
+                </div>
+              )}
+
+              {viewMode === '2d' && (
+                <>
               <canvas
                 ref={canvasRef}
                 width={canvasSize.width}
@@ -1977,7 +2039,8 @@ export default function FlashDraftPage() {
                 </div>
               </>
             )}
-
+                </>
+              )}
             </div>
 
             {/* PART 6 — split-screen matched-profile panel, always mounted
@@ -2091,21 +2154,6 @@ export default function FlashDraftPage() {
           thicknessMm={gaugeToThicknessMm(gauge)}
           onCancel={() => setShow3DConfirm(false)}
           onConfirm={handle3DConfirmed}
-        />
-      )}
-
-      {/* PART 1 — [3D View] toolbar button: always-accessible 3D preview of
-          the customer's own current drawing, independent of the mandatory
-          pre-submit confirmation modal above. */}
-      {showOwn3DView && (
-        <MatchedProfile3DModal
-          profileName={profileName}
-          bends={viewerBends}
-          blankWidthMm={viewerBlankWidthMm}
-          material={material || 'Galvanized Steel'}
-          gauge={gauge || GAUGES_BY_MATERIAL['Galvanized Steel']?.[1] || '24 ga'}
-          thicknessMm={gaugeToThicknessMm(gauge || GAUGES_BY_MATERIAL['Galvanized Steel']?.[1])}
-          onClose={() => setShowOwn3DView(false)}
         />
       )}
 

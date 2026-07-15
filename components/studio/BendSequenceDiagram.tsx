@@ -43,7 +43,7 @@ function reconstructPoints(bends: Bend[]): Point[] {
   return points;
 }
 
-export default function BendSequenceDiagram({ bends }: { bends: Bend[] }) {
+export default function BendSequenceDiagram({ bends, className }: { bends: Bend[]; className?: string }) {
   if (!bends || bends.length === 0) {
     return <p className="font-body text-xs text-afs-chrome-dim">No bend sequence on file.</p>;
   }
@@ -74,7 +74,7 @@ export default function BendSequenceDiagram({ bends }: { bends: Bend[] }) {
   return (
     <svg
       viewBox={`0 0 ${viewBoxWidth} ${viewBoxHeight}`}
-      className="w-full h-32 bg-afs-bg-dim rounded"
+      className={className ?? 'w-full h-32 bg-afs-bg-dim rounded'}
       preserveAspectRatio="xMidYMid meet"
     >
       <path d={pathD} fill="none" stroke="#C0001A" strokeWidth={2} strokeLinejoin="round" />
