@@ -15,9 +15,16 @@ Application code:        Phases 0–8 built (see BUILD PHASE STATUS).
 Database migration:      supabase/migrations/001_initial_schema.sql (all 35 tables,
                          RLS + FK indexes), 002_seed_afs_data.sql (materials/gauges/
                          product_profiles reference data), 003_pricing_rules_cost_notes.sql
-                         (renamed from 002 to preserve numeric order). 001-003 not yet
-                         applied to the live Supabase project — see supabase/README.md
-                         to run. 004_machine_profiles.sql (afs-030) HAS been applied
+                         (renamed from 002 to preserve numeric order). 001-003 were
+                         believed not yet applied to the live Supabase project — afs-040
+                         (2026-07-14) checked one specific table directly against the
+                         real database (not this doc) and found `saved_configurations`
+                         (from 001) already exists live and empty, contradicting this
+                         line. Only that one table was checked — treat "001-003 not
+                         applied" as UNVERIFIED, not confirmed, until someone runs a full
+                         `list_tables`-equivalent check against the live project; see
+                         supabase/README.md to run any of 001-003 that's genuinely still
+                         missing. 004_machine_profiles.sql (afs-030) HAS been applied
                          (afs-031) — the machine_profile_categories/machine_profiles/
                          machine_profile_bends tables exist live and are populated:
                          46 categories, 911 profiles, 4537 bend steps, 70 profiles
@@ -35,12 +42,12 @@ API keys in .env.local:  Present locally (not committed). STRIPE_SECRET_KEY,
 pnpm install:            DONE (afs-025) — stripe, @stripe/stripe-js,
                          @stripe/react-stripe-js, docx all present in
                          pnpm-lock.yaml and node_modules.
-pnpm tsc --noEmit:       PASSES — 0 errors (afs-038, re-verified after every change).
-pnpm run build:          PASSES — exit 0, 112 page.tsx/route.ts files under app/
-                         (113 rows in pnpm run build's own route table) as of
-                         afs-038 — one new route added, /studio/library.
-git commits:             All afs-website work through afs-037 is committed and pushed
-                         to origin/main; afs-038 (this session) is committed and pushed
+pnpm tsc --noEmit:       PASSES — 0 errors (afs-040, re-verified after every change).
+pnpm run build:          PASSES — exit 0, same 112 page.tsx/route.ts / 113 build-table-row
+                         count as afs-038/afs-039 — afs-040 changed no routes, only
+                         existing files plus 5 new components/utils.
+git commits:             All afs-website work through afs-039 is committed and pushed
+                         to origin/main; afs-040 (this session) is committed and pushed
                          at the end of this run. Working tree is clean. A SEPARATE standalone
                          project, C:\Users\manag\Documents\afs-machine-bridge, has its
                          own independent git repo (not part of this repo, not pushed
@@ -186,6 +193,92 @@ Profile Library          Studio update, built in one session:
                          circles, the 3D confirmation modal (both with and without
                          Submit-blocked-by-missing-material-or-empty-canvas), and
                          the library grid/filters/compare tray all work as built.
+FlashDraft professional  NEW (afs-040, 2026-07-14) — a second, larger FlashDraft pass
+redesign (afs-040):      requested as "make it a professional-grade tool matching
+                         PathfinderEdge." Before writing code, flagged and resolved two
+                         real conflicts with the user rather than guessing: (1) the
+                         requested toolbar button list had no Draw/Select/Erase
+                         equivalent even though those 3 modes gated almost every canvas
+                         interaction — user chose to remove modal tool-switching
+                         entirely in favor of context-sensitive direct manipulation
+                         (click empty space to draw, click an existing segment/vertex to
+                         select it, Delete via the toolbar acts on the selection); (2)
+                         the requested Profile Library change ("authenticated users see
+                         ALL machine_profiles, no is_public filter") would have exposed
+                         other customers' real project names to any signed-in customer —
+                         most private profile rows carry real customer/project names,
+                         exactly why they were marked private during import — user chose
+                         admin-only full visibility instead, matching the existing rule
+                         already enforced on the standalone profile-viewer route.
+                         Verified directly against the live database (not the stale
+                         "001-003 not applied" claim above) that `saved_configurations`
+                         (from migration 001) already exists live and is empty — reused
+                         it as-is for Part 5's save feature rather than writing a new
+                         migration: FlashDraft doesn't use that table's catalog-linked
+                         FK columns (profile_id/material_id/gauge_id/finish_id all stay
+                         null), so its points/hems/category/subcategory/revision live
+                         inside the table's existing flexible `dimensions` JSONB column.
+                         Only that one table was checked — the rest of 001-003's scope is
+                         still unverified, so that line above isn't fully corrected, just
+                         flagged as unreliable.
+                         Built: a two-row icon toolbar (New/Open/Save/Duplicate/Edit
+                         Name/Print, then Fit to Screen/Center/Zoom/Undo/Redo/Rotate
+                         Left+Right/Delete/Prev/Next/3D View — hand-drawn stroke-only SVG
+                         icons, matching the site's existing icon style, not a licensed
+                         set); a Profile Info Panel (top-left of canvas, live name/blank-
+                         width/bend-count/hem-count/revision, inline-editable name); a
+                         PathfinderEdge-style angle indicator (fixed 20px arc, signed
+                         degree label, no circle background — replaces the previous
+                         session's translucent-circle handle) with a new left-panel
+                         "Angle (degrees)" numeric field (Part 8) that now does the
+                         angle-editing job the removed canvas-drag interaction used to
+                         do; fractional-inch leg labels (formatInches, extracted from
+                         ProfileViewer3D into lib/utils/format-inches.ts and reused by
+                         both); the hem tool's ≥2-point guard loosened to allow opening
+                         the popup at 1 point (rendering itself still correctly requires
+                         2, to avoid a crash, not a visible behavior difference since a
+                         hem needs a neighbor point to fold from — tested live, was
+                         already working correctly at exactly 2 points before this
+                         session, contrary to how the request was phrased); an automatic
+                         60/40 split-screen match panel (CSS flex-basis/opacity
+                         transition, 300ms) that replaces the prior session's small
+                         floating corner preview outright — same information, more room,
+                         plus a "→ View in 3D" button opening a new view-only
+                         `MatchedProfile3DModal` (shares its paint-detection/color logic
+                         with the existing submit-flow modal via a new
+                         lib/utils/paint-appearance.ts, extracted from
+                         SubmitConfirmation3DModal.tsx); a `ProfileDetailsModal.tsx` for
+                         Save/Duplicate/Edit Name wired to `saved_configurations`, a
+                         local toast (this codebase has no shared Toast.tsx component to
+                         reuse — see the note below), and a Profile Library page that now
+                         checks the visitor's role server-side and shows public-only
+                         unless they're an admin.
+                         Real bug found and fixed via live Playwright testing, not just
+                         gates: the new context-sensitive pointerDown hit-tested segments
+                         before checking "is this near the last point," and the last
+                         point always sits exactly on the last segment — so the single
+                         most natural drawing action (clicking near the current pen tip
+                         to keep drawing) was being swallowed as a segment-select instead
+                         of extending the line. Fixed by checking proximity to the last
+                         point before segment hit-testing.
+                         Also discovered while building this (not part of the request,
+                         not touched): `components/ui/` only actually contains
+                         `Badge.tsx` and `EmptyState.tsx` — COMPONENT_MAP.md's LAYER 1
+                         documents ~20 more (Button, Modal, Toast, Input, Table, etc.)
+                         that were never built; every page in the app hand-rolls its own
+                         Tailwind buttons/inputs/modals inline instead, which is why this
+                         session's new toast/modals do the same rather than importing a
+                         shared primitive that doesn't exist. Flagged for a future
+                         COMPONENT_MAP.md correction; not fixed here (out of scope for
+                         this session, and rewriting LAYER 1 to match reality is a big
+                         enough job to deserve its own pass).
+                         Not independently live-verified this session: the Save flow
+                         succeeding for an actually-authenticated user (only the
+                         "sign in to save" unauthenticated-session path was exercised —
+                         no test login was available), and an admin session's expanded
+                         Profile Library visibility (same reason).
+                         `pnpm tsc --noEmit` 0 errors, `pnpm run build` exit 0, both
+                         re-verified after the hit-test fix.
 Portal double-nav        FIXED (afs-036) — /admin/** and /account/** were rendering
 fix (afs-036):           the public NavBar (left icon rail + top link strip) above
                          their own AdminShell/AccountShell sidebar. The requested
@@ -1041,6 +1134,25 @@ logged in afs-023/024 has not recurred since afs-025.
     Vintage Steel) since FlashDraft has no real finish-color picker to
     source an exact value from — fine for "which face is painted"
     confirmation, not a finish-matching tool.
+18. **afs-040 not-independently-verified items:** the Save flow for an
+    actually-authenticated user (only the unauthenticated "sign in to
+    save" path was exercised live — no test login was available this
+    session), and an admin session's expanded Profile Library visibility
+    (same reason — the anonymous public-only path was verified live, the
+    admin-sees-all path was not). Both are correct by code review, not by
+    a driven browser session.
+19. **COMPONENT_MAP.md LAYER 1 is largely fictional** — discovered while
+    building afs-040's toast/Profile-Details-modal and looking for a
+    shared component to reuse: `components/ui/` contains only
+    `Badge.tsx` and `EmptyState.tsx`. The other ~20 primitives that layer
+    documents (Button, Card, Input, DataInput, Select, Textarea, Checkbox,
+    RadioGroup/RadioCard, Spinner, Tooltip, Modal, Toast, Table,
+    Pagination, Tabs, Accordion, ConfirmModal, FileTypeIcon) were never
+    built — every page in this codebase hand-rolls its own Tailwind
+    buttons/inputs/modals inline instead, confirmed by every file read
+    across both FlashDraft sessions never importing from `components/ui/`
+    for these. Not fixed — COMPONENT_MAP.md's LAYER 1 needs its own
+    correction pass, out of scope for a feature session.
 
 Historical detail on the afs-023 → afs-027 sequence (build-blocker
 investigation, the two real build bugs fixed in afs-025, and the full

@@ -11,29 +11,28 @@ import {
   ROTATE_DURATION_MS,
 } from '@/lib/utils/paint-appearance';
 
-export type { PaintFace };
-
-export interface SubmitConfirmation3DModalProps {
+export interface MatchedProfile3DModalProps {
+  profileName: string;
   bends: ProfileBend[];
   blankWidthMm: number;
   material: string;
   gauge: string;
   thicknessMm: number;
-  onConfirm: (paintFace: PaintFace | null) => void;
-  onCancel: () => void;
-  submitting?: boolean;
+  onClose: () => void;
 }
 
-export default function SubmitConfirmation3DModal({
+// View-only counterpart to SubmitConfirmation3DModal — shown when the
+// customer clicks "View in 3D" on a matched library profile (Part 6),
+// not part of the submit flow, so it only ever closes, never confirms.
+export default function MatchedProfile3DModal({
+  profileName,
   bends,
   blankWidthMm,
   material,
   gauge,
   thicknessMm,
-  onConfirm,
-  onCancel,
-  submitting,
-}: SubmitConfirmation3DModalProps) {
+  onClose,
+}: MatchedProfile3DModalProps) {
   const isPainted = isPaintedMaterial(material);
   const [paintFace, setPaintFace] = useState<PaintFace>('up');
 
@@ -41,10 +40,9 @@ export default function SubmitConfirmation3DModal({
     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-6">
       <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded metal-edge p-6 max-w-2xl w-full flex flex-col items-center gap-4">
         <div className="text-center">
-          <p className="font-label text-afs-crimson text-xs tracking-widest uppercase mb-1">Confirm Before Submitting</p>
-          <h2 className="font-heading text-2xl text-afs-chrome-high">
-            {isPainted ? 'Please confirm your painted side' : 'Confirm Your Profile'}
-          </h2>
+          <p className="font-label text-afs-crimson text-xs tracking-widest uppercase mb-1">Machine Library Match</p>
+          <h2 className="font-heading text-2xl text-afs-chrome-high">{profileName}</h2>
+          {isPainted && <p className="font-body text-sm text-afs-chrome-mid mt-1">Please confirm your painted side</p>}
         </div>
 
         <div style={{ width: 600, maxWidth: '100%', height: 500 }} className="bg-afs-bg-dim rounded overflow-hidden">
@@ -54,6 +52,7 @@ export default function SubmitConfirmation3DModal({
             material={material}
             gauge={gauge}
             thicknessMm={thicknessMm}
+            profileName={profileName}
             paintFace={isPainted ? paintFace : undefined}
             paintColor={isPainted ? approxPaintColor(material) : undefined}
             bareColor={isPainted ? BARE_METAL_COLOR : undefined}
@@ -76,19 +75,10 @@ export default function SubmitConfirmation3DModal({
         <div className="flex gap-3 justify-center w-full pt-2">
           <button
             type="button"
-            onClick={onCancel}
-            disabled={submitting}
-            className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label text-sm font-semibold px-5 py-2.5 rounded transition-colors disabled:opacity-50"
+            onClick={onClose}
+            className="bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label font-semibold px-6 py-2.5 rounded text-sm transition-colors"
           >
-            Go back and edit
-          </button>
-          <button
-            type="button"
-            onClick={() => onConfirm(isPainted ? paintFace : null)}
-            disabled={submitting}
-            className="bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label font-semibold px-6 py-2.5 rounded text-sm transition-colors disabled:opacity-50"
-          >
-            {submitting ? 'Submitting…' : 'Looks correct — Submit Quote'}
+            Close
           </button>
         </div>
       </div>

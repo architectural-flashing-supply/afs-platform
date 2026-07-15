@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { computeFabricationCounts } from '@/lib/data/machine-profile-fabrication';
 import ProfileLibraryBrowser, { type LibraryProfileCardData } from '@/components/studio/ProfileLibraryBrowser';
@@ -7,7 +8,7 @@ import ProfileLibraryBrowser, { type LibraryProfileCardData } from '@/components
 export const metadata: Metadata = {
   title: 'Profile Library | AFS Architectural Flashing Supply',
   description:
-    'Browse every public FlashDraft profile in the AFS machine library — filter by category, blank width, and bend count, then load one straight into FlashDraft.',
+    'Browse every profile in the AFS machine library — filter by category, blank width, and bend count, then load one straight into FlashDraft.',
 };
 
 interface ProfileRow {
@@ -31,19 +32,38 @@ interface BendRow {
 // Server component using the service-role client — same rationale as
 // app/studio/profile-viewer/[profileId]/page.tsx: machine_profiles RLS
 // requires auth.uid() IS NOT NULL even for public rows, which would break
-// anonymous browsing of a page meant to be a public resource. Only public +
-// active profiles are ever selected here, so the privacy boundary from the
-// import scripts is preserved.
+// anonymous browsing of a page meant to be a public resource. Full
+// visibility (public + private) is admin-only, not "any authenticated
+// user" — most private rows carry real customer/project names (see
+// scripts/import-machine-profiles.ts's own privacy rationale), so a
+// regular signed-in customer or contractor must not see other customers'
+// project names here. This mirrors the exact same admin-only rule already
+// enforced for private rows on the standalone profile-viewer route. The
+// admin client bypasses RLS either way, so this visibility rule is
+// enforced here in application code, not by RLS.
 export default async function ProfileLibraryPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  let isAdmin = false;
+  if (user) {
+    const { data: viewerProfile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    isAdmin = viewerProfile?.role === 'admin';
+  }
+
   const admin = createAdminClient();
 
-  const { data: profileRows } = await admin
+  let profileQuery = admin
     .from('machine_profiles')
     .select('id, name_en, profile_number, blank_width_in, blank_width_mm, machine_profile_categories(name_en)')
-    .eq('is_public', true)
     .eq('is_active', true)
-    .order('name_en')
-    .returns<ProfileRow[]>();
+    .order('name_en');
+  if (!isAdmin) {
+    profileQuery = profileQuery.eq('is_public', true);
+  }
+  const { data: profileRows } = await profileQuery.returns<ProfileRow[]>();
 
   const profiles = profileRows ?? [];
   const profileIds = profiles.map((p) => p.id);
@@ -96,7 +116,7 @@ export default async function ProfileLibraryPage() {
         <p className="font-label text-afs-crimson text-sm tracking-widest uppercase mb-2 mt-3">Machine Library</p>
         <h1 className="font-display text-5xl text-afs-chrome-high leading-none mb-3">Profile Library</h1>
         <p className="font-body text-afs-chrome-mid text-sm max-w-xl mx-auto">
-          Every public profile in the Thalmann DS2801&apos;s machine library — {cards.length} ready to load straight into FlashDraft.
+          Browse every profile in our machine library — {cards.length} ready to load straight into FlashDraft.
         </p>
       </div>
 

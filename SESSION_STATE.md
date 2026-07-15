@@ -19,18 +19,22 @@ a six-part FlashDraft/Design Studio overhaul — hem tool, bend-angle
 circle handles, inline dimension input, redesigned Profile Match panel
 with a real fabrication-count metric, a mandatory 3D submit-confirmation
 flow with painted-side selection, and a new Profile Library page
-(afs-038), followed by a SITEMAP.md/COMPONENT_MAP.md sync-up (afs-039,
-same day) to reflect afs-038's actual file changes. `pnpm tsc --noEmit`
-passes (0 errors) and `pnpm run build` succeeds (exit 0, 112 page.tsx/
-route.ts files, 113 rows in the build's own route table) as of afs-038 —
-afs-039 changed no application code, gates unaffected. Working tree is
-clean; all afs-website work through afs-039 is committed and pushed to
-origin/main.
+(afs-038), a SITEMAP.md/COMPONENT_MAP.md sync-up (afs-039), and a second,
+larger FlashDraft redesign toward a "professional-grade" tool — a full
+two-row icon toolbar, context-sensitive canvas interaction (no more
+Draw/Select/Erase modes), a PathfinderEdge-style angle indicator with a
+numeric angle-editing panel, an automatic split-screen match panel,
+save-to-account via the (confirmed-live) `saved_configurations` table,
+and admin-gated full Profile Library visibility (afs-040). `pnpm tsc
+--noEmit` passes (0 errors) and `pnpm run build` succeeds (exit 0, same
+112 page.tsx/route.ts files / 113 build-table rows as afs-038 — afs-040
+added no new routes) as of afs-040. Working tree is clean; all
+afs-website work through afs-040 is committed and pushed to origin/main.
 
 **Today's date is 2026-07-14.** Last afs-website commit before this
-session: `c2c9b53` (feat: FlashDraft hem tool, bend circles, inline
-dimensions, profile library, 3D confirmation flow — afs-038). This
-session's doc-only work is committed as afs-039 at the end of this run.
+session: `9203db3` (docs: update SITEMAP and COMPONENT_MAP after
+FlashDraft overhaul — afs-039). This session's work is committed as
+afs-040 at the end of this run.
 
 **afs-039 (2026-07-14, this session): SITEMAP.md + COMPONENT_MAP.md
 sync-up after afs-038.** No application code changed. Requested to add
@@ -304,13 +308,74 @@ delivering jobs).
 | 2026-07-13 | afs-037: Full governance-doc rewrite from a real codebase audit (this session) — see "Governance rewrite (afs-037)" at the top of this file and STATE_OF_THE_BUILD.md's "MACHINE BRIDGE — AUDITED STATUS" for full detail. No application code changed. Corrected several stale/incorrect claims found during audit rather than writing them as requested: DESIGN_TOKENS.md's hex values didn't match the real source files (rewritten to match exactly), SITEMAP.md described never-built routes and omitted real ones (rewritten from the actual `app/` directory), the requested `THALMANN_MACHINE_SERIAL` env var doesn't exist (real name: `PATHFINDER_EDGE_MACHINE_SERIAL`), the requested Machine Bridge path doesn't exist on this machine (real dev path vs. the shop-floor install target are now both documented, distinguished), and — most significantly — the requested "Machine Bridge installed on DESKTOP-MB7AMMP, DS1 delivery confirmed working" claims were checked directly against `afs-machine-bridge/logs/bridge.log` and found false (bridge is running on the dev machine only, every poll has failed HTTP 401, zero `.ds1` files ever generated). Surfaced this to the user before writing; user chose to have the audited truth written instead. |
 | 2026-07-14 | afs-038: Six-part FlashDraft/Design Studio overhaul — import-additional-profiles script (0 new/71 duplicate), full canvas-fill layout, hem tool, bend-angle circle handles replacing the old radius-drag handle, inline on-canvas dimension input, redesigned Profile Match panel (confidence bar, real bend-signature-based fabrication count, exact-match badge, floating SVG preview), a mandatory 3D submit-confirmation modal with painted-side flip, and a new /studio/library Profile Library page. See "FlashDraft overhaul + Profile Library (afs-038)" in STATE_OF_THE_BUILD.md and "## LAST FORGE PROMPT RUN" below for full detail. Flagged and resolved one spec self-contradiction (the literal fabrication-count formula always equals 1) with the user before building. Found and fixed one real bug via actual browser verification: a React hydration mismatch in the relocated BendSequenceDiagram component from unrounded SVG float coordinates. `pnpm tsc --noEmit` 0 errors, `pnpm run build` exit 0. Committed `c2c9b53`, pushed to origin/main. |
 | 2026-07-14 | afs-039: SITEMAP.md + COMPONENT_MAP.md sync-up after afs-038 — no application code changed. Added `/studio/library` to SITEMAP.md's route tree, protection matrix, and page/route counts; corrected a stale "106 routes" figure to a freshly-reproducible 113 (112 real files + Next's synthetic `/_not-found`). Rewrote COMPONENT_MAP.md's LAYER 12 for the real post-afs-038 file structure — added entries for `SubmitConfirmation3DModal.tsx`, `ProfileLibraryBrowser.tsx`, and the relocated `BendSequenceDiagram.tsx`; documented the hem tool, bend-angle circle handles, and inline dimension input as named sub-features inside `app/studio/draft/page.tsx`'s existing entry rather than inventing three component files that don't exist, since the task's requested names (`HemTool`, `BendCircleHandle`, `InlineDimensionInput`) don't correspond to real separate files. `pnpm tsc --noEmit` 0 errors, `pnpm run build` exit 0 (re-verified, expected no-op). |
+| 2026-07-14 | afs-040: Second, larger FlashDraft redesign toward "professional-grade" — two-row icon toolbar, removed Draw/Select/Erase modes for context-sensitive canvas interaction, PathfinderEdge-style angle-arc indicator + numeric angle panel, fractional leg labels, automatic 60/40 split-screen match panel replacing the prior floating preview, save-to-account (`saved_configurations`, confirmed live), admin-gated full Profile Library visibility. Flagged and resolved two real conflicts before building: removing tool-mode switching entirely (bigger rework, user chose it over keeping the 3 mode buttons) and the requested "any authenticated user sees all profiles" (would leak other customers' real project names — user chose admin-only). Found and fixed one real interaction bug via live Playwright testing: clicking near the last-drawn point (the natural way to keep drawing) was being swallowed as a segment-select instead of extending the line, since the last point sits exactly on the last segment. Also discovered (not fixed, flagged) that COMPONENT_MAP.md's LAYER 1 documents ~20 shared UI primitives that don't actually exist — only Badge.tsx and EmptyState.tsx are real. `pnpm tsc --noEmit` 0 errors, `pnpm run build` exit 0. See "FlashDraft professional redesign (afs-040)" in STATE_OF_THE_BUILD.md and "## LAST FORGE PROMPT RUN" below for full detail. |
 
 ---
 
 ## LAST FORGE PROMPT RUN
 
-**Most recent: afs-038 (2026-07-14) — six-part FlashDraft/Design Studio
-overhaul, the most recent entry that changed application code.** Full
+**Most recent: afs-040 (2026-07-14) — second FlashDraft redesign, toward
+"professional-grade."** Full detail is in STATE_OF_THE_BUILD.md's
+"FlashDraft professional redesign (afs-040)" entry. Summary:
+
+**Two conflicts flagged and resolved with the user before writing code**
+(not guessed at): (1) the requested toolbar had no Draw/Select/Erase
+equivalent even though those 3 modes gated nearly every canvas
+interaction — chose to remove modal tool-switching entirely in favor of
+context-sensitive direct manipulation (empty space draws, an existing
+segment/vertex selects, Delete on the toolbar removes the selection); (2)
+"authenticated users see ALL machine_profiles" would have exposed other
+customers' real project names (most private rows carry them, exactly why
+they're private) to any signed-in customer — chose admin-only full
+visibility instead, matching the rule already enforced elsewhere in the
+app for this same data.
+
+**Built:** a two-row icon toolbar (18 hand-drawn stroke SVG icons, no
+licensed set); a Profile Info Panel (live name/blank-width/bend-count/
+hem-count/revision, inline-editable name); a fixed-20px signed-angle arc
+replacing the previous session's translucent circle, paired with a new
+left-panel numeric "Angle (degrees)" field that now does the angle-edit
+job the removed canvas-drag used to do; fractional-inch leg labels
+(`lib/utils/format-inches.ts`, extracted from ProfileViewer3D and shared
+by both); a 60/40 animated split-screen match panel replacing the prior
+floating corner preview outright, with a "→ View in 3D" button opening a
+new view-only `MatchedProfile3DModal` (shares paint-detection logic with
+the submit-flow modal via a new `lib/utils/paint-appearance.ts`); a
+`ProfileDetailsModal.tsx` wired to the (confirmed-live)
+`saved_configurations` table for Save/Duplicate/Edit Name, storing
+FlashDraft's points/hems/category/revision inside that table's existing
+`dimensions` JSONB rather than needing a new migration; and the Profile
+Library page checking the visitor's actual role server-side.
+
+**Real bug found via live Playwright testing, not just gates:** the new
+context-sensitive `handlePointerDown` checked segment hits before
+checking "is this near the last point" — and the last point always sits
+exactly on the last segment, so the single most natural drawing action
+(clicking near the current pen tip to keep drawing) was being swallowed
+as a segment-select instead of extending the line. Fixed by checking
+proximity to the last point first.
+
+**Discovered, not fixed (flagged for later):** `components/ui/` contains
+only `Badge.tsx` and `EmptyState.tsx` — COMPONENT_MAP.md's LAYER 1
+documents ~20 more primitives (Button, Modal, Toast, Input, Table, etc.)
+that were never built; every page hand-rolls its own Tailwind elements
+instead, which is why this session's toast/modals do the same.
+
+**Not independently live-verified:** Save succeeding for an actually
+signed-in user (only the "sign in to save" unauthenticated path was
+exercised — no test login available) and an admin session's expanded
+library visibility (same reason).
+
+`pnpm tsc --noEmit` 0 errors, `pnpm run build` exit 0, both re-verified
+after the pointer-handler fix.
+
+**Everything is committed and pushed. Working tree is clean.**
+
+---
+
+## PRIOR RUN — afs-038
+
+afs-038 (2026-07-14) — six-part FlashDraft/Design Studio overhaul. Full
 detail is in STATE_OF_THE_BUILD.md's "FlashDraft overhaul + Profile
 Library (afs-038)" entry; summarized here per-part:
 
@@ -724,9 +789,23 @@ PathfinderEdge integration, Thalmann profile import"` → `7950f13`, then
 
 ## NEXT FORGE PROMPT
 
-All 9 original build phases, the Design Studio (including the afs-038
-FlashDraft overhaul and Profile Library page), and the Machine Bridge +
-Command Center are built. Remaining work:
+All 9 original build phases, the Design Studio (including the afs-038/
+afs-040 FlashDraft overhauls and Profile Library page), and the Machine
+Bridge + Command Center are built. Remaining work:
+-1. (New from afs-040) Nothing code-blocking, but worth a human pass:
+   (a) verify Save/Duplicate/Edit Name actually persists correctly for a
+   real authenticated user, and that an admin session's Profile Library
+   really does show private profiles — both were only verified by code
+   review this session, not a driven browser session with real
+   credentials; (b) `saved_configurations` (migration 001) was directly
+   confirmed live via the project's own service-role client, contradicting
+   this doc's long-standing "001-003 not applied" claim — only that one
+   table was checked, so a full audit of what 001-003 actually contains
+   live is still worth doing rather than trusting either claim; (c)
+   COMPONENT_MAP.md's LAYER 1 documents ~20 shared UI primitives that
+   don't exist (only `Badge.tsx`/`EmptyState.tsx` are real) — worth its
+   own correction pass since every page hand-rolls Tailwind elements
+   instead of importing from `components/ui/`.
 0. (New from afs-038) Nothing code-blocking, but worth a human pass:
    (a) the hem-fold blank-width allowance and the painted-side finish
    colors are both documented approximations, not exact values — see

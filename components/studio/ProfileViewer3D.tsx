@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
+import { formatInches } from '@/lib/utils/format-inches';
 
 export interface ProfileBend {
   leftLeg: number;
@@ -75,19 +76,6 @@ function getMaterialAppearance(material: string): MaterialAppearance {
   return match ? match.appearance : DEFAULT_APPEARANCE;
 }
 
-function formatInches(value: number): string {
-  const whole = Math.floor(value);
-  const sixteenths = Math.round((value - whole) * 16);
-  if (sixteenths === 0) return `${whole}"`;
-  if (sixteenths === 16) return `${whole + 1}"`;
-  const divisor = gcd(sixteenths, 16);
-  const num = sixteenths / divisor;
-  const den = 16 / divisor;
-  return whole > 0 ? `${whole} ${num}/${den}"` : `${num}/${den}"`;
-}
-function gcd(a: number, b: number): number {
-  return b === 0 ? a : gcd(b, a % b);
-}
 function mmToIn(mm: number): number {
   return mm / 25.4;
 }

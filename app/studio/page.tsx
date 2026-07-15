@@ -89,12 +89,12 @@ export default function DesignStudioPage() {
           <div>
             <h2 className="font-heading text-xl text-afs-chrome-high mb-1">Profile Library</h2>
             <p className="font-body text-sm text-afs-chrome-mid">
-              Browse every public profile in our machine library, compare up to three side by side, and load one straight into FlashDraft.
+              Browse every profile in our machine library, compare up to three side by side, and load one straight into FlashDraft.
             </p>
           </div>
           <Link
             href="/studio/library"
-            className="border border-afs-border bg-afs-bg-overlay hover:bg-afs-bg-surface text-afs-chrome-high text-center font-label font-semibold text-sm px-5 py-2.5 rounded transition-colors shrink-0"
+            className="bg-afs-crimson hover:bg-afs-crimson-hover text-white text-center font-label font-semibold text-sm px-5 py-2.5 rounded transition-colors shrink-0"
           >
             Browse Profile Library
           </Link>

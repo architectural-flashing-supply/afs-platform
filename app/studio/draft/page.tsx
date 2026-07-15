@@ -4,12 +4,14 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { ALL_MATERIALS, GAUGES_BY_MATERIAL } from '@/lib/data/catalog';
 import { gaugeToThicknessMm } from '@/lib/utils/gauge-thickness';
+import { formatInches } from '@/lib/utils/format-inches';
 import ProfileViewer3D, { type ProfileBend } from '@/components/studio/ProfileViewer3D';
 import BendSequenceDiagram from '@/components/studio/BendSequenceDiagram';
 import SubmitConfirmation3DModal, { type PaintFace } from '@/components/studio/SubmitConfirmation3DModal';
+import MatchedProfile3DModal from '@/components/studio/MatchedProfile3DModal';
+import ProfileDetailsModal, { type ProfileDetailsFormValues } from '@/components/studio/ProfileDetailsModal';
 import type { ProfileMatch, DiagramBend } from '@/app/api/studio/match-profile/route';
 
-type ToolMode = 'draw' | 'select' | 'erase';
 type SubmitState = 'idle' | 'submitting' | 'submitted';
 type HemType = 'open' | 'smashed' | 'teardrop';
 type HemEndpoint = 'start' | 'end';
@@ -58,9 +60,8 @@ const CANVAS_COLORS = {
   ink: '#111111',
   dragLabelBg: 'rgba(17, 17, 17, 0.92)',
   dragLabelText: '#FFFFFF',
-  bendCircleFill: 'rgba(255, 255, 255, 0.2)',
-  bendCircleBorder: '#00C853', // mirrors afs-accent-green
-  bendCircleWarnBorder: '#D32F2F',
+  angleArc: '#C0001A', // afs-crimson
+  angleArcWarn: '#D32F2F',
   hemLine: '#4A0072', // mirrors afs-accent-purple
 };
 
@@ -72,17 +73,21 @@ const CANVAS_MIN_WIDTH = 600;
 const CANVAS_MIN_HEIGHT = 440;
 const HIT_RADIUS_PX = 10;
 const MATCH_DEBOUNCE_MS = 500;
+const MATCH_SPLIT_THRESHOLD = 70;
 
 const MIN_BEND_RADIUS_IN = 0.125;
 const MAX_BEND_RADIUS_IN = 4;
 const MIN_DRAG_SEGMENT_IN = 0.05;
 
-const BEND_CIRCLE_RADIUS_PX = 16; // 32px diameter
-const BEND_CIRCLE_HIT_PX = 18;
+const ANGLE_ARC_RADIUS_PX = 20; // fixed, unscaled by zoom — a UI indicator, not to-scale geometry
+const ANGLE_ARC_HIT_PX = 16;
 
 const HEM_FOLD_DEPTH_IN = 0.375;
 const HEM_DEFAULT_GAP_IN = 0.1875; // 3/16"
 const HEM_HIT_RADIUS_PX = 14;
+
+const ROTATE_STEP_DEG = 15;
+const ZOOM_STEP_RATIO = 0.1;
 
 function defaultBendRadiusIn(material: string): number {
   if (/copper|zinc/i.test(material)) return 0.75;
@@ -139,6 +144,26 @@ function rotateChainAroundVertex(points: Point[], vertexIndex: number, deltaDeg:
   });
 }
 
+// Rotates every point around a fixed pivot by deltaDeg — used by the
+// toolbar's Rotate Left/Right, which spins the whole profile (unlike
+// rotateChainAroundVertex, which only spins what's downstream of one joint).
+function rotateAllPoints(points: Point[], pivot: Point, deltaDeg: number): Point[] {
+  const rad = (deltaDeg * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  return points.map((p) => {
+    const dx = p.x - pivot.x;
+    const dy = p.y - pivot.y;
+    return { x: pivot.x + dx * cos - dy * sin, y: pivot.y + dx * sin + dy * cos, radius: p.radius };
+  });
+}
+
+function centroidOf(points: Point[]): Point {
+  const x = points.reduce((s, p) => s + p.x, 0) / points.length;
+  const y = points.reduce((s, p) => s + p.y, 0) / points.length;
+  return { x, y };
+}
+
 function applySnapping(prev: Point, raw: Point, snapAngle: boolean, snapDimension: boolean): Point {
   let dx = raw.x - prev.x;
   let dy = raw.y - prev.y;
@@ -186,6 +211,69 @@ function distanceToSegment(p: Point, a: Point, b: Point): number {
   return Math.hypot(p.x - proj.x, p.y - proj.y);
 }
 
+// Part 1 — professional toolbar. Minimal stroke-only line icons (matches
+// the site's existing icon style, e.g. app/studio/page.tsx's tab icons),
+// not a licensed icon set — just enough to be recognizable.
+const TOOLBAR_ICON_PATHS: Record<string, string> = {
+  new: 'M5 3h9l5 5v13H5z M9 13h6M9 16h6',
+  open: 'M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z',
+  save: 'M4 4h13l3 3v13H4z M7 4v5h8V4 M6 14h12v6H6z',
+  duplicate: 'M8 8h11v11H8z M5 16V6a1 1 0 011-1h10',
+  editName: 'M4 20l1-5L16 4l4 4L9 19z M14 6l4 4',
+  print: 'M6 9V3h12v6 M4 9h16v7H4z M7 14h10v7H7z',
+  fitToScreen: 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5',
+  center: 'M12 2v4M12 18v4M2 12h4M18 12h4 M12 9a3 3 0 100 6 3 3 0 000-6z',
+  zoomOut: 'M10 4a6 6 0 100 12 6 6 0 000-12z M20 20l-5.5-5.5 M7 10h6',
+  zoomIn: 'M10 4a6 6 0 100 12 6 6 0 000-12z M20 20l-5.5-5.5 M10 7v6M7 10h6',
+  undo: 'M8 7L3 12l5 5 M3 12h11a6 6 0 010 12h-2',
+  redo: 'M16 7l5 5-5 5 M21 12H10a6 6 0 000 12h2',
+  rotateLeft: 'M4 12a8 8 0 1114 5.3 M4 17v-5h5',
+  rotateRight: 'M20 12a8 8 0 10-14 5.3 M20 17v-5h-5',
+  delete: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13',
+  prev: 'M15 5l-7 7 7 7',
+  next: 'M9 5l7 7-7 7',
+  threeDView: 'M12 3l8 4.5v9L12 21l-8-4.5v-9z M4 7.5l8 4.5 8-4.5M12 12v9',
+};
+
+function ToolbarIcon({ name }: { name: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+      <path d={TOOLBAR_ICON_PATHS[name]} />
+    </svg>
+  );
+}
+
+function ToolbarButton({
+  icon,
+  label,
+  onClick,
+  disabled,
+  active,
+}: {
+  icon: string;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  active?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      onClick={onClick}
+      disabled={disabled}
+      className={`p-2 rounded transition-colors ${
+        active ? 'bg-afs-crimson text-white' : 'bg-afs-bg-raised text-afs-chrome-mid hover:bg-afs-bg-surface hover:text-white'
+      } disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-afs-bg-raised disabled:hover:text-afs-chrome-mid`}
+    >
+      <span className="block w-5 h-5">
+        <ToolbarIcon name={icon} />
+      </span>
+    </button>
+  );
+}
+
 export default function FlashDraftPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const canvasWrapRef = useRef<HTMLDivElement>(null);
@@ -200,11 +288,32 @@ export default function FlashDraftPage() {
   const [past, setPast] = useState<Point[][]>([]);
   const [future, setFuture] = useState<Point[][]>([]);
 
-  const [tool, setTool] = useState<ToolMode>('draw');
   const [selectedSegment, setSelectedSegment] = useState<number | null>(null);
   const [segmentLengthInput, setSegmentLengthInput] = useState('');
   const [selectedBendPoint, setSelectedBendPoint] = useState<number | null>(null);
   const [bendRadiusInput, setBendRadiusInput] = useState('');
+  const [angleInputDraft, setAngleInputDraft] = useState('');
+  const [angleInputMode, setAngleInputMode] = useState<'angle' | 'length'>('angle');
+  const [hoveredVertex, setHoveredVertex] = useState<number | null>(null);
+  const [hoveredSegment, setHoveredSegment] = useState<number | null>(null);
+
+  // --- Profile identity / save state (Part 2 / Part 5) ---
+  const [profileName, setProfileName] = useState('Untitled Profile');
+  const [editingName, setEditingName] = useState(false);
+  const [profileNameDraft, setProfileNameDraft] = useState('');
+  const [revision, setRevision] = useState(1);
+  const [savedProfileId, setSavedProfileId] = useState<string | null>(null);
+  const [profileCategoryId, setProfileCategoryId] = useState<string | null>(null);
+  const [profileSubcategory, setProfileSubcategory] = useState('');
+  const [showNewConfirm, setShowNewConfirm] = useState(false);
+  const [showProfileDetails, setShowProfileDetails] = useState(false);
+  const [duplicateOnSave, setDuplicateOnSave] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const [showOwn3DView, setShowOwn3DView] = useState(false);
+  const [showMatched3DView, setShowMatched3DView] = useState(false);
+  const [splitDismissed, setSplitDismissed] = useState(false);
 
   const [canvasSize, setCanvasSize] = useState({ width: CANVAS_MIN_WIDTH, height: CANVAS_MIN_HEIGHT });
 
@@ -223,12 +332,6 @@ export default function FlashDraftPage() {
   const [dragPreview, setDragPreview] = useState<{ point: Point; length: number; angleDeg: number } | null>(null);
   const [dragScreenPos, setDragScreenPos] = useState<Point | null>(null);
 
-  // --- Bend circle angle-drag state ---
-  const [draggingAngleIndex, setDraggingAngleIndex] = useState<number | null>(null);
-  const [hoveredBendCircle, setHoveredBendCircle] = useState<number | null>(null);
-  const angleDragOriginalPoints = useRef<Point[] | null>(null);
-  const hasAngleDraggedRef = useRef(false);
-
   // --- Hem tool state ---
   const [hemStart, setHemStart] = useState<Hem | null>(null);
   const [hemEnd, setHemEnd] = useState<Hem | null>(null);
@@ -245,7 +348,6 @@ export default function FlashDraftPage() {
   const [matches, setMatches] = useState<ProfileMatch[]>([]);
   const [matchLoading, setMatchLoading] = useState(false);
   const [topMatchDiagramBends, setTopMatchDiagramBends] = useState<DiagramBend[] | null>(null);
-  const [showFloatingPreview, setShowFloatingPreview] = useState(true);
   const lastTopMatchIdRef = useRef<string | null>(null);
 
   const [viewerBends, setViewerBends] = useState<ProfileBend[]>(PLACEHOLDER_COPING_CAP_BENDS);
@@ -340,7 +442,23 @@ export default function FlashDraftPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBendPoint, points]);
 
-  // --- Keyboard shortcuts: undo/redo, space-to-pan, escape closes hem popup ---
+  // Part 8 — syncs the angle panel's numeric field to the selected bend
+  // point's live signed angle (mirrors the bendRadiusInput sync above).
+  useEffect(() => {
+    if (selectedBendPoint === null) return;
+    const prevPt = points[selectedBendPoint - 1];
+    const curr = points[selectedBendPoint];
+    const next = points[selectedBendPoint + 1];
+    if (!prevPt || !curr || !next) return;
+    const v1 = { x: prevPt.x - curr.x, y: prevPt.y - curr.y };
+    const v2 = { x: next.x - curr.x, y: next.y - curr.y };
+    setAngleInputDraft(signedAngleBetween(v1, v2).toFixed(1));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBendPoint, points]);
+
+  // --- Keyboard shortcuts: undo/redo, space-to-pan, escape closes hem popup,
+  // delete/backspace removes the selected point or segment (skipped while
+  // focus is in a text field, so typing in Notes/Profile Name still works) ---
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.code === 'Space') {
@@ -354,6 +472,18 @@ export default function FlashDraftPage() {
         redo();
       } else if (e.key === 'Escape') {
         setHemPopup(null);
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        const target = e.target as HTMLElement | null;
+        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+        if (selectedBendPoint !== null) {
+          e.preventDefault();
+          commitPoints(points.filter((_, i) => i !== selectedBendPoint));
+          setSelectedBendPoint(null);
+        } else if (selectedSegment !== null) {
+          e.preventDefault();
+          commitPoints(points.filter((_, i) => i !== selectedSegment + 1));
+          setSelectedSegment(null);
+        }
       }
     }
     function handleKeyUp(e: KeyboardEvent) {
@@ -365,7 +495,7 @@ export default function FlashDraftPage() {
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('keyup', handleKeyUp);
     };
-  }, [undo, redo]);
+  }, [undo, redo, points, selectedBendPoint, selectedSegment, commitPoints]);
 
   // --- Coordinate conversion ---
   const worldToScreen = useCallback(
@@ -416,12 +546,14 @@ export default function FlashDraftPage() {
 
     if (points.length === 0 && !isDragDrawing) return;
 
-    // Segments
+    // Segments — leg dimension label in fractional inches (real fab
+    // convention, e.g. "3 3/8"") rather than decimal.
     for (let i = 0; i < points.length - 1; i++) {
       const a = worldToScreen(points[i], canvas);
       const b = worldToScreen(points[i + 1], canvas);
+      const isActive = selectedSegment === i || hoveredSegment === i;
       ctx.strokeStyle = selectedSegment === i ? CANVAS_COLORS.profileSelected : CANVAS_COLORS.profile;
-      ctx.lineWidth = selectedSegment === i ? 3 : 2;
+      ctx.lineWidth = isActive ? 3 : 2;
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
       ctx.lineTo(b.x, b.y);
@@ -431,8 +563,8 @@ export default function FlashDraftPage() {
       const midX = (a.x + b.x) / 2;
       const midY = (a.y + b.y) / 2;
       ctx.fillStyle = CANVAS_COLORS.ink;
-      ctx.font = '12px sans-serif';
-      ctx.fillText(`${length.toFixed(3)}"`, midX + 6, midY - 6);
+      ctx.font = `12px ${jetbrainsFontRef.current}`;
+      ctx.fillText(formatInches(length), midX + 6, midY - 6);
     }
 
     // Live drag-in-progress segment, from the last committed point to the cursor
@@ -465,11 +597,10 @@ export default function FlashDraftPage() {
       ctx.fill();
     });
 
-    // Bend circle handles: fillet preview arc (still driven by the numeric
-    // radius value, set via the left-panel input) + a translucent draggable
-    // circle badge centered on the vertex showing live angle + radius.
-    // Dragging the circle changes the ANGLE (rotates everything downstream
-    // of the joint) — the radius is edited via the panel input, not here.
+    // Angle indicators — PathfinderEdge-style: a clean fixed-radius arc
+    // between the two leg directions, a signed degree label near it, no
+    // circle background. Radius is still set via the left-panel numeric
+    // input (no canvas drag anymore) — Angle is set via the Part 8 panel.
     const gaugeIsThick = isGauge18OrThicker(gauge);
     for (let i = 1; i < points.length - 1; i++) {
       const prev = points[i - 1];
@@ -478,38 +609,45 @@ export default function FlashDraftPage() {
       const s = worldToScreen(curr, canvas);
       const effectiveRadius = getEffectiveRadius(i);
       const isTooTight = gaugeIsThick && effectiveRadius < thicknessIn * 1.5;
-      const circleBorder = isTooTight ? CANVAS_COLORS.bendCircleWarnBorder : CANVAS_COLORS.bendCircleBorder;
+      const arcColor = isTooTight ? CANVAS_COLORS.angleArcWarn : CANVAS_COLORS.angleArc;
 
       const angleToPrev = Math.atan2(prev.y - curr.y, prev.x - curr.x);
       const angleToNext = Math.atan2(next.y - curr.y, next.x - curr.x);
       let sweep = angleToNext - angleToPrev;
       while (sweep <= -Math.PI) sweep += Math.PI * 2;
       while (sweep > Math.PI) sweep -= Math.PI * 2;
-      const arcRadiusPx = Math.max(4, effectiveRadius * PIXELS_PER_INCH * zoom);
-      ctx.strokeStyle = circleBorder;
-      ctx.lineWidth = 2;
+
+      const isSelected = selectedBendPoint === i;
+      const isHovered = hoveredVertex === i;
+      ctx.strokeStyle = arcColor;
+      ctx.lineWidth = isSelected || isHovered ? 2.5 : 1.5;
       ctx.beginPath();
-      ctx.arc(s.x, s.y, arcRadiusPx, angleToPrev, angleToNext, sweep < 0);
+      ctx.arc(s.x, s.y, ANGLE_ARC_RADIUS_PX, angleToPrev, angleToNext, sweep < 0);
       ctx.stroke();
 
-      const isActive = hoveredBendCircle === i || draggingAngleIndex === i || selectedBendPoint === i;
-      const circleRadiusPx = BEND_CIRCLE_RADIUS_PX + (isActive ? 2 : 0);
-      ctx.fillStyle = CANVAS_COLORS.bendCircleFill;
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, circleRadiusPx, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = circleBorder;
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-
+      const v1 = { x: prev.x - curr.x, y: prev.y - curr.y };
+      const v2 = { x: next.x - curr.x, y: next.y - curr.y };
+      const signedDeg = signedAngleBetween(v1, v2);
+      const bisectorAngle = angleToPrev + sweep / 2;
+      const labelX = s.x + Math.cos(bisectorAngle) * (ANGLE_ARC_RADIUS_PX + 12);
+      const labelY = s.y + Math.sin(bisectorAngle) * (ANGLE_ARC_RADIUS_PX + 12);
       ctx.fillStyle = CANVAS_COLORS.ink;
-      ctx.font = `10px ${jetbrainsFontRef.current}`;
+      ctx.font = `11px ${jetbrainsFontRef.current}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(`${bendAngleAt(prev, curr, next).toFixed(0)}°`, s.x, s.y - 5);
-      ctx.fillText(`${effectiveRadius.toFixed(4).replace(/0+$/, '').replace(/\.$/, '')}"`, s.x, s.y + 6);
+      ctx.fillText(`${signedDeg.toFixed(0)}°`, labelX, labelY);
       ctx.textAlign = 'left';
       ctx.textBaseline = 'alphabetic';
+
+      // Minimal selection marker — not a badge, just enough to show which
+      // vertex the Part 8 angle panel is currently editing.
+      if (isSelected) {
+        ctx.strokeStyle = CANVAS_COLORS.angleArc;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, 4, 0, Math.PI * 2);
+        ctx.stroke();
+      }
     }
 
     // Hem folds — drawn at whichever endpoint(s) have one.
@@ -571,6 +709,7 @@ export default function FlashDraftPage() {
   }, [
     points,
     selectedSegment,
+    hoveredSegment,
     zoom,
     pan,
     worldToScreen,
@@ -579,8 +718,7 @@ export default function FlashDraftPage() {
     gauge,
     thicknessIn,
     getEffectiveRadius,
-    hoveredBendCircle,
-    draggingAngleIndex,
+    hoveredVertex,
     selectedBendPoint,
     hemStart,
     hemEnd,
@@ -622,7 +760,7 @@ export default function FlashDraftPage() {
           const nextTopId = nextMatches[0]?.profileId ?? null;
           if (nextTopId !== lastTopMatchIdRef.current) {
             lastTopMatchIdRef.current = nextTopId;
-            setShowFloatingPreview(true);
+            setSplitDismissed(false);
           }
         }
       } catch {
@@ -677,13 +815,35 @@ export default function FlashDraftPage() {
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   };
 
-  const hitTestBendCircle = useCallback(
+  // Context-sensitive hit-testing — there is no separate draw/select/erase
+  // mode anymore: a click on empty space extends the line, a click on an
+  // existing vertex or segment selects it, and deletion happens only via
+  // the toolbar's Delete action on whatever is currently selected.
+  const hitTestVertex = useCallback(
     (screenPos: Point, canvas: HTMLCanvasElement): number | null => {
       let hit: number | null = null;
-      let minDist = BEND_CIRCLE_HIT_PX;
+      let minDist = ANGLE_ARC_HIT_PX;
       for (let i = 1; i < points.length - 1; i++) {
         const center = worldToScreen(points[i], canvas);
         const d = Math.hypot(screenPos.x - center.x, screenPos.y - center.y);
+        if (d < minDist) {
+          minDist = d;
+          hit = i;
+        }
+      }
+      return hit;
+    },
+    [points, worldToScreen]
+  );
+
+  const hitTestSegmentAt = useCallback(
+    (screenPos: Point, canvas: HTMLCanvasElement): number | null => {
+      let hit: number | null = null;
+      let minDist = HIT_RADIUS_PX;
+      for (let i = 0; i < points.length - 1; i++) {
+        const a = worldToScreen(points[i], canvas);
+        const b = worldToScreen(points[i + 1], canvas);
+        const d = distanceToSegment(screenPos, a, b);
         if (d < minDist) {
           minDist = d;
           hit = i;
@@ -707,59 +867,52 @@ export default function FlashDraftPage() {
     }
     if (e.button !== 0) return;
 
-    const handleHit = hitTestBendCircle(screenPos, canvas);
-    if (handleHit !== null) {
-      setDraggingAngleIndex(handleHit);
-      setSelectedBendPoint(handleHit);
+    const vertexHit = hitTestVertex(screenPos, canvas);
+    if (vertexHit !== null) {
+      setSelectedBendPoint(vertexHit);
       setSelectedSegment(null);
-      angleDragOriginalPoints.current = points;
-      hasAngleDraggedRef.current = false;
       return;
     }
 
-    if (tool === 'draw') {
-      if (points.length === 0) {
-        const raw = screenToWorld(screenPos.x, screenPos.y, canvas);
-        commitPoints([snapDimension ? snapToGrid(raw) : raw]);
-        return;
-      }
+    if (points.length === 0) {
+      const raw = screenToWorld(screenPos.x, screenPos.y, canvas);
+      commitPoints([snapDimension ? snapToGrid(raw) : raw]);
+      return;
+    }
+
+    // A click near the LAST point continues the line — checked before
+    // segment hit-testing, since the last point sits exactly on the last
+    // segment too. Without this, the single most natural drawing action
+    // (starting the next drag from where the pen currently is) would
+    // select that segment instead of extending from it.
+    const lastScreen = worldToScreen(points[points.length - 1], canvas);
+    const distToLast = Math.hypot(screenPos.x - lastScreen.x, screenPos.y - lastScreen.y);
+    if (distToLast <= HIT_RADIUS_PX) {
+      setSelectedBendPoint(null);
+      setSelectedSegment(null);
       const anchor = points[points.length - 1];
       dragAnchorRef.current = anchor;
       setIsDragDrawing(true);
       setDragPreview({ point: anchor, length: 0, angleDeg: 0 });
       setDragScreenPos(screenPos);
-    } else if (tool === 'select') {
-      let hit: number | null = null;
-      let minDist = HIT_RADIUS_PX;
-      for (let i = 0; i < points.length - 1; i++) {
-        const a = worldToScreen(points[i], canvas);
-        const b = worldToScreen(points[i + 1], canvas);
-        const d = distanceToSegment(screenPos, a, b);
-        if (d < minDist) {
-          minDist = d;
-          hit = i;
-        }
-      }
-      setSelectedBendPoint(null);
-      setSelectedSegment(hit);
-      if (hit !== null) {
-        setSegmentLengthInput(`${dist(points[hit], points[hit + 1]).toFixed(3)}"`);
-      }
-    } else if (tool === 'erase') {
-      let hit: number | null = null;
-      let minDist = HIT_RADIUS_PX;
-      points.forEach((p, i) => {
-        const s = worldToScreen(p, canvas);
-        const d = Math.hypot(screenPos.x - s.x, screenPos.y - s.y);
-        if (d < minDist) {
-          minDist = d;
-          hit = i;
-        }
-      });
-      if (hit !== null) {
-        commitPoints(points.filter((_, i) => i !== hit));
-      }
+      return;
     }
+
+    const segmentHit = hitTestSegmentAt(screenPos, canvas);
+    if (segmentHit !== null) {
+      setSelectedSegment(segmentHit);
+      setSelectedBendPoint(null);
+      setSegmentLengthInput(`${dist(points[segmentHit], points[segmentHit + 1]).toFixed(3)}"`);
+      return;
+    }
+
+    setSelectedBendPoint(null);
+    setSelectedSegment(null);
+    const anchor = points[points.length - 1];
+    dragAnchorRef.current = anchor;
+    setIsDragDrawing(true);
+    setDragPreview({ point: anchor, length: 0, angleDeg: 0 });
+    setDragScreenPos(screenPos);
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -775,25 +928,6 @@ export default function FlashDraftPage() {
       return;
     }
 
-    if (draggingAngleIndex !== null) {
-      const i = draggingAngleIndex;
-      const prev = points[i - 1];
-      const curr = points[i];
-      const next = points[i + 1];
-      const pointerWorld = screenToWorld(screenPos.x, screenPos.y, canvas);
-      const vPointer = { x: pointerWorld.x - curr.x, y: pointerWorld.y - curr.y };
-      if (Math.hypot(vPointer.x, vPointer.y) < 1e-6) return;
-      const v1 = { x: prev.x - curr.x, y: prev.y - curr.y };
-      const v2 = { x: next.x - curr.x, y: next.y - curr.y };
-      const currentSigned = signedAngleBetween(v1, v2);
-      let targetSigned = signedAngleBetween(v1, vPointer);
-      if (snapAngle) targetSigned = Math.round(targetSigned / SNAP_ANGLE_DEGREES) * SNAP_ANGLE_DEGREES;
-      const delta = targetSigned - currentSigned;
-      hasAngleDraggedRef.current = true;
-      setPoints(rotateChainAroundVertex(points, i, delta));
-      return;
-    }
-
     if (isDragDrawing && dragAnchorRef.current) {
       const raw = screenToWorld(screenPos.x, screenPos.y, canvas);
       const snapped = applySnapping(dragAnchorRef.current, raw, snapAngle, snapDimension);
@@ -804,33 +938,25 @@ export default function FlashDraftPage() {
       return;
     }
 
-    const hit = hitTestBendCircle(screenPos, canvas);
-    setHoveredBendCircle(hit);
-    if (hit !== null) {
-      const isTooTight = isGauge18OrThicker(gauge) && getEffectiveRadius(hit) < thicknessIn * 1.5;
-      canvas.title = isTooTight ? 'Radius too tight for this gauge' : 'Drag to adjust bend angle';
-      canvas.style.cursor = 'grab';
-    } else {
-      canvas.title = '';
-      canvas.style.cursor = tool === 'draw' ? 'crosshair' : 'default';
+    const vertexHover = hitTestVertex(screenPos, canvas);
+    setHoveredVertex(vertexHover);
+    if (vertexHover !== null) {
+      const isTooTight = isGauge18OrThicker(gauge) && getEffectiveRadius(vertexHover) < thicknessIn * 1.5;
+      canvas.title = isTooTight ? 'Radius too tight for this gauge' : '';
+      canvas.style.cursor = 'pointer';
+      setHoveredSegment(null);
+      return;
     }
+    const segmentHover = hitTestSegmentAt(screenPos, canvas);
+    setHoveredSegment(segmentHover);
+    canvas.title = '';
+    canvas.style.cursor = segmentHover !== null ? 'pointer' : 'crosshair';
   };
 
   const handlePointerUp = () => {
     if (isPanning) {
       setIsPanning(false);
       panOrigin.current = null;
-      return;
-    }
-    if (draggingAngleIndex !== null) {
-      if (hasAngleDraggedRef.current && angleDragOriginalPoints.current) {
-        const original = angleDragOriginalPoints.current;
-        setPast((p) => [...p, original]);
-        setFuture([]);
-      }
-      setDraggingAngleIndex(null);
-      angleDragOriginalPoints.current = null;
-      hasAngleDraggedRef.current = false;
       return;
     }
     if (isDragDrawing && dragAnchorRef.current && dragPreview) {
@@ -845,8 +971,9 @@ export default function FlashDraftPage() {
   };
 
   const handlePointerLeave = () => {
-    if (isDragDrawing || draggingAngleIndex !== null || isPanning) return;
-    setHoveredBendCircle(null);
+    if (isDragDrawing || isPanning) return;
+    setHoveredVertex(null);
+    setHoveredSegment(null);
     const canvas = canvasRef.current;
     if (canvas) canvas.title = '';
   };
@@ -857,7 +984,11 @@ export default function FlashDraftPage() {
   };
 
   const handleDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (points.length < 2) return;
+    // A hem needs a neighbor point to compute a fold direction from, so
+    // the popup itself is harmless to open at 1 point — renderHemAt (in the
+    // draw loop) is what actually gates on having ≥2 points before drawing
+    // the fold, so nothing crashes either way.
+    if (points.length === 0) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
@@ -875,11 +1006,6 @@ export default function FlashDraftPage() {
     }
   };
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (canvas) canvas.style.cursor = tool === 'draw' ? 'crosshair' : 'default';
-  }, [tool]);
-
   const applySegmentLength = () => {
     if (selectedSegment === null) return;
     const newLength = Number(segmentLengthInput.replace(/[^0-9.]/g, ''));
@@ -893,6 +1019,173 @@ export default function FlashDraftPage() {
     // profile keeps its shape relative to the resized segment.
     const newPoints = points.map((p, i) => (i > selectedSegment ? { ...p, x: p.x + delta.x, y: p.y + delta.y } : p));
     commitPoints(newPoints);
+  };
+
+  // Part 8 — typing a new signed angle and pressing Enter rotates everything
+  // downstream of the selected joint by the difference (same math the old
+  // canvas-drag interaction used, just driven by a numeric field now).
+  const applyBendAngle = () => {
+    if (selectedBendPoint === null) return;
+    const i = selectedBendPoint;
+    const desired = Number(angleInputDraft);
+    if (!Number.isFinite(desired)) return;
+    const prevPt = points[i - 1];
+    const curr = points[i];
+    const next = points[i + 1];
+    if (!prevPt || !curr || !next) return;
+    const v1 = { x: prevPt.x - curr.x, y: prevPt.y - curr.y };
+    const v2 = { x: next.x - curr.x, y: next.y - curr.y };
+    const currentSigned = signedAngleBetween(v1, v2);
+    const delta = desired - currentSigned;
+    commitPoints(rotateChainAroundVertex(points, i, delta));
+  };
+
+  const deleteSelected = () => {
+    if (selectedBendPoint !== null) {
+      commitPoints(points.filter((_, i) => i !== selectedBendPoint));
+      setSelectedBendPoint(null);
+      return;
+    }
+    if (selectedSegment !== null) {
+      commitPoints(points.filter((_, i) => i !== selectedSegment + 1));
+      setSelectedSegment(null);
+    }
+  };
+
+  const selectAdjacentBendPoint = (direction: 1 | -1) => {
+    const first = 1;
+    const last = points.length - 2;
+    if (last < first) return;
+    if (selectedBendPoint === null) {
+      setSelectedBendPoint(direction === 1 ? first : last);
+      setSelectedSegment(null);
+      return;
+    }
+    let next = selectedBendPoint + direction;
+    if (next > last) next = first;
+    if (next < first) next = last;
+    setSelectedBendPoint(next);
+    setSelectedSegment(null);
+  };
+
+  const fitToScreen = () => {
+    const canvas = canvasRef.current;
+    if (!canvas || points.length === 0) return;
+    const xs = points.map((p) => p.x);
+    const ys = points.map((p) => p.y);
+    const widthIn = Math.max(Math.max(...xs) - Math.min(...xs), 0.5);
+    const heightIn = Math.max(Math.max(...ys) - Math.min(...ys), 0.5);
+    const PADDING_PX = 60;
+    const availW = canvas.width - PADDING_PX * 2;
+    const availH = canvas.height - PADDING_PX * 2;
+    const nextZoom = Math.max(
+      0.25,
+      Math.min(4, Math.min(availW / (widthIn * PIXELS_PER_INCH), availH / (heightIn * PIXELS_PER_INCH)))
+    );
+    const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
+    const centerY = (Math.min(...ys) + Math.max(...ys)) / 2;
+    setZoom(nextZoom);
+    setPan({ x: -centerX * PIXELS_PER_INCH * nextZoom, y: -centerY * PIXELS_PER_INCH * nextZoom });
+  };
+
+  const centerView = () => setPan({ x: 0, y: 0 });
+
+  const rotateProfile = (deltaDeg: number) => {
+    if (points.length < 2) return;
+    commitPoints(rotateAllPoints(points, centroidOf(points), deltaDeg));
+  };
+
+  const printCanvas = () => {
+    window.print();
+  };
+
+  const confirmNew = () => {
+    commitPoints([]);
+    setMatches([]);
+    setTopMatchDiagramBends(null);
+    setHemStart(null);
+    setHemEnd(null);
+    setProfileName('Untitled Profile');
+    setRevision(1);
+    setSavedProfileId(null);
+    setProfileCategoryId(null);
+    setProfileSubcategory('');
+    setShowNewConfirm(false);
+  };
+
+  const commitProfileName = () => {
+    if (profileNameDraft.trim()) setProfileName(profileNameDraft.trim());
+    setEditingName(false);
+  };
+
+  const openSaveModal = () => {
+    setDuplicateOnSave(false);
+    setSaveError(null);
+    setShowProfileDetails(true);
+  };
+
+  const openDuplicateModal = () => {
+    setDuplicateOnSave(true);
+    setSaveError(null);
+    setShowProfileDetails(true);
+  };
+
+  // Part 5 — reuses the pre-existing saved_configurations table (confirmed
+  // live in the real database, not just the migration file) rather than a
+  // new one: FlashDraft doesn't use that table's catalog-linked FK columns
+  // (profile_id/material_id/gauge_id/finish_id all stay null), so its own
+  // points/hem/category data lives inside the existing flexible
+  // `dimensions` JSONB column instead of requiring a schema change.
+  const performSave = async (values: ProfileDetailsFormValues, asDuplicate: boolean) => {
+    setSavingProfile(true);
+    setSaveError(null);
+    try {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        setSaveError('Sign in to save profiles to your account.');
+        setSavingProfile(false);
+        return;
+      }
+      const nextRevision = asDuplicate || !savedProfileId ? 1 : revision + 1;
+      const payload = {
+        user_id: user.id,
+        name: values.name,
+        dimensions: {
+          kind: 'flashdraft',
+          points,
+          hemStart,
+          hemEnd,
+          categoryId: values.categoryId,
+          subcategory: values.subcategory,
+          revision: nextRevision,
+        },
+        length_ft: lengthFtDecimal || null,
+        quantity: Number(quantity) || null,
+        notes: notes || null,
+      };
+      if (savedProfileId && !asDuplicate) {
+        const { error } = await supabase.from('saved_configurations').update(payload).eq('id', savedProfileId);
+        if (error) throw error;
+      } else {
+        const { data, error } = await supabase.from('saved_configurations').insert(payload).select('id').single();
+        if (error) throw error;
+        setSavedProfileId((data as { id: string }).id);
+      }
+      setProfileName(values.name);
+      setProfileCategoryId(values.categoryId);
+      setProfileSubcategory(values.subcategory);
+      setRevision(nextRevision);
+      setShowProfileDetails(false);
+      setToast('Profile saved to your account');
+      setTimeout(() => setToast(null), 3000);
+    } catch {
+      setSaveError('Could not save profile. Please try again.');
+    } finally {
+      setSavingProfile(false);
+    }
   };
 
   const applyHem = (type: HemType) => {
@@ -1131,6 +1424,25 @@ export default function FlashDraftPage() {
         })()
       : null;
 
+  // Part 2 — Profile Info Panel figures, computed synchronously (not from
+  // the debounced match/viewer effects) so they read as genuinely "live".
+  let blankWidthInLive = 0;
+  for (let i = 0; i < points.length - 1; i++) blankWidthInLive += dist(points[i], points[i + 1]);
+  blankWidthInLive += hemAllowanceIn(hemStart, thicknessIn) + hemAllowanceIn(hemEnd, thicknessIn);
+  const bendCountLive = Math.max(0, points.length - 2);
+  const hemCountLive = (hemStart ? 1 : 0) + (hemEnd ? 1 : 0);
+
+  // Part 6 — split-screen match panel + its "View in 3D" target geometry.
+  const showSplit = !splitDismissed && matches.length > 0 && matches[0].score >= MATCH_SPLIT_THRESHOLD;
+  const matchedProfileBends: ProfileBend[] = (topMatchDiagramBends ?? []).map((b) => ({
+    leftLeg: b.leftLegMm ?? 0,
+    rightLeg: b.rightLegMm ?? 0,
+    angle: b.bendAngleDegrees ?? 180,
+    radius: b.radiusMm ?? 0,
+  }));
+  const matchedProfileBlankWidthMm =
+    matchedProfileBends.reduce((s, b) => s + b.leftLeg, 0) + (matchedProfileBends[matchedProfileBends.length - 1]?.rightLeg ?? 0);
+
   if (submitState === 'submitted') {
     return (
       <main className="min-h-screen bg-afs-bg-base py-16 px-6">
@@ -1155,39 +1467,51 @@ export default function FlashDraftPage() {
 
   return (
     <main className="h-[calc(100vh-2.75rem)] bg-afs-bg-base flex flex-col overflow-hidden">
-      <div className="px-6 py-2.5 border-b border-afs-chrome-dim flex items-center justify-between gap-4 shrink-0">
-        <div>
+      <div className="px-6 py-1.5 border-b border-afs-chrome-dim flex items-center justify-between gap-4 shrink-0">
+        <div className="flex items-baseline gap-2">
           <span className="font-label text-afs-crimson text-[10px] tracking-widest uppercase">FlashDraft</span>
-          <h1 className="font-heading text-lg text-afs-chrome-high leading-tight">Draw Your Profile</h1>
+          <h1 className="font-heading text-base text-afs-chrome-high leading-tight">Draw Your Profile</h1>
         </div>
         <p className="font-body text-xs text-afs-chrome-dim hidden md:block text-right">
-          Click to place bend points · double-click an endpoint for a hem · matched against our machine library live
+          Click empty space to draw · click a segment or bend to select it · double-click an endpoint for a hem
         </p>
+      </div>
+
+      {/* PART 1 — PROFESSIONAL TOOLBAR */}
+      <div className="px-4 py-2 border-b border-afs-chrome-dim flex flex-col gap-1.5 shrink-0 bg-afs-bg-dim">
+        <div className="flex items-center gap-1 flex-wrap">
+          <ToolbarButton icon="new" label="New" onClick={() => setShowNewConfirm(true)} />
+          <ToolbarButton icon="open" label="Open" onClick={openLibrary} />
+          <ToolbarButton icon="save" label="Save" onClick={openSaveModal} disabled={points.length < 2} />
+          <ToolbarButton icon="duplicate" label="Duplicate" onClick={openDuplicateModal} disabled={points.length < 2} />
+          <ToolbarButton icon="editName" label="Edit Name" onClick={openSaveModal} disabled={!savedProfileId} />
+          <ToolbarButton icon="print" label="Print" onClick={printCanvas} />
+        </div>
+        <div className="flex items-center gap-1 flex-wrap">
+          <ToolbarButton icon="fitToScreen" label="Fit to Screen" onClick={fitToScreen} disabled={points.length === 0} />
+          <ToolbarButton icon="center" label="Center" onClick={centerView} />
+          <ToolbarButton icon="zoomOut" label="Zoom Out" onClick={() => setZoom((z) => Math.max(0.25, z * (1 - ZOOM_STEP_RATIO)))} />
+          <ToolbarButton icon="zoomIn" label="Zoom In" onClick={() => setZoom((z) => Math.min(4, z * (1 + ZOOM_STEP_RATIO)))} />
+          <span className="font-data text-[10px] text-afs-chrome-dim px-1 self-center">{Math.round(zoom * 100)}%</span>
+          <ToolbarButton icon="undo" label="Undo" onClick={undo} disabled={past.length === 0} />
+          <ToolbarButton icon="redo" label="Redo" onClick={redo} disabled={future.length === 0} />
+          <ToolbarButton icon="rotateLeft" label="Rotate Left" onClick={() => rotateProfile(-ROTATE_STEP_DEG)} disabled={points.length < 2} />
+          <ToolbarButton icon="rotateRight" label="Rotate Right" onClick={() => rotateProfile(ROTATE_STEP_DEG)} disabled={points.length < 2} />
+          <ToolbarButton
+            icon="delete"
+            label="Delete"
+            onClick={deleteSelected}
+            disabled={selectedBendPoint === null && selectedSegment === null}
+          />
+          <ToolbarButton icon="prev" label="Prev" onClick={() => selectAdjacentBendPoint(-1)} disabled={points.length < 3} />
+          <ToolbarButton icon="next" label="Next" onClick={() => selectAdjacentBendPoint(1)} disabled={points.length < 3} />
+          <ToolbarButton icon="threeDView" label="3D View" onClick={() => setShowOwn3DView(true)} disabled={points.length < 2} />
+        </div>
       </div>
 
       <div className="flex-1 flex flex-col lg:flex-row gap-4 p-4 min-h-0">
         {/* LEFT PANEL */}
         <div className="w-full lg:w-[320px] lg:shrink-0 bg-afs-bg-raised border border-afs-chrome-dim rounded p-5 flex flex-col gap-4 overflow-y-auto">
-          <div>
-            <span className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1.5 block">Tool</span>
-            <div className="grid grid-cols-3 gap-2">
-              {(['draw', 'select', 'erase'] as ToolMode[]).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setTool(m)}
-                  className={`font-label text-xs px-2 py-2 rounded border capitalize transition-colors ${
-                    tool === m
-                      ? 'bg-afs-crimson text-white border-afs-crimson'
-                      : 'bg-afs-bg-overlay text-white border-afs-border'
-                  }`}
-                >
-                  {m} Mode
-                </button>
-              ))}
-            </div>
-          </div>
-
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1.5 block" htmlFor="material">
@@ -1299,6 +1623,45 @@ export default function FlashDraftPage() {
               />
             </label>
           </div>
+
+          {selectedBendPoint !== null && (
+            <div className="bg-afs-bg-surface border border-afs-chrome-dim rounded p-3 flex flex-col gap-2">
+              <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid block" htmlFor="angleMode">
+                Angle (degrees)
+              </label>
+              <div className="flex gap-2">
+                <select
+                  id="angleMode"
+                  value={angleInputMode}
+                  onChange={(e) => setAngleInputMode(e.target.value as 'angle' | 'length')}
+                  className="bg-afs-bg-overlay border-afs-accent-green border-2 rounded px-2 py-2 font-data text-xs text-afs-chrome-high focus:outline-none transition-colors"
+                >
+                  <option value="angle">Angle</option>
+                  <option value="length">Length</option>
+                </select>
+                {angleInputMode === 'angle' ? (
+                  <input
+                    id="angleValue"
+                    type="text"
+                    inputMode="decimal"
+                    value={angleInputDraft}
+                    onChange={(e) => setAngleInputDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') applyBendAngle();
+                    }}
+                    onBlur={applyBendAngle}
+                    className="flex-1 min-w-0 bg-afs-bg-overlay border-afs-accent-green border-2 rounded px-3 py-2 font-data text-sm text-afs-chrome-high focus:outline-none transition-colors"
+                  />
+                ) : (
+                  <input
+                    disabled
+                    placeholder="Coming soon"
+                    className="flex-1 min-w-0 bg-afs-bg-overlay border-afs-accent-green border-2 rounded px-3 py-2 font-data text-sm text-afs-chrome-dim focus:outline-none transition-colors opacity-50"
+                  />
+                )}
+              </div>
+            </div>
+          )}
 
           {selectedBendPoint !== null && (
             <div className="bg-afs-bg-surface border border-afs-chrome-dim rounded p-3">
@@ -1441,50 +1804,71 @@ export default function FlashDraftPage() {
           </div>
         </div>
 
-        {/* RIGHT PANEL — CANVAS */}
+        {/* RIGHT PANEL — CANVAS (+ Part 6 split-screen match panel) */}
         <div className="flex-1 min-w-0 flex flex-col gap-2 min-h-0">
-          <div className="flex items-center justify-between flex-wrap gap-2 shrink-0">
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setZoom((z) => Math.max(0.25, z - 0.25))}
-                className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label text-xs px-3 py-1.5 rounded transition-colors"
-              >
-                Zoom −
-              </button>
-              <button
-                type="button"
-                onClick={() => setZoom((z) => Math.min(4, z + 0.25))}
-                className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label text-xs px-3 py-1.5 rounded transition-colors"
-              >
-                Zoom +
-              </button>
-              <span className="font-data text-xs text-afs-chrome-mid self-center">{Math.round(zoom * 100)}%</span>
-            </div>
-            <p className="font-body text-xs text-afs-chrome-dim">Ctrl+Z undo · Ctrl+Y redo · middle-mouse or Space+drag to pan</p>
-          </div>
+          <p className="font-body text-xs text-afs-chrome-dim shrink-0">
+            Ctrl+Z undo · Ctrl+Y redo · Delete removes the selection · middle-mouse or Space+drag to pan
+          </p>
 
-          <div
-            ref={canvasWrapRef}
-            className="flex-1 min-h-0 bg-afs-bg-raised border border-afs-chrome-dim rounded metal-edge overflow-hidden relative"
-          >
-            <canvas
-              ref={canvasRef}
-              width={canvasSize.width}
-              height={canvasSize.height}
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerCancel={handlePointerUp}
-              onPointerLeave={handlePointerLeave}
-              onDoubleClick={handleDoubleClick}
-              onWheel={handleWheel}
-              onContextMenu={(e) => e.preventDefault()}
-              className="w-full h-full"
-              style={{ touchAction: 'none' }}
-            />
+          <div className="flex-1 min-h-0 flex overflow-hidden rounded border border-afs-chrome-dim metal-edge bg-afs-bg-raised">
+            <div
+              ref={canvasWrapRef}
+              className="relative min-h-0 overflow-hidden transition-[flex-basis] duration-300 ease-in-out"
+              style={{ flexBasis: showSplit ? '60%' : '100%', flexGrow: 0, flexShrink: 0, minWidth: 0 }}
+            >
+              <canvas
+                ref={canvasRef}
+                width={canvasSize.width}
+                height={canvasSize.height}
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerUp}
+                onPointerLeave={handlePointerLeave}
+                onDoubleClick={handleDoubleClick}
+                onWheel={handleWheel}
+                onContextMenu={(e) => e.preventDefault()}
+                className="w-full h-full"
+                style={{ touchAction: 'none', cursor: 'crosshair' }}
+              />
 
-            {isDragDrawing && dragPreview && dragScreenPos && (
+              {/* PART 2 — PROFILE INFO PANEL */}
+              <div
+                className="absolute z-20 bg-black/70 text-white rounded px-3 py-2 flex flex-col gap-0.5"
+                style={{ top: 8, left: 8, fontFamily: jetbrainsFontRef.current, fontSize: 12 }}
+              >
+                {editingName ? (
+                  <input
+                    autoFocus
+                    value={profileNameDraft}
+                    onChange={(e) => setProfileNameDraft(e.target.value)}
+                    onBlur={commitProfileName}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') commitProfileName();
+                      if (e.key === 'Escape') setEditingName(false);
+                    }}
+                    className="bg-transparent border-b border-white/40 outline-none text-white"
+                    style={{ fontFamily: jetbrainsFontRef.current, fontSize: 12, width: 150 }}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProfileNameDraft(profileName);
+                      setEditingName(true);
+                    }}
+                    className="text-left hover:underline font-semibold"
+                  >
+                    {profileName}
+                  </button>
+                )}
+                <span>Blank Width: {formatInches(blankWidthInLive)}</span>
+                <span>Bend Count: {bendCountLive}</span>
+                <span>Hem Count: {hemCountLive}</span>
+                <span>Revision: {revision}</span>
+              </div>
+
+              {isDragDrawing && dragPreview && dragScreenPos && (
               <div
                 className="absolute z-20 pointer-events-none font-label font-semibold rounded"
                 style={{
@@ -1594,28 +1978,69 @@ export default function FlashDraftPage() {
               </>
             )}
 
-            {showFloatingPreview && topMatchDiagramBends && matches.length > 0 && matches[0].score >= 70 && (
-              <div
-                className="absolute top-3 right-3 z-20 bg-afs-bg-dim/95 border border-afs-chrome-dim rounded p-2 flex flex-col"
-                style={{ width: 200, height: 150 }}
-              >
-                <div className="flex items-center justify-between mb-1 gap-1">
-                  <p className="font-label text-[10px] text-afs-chrome-mid truncate">{matches[0].nameEn}</p>
-                  <button
-                    type="button"
-                    onClick={() => setShowFloatingPreview(false)}
-                    className="text-afs-chrome-dim hover:text-afs-crimson text-xs leading-none shrink-0"
-                    aria-label="Close preview"
-                  >
-                    ×
-                  </button>
+            </div>
+
+            {/* PART 6 — split-screen matched-profile panel, always mounted
+                so the flex-basis/opacity change transitions smoothly. */}
+            <div
+              className="min-h-0 overflow-hidden transition-[flex-basis,opacity] duration-300 ease-in-out border-l border-afs-chrome-dim flex flex-col"
+              style={{ flexBasis: showSplit ? '40%' : '0%', opacity: showSplit ? 1 : 0, flexGrow: 0, flexShrink: 0 }}
+            >
+              {matches[0] && (
+                <div className="p-4 flex flex-col gap-3 overflow-y-auto h-full w-full">
+                  <div className="flex items-center justify-between">
+                    <p className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid">Machine Library Match</p>
+                    <button
+                      type="button"
+                      onClick={() => setSplitDismissed(true)}
+                      className="text-afs-chrome-dim hover:text-afs-crimson text-sm leading-none"
+                      aria-label="Dismiss match"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <h3 className="font-heading text-xl font-bold text-afs-chrome-high">{matches[0].nameEn}</h3>
+                  {topMatchDiagramBends && <BendSequenceDiagram bends={topMatchDiagramBends} />}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-data text-sm font-semibold text-afs-chrome-high">{matches[0].score.toFixed(0)}% match</span>
+                    </div>
+                    <div className="h-1.5 bg-afs-bg-dim rounded-full overflow-hidden">
+                      <div
+                        className={`h-full ${
+                          matches[0].score >= 90 ? 'bg-afs-accent-green' : matches[0].score >= 70 ? 'bg-afs-amber' : 'bg-afs-crimson'
+                        }`}
+                        style={{ width: `${Math.min(100, matches[0].score)}%` }}
+                      />
+                    </div>
+                  </div>
+                  {matches[0].isExactMatch && (
+                    <p className="font-label text-xs font-bold text-afs-accent-green uppercase tracking-wide">
+                      EXACT MATCH — Machine program ready
+                    </p>
+                  )}
+                  <p className="font-body text-xs text-afs-chrome-dim">
+                    Fabricated {matches[0].fabricatedCount} time{matches[0].fabricatedCount === 1 ? '' : 's'} in shop history
+                  </p>
+                  <div className="flex flex-col gap-2 mt-auto">
+                    <button
+                      type="button"
+                      onClick={() => setShowMatched3DView(true)}
+                      className="bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label text-xs font-semibold px-3 py-2 rounded transition-colors"
+                    >
+                      → View in 3D
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSplitDismissed(true)}
+                      className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label text-xs font-semibold px-3 py-2 rounded transition-colors"
+                    >
+                      ✕ Dismiss
+                    </button>
+                  </div>
                 </div>
-                <p className="font-data text-[10px] text-afs-crimson mb-1">{matches[0].score.toFixed(0)}% match</p>
-                <div className="flex-1 min-h-0">
-                  <BendSequenceDiagram bends={topMatchDiagramBends} />
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -1667,6 +2092,86 @@ export default function FlashDraftPage() {
           onCancel={() => setShow3DConfirm(false)}
           onConfirm={handle3DConfirmed}
         />
+      )}
+
+      {/* PART 1 — [3D View] toolbar button: always-accessible 3D preview of
+          the customer's own current drawing, independent of the mandatory
+          pre-submit confirmation modal above. */}
+      {showOwn3DView && (
+        <MatchedProfile3DModal
+          profileName={profileName}
+          bends={viewerBends}
+          blankWidthMm={viewerBlankWidthMm}
+          material={material || 'Galvanized Steel'}
+          gauge={gauge || GAUGES_BY_MATERIAL['Galvanized Steel']?.[1] || '24 ga'}
+          thicknessMm={gaugeToThicknessMm(gauge || GAUGES_BY_MATERIAL['Galvanized Steel']?.[1])}
+          onClose={() => setShowOwn3DView(false)}
+        />
+      )}
+
+      {/* PART 6 — [→ View in 3D] on the split-screen match panel */}
+      {showMatched3DView && matches[0] && (
+        <MatchedProfile3DModal
+          profileName={matches[0].nameEn}
+          bends={matchedProfileBends}
+          blankWidthMm={matchedProfileBlankWidthMm}
+          material={material || 'Galvanized Steel'}
+          gauge={gauge || GAUGES_BY_MATERIAL['Galvanized Steel']?.[1] || '24 ga'}
+          thicknessMm={gaugeToThicknessMm(gauge || GAUGES_BY_MATERIAL['Galvanized Steel']?.[1])}
+          onClose={() => setShowMatched3DView(false)}
+        />
+      )}
+
+      {/* PART 1 — [New] confirmation dialog */}
+      {showNewConfirm && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] px-6" onClick={() => setShowNewConfirm(false)}>
+          <div
+            className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-6 max-w-sm w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-heading text-lg text-afs-chrome-high mb-2">Start a New Profile?</h3>
+            <p className="font-body text-sm text-afs-chrome-mid mb-6">
+              This clears the current canvas, hems, and match results. Unsaved work will be lost.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowNewConfirm(false)}
+                className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label text-sm font-semibold px-5 py-2.5 rounded transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmNew}
+                className="bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label font-semibold px-6 py-2.5 rounded text-sm transition-colors"
+              >
+                Clear Canvas
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PART 5 — Save / Duplicate / Edit Name */}
+      {showProfileDetails && (
+        <ProfileDetailsModal
+          initialValues={{
+            name: duplicateOnSave ? `Copy of ${profileName}` : profileName,
+            categoryId: profileCategoryId,
+            subcategory: profileSubcategory,
+          }}
+          onCancel={() => setShowProfileDetails(false)}
+          onSave={(values) => performSave(values, duplicateOnSave)}
+          saving={savingProfile}
+          error={saveError}
+        />
+      )}
+
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-[70] bg-afs-bg-raised border border-afs-accent-green rounded px-4 py-3 shadow-raised">
+          <p className="font-body text-sm text-afs-chrome-high">{toast}</p>
+        </div>
       )}
     </main>
   );
