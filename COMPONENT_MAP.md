@@ -723,219 +723,88 @@ app/studio/page.tsx
   Quote (→ /upload?tab=photos), FlashDraft (→ /studio/draft). afs-038
   added a banner card below the 3-tile grid linking to /studio/library.
 
---- FlashDraft (`app/studio/draft/page.tsx` + `lib/flashdraft/` +
-    `components/studio/flashdraft/`) — REWRITTEN afs-044 (2026-07-15).
-    The prior single ~2,270-line page.tsx (all state as local useState,
-    geometry as a flat point polyline) was replaced with a 12-file
-    useReducer architecture: a pure-data state machine in lib/flashdraft/,
-    presentation split into components/studio/flashdraft/, and page.tsx
-    reduced to an orchestrator. Everything below is current as of
-    commit 508b5ee. ---
+--- FlashDraft (`app/studio/draft/page.tsx`) — a 12-file `useReducer`
+    rewrite (`lib/flashdraft/` + `components/studio/flashdraft/`) was
+    built and committed as afs-044 (508b5ee, 2026-07-15), then reverted
+    the same day as afs-045 (b37d936) before it was used further —
+    `lib/flashdraft/` and `components/studio/flashdraft/` do NOT exist on
+    disk; do not look for them. The single-file page.tsx below is the
+    real, current implementation (confirmed via a fresh directory listing
+    and `wc -l`, not carried forward from before the rewrite — it still
+    includes every fix from afs-043, which landed before afs-044 and
+    survived the revert untouched). See SESSION_STATE.md's afs-045 entry
+    for why the rewrite was reverted. ---
 
-lib/flashdraft/types.ts
-  Every FlashDraft type — no runtime code. `GeoPoint` (world space,
-  inches) vs. `CanvasPoint` (screen-pixel space) are kept as distinct
-  types on purpose so a raw pixel can't be passed where geometry math
-  expects inches. `Leg` (startGeo/endGeo/lengthIn/angleRad/hems: Hem[]),
-  `BendPoint` (geo/angleDegrees — SIGNED, driving both the display label
-  and the downstream-rotation edit/radiusIn/incomingLegId/outgoingLegId),
-  `Hem` (legId/distanceFromStartIn/lengthIn/type/gapIn), and
-  `ProfileGeometry` ({ legs, bendPoints, hems }) are the geometry graph
-  that replaced the old flat point array. `ProfileState` is the
-  full-profile record (geometry + name/revision/material/gauge/length/
-  quantity/notes/blankWidthIn/bendCount/hemCount/paintFace) — this is
-  what gets persisted to `saved_configurations.dimensions`.
-  `materialId`/`gaugeId` on ProfileState hold the catalog STRING
-  identifiers from lib/data/catalog.ts (e.g. "Copper"), not database
-  UUIDs — saved_configurations.material_id/gauge_id are real FKs into
-  materials/gauges (SCHEMA.md), but that catalog data is an existing
-  CLAUDE.md Data Blocker, so those FK columns stay null on save, exactly
-  as the pre-rewrite page already did. `InteractionState` (a discriminated
-  union: IDLE / DRAWING / SELECTED_LEG / SELECTED_BEND / SELECTED_HEM /
-  DRAGGING_BEND / DRAGGING_HEM_ENDPOINT / DRAWING_HEM / PANNING) and
-  `FlashDraftAction` (every dispatchable action) are the reducer's
-  vocabulary. `FlashDraftState` is the top-level shape held by
-  page.tsx's `useReducer` (profile/interaction/transform/activeView/
-  hemPopup/history/future/isDirty). `QuoteSubmissionProfile` is the
-  richer geometry payload page.tsx attaches to the quote-request item
-  as `flashdraftGeometry` (see api/quote-requests below). `HitResult` is
-  geometry.ts's `hitTest` return shape.
-
-lib/flashdraft/geometry.ts
-  Pure geometry math — geo↔canvas conversion (`geoToCanvas`/
-  `canvasToGeo`, honoring `CanvasTransform`'s scale + panOffsetX/Y, Y
-  flipped so positive inches render upward), distance helpers
-  (`geoDistance`, `pixelDistance`), `lineAngleRad`, `formatInches`
-  (re-exports lib/utils/format-inches.ts's fractional-inch formatter —
-  single source of truth, not reimplemented), `snapAngle`/`snapLength`
-  (15°/⅛" increments, always on — there's no dispatchable action to
-  toggle snapping, see the page.tsx entry below), `pointAlongLeg`/
-  `closestTOnLeg`/`distanceToLeg`, `signedAngleBetween` (the vertex-
-  relative angle convention BendPoint.angleDegrees uses), `rotatePoint`/
-  `centroidOfGeometry` (used by ROTATE_LEFT/RIGHT and the bend-angle
-  downstream rotation), `dragBendPoint` (moving a bend point stretches
-  its incoming leg to reach the new position while translating the
-  outgoing leg and everything downstream by the same delta, preserving
-  every downstream leg's length and direction — the "hinge" behind
-  dragging a bend), and `hitTest` (priority: bend point > hem endpoint >
-  leg > nothing).
-
-lib/flashdraft/blankWidth.ts
-  `computeBlankWidth(geometry, materialId, gaugeId)` — leg lengths + hem
-  lengths + a real K-factor bend-allowance formula per bend
-  (`(π/180) × |angleDegrees| × (radiusIn + K × thicknessIn)`), replacing
-  the pre-rewrite page's fixed-fold-depth estimate. `materialId`/
-  `gaugeId` are the same catalog strings as ProfileState (see types.ts
-  above) — `materialCategoryFromCatalog` and `gaugeThicknessInFromCatalog`
-  classify them via regex against the same catalog string set
-  ProfileViewer3D's MATERIAL_APPEARANCE table already uses, with a
-  fallback to lib/utils/gauge-thickness.ts's parser for any gauge string
-  outside the literal lookup table (0.063" aluminum, zinc mm gauges).
-
-lib/flashdraft/renderer.ts
-  All `<canvas>` 2D drawing, called once per render from
-  FlashDraftCanvas's effect. `CANVAS_COLORS` is the documented
-  literal-hex exception (DESIGN_TOKENS.md §10) — `hemLine`/`leg`/
-  `bendArc` are all afs-crimson, `legSelected`/`selectionRing` are a
-  blue accent not otherwise in the afs-* palette (canvas-only, same
-  exception). `renderGrid` (⅛"-minor/1"-major grid + axes),
-  `renderLeg` (line + a rotated dimension label offset 16px
-  perpendicular), `renderBendPoint` (handle circle + an angle arc with
-  an arrowhead and a signed-degree label — replaces the pre-rewrite
-  page's translucent bend-circle handle), `renderHem` (Open: fold line +
-  parallel gap-offset line + perpendicular cap + length label; Smashed:
-  two lines 2px apart on screen; Teardrop: fold line + a filled
-  semicircle sized to material thickness, floored at 8px screen radius
-  regardless of zoom), `renderDragPreview`/`renderHemPreview` (dashed
-  in-progress lines), and `renderAll` (the entry point — draws
-  everything in geometry, then the live drag/hem preview for whatever
-  `state.interaction` currently is). `renderAll` takes an additive
-  optional `hover` param beyond its literal spec signature — hover
-  (which leg/bend to highlight, what cursor to show) is tracked as local
-  state inside FlashDraftCanvas rather than dispatched through the
-  reducer, so it doesn't round-trip history on every mouse move; this is
-  the only way for that local state to reach the renderer.
-
-lib/flashdraft/reducer.ts
-  `initialFlashDraftState` + `flashDraftReducer` — the whole
-  interaction/geometry state machine. Every pointer/keyboard/toolbar/
-  form action funnels through here; no component holds its own geometry
-  state. Notable behavior: continuing the polyline from the last
-  committed point takes priority over every other hit-test on
-  POINTER_DOWN (checked after bend/hem-endpoint hits specifically, so an
-  existing hem or bend sitting at that same point stays reachable) — a
-  real interaction bug (drawing a second leg silently turned into an
-  aborted hem-drag instead) was found and fixed here via live Playwright
-  verification, not caught by tsc or the build. Hems start only via
-  DOUBLE_CLICK, matching the pre-rewrite page's proven precedent, not the
-  click-and-drag-from-a-leg-end approach an earlier draft of this file
-  used. `SET_BEND_RADIUS`/`SET_HEM_GAP` don't push undo history
-  (continuous number-input edits); `SET_LEG_LENGTH`/`SET_BEND_ANGLE`/
-  hem-type/length changes and every geometry-creating gesture do.
-  Deleting a leg bridges the gap by translating everything downstream of
-  it to meet the leg before it ("reattach if possible"); deleting a bend
-  merges its two adjacent legs into one straight leg and drops any hems
-  that were on either of them (documented tradeoffs for a genuinely
-  ambiguous edge case — see SESSION_STATE.md's afs-044 entry).
-
-components/studio/flashdraft/FlashDraftCanvas.tsx
-  `interface FlashDraftCanvasProps { state: FlashDraftState; dispatch:
-  React.Dispatch<FlashDraftAction>; onSizeChange?: (width, height) =>
-  void }` — not exported (page.tsx is the only consumer). Owns the
-  `<canvas>` element, a ResizeObserver on its wrapper div (reporting size
-  up via onSizeChange, same pattern as the pre-rewrite page), the
-  space-key-held ref for space+drag panning, and local (non-dispatched)
-  hover state (see renderer.ts above). Pointer/wheel/double-click
-  handlers translate DOM events to pixel coordinates and dispatch the
-  corresponding FlashDraftAction — no geometry logic lives here, only
-  event→action translation and cursor derivation from
-  `state.interaction`/hover.
-
-components/studio/flashdraft/FlashDraftToolbar.tsx
-  `interface FlashDraftToolbarProps { state; dispatch; onNew; onOpen;
-  onSave; onDuplicate; onEditName; isAuthenticated: boolean; currentZoom:
-  number; canvasSize: { width; height } }` — not exported. Two rows of
-  icon buttons (file actions: New/Open/Save/Duplicate/Edit Name/Print;
-  canvas actions: Fit to Screen/Center/Zoom In/Zoom Out/zoom-%
-  reset/Undo/Redo/Rotate Left/Rotate Right/Delete/Prev/Next/2D/3D) plus a
-  hint-text line. File actions are callback props (page.tsx owns modal
-  state for them); canvas actions dispatch FlashDraftActions directly
-  (including two additive-beyond-spec actions, `SET_ZOOM` and
-  `SELECT_ADJACENT_BEND`, added because the zoom-% reset button and
-  Prev/Next needed a way to reach the reducer that the literal action
-  list didn't define one for).
-
-components/studio/flashdraft/FlashDraftPropertiesPanel.tsx
-  `interface FlashDraftPropertiesPanelProps { state; dispatch }` — not
-  exported. Renders one of four things based on `state.interaction.type`:
-  a profile summary (IDLE — blank width/bend count/hem count/revision),
-  a feet/inches/⅛"-fraction leg-length editor (SELECTED_LEG), an
-  angle/radius editor with local draft-string state committed on
-  Enter/blur (SELECTED_BEND), or a hem type/length/gap editor
-  (SELECTED_HEM, gap field only shown for type 'open'). The leg-length
-  and hem-length editors share one internal `LengthEditor` component (not
-  exported) so both stay in sync if the fraction-snapping logic changes.
-
-components/studio/flashdraft/HemPopup.tsx
-  `interface HemPopupProps { hemPopup: HemPopupState; dispatch;
-  currentHem: Hem | null }` — not exported. Renders only when
-  `hemPopup.visible && currentHem`. Fixed `top: 16px, right: 16px`
-  inside the canvas's `relative` wrapper (so it can never overlap the
-  drawing — the pre-rewrite page originally positioned this near the
-  double-click point, which afs-043 fixed before this rewrite carried
-  the fixed positioning forward). Open/Smashed/Teardrop buttons dispatch
-  `SELECT_HEM_TYPE_FROM_POPUP`; a gap-inches number input (Open only)
-  dispatches `SET_HEM_GAP`.
-
-components/studio/flashdraft/FlashDraftProfileInfo.tsx
-  `interface FlashDraftProfileInfoProps { profile: ProfileState;
-  dispatch }` — not exported. Top-left canvas overlay: click-to-edit
-  profile name (local `editingName` state, commits via SET_PROFILE_NAME
-  on every keystroke, matching the pre-rewrite page's live-typing
-  behavior) plus blank width/bend count/hem count/revision — the same
-  four figures FlashDraftPropertiesPanel's IDLE view shows, kept
-  independently since one is a canvas overlay and the other is a
-  left-panel block.
-
-components/studio/flashdraft/SubmitFlow.tsx
-  `export interface SubmitFlowProps { bends: ProfileBend[]; blankWidthMm;
-  material; gauge; thicknessMm; profileName; requestNumber: string |
-  null; paintFace: PaintFace | null }` (exported — page.tsx imports the
-  type). Full-screen post-submission confirmation shown after a quote
-  request successfully posts: one auto-rotation of the confirmed profile
-  via ProfileViewer3D (reusing the same autoRotateSpeed/
-  autoRotateDurationMs and paint-face utilities as
-  SubmitConfirmation3DModal, from lib/utils/paint-appearance.ts), then
-  reveals a "View My Requests" link to /account/quotes after
-  ROTATE_DURATION_MS + 1s.
-
-app/studio/draft/page.tsx ("FlashDraft" — orchestrator)
-  No longer holds geometry state directly — `useReducer(flashDraftReducer,
-  initialFlashDraftState)` is the single source of truth, passed down as
-  `state`/`dispatch` to every component above. What's left in page.tsx:
-  material/gauge/length/quantity/notes form fields (dispatching SET_*
-  actions), global keyboard shortcuts (Ctrl+Z/Y, Escape, Delete —
-  forwarded as KEY_DOWN actions, skipped while focus is in a text field),
-  the debounced profile-match fetch against api/studio/match-profile
-  (600ms, gated on ≥2 legs) and its split-screen match panel (inline
-  JSX, not a separate component — reuses BendSequenceDiagram), Save/
-  Duplicate via ProfileDetailsModal + saved_configurations (material_id/
-  gauge_id left null — see types.ts above), Load from Library (an inline
-  modal against public machine_profiles, plus the ?loadProfile=<id>
-  deep-link from the Library page — both reconstruct a point polyline via
-  the same turtle-graphics walk BendSequenceDiagram uses, then convert it
-  to a Leg/BendPoint graph via a local `pointsToGeometry` helper), the
-  2D/3D view toggle (`ProfileViewer3D` directly when `activeView==='3d'`),
-  quote submission (validates → SubmitConfirmation3DModal → POST
-  api/quote-requests → SubmitFlow on success), and a `?loadProfile=<id>`
-  mount effect. One deliberate behavior change from the pre-rewrite page:
-  submission requires sign-in — there's no guest-email-capture path
-  anymore, even though api/quote-requests still accepts one server-side
-  (see SESSION_STATE.md's afs-044 entry). `MatchedProfile3DModal.tsx` and
-  `ProfileDetailsModal.tsx` (both components/studio/, both pre-existing —
-  unchanged by afs-044, and not previously documented in this file) are
-  used here: the former for the match panel's "View in 3D" button, the
-  latter for the Save/Duplicate name+category form.
+app/studio/draft/page.tsx ("FlashDraft")
+  A large client-component page (2,268 lines), not a separate reusable
+  component — the 2D canvas drawing tool lives directly in this file
+  (two-panel: 320px controls + a canvas that fills all remaining
+  viewport height/width via a ResizeObserver on its wrapper div).
+  Draw/select/erase modes, click-and-drag segment drawing via Pointer
+  Events (mouse + touch), 15°-angle and ⅛"-dimension snapping, Ctrl+Z/
+  Ctrl+Y undo/redo, wheel zoom, middle-mouse/Space+drag pan, feet+inches
+  length fields, debounced profile matching against
+  app/api/studio/match-profile, Save Draft (localStorage), Load from
+  Library (public machine_profiles, also triggerable via
+  ?loadProfile=<id> from the Library page — read via
+  `window.location.search` in a mount effect, not next/navigation's
+  useSearchParams, to keep the page statically prerenderable), Submit
+  for Quote. The canvas itself is drawn via a local CANVAS_COLORS
+  constant — see DESIGN_TOKENS.md §10 for the exception this follows.
+    • Leg-point dragging — pointerdown on an interior bend point arms
+      `draggingVertexIndex`; pointermove repositions that one point
+      directly (snapped to the ⅛" grid), with its two adjacent legs'
+      lengths and the angle between them recomputed live since they're
+      derived, not stored; pointerup commits one undo entry, but only if
+      an actual drag happened (not a bare click-to-select). The dragged
+      point renders at 12px vs. the normal 4px while active.
+    • Angle indicators — a PathfinderEdge-style clean fixed-20px-radius
+      arc between the two leg directions at each interior bend vertex
+      (afs-crimson, or a warn color if the bend radius is too tight for
+      the selected gauge), with a signed-degree label near it — no
+      circle background. The bend RADIUS is still set via a left-panel
+      numeric input; the ANGLE is set via a separate numeric field
+      (`angleInputDraft`, commits on Enter/blur, rotates every point
+      downstream of that joint rigidly around it — a hinge operation
+      that preserves all leg lengths).
+    • Hem tool — double-clicking either drawn endpoint opens a fixed
+      `top:16px,right:16px` on-canvas popup (Open / Smashed / Teardrop —
+      position and color fixed by afs-043, see below); each renders real
+      fold geometry directly in the canvas draw loop (afs-crimson) and
+      adds to the blank-width calculation used by both profile matching
+      and the 3D preview. Hem data rides in the quote_requests.line_items
+      JSONB payload as { type, gapIn } per endpoint.
+    • Inline dimension input — selecting a leg segment shows a real
+      `<input>` positioned at the segment's live screen midpoint (white
+      bg, afs-ink-900 text, 1px afs-accent-green border, JetBrains Mono).
+  The Profile Match panel: a prominent percentage + color bar (green ≥90
+  / amber 70–89 / crimson <70), a "Fabricated N times in shop history"
+  line (see lib/data/machine-profile-fabrication.ts — a bend-signature-
+  similarity count over the full public+private catalog, not a literal
+  audit trail), an "EXACT MATCH — Machine program ready" badge at ≥95%,
+  and a floating 200×150px SVG preview panel (top-right of the canvas,
+  closeable) for matches ≥70%, reusing BendSequenceDiagram.
+  The [2D]/[3D] toggle is back (crimson-active/bg-afs-bg-raised-inactive,
+  default 2D) — `[3D]` swaps the canvas for an inline `ProfileViewer3D`
+  of the customer's current drawing, no submit required. Clicking
+  "Submit for Quote" always opens SubmitConfirmation3DModal first
+  (components/studio/) instead of submitting immediately.
+  `MatchedProfile3DModal.tsx` and `ProfileDetailsModal.tsx`
+  (components/studio/, both pre-existing and not previously documented
+  in this file) are also used here: the former for the match panel's
+  "View in 3D" button, the latter for the Save/Duplicate name+category
+  form.
+  **afs-043 fixes (2026-07-15, survived the afs-044/045 rewrite-and-
+  revert round trip unchanged):** (1) the hem popup's position changed
+  from tracking the double-click point to a fixed `top:16,right:16`
+  inside the canvas's `relative` wrapper, so it can never overlap the
+  drawing. (2) `renderHemAt` was rewritten — all three hem types now
+  render in afs-crimson (`CANVAS_COLORS.hemLine`, was afs-accent-purple)
+  instead of being too subtle to see: Open draws a fold line the length
+  of the gap plus a parallel offset line and a perpendicular cap;
+  Teardrop draws a filled semicircle sized to material thickness (0.0625"
+  default, floored at 8px screen radius); Smashed draws two lines 2px
+  apart on screen.
 
 app/studio/library/page.tsx ("Profile Library" — NEW, afs-038)
   Server component — fetches all is_public/is_active machine_profiles
@@ -966,3 +835,4 @@ app/studio/profile-viewer/[profileId]/page.tsx
 *LAYER 12 updated for the afs-038 FlashDraft/Design Studio overhaul, 2026-07-14.*
 *LAYER 1 rewritten to match the real components/ui/ directory (2 files, not ~20), 2026-07-14 (afs-041).*
 *LAYER 12's FlashDraft entry rewritten for the afs-044 complete architecture rewrite (lib/flashdraft/ + components/studio/flashdraft/, 12 files replacing the old single-file page.tsx), 2026-07-15.*
+*LAYER 12's FlashDraft entry corrected back to the single-file page.tsx after afs-044 was reverted (afs-045, commit b37d936), 2026-07-15 — lib/flashdraft/ and components/studio/flashdraft/ no longer exist. Also corrected two pre-existing staleness bugs found during this pass, unrelated to the revert: the bend-angle indicator and 2D/3D toggle descriptions still described superseded afs-034/afs-038 behavior instead of afs-040/afs-042's actual current rendering.*

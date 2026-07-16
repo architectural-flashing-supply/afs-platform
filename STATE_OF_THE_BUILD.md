@@ -67,13 +67,13 @@ API keys in .env.local:  Present locally (not committed). STRIPE_SECRET_KEY,
 pnpm install:            DONE (afs-025) — stripe, @stripe/stripe-js,
                          @stripe/react-stripe-js, docx all present in
                          pnpm-lock.yaml and node_modules.
-pnpm tsc --noEmit:       PASSES — 0 errors (afs-044, re-verified after the POINTER_DOWN fix).
-pnpm run build:          PASSES — exit 0; /studio/draft is now 19.2 kB / 331 kB First
-                         Load JS (was 15.1 kB / 326 kB pre-afs-044) — route table
-                         unchanged otherwise, no new routes added.
-git commits:             All afs-website work through afs-044 is committed and pushed
-                         to origin/main (afs-043: 6078e76, afs-044: 508b5ee). Working
-                         tree is clean. A SEPARATE standalone
+pnpm tsc --noEmit:       PASSES — 0 errors (afs-045, re-verified after the revert).
+pnpm run build:          PASSES — exit 0; /studio/draft is back to 15.1 kB / 326 kB
+                         First Load JS (was 19.2 kB / 331 kB during afs-044, now
+                         reverted) — route table unchanged, no routes added or removed.
+git commits:             All afs-website work through afs-045 is committed and pushed
+                         to origin/main (afs-043: 6078e76, afs-044: 508b5ee — REVERTED,
+                         afs-045: b37d936). Working tree is clean. A SEPARATE standalone
                          project, C:\Users\manag\Documents\afs-machine-bridge, has its
                          own independent git repo (not part of this repo, not pushed
                          anywhere — no remote was given) — see MACHINE BRIDGE — AUDITED
@@ -465,6 +465,36 @@ rewrite (afs-044):       app/studio/draft/page.tsx (~2,270 lines, all state as
                          structure and is now stale — flagged here rather than
                          left silently wrong, since only STATE_OF_THE_BUILD.md and
                          SESSION_STATE.md were in scope for this update.
+FlashDraft rewrite       **REVERTED (afs-045, 2026-07-15).** `git revert 508b5ee
+reverted (afs-045):      --no-edit` (commit b37d936), by explicit instruction —
+                         applied cleanly, no conflicts, since the two doc-only
+                         commits made after 508b5ee (COMPONENT_MAP.md/
+                         SESSION_STATE.md updates, not reverted) never touched the
+                         code files 508b5ee changed. **The afs-044 entry directly
+                         above is now historical only** — everything it describes
+                         (lib/flashdraft/, components/studio/flashdraft/, the
+                         12-file useReducer architecture) no longer exists on
+                         disk. Confirmed via a fresh directory listing (not
+                         assumed from the entry above): `lib/flashdraft/` and
+                         `components/studio/flashdraft/` are both gone;
+                         `app/studio/draft/page.tsx` is back to a single file,
+                         2,268 lines — and still carries every afs-043 fix (hem
+                         popup position + crimson hem rendering), since afs-043
+                         (commit 6078e76) landed before 508b5ee and was untouched
+                         by the revert. `pnpm tsc --noEmit` 0 errors, `pnpm run
+                         build` exit 0, /studio/draft back to 15.1 kB / 326 kB
+                         First Load JS (was 19.2 kB / 331 kB during afs-044,
+                         matching its pre-afs-044 size exactly), both re-verified
+                         after the revert, before any docs were touched. COMPONENT_MAP.md's LAYER 12 FlashDraft entry
+                         corrected in the same session to match — see its own
+                         changelog line at the bottom of that file. Two
+                         pre-existing staleness bugs unrelated to the revert were
+                         also found and fixed during that COMPONENT_MAP.md pass:
+                         it still described the afs-034/038-era translucent-circle
+                         bend handle and "[2D View][3D View] toggle is gone"
+                         instead of afs-040/042's actual current PathfinderEdge-
+                         style angle arc and restored [2D]/[3D] toggle — neither
+                         was ever corrected when afs-040/042 shipped.
 Portal double-nav        FIXED (afs-036) — /admin/** and /account/** were rendering
 fix (afs-036):           the public NavBar (left icon rail + top link strip) above
                          their own AdminShell/AccountShell sidebar. The requested

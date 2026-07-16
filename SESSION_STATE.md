@@ -34,29 +34,72 @@ and forced 3 personal-nickname rows private, and larger click-to-modal
 Profile Library cards. Found and fixed one real regression live
 (canvas rendered blank after a 3D→2D round-trip — the draw effect didn't
 list `viewMode` as a dependency). A two-item FlashDraft popup-position +
-hem-render fix (afs-043), immediately followed in the same session by a
-**complete FlashDraft architecture rewrite (afs-044):** the ~2,270-line
-single-file `app/studio/draft/page.tsx` (all state as local `useState`)
-replaced with a 12-file `useReducer` architecture — `lib/flashdraft/
-{types,geometry,blankWidth,renderer,reducer}.ts` and
-`components/studio/flashdraft/*` — built from an explicit, fully-specified
-prompt. Found and fixed one real interaction bug via live Playwright
-verification (clicking the last-drawn vertex to extend the polyline
-collided with the hem-start heuristic; hems now start only via
-double-click). `pnpm tsc --noEmit` passes (0 errors) and `pnpm run build`
-succeeds (exit 0) as of afs-044. Working tree is clean; all afs-website
-work through afs-044 is committed and pushed to origin/main. **Not yet
-done:** COMPONENT_MAP.md's FlashDraft section still describes the old
-single-file structure.
+hem-render fix (afs-043) that's still live in the current code. A
+**complete FlashDraft architecture rewrite (afs-044)** followed in the
+same session — 12 new files (`lib/flashdraft/*`, `components/studio/
+flashdraft/*`) replacing the single-file page.tsx — **and was reverted
+the same day (afs-045)**, by explicit instruction, before it was used
+further. **Current reality: `app/studio/draft/page.tsx` is the
+single-file implementation again** (2,268 lines, afs-043's fixes intact),
+`lib/flashdraft/` and `components/studio/flashdraft/` do not exist.
+`pnpm tsc --noEmit` passes (0 errors) and `pnpm run build` succeeds
+(exit 0) as of afs-045, re-verified after the revert. Working tree is
+clean; all afs-website work through afs-045 is committed and pushed to
+origin/main. The afs-044 narrative entry below is historical only — it
+describes an architecture that was built, then reverted; do not treat it
+as current-state.
 
 **Today's date is 2026-07-15.** Last afs-website commit before this
 session: `3547c24` (fix: leg dragging, hem on single leg, 2D/3D toggle,
 German names, library cards — afs-042). This session's work is committed
-as afs-043 (`6078e76`) and afs-044 (`508b5ee`).
+as afs-043 (`6078e76`), afs-044 (`508b5ee`, reverted), the two governance
+doc-update commits made while afs-044 was still live (`8cb3455`,
+`daf8e93` — not reverted, since they only touched docs), and afs-045
+(`b37d936`, the revert itself, plus this doc correction pass).
+
+**afs-045 (2026-07-15, this session): FlashDraft rewrite reverted.**
+`git revert 508b5ee --no-edit`, by explicit instruction — no rationale
+given, none asked for; committed as `b37d936` and pushed to origin/main.
+Applied cleanly, no conflicts: the two doc-update commits made after
+508b5ee (`8cb3455` STATE_OF_THE_BUILD.md/SESSION_STATE.md, `daf8e93`
+COMPONENT_MAP.md) only touched documentation, not the code files 508b5ee
+had changed, so there was nothing for the revert to conflict with.
+Immediately flagged, unprompted, to the user in the same turn: those two
+doc commits were NOT reverted, so all three governance docs still
+described the now-reverted architecture — this session's actual task.
+
+Before writing anything, audited what's really on disk rather than
+assuming the revert did what it should: `ls`/`wc -l` confirmed
+`lib/flashdraft/` and `components/studio/flashdraft/` are gone and
+`app/studio/draft/page.tsx` is back to 2,268 lines; `grep` confirmed
+afs-043's two fixes (hem popup fixed `top:16,right:16`, `hemLine:
+'#C0001A'`) are still present, since afs-043 (6078e76) landed before
+508b5ee and the revert only undid 508b5ee's diff. `pnpm tsc --noEmit`
+(0 errors) and `pnpm run build` (exit 0, `/studio/draft` back to its
+exact pre-afs-044 size, 15.1 kB / 326 kB) both re-verified before
+touching any documentation.
+
+Updated all three governance docs from that audit: STATE_OF_THE_BUILD.md
+(this entry, plus corrected top-level tsc/build/git-commits status
+lines), SESSION_STATE.md (this entry plus the CURRENT STATUS block
+above), and COMPONENT_MAP.md's LAYER 12 FlashDraft section — rewritten
+back to describe the real single-file page.tsx rather than just reverted
+to its pre-afs-044 text, since that in turn caught two staleness bugs
+that predated the whole rewrite/revert cycle and were never actually
+about it: the bend-angle-indicator description still matched afs-034's
+superseded translucent-32px-circle handle instead of afs-040's actual
+PathfinderEdge-style fixed-arc rendering, and it still said "the
+[2D View][3D View] toggle is gone" even though afs-042 restored a real
+[2D]/[3D] toggle. Both corrected in the same pass rather than left
+propagating forward. See COMPONENT_MAP.md's own changelog line at the
+bottom of that file for the exact wording.
 
 **afs-044 (2026-07-15, this session): FlashDraft complete architecture
 rewrite, following afs-043's small popup/rendering fix in the same
-session.** afs-043 first fixed two isolated things in the then-single-file
+session. REVERTED THE SAME DAY — see the afs-045 entry above. Everything
+below this point describes code that no longer exists; kept as a
+point-in-time record of what was built and why, not as current state.**
+afs-043 first fixed two isolated things in the then-single-file
 `app/studio/draft/page.tsx`: the hem popup's position (was tracking the
 double-click point, now fixed `top:16,right:16` inside the canvas's
 `relative` wrapper so it can never overlap the drawing) and `renderHemAt`
