@@ -67,13 +67,13 @@ API keys in .env.local:  Present locally (not committed). STRIPE_SECRET_KEY,
 pnpm install:            DONE (afs-025) — stripe, @stripe/stripe-js,
                          @stripe/react-stripe-js, docx all present in
                          pnpm-lock.yaml and node_modules.
-pnpm tsc --noEmit:       PASSES — 0 errors (afs-042, re-verified after every change).
-pnpm run build:          PASSES — exit 0, same 112 page.tsx/route.ts / 113 build-table-row
-                         count as afs-038/afs-039/afs-040 — afs-042 added one new
-                         script (scripts/fix-profile-names.ts) but no new routes.
-git commits:             All afs-website work through afs-041 is committed and pushed
-                         to origin/main; afs-042 (this session) is committed and pushed
-                         at the end of this run. Working tree is clean. A SEPARATE standalone
+pnpm tsc --noEmit:       PASSES — 0 errors (afs-044, re-verified after the POINTER_DOWN fix).
+pnpm run build:          PASSES — exit 0; /studio/draft is now 19.2 kB / 331 kB First
+                         Load JS (was 15.1 kB / 326 kB pre-afs-044) — route table
+                         unchanged otherwise, no new routes added.
+git commits:             All afs-website work through afs-044 is committed and pushed
+                         to origin/main (afs-043: 6078e76, afs-044: 508b5ee). Working
+                         tree is clean. A SEPARATE standalone
                          project, C:\Users\manag\Documents\afs-machine-bridge, has its
                          own independent git repo (not part of this repo, not pushed
                          anywhere — no remote was given) — see MACHINE BRIDGE — AUDITED
@@ -376,6 +376,95 @@ fix pass (afs-042):      brutally-honest code audit the user ran against afs-040
                          `pnpm tsc --noEmit` 0 errors, `pnpm run build` exit 0, both
                          re-verified after the viewMode fix. Live-verified via
                          Playwright screenshots for all 5 items plus the regression.
+FlashDraft hem popup     FIXED (afs-043, 2026-07-15) — two targeted fixes to the
++ rendering fix          then-single-file app/studio/draft/page.tsx, superseded a
+(afs-043):               few prompts later in the same session by afs-044's full
+                         rewrite (below), noted here for the commit history's sake.
+                         (1) Hem popup position changed from tracking the
+                         double-click point to a fixed `top: 16, right: 16` inside
+                         the canvas's `relative` wrapper, so it can never overlap
+                         the drawing. (2) `renderHemAt` rewritten: all three hem
+                         types now render in afs-crimson (`CANVAS_COLORS.hemLine`
+                         changed from the old afs-accent-purple) instead of being
+                         too subtle to see — Open draws a fold line the length of
+                         the gap plus a parallel offset line and a perpendicular
+                         cap; Teardrop draws a filled semicircle sized to material
+                         thickness (0.0625" default, floored at 8px screen radius);
+                         Smashed draws two lines 2px apart on screen. Commit 6078e76.
+FlashDraft complete      REWRITE (afs-044, 2026-07-15) — the single-file
+rewrite (afs-044):       app/studio/draft/page.tsx (~2,270 lines, all state as
+                         local useState) was replaced with a 12-file architecture
+                         per an explicit, fully-specified prompt: lib/flashdraft/
+                         {types,geometry,blankWidth,renderer,reducer}.ts and
+                         components/studio/flashdraft/{FlashDraftCanvas,
+                         FlashDraftToolbar,FlashDraftPropertiesPanel,HemPopup,
+                         FlashDraftProfileInfo,SubmitFlow}.tsx, orchestrated by a
+                         rewritten (much smaller) page.tsx via
+                         useReducer(flashDraftReducer). Geometry model changed from
+                         a flat point polyline to an explicit Leg/BendPoint/Hem
+                         graph (lib/flashdraft/types.ts) — bend angles are now
+                         signed degrees per joint, blank width is computed via a
+                         K-factor bend-allowance formula (lib/flashdraft/
+                         blankWidth.ts) instead of the old fixed-fold-depth
+                         estimate, and hems can attach to any leg endpoint (not
+                         just the whole profile's absolute start/end).
+                         Two deliberate deviations from the literal prompt, both
+                         necessary for correctness against the real codebase:
+                         (1) `saved_configurations.material_id`/`gauge_id` are
+                         real UUID FKs into `materials`/`gauges` (SCHEMA.md), but
+                         FlashDraft's material/gauge pickers are plain catalog
+                         strings from `lib/data/catalog.ts` (that DB data is a
+                         CLAUDE.md Data Blocker) — those FK columns stay `null` on
+                         save and the catalog strings travel inside `dimensions`
+                         instead, matching the pre-rewrite page's already-shipped
+                         behavior; feeding catalog strings into a UUID column
+                         would have broken every save with an invalid-UUID error.
+                         (2) The prompt's Section 15 explicitly removes guest
+                         (email-capture) quote submission in favor of a
+                         sign-in-required flow — `/api/quote-requests` still
+                         accepts a guest email server-side, so this is a real,
+                         deliberate UI capability change from the previously-
+                         shipped guest-checkout path, implemented as specified but
+                         called out here since it's customer-facing.
+                         **A real interaction bug was found and fixed via live
+                         Playwright verification, not caught by either gate:**
+                         POINTER_DOWN's hit-test let clicking the last-drawn
+                         vertex to extend the polyline collide with the
+                         near-endpoint hem-start heuristic — clicking exactly on
+                         the last point (the natural "keep drawing" gesture)
+                         silently entered hem-drawing mode instead of extending
+                         the leg. Fixed by making "continue drawing from the last
+                         point" take unconditional priority over a leg-hit
+                         specifically (checked after bend/hem-endpoint hits, so an
+                         existing hem or bend sitting at that same point stays
+                         reachable), and hems now start only via DOUBLE_CLICK,
+                         matching the pre-rewrite app's already-proven precedent
+                         instead of the prompt's ambiguous "arm for potential
+                         hem-drag on pointer-down" description. Toolbar hint text
+                         updated to match ("Double-click a leg, then drag to
+                         create a hem").
+                         Not independently live-verified: Save/Duplicate for an
+                         authenticated user, and the `?loadProfile=<id>` deep-link
+                         from /studio/library (code-reviewed against the working
+                         pre-rewrite implementation it was ported from, not
+                         exercised in a live session — no test login was
+                         available).
+                         `pnpm tsc --noEmit` 0 errors, `pnpm run build` exit 0,
+                         both re-verified after the interaction-bug fix.
+                         Live-verified via Playwright: draw two legs with a bend
+                         angle arc, select leg/bend and confirm the properties
+                         panel, double-click-drag to create a hem with the popup
+                         fixed top-right, all three hem types rendering visibly in
+                         afs-crimson, 2D/3D toggle, and undo — all confirmed
+                         working, screenshots reviewed. No console errors besides
+                         an expected 401 from the profile-match endpoint's
+                         pre-existing auth requirement under an anonymous test
+                         session. Commit 508b5ee.
+                         Follow-up not done this session: COMPONENT_MAP.md's
+                         FlashDraft section still describes the old single-file
+                         structure and is now stale — flagged here rather than
+                         left silently wrong, since only STATE_OF_THE_BUILD.md and
+                         SESSION_STATE.md were in scope for this update.
 Portal double-nav        FIXED (afs-036) — /admin/** and /account/** were rendering
 fix (afs-036):           the public NavBar (left icon rail + top link strip) above
                          their own AdminShell/AccountShell sidebar. The requested

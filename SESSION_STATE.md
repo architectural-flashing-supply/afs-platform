@@ -33,15 +33,121 @@ literal [2D]/[3D] toggle (replacing the single [3D View] button), a new
 and forced 3 personal-nickname rows private, and larger click-to-modal
 Profile Library cards. Found and fixed one real regression live
 (canvas rendered blank after a 3D→2D round-trip — the draw effect didn't
-list `viewMode` as a dependency). `pnpm tsc --noEmit` passes (0 errors)
-and `pnpm run build` succeeds (exit 0) as of afs-042. Working tree is
-clean; all afs-website work through afs-042 is committed and pushed to
-origin/main.
+list `viewMode` as a dependency). A two-item FlashDraft popup-position +
+hem-render fix (afs-043), immediately followed in the same session by a
+**complete FlashDraft architecture rewrite (afs-044):** the ~2,270-line
+single-file `app/studio/draft/page.tsx` (all state as local `useState`)
+replaced with a 12-file `useReducer` architecture — `lib/flashdraft/
+{types,geometry,blankWidth,renderer,reducer}.ts` and
+`components/studio/flashdraft/*` — built from an explicit, fully-specified
+prompt. Found and fixed one real interaction bug via live Playwright
+verification (clicking the last-drawn vertex to extend the polyline
+collided with the hem-start heuristic; hems now start only via
+double-click). `pnpm tsc --noEmit` passes (0 errors) and `pnpm run build`
+succeeds (exit 0) as of afs-044. Working tree is clean; all afs-website
+work through afs-044 is committed and pushed to origin/main. **Not yet
+done:** COMPONENT_MAP.md's FlashDraft section still describes the old
+single-file structure.
 
-**Today's date is 2026-07-14.** Last afs-website commit before this
-session: `0bf7314` (docs: fix COMPONENT_MAP layer 1 and migration status
-in STATE_OF_THE_BUILD — afs-041). This session's work is committed as
-afs-042 at the end of this run.
+**Today's date is 2026-07-15.** Last afs-website commit before this
+session: `3547c24` (fix: leg dragging, hem on single leg, 2D/3D toggle,
+German names, library cards — afs-042). This session's work is committed
+as afs-043 (`6078e76`) and afs-044 (`508b5ee`).
+
+**afs-044 (2026-07-15, this session): FlashDraft complete architecture
+rewrite, following afs-043's small popup/rendering fix in the same
+session.** afs-043 first fixed two isolated things in the then-single-file
+`app/studio/draft/page.tsx`: the hem popup's position (was tracking the
+double-click point, now fixed `top:16,right:16` inside the canvas's
+`relative` wrapper so it can never overlap the drawing) and `renderHemAt`
+(all three hem types were rendering in a barely-visible afs-accent-purple;
+now afs-crimson, with a distinct fold+gap+cap shape for Open, a filled
+semicircle sized to material thickness for Teardrop, and two lines 2px
+apart on screen for Smashed). Committed as `6078e76`.
+
+A few prompts later, the user supplied an explicit, fully-specified
+18-section rewrite prompt for the whole page — a new state-machine
+architecture (`useReducer` over a `Leg`/`BendPoint`/`Hem` geometry graph,
+replacing the old flat point-polyline model), split into 12 files:
+`lib/flashdraft/types.ts`, `geometry.ts`, `blankWidth.ts`, `renderer.ts`,
+`reducer.ts`, and `components/studio/flashdraft/{FlashDraftCanvas,
+FlashDraftToolbar,FlashDraftPropertiesPanel,HemPopup,FlashDraftProfileInfo,
+SubmitFlow}.tsx`, orchestrated by a much smaller rewritten `page.tsx`.
+Bend angles are now signed degrees per joint (driving both display and a
+downstream-rotation edit), and blank width is computed via a real K-factor
+bend-allowance formula (`lib/flashdraft/blankWidth.ts`) instead of the old
+fixed-fold-depth estimate. Hems can now attach to any leg's endpoint, not
+just the whole profile's absolute start/end.
+
+Before writing any code, cross-checked the prompt's assumptions against
+the real codebase (`tailwind.config.js`, `SCHEMA.md`, the real prop
+signatures of `ProfileViewer3D`/`BendSequenceDiagram`/`SubmitConfirmation3DModal`/
+`MatchedProfile3DModal`/`ProfileDetailsModal`, the real `/api/quote-requests`
+and `/api/studio/match-profile` payload shapes) rather than trusting the
+prompt's own pseudo-code literally — it referenced a prop name
+(`autoRotate`) and field names (`matchResult.bends`) that don't exist on
+the real components/APIs, and specified inserting `material_id`/`gauge_id`
+directly into `saved_configurations`, which are real UUID foreign keys
+into `materials`/`gauges` (SCHEMA.md) — but FlashDraft's material/gauge
+pickers are plain catalog strings (`lib/data/catalog.ts`), and that DB
+catalog data is an existing CLAUDE.md Data Blocker. Feeding a catalog
+string like `"Copper"` into a UUID column would have broken every save;
+instead, matching the pre-rewrite page's already-shipped behavior, those
+FK columns stay `null` and the catalog strings travel inside the
+`dimensions` JSONB payload. Also flagged, then implemented as explicitly
+specified: the prompt's submission flow requires sign-in (no guest email
+capture), a real behavior change from the previously-shipped guest-
+checkout path — `/api/quote-requests` still accepts a guest email
+server-side, so this was a deliberate product decision in the prompt, not
+an API limitation.
+
+**A real interaction bug was found and fixed via live Playwright
+verification (dev server + a headless-Chromium script driving the actual
+page), not caught by either gate:** the first implementation let clicking
+the last-drawn vertex to extend the polyline collide with the
+near-endpoint hem-start heuristic — since both gestures start at the exact
+same pixel, a click meant to continue the polyline was silently
+misread as the start of a hem instead. Fixed by making "continue drawing
+from the last point" take unconditional priority over an ambiguous
+leg-hit specifically (checked after bend/hem-endpoint hits, so an existing
+hem or bend at that same point stays reachable), and by making hems start
+only via double-click — matching the pre-rewrite app's own proven
+precedent instead of the prompt's ambiguous "arm for potential hem-drag on
+pointer-down" description. Re-verified live after the fix: drawing two
+legs with a bend-angle arc and signed-degree label, selecting a leg/bend
+and confirming the properties panel shows the right fields, double-click-
+dragging to create a hem with the popup appearing fixed top-right, all
+three hem types rendering visibly in afs-crimson, the 2D/3D toggle, and
+undo reverting a hem-type change — all confirmed working from screenshots,
+no console errors besides an expected 401 from `/api/studio/match-profile`
+(pre-existing auth requirement, hit because the test session was
+anonymous). Not independently live-verified: Save/Duplicate for an
+authenticated user and the `?loadProfile=<id>` deep-link from
+`/studio/library` (both code-reviewed against the working pre-rewrite
+implementation they were ported from — no test login was available this
+session).
+
+`pnpm tsc --noEmit` 0 errors and `pnpm run build` exit 0, both re-verified
+after the interaction-bug fix. Committed as `508b5ee`, pushed to
+origin/main. **Not done this session:** COMPONENT_MAP.md's FlashDraft
+entries still describe the old single-file structure and are now stale —
+only STATE_OF_THE_BUILD.md and SESSION_STATE.md were in scope for this
+update, per the instructions given.
+
+**What to build next:** (1) Sync COMPONENT_MAP.md's FlashDraft section to
+the new 12-file structure (same treatment afs-039 gave it after afs-038).
+(2) Live-verify Save/Duplicate and the `/studio/library` deep-link with an
+authenticated test session — both were code-reviewed against the working
+pre-rewrite implementation but not exercised live this session. (3) The
+DELETE_SELECTED handling for removing a middle leg or a bend point with
+hems attached (`lib/flashdraft/reducer.ts`'s `deleteLeg`/`deleteBend`) uses
+pragmatic, documented tradeoffs for genuinely ambiguous geometry (bridging
+a deleted middle leg, dropping hems that lose their anchor leg on a bend
+merge) — worth a design review if these edge cases turn out to matter in
+practice. (4) Decide whether the sign-in-required submission flow
+(replacing the old guest-email-capture path) is the intended permanent
+behavior or should be reconciled with `/api/quote-requests`' still-live
+guest-email support.
 
 **afs-039 (2026-07-14, this session): SITEMAP.md + COMPONENT_MAP.md
 sync-up after afs-038.** No application code changed. Requested to add
