@@ -43,19 +43,30 @@ further. **Current reality: `app/studio/draft/page.tsx` is the
 single-file implementation again** (2,268 lines, afs-043's fixes intact),
 `lib/flashdraft/` and `components/studio/flashdraft/` do not exist.
 `pnpm tsc --noEmit` passes (0 errors) and `pnpm run build` succeeds
-(exit 0) as of afs-045, re-verified after the revert. Working tree is
-clean; all afs-website work through afs-045 is committed and pushed to
-origin/main. The afs-044 narrative entry below is historical only — it
-describes an architecture that was built, then reverted; do not treat it
-as current-state.
+(exit 0) as of afs-045, re-verified after the revert. The afs-044
+narrative entry below is historical only — it describes an architecture
+that was built, then reverted; do not treat it as current-state. On top
+of the reverted (single-file) page.tsx, **three surgical additions
+(afs-046):** bend point dragging now translates the whole downstream
+chain by the drag delta (preserving downstream leg lengths/angles)
+instead of pivoting both adjacent legs, gated behind a 3px move
+threshold; hems can now be created by click-dragging backward on any leg
+segment (not just double-clicking the profile's two absolute endpoints),
+via a new parallel `LegHem[]` array that doesn't touch the existing
+hemStart/hemEnd; and the open hem's fold direction bug (it extended past
+the endpoint instead of folding back over the leg) is fixed. `pnpm tsc
+--noEmit` passes (0 errors) and `pnpm run build` succeeds (exit 0) as of
+afs-046. Working tree is clean; all afs-website work through afs-046 is
+committed and pushed to origin/main.
 
 **Today's date is 2026-07-15.** Last afs-website commit before this
 session: `3547c24` (fix: leg dragging, hem on single leg, 2D/3D toggle,
 German names, library cards — afs-042). This session's work is committed
 as afs-043 (`6078e76`), afs-044 (`508b5ee`, reverted), the two governance
 doc-update commits made while afs-044 was still live (`8cb3455`,
-`daf8e93` — not reverted, since they only touched docs), and afs-045
-(`b37d936`, the revert itself, plus this doc correction pass).
+`daf8e93` — not reverted, since they only touched docs), afs-045
+(`b37d936`, the revert itself, plus a doc correction pass), and afs-046
+(`c637e5c`, the three additions below plus this update).
 
 **afs-045 (2026-07-15, this session): FlashDraft rewrite reverted.**
 `git revert 508b5ee --no-edit`, by explicit instruction — no rationale
@@ -93,6 +104,76 @@ PathfinderEdge-style fixed-arc rendering, and it still said "the
 [2D]/[3D] toggle. Both corrected in the same pass rather than left
 propagating forward. See COMPONENT_MAP.md's own changelog line at the
 bottom of that file for the exact wording.
+
+**afs-046 (2026-07-15, this session): three explicit, surgical additions
+to the single-file app/studio/draft/page.tsx.** Instructed to read
+CLAUDE.md and the full 2,268-line file (every existing pointer handler)
+before touching anything, and to make surgical additions only — no
+refactor, no rename, no reorganize, nothing that currently works changed.
+Did the full read first.
+
+(1) Bend point drag. The request's description — incoming leg stretches,
+every later bend point/leg endpoint translates by the same delta
+(preserving downstream leg lengths/angles), gated behind a 3px movement
+threshold before drag activates — is a different physics model from what
+afs-042 already shipped (`draggingVertexIndex`: pivots BOTH adjacent legs
+around their fixed opposite endpoints, activates on any movement, no
+threshold). Treated the request's precise, detailed description as an
+intentional change to that specific mechanic rather than inventing a
+second, parallel drag mode — implemented exactly as specified. Verified
+live: dragging a bend point left the downstream leg's length exactly
+unchanged (12 1/2" before and after) while the incoming leg stretched
+(10" → 13 7/8"); movement under 3px still only selects the vertex,
+matching "do not change click-to-select behavior"; cursor turns
+'grabbing' during the drag and resets on release.
+
+(2) Hem creation by click-drag on any leg. Added a new, parallel
+`LegHem[]` array (`legIndex`, `distanceFromStartIn`, `lengthIn`, `type`,
+`gapIn`) rather than touching hemStart/hemEnd or the existing hemPopup —
+those are untouched, still exactly two endpoint-only hems with identical
+rendering and save/quote wiring. Arms on pointerdown when a segment-hit
+lands away from the profile's absolute start point (the only case not
+already excluded by the pre-existing "near bend point"/"near last point"
+early-returns); on pointerup with ≥0.125" of backward drag, creates the
+hem and opens a new `legHemPopup` — visually identical to the existing
+top-right HEM TYPE popup, but a genuinely separate state/JSX block so
+nothing about the original hemPopup's code path changes. Wired into
+blank-width calculations (profile matching, 3D viewer sync, the live
+Profile Info Panel), New/Clear reset, Save Draft/performSave persistence,
+and the quote-submission payload — leaving any of those out would make
+the hem decorative rather than a real capability.
+
+(3) Fixed the open hem's fold direction. `renderHemAt`'s 'open' branch
+extended the fold in direction `u` — continuing straight past the
+endpoint, away from the leg body — instead of folding back over the leg
+toward its neighbor point. Fixed by reversing direction only inside the
+'open' branch; teardrop and smashed (which share `u`) were deliberately
+left untouched, since the request named the open hem's direction
+specifically and both other types weren't reported as wrong. The new
+leg-hem renderer (written fresh, doesn't share code with renderHemAt)
+uses the corrected backward-fold direction for all three hem types from
+the start, so it doesn't inherit the bug at all.
+
+**A real test-script false negative was caught and corrected during
+verification, not an app bug:** the first Playwright pass showed Bend
+Count going 1→2 after a leg-hem-drag attempt, instead of creating a hem.
+Root cause: the test computed its click coordinates from the leg's
+*unsnapped* draw angle, while the actually-rendered leg had snapped to
+the nearest 15° (15°/⅛" snapping is on by default) — the click landed off
+the rendered line, past the hit radius, and fell through to the
+pre-existing "click on empty space always extends from the last point"
+fallback, which created a third point instead. Fixed the test to compute
+coordinates from the real snapped geometry; re-verified clean afterward —
+Hem Count went 0→1, Bend Count stayed at 1, the popup appeared top-right,
+and the fold visually confirmed folding toward the leg's start, not past
+its tip. Regression-checked live with the corrected script: a plain
+click (no drag) on a leg still just selects it, no hem created;
+double-clicking an endpoint still opens the original hemPopup and
+renders Smashed exactly as before, completely unaffected.
+
+`pnpm tsc --noEmit` 0 errors, `pnpm run build` exit 0. Only
+`app/studio/draft/page.tsx` changed (plus `tsconfig.tsbuildinfo`) — no
+other files touched. Committed as `c637e5c`, pushed to origin/main.
 
 **afs-044 (2026-07-15, this session): FlashDraft complete architecture
 rewrite, following afs-043's small popup/rendering fix in the same

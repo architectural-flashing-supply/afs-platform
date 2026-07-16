@@ -67,13 +67,14 @@ API keys in .env.local:  Present locally (not committed). STRIPE_SECRET_KEY,
 pnpm install:            DONE (afs-025) — stripe, @stripe/stripe-js,
                          @stripe/react-stripe-js, docx all present in
                          pnpm-lock.yaml and node_modules.
-pnpm tsc --noEmit:       PASSES — 0 errors (afs-045, re-verified after the revert).
-pnpm run build:          PASSES — exit 0; /studio/draft is back to 15.1 kB / 326 kB
-                         First Load JS (was 19.2 kB / 331 kB during afs-044, now
-                         reverted) — route table unchanged, no routes added or removed.
-git commits:             All afs-website work through afs-045 is committed and pushed
+pnpm tsc --noEmit:       PASSES — 0 errors (afs-046, re-verified after the three additions).
+pnpm run build:          PASSES — exit 0; /studio/draft is 16.4 kB / 328 kB First Load JS
+                         (was 15.1 kB / 326 kB after afs-045's revert) — route table
+                         unchanged, no routes added or removed.
+git commits:             All afs-website work through afs-046 is committed and pushed
                          to origin/main (afs-043: 6078e76, afs-044: 508b5ee — REVERTED,
-                         afs-045: b37d936). Working tree is clean. A SEPARATE standalone
+                         afs-045: b37d936, afs-046: c637e5c). Working tree is clean.
+                         A SEPARATE standalone
                          project, C:\Users\manag\Documents\afs-machine-bridge, has its
                          own independent git repo (not part of this repo, not pushed
                          anywhere — no remote was given) — see MACHINE BRIDGE — AUDITED
@@ -495,6 +496,84 @@ reverted (afs-045):      --no-edit` (commit b37d936), by explicit instruction �
                          instead of afs-040/042's actual current PathfinderEdge-
                          style angle arc and restored [2D]/[3D] toggle — neither
                          was ever corrected when afs-040/042 shipped.
+FlashDraft three         NEW (afs-046, 2026-07-15) — three explicit, surgical
+targeted additions       additions to the single-file app/studio/draft/page.tsx
+(afs-046):               (post afs-045 revert), requested as "do not refactor, do
+                         not rename, do not reorganize, do not change anything
+                         that currently works." Read the full file (2,268 lines)
+                         and every existing pointer handler before touching
+                         anything, per explicit instruction.
+                         (1) Bend point drag — the request described a downstream-
+                         translate physics model (incoming leg stretches, every
+                         later bend point/leg endpoint moves by the same delta,
+                         preserving downstream leg lengths/angles) plus a 3px
+                         movement threshold before drag activates. This is
+                         DIFFERENT from what was already shipped (afs-042's
+                         `draggingVertexIndex`, which pivots BOTH adjacent legs
+                         around their fixed opposite endpoints, activating
+                         immediately on any movement, no threshold) — the request's
+                         exact, detailed description was treated as an intentional
+                         change to that specific mechanic, not a duplicate/parallel
+                         one. Verified live: dragging a bend point leaves the
+                         downstream leg's length exactly unchanged (12 1/2" before
+                         and after) while the incoming leg stretches (10" → 13
+                         7/8"); a <3px move still only selects the vertex (matches
+                         "do not change click-to-select behavior"); cursor becomes
+                         'grabbing' during the drag, resets after.
+                         (2) Hem creation by click-drag on any leg — a new,
+                         parallel `LegHem[]` state (`legIndex`,
+                         `distanceFromStartIn`, `lengthIn`, `type`, `gapIn`) added
+                         alongside the existing hemStart/hemEnd (both left
+                         completely untouched — still exactly two endpoint-only
+                         hems, same rendering, same save/quote wiring). Armed on
+                         pointerdown when a segment-hit lands away from the
+                         profile's absolute start point (the only case not
+                         already excluded by the existing "near bend point" /
+                         "near last point" early-returns); on pointerup with
+                         ≥0.125" of drag, creates a hem and opens a new,
+                         visually-identical `legHemPopup` (same fixed
+                         top:16/right:16 HEM TYPE popup, kept as a separate state/
+                         JSX block from the original hemPopup rather than
+                         generalizing it, to avoid touching any of hemPopup's
+                         existing code paths). Wired into blank-width calculations
+                         (profile matching, 3D viewer sync, the live Profile Info
+                         Panel), New/Clear reset, Save/Draft persistence, and the
+                         quote-submission payload — a hem that didn't affect any
+                         of those would be a decorative dead end, not a working
+                         capability.
+                         (3) Fixed the open hem's fold direction — `renderHemAt`'s
+                         'open' branch extended the fold in direction `u`
+                         (continuing straight past the endpoint, away from the leg
+                         body) instead of folding back over the leg toward its
+                         neighbor point. Fixed by reversing direction only inside
+                         the 'open' branch (`foldDir = {-u.x,-u.y}`) — teardrop and
+                         smashed, which share the same `u`, were deliberately left
+                         untouched (not in scope; the request named "open" hem
+                         direction specifically). The new leg-hem renderer
+                         (written fresh, not sharing renderHemAt) uses the
+                         corrected backward-fold convention for all three types
+                         from the start.
+                         **A real test-script false negative was caught and
+                         corrected during verification, not an app bug:** the
+                         first Playwright pass showed Bend Count going 1→2 after a
+                         leg-hem-drag attempt instead of creating a hem — root
+                         cause was the test's click coordinates, computed from the
+                         leg's *unsnapped* draw angle, while the actual rendered
+                         leg had snapped to the nearest 15° (15°/⅛" snapping is
+                         on by default) — the click landed off the rendered line,
+                         past the hit radius, and fell through to the existing
+                         "click on empty space always extends from the last point"
+                         fallback. Fixed by computing test coordinates from the
+                         actual snapped geometry; re-verified clean (Hem Count
+                         went 0→1, Bend Count stayed at 1, popup appeared, fold
+                         visually confirmed folding toward the leg's start).
+                         Regression-checked live: plain click-to-select on a leg
+                         (no drag) still just selects it, no hem; double-click on
+                         an endpoint still opens the original hemPopup and renders
+                         Smashed/Teardrop exactly as before (untouched).
+                         `pnpm tsc --noEmit` 0 errors, `pnpm run build` exit 0 —
+                         only app/studio/draft/page.tsx changed (plus
+                         tsconfig.tsbuildinfo). Commit c637e5c.
 Portal double-nav        FIXED (afs-036) — /admin/** and /account/** were rendering
 fix (afs-036):           the public NavBar (left icon rail + top link strip) above
                          their own AdminShell/AccountShell sidebar. The requested
