@@ -513,4 +513,56 @@ interior/included angle, correctly and consistently.
 
 ---
 
+## 8. Addendum — live-data verification and a directionality limitation
+**Follow-up session. `geometry.ts` was NOT changed by this addendum — it
+confirms §2's open item and documents a data-completeness limitation,
+nothing more.**
+
+**§2's open item is now closed.** With live service-role DB access, all
+1000 `machine_profile_bends` rows with a non-null `bend_angle_degrees`
+were pulled: **0 negative values, min 0, max 180.** Most common values are
+180 (168 rows, straight), 90 (165 rows, right angle), and ~0 (352 rows,
+recorded as 0.1 — a hemmed/folded-flat edge). This directly confirms the
+interior-angle reading from §1/§7: a signed turn-angle convention
+(positive = CCW, negative = CW, as an alternative hypothesis raised this
+session) would require roughly half of all real bends to be negative,
+since a shop fabricating flashing profiles turns corners in both
+directions constantly. Zero negative values across 1000 real rows rules
+that hypothesis out.
+
+**Three real profiles were run through the unmodified
+`computeProfilePoints()` and hand-verified:**
+
+- **"07 A262" (1 bend, 90°):** `(0,0)→(3,0)→(3,3)` — clean right angle.
+- **"Standard Profile 004" (2 bends, 45°/45°):** `(0,0)→(1.97,0)→
+  (-9.17,11.14)→(-9.17,-4.61)` — arithmetically correct (turn=135° each,
+  hand-traced and matched), but see the limitation below: this profile's
+  two same-sign turns curl in one rotational sense rather than
+  zig-zagging.
+- **"Parapet Cap" / raw "Attika 309" (4 bends, 135°/95°/60°/0.1°):**
+  final two points land almost exactly on top of point 3
+  (`(-0.18,6.273)` vs `(-0.185,6.275)`) — the near-0° final angle is a
+  hem, correctly folding the last leg back almost flat onto the prior
+  segment. Non-degenerate, physically sensible.
+
+**Limitation found (data-completeness, not an algorithm bug):**
+`bend_angle_degrees` stores only the unsigned interior angle at each
+bend — there is no field anywhere in `machine_profile_bends` encoding
+which rotational direction (CW vs. CCW) a given bend turns. Because
+`heading` in `computeProfilePoints()` can therefore only ever accumulate
+`180 - angle` in one consistent direction, any real profile whose bends
+should visually alternate direction (a classic Z-bar, S-profile, or
+hat/channel shape with mixed handedness) will reconstruct as a
+consistent curl/spiral instead of a zig-zag. `BendSequenceDiagram.tsx`'s
+own doc comment already flags this in general terms ("no explicit
+connectivity/direction metadata in the source bend records"); this
+addendum confirms it concretely against real multi-bend data and
+narrows it to the specific missing field. **No fix is proposed here** —
+resolving it would require either a new signed-direction column
+populated at import time from the DS2801's raw job data (if that data
+exists upstream — unconfirmed) or accepting the current approximation
+as a known constraint of `machine_profile_bends`'s schema.
+
+---
+
 *GEOMETRY_AUDIT.md | AFS | Audit-only pass, no application code changed.*
