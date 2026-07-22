@@ -11,6 +11,26 @@ export const metadata: Metadata = {
     'Browse every profile in the AFS machine library — filter by category, blank width, and bend count, then load one straight into FlashDraft.',
 };
 
+// Curated AFS product categories that always populate the dropdown, regardless
+// of what machine_profile_categories currently holds — the Thalmann source
+// data is being migrated onto this vocabulary category by category (see
+// DATA BLOCKERS in CLAUDE.md), so the dropdown should not go sparse or
+// revert to raw machine category names while that migration is in progress.
+const AFS_PRODUCT_CATEGORIES = [
+  'Coping Caps & Cleats',
+  'Drip Edge & Gravel Stop',
+  'Valley Flashing',
+  'Fascia & Rake',
+  'Gutters & Scuppers',
+  'Base & Counter Flashing',
+  'Window & Door Flashing',
+  'Expansion Joints',
+  'Standing Seam',
+  'Custom Profiles',
+  'Zinc Profiles',
+  'Standard Profiles',
+] as const;
+
 interface ProfileRow {
   id: string;
   name_en: string;
@@ -107,6 +127,11 @@ export default async function ProfileLibraryPage() {
     };
   });
 
+  const dbCategoryNames = Array.from(new Set(cards.map((c) => c.categoryName))).filter(
+    (name) => !(AFS_PRODUCT_CATEGORIES as readonly string[]).includes(name),
+  );
+  const categories = [...AFS_PRODUCT_CATEGORIES, ...dbCategoryNames.sort()];
+
   return (
     <main className="min-h-screen bg-afs-bg-base">
       <div className="px-6 pt-10 pb-6 text-center">
@@ -121,7 +146,7 @@ export default async function ProfileLibraryPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 pb-24">
-        <ProfileLibraryBrowser profiles={cards} />
+        <ProfileLibraryBrowser profiles={cards} categories={categories} />
       </div>
     </main>
   );

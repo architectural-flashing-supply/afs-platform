@@ -21,7 +21,13 @@ export interface LibraryProfileCardData {
 
 const MAX_COMPARE = 3;
 
-export default function ProfileLibraryBrowser({ profiles }: { profiles: LibraryProfileCardData[] }) {
+export default function ProfileLibraryBrowser({
+  profiles,
+  categories,
+}: {
+  profiles: LibraryProfileCardData[];
+  categories: string[];
+}) {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('all');
   const [minWidth, setMinWidth] = useState('');
@@ -30,10 +36,6 @@ export default function ProfileLibraryBrowser({ profiles }: { profiles: LibraryP
   const [maxBends, setMaxBends] = useState('');
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [modalProfile, setModalProfile] = useState<LibraryProfileCardData | null>(null);
-
-  const categories = useMemo(() => {
-    return Array.from(new Set(profiles.map((p) => p.categoryName))).sort();
-  }, [profiles]);
 
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -86,7 +88,7 @@ export default function ProfileLibraryBrowser({ profiles }: { profiles: LibraryP
               onChange={(e) => setCategory(e.target.value)}
               className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2 font-body text-sm text-afs-chrome-high focus:outline-none focus:border-afs-crimson transition-colors"
             >
-              <option value="all">All Categories</option>
+              <option value="all">All Profiles</option>
               {categories.map((c) => (
                 <option key={c} value={c}>
                   {c}
