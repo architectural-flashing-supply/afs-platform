@@ -74,7 +74,10 @@ app/
 ├── track/[orderId]/page.tsx         /track/[orderId] — public tracker, no full auth
 │
 ├── studio/                          Design Studio — primary NavBar destination
-│   ├── page.tsx                     /studio — 3 tab-card landing (Scan/Photo/FlashDraft) +
+│   ├── page.tsx                     /studio — 4 tab-card landing (Scan/Photo/FlashDraft/
+│   │                                 Custom Configurator, the last added afs-cs-002 —
+│   │                                 links to the existing /configure route, which is
+│   │                                 unchanged and still also linked from NavBar) +
 │   │                                 a banner link to /studio/library
 │   ├── draft/page.tsx               /studio/draft — FlashDraft 2D canvas tool (afs-038: hem
 │   │                                 tool, bend-angle circle handles, inline dimension input,

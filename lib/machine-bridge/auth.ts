@@ -20,3 +20,22 @@ export function isAuthorizedBridgeRequest(request: NextRequest): boolean {
 
   return timingSafeEqual(tokenBuf, secretBuf);
 }
+
+/**
+ * Logs enough to tell apart "AFS_BRIDGE_SECRET unset on this deployment"
+ * from "a request came in without/with a mismatched Bearer token" —
+ * from Vercel's function logs alone, a bare 401 doesn't distinguish those.
+ * Never logs the secret value or the raw Authorization header content,
+ * only presence/length, so this is safe to leave on in production.
+ */
+export function logBridgeAuthFailure(request: NextRequest, path: string): void {
+  const secret = process.env.AFS_BRIDGE_SECRET;
+  const authHeader = request.headers.get('authorization');
+  console.warn('[machine-bridge auth] rejected request', {
+    path,
+    timestamp: new Date().toISOString(),
+    secretIsSet: !!secret,
+    secretLength: secret?.length ?? 0,
+    authHeaderPresent: !!authHeader,
+  });
+}

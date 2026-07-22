@@ -24,3 +24,12 @@ tsconfig.tsbuildinfo
 # scripts/import-machine-profiles.ts), not something to keep in git history.
 # Required locally only when running `pnpm run import:machine-profiles`.
 machine-data/
+
+# Playwright — tests/e2e/.auth/user.json is a real logged-in session's
+# storageState (cookies/localStorage) once auth.setup.ts actually runs
+# against a live E2E_TEST_EMAIL/E2E_TEST_PASSWORD account; never commit it.
+/tests/e2e/.auth/
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

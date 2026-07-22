@@ -10,6 +10,7 @@ import BendSequenceDiagram from '@/components/studio/BendSequenceDiagram';
 import SubmitConfirmation3DModal, { type PaintFace } from '@/components/studio/SubmitConfirmation3DModal';
 import MatchedProfile3DModal from '@/components/studio/MatchedProfile3DModal';
 import ProfileDetailsModal, { type ProfileDetailsFormValues } from '@/components/studio/ProfileDetailsModal';
+import Toast from '@/components/ui/Toast';
 import type { ProfileMatch, DiagramBend } from '@/app/api/studio/match-profile/route';
 
 type SubmitState = 'idle' | 'submitting' | 'submitted';
@@ -1500,7 +1501,6 @@ export default function FlashDraftPage() {
       setRevision(nextRevision);
       setShowProfileDetails(false);
       setToast('Profile saved to your account');
-      setTimeout(() => setToast(null), 3000);
     } catch {
       setSaveError('Could not save profile. Please try again.');
     } finally {
@@ -2604,11 +2604,7 @@ export default function FlashDraftPage() {
         />
       )}
 
-      {toast && (
-        <div className="fixed bottom-6 right-6 z-[70] bg-afs-bg-raised border border-afs-accent-green rounded px-4 py-3 shadow-raised">
-          <p className="font-body text-sm text-afs-chrome-high">{toast}</p>
-        </div>
-      )}
+      <Toast message={toast} onDismiss={() => setToast(null)} />
     </main>
   );
 }

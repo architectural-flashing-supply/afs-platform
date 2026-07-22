@@ -6,20 +6,109 @@
 
 ## LAYER 1 — UI PRIMITIVES (`components/ui/`)
 
-**Only two files actually exist here — verified 2026-07-14 (afs-041) against
-the real `components/ui/` directory listing, not assumed from an earlier
-design plan.** This layer was originally specced with ~20 shared atomic
-primitives (Button, Card, Input, DataInput, Select, Textarea, Checkbox,
+**Six files exist here — updated 2026-07-15 (afs-ui-001), which added
+Button.tsx/Modal.tsx/Toast.tsx/Input.tsx on top of the two that already
+existed (Badge.tsx/EmptyState.tsx, confirmed 2026-07-14 by afs-041).**
+This layer was originally specced with ~20 shared atomic primitives
+(Button, Card, Input, DataInput, Select, Textarea, Checkbox,
 RadioGroup/RadioCard, Spinner, Tooltip, Modal, Toast, Table, Pagination,
-Tabs/Tab, Accordion/AccordionItem, ConfirmModal, FileTypeIcon) — none of
-those were ever built. Every page in this codebase hand-rolls its own
-Tailwind buttons/inputs/modals/tables inline instead of importing from
-this layer (confirmed by grep — no file outside `components/ui/` imports
-from `@/components/ui/Button`, `@/components/ui/Modal`, etc., because
-those files don't exist to import). Reusable atomic components. No
-business logic. No data fetching.
+Tabs/Tab, Accordion/AccordionItem, ConfirmModal, FileTypeIcon) — as of
+afs-ui-001, 4 of those ~20 are real; the remaining ~16 (Card, DataInput,
+Select, Textarea, Checkbox, RadioGroup/RadioCard, Spinner, Tooltip,
+Table, Pagination, Tabs/Tab, Accordion/AccordionItem, ConfirmModal,
+FileTypeIcon) are still unbuilt. Every existing page in this codebase
+still hand-rolls its own Tailwind buttons/inputs/modals/tables inline
+rather than importing from this layer — afs-ui-001 built the four new
+primitives but deliberately did NOT migrate any existing page to use
+them (that migration is scoped as a separate, later prompt). Reusable
+atomic components. No business logic. No data fetching.
 
 ```
+Button.tsx (NEW, afs-ui-001)
+  Props: variant ('primary'|'secondary'|'danger', default 'primary')
+         size ('sm'|'md', default 'md')
+         children (React.ReactNode)
+         ...rest (native <button> attributes — onClick, disabled, type,
+         aria-*, etc.)
+  variant classes mirror the site's existing hand-rolled buttons exactly:
+  primary → bg-afs-crimson hover:bg-afs-crimson-hover text-white (the
+  crimson-primary convention used everywhere from app/quote/page.tsx's
+  step buttons to app/checkout/page.tsx's Place Order button);
+  secondary → border border-afs-border bg-afs-bg-overlay
+  text-afs-chrome-high hover:bg-afs-bg-surface (the bordered "Cancel" /
+  "Submit Another" convention, e.g. ProfileDetailsModal.tsx's Cancel
+  button); danger → border-2 border-afs-crimson bg-transparent
+  text-afs-crimson hover:bg-afs-crimson hover:text-white — an outlined
+  treatment, not a literal copy of any single existing button, since no
+  hand-rolled instance in this codebase currently needs a primary and a
+  destructive-confirm button rendered together (CommandCenterJobCard.tsx's
+  "Reject Job" confirm reuses the same solid crimson as its own primary
+  action) — a shared Button needs the two to read as visually distinct
+  when they DO appear together, so this variant was designed rather than
+  copied; flagged here in case a future session wants to reconcile it
+  against a specific existing destructive-button instance instead. All
+  variants: font-label font-semibold rounded transition-colors
+  disabled:opacity-50 disabled:pointer-events-none, defaults to
+  type="button" (overridable via props, so type="submit" still works).
+
+Modal.tsx (NEW, afs-ui-001)
+  Props: isOpen (boolean) | onClose (() => void) | title? (string) |
+         children (React.ReactNode) | footer? (React.ReactNode) |
+         maxWidthClass? (string, default 'max-w-md')
+  Matches the two existing hand-rolled modal implementations exactly
+  (components/studio/ProfileDetailsModal.tsx,
+  components/admin/CommandCenterJobCard.tsx's inline reject/request-
+  changes modal): fixed inset-0 bg-black/60 flex items-center
+  justify-center z-[60] px-6 backdrop (onClick closes), inner panel
+  bg-afs-bg-raised border border-afs-chrome-dim rounded metal-edge p-6
+  w-full {maxWidthClass} with a stopPropagation click handler so clicking
+  the panel itself doesn't close it. title renders as
+  font-heading text-xl text-afs-chrome-high mb-4 when provided; footer
+  renders as a flex gap-3 justify-end mt-6 row when provided (both
+  existing modals put their Cancel/Confirm buttons in exactly this
+  layout). Added Escape-to-close (neither existing hand-rolled modal has
+  this; a small, low-risk addition standard for a shared modal
+  primitive, not present in either source it was modeled on).
+
+Toast.tsx (NEW, afs-ui-001)
+  Props: message (string | null) | variant? ('success'|'error'|'info',
+         default 'success') | duration? (number ms, default 3000) |
+         onDismiss (() => void)
+  Matches app/studio/draft/page.tsx's existing local toast exactly (the
+  one afs-040's build notes flagged as having "no shared Toast.tsx
+  component to reuse"): fixed bottom-6 right-6 z-[70] bg-afs-bg-raised
+  border rounded px-4 py-3 shadow-raised, font-body text-sm
+  text-afs-chrome-high message text. FlashDraft's original only ever
+  used a green border (afs-accent-green, its save-success case); this
+  component generalizes that into a variant prop (success→
+  afs-accent-green, error→afs-crimson, info→afs-info) so error/info
+  toasts elsewhere don't have to invent their own border color. Unlike
+  FlashDraft's original (where the parent owns a raw setTimeout to clear
+  its toast string), this component owns the auto-dismiss timer itself
+  (starts/resets whenever `message` changes, calls `onDismiss` after
+  `duration`) so callers don't each reimplement the same setTimeout.
+  Renders null when `message` is null.
+
+Input.tsx (NEW, afs-ui-001)
+  Props: label? (string) | error? (string) | ...rest (native <input>
+         attributes — type, value, onChange, placeholder, disabled,
+         required, min, max, step, etc.) | forwards a ref
+  Matches the `inputClass`/`labelClass` constants already duplicated
+  across app/quote/page.tsx, app/checkout/page.tsx, and
+  ProfileDetailsModal.tsx: label (when provided) renders font-label
+  text-xs uppercase tracking-wide text-afs-chrome-mid mb-1.5 block; the
+  input itself is w-full bg-afs-bg-overlay border rounded px-3 py-2.5
+  font-body text-sm text-afs-chrome-high placeholder:text-afs-chrome-dim
+  focus:outline-none focus:border-afs-crimson transition-colors
+  disabled:opacity-50 disabled:pointer-events-none, with the border
+  color switching from afs-border to afs-crimson when `error` is set;
+  the error message (when provided) renders font-body text-xs
+  text-afs-crimson mt-1 below the input, matching
+  ProfileDetailsModal.tsx's nameError paragraph exactly. Does not
+  wrap <textarea> or <select> — every existing hand-rolled instance of
+  those uses a distinct multi-line/dropdown layout this component
+  doesn't attempt to generalize.
+
 Badge.tsx
   Props: variant ('success'|'warning'|'error'|'chrome'|'info')
          children (React.ReactNode)
@@ -45,11 +134,14 @@ EmptyState.tsx
   claimed one; the real file has no icon slot.
 ```
 
-If a future session builds any of the previously-specced primitives above,
-add them here individually as they're actually created — don't restore
-the old speculative list wholesale, since most of those component
-designs (variant names, styling details) were never validated against a
-real build either.
+If a future session builds any of the remaining ~16 previously-specced
+primitives above, add them here individually as they're actually
+created — don't restore the old speculative list wholesale, since most
+of those component designs (variant names, styling details) were never
+validated against a real build either. Button.tsx/Modal.tsx/Toast.tsx/
+Input.tsx (afs-ui-001, added above) are the precedent for how to do this
+correctly: each entry documents which real, already-on-screen hand-rolled
+pattern the new primitive was matched against, not an assumed design.
 
 ---
 
@@ -719,9 +811,14 @@ ProfileLibraryBrowser.tsx (components/studio/ — NEW, afs-038)
   site's fixed-element convention).
 
 app/studio/page.tsx
-  Design Studio landing — 3 tab cards: Scan to Quote (→ /upload), Photo to
-  Quote (→ /upload?tab=photos), FlashDraft (→ /studio/draft). afs-038
-  added a banner card below the 3-tile grid linking to /studio/library.
+  Design Studio landing — 4 tab cards (grid-cols-1 sm:grid-cols-2
+  lg:grid-cols-4, widened from a 3-column grid): Scan to Quote
+  (→ /upload), Photo to Quote (→ /upload?tab=photos), FlashDraft
+  (→ /studio/draft), and Custom Configurator (→ /configure, added
+  afs-cs-002) — the last links to the existing standalone Configurator
+  route unchanged; no route moved, no state shared between the two
+  tools. afs-038 added a banner card below the tile grid linking to
+  /studio/library.
 
 --- FlashDraft (`app/studio/draft/page.tsx`) — a 12-file `useReducer`
     rewrite (`lib/flashdraft/` + `components/studio/flashdraft/`) was

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { isAuthorizedBridgeRequest } from '@/lib/machine-bridge/auth';
+import { isAuthorizedBridgeRequest, logBridgeAuthFailure } from '@/lib/machine-bridge/auth';
 import { logAdminAction } from '@/lib/admin/audit';
 
 // 'staged_for_review' is not one of the two statuses originally sketched
@@ -21,6 +21,7 @@ const JOB_STATUS_BY_REPORT: Record<BridgeReportedStatus, string> = {
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!isAuthorizedBridgeRequest(request)) {
+    logBridgeAuthFailure(request, '/api/machine-bridge/job-delivered');
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

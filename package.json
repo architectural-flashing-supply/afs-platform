@@ -9,7 +9,10 @@
     "lint": "next lint",
     "import:machine-profiles": "tsx scripts/import-machine-profiles.ts",
     "import:additional-profiles": "tsx scripts/import-additional-profiles.ts",
-    "fix:profile-names": "tsx scripts/fix-profile-names.ts"
+    "fix:profile-names": "tsx scripts/fix-profile-names.ts",
+    "fix:gauges-seed": "tsx scripts/fix-gauges-seed.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.111.0",
@@ -25,6 +28,7 @@
     "three": "^0.185.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.48.0",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",

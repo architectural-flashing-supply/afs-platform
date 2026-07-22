@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { isAuthorizedBridgeRequest } from '@/lib/machine-bridge/auth';
+import { isAuthorizedBridgeRequest, logBridgeAuthFailure } from '@/lib/machine-bridge/auth';
 
 interface MachineJobRow {
   id: string;
@@ -33,6 +33,7 @@ interface MachineProfileBendRow {
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   if (!isAuthorizedBridgeRequest(request)) {
+    logBridgeAuthFailure(request, '/api/machine-bridge/pending-jobs');
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
