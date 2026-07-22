@@ -3,6 +3,9 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import BendSequenceDiagram from '@/components/studio/BendSequenceDiagram';
+import { formatInches } from '@/lib/utils/format-inches';
+
+const MM_PER_IN = 25.4;
 
 export interface LibraryProfileCardData {
   id: string;
@@ -252,6 +255,20 @@ export default function ProfileLibraryBrowser({ profiles }: { profiles: LibraryP
                 <p className="font-data text-sm text-afs-chrome-high">{modalProfile.bendCount}</p>
               </div>
             </div>
+            {modalProfile.bends.length > 0 && (
+              <div className="mb-4">
+                <p className="font-label text-xs uppercase tracking-wide text-afs-chrome-dim mb-2">Bend Sequence</p>
+                <div className="flex flex-col gap-1 max-h-48 overflow-y-auto">
+                  {modalProfile.bends.map((b, i) => (
+                    <p key={i} className="font-data text-xs text-afs-chrome-mid">
+                      Step {i + 1}: left leg {b.leftLegMm != null ? formatInches(b.leftLegMm / MM_PER_IN) : '—'}, turn{' '}
+                      {b.bendAngleDegrees != null ? `${b.bendAngleDegrees.toFixed(1)}°` : '—'}, right leg{' '}
+                      {b.rightLegMm != null ? formatInches(b.rightLegMm / MM_PER_IN) : '—'}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            )}
             <p className="font-body text-sm text-afs-chrome-dim mb-6">
               Fabricated {modalProfile.fabricatedCount} time{modalProfile.fabricatedCount === 1 ? '' : 's'} in shop history
             </p>

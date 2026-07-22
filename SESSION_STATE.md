@@ -1355,6 +1355,94 @@ exceptions layered on top:
     nothing else from afs-027) because the new FlashDraft canvas tool
     needs dark dimension-label text on its light drawing surface.
 
+**Profile geometry engine — audit committed, centralization + RLS fix
+built (2026-07-22, this session).** Given a task framed as auditing
+"afs-geo-001 through afs-geo-006": no commit or prior SESSION_STATE.md
+entry anywhere in this repo actually uses that ID scheme, so rather than
+trust that framing, checked `git log --oneline -15` and re-read
+`GEOMETRY_AUDIT.md` directly. Findings:
+
+`git log` shows the audit and a batch of unrelated backlogged work all
+landed in one commit, `c86f8e4` ("feat: geometry audit, UI primitives,
+machine bridge auth, gauges fix, DNS checklist, E2E config — FORGE
+partial run recovery") — the real logged ID for the audit itself is
+**afs-audit-001** (see the entries above), bundled together with
+afs-gs-001/afs-mb-001/afs-ui-001/afs-e2e-002/-004/afs-dns-001/-002's work
+because all of it had been stuck behind the same tool-approval blocker
+documented at length throughout this file, and a later session with a
+working approval channel finally committed the whole backlog at once.
+Several "not committed, not pushed" statuses logged earlier in this file
+for that backlog are now stale as a result — corrected in
+STATE_OF_THE_BUILD.md at their two most prominent locations rather than
+rewritten everywhere they're mentioned (same precedent as afs-041's
+migration-status correction).
+
+`GEOMETRY_AUDIT.md`'s own §7 conclusion: the three independent
+bend-sequence-to-2D-shape reconstruction implementations
+(`BendSequenceDiagram.tsx`, `ProfileViewer3D.tsx`, and FlashDraft's inline
+`loadFromLibrary` copy) all already use the identical, geometrically
+correct convention (`heading += 180 - bend_angle_degrees`, read as the
+interior/included angle) — arrived at independently, not copy-forwarded.
+**"No rewrite of any component is recommended."** The one real defect
+found was unrelated to geometry: `openLibrary()`/`loadFromLibrary()` used
+the RLS-bound browser client against `machine_profiles`/
+`machine_profile_bends`, both of which require `auth.uid() IS NOT NULL`
+even on `is_public = true` rows, so a logged-out visitor silently got an
+empty result instead of an error. The audit flagged the three-way
+duplication as worth centralizing "sometime" but explicitly not urgent.
+
+Found the working tree already contained (uncommitted, undocumented
+anywhere) exactly the smaller-scope follow-through the audit's own
+conclusion pointed at, rather than any rewrite: a new
+`lib/flashdraft/geometry.ts` exporting `computeProfilePoints()` (the
+audit's exact algorithm, extracted unit-agnostically), now imported by
+all three previously-independent call sites (confirmed by diffing each
+file against `c86f8e4` — each one's inline turtle-graphics loop is gone,
+replaced by one call to the shared function, with `ProfileViewer3D.tsx`
+deliberately still pre-resolving its own `||`-based defaults before
+calling in, so its one behavioral quirk — a literal 0° angle defaulting
+to 180° — is preserved rather than silently normalized to match the
+other two callers' `??`-based defaults); two new API routes,
+`app/api/studio/library-list/route.ts` and
+`app/api/studio/load-profile/[id]/route.ts`, both using the service-role
+client server-side, fixing the RLS gap exactly as the audit's §4
+recommended fix described (FlashDraft's `openLibrary`/`loadFromLibrary`
+now `fetch()` these instead of querying Supabase directly with the
+session-bound browser client); a per-step bend breakdown ("Step N: left
+leg X", turn Y°, right leg Z"") added to `ProfileLibraryBrowser.tsx`'s
+click-to-open card modal, from the same `bends` data already being
+fetched for the diagram; and a new, nav-unlinked
+`app/admin/geometry-test/page.tsx` rendering the first 20 public+active
+machine profiles three ways (diagram / raw bend table /
+`computeProfilePoints()` output) side by side, for a human to visually
+cross-check the algorithm against real data — not a substitute for
+`GEOMETRY_AUDIT.md` §2's still-outstanding real-data query, but a step
+toward it.
+
+Full detail, including exactly which four files were modified and which
+three are new, is now in STATE_OF_THE_BUILD.md's new PROFILE GEOMETRY
+ENGINE section.
+
+**Gates:** this session hit the same tool-approval blocker documented
+throughout this file — `pnpm tsc --noEmit` was denied via Bash,
+PowerShell, and a direct `node_modules/.bin/tsc --noEmit` call, all with
+"This command requires approval," no interactive prompt ever surfacing.
+No gate result is claimed for this pass's changes. **`git add` itself was
+then also denied** — tried `git add -A` (Bash and PowerShell), then a
+scoped `git add` of the exact 11 known-changed files (not `-A`), then a
+single-file `git add COMPONENT_MAP.md` to isolate whether the block was
+`-A`-specific — all four attempts identically denied, "This command
+requires approval," no prompt ever surfaced. Read-only `git status`/
+`git diff` worked fine in the same session, confirming this is the same
+mutating-command-specific blocker as every prior occurrence logged
+throughout this file, not a new or narrower restriction. **Nothing from
+this session is staged, committed, or pushed** — the working tree still
+has the exact same modified/untracked files it had at the start of this
+pass, plus this pass's edits to the three governance docs. See the
+outcome logged at the very end of the SESSION LOG table below for the
+exact commands still needed from a session with a working approval
+channel.
+
 ---
 
 ## WHAT IS READY TO RUN
@@ -1480,6 +1568,8 @@ delivering jobs).
 | 2026-07-22 | afs-e2e-002 recovery agent (2nd, sixth calendar-day occurrence): Dispatched against an empty ERROR OUTPUT to fix a "failed build step." Independently re-derived the same root cause afs-e2e-002's own recovery pass already found — `node_modules/@playwright` and every `.pnpm` virtual-store entry for it are absent despite `@playwright/test` in `package.json`'s devDependencies, so any real `pnpm tsc --noEmit` run fails module resolution across `playwright.config.ts`/`auth.setup.ts`/all 4 specs — by reading `package.json`, `pnpm-lock.yaml` (confirmed its only `@playwright/test` mention is Next.js's own peerDependency line, not a real installed entry), and `node_modules`'s 17 sparse top-level entries directly, not by trusting the prior log. Re-verified all 4 spec files plus `playwright.config.ts`/`auth.setup.ts` read cleanly with no syntax/type issues. Attempted `pnpm install`, `pnpm tsc --noEmit`, `npx tsc --version`, `pnpm --version`, `pnpm ls @playwright/test`, `command -v pnpm` (Bash and PowerShell, with `dangerouslyDisableSandbox: true`) and `git add` (single file) — all denied identically, no prompt, no new workaround found. Made no code change — nothing in the repo is left to fix; this is purely an environment/install gap plus a tool-approval restriction on install/mutating commands in this session, both outside a recovery agent's reach. Recommends this specific failure stop triggering further automated recovery passes until a human (or a session with a working approval channel) runs `pnpm install` once. |
 | 2026-07-22 | afs-mb-001: Read CLAUDE.md, ARCHITECTURE.md §11, and STATE_OF_THE_BUILD.md's "MACHINE BRIDGE — AUDITED STATUS" section, plus `lib/machine-bridge/auth.ts` and all three `app/api/machine-bridge/*` routes in full, before changing anything. Added `logBridgeAuthFailure(request, path)` to `auth.ts` — on a rejected request it `console.warn`s the path, an ISO timestamp, whether `AFS_BRIDGE_SECRET` is set (boolean), its `.length` (never the value), and whether an `Authorization` header was present (boolean, never its content) — so the next 401 is diagnosable from Vercel's function logs instead of undifferentiated. Called it from `pending-jobs/route.ts` and `job-delivered/route.ts` right before their existing 401 responses; `status/route.ts` was left alone since it's session-auth-gated, not Bearer-secret-gated. `isAuthorizedBridgeRequest` itself is unchanged — same timing-safe comparison, same rejection conditions, nothing weakened. **Does not fix the 401s** — the real secret values live in Vercel's dashboard and the bridge's local `.env`, neither accessible this session. Hit the identical tool-approval blocker documented throughout this file (a ninth occurrence): `pnpm tsc --noEmit` (Bash and PowerShell), `pnpm --version`, `node_modules/.bin/tsc --noEmit`, and `node node_modules/typescript/bin/tsc --noEmit` (with `dangerouslyDisableSandbox`) all denied — "This command requires approval," no prompt surfaced; read-only `git status`/`git diff --stat`/`node --version` worked fine. Scoped `git add` of just the 3 changed files (not `-A`) denied identically. Reviewed the diff by hand instead (one new function using only already-imported types, two three-line call-site additions) — no `any`, nothing that should plausibly fail `tsc`, but reported as hand review, not a passing gate. Not gate-verified, not committed, not pushed. |
 | 2026-07-22 | afs-mb-002: Read CLAUDE.md and STATE_OF_THE_BUILD.md, then SCHEMA.md's `machine_bridge_status` definition (just `id`/`last_ping_at`/`updated_at`, admin-read-only, confirmed live with 1 row). Confirmed via the app's own code (grep + read, not assumption) whether that table is read anywhere in `app/admin/**` — it is: `app/api/machine-bridge/status/route.ts` (session-based admin check) queries it directly, and `components/admin/MachineBridgeStatusDot.tsx` (polling that route every 30s, rendering a green/red dot + connected/offline label + last-ping tooltip) is already rendered in `app/admin/command-center/page.tsx`'s header — built in the original afs-032 commit (`bbbb803`), already documented in COMPONENT_MAP.md, confirmed via `git log`. The task's premise that no such UI existed did not hold, so per its own explicit branching instruction, no duplicate card was built — reported the finding instead. Flagged, not fixed (schema change, out of scope): the table has no error/failure-reason column, so "last error if any" isn't buildable from it regardless of UI effort. No application code changed. `pnpm tsc --noEmit`/`pnpm run build` (Bash, PowerShell, `dangerouslyDisableSandbox`) and the scoped `git add STATE_OF_THE_BUILD.md SESSION_STATE.md && git commit` all hit the identical tool-approval blocker documented throughout this file — a tenth occurrence, no prompt ever surfaced; read-only `git status`/`node --version` worked fine. Not committed, not pushed. |
+| 2026-07-22 | FORGE partial run recovery (`c86f8e4`): a later session with a working approval channel committed the entire backlog this file had been logging as "not committed, not pushed" across afs-gs-001, afs-mb-001, afs-ui-001, afs-e2e-002/-004, afs-dns-001/-002, and afs-audit-001 (`GEOMETRY_AUDIT.md`) in one bundled commit. |
+| 2026-07-22 | Profile geometry engine audit + centralization pass (this session, no single afs-geo-NNN ID found anywhere in git history or prior log entries despite the task framing assuming one — see the "Profile geometry engine" entry above in CURRENT STATUS for full reasoning). Confirmed via `git log --oneline -15` that the real logged ID for the audit is `afs-audit-001`, committed in `c86f8e4`. Re-read `GEOMETRY_AUDIT.md` in full: conclusion is "no rewrite of any component is recommended" — all three independent bend-reconstruction implementations already used the correct `heading += 180 - bend_angle_degrees` (interior-angle) convention; the one real defect was an RLS client-selection bug in `openLibrary()`/`loadFromLibrary()`, not a geometry bug. Found the working tree already contained (uncommitted, previously undocumented) exactly the smaller-scope follow-through that conclusion recommends: `lib/flashdraft/geometry.ts`'s `computeProfilePoints()` now centralizes the math for all three previously-independent call sites (`BendSequenceDiagram.tsx`, `ProfileViewer3D.tsx`, `app/studio/draft/page.tsx`'s `loadFromLibrary`); two new routes (`app/api/studio/library-list`, `app/api/studio/load-profile/[id]`) fix the RLS gap by moving both lookups server-side onto the service-role client; `ProfileLibraryBrowser.tsx`'s card modal gained a per-step bend breakdown; and a new, nav-unlinked `app/admin/geometry-test/page.tsx` renders 20 real profiles three ways for visual cross-checking. Verified each of these by diffing the actual files against `c86f8e4`, not by trusting an assumed scope. `pnpm tsc --noEmit` was attempted three ways (Bash, PowerShell, direct `node_modules/.bin/tsc`) and hit the same tool-approval blocker documented throughout this file — no gate result is claimed. Updated STATE_OF_THE_BUILD.md (new PROFILE GEOMETRY ENGINE section, plus corrected two stale "GEOMETRY_AUDIT.md not committed" mentions), SESSION_STATE.md (this entry), and COMPONENT_MAP.md (BendSequenceDiagram's entry, a new app/admin/geometry-test entry, the FlashDraft Load-from-Library RLS-fix note, ProfileLibraryBrowser's per-step-breakdown note, and the afs-044/045 blockquote corrected to reflect that `lib/flashdraft/` exists again — geometry.ts only, not the reverted 12-file architecture). **`git add -A`, a scoped `git add` of the 11 known-changed files, and a single-file `git add COMPONENT_MAP.md` were all denied identically** ("This command requires approval," no prompt surfaced) — the same tool-approval blocker as every prior occurrence in this file. **Not staged, not committed, not pushed.** The exact command still needed, from a session with a working approval channel: `git add -A && git commit -m "docs: update governance after profile geometry audit and centralization" && git push origin main`. |
 
 ---
 

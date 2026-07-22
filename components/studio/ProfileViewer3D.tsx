@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { formatInches } from '@/lib/utils/format-inches';
+import { computeProfilePoints } from '@/lib/flashdraft/geometry';
 
 export interface ProfileBend {
   leftLeg: number;
@@ -82,34 +83,26 @@ function mmToIn(mm: number): number {
 
 /**
  * Same "turtle graphics" reconstruction used by FlashDraft's Load from
- * Library and the Command Center's BendSequenceDiagram: walk each leg,
- * turn by the supplementary bend angle, repeat. An approximation of the
- * true folded shape (no explicit direction/connectivity metadata exists
- * in a bend-sequence record), not an exact CAD trace.
+ * Library and the Command Center's BendSequenceDiagram — now centralized
+ * in lib/flashdraft/geometry.ts's computeProfilePoints (see
+ * GEOMETRY_AUDIT.md): walk each leg, turn by the supplementary bend
+ * angle, repeat. An approximation of the true folded shape (no explicit
+ * direction/connectivity metadata exists in a bend-sequence record), not
+ * an exact CAD trace. `bend.leftLeg`/`bend.angle` are pre-resolved with
+ * `||` (not `??`) here, exactly as the prior inline implementation did,
+ * so a literal 0-degree angle still defaults to 180° (straight through)
+ * rather than being read as a full fold-back — preserving this file's
+ * own prior edge-case behavior bit-for-bit rather than silently
+ * adopting BendSequenceDiagram/loadFromLibrary's `??`-based default.
  */
 function buildProfilePoints(bends: ProfileBend[]): Point2D[] {
-  const points: Point2D[] = [{ x: 0, y: 0 }];
-  let heading = 0;
-  let current: Point2D = { x: 0, y: 0 };
-  for (const bend of bends) {
-    const legLen = bend.leftLeg || 0;
-    current = {
-      x: current.x + Math.cos((heading * Math.PI) / 180) * legLen,
-      y: current.y + Math.sin((heading * Math.PI) / 180) * legLen,
-    };
-    points.push(current);
-    heading += 180 - (bend.angle || 180);
-  }
-  if (bends.length > 0) {
-    const last = bends[bends.length - 1];
-    const legLen = last.rightLeg || 0;
-    current = {
-      x: current.x + Math.cos((heading * Math.PI) / 180) * legLen,
-      y: current.y + Math.sin((heading * Math.PI) / 180) * legLen,
-    };
-    points.push(current);
-  }
-  return points;
+  return computeProfilePoints(
+    bends.map((b) => ({
+      legIn: b.leftLeg || 0,
+      nextLegIn: b.rightLeg || 0,
+      bendAngleDegrees: b.angle || 180,
+    }))
+  ).points;
 }
 
 function segNormal(a: Point2D, b: Point2D): Point2D {

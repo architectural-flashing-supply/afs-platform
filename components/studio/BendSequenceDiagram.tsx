@@ -1,3 +1,5 @@
+import { computeProfilePoints } from '@/lib/flashdraft/geometry';
+
 interface Bend {
   leftLegMm: number | null;
   rightLegMm: number | null;
@@ -13,34 +15,23 @@ interface Point {
 const SCALE_PX_PER_MM = 0.6;
 const PADDING = 24;
 
-// Same "turtle graphics" reconstruction FlashDraft's Load from Library uses:
-// draw the left leg, turn by the supplementary bend angle, repeat, then draw
-// the final right leg. An approximation of the true folded shape, not an
-// exact CAD trace — there's no explicit connectivity/direction metadata in
-// the source bend records to reconstruct it precisely.
+// Same "turtle graphics" reconstruction FlashDraft's Load from Library uses
+// (now centralized in lib/flashdraft/geometry.ts's computeProfilePoints —
+// see GEOMETRY_AUDIT.md): draw the left leg, turn by the supplementary bend
+// angle, repeat, then draw the final right leg. An approximation of the
+// true folded shape, not an exact CAD trace — there's no explicit
+// connectivity/direction metadata in the source bend records to
+// reconstruct it precisely. mm values are passed straight through
+// unconverted (the shared function is unit-agnostic), so output is
+// unchanged bit-for-bit from the prior inline implementation.
 function reconstructPoints(bends: Bend[]): Point[] {
-  const points: Point[] = [{ x: 0, y: 0 }];
-  let heading = 0;
-  let current = { x: 0, y: 0 };
-  for (const bend of bends) {
-    const legMm = bend.leftLegMm ?? 0;
-    current = {
-      x: current.x + Math.cos((heading * Math.PI) / 180) * legMm,
-      y: current.y + Math.sin((heading * Math.PI) / 180) * legMm,
-    };
-    points.push(current);
-    heading += 180 - (bend.bendAngleDegrees ?? 180);
-  }
-  if (bends.length > 0) {
-    const last = bends[bends.length - 1];
-    const legMm = last.rightLegMm ?? 0;
-    current = {
-      x: current.x + Math.cos((heading * Math.PI) / 180) * legMm,
-      y: current.y + Math.sin((heading * Math.PI) / 180) * legMm,
-    };
-    points.push(current);
-  }
-  return points;
+  return computeProfilePoints(
+    bends.map((b) => ({
+      legIn: b.leftLegMm,
+      nextLegIn: b.rightLegMm,
+      bendAngleDegrees: b.bendAngleDegrees,
+    }))
+  ).points;
 }
 
 export default function BendSequenceDiagram({ bends, className }: { bends: Bend[]; className?: string }) {

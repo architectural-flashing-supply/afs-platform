@@ -696,12 +696,35 @@ BendSequenceDiagram.tsx (components/studio/ — relocated from
   React flags as a hydration mismatch; this surfaced only once the
   component was first server-rendered, by the Profile Library page below
   (its only prior use, Command Center, is client-rendered).
+  **Post-GEOMETRY_AUDIT.md (see PROFILE GEOMETRY ENGINE in
+  STATE_OF_THE_BUILD.md):** its own inline `reconstructPoints` no longer
+  does the turtle-graphics math itself — it now calls
+  `computeProfilePoints()` from the new `lib/flashdraft/geometry.ts` and
+  maps its own mm-unit `Bend` fields onto that shared function's
+  unit-agnostic interface. Output is bit-for-bit unchanged (no unit
+  conversion is introduced — mm values pass straight through). This same
+  shared function now also backs `ProfileViewer3D.tsx`'s
+  `buildProfilePoints` and `app/studio/draft/page.tsx`'s
+  `loadFromLibrary`, which previously carried three independent,
+  near-identical copies of this exact math (see GEOMETRY_AUDIT.md §3).
 
 MachineBridgeStatusDot.tsx
   Polls /api/machine-bridge/status every 30s. Green if the bridge pinged
   within the last 90s (2x the bridge's own 30s poll interval), red
   otherwise. See STATE_OF_THE_BUILD.md for the bridge's current audited
   connectivity status.
+
+app/admin/geometry-test/page.tsx (NEW — post-GEOMETRY_AUDIT.md)
+  Internal validation tool only, not linked from NavBar.tsx or
+  AdminShell.tsx's nav sections — reachable only by typing the URL
+  directly. Server component, admin-gated (requireAdminUser, same
+  redundant page-local check every /admin page does on top of
+  app/admin/layout.tsx's own gate), service-role client. Renders the
+  first 20 public+active machine_profiles side by side three ways: the
+  BendSequenceDiagram SVG, a raw bend-data table (left/right leg inches,
+  angle), and the literal computeProfilePoints() output coordinates — for
+  visually cross-checking the shared geometry function against real
+  production data. See PROFILE GEOMETRY ENGINE in STATE_OF_THE_BUILD.md.
 ```
 
 ---
@@ -808,7 +831,13 @@ ProfileLibraryBrowser.tsx (components/studio/ — NEW, afs-038)
   count, "Fabricated N times", "Load into FlashDraft" link, "Compare"
   toggle), and a 3-item comparison tray fixed to the bottom of the
   viewport (left-48 to clear NavBar's rail, matching the rest of the
-  site's fixed-element convention).
+  site's fixed-element convention). The click-to-open card modal (added
+  afs-042) now also lists a per-step bend breakdown below the diagram/
+  stats — "Step N: left leg X", turn Y°, right leg Z" per bend, using the
+  same `bends` prop data already fetched server-side for the diagram,
+  formatted with `formatInches()` — a text-readable equivalent of the SVG
+  for anyone who wants the exact numbers rather than reading them off the
+  drawing.
 
 app/studio/page.tsx
   Design Studio landing — 4 tab cards (grid-cols-1 sm:grid-cols-2
@@ -823,14 +852,23 @@ app/studio/page.tsx
 --- FlashDraft (`app/studio/draft/page.tsx`) — a 12-file `useReducer`
     rewrite (`lib/flashdraft/` + `components/studio/flashdraft/`) was
     built and committed as afs-044 (508b5ee, 2026-07-15), then reverted
-    the same day as afs-045 (b37d936) before it was used further —
-    `lib/flashdraft/` and `components/studio/flashdraft/` do NOT exist on
-    disk; do not look for them. The single-file page.tsx below is the
-    real, current implementation (confirmed via a fresh directory listing
-    and `wc -l`, not carried forward from before the rewrite — it still
-    includes every fix from afs-043, which landed before afs-044 and
-    survived the revert untouched). See SESSION_STATE.md's afs-045 entry
-    for why the rewrite was reverted. ---
+    the same day as afs-045 (b37d936) before it was used further.
+    `components/studio/flashdraft/` still does NOT exist on disk — do not
+    look for it. The single-file page.tsx below is the real, current
+    implementation (confirmed via a fresh directory listing and `wc -l`,
+    not carried forward from before the rewrite — it still includes every
+    fix from afs-043, which landed before afs-044 and survived the revert
+    untouched). See SESSION_STATE.md's afs-045 entry for why the rewrite
+    was reverted.
+    **`lib/flashdraft/` exists again as of the GEOMETRY_AUDIT.md
+    follow-up work (see PROFILE GEOMETRY ENGINE in
+    STATE_OF_THE_BUILD.md)** — but only one file,
+    `lib/flashdraft/geometry.ts`, a small shared reconstruction utility
+    unrelated to afs-044's reverted 12-file state-machine architecture.
+    Do not confuse the two: this is not the rewrite coming back, it's a
+    narrow extraction of math that was independently duplicated three
+    times, landing on top of the single-file page.tsx that afs-045
+    restored. ---
 
 app/studio/draft/page.tsx ("FlashDraft")
   A large client-component page (2,268 lines), not a separate reusable
@@ -848,6 +886,27 @@ app/studio/draft/page.tsx ("FlashDraft")
   useSearchParams, to keep the page statically prerenderable), Submit
   for Quote. The canvas itself is drawn via a local CANVAS_COLORS
   constant — see DESIGN_TOKENS.md §10 for the exception this follows.
+    • Load from Library / Open-library modal — `openLibrary()` and
+      `loadFromLibrary()` now fetch `app/api/studio/library-list` and
+      `app/api/studio/load-profile/[id]` (both NEW) instead of querying
+      `machine_profiles`/`machine_profile_bends` directly with the
+      session-bound browser client. Fixes a real RLS gap found by
+      GEOMETRY_AUDIT.md §4: both tables' RLS policies require
+      `auth.uid() IS NOT NULL` even on `is_public = true` rows, so a
+      logged-out visitor got a silent empty result (an apparently-empty
+      library, or a blank single-point canvas after "Load into
+      FlashDraft") with no error shown. Both new routes use the
+      service-role client server-side — `library-list` only ever returns
+      public+active rows (no visibility check needed); `load-profile/[id]`
+      enforces the actual privacy rule (public+active visible to anyone,
+      private visible only to a logged-in admin, otherwise 404) — the
+      same pattern `app/studio/library/page.tsx` and
+      `app/studio/profile-viewer/[profileId]/page.tsx` already used
+      server-side. Bend-sequence reconstruction inside `loadFromLibrary`
+      itself is unchanged except that it now calls the shared
+      `computeProfilePoints()` (see PROFILE GEOMETRY ENGINE in
+      STATE_OF_THE_BUILD.md) instead of its own inline copy of the same
+      math.
     • Leg-point dragging — pointerdown on an interior bend point arms
       `draggingVertexIndex`; pointermove repositions that one point
       directly (snapped to the ⅛" grid), with its two adjacent legs'
@@ -933,3 +992,4 @@ app/studio/profile-viewer/[profileId]/page.tsx
 *LAYER 1 rewritten to match the real components/ui/ directory (2 files, not ~20), 2026-07-14 (afs-041).*
 *LAYER 12's FlashDraft entry rewritten for the afs-044 complete architecture rewrite (lib/flashdraft/ + components/studio/flashdraft/, 12 files replacing the old single-file page.tsx), 2026-07-15.*
 *LAYER 12's FlashDraft entry corrected back to the single-file page.tsx after afs-044 was reverted (afs-045, commit b37d936), 2026-07-15 — lib/flashdraft/ and components/studio/flashdraft/ no longer exist. Also corrected two pre-existing staleness bugs found during this pass, unrelated to the revert: the bend-angle indicator and 2D/3D toggle descriptions still described superseded afs-034/afs-038 behavior instead of afs-040/afs-042's actual current rendering.*
+*Updated after GEOMETRY_AUDIT.md and its follow-up centralization work: BendSequenceDiagram.tsx's entry (LAYER 10) now notes its reconstruction math is centralized in the new lib/flashdraft/geometry.ts; a new app/admin/geometry-test/page.tsx entry added (LAYER 10); LAYER 12's FlashDraft entry documents the Load from Library RLS fix (two new API routes, app/api/studio/library-list and app/api/studio/load-profile/[id]) and ProfileLibraryBrowser's new per-step bend breakdown in its card modal; the afs-044/045 blockquote corrected to note lib/flashdraft/ exists again (geometry.ts only — not the reverted 12-file architecture, and components/studio/flashdraft/ still does not exist). See STATE_OF_THE_BUILD.md's PROFILE GEOMETRY ENGINE section for full detail.*

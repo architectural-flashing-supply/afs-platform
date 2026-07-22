@@ -6,6 +6,7 @@ import { ALL_MATERIALS, GAUGES_BY_MATERIAL } from '@/lib/data/catalog';
 import { gaugeToThicknessMm } from '@/lib/utils/gauge-thickness';
 import { formatInches } from '@/lib/utils/format-inches';
 import ProfileViewer3D, { type ProfileBend } from '@/components/studio/ProfileViewer3D';
+import { computeProfilePoints } from '@/lib/flashdraft/geometry';
 import BendSequenceDiagram from '@/components/studio/BendSequenceDiagram';
 import SubmitConfirmation3DModal, { type PaintFace } from '@/components/studio/SubmitConfirmation3DModal';
 import MatchedProfile3DModal from '@/components/studio/MatchedProfile3DModal';
@@ -1572,59 +1573,51 @@ export default function FlashDraftPage() {
   const openLibrary = async () => {
     setShowLibrary(true);
     setLibraryLoading(true);
-    const supabase = createClient();
-    const { data } = await supabase
-      .from('machine_profiles')
-      .select('id, name_en, profile_number')
-      .eq('is_public', true)
-      .eq('is_active', true)
-      .order('name_en');
-    setLibraryProfiles((data ?? []) as LibraryProfile[]);
+    const res = await fetch('/api/studio/library-list');
+    let profiles: LibraryProfile[] = [];
+    if (res.ok) {
+      const data = (await res.json()) as { profiles: LibraryProfile[] };
+      profiles = data.profiles ?? [];
+    }
+    setLibraryProfiles(profiles);
     setLibraryLoading(false);
   };
 
   const loadFromLibrary = useCallback(async (profileId: string) => {
-    const supabase = createClient();
-    const { data } = await supabase
-      .from('machine_profile_bends')
-      .select('step_number, left_leg_in, right_leg_in, bend_angle_degrees')
-      .eq('profile_id', profileId)
-      .order('step_number', { ascending: true });
-
-    const bends = (data ?? []) as {
+    const res = await fetch(`/api/studio/load-profile/${profileId}`);
+    let bends: {
       step_number: number;
       left_leg_in: number | null;
       right_leg_in: number | null;
       bend_angle_degrees: number | null;
-    }[];
+    }[] = [];
+    if (res.ok) {
+      const data = (await res.json()) as {
+        bends: {
+          step_number: number;
+          left_leg_in: number | null;
+          right_leg_in: number | null;
+          bend_angle_degrees: number | null;
+        }[];
+      };
+      bends = data.bends ?? [];
+    }
 
     // Best-effort geometry reconstruction: the source machine data records
     // each bend's two adjacent leg lengths and included angle, not an
     // explicit direction/connectivity graph, so this "turtle graphics" walk
     // (draw the left leg, turn by the supplementary bend angle, repeat) is
     // an approximation of the true folded shape, not an exact CAD trace.
-    const reconstructed: Point[] = [{ x: 0, y: 0 }];
-    let heading = 0;
-    let current = { x: 0, y: 0 };
-    for (const bend of bends) {
-      const legLength = bend.left_leg_in ?? 0;
-      current = {
-        x: current.x + Math.cos((heading * Math.PI) / 180) * legLength,
-        y: current.y + Math.sin((heading * Math.PI) / 180) * legLength,
-      };
-      reconstructed.push(current);
-      const angle = bend.bend_angle_degrees ?? 180;
-      heading += 180 - angle;
-    }
-    if (bends.length > 0) {
-      const last = bends[bends.length - 1];
-      const legLength = last.right_leg_in ?? 0;
-      current = {
-        x: current.x + Math.cos((heading * Math.PI) / 180) * legLength,
-        y: current.y + Math.sin((heading * Math.PI) / 180) * legLength,
-      };
-      reconstructed.push(current);
-    }
+    // Centralized in lib/flashdraft/geometry.ts's computeProfilePoints —
+    // see GEOMETRY_AUDIT.md — shared with BendSequenceDiagram and
+    // ProfileViewer3D's identical reconstructions.
+    const { points: reconstructed } = computeProfilePoints(
+      bends.map((bend) => ({
+        legIn: bend.left_leg_in,
+        nextLegIn: bend.right_leg_in,
+        bendAngleDegrees: bend.bend_angle_degrees,
+      }))
+    );
 
     setPast((p) => [...p, points]);
     setFuture([]);
