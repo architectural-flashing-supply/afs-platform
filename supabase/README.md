@@ -12,6 +12,7 @@ migrations/
   003_pricing_rules_cost_notes.sql    Adds pricing_rules.cost_notes (manual pricing mode)
   004_machine_profiles.sql            Thalmann DS2801 machine profile library (Design Studio)
   005_machine_jobs.sql                Machine Bridge job approval queue (Command Center)
+  006_canonical_profiles.sql          Canonical profile library — hand-crafted profile geometry (Design Studio)
 ```
 
 Run them in numeric order. Each file is idempotent-safe to re-run only where it
@@ -28,7 +29,8 @@ re-running against a database that already has the schema will error on
 5. Paste the contents of `003_pricing_rules_cost_notes.sql`, run it
 6. Paste the contents of `004_machine_profiles.sql`, run it
 7. Paste the contents of `005_machine_jobs.sql`, run it
-8. Verify: **Table Editor** should show 41 tables, all with the RLS lock icon enabled
+8. Paste the contents of `006_canonical_profiles.sql`, run it
+9. Verify: **Table Editor** should show 42 tables, all with the RLS lock icon enabled
 
 ## 004_machine_profiles.sql — Design Studio machine profile library
 
@@ -85,6 +87,33 @@ polling service that reads `machine_jobs` (via
 `app/api/machine-bridge/pending-jobs`) and generates `.ds1` files — including
 why generated files require manual human verification before they reach the
 real Thalmann machine.
+
+## 006_canonical_profiles.sql — Canonical profile library
+
+Also **not** run automatically — paste it into the SQL Editor per Option A
+step 8. Adds `canonical_profiles`: a second, independent profile source
+alongside `machine_profiles` — hand-crafted, mathematically correct
+flashing profiles stored as pre-computed XY point sequences (`points`
+JSONB), plus a companion `bends` JSONB column for display/provenance. Unlike
+`machine_profiles`, there's no bend-angle reconstruction at read time and
+no private-row concept — this is curated reference geometry, not shop job
+history, so RLS is a simple `public_read_canonical` (any active row,
+open to anyone) plus `admin_write_canonical` (via the existing `is_admin()`
+function from migration 001).
+
+After running it, seed the 25 hand-crafted profiles:
+
+```powershell
+pnpm tsx scripts/seed-canonical-profiles.ts
+```
+
+This computes each profile's `points`/`bends` from a single turtle-graphics
+move list per profile (defined in the script itself, not read from an
+external file) and upserts on `slug`, so it's safe to re-run. See
+SCHEMA.md's CANONICAL PROFILE LIBRARY TABLE section and
+STATE_OF_THE_BUILD.md's CANONICAL PROFILE LIBRARY section for full detail,
+including why FlashDraft's "Load into FlashDraft" path uses the stored
+`points` directly rather than reconstructing from `bends`.
 
 ## Option B — Supabase CLI
 

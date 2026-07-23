@@ -1,13 +1,14 @@
 # SCHEMA.md
 ## AFS — Supabase Database Schema
-**41 tables across 5 migration files. RLS on every table. Indexes on every
+**42 tables across 6 migration files. RLS on every table. Indexes on every
 foreign key and filter column.** (This document's "TABLE N" numbering below
 covers the original 25 sections designed in migration 001 — several of
 those sections define more than one physical table, e.g. TABLE 8 =
 `accessories` + `product_accessories`. The MACHINE INTEGRATION and MACHINE
 BRIDGE sections near the end of this document add 5 more tables via
-migrations 004 and 005. 41 is the count `supabase/README.md` verifies
-against the live database after all 5 migrations are applied.)
+migrations 004 and 005, and the CANONICAL PROFILE LIBRARY section adds 1
+more via migration 006. 42 is the count `supabase/README.md` verifies
+against the live database after all 6 migrations are applied.)
 
 ---
 
@@ -20,11 +21,16 @@ supabase/migrations/
   003_pricing_rules_cost_notes.sql     Adds pricing_rules.cost_notes (see TABLE 9)
   004_machine_profiles.sql             Design Studio machine profile library (see MACHINE INTEGRATION TABLES)
   005_machine_jobs.sql                 Machine Bridge job queue (see MACHINE BRIDGE TABLES)
+  006_canonical_profiles.sql           Canonical profile library (see CANONICAL PROFILE LIBRARY TABLE)
 ```
 
-Run in numeric order — see `supabase/README.md` for the exact procedure and
-current live-database apply status (as of 2026-07-13: 001–003 and 005 are
-NOT yet applied to the live project; 004 has been applied and populated).
+Run in numeric order — see `supabase/README.md` for the exact procedure.
+As of 2026-07-22, all 6 migrations (001–006) are confirmed applied to the
+live Supabase project — verified directly via the service-role client
+across two sessions (STATE_OF_THE_BUILD.md's afs-041 correction for
+001–005, and this session's direct pre/post query for 006), not carried
+forward from this line's long-stale "001–003 and 005 NOT yet applied"
+claim.
 
 ---
 
@@ -1233,6 +1239,64 @@ CREATE TABLE machine_bridge_status (
 -- audit entries to:
 ALTER TABLE admin_audit_log ALTER COLUMN admin_id DROP NOT NULL;
 ```
+
+---
+
+## CANONICAL PROFILE LIBRARY TABLE (migration 006_canonical_profiles.sql)
+
+A second, independent profile source alongside `machine_profiles` — 25
+hand-crafted, mathematically correct flashing profiles stored as
+pre-computed XY point sequences, populated via
+`scripts/seed-canonical-profiles.ts` (`pnpm tsx
+scripts/seed-canonical-profiles.ts`). Unlike `machine_profiles`, these do
+NOT go through the bend-angle turtle-graphics reconstruction in
+`lib/flashdraft/geometry.ts` at read time — `points` is the exact, final
+polyline, computed once at seed time from an explicit turtle-graphics move
+list and stored as-is. Public resource, not shop job history — no private-
+row concept, unlike `machine_profiles`.
+
+```sql
+CREATE TABLE canonical_profiles (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name            TEXT NOT NULL,
+  slug            TEXT NOT NULL UNIQUE,
+  category        TEXT NOT NULL,
+  description     TEXT,
+  blank_width_in  DECIMAL(8,3) NOT NULL,
+  points          JSONB NOT NULL,  -- [{"x": 0, "y": 0}, ...] pre-computed SVG coordinates, inches
+  bends           JSONB NOT NULL,  -- [{"leftLegIn": 4, "rightLegIn": 3, "angleDegrees": 90, "direction": "up"}, ...]
+  tags            TEXT[] DEFAULT '{}',
+  is_active       BOOLEAN DEFAULT true,
+  sort_order      INTEGER DEFAULT 0,
+  created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_canonical_profiles_category ON canonical_profiles(category);
+CREATE INDEX idx_canonical_profiles_sort ON canonical_profiles(sort_order);
+
+ALTER TABLE canonical_profiles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "public_read_canonical" ON canonical_profiles FOR SELECT USING (is_active = true);
+CREATE POLICY "admin_write_canonical" ON canonical_profiles FOR ALL USING (is_admin());
+```
+
+Column notes:
+- `slug` — unique, human-readable identifier (e.g. `standard-coping-cap`),
+  used as the seed script's upsert key (`onConflict: 'slug'`), so re-running
+  the seed script is safe.
+- `category` — matches the AFS product category vocabulary used in
+  `app/studio/library/page.tsx`'s `AFS_PRODUCT_CATEGORIES` (e.g. "Coping
+  Caps & Cleats", "Valley Flashing"), not `machine_profile_categories` rows.
+- `points` / `bends` — both derived from the same turtle-graphics move list
+  per profile in the seed script, so they can never drift out of sync with
+  each other. `points` is consumed directly by
+  `components/studio/CanonicalProfileDiagram.tsx` and by FlashDraft's
+  `?loadCanonical=1` load path (`app/studio/draft/page.tsx`); `bends` is
+  display/provenance data (the per-step breakdown in
+  `components/studio/CanonicalProfileBrowser.tsx`'s card modal), not a data
+  path FlashDraft loading uses — see STATE_OF_THE_BUILD.md's CANONICAL
+  PROFILE LIBRARY section for why.
+- Served by `app/api/studio/canonical-profiles/route.ts` (GET, service-role
+  client, `category`/`search` query params, ordered by `sort_order`).
 
 ---
 
