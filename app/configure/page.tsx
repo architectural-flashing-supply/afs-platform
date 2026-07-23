@@ -488,7 +488,7 @@ export default function ConfiguratorPage() {
                 key={p.value}
                 type="button"
                 onClick={() => selectProfile(p.value)}
-                className={`font-label py-2 px-3 text-sm font-medium rounded border text-left transition-colors ${
+                className={`font-label min-h-[52px] h-auto py-2 px-3 text-sm font-medium rounded border whitespace-normal leading-tight text-center transition-colors ${
                   profileType === p.value
                     ? 'bg-afs-crimson text-white border-afs-crimson'
                     : 'bg-afs-bg-overlay text-white border-afs-border'
@@ -666,7 +666,7 @@ export default function ConfiguratorPage() {
           <p className="text-sm text-afs-chrome-mid italic text-center mb-4">
             Specify exact dimensions and see a live diagram update as you type. AFS follows up with a formal quote.
           </p>
-          <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded metal-edge p-6 min-h-[440px] flex items-center justify-center">
+          <div className="bg-afs-bg-overlay border border-afs-chrome-dim rounded metal-edge p-6 min-h-[440px] flex items-center justify-center">
             {svgMarkup ? (
               <div
                 className="w-full max-w-[440px] aspect-square"
