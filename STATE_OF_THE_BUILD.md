@@ -2148,6 +2148,32 @@ gates above only. COMPONENT_MAP.md's configurator section was not updated
 SESSION_STATE.md) and remains stale against the real single-file
 `page.tsx` structure, a pre-existing gap this session did not create.
 
+### Follow-up fix — button overflow + preview canvas background (2026-07-23)
+
+Two targeted fixes to the same `app/configure/page.tsx`, no components
+imported from `components/configurator/` (that directory doesn't exist —
+this remains a single-file page, per the note above):
+
+1. **Profile Type button label clipping fixed.** The 17 profile-type
+   buttons (added in the 2026-07-22 grid expansion above) were clipping
+   longer labels like "Inside/Outside Corner", "Door/Window Pan", "Pitch
+   Change". Added `min-h-[52px] h-auto` so buttons grow vertically instead
+   of clipping, and `whitespace-normal leading-tight text-center` on the
+   button so labels wrap onto multiple lines instead of truncating. The
+   prior `text-left` was replaced by `text-center` per the task's explicit
+   instruction — no `whitespace-nowrap` or fixed height existed to remove.
+
+2. **Preview canvas background lightened.** The SVG/diagram preview panel
+   was `bg-afs-bg-raised`. DESIGN_TOKENS.md's bg scale (dim → base → raised
+   → surface → overlay → modal) has two real steps lighter than `raised`
+   before hitting the semi-transparent `bg-afs-bg-modal` (`rgba(42, 45, 53,
+   0.92)`, unsuitable for a solid card background) — moved to
+   `bg-afs-bg-overlay`, an existing token, no hardcoded hex and no
+   `bg-slate-600` fallback needed.
+
+**Gates:** `pnpm tsc --noEmit` — 0 errors. `pnpm run build` — exit 0. Both
+actually run and passed this session.
+
 ---
 
 ## BUILD PHASE STATUS
