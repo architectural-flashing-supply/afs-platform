@@ -2,38 +2,10 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { generateProfileSVG, KNOWN_PROFILE_TYPES, type ProfileType } from '@/lib/utils/profile-svg';
+import { generateProfileSVG, type ProfileType } from '@/lib/utils/profile-svg';
 
 type SubmitState = 'idle' | 'submitting' | 'submitted';
 type DimField = 'width' | 'height' | 'legA' | 'legB';
-
-// Profile types beyond the original 5 have no live SVG diagram yet —
-// lib/utils/profile-svg.ts's ProfileType/buildGeometry only cover
-// coping-cap/base-flashing/drip-edge/gravel-stop/fascia, and no geometry
-// was specified for these 12. They're still fully usable for a quote
-// request (dimensions, length, quantity, notes) — the preview panel falls
-// back to a "diagram not available yet" notice instead of blocking
-// selection, per CLAUDE.md's Data Blockers precedent (build the correct
-// architecture with explicit placeholder behavior, don't skip the feature).
-type UndiagrammedProfileType =
-  | 'custom-flashing'
-  | 'cleat'
-  | 'ridge'
-  | 'hip'
-  | 'downspout'
-  | 'pitch-change'
-  | 'z-closure'
-  | 'wainscot'
-  | 'inside-outside-corner'
-  | 'chimney-cap'
-  | 'gutter'
-  | 'door-window-pan';
-
-type ConfiguratorProfileType = ProfileType | UndiagrammedProfileType;
-
-function hasDiagram(t: ConfiguratorProfileType): t is ProfileType {
-  return (KNOWN_PROFILE_TYPES as readonly string[]).includes(t);
-}
 
 interface ConfiguratorForm {
   material: string;
@@ -49,7 +21,7 @@ interface ConfiguratorForm {
 
 interface QueuedItem {
   key: string;
-  profileType: ConfiguratorProfileType;
+  profileType: ProfileType;
   material: string;
   gauge: string;
   width: number | null;
@@ -94,7 +66,7 @@ const EMPTY_FORM: ConfiguratorForm = {
   notes: '',
 };
 
-const PROFILE_OPTIONS: { value: ConfiguratorProfileType; label: string }[] = [
+const PROFILE_OPTIONS: { value: ProfileType; label: string }[] = [
   { value: 'coping-cap', label: 'Coping Cap' },
   { value: 'base-flashing', label: 'Base Flashing' },
   { value: 'drip-edge', label: 'Drip Edge' },
@@ -114,29 +86,24 @@ const PROFILE_OPTIONS: { value: ConfiguratorProfileType; label: string }[] = [
   { value: 'door-window-pan', label: 'Door/Window Pan' },
 ];
 
-const PROFILE_DIMS: Record<ConfiguratorProfileType, DimField[]> = {
+const PROFILE_DIMS: Record<ProfileType, DimField[]> = {
   'coping-cap': ['width', 'height', 'legA', 'legB'],
   'base-flashing': ['height', 'legA', 'legB'],
   'drip-edge': ['legA', 'legB'],
   'gravel-stop': ['height', 'legA'],
   fascia: ['height', 'legA'],
-  // No real-world dimension spec was given for these 12 — defaulting to all
-  // 4 generic fields (rather than guessing which subset a given shape
-  // actually needs) so nothing a customer might need to specify is hidden;
-  // AFS's estimators reconcile the real geometry when they write the
-  // formal quote.
-  'custom-flashing': ['width', 'height', 'legA', 'legB'],
-  cleat: ['width', 'height', 'legA', 'legB'],
-  ridge: ['width', 'height', 'legA', 'legB'],
-  hip: ['width', 'height', 'legA', 'legB'],
-  downspout: ['width', 'height', 'legA', 'legB'],
-  'pitch-change': ['width', 'height', 'legA', 'legB'],
-  'z-closure': ['width', 'height', 'legA', 'legB'],
-  wainscot: ['width', 'height', 'legA', 'legB'],
-  'inside-outside-corner': ['width', 'height', 'legA', 'legB'],
+  'custom-flashing': ['width', 'height'],
+  cleat: ['width', 'legA', 'legB'],
+  ridge: ['width', 'legA', 'legB'],
+  hip: ['width', 'legA', 'legB'],
+  downspout: ['width', 'height'],
+  'pitch-change': ['height', 'legA', 'legB'],
+  'z-closure': ['height', 'legA', 'legB'],
+  wainscot: ['width', 'height', 'legA'],
+  'inside-outside-corner': ['legA', 'legB'],
   'chimney-cap': ['width', 'height', 'legA', 'legB'],
-  gutter: ['width', 'height', 'legA', 'legB'],
-  'door-window-pan': ['width', 'height', 'legA', 'legB'],
+  gutter: ['width', 'height', 'legA'],
+  'door-window-pan': ['width', 'height'],
 };
 
 const DIM_LABELS: Record<DimField, string> = {
@@ -191,22 +158,21 @@ function isValidOptionalPositive(v: string): boolean {
 }
 
 const inputClass =
-  'w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 font-body text-sm text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors disabled:opacity-40 disabled:pointer-events-none';
+  'w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-1.5 font-body text-sm text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors disabled:opacity-40 disabled:pointer-events-none';
 
 const dataInputClass =
-  'w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 font-data text-sm text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors disabled:opacity-40 disabled:pointer-events-none';
+  'w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-1.5 font-data text-sm text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors disabled:opacity-40 disabled:pointer-events-none';
 
 const selectClass =
-  'w-full bg-afs-bg-overlay text-white border border-afs-border rounded px-3 py-2.5 font-body text-sm focus:outline-none focus:border-afs-crimson transition-colors disabled:opacity-40 disabled:pointer-events-none';
+  'w-full bg-afs-bg-overlay text-white border border-afs-border rounded px-3 py-1.5 font-body text-sm focus:outline-none focus:border-afs-crimson transition-colors disabled:opacity-40 disabled:pointer-events-none';
 
 const optionClass = 'bg-afs-bg-overlay text-afs-chrome-high';
 
-const labelClass = 'font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1.5 block';
+const labelClass = 'font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1 block';
 
 export default function ConfiguratorPage() {
-  const [profileType, setProfileType] = useState<ConfiguratorProfileType | ''>('');
+  const [profileType, setProfileType] = useState<ProfileType | ''>('');
   const [form, setForm] = useState<ConfiguratorForm>(EMPTY_FORM);
-  const [svgMarkup, setSvgMarkup] = useState<string | null>(null);
   const [queue, setQueue] = useState<QueuedItem[]>([]);
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -227,27 +193,18 @@ export default function ConfiguratorPage() {
     [profileType]
   );
 
-  useEffect(() => {
-    if (!profileType || !hasDiagram(profileType)) {
-      setSvgMarkup(null);
-      return;
-    }
-    const diagramType = profileType;
-    const handle = setTimeout(() => {
-      setSvgMarkup(
-        generateProfileSVG({
-          profileType: diagramType,
-          width: activeDims.includes('width') ? toNumberOrNull(form.width) : null,
-          height: activeDims.includes('height') ? toNumberOrNull(form.height) : null,
-          legA: activeDims.includes('legA') ? toNumberOrNull(form.legA) : null,
-          legB: activeDims.includes('legB') ? toNumberOrNull(form.legB) : null,
-        })
-      );
-    }, 150);
-    return () => clearTimeout(handle);
-  }, [profileType, form.width, form.height, form.legA, form.legB, activeDims]);
+  const svgMarkup = useMemo(() => {
+    if (!profileType) return null;
+    return generateProfileSVG({
+      profileType,
+      width: activeDims.includes('width') ? toNumberOrNull(form.width) : null,
+      height: activeDims.includes('height') ? toNumberOrNull(form.height) : null,
+      legA: activeDims.includes('legA') ? toNumberOrNull(form.legA) : null,
+      legB: activeDims.includes('legB') ? toNumberOrNull(form.legB) : null,
+    });
+  }, [profileType, activeDims, form.width, form.height, form.legA, form.legB]);
 
-  const selectProfile = (p: ConfiguratorProfileType) => {
+  const selectProfile = (p: ProfileType) => {
     setProfileType(p);
     setForm(prev => ({ ...prev, width: '', height: '', legA: '', legB: '' }));
   };
@@ -400,7 +357,6 @@ export default function ConfiguratorPage() {
     setProfileType('');
     setForm(EMPTY_FORM);
     setQueue([]);
-    setSvgMarkup(null);
     setSubmitState('idle');
     setSubmitError(null);
     setRequestNumber(null);
@@ -479,10 +435,10 @@ export default function ConfiguratorPage() {
       <div className="flex flex-col lg:flex-row gap-6 px-6 pb-10 max-w-[1400px] mx-auto" style={{ backgroundColor: '#B8BEC8' }}>
 
         {/* LEFT — CONTROLS */}
-        <div className="w-full lg:w-[420px] lg:shrink-0 bg-afs-bg-raised border border-afs-chrome-dim rounded p-6">
+        <div className="w-full lg:w-[420px] lg:shrink-0 bg-afs-bg-raised border border-afs-chrome-dim rounded p-4">
 
           <span className={labelClass}>Profile Type</span>
-          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-6">
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-3">
             {PROFILE_OPTIONS.map(p => (
               <button
                 key={p.value}
@@ -499,7 +455,7 @@ export default function ConfiguratorPage() {
             ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-4 mb-6">
+          <div className="grid grid-cols-2 gap-2 mb-3">
             <div>
               <label className={labelClass} htmlFor="material">Material</label>
               <select
@@ -530,7 +486,7 @@ export default function ConfiguratorPage() {
           </div>
 
           <span className={labelClass}>Dimensions (inches)</span>
-          <div className="grid grid-cols-2 gap-4 mb-6">
+          <div className="grid grid-cols-2 gap-2 mb-3">
             {(['width', 'height', 'legA', 'legB'] as DimField[]).map(dim => {
               const active = activeDims.includes(dim);
               return (
@@ -552,7 +508,7 @@ export default function ConfiguratorPage() {
             })}
           </div>
 
-          <div className="grid grid-cols-2 gap-4 mb-6">
+          <div className="grid grid-cols-2 gap-2 mb-3">
             <div>
               <label className={labelClass} htmlFor="lengthFt">Length (ft)</label>
               <input id="lengthFt" type="number" min="0" step="0.5" className={dataInputClass}
@@ -565,7 +521,7 @@ export default function ConfiguratorPage() {
             </div>
           </div>
 
-          <div className="mb-6">
+          <div className="mb-3">
             <label className={labelClass} htmlFor="notes">Notes (optional)</label>
             <textarea id="notes" rows={3} className={inputClass}
               value={form.notes} onChange={(e) => updateField('notes', e.target.value)}
@@ -573,7 +529,7 @@ export default function ConfiguratorPage() {
           </div>
 
           {queue.length > 0 && (
-            <div className="mb-6 bg-afs-bg-surface border border-afs-chrome-dim rounded overflow-hidden">
+            <div className="mb-3 bg-afs-bg-surface border border-afs-chrome-dim rounded overflow-hidden">
               <div className="px-3 py-2 border-b border-afs-chrome-dim">
                 <span className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid">
                   Quote Items ({queue.length})
@@ -672,16 +628,6 @@ export default function ConfiguratorPage() {
                 className="w-full max-w-[440px] aspect-square"
                 dangerouslySetInnerHTML={{ __html: svgMarkup }}
               />
-            ) : profileType && !hasDiagram(profileType) ? (
-              <div className="text-center px-6">
-                <p className="font-heading text-xl text-afs-chrome-mid mb-2">
-                  Diagram Preview Not Available Yet
-                </p>
-                <p className="font-body text-sm text-afs-chrome-dim max-w-xs mx-auto">
-                  This profile type doesn&apos;t have a live diagram yet — your dimensions, length, and notes
-                  are still captured for your quote request.
-                </p>
-              </div>
             ) : (
               <div className="text-center px-6">
                 <p className="font-heading text-xl text-afs-chrome-mid mb-2">

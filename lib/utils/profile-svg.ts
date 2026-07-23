@@ -3,7 +3,19 @@ export type ProfileType =
   | 'base-flashing'
   | 'drip-edge'
   | 'gravel-stop'
-  | 'fascia';
+  | 'fascia'
+  | 'custom-flashing'
+  | 'cleat'
+  | 'ridge'
+  | 'hip'
+  | 'downspout'
+  | 'pitch-change'
+  | 'z-closure'
+  | 'wainscot'
+  | 'inside-outside-corner'
+  | 'chimney-cap'
+  | 'gutter'
+  | 'door-window-pan';
 
 export interface ProfileSVGParams {
   profileType: ProfileType;
@@ -50,6 +62,18 @@ const PROFILE_LABELS: Record<ProfileType, string> = {
   'drip-edge': 'Drip Edge',
   'gravel-stop': 'Gravel Stop',
   fascia: 'Fascia',
+  'custom-flashing': 'Custom Flashing',
+  cleat: 'Cleat',
+  ridge: 'Ridge',
+  hip: 'Hip',
+  downspout: 'Downspout',
+  'pitch-change': 'Pitch Change',
+  'z-closure': 'Z-Closure',
+  wainscot: 'Wainscot',
+  'inside-outside-corner': 'Inside/Outside Corner',
+  'chimney-cap': 'Chimney Cap',
+  gutter: 'Gutter',
+  'door-window-pan': 'Door/Window Pan',
 };
 
 export const KNOWN_PROFILE_TYPES: readonly ProfileType[] = [
@@ -58,6 +82,18 @@ export const KNOWN_PROFILE_TYPES: readonly ProfileType[] = [
   'drip-edge',
   'gravel-stop',
   'fascia',
+  'custom-flashing',
+  'cleat',
+  'ridge',
+  'hip',
+  'downspout',
+  'pitch-change',
+  'z-closure',
+  'wainscot',
+  'inside-outside-corner',
+  'chimney-cap',
+  'gutter',
+  'door-window-pan',
 ];
 
 /**
@@ -177,6 +213,214 @@ function fasciaGeometry(h: number, legA: number): ProfileGeometry {
   };
 }
 
+/** Generic open panel — used for Custom Flashing (no fixed cross-section spec). */
+function customFlashingGeometry(w: number, h: number): ProfileGeometry {
+  const topLeft = { x: 0, y: 0 };
+  const bottomLeft = { x: 0, y: h };
+  const bottomRight = { x: w, y: h };
+
+  return {
+    points: [topLeft, bottomLeft, bottomRight],
+    dims: [
+      { label: 'H', value: h, p1: topLeft, p2: bottomLeft, side: 'left' },
+      { label: 'W', value: w, p1: bottomLeft, p2: bottomRight, side: 'bottom' },
+    ],
+  };
+}
+
+/**
+ * Flat base strip with an upturned, inward-hooked leg at each end — drawn as
+ * one continuous bent strip (a real cleat is fabricated from a single piece
+ * of metal), not two literally disconnected paths.
+ */
+function cleatGeometry(w: number, legA: number, legB: number): ProfileGeometry {
+  const leftHookEnd = { x: Math.min(legB, w / 2), y: -legA };
+  const leftUp = { x: 0, y: -legA };
+  const leftBase = { x: 0, y: 0 };
+  const rightBase = { x: w, y: 0 };
+  const rightUp = { x: w, y: -legA };
+  const rightHookEnd = { x: Math.max(w - legB, w / 2), y: -legA };
+
+  return {
+    points: [leftHookEnd, leftUp, leftBase, rightBase, rightUp, rightHookEnd],
+    dims: [
+      { label: 'W', value: w, p1: leftBase, p2: rightBase, side: 'bottom' },
+      { label: 'LEG A', value: legA, p1: leftUp, p2: leftBase, side: 'left' },
+      { label: 'LEG B', value: legB, p1: leftHookEnd, p2: leftUp, side: 'top' },
+    ],
+  };
+}
+
+/**
+ * Inverted-V peak cap with a vertical drop leg at each eave — shared by
+ * Ridge and Hip (the hip's asymmetric-corner detail isn't representable in
+ * a 2D cross-section beyond what ridge already shows, per the task's own
+ * "draw identical to ridge geometry" instruction). The roof pitch's rise is
+ * a fixed proportion of width, since no separate rise dimension is exposed.
+ */
+function ridgeGeometry(w: number, legA: number, legB: number): ProfileGeometry {
+  const rise = clamp(w * 0.15, 1, 6);
+  const peak = { x: w / 2, y: -rise };
+  const leftEave = { x: 0, y: 0 };
+  const rightEave = { x: w, y: 0 };
+  const leftDropEnd = { x: 0, y: legA };
+  const rightDropEnd = { x: w, y: legB };
+
+  return {
+    points: [leftDropEnd, leftEave, peak, rightEave, rightDropEnd],
+    dims: [
+      { label: 'W', value: w, p1: leftEave, p2: rightEave, side: 'bottom' },
+      { label: 'LEG A', value: legA, p1: leftEave, p2: leftDropEnd, side: 'left' },
+      { label: 'LEG B', value: legB, p1: rightEave, p2: rightDropEnd, side: 'right' },
+    ],
+  };
+}
+
+function downspoutGeometry(w: number, h: number): ProfileGeometry {
+  const topLeft = { x: 0, y: 0 };
+  const topRight = { x: w, y: 0 };
+  const bottomRight = { x: w, y: h };
+  const bottomLeft = { x: 0, y: h };
+
+  return {
+    points: [topLeft, topRight, bottomRight, bottomLeft, topLeft],
+    dims: [
+      { label: 'W', value: w, p1: topLeft, p2: topRight, side: 'top' },
+      { label: 'H', value: h, p1: topLeft, p2: bottomLeft, side: 'left' },
+    ],
+  };
+}
+
+/**
+ * Z-profile — offset top/bottom horizontal runs joined by a vertical web.
+ * Shared by Pitch Change and Z-Closure (the task calls Z-Closure's geometry
+ * "identical to pitch change, just a shorter Z"). The connecting web is
+ * drawn vertical rather than diagonal: the task's spec names a diagonal but
+ * gives no horizontal-offset dimension for it, and a vertical web is the
+ * standard Z-purlin/Z-flashing reading of "top run, offset, bottom run."
+ */
+function pitchChangeGeometry(h: number, legA: number, legB: number): ProfileGeometry {
+  const topLeft = { x: 0, y: 0 };
+  const topRight = { x: legA, y: 0 };
+  const bottomLeft = { x: legA, y: h };
+  const bottomRight = { x: legA + legB, y: h };
+
+  return {
+    points: [topLeft, topRight, bottomLeft, bottomRight],
+    dims: [
+      { label: 'H', value: h, p1: topRight, p2: bottomLeft, side: 'right' },
+      { label: 'LEG A', value: legA, p1: topLeft, p2: topRight, side: 'top' },
+      { label: 'LEG B', value: legB, p1: bottomLeft, p2: bottomRight, side: 'bottom' },
+    ],
+  };
+}
+
+/**
+ * Flat panel with a small inward reveal step near the top and bottom of
+ * each edge, mirrored left/right — a picture-frame-style wainscot cap/base
+ * cross-section.
+ */
+function wainscotGeometry(w: number, h: number, legA: number): ProfileGeometry {
+  const outerTopLeft = { x: 0, y: 0 };
+  const innerTopLeft = { x: legA, y: 0 };
+  const innerBottomLeft = { x: legA, y: h };
+  const outerBottomLeft = { x: 0, y: h };
+  const outerBottomRight = { x: w, y: h };
+  const innerBottomRight = { x: w - legA, y: h };
+  const innerTopRight = { x: w - legA, y: 0 };
+  const outerTopRight = { x: w, y: 0 };
+
+  return {
+    points: [
+      outerTopLeft,
+      innerTopLeft,
+      innerBottomLeft,
+      outerBottomLeft,
+      outerBottomRight,
+      innerBottomRight,
+      innerTopRight,
+      outerTopRight,
+      outerTopLeft,
+    ],
+    dims: [
+      { label: 'W', value: w, p1: outerBottomLeft, p2: outerBottomRight, side: 'bottom' },
+      { label: 'H', value: h, p1: innerTopLeft, p2: innerBottomLeft, side: 'left' },
+      { label: 'LEG A', value: legA, p1: outerTopLeft, p2: innerTopLeft, side: 'top' },
+    ],
+  };
+}
+
+function insideOutsideCornerGeometry(legA: number, legB: number): ProfileGeometry {
+  const top = { x: 0, y: 0 };
+  const corner = { x: 0, y: legA };
+  const right = { x: legB, y: legA };
+
+  return {
+    points: [top, corner, right],
+    dims: [
+      { label: 'LEG A', value: legA, p1: top, p2: corner, side: 'left' },
+      { label: 'LEG B', value: legB, p1: corner, p2: right, side: 'bottom' },
+    ],
+  };
+}
+
+/**
+ * Flat top with a downturned, inward-hooked leg on each side — a front-
+ * elevation simplification of a 4-sided cap (2D can't show all 4 sides at
+ * once). H duplicates LEG A's vertical span with its own label/value since
+ * the task's spec gives H no distinct geometric role beyond "overall
+ * height" — a documented approximation, not a separate rendered feature.
+ */
+function chimneyCapGeometry(w: number, h: number, legA: number, legB: number): ProfileGeometry {
+  const topLeft = { x: 0, y: 0 };
+  const topRight = { x: w, y: 0 };
+  const leftDown = { x: 0, y: legA };
+  const rightDown = { x: w, y: legA };
+  const leftReturn = { x: Math.min(legB, w / 2), y: legA };
+  const rightReturn = { x: Math.max(w - legB, w / 2), y: legA };
+
+  return {
+    points: [leftReturn, leftDown, topLeft, topRight, rightDown, rightReturn],
+    dims: [
+      { label: 'W', value: w, p1: topLeft, p2: topRight, side: 'top' },
+      { label: 'LEG A', value: legA, p1: topLeft, p2: leftDown, side: 'left' },
+      { label: 'H', value: h, p1: topRight, p2: rightDown, side: 'right' },
+      { label: 'LEG B', value: legB, p1: leftDown, p2: leftReturn, side: 'bottom' },
+    ],
+  };
+}
+
+function gutterGeometry(w: number, h: number, legA: number): ProfileGeometry {
+  const backTop = { x: 0, y: 0 };
+  const backBottom = { x: 0, y: h };
+  const frontBottom = { x: w, y: h };
+  const frontTop = { x: w, y: h - legA };
+
+  return {
+    points: [backTop, backBottom, frontBottom, frontTop],
+    dims: [
+      { label: 'H', value: h, p1: backTop, p2: backBottom, side: 'left' },
+      { label: 'W', value: w, p1: backBottom, p2: frontBottom, side: 'bottom' },
+      { label: 'LEG A', value: legA, p1: frontBottom, p2: frontTop, side: 'right' },
+    ],
+  };
+}
+
+function doorWindowPanGeometry(w: number, h: number): ProfileGeometry {
+  const topLeft = { x: 0, y: 0 };
+  const bottomLeft = { x: 0, y: h };
+  const bottomRight = { x: w, y: h };
+  const topRight = { x: w, y: 0 };
+
+  return {
+    points: [topLeft, bottomLeft, bottomRight, topRight],
+    dims: [
+      { label: 'H', value: h, p1: topLeft, p2: bottomLeft, side: 'left' },
+      { label: 'W', value: w, p1: bottomLeft, p2: bottomRight, side: 'bottom' },
+    ],
+  };
+}
+
 function buildGeometry(
   profileType: ProfileType,
   w: number,
@@ -195,6 +439,28 @@ function buildGeometry(
       return gravelStopGeometry(h, legA);
     case 'fascia':
       return fasciaGeometry(h, legA);
+    case 'custom-flashing':
+      return customFlashingGeometry(w, h);
+    case 'cleat':
+      return cleatGeometry(w, legA, legB);
+    case 'ridge':
+    case 'hip':
+      return ridgeGeometry(w, legA, legB);
+    case 'downspout':
+      return downspoutGeometry(w, h);
+    case 'pitch-change':
+    case 'z-closure':
+      return pitchChangeGeometry(h, legA, legB);
+    case 'wainscot':
+      return wainscotGeometry(w, h, legA);
+    case 'inside-outside-corner':
+      return insideOutsideCornerGeometry(legA, legB);
+    case 'chimney-cap':
+      return chimneyCapGeometry(w, h, legA, legB);
+    case 'gutter':
+      return gutterGeometry(w, h, legA);
+    case 'door-window-pan':
+      return doorWindowPanGeometry(w, h);
   }
 }
 
@@ -297,5 +563,3 @@ export function generateProfileSVG(params: ProfileSVGParams): string {
     <text x="${CANVAS / 2}" y="${CANVAS - 20}" text-anchor="middle" font-family="${LABEL_FONT}" font-size="11" letter-spacing="2" fill="#7A8299">${caption}</text>
   </svg>`;
 }
-
-
