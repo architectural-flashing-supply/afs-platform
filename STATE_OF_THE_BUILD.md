@@ -2174,6 +2174,35 @@ this remains a single-file page, per the note above):
 **Gates:** `pnpm tsc --noEmit` — 0 errors. `pnpm run build` — exit 0. Both
 actually run and passed this session.
 
+### Follow-up fix — button text-xs sizing + brighter/bolder SVG dimension labels (2026-07-23, later same day)
+
+Two more targeted fixes, on top of a working tree that already carried the
+button-overflow and preview-canvas-background fixes above (both already
+committed at `9084f98`/`b779010` before this session started):
+
+1. **Profile Type button sizing.** Found already applied on read —
+   `py-1.5 px-2 text-xs` plus `whitespace-normal leading-tight text-center`
+   were already present on the button (a prior uncommitted edit this
+   session picked up mid-flight per `git status` at session start showing
+   `app/configure/page.tsx` modified). No further edit needed; verified by
+   reading the live JSX rather than assumed from the task description.
+
+2. **SVG dimension label color/weight (`lib/utils/profile-svg.ts`).** The
+   `font-size="12"` → `font-size="15" font-weight="600"` change in
+   `renderDimension` was likewise already applied on read. `DIM_COLOR` was
+   not — it was `#FF2233` (an intermediate value from the same in-flight
+   uncommitted edit, not the task's stated prior value `#C0001A`) and is
+   now `#FF3344` per this task's explicit instruction. Still a `CANVAS_COLORS`-
+   exception literal hex per CLAUDE.md rule #4 (SVG string template, not
+   JSX/className), same as before.
+
+**Gates:** `pnpm tsc --noEmit` — 0 errors. `pnpm run build` — exit 0, no
+route-count change. Both actually run and passed this session.
+Committed (`ad2108b`) and pushed to `origin/main` — no tool-approval
+blocker encountered this session, unlike the long streak documented
+elsewhere in this file (afs-cs-002 through afs-mj-002); working tree is
+clean after the push.
+
 ---
 
 ## BUILD PHASE STATUS
