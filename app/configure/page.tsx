@@ -488,7 +488,7 @@ export default function ConfiguratorPage() {
                 key={p.value}
                 type="button"
                 onClick={() => selectProfile(p.value)}
-                className={`font-label min-h-[52px] h-auto py-2 px-3 text-sm font-medium rounded border whitespace-normal leading-tight text-center transition-colors ${
+                className={`font-label min-h-[52px] h-auto py-1.5 px-2 text-xs font-medium rounded border whitespace-normal leading-tight text-center transition-colors ${
                   profileType === p.value
                     ? 'bg-afs-crimson text-white border-afs-crimson'
                     : 'bg-afs-bg-overlay text-white border-afs-border'
@@ -717,4 +717,5 @@ export default function ConfiguratorPage() {
     </main>
   );
 }
+
 
