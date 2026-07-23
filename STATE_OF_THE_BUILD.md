@@ -91,6 +91,16 @@ Database migration:      **CORRECTED afs-041 (2026-07-14) — all 5 migrations a
                            this specific point; treat any "005 not applied" or
                            "machine_jobs has no real rows" claim elsewhere in this file
                            as outdated in favor of this entry.
+                         **006_canonical_profiles.sql added and applied (2026-07-22,
+                         this session)** — pasted into the Supabase SQL Editor by the
+                         user (this session has no raw-SQL execution path against this
+                         project: no `exec_sql`/`exec` RPC exists, and the connected
+                         Supabase MCP tool only has access to two unrelated projects,
+                         `tarritrix`/`tarritrix-audit`, neither matching this repo's
+                         real project ref from `.env.local`). Confirmed live via a
+                         direct service-role query both before (table not found) and
+                         after (reachable, then 25 rows post-seed). See the new
+                         CANONICAL PROFILE LIBRARY section below for full detail.
 API keys in .env.local:  Present locally (not committed). STRIPE_SECRET_KEY,
                          STRIPE_WEBHOOK_SECRET, and NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
                          are all confirmed populated with live-mode values (sk_live_/
@@ -1931,6 +1941,133 @@ manually, not a substitute for actually doing it. A future session with
 shell or Supabase MCP access should pull the query results and spot-check
 at least 2 real multi-bend profiles' reconstructed shapes before treating
 this as fully closed.
+
+---
+
+## CANONICAL PROFILE LIBRARY
+
+**NEW (2026-07-22, this session).** A second, deliberately independent
+profile source alongside `machine_profiles`: 25 hand-crafted flashing
+profiles whose geometry is computed once, at seed time, and stored as its
+exact final polyline — no bend-angle turtle-graphics reconstruction at
+read time, unlike `machine_profiles` (see PROFILE GEOMETRY ENGINE above).
+Built in four parts:
+
+**1. `supabase/migrations/006_canonical_profiles.sql`** — new
+`canonical_profiles` table: `name`/`slug` (unique)/`category`/
+`description`/`blank_width_in`, plus `points` (JSONB — the final
+`{x, y}` polyline in inches) and `bends` (JSONB — `{leftLegIn, rightLegIn,
+angleDegrees, direction}` per turn, for provenance/display, not for
+re-deriving geometry). RLS: `public_read_canonical` (`is_active = true`,
+open to anyone — this is curated reference geometry, not shop job
+history, so unlike `machine_profiles` there is no private-row concept
+here) and `admin_write_canonical` via the existing `is_admin()` helper
+function (confirmed live via a direct `rpc('is_admin')` call before
+writing the policy, not assumed from SCHEMA.md's simplified inline-EXISTS
+paraphrase of it). Applied live by the user via the Supabase SQL Editor —
+this session has no working raw-SQL execution path against this project
+(no `exec_sql`/`exec` RPC exists; the connected Supabase MCP tool only
+lists two unrelated projects, `tarritrix`/`tarritrix-audit`, neither
+matching this repo's actual project ref; the Supabase CLI is installed
+but not `supabase link`-ed/authenticated here) — matching this repo's own
+established convention for all 5 prior migrations (see
+`supabase/README.md`'s "Option A — Supabase Dashboard").
+
+**2. `scripts/seed-canonical-profiles.ts`** — defines each profile as an
+explicit turtle-graphics move list (`{length, turn}`, turn applying to
+every move after it; + = UP/CCW, − = DOWN/CW; `dy = -sin(heading)`,
+negated because SVG y increases downward, the opposite of standard math
+convention) and computes both `points` and `bends` from that single move
+list per profile, so the two columns can never drift out of sync with
+each other. Run via `pnpm tsx scripts/seed-canonical-profiles.ts` —
+upserts on `slug` (safe to re-run). **Result: 25/25 profiles
+inserted**, verified live afterward via a direct row count and a
+spot-check of 3 profiles' `points`/`bends` against hand-computed
+expected values (all matched exactly).
+
+One data discrepancy surfaced and resolved with the user before seeding:
+profile 25 ("Standing Seam Cap")'s specified leg lengths
+(0.75+1.5+0.5+1.5+0.75) sum to 5.0", but its specified `blank_width_in`
+was 3.5" — every one of the other 24 profiles has legs summing exactly to
+its stated `blank_width_in`, so this was flagged rather than silently
+picked one way; user chose 5.0" (matching the geometry) over the literal
+spec value.
+
+**3. `app/api/studio/canonical-profiles/route.ts`** (NEW) — GET, service-
+role client (same public-anonymous-browsing rationale as
+`app/api/studio/library-list/route.ts`, though canonical profiles have no
+actual privacy rule to enforce), `category`/`search` (name, `ilike`)
+query params, ordered by `sort_order`. Returns camelCase-mapped JSON.
+
+**4. Profile Library UI integration.** `app/studio/library/page.tsx`
+still does its existing server-side `machine_profiles` fetch, now handed
+to a new client wrapper, `components/studio/ProfileLibraryTabs.tsx`
+(`[Machine Profiles] [Canonical Profiles]` tab switcher) instead of
+rendering `ProfileLibraryBrowser` directly. The Canonical Profiles tab
+`fetch()`es `/api/studio/canonical-profiles` client-side on first
+selection (cached in state after that). New
+`components/studio/CanonicalProfileBrowser.tsx` mirrors
+`ProfileLibraryBrowser`'s search/category/grid/modal layout but is a
+deliberately separate component rather than a shared one — the two data
+shapes are genuinely different (canonical profiles have no
+per-profile fabrication-count history, no mm units, no compare tray was
+requested) and forcing them into one shared component would have meant
+either a lossy adapter or a prop-shape compromise neither side actually
+needs. New `components/studio/CanonicalProfileDiagram.tsx` renders an SVG
+`<polyline>` directly from a profile's stored `points` — no
+reconstruction, "connect the dots" exactly as specified — auto-scaled to
+fit its viewBox with padding, `stroke-afs-crimson` (a real Tailwind
+utility class reading the existing `afs.crimson` token, not a hardcoded
+hex — an improvement over `BendSequenceDiagram.tsx`'s pre-existing
+literal `stroke="#C0001A"`, which was left as-is since fixing
+pre-existing, unrelated code wasn't in scope).
+
+**"Load into FlashDraft" — one deliberate deviation from the literal
+task wording, resolved by reading the existing code rather than by
+asking, since it's an implementation detail with a single correct answer
+once the two coordinate conventions are actually compared:** the task
+described this as "loads the bends array into FlashDraft canvas," which
+would naturally mean converting `bends` through the existing
+`computeProfilePoints()` (`lib/flashdraft/geometry.ts`) the same way
+`?loadProfile=<id>` already does for machine profiles. That function has
+no up/down concept — every turn adds the same-signed `180 -
+bendAngleDegrees` supplement, so it can only ever turn one rotational
+direction cumulatively. Most of these 25 profiles alternate direction
+(e.g. profile 1, Standard Coping Cap: UP 90° then DOWN 90°) — routing
+them through that function would silently produce wrong geometry for
+exactly the shapes this feature exists to get right, reintroducing the
+"approximate reconstruction" problem canonical profiles are explicitly
+built to bypass. Checked FlashDraft's own canvas coordinate convention
+directly (`toScreen()` in `app/studio/draft/page.tsx`: a direct linear
+`p.y * PIXELS_PER_INCH...` mapping, no flip — i.e. FlashDraft's internal
+`+y` already means "down," the same convention `points` was computed
+with) and confirmed the stored `points` array can be used as FlashDraft's
+canvas state directly, with no re-derivation and no sign mismatch.
+Implemented as a client-side handoff: `CanonicalProfileBrowser`'s "Load
+into FlashDraft" writes the profile's `points` to
+`localStorage['afs-flashdraft-canonical-points']` and navigates to
+`/studio/draft?loadCanonical=1`; the draft page's existing mount-effect
+(previously only handling `?loadProfile=<id>`) now also checks for
+`loadCanonical`, reads that key, sets it as the canvas `points` state, and
+clears the key. `bends` still lives in the database and renders in the
+card/modal's bend-sequence list for provenance — it's just not the
+data path FlashDraft loading actually uses.
+
+**Gates:** `pnpm tsc --noEmit` — 0 errors, run and confirmed this
+session (this session's tool-approval channel worked, unlike the several
+blocked attempts logged elsewhere in this file). `pnpm run build` — exit
+0, confirmed twice (once before seeding, once after, both clean).
+`/studio/library` shows `4.39 kB` route size after the tabs/canonical
+integration (up from its pre-existing size).
+
+**Not done, flagged rather than silently skipped:** no live-browser
+Playwright pass of the new tab switcher, canonical profile cards, or the
+FlashDraft handoff — verified by code reading and the gates above only.
+`SCHEMA.md` and `supabase/README.md` were not updated to mention
+migration 006 or the new table — out of scope for this task (Part 6
+named only this file and SESSION_STATE.md), but both are now stale on
+this point and should be corrected in a future pass for consistency with
+this repo's own documentation-accuracy standard.
 
 ---
 

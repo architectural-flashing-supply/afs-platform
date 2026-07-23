@@ -3,7 +3,8 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { computeFabricationCounts } from '@/lib/data/machine-profile-fabrication';
-import ProfileLibraryBrowser, { type LibraryProfileCardData } from '@/components/studio/ProfileLibraryBrowser';
+import { type LibraryProfileCardData } from '@/components/studio/ProfileLibraryBrowser';
+import ProfileLibraryTabs from '@/components/studio/ProfileLibraryTabs';
 
 export const metadata: Metadata = {
   title: 'Profile Library | AFS Architectural Flashing Supply',
@@ -146,7 +147,7 @@ export default async function ProfileLibraryPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 pb-24">
-        <ProfileLibraryBrowser profiles={cards} categories={categories} />
+        <ProfileLibraryTabs machineProfiles={cards} machineCategories={categories} />
       </div>
     </main>
   );

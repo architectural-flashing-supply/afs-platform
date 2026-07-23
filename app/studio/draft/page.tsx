@@ -1627,14 +1627,44 @@ export default function FlashDraftPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Canonical Profile Library's "Load into FlashDraft" hands off the
+  // already-final `points` array via localStorage (see
+  // components/studio/CanonicalProfileBrowser.tsx) rather than a profile id
+  // to re-fetch: canonical points are the exact final geometry already, with
+  // no bend-angle reconstruction step, so routing them back through
+  // computeProfilePoints here would reintroduce the same same-direction-only
+  // turn limitation that reconstruction has for machine profiles (see
+  // lib/flashdraft/geometry.ts's own doc comment) — exactly what canonical
+  // profiles exist to avoid.
+  const loadCanonicalFromHandoff = useCallback(() => {
+    let canonicalPoints: Point[] | null = null;
+    try {
+      const raw = window.localStorage.getItem('afs-flashdraft-canonical-points');
+      if (raw) canonicalPoints = JSON.parse(raw) as Point[];
+      window.localStorage.removeItem('afs-flashdraft-canonical-points');
+    } catch {
+      return;
+    }
+    if (!canonicalPoints) return;
+    setPast((p) => [...p, points]);
+    setFuture([]);
+    setPoints(canonicalPoints);
+    setSelectedSegment(null);
+    setShowLibrary(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Part 4 integration: /studio/library's "Load into FlashDraft" button
-  // links here with ?loadProfile=<id> — load it once on mount. Read via
+  // links here with ?loadProfile=<id> (machine profiles) or ?loadCanonical=1
+  // (canonical profiles) — load it once on mount. Read via
   // window.location.search (not next/navigation's useSearchParams) so this
   // page stays statically prerenderable instead of requiring a Suspense
   // boundary just for a one-time read.
   useEffect(() => {
-    const loadId = new URLSearchParams(window.location.search).get('loadProfile');
+    const params = new URLSearchParams(window.location.search);
+    const loadId = params.get('loadProfile');
     if (loadId) loadFromLibrary(loadId);
+    if (params.get('loadCanonical')) loadCanonicalFromHandoff();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
