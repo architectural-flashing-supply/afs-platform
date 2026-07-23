@@ -2335,6 +2335,41 @@ actually run and passed. Committed (`056519b`) and pushed to
 `origin/main` on the first attempt — no tool-approval blocker, same as
 the immediately preceding session.
 
+### Wainscot removed, 16 profile types remain (2026-07-23, later same day)
+
+`wainscot` was pulled out of the Custom Configurator entirely, per
+explicit instruction — no replacement type added. Removed from every
+place it appeared across both files: `app/configure/page.tsx`'s
+`PROFILE_OPTIONS` array and `PROFILE_DIMS` record; `lib/utils/
+profile-svg.ts`'s `ProfileType` union, `PROFILE_LABELS`,
+`KNOWN_PROFILE_TYPES`, the `wainscotGeometry()` function itself, and
+its `case 'wainscot':` in `buildGeometry`'s switch. A repo-wide
+case-insensitive grep for `wainscot` across `*.ts`/`*.tsx` after the
+edit returned zero matches — nothing else in the codebase (no other
+component, no `product_profiles` slug mapping) referenced it.
+
+The task also asked to reorder `PROFILE_OPTIONS` so Door/Window Pan
+moves up to fill the gap left by Wainscot's removal — read literally,
+deleting Wainscot from its middle-of-the-list position already closes
+that gap for every entry after it (Inside/Outside Corner, Chimney Cap,
+Gutter, Door/Window Pan all shift up one slot automatically in a flat
+array), so the task's own explicit final-order listing was achieved by
+the single deletion, with no separate move step needed — verified by
+diffing the resulting array against the task's literal 16-item order
+list, which match exactly.
+
+`ProfileType` is now a 16-member union (was 17); `KNOWN_PROFILE_TYPES`/
+`PROFILE_DIMS`/`PROFILE_LABELS`/`buildGeometry` all shrank in lockstep.
+TypeScript's exhaustiveness check on `buildGeometry`'s switch (still no
+`default` case) is what actually confirms nothing still references the
+removed member — if any case had been missed, the file would fail
+`tsc --noEmit`, not silently compile.
+
+**Gates:** `pnpm tsc --noEmit` — 0 errors. `pnpm run build` — exit 0, no
+route-count change. Both actually run and passed. Committed (`3818ffb`)
+and pushed to `origin/main` on the first attempt — no tool-approval
+blocker.
+
 ---
 
 ## BUILD PHASE STATUS
