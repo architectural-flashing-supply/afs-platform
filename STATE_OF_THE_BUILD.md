@@ -2203,6 +2203,138 @@ blocker encountered this session, unlike the long streak documented
 elsewhere in this file (afs-cs-002 through afs-mj-002); working tree is
 clean after the push.
 
+### Render-lag fix, compressed controls panel, full 17-type SVG geometry (2026-07-23, later same day)
+
+Read CLAUDE.md, `app/configure/page.tsx`, and `lib/utils/profile-svg.ts`
+in full before starting, per instruction. Three changes, all to these
+same two files:
+
+1. **Render-lag fix.** `svgMarkup` was a `useState` set from inside a
+   `useEffect` with a 150ms `setTimeout` debounce keyed on every
+   dimension field — a real double-render-cycle lag (type → effect fires
+   → timeout → second render). Replaced with a plain `useMemo` computing
+   `svgMarkup` directly from `profileType`/`activeDims`/`form.{width,
+   height,legA,legB}` — synchronous with render, no debounce, no second
+   state. Removed the `useState<string | null>` declaration entirely and
+   the now-unnecessary `setSvgMarkup(null)` call inside `startOver()`
+   (the memo already returns `null` once `profileType` resets to `''`).
+   `useEffect` itself is still imported/used elsewhere in the file (the
+   `supabase.auth.getUser()` auth check on mount) — only the
+   dimension-driven effect was removed.
+
+2. **Compressed controls panel.** Left panel `p-6` → `p-4`; the three
+   `grid-cols-2 gap-4 mb-6` rows (Material/Gauge, Dimensions, Length/
+   Quantity) → `gap-2 mb-3`; the Profile Type grid and Notes/Quote-Items
+   blocks' `mb-6` → `mb-3`; `labelClass`'s `mb-1.5` → `mb-1`;
+   `inputClass`/`dataInputClass`/`selectClass`'s `py-2.5` → `py-1.5`.
+   Left the outer page-level `gap-6` (between the left control panel and
+   the right preview panel, only active at `lg:` breakpoints) untouched
+   — that's horizontal column spacing between two panels, not vertical
+   spacing within the controls panel the task was about. Live-verified
+   with Playwright at a 1920×1080 viewport: Material select top at
+   y=541, the **Start Over** button (the last element in the panel)
+   bottom at y=1062 — the entire panel fits inside a 1080px-tall
+   viewport with zero scrolling, satisfying the task's explicit goal.
+
+3. **SVG geometry for all 12 previously-undiagrammed profile types.**
+   `lib/utils/profile-svg.ts`'s `ProfileType` union grew from 5 to 17
+   members (custom-flashing, cleat, ridge, hip, downspout, pitch-change,
+   z-closure, wainscot, inside-outside-corner, chimney-cap, gutter,
+   door-window-pan), each with its own `PROFILE_LABELS` entry and a real
+   geometry function wired into `buildGeometry`'s switch (still no
+   `default` case — TypeScript's control-flow exhaustiveness check over
+   the closed union is what actually enforces every member has real
+   geometry, same mechanism the original 5 relied on). `app/configure/
+   page.tsx`'s `UndiagrammedProfileType`/`ConfiguratorProfileType`/
+   `hasDiagram()` — all introduced in the prior session specifically
+   because these 12 types had no geometry yet — are now dead weight and
+   were removed outright; `page.tsx` uses `ProfileType` directly
+   throughout, and the preview panel's "Diagram Preview Not Available
+   Yet" branch (now permanently unreachable) was deleted rather than
+   left as inert dead code. `KNOWN_PROFILE_TYPES` (used by
+   `slugToProfileType()`, still consumed by `SavedConfigCard.tsx` and
+   the architects spec-writer page) grew to the same 17 — purely
+   additive, doesn't change resolution for any of the original 5 slugs.
+
+   **A deliberate, undirected fix included in this same edit:**
+   `PROFILE_DIMS` in `page.tsx` — which the prior session had defaulted
+   all 12 new types to all 4 generic fields (`width/height/legA/legB`)
+   specifically *because* no real geometry spec existed yet to say which
+   fields actually mattered — was narrowed to match each type's real
+   geometry function once one existed (e.g. `cleat: ['width','legA',
+   'legB']`, no unused height field left enabled; `downspout: ['width',
+   'height']`, no unused leg fields). Leaving all 4 fields active
+   post-geometry would have silently ignored whatever a customer typed
+   into a field their chosen shape's real geometry function never reads
+   — a correctness gap the task didn't explicitly call out but that
+   directly follows from finishing what it asked for.
+
+   Three profile types intentionally reuse another's geometry function,
+   per the task's own wording, not a shortcut taken unilaterally: **hip**
+   calls the same `ridgeGeometry()` as ridge ("draw identical to ridge
+   geometry" — hip's asymmetric real-world corner detail isn't
+   representable in a 2D cross-section beyond what ridge already shows);
+   **z-closure** calls the same `pitchChangeGeometry()` as pitch change
+   ("identical geometry to pitch change — it is a shorter Z").
+
+   Three deliberate simplifications where the task's prose specified
+   more than its own dimension list supports, each documented inline in
+   the corresponding function's comment in `profile-svg.ts`, not hidden:
+   - **Pitch Change / Z-Closure:** the task calls the middle connector a
+     "diagonal transition" but gives no horizontal-offset dimension for
+     it — built as a vertical web instead (the standard Z-purlin/
+     Z-flashing reading of "top run, offset, bottom run"), since a
+     diagonal needs a horizontal-offset number the spec never supplies.
+   - **Ridge / Hip:** the peak's rise has no dimension of its own in the
+     task's spec (only W/LEG A/LEG B) — derived as a fixed proportion of
+     width (`clamp(w * 0.15, 1, 6)`), the same style of derived-constant
+     precedent already used by the original `fasciaGeometry`'s hem
+     length.
+   - **Chimney Cap:** the task lists W, H, LEG A, and LEG B as four
+     independent dimensions, but its own geometric description ("flat
+     top... drop legA... inward returns legB") only produces three real
+     geometric features. `H` is rendered as a second, genuinely separate
+     dimension line spanning the same vertical run as `LEG A` (right
+     side vs. left side, so no visual overlap) using its own value —
+     it labels the shape, but doesn't drive a distinct rendered feature.
+     This mirrors this codebase's own established pattern for
+     documented approximations (afs-038's hem-allowance formula, the
+     painted-face finish-color swatch) rather than inventing an
+     unspecified fourth geometric feature to justify the fourth number.
+   - **Cleat / Chimney Cap** ("two disconnected L-shapes"/"four
+     downturned legs" in the task's prose): both rendered as a single
+     continuous bent polyline (base + two hooked legs) rather than
+     literal disconnected sub-paths — `generateProfileSVG`'s outline
+     builder draws one connected `M`/`L` path from one `points` array
+     and was not changed to support multiple sub-paths for two profile
+     types. This is also the physically correct representation (a real
+     cleat/chimney-cap cap is fabricated from one continuous bent strip
+     of metal, not two separate pieces), not just an implementation
+     shortcut.
+
+   **Verification beyond the two gates:** wrote a throwaway `tsx` script
+   (deleted after use, not committed) that calls `generateProfileSVG()`
+   for all 17 `KNOWN_PROFILE_TYPES` with representative dimensions and
+   confirmed no `NaN` appears in any output and every one produces a
+   real `<path d="M...">` outline. Then started the real dev server and
+   drove it with a headless Playwright/Chromium session (`@playwright/
+   test`, already installed in `node_modules` this session — no repeat
+   of the historical "missing `pnpm install`" blocker documented
+   elsewhere in this file): confirmed the SVG's `outerHTML` actually
+   changes the instant a dimension input changes (no artificial delay
+   needed, proving the `useMemo` fix), confirmed zero console errors,
+   and screenshotted 6 of the 12 new shapes (Cleat, Ridge, Chimney Cap,
+   Gutter, Wainscot, Pitch Change) — all render as clean, non-
+   self-intersecting outlines with correctly labeled dimension lines, no
+   visual corruption. Screenshots and the throwaway script were deleted
+   after review, not committed.
+
+**Gates:** `pnpm tsc --noEmit` — 0 errors. `pnpm run build` — exit 0, no
+route-count change (`/configure` unchanged at a route level). Both
+actually run and passed. Committed (`056519b`) and pushed to
+`origin/main` on the first attempt — no tool-approval blocker, same as
+the immediately preceding session.
+
 ---
 
 ## BUILD PHASE STATUS
