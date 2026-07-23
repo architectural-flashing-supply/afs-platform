@@ -52,7 +52,7 @@ const PROFILE_LABELS: Record<ProfileType, string> = {
   fascia: 'Fascia',
 };
 
-const KNOWN_PROFILE_TYPES: readonly ProfileType[] = [
+export const KNOWN_PROFILE_TYPES: readonly ProfileType[] = [
   'coping-cap',
   'base-flashing',
   'drip-edge',

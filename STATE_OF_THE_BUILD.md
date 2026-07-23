@@ -2067,7 +2067,86 @@ FlashDraft handoff — verified by code reading and the gates above only.
 migration 006 or the new table — out of scope for this task (Part 6
 named only this file and SESSION_STATE.md), but both are now stale on
 this point and should be corrected in a future pass for consistency with
-this repo's own documentation-accuracy standard.
+this repo's own documentation-accuracy standard. **Resolved in a later,
+separate session (2026-07-22):** both docs now document `canonical_profiles`
+and migration 006 — see SCHEMA.md's CANONICAL PROFILE LIBRARY TABLE section
+and `supabase/README.md`'s own 006 section.
+
+---
+
+## CUSTOM CONFIGURATOR — PROFILE TYPE GRID EXPANSION (2026-07-22)
+
+**`app/configure/page.tsx`** (the single-file, inline "Custom Flashing
+Configurator" — there is no separate `ProfileTypeSelector`/
+`ConfiguratorPreview`/`ConfiguratorShell` component split; COMPONENT_MAP.md's
+LAYER describing that breakdown is aspirational and doesn't match the real
+implementation, same gap already known for `components/ui/`'s LAYER 1) got
+four targeted changes:
+
+1. **Profile Type grid — compact, 3–4 columns.** `grid-cols-2` →
+   `grid-cols-3 sm:grid-cols-4 gap-2`; each button `py-2 px-3 text-sm
+   font-medium` (was `px-3 py-2.5`, no explicit weight) — roughly half the
+   prior height, matching the target pill/chip style.
+
+2. **12 new profile types added, 17 total.** The original 5
+   (`coping-cap`/`base-flashing`/`drip-edge`/`gravel-stop`/`fascia`) stay
+   first; appended Custom Flashing, Cleat, Ridge, Hip, Downspout, Pitch
+   Change, Z-Closure, Wainscot, Inside/Outside Corner, Chimney Cap, Gutter,
+   Door/Window Pan. **A real type-system conflict was found and resolved,
+   not just a label-list edit:** `lib/utils/profile-svg.ts`'s `ProfileType`
+   is a closed 5-member union with hand-built SVG geometry per member
+   (`buildGeometry`'s switch has no `default`, so every union member needs
+   its own geometry function or the file fails to typecheck) — the task
+   gave no geometry spec for the 12 new types (unlike the very precise
+   turtle-graphics spec given for the unrelated canonical-profiles work
+   earlier this session), so inventing 12 speculative cross-section shapes
+   would have been guessing, not building. Resolved by introducing a
+   broader `ConfiguratorProfileType = ProfileType | UndiagrammedProfileType`
+   in `page.tsx` only — `profile-svg.ts`'s `ProfileType` and its 5 geometry
+   functions are untouched. A `hasDiagram()` type guard (checking against
+   `profile-svg.ts`'s `KNOWN_PROFILE_TYPES`, now exported for this reuse
+   rather than duplicating the same 5-item list a second time) gates
+   whether `generateProfileSVG()` is called; the 12 new types render a
+   "Diagram Preview Not Available Yet" notice in the preview panel instead
+   of a blank/broken SVG, while dimensions/length/quantity/notes still work
+   normally and still reach the quote request — same Data Blockers
+   philosophy CLAUDE.md already establishes elsewhere (correct
+   architecture, explicit placeholder, nothing silently skipped). Dimension
+   fields for all 12 new types default to the full 4-field set
+   (width/height/legA/legB) rather than guessing a narrower subset with no
+   real-world basis — AFS's estimators reconcile actual geometry when
+   writing the formal quote.
+
+3. **Preview panel subtitle added.** New line directly above the SVG/
+   diagram card: "Specify exact dimensions and see a live diagram update as
+   you type. AFS follows up with a formal quote." (`text-sm
+   text-afs-chrome-mid italic text-center mb-4`).
+
+4. **Left-panel subtitle removed.** The hero's old "Specify exact
+   dimensions... No prices shown — AFS follows up with a formal quote."
+   line (`font-body text-black font-bold text-sm`) is deleted outright, not
+   just hidden — its content now lives only in the new preview-panel
+   subtitle above (with "No prices shown —" dropped, per the task's exact
+   replacement text).
+
+5. **Eyebrow heading restyled.** "CUSTOM FLASHING CONFIGURATOR" —
+   `font-label text-afs-crimson text-sm tracking-widest uppercase mb-3` →
+   `font-heading font-bold text-afs-crimson tracking-wider`, a literal
+   className replacement per the task's explicit instruction (not a
+   preserve-and-add-to edit) — `uppercase` had no visible effect either way
+   since the string itself is already all-caps.
+
+**Gates:** `pnpm tsc --noEmit` — 0 errors. `pnpm run build` — exit 0,
+`/configure` route 6.56 kB (First Load JS 160 kB). Both actually run and
+passed this session.
+
+**Not done, flagged rather than silently skipped:** no live-browser
+Playwright pass of the new grid, the 12 new types' "no diagram" notice, or
+the restyled subtitles/heading — verified by code reading and the two
+gates above only. COMPONENT_MAP.md's configurator section was not updated
+(out of scope for this task, which named only this file and
+SESSION_STATE.md) and remains stale against the real single-file
+`page.tsx` structure, a pre-existing gap this session did not create.
 
 ---
 
