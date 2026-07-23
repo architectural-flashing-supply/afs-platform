@@ -45,7 +45,7 @@ interface ProfileGeometry {
 }
 
 const METAL_COLOR = '#B8BFD0';
-const DIM_COLOR = '#FF3344';
+const DIM_COLOR = `#C0001A`;
 const LABEL_FONT = 'var(--font-jetbrains), monospace';
 
 const DEFAULTS = {
@@ -444,8 +444,8 @@ function renderDimension(
     const textY = dim.side === 'top' ? dimY - 8 : dimY + 18;
 
     return `
-      <line x1="${xa.toFixed(1)}" y1="${y.toFixed(1)}" x2="${xa.toFixed(1)}" y2="${dimY.toFixed(1)}" stroke="${DIM_COLOR}" stroke-width="1" opacity="0.45" />
-      <line x1="${xb.toFixed(1)}" y1="${y.toFixed(1)}" x2="${xb.toFixed(1)}" y2="${dimY.toFixed(1)}" stroke="${DIM_COLOR}" stroke-width="1" opacity="0.45" />
+      <line x1="${xa.toFixed(1)}" y1="${y.toFixed(1)}" x2="${xa.toFixed(1)}" y2="${dimY.toFixed(1)}" stroke="${DIM_COLOR}" stroke-width="1" />
+      <line x1="${xb.toFixed(1)}" y1="${y.toFixed(1)}" x2="${xb.toFixed(1)}" y2="${dimY.toFixed(1)}" stroke="${DIM_COLOR}" stroke-width="1" />
       <line x1="${xa.toFixed(1)}" y1="${dimY.toFixed(1)}" x2="${xb.toFixed(1)}" y2="${dimY.toFixed(1)}" stroke="${DIM_COLOR}" stroke-width="1" marker-start="url(#afsDimArrow)" marker-end="url(#afsDimArrow)" />
       <text x="${midX.toFixed(1)}" y="${textY.toFixed(1)}" text-anchor="middle" font-family="${LABEL_FONT}" font-size="15" font-weight="600" fill="${DIM_COLOR}">${text}</text>
     `;
@@ -461,8 +461,8 @@ function renderDimension(
   const textX = dim.side === 'left' ? dimX - 8 : dimX + 8;
 
   return `
-    <line x1="${x.toFixed(1)}" y1="${ya.toFixed(1)}" x2="${dimX.toFixed(1)}" y2="${ya.toFixed(1)}" stroke="${DIM_COLOR}" stroke-width="1" opacity="0.45" />
-    <line x1="${x.toFixed(1)}" y1="${yb.toFixed(1)}" x2="${dimX.toFixed(1)}" y2="${yb.toFixed(1)}" stroke="${DIM_COLOR}" stroke-width="1" opacity="0.45" />
+    <line x1="${x.toFixed(1)}" y1="${ya.toFixed(1)}" x2="${dimX.toFixed(1)}" y2="${ya.toFixed(1)}" stroke="${DIM_COLOR}" stroke-width="1" />
+    <line x1="${x.toFixed(1)}" y1="${yb.toFixed(1)}" x2="${dimX.toFixed(1)}" y2="${yb.toFixed(1)}" stroke="${DIM_COLOR}" stroke-width="1" />
     <line x1="${dimX.toFixed(1)}" y1="${ya.toFixed(1)}" x2="${dimX.toFixed(1)}" y2="${yb.toFixed(1)}" stroke="${DIM_COLOR}" stroke-width="1" marker-start="url(#afsDimArrow)" marker-end="url(#afsDimArrow)" />
     <text x="${textX.toFixed(1)}" y="${(midY + 4).toFixed(1)}" text-anchor="${dim.side === 'left' ? 'end' : 'start'}" font-family="${LABEL_FONT}" font-size="15" font-weight="600" fill="${DIM_COLOR}">${text}</text>
   `;
@@ -523,3 +523,6 @@ export function generateProfileSVG(params: ProfileSVGParams): string {
     <text x="${CANVAS / 2}" y="${CANVAS - 20}" text-anchor="middle" font-family="${LABEL_FONT}" font-size="11" letter-spacing="2" fill="#7A8299">${caption}</text>
   </svg>`;
 }
+
+
+
