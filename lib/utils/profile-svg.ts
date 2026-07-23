@@ -11,7 +11,6 @@ export type ProfileType =
   | 'downspout'
   | 'pitch-change'
   | 'z-closure'
-  | 'wainscot'
   | 'inside-outside-corner'
   | 'chimney-cap'
   | 'gutter'
@@ -69,7 +68,6 @@ const PROFILE_LABELS: Record<ProfileType, string> = {
   downspout: 'Downspout',
   'pitch-change': 'Pitch Change',
   'z-closure': 'Z-Closure',
-  wainscot: 'Wainscot',
   'inside-outside-corner': 'Inside/Outside Corner',
   'chimney-cap': 'Chimney Cap',
   gutter: 'Gutter',
@@ -89,7 +87,6 @@ export const KNOWN_PROFILE_TYPES: readonly ProfileType[] = [
   'downspout',
   'pitch-change',
   'z-closure',
-  'wainscot',
   'inside-outside-corner',
   'chimney-cap',
   'gutter',
@@ -315,41 +312,6 @@ function pitchChangeGeometry(h: number, legA: number, legB: number): ProfileGeom
   };
 }
 
-/**
- * Flat panel with a small inward reveal step near the top and bottom of
- * each edge, mirrored left/right — a picture-frame-style wainscot cap/base
- * cross-section.
- */
-function wainscotGeometry(w: number, h: number, legA: number): ProfileGeometry {
-  const outerTopLeft = { x: 0, y: 0 };
-  const innerTopLeft = { x: legA, y: 0 };
-  const innerBottomLeft = { x: legA, y: h };
-  const outerBottomLeft = { x: 0, y: h };
-  const outerBottomRight = { x: w, y: h };
-  const innerBottomRight = { x: w - legA, y: h };
-  const innerTopRight = { x: w - legA, y: 0 };
-  const outerTopRight = { x: w, y: 0 };
-
-  return {
-    points: [
-      outerTopLeft,
-      innerTopLeft,
-      innerBottomLeft,
-      outerBottomLeft,
-      outerBottomRight,
-      innerBottomRight,
-      innerTopRight,
-      outerTopRight,
-      outerTopLeft,
-    ],
-    dims: [
-      { label: 'W', value: w, p1: outerBottomLeft, p2: outerBottomRight, side: 'bottom' },
-      { label: 'H', value: h, p1: innerTopLeft, p2: innerBottomLeft, side: 'left' },
-      { label: 'LEG A', value: legA, p1: outerTopLeft, p2: innerTopLeft, side: 'top' },
-    ],
-  };
-}
-
 function insideOutsideCornerGeometry(legA: number, legB: number): ProfileGeometry {
   const top = { x: 0, y: 0 };
   const corner = { x: 0, y: legA };
@@ -451,8 +413,6 @@ function buildGeometry(
     case 'pitch-change':
     case 'z-closure':
       return pitchChangeGeometry(h, legA, legB);
-    case 'wainscot':
-      return wainscotGeometry(w, h, legA);
     case 'inside-outside-corner':
       return insideOutsideCornerGeometry(legA, legB);
     case 'chimney-cap':
