@@ -9,11 +9,7 @@ import { createClient } from '@/lib/supabase/client';
 const PANEL_LINKS = [
   { label: 'Home', href: '/' },
   { label: 'Products', href: '/products' },
-  { label: 'Request a Quote', href: '/quote' },
-  { label: 'Configure', href: '/configure' },
-  { label: 'Upload Drawing', href: '/upload' },
   { label: 'Design Studio', href: '/studio' },
-  { label: 'Profile Library', href: '/studio/library' },
   { label: 'Architects', href: '/architects' },
 ];
 
@@ -104,20 +100,8 @@ export default function NavBar() {
           <Link href="/products" className="font-label text-sm text-white transition-colors">
             Products
           </Link>
-          <Link href="/quote" className="font-label text-sm text-white transition-colors">
-            Request a Quote
-          </Link>
-          <Link href="/configure" className="font-label text-sm text-white transition-colors">
-            Configure
-          </Link>
-          <Link href="/upload" className="font-label text-sm text-white transition-colors">
-            Upload Drawing
-          </Link>
           <Link href="/studio" className="font-label text-sm text-white transition-colors">
             Design Studio
-          </Link>
-          <Link href="/studio/library" className="font-label text-sm text-white transition-colors">
-            Profile Library
           </Link>
           <Link href="/architects" className="font-label text-sm text-white transition-colors">
             Architects

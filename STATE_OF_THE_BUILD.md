@@ -2372,6 +2372,64 @@ blocker.
 
 ---
 
+## NAVIGATION CONSOLIDATION — DESIGN STUDIO AS QUOTE ENTRY POINT (2026-07-24)
+
+Design Studio (`/studio`) is now the single primary quote entry point,
+replacing top nav and sidebar as the place a customer picks among Scan to
+Quote, Photo to Quote, FlashDraft, Custom Configurator, or Quick Quote.
+
+**`app/studio/page.tsx`:** the 4-card grid (`grid-cols-1 sm:grid-cols-2
+lg:grid-cols-4 gap-6`, `p-6` cards, `w-8 h-8` icons) was replaced with a
+5-card single horizontal row on desktop (`grid-cols-1 lg:grid-cols-5
+gap-4`, `p-4` cards, `w-6 h-6` icons, `text-xs` body copy) that stacks to
+one column on mobile. Added a 5th card, **Quick Quote** → `/quote` (new
+clipboard/list SVG icon in the same stroke style as the other four —
+no existing "clipboard" icon was reused from elsewhere in the codebase,
+this one is new). Photo to Quote's CTA href changed from `/upload?tab=
+photos` to `/upload/photo` and Custom Configurator's body copy was
+shortened, both per explicit instruction — note `/upload/photo` is not
+an existing route (only `app/upload/page.tsx` exists, handling its own
+internal tab state); the link itself is intentional per instruction, but
+following it currently 404s until a matching route is built. Hero
+subtitle updated "Four ways to spec your flashing..." → "Five ways...".
+The Profile Library promo block below the card row (linking `/studio/
+library`) was deliberately left untouched — the task scoped only the
+card-grid replacement, not that section.
+
+**`components/layout/NavBar.tsx`:** this single file contains both the
+fixed-left sidebar (`PANEL_LINKS` array) and the top header nav (a
+literal `<Link>` list in the `<header>`) — confirmed by reading the file;
+no separate `Sidebar.tsx` exists. `Configure` (`/configure`), `Upload
+Drawing` (`/upload`), and `Profile Library` (`/studio/library`) were
+removed from both lists. The standalone `Request a Quote` (`/quote`) link
+was also removed from both — Design Studio's own Quick Quote card is now
+the nav-level path to `/quote`, not a duplicate top-level nav item.
+Resulting top nav: `Products | Design Studio | Architects`. Resulting
+sidebar: `Home | Products | Design Studio | Architects`, then the
+pre-existing divider and My Account/Sign In (or Sign Out) block,
+unchanged.
+
+**Routes still exist, just unlinked from nav:** `/configure`, `/upload`,
+`/quote`, and `/studio/library` were not deleted or altered — they're
+reachable via `/studio`'s card CTAs (and by direct URL), just no longer
+present as standalone nav entries. `components/layout/Footer.tsx` still
+has its own independent `Request a Quote` → `/quote` link — left
+untouched, out of scope (the task named only top nav and sidebar, not
+the footer).
+
+**`app/page.tsx` (homepage hero):** both CTA buttons now point to
+`/studio`. "Submit a Drawing" (was `/upload`) keeps its label; "Request a
+Quote" (was `/quote`) is relabeled "Start in Design Studio", per
+instruction.
+
+**Gates:** `pnpm tsc --noEmit` — 0 errors. `pnpm run build` — exit 0,
+110/110 routes, no route-count change (nav/copy edits only, no routes
+added or removed). Both actually run and passed. Committed
+(`git commit -m "nav: consolidate to Design Studio hub, 5-card horizontal
+layout, remove redundant nav items"`) and pushed to `origin/main`.
+
+---
+
 ## BUILD PHASE STATUS
 
 ```

@@ -59,16 +59,16 @@ export default function HomePage() {
 
         <div className="mt-9 flex gap-4">
           <Link
-            href="/upload"
+            href="/studio"
             className="rounded border border-transparent bg-afs-crimson px-9 py-3.5 font-label text-sm font-semibold tracking-[1px] text-afs-chrome-high cursor-pointer"
           >
             Submit a Drawing
           </Link>
           <Link
-            href="/quote"
+            href="/studio"
             className="rounded border border-afs-chrome-high/45 bg-transparent px-9 py-3.5 font-label text-sm font-semibold tracking-[1px] text-afs-chrome-high cursor-pointer"
           >
-            Request a Quote
+            Start in Design Studio
           </Link>
         </div>
       </div>
