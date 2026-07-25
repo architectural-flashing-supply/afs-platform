@@ -243,6 +243,43 @@ export async function getProductionQueue(
   }));
 }
 
+// Employee PWA statuses (SPEC_DELIVERY_TRACKING_AND_EMPLOYEE_PWA.md §3) —
+// widened onto orders.status by supabase/migrations/007_delivery_tracking.sql
+// §6a, deliberately not part of OrderStageKey/ORDER_STAGES (see that
+// migration's own comment: reconciling in_production with the existing
+// granular admin stages is out of scope here).
+const EMPLOYEE_QUEUE_STATUSES = ['in_production', 'ready', 'packaged', 'out_for_delivery'] as const;
+
+/**
+ * orders has no operator SELECT RLS policy (only order-owner and admin —
+ * see 007_delivery_tracking.sql §1's comment), so this must be called with
+ * the service-role client, matching every other operator-facing read in
+ * this codebase (app/api/driver/location, app/api/orders/[id]/dispatch).
+ * `driverId` matches an order either assigned to this driver or unassigned —
+ * per SPEC §3 Screen 2, Steve and Christian share an unclaimed queue.
+ */
+export async function getEmployeeOrderQueue(admin: SupabaseClient, driverId: string): Promise<ProductionQueueRow[]> {
+  const { data } = await admin
+    .from('orders')
+    .select(
+      'id, order_number, created_at, is_rush, status, profiles(full_name, company), order_line_items(description)'
+    )
+    .in('status', EMPLOYEE_QUEUE_STATUSES)
+    .or(`assigned_driver_id.eq.${driverId},assigned_driver_id.is.null`)
+    .order('is_rush', { ascending: false })
+    .order('created_at', { ascending: true });
+
+  return ((data ?? []) as unknown as ProductionQueueSource[]).map((row) => ({
+    id: row.id,
+    orderNumber: row.order_number,
+    customerName: row.profiles?.company || row.profiles?.full_name || 'Unknown',
+    profileSummary: summarizeOrderLineItems(row.order_line_items),
+    createdAt: row.created_at,
+    isRush: row.is_rush,
+    status: row.status,
+  }));
+}
+
 export type ProductionQueueCounts = Record<'all' | 'rush' | OrderStageKey, number>;
 
 export async function getProductionQueueCounts(supabase: SupabaseClient): Promise<ProductionQueueCounts> {

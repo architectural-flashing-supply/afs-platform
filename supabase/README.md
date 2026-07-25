@@ -15,6 +15,7 @@ migrations/
   006_canonical_profiles.sql          Canonical profile library — hand-crafted profile geometry (Design Studio)
   007_delivery_tracking.sql           Delivery tracking map, Employee PWA, GBP photo queue
   008_order_geocoding.sql             Geocode cache (orders.geocoded_lat/lng) for the driver-GPS 10-mile SMS trigger
+  009_command_center_crm.sql          Command Center CRM tabs — profiles.internal_notes, orders.invoice_paid_at
 ```
 
 Run them in numeric order. Each file is idempotent-safe to re-run only where it
@@ -34,7 +35,16 @@ re-running against a database that already has the schema will error on
 8. Paste the contents of `006_canonical_profiles.sql`, run it
 9. Paste the contents of `007_delivery_tracking.sql`, run it
 10. Paste the contents of `008_order_geocoding.sql`, run it
-11. Verify: **Table Editor** should show 45 tables, all with the RLS lock icon enabled
+11. Paste the contents of `009_command_center_crm.sql`, run it
+12. Verify: **Table Editor** should show 48 tables (45 + `driver_locations`,
+    `delivery_notifications`, `gbp_photo_queue` from 007), all with the RLS
+    lock icon enabled — `009` only adds columns to existing tables, no new
+    ones. **NONE of 007, 008, or 009 have been applied to the live Supabase
+    project yet** — this whole feature block (delivery tracking, Employee
+    PWA, Command Center CRM, GBP photo queue) is built and gate-clean in
+    code but inert against production until these three are run, `profiles.role`
+    is confirmed to accept `'operator'`, and the operator accounts are created
+    (see SPEC_DELIVERY_TRACKING_AND_EMPLOYEE_PWA.md §10).
 
 ## 004_machine_profiles.sql — Design Studio machine profile library
 

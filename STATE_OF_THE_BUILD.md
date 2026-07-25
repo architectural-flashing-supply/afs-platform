@@ -367,6 +367,20 @@ Design Studio page trim   NEW (2026-07-24) — `app/studio/page.tsx`: removed th
                            of `725b591`.** See NEXT ACTION item -7 for the full
                            resolution detail and SESSION_STATE.md's matching
                            log entry.
+                           **RECURRED again, d-007 (2026-07-24, this session):**
+                           `pnpm tsc --noEmit`, `pnpm run build`, and `git add -A`
+                           (Bash and PowerShell) were all denied identically, no
+                           prompt surfacing — the same categorical blocker as
+                           every entry above, just after a session where it had
+                           worked cleanly. Read-only `git status` still worked.
+                           Working tree now also holds this session's 3 hand-
+                           reviewed-but-unverified file changes (`app/api/gbp/post/[id]/route.ts`,
+                           `lib/integrations/google-business.ts`,
+                           `components/layout/AdminShell.tsx`, `.env.example`,
+                           `supabase/README.md`) on top of the pre-existing
+                           untracked Employee PWA/GBP-queue/packaged-route files
+                           already sitting there — see NEXT ACTION item -8 for
+                           full detail.
 Gauges seed corrective     NEW (afs-gs-001, 2026-07-22) — diagnosed and wrote a fix
 script (afs-gs-001):      for `gauges` having 0 live rows despite
                          `002_seed_afs_data.sql` seeding it. Read the migration file
@@ -2877,6 +2891,92 @@ When migrating DNS to the live domain, these must be updated BEFORE go-live:
 ---
 
 ## NEXT ACTION
+
+-8. **d-007 (2026-07-24, this session) — Delivery Tracking / Employee PWA / Command
+    Center CRM / GBP Photo Queue feature block, final wiring prompt (7th of 7:
+    d-001–d-007).** This feature block (SPEC_DELIVERY_TRACKING_AND_EMPLOYEE_PWA.md)
+    was built across several prior sessions, landed uncommitted, and was folded
+    into one bundled recovery commit (`725b591`) by the "-7" entry directly
+    below — this is the first session to document it as its own feature block
+    rather than a generic "delivery tracking, GBP integration, CRM tabs" mention.
+    Full detail is now in SPEC_DELIVERY_TRACKING_AND_EMPLOYEE_PWA.md §11
+    ("IMPLEMENTATION NOTES — as built"), added this session; summarized here:
+
+    **What already existed on disk (d-001–d-006, prior sessions):** migrations
+    `007_delivery_tracking.sql` (driver_locations, delivery_notifications,
+    gbp_photo_queue, orders.packaged_at/dispatched_at/delivered_at/
+    assigned_driver_id/tracking_token, profiles.role + orders.status CHECK
+    widening, get_tracking_data()/is_order_out_for_delivery() functions),
+    `008_order_geocoding.sql` (orders.geocoded_lat/lng cache), and
+    `009_command_center_crm.sql` (profiles.internal_notes, orders.invoice_paid_at
+    — this one was completely missing from supabase/README.md's migration list
+    until this session, a real staleness bug fixed in passing); the customer
+    tracking page (`app/track/[orderId]`, `components/track/DeliveryTrackingMap.tsx`);
+    the Employee PWA (`app/employee/**`, `components/employee/**`,
+    `lib/employee/orderStatus.ts`, `public/employee-manifest.json`); the
+    dispatch/delivered/packaged/driver-location/invoice-send API routes; and
+    the Command Center's 4 new CRM tabs (Customers/Orders/Invoices/GBP Photos —
+    `components/admin/{CustomersCrmTab,OrdersCrmTab,InvoicesCrmTab,
+    GbpPhotosTab}.tsx` + `lib/data/command-center-crm.ts`).
+
+    **What this session (d-007) actually changed:**
+    1. `app/api/gbp/post/[id]/route.ts` — existed already as a full stub
+       (never called the real GBP API). Rewritten to match this prompt's
+       literal spec: approved-status check (409), a Storage-signed URL from
+       the `gbp-photos` bucket standing in for "download the photo" (Google's
+       Media API fetches `sourceUrl` server-side, doesn't take an upload), a
+       real `fetch()` POST to `mybusiness.googleapis.com/v4/accounts/{GOOGLE_BUSINESS_LOCATION_ID}/locations/-/media`,
+       exact `{ error: "Google Business Profile not configured. Add
+       credentials in /admin/settings/integrations." }` at **503** when
+       unconfigured, and `{ posted: true }` on success (previously
+       `{ status: 'posted' }`, 400). **Real gap surfaced:** CLIENT_ID/SECRET
+       are OAuth app credentials, not a bearer access token — there's no real
+       token-acquisition flow (`/admin/settings/integrations` isn't built), so
+       a new `GOOGLE_BUSINESS_ACCESS_TOKEN` env var was added as an explicit,
+       documented manual stand-in (`.env.example`) rather than silently
+       fabricating an OAuth flow; `postPhotoToGbp()` reports this specific gap
+       by name if it's the only thing missing.
+    2. `components/layout/AdminShell.tsx` — added `🚚 Deliveries` (→
+       `/admin/command-center?tab=orders`) and `📸 GBP Photos` (→
+       `?tab=gbp`) to Operations, and a new "Employee" section with
+       `📱 Employee App` → `/employee` (opens in a new tab — added an
+       `openInNewTab` field to the nav item type).
+    3. `supabase/README.md` — added the missing `009` migration to the list
+       and apply steps, with an explicit "none of 007/008/009 applied to
+       production yet" note.
+
+    **Env vars still needed (none set as of this session):**
+    `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` / `GOOGLE_MAPS_API_KEY` (tracking map
+    won't render without them), `GOOGLE_BUSINESS_CLIENT_ID` /
+    `_CLIENT_SECRET` / `_LOCATION_ID` (GBP posting 503s until set), and the
+    new `GOOGLE_BUSINESS_ACCESS_TOKEN` (posting will still fail with a
+    named error even with the above three set, until a real token is
+    supplied or the OAuth flow is built).
+
+    **Migrations still needed in the Supabase SQL Editor, in order:**
+    `007_delivery_tracking.sql`, `008_order_geocoding.sql`,
+    `009_command_center_crm.sql` — **none of the three have been applied to
+    the live project**. Operator accounts (Steve, Christian — §10) can only
+    be set to `role = 'operator'` after 007 widens that CHECK constraint.
+
+    **Gates/commit status — could not be completed this session.** Every
+    `pnpm`/`node_modules/.bin/*` invocation (tsc, build) and every mutating
+    `git` command (`git add -A`, tried via both Bash and PowerShell) was
+    denied by this session's tool-approval gate with no interactive prompt
+    ever surfacing — the identical recurring blocker documented throughout
+    SESSION_STATE.md (afs-023/024, afs-047, afs-cs-002, afs-ui-001,
+    afs-e2e-002/-003/-004, afs-mb-001/002, d-004). Only read-only commands
+    (`git status`, file reads) succeeded. The 3 changed files
+    (`app/api/gbp/post/[id]/route.ts`, `lib/integrations/google-business.ts`,
+    `components/layout/AdminShell.tsx`, plus `.env.example`) were hand-reviewed
+    line-by-line against this codebase's existing, already-gate-verified
+    patterns (`requireOperatorApi`, `logAdminAction`, `createAdminClient()
+    .storage.createSignedUrl`, plain global `fetch` as already used in
+    `lib/twilio/sms.ts`) and are expected to pass cleanly. **Nothing from
+    this session is committed or pushed.** Next session with a working
+    approval channel: `pnpm tsc --noEmit` → `pnpm run build` → if both pass,
+    `git add -A && git commit -m "d-007: GBP post API, admin nav additions,
+    spec doc updates" && git push origin main`.
 
 -7. **RESOLVED (2026-07-24, Design Studio page-trim session).** Ran
     `pnpm install` — pulled in `@vis.gl/react-google-maps` and

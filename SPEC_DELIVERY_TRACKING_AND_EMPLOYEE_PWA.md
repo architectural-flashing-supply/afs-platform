@@ -321,4 +321,162 @@ WHERE email IN ('steve@architecturalflashingsupply.com', 'christian@architectura
 
 ---
 
+## 11. IMPLEMENTATION NOTES (as built — d-007, 2026-07-24)
+
+This feature block was built across 7 FORGE prompts (d-001–d-007) in
+several sessions; this section is the as-built record d-007 was asked to
+add, written from the real files on disk rather than the individual
+per-prompt logs (most of d-001–d-006 landed uncommitted across multiple
+sessions and were bundled into one recovery commit, `725b591`, before
+being individually written up — see SESSION_STATE.md for that history).
+
+### What actually exists on disk
+
+**Migrations** (none applied to the live Supabase project yet — see
+`supabase/README.md`, updated this session to list `009` for the first
+time):
+- `007_delivery_tracking.sql` — `driver_locations`, `delivery_notifications`,
+  `gbp_photo_queue`; `orders.packaged_at/dispatched_at/delivered_at/
+  assigned_driver_id/tracking_token`; widens `profiles.role`'s CHECK to
+  include `'operator'` (the spec's literal `ALTER TYPE ... ADD VALUE`
+  doesn't apply — `profiles.role` is a plain `TEXT` + `CHECK`, not an enum,
+  confirmed against the real schema before writing); widens `orders.status`'s
+  CHECK to add `'packaged'`, `'out_for_delivery'`, `'in_production'`
+  (needed for the Employee PWA / dispatch flow to reach those statuses at
+  all — flagged in the migration's own comments as a deliberate addition
+  beyond the original column list); adds `get_tracking_data(token)` and
+  `is_order_out_for_delivery(uuid)` SECURITY DEFINER functions so an
+  anonymous tracking-page visitor and a public Realtime subscription can
+  both read scoped data without a standing anon SELECT grant on
+  `driver_locations`.
+- `008_order_geocoding.sql` — `orders.geocoded_lat/lng`, a cache so the
+  10-mile SMS check in `app/api/driver/location` doesn't re-geocode the
+  same jobsite address on every 30-second GPS ping.
+- `009_command_center_crm.sql` — `profiles.internal_notes` (freeform CRM
+  note field, distinct from the existing `admin_audit_log`-based note
+  history), `orders.invoice_paid_at` (manual "Mark Paid" timestamp — there
+  is no standalone `invoices` table; every invoice is derived 1:1 from its
+  order, see `lib/data/invoices.ts`'s header comment).
+
+**API routes actually built** (vs. §7's table — all present, one method
+differs from an unstated assumption):
+| Route | Method | Notes |
+|---|---|---|
+| `/api/driver/location` | POST | Inline operator-or-admin check (not `requireOperatorApi`, written earlier); geocodes + caches on first ping per order, fires the 10-mile SMS once via `delivery_notifications.ten_mile_sent` |
+| `/api/orders/[id]/packaged` | **PATCH** | Spec's route table didn't state a method; PATCH was chosen as a partial-state-transition on an existing resource, consistent with this codebase's other status-transition routes |
+| `/api/orders/[id]/dispatch` | POST | SMS (opt-in gated) + transactional email (not opt-in gated, per ARCHITECTURE.md §9) + invoice email, in that order; failures in any one never block the others or the status update |
+| `/api/orders/[id]/delivered` | POST | No dedicated Realtime broadcast — PWA/tracking page both already key off `orders.status` directly |
+| `/api/track/[token]` | GET | Calls `get_tracking_data()`; also exists: `/api/track/verify` (not in the original §7 table — added for the tracking page's own needs) |
+| `/api/gbp/queue` | POST | Records a queue row for a photo the client already uploaded to the `gbp-photos` Storage bucket |
+| `/api/gbp/post/[id]` | POST | **Rewritten this session (d-007) — see below** |
+| `/api/invoices/[id]/send` | POST | Emails the invoice PDF; also exists: `/api/invoices/[id]/pdf` and `/api/invoices/statement` (not in the original §7 table) |
+
+**Employee PWA** (`app/employee/**`, `components/employee/**`,
+`lib/employee/orderStatus.ts`): layout + bottom nav (Orders/Photos),
+orders list + detail with Package/Dispatch/Deliver actions, photo
+uploader that queues into `gbp_photo_queue`. `public/employee-manifest.json`
+matches §3's manifest exactly. **Gap found, not fixed this session:**
+`scripts/generate-employee-icons.js` exists but has not been run —
+`public/employee-icon-192.png`/`employee-icon-512.png` do not exist on
+disk yet, so the manifest currently 404s on both icon entries. Run
+`pnpm run generate:employee-icons` before shipping the PWA for real
+installation (a missing icon doesn't break the web app itself, only the
+"Add to Home Screen" experience).
+
+**Command Center CRM tabs** (`app/admin/command-center/page.tsx` +
+`components/admin/{CustomersCrmTab,CustomerDetailDrawer,CustomerNotesLog,
+CustomerAccountSettingsForm,ExportCustomersCsvButton,OrdersCrmTab,
+InvoicesCrmTab,GbpPhotosTab}.tsx`, `lib/data/command-center-crm.ts`):
+all four new tabs (Customers/Orders/Invoices/GBP Photos) exist alongside
+the original Queue/Approvals tabs, addressable via `?tab=customers`,
+`?tab=orders`, `?tab=invoices`, `?tab=gbp`.
+
+### d-007 (this prompt) — what changed
+
+1. **`app/api/gbp/post/[id]/route.ts` rewritten.** The route already
+   existed from an earlier prompt but as a full stub matching the
+   QuickBooks/PathfinderEdge precedent (never called the real GBP API,
+   returned `{ status: 'posted' }` not `{ posted: true }`, 400 not 503 when
+   unconfigured). Rewrote to match this prompt's literal spec: checks
+   `gbp_photo_queue[id].status = 'approved'` (409 otherwise), generates a
+   Storage-signed URL for `storage_key` from the `gbp-photos` bucket (this
+   *is* "downloading the photo" in a form Google's Media API can actually
+   fetch — the API takes a `sourceUrl` it retrieves server-side, not a
+   byte upload), and now really calls
+   `POST https://mybusiness.googleapis.com/v4/accounts/{GOOGLE_BUSINESS_LOCATION_ID}/locations/-/media`
+   with `{ mediaFormat: 'PHOTO', sourceUrl, category: 'ADDITIONAL' }`. On
+   success, updates `status='posted'`/`posted_at` and returns `{ posted: true }`
+   exactly as specified. When `isGbpConfigured()` is false, returns exactly
+   `{ error: "Google Business Profile not configured. Add credentials in
+   /admin/settings/integrations." }` at **503**, per this prompt's literal
+   text (this codebase's other stubs, e.g. QuickBooks, use 400 — 503 was
+   kept here since the prompt was explicit).
+
+   **Real gap surfaced, not silently papered over:** `GOOGLE_BUSINESS_CLIENT_ID`/
+   `_CLIENT_SECRET` are OAuth *app* credentials, not a per-request bearer
+   access token — actually calling the v4 Media API needs a real
+   authorization-code exchange + refresh-token flow, which only exists once
+   `/admin/settings/integrations` (not built) does it. `isGbpConfigured()`
+   still only checks CLIENT_ID/SECRET/LOCATION_ID (matching the Command
+   Center's existing "is GBP set up at all" UI signal and this prompt's
+   literal 503 condition), but `postPhotoToGbp()` separately checks a new
+   `GOOGLE_BUSINESS_ACCESS_TOKEN` env var and reports that specific gap by
+   name if CLIENT_ID/SECRET/LOCATION_ID are set but the token isn't — added
+   to `.env.example` as a documented manual stand-in, not a real OAuth
+   implementation. Whoever wires the real OAuth flow should also confirm
+   the v4 Media API endpoint shape against current Google docs — Google's
+   Business Profile APIs have been consolidated/versioned since v4.9, and
+   this route implements this prompt's literal endpoint text rather than
+   re-verifying it live (no real credentials exist to test against).
+
+2. **`components/layout/AdminShell.tsx`** — added `🚚 Deliveries` →
+   `/admin/command-center?tab=orders` and `📸 GBP Photos` →
+   `/admin/command-center?tab=gbp` to the existing Operations section, and
+   a new "Employee" section with `📱 Employee App` → `/employee` opening
+   in a new tab (`target="_blank"`, added an `openInNewTab` field to the
+   `NavItem` type for this). Both new Operations links carry a `?tab=`
+   query string, so `isActive()`'s plain `pathname.startsWith(href)` check
+   never highlights them as active (it compares against `pathname`, which
+   never includes the query string) — a pre-existing minor cosmetic gap in
+   how this file's active-state check works, not something this prompt's
+   scope asked to fix, and not a functional bug (the links still navigate
+   correctly).
+
+3. **`supabase/README.md`** — `009_command_center_crm.sql` existed on disk
+   but was completely missing from the migration list and the Dashboard
+   apply-order steps (a real staleness bug, not part of this prompt's
+   literal ask, fixed anyway since accurately answering "what migrations
+   need to be applied" is exactly what this prompt's closing instruction
+   asked for). Now lists all three of 007/008/009 with an explicit
+   not-yet-applied-to-production note.
+
+### Still needed before this feature block is live
+
+- Apply `007_delivery_tracking.sql`, `008_order_geocoding.sql`,
+  `009_command_center_crm.sql` to the live Supabase project, in that order
+  (see `supabase/README.md`).
+- Set `profiles.role = 'operator'` for Steve and Christian (§10 — requires
+  007 applied first).
+- `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` / `GOOGLE_MAPS_API_KEY` — confirmed
+  still absent from `.env.local` as of this session; the tracking map
+  (`components/track/DeliveryTrackingMap.tsx`) cannot render without them.
+- `GOOGLE_BUSINESS_CLIENT_ID` / `_CLIENT_SECRET` / `_LOCATION_ID` — none
+  set; GBP posting returns 503 until they are.
+- `GOOGLE_BUSINESS_ACCESS_TOKEN` (new, this session) — a real OAuth
+  exchange flow behind `/admin/settings/integrations` doesn't exist yet;
+  until it's built, this env var is the only way to actually post a photo.
+- Run `pnpm run generate:employee-icons` to produce the two PWA icon PNGs
+  the manifest already references.
+- `pnpm tsc --noEmit` / `pnpm run build` could not be run this session —
+  the tool-approval gate denied every `pnpm`/`node_modules/.bin` invocation
+  with no interactive prompt surfacing (the same recurring blocker logged
+  throughout SESSION_STATE.md). This prompt's 3 changed files were
+  hand-reviewed line-by-line against this codebase's existing,
+  gate-verified patterns (`requireOperatorApi`, `logAdminAction`,
+  `createAdminClient().storage.createSignedUrl`, plain global `fetch`) and
+  are expected to pass cleanly; run both gates for real before treating
+  d-007 as fully verified.
+
+---
+
 *SPEC_DELIVERY_TRACKING_AND_EMPLOYEE_PWA.md | AFS | Reid Whitesides | July 2026*

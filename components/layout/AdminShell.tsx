@@ -9,6 +9,7 @@ interface NavItem {
   label: string;
   href: string;
   badgeKey?: 'commandCenter';
+  openInNewTab?: boolean;
 }
 
 interface NavSection {
@@ -24,6 +25,8 @@ const NAV_SECTIONS: NavSection[] = [
       { label: 'Quote Requests', href: '/admin/quote-requests' },
       { label: 'Production Queue', href: '/admin/orders' },
       { label: 'Consultations', href: '/admin/consultations' },
+      { label: '🚚 Deliveries', href: '/admin/command-center?tab=orders' },
+      { label: '📸 GBP Photos', href: '/admin/command-center?tab=gbp' },
     ],
   },
   {
@@ -45,6 +48,10 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: 'Settings',
     items: [{ label: 'Settings', href: '/admin/settings' }],
+  },
+  {
+    title: 'Employee',
+    items: [{ label: '📱 Employee App', href: '/employee', openInNewTab: true }],
   },
 ];
 
@@ -96,6 +103,8 @@ export default function AdminShell({ adminName, pendingMachineJobs = 0, children
                     <Link
                       key={item.href}
                       href={item.href}
+                      target={item.openInNewTab ? '_blank' : undefined}
+                      rel={item.openInNewTab ? 'noopener noreferrer' : undefined}
                       className={`flex items-center justify-between font-label text-sm px-4 py-2.5 rounded-sm border-l-2 transition-colors ${
                         active
                           ? 'border-afs-crimson bg-afs-bg-surface text-white'
