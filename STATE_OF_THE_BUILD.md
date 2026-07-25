@@ -339,6 +339,34 @@ git commits:             All afs-website work through afs-046 is committed and p
                          own independent git repo (not part of this repo, not pushed
                          anywhere — no remote was given) — see MACHINE BRIDGE — AUDITED
                          STATUS below for its real current connectivity state.
+Design Studio page trim   NEW (2026-07-24) — `app/studio/page.tsx`: removed the
+(2026-07-24):              small red "Design Studio" eyebrow label above the `<h1>`
+                           (h1 itself kept), deleted the "Profile Library" promo
+                           block entirely (the card/button section below the
+                           5-tab grid), reduced the header div's top padding
+                           `pt-14` → `pt-6`. **This session's tool-approval
+                           channel had no blocker** — `pnpm tsc --noEmit` first
+                           failed on the pre-existing, unrelated
+                           `@vis.gl/react-google-maps`/`@types/google.maps` gap
+                           the d-004 recovery agent had already diagnosed (see
+                           NEXT ACTION item -7); `pnpm install` resolved it
+                           cleanly, then `pnpm tsc --noEmit` passed (0 errors)
+                           and `pnpm run build` passed. Found a large backlog of
+                           unrelated pre-existing uncommitted work in the tree
+                           (everything logged as "not committed" across
+                           afs-gs-001/afs-mb-001/afs-e2e-002 through -004/
+                           afs-audit-001/afs-dns-001-002/the profile geometry
+                           audit/d-004) — flagged the scope to the user before
+                           running `git add -A` rather than silently bundling
+                           it; user explicitly chose to commit everything
+                           together. `git commit -m "studio: remove eyebrow
+                           label, remove profile library, reduce top padding"`
+                           → `725b591` (48 files), `git push origin main` —
+                           both succeeded first try, no approval denial.
+                           **Working tree is clean, origin/main up to date as
+                           of `725b591`.** See NEXT ACTION item -7 for the full
+                           resolution detail and SESSION_STATE.md's matching
+                           log entry.
 Gauges seed corrective     NEW (afs-gs-001, 2026-07-22) — diagnosed and wrote a fix
 script (afs-gs-001):      for `gauges` having 0 live rows despite
                          `002_seed_afs_data.sql` seeding it. Read the migration file
@@ -2850,7 +2878,23 @@ When migrating DNS to the live domain, these must be updated BEFORE go-live:
 
 ## NEXT ACTION
 
--7. **New, needs a working approval channel (d-004 recovery agent,
+-7. **RESOLVED (2026-07-24, Design Studio page-trim session).** Ran
+    `pnpm install` — pulled in `@vis.gl/react-google-maps` and
+    `@types/google.maps` cleanly, exactly closing the gap the d-004
+    recovery agent diagnosed below. `pnpm tsc --noEmit` then passed with 0
+    errors (confirming the d-004 recovery agent's hand-review was
+    correct — the delivery-tracking files themselves had no real defect)
+    and `pnpm run build` passed. `git add -A && git commit` and
+    `git push origin main` both succeeded with no tool-approval denial —
+    the whole backlog this file and SESSION_STATE.md had been logging as
+    "not committed, not pushed" across afs-gs-001, afs-mb-001/002,
+    afs-e2e-002 through -004, afs-audit-001, afs-dns-001/002, the profile
+    geometry audit, and this d-004 item landed in one commit, `725b591`
+    (48 files). **Working tree is clean and origin/main is up to date as
+    of `725b591`.** The original diagnosis is left below, unedited, as a
+    historical record of the finding — just no longer an open blocker.
+
+-7a. *(original entry, now historical)* **New, needs a working approval channel (d-004 recovery agent,
     2026-07-24):** the in-progress delivery-tracking/employee-PWA feature
     (`SPEC_DELIVERY_TRACKING_AND_EMPLOYEE_PWA.md`, entirely uncommitted —
     no `d-00N` entry appears anywhere in this file or SESSION_STATE.md
