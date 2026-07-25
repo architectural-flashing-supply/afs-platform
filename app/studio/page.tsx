@@ -82,8 +82,7 @@ const TABS: StudioTab[] = [
 export default function DesignStudioPage() {
   return (
     <main className="min-h-screen bg-afs-bg-base">
-      <div className="px-6 pt-14 pb-10 text-center">
-        <p className="font-label text-afs-crimson text-sm tracking-widest uppercase mb-3">Design Studio</p>
+      <div className="px-6 pt-6 pb-10 text-center">
         <h1 className="font-display text-6xl text-afs-chrome-high leading-none mb-4">Design Studio</h1>
         <p className="font-body text-afs-chrome-mid text-base max-w-xl mx-auto">
           Five ways to spec your flashing. One destination.
@@ -107,23 +106,6 @@ export default function DesignStudioPage() {
             </Link>
           </div>
         ))}
-      </div>
-
-      <div className="max-w-6xl mx-auto px-6 pb-16">
-        <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded metal-edge p-6 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div>
-            <h2 className="font-heading text-xl text-afs-chrome-high mb-1">Profile Library</h2>
-            <p className="font-body text-sm text-afs-chrome-mid">
-              Browse every profile in our machine library, compare up to three side by side, and load one straight into FlashDraft.
-            </p>
-          </div>
-          <Link
-            href="/studio/library"
-            className="bg-afs-crimson hover:bg-afs-crimson-hover text-white text-center font-label font-semibold text-sm px-5 py-2.5 rounded transition-colors shrink-0"
-          >
-            Browse Profile Library
-          </Link>
-        </div>
       </div>
     </main>
   );

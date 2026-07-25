@@ -1,31 +1,27 @@
 'use client';
 
-import { useState } from 'react';
-import ProductionTimeline, {
-  ORDER_STATUS_LABEL,
-  type OrderStatus,
-  type StatusHistoryItem,
-} from '@/components/account/ProductionTimeline';
+import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import Badge, { type BadgeVariant } from '@/components/ui/Badge';
+import DeliveryTrackingMap, {
+  type DeliveryAddress,
+  type DriverLocation,
+} from '@/components/track/DeliveryTrackingMap';
 
-interface TrackOrderResponse {
+interface TrackResponse {
+  orderId: string;
   orderNumber: string;
-  orderDate: string;
-  status: OrderStatus;
-  deliveryMethod: string;
-  deliveryScheduledAt: string | null;
-  deliveryWindow: string | null;
-  trackingNumber: string | null;
-  carrier: string | null;
-  shopPhotoUrl: string | null;
-  statusHistory: StatusHistoryItem[];
+  status: string;
+  deliveryAddress: DeliveryAddress | null;
+  driverLocation: DriverLocation | null;
 }
 
-interface TrackErrorResponse {
-  error: string;
-}
-
-const ORDER_STATUS_VARIANT: Record<OrderStatus, BadgeVariant> = {
+// This page's status set is wider than lib/admin/orderStages.ts's OrderStatus
+// union (it doesn't include packaged/out_for_delivery/in_production — see
+// supabase/migrations/007_delivery_tracking.sql section 6a) — deliberately
+// not importing that type here, since widening a union used across the
+// admin production-queue UI is a bigger change than this tracking page needs.
+const STATUS_VARIANT: Record<string, BadgeVariant> = {
   submitted: 'info',
   received: 'chrome',
   in_queue: 'warning',
@@ -33,145 +29,136 @@ const ORDER_STATUS_VARIANT: Record<OrderStatus, BadgeVariant> = {
   bending: 'warning',
   qc: 'warning',
   ready: 'success',
+  in_production: 'warning',
+  packaged: 'success',
   shipped: 'success',
+  out_for_delivery: 'success',
   delivered: 'chrome',
   cancelled: 'error',
 };
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+const STATUS_LABEL: Record<string, string> = {
+  submitted: 'Submitted',
+  received: 'Received',
+  in_queue: 'In Queue',
+  cutting: 'Cutting',
+  bending: 'Bending',
+  qc: 'Quality Check',
+  ready: 'Ready',
+  in_production: 'In Production',
+  packaged: 'Packaged',
+  shipped: 'Shipped',
+  out_for_delivery: 'Out for Delivery',
+  delivered: 'Delivered',
+  cancelled: 'Cancelled',
+};
+
+// The status bar's trailing message is status-aware rather than a fixed
+// "Your delivery is on the way" string shown regardless of actual status —
+// that phrase is only accurate once the order is actually out for delivery.
+const STATUS_MESSAGE: Record<string, string> = {
+  out_for_delivery: 'Your delivery is on the way',
+  shipped: 'Your order has shipped',
+  packaged: 'Your order is packaged and ready to ship',
+  delivered: 'Your order has been delivered',
+};
+const DEFAULT_STATUS_MESSAGE = 'Your order is being prepared';
+
+function UnavailableMessage() {
+  return (
+    <main className="min-h-screen flex items-center justify-center bg-afs-bg-base px-6">
+      <div className="max-w-md text-center bg-afs-bg-raised border border-afs-border rounded p-8 metal-edge">
+        <h1 className="font-heading text-2xl font-bold text-afs-chrome-high mb-3">Tracking Not Available</h1>
+        <p className="font-body text-sm text-afs-chrome-mid mb-6">
+          Tracking not available for this order. If you believe this is an error, contact AFS directly.
+        </p>
+        <a
+          href="tel:+15123724900"
+          className="block font-body text-sm text-afs-chrome-high hover:text-afs-crimson transition-colors mb-1"
+        >
+          (512) 372-4900
+        </a>
+        <a
+          href="mailto:trica@architecturalflashingsupply.com"
+          className="block font-body text-sm text-afs-chrome-high hover:text-afs-crimson transition-colors"
+        >
+          trica@architecturalflashingsupply.com
+        </a>
+      </div>
+    </main>
+  );
 }
 
 export default function PublicOrderTrackerPage({ params }: { params: { orderId: string } }) {
-  const [orderNumber, setOrderNumber] = useState(decodeURIComponent(params.orderId));
-  const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [order, setOrder] = useState<TrackOrderResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notAvailable, setNotAvailable] = useState(false);
+  const [data, setData] = useState<TrackResponse | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/track/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId: orderNumber.trim(), email: email.trim() }),
-      });
-      const data = (await res.json()) as TrackOrderResponse | TrackErrorResponse;
-      if (!res.ok) {
-        setError('error' in data ? data.error : 'Something went wrong. Please try again.');
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/track/${encodeURIComponent(params.orderId)}`);
+        if (cancelled) return;
+        if (!res.ok) {
+          setNotAvailable(true);
+          setLoading(false);
+          return;
+        }
+        const json = (await res.json()) as TrackResponse;
+        if (cancelled) return;
+        setData(json);
         setLoading(false);
-        return;
+      } catch {
+        if (!cancelled) {
+          setNotAvailable(true);
+          setLoading(false);
+        }
       }
-      setOrder(data as TrackOrderResponse);
-      setLoading(false);
-    } catch {
-      setError('Something went wrong. Please try again.');
-      setLoading(false);
-    }
-  };
+    })();
 
-  const inputClass =
-    'w-full bg-afs-bg-overlay border border-afs-border rounded px-4 py-3 font-body text-sm text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors';
+    return () => {
+      cancelled = true;
+    };
+  }, [params.orderId]);
+
+  if (loading) {
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-afs-bg-base">
+        <p className="font-body text-afs-chrome-mid text-sm">Loading tracking information…</p>
+      </main>
+    );
+  }
+
+  if (notAvailable || !data) {
+    return <UnavailableMessage />;
+  }
+
+  const isOutForDelivery = data.status === 'out_for_delivery';
 
   return (
-    <main className="min-h-screen bg-afs-bg-base py-16 px-6">
-      <div className="max-w-xl mx-auto">
-        <div className="mb-10 text-center">
-          <p className="font-label text-afs-crimson text-sm tracking-widest uppercase mb-4">Order Tracker</p>
-          <h1 className="font-display text-5xl text-afs-chrome-high leading-none mb-4">TRACK YOUR ORDER</h1>
-          <p className="font-body text-afs-chrome-mid text-base">
-            Enter your order number and the email address on file to see fabrication status.
-          </p>
+    <main className="fixed inset-0 flex flex-col">
+      <div className="bg-afs-bg-raised border-b border-afs-border px-6 py-3 flex items-center gap-4 flex-wrap z-10">
+        <div className="bg-afs-bg-dim inline-flex items-center px-2 py-1 rounded-sm">
+          <Image src="/afs-logo.png" alt="AFS" width={40} height={28} className="w-auto h-7 object-contain" />
         </div>
+        <span className="font-data text-sm text-afs-chrome-high">Order #{data.orderNumber}</span>
+        <Badge variant={STATUS_VARIANT[data.status] ?? 'chrome'} pulse={isOutForDelivery}>
+          {STATUS_LABEL[data.status] ?? data.status}
+        </Badge>
+        <span className="font-body text-sm text-afs-chrome-mid ml-auto">
+          {STATUS_MESSAGE[data.status] ?? DEFAULT_STATUS_MESSAGE}
+        </span>
+      </div>
 
-        {!order ? (
-          <form
-            onSubmit={handleSubmit}
-            className="bg-afs-bg-overlay border border-afs-chrome-dim rounded p-8"
-            data-testid="track-form"
-          >
-            <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-2 block" htmlFor="orderId">
-              Order Number
-            </label>
-            <input
-              id="orderId"
-              name="orderId"
-              type="text"
-              required
-              className={`${inputClass} mb-6`}
-              value={orderNumber}
-              onChange={(e) => setOrderNumber(e.target.value)}
-              placeholder="AFS-2026-00001"
-            />
-
-            <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-2 block" htmlFor="email">
-              Email Address
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              required
-              className={`${inputClass} mb-6`}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-            />
-
-            {error && <p className="font-body text-sm text-afs-crimson mb-4">{error}</p>}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label font-semibold px-6 py-3 rounded text-sm transition-colors disabled:opacity-50 disabled:pointer-events-none"
-            >
-              {loading ? 'Looking up…' : 'Track Order'}
-            </button>
-          </form>
-        ) : (
-          <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-8">
-            <div className="flex items-start justify-between gap-4 mb-6 flex-wrap">
-              <div>
-                <h2 className="font-data text-2xl text-afs-chrome-high">{order.orderNumber}</h2>
-                <p className="font-body text-sm text-afs-chrome-mid mt-1">Ordered {formatDate(order.orderDate)}</p>
-              </div>
-              <Badge variant={ORDER_STATUS_VARIANT[order.status] ?? 'chrome'} size="md">
-                {ORDER_STATUS_LABEL[order.status] ?? order.status}
-              </Badge>
-            </div>
-
-            <ProductionTimeline
-              currentStatus={order.status}
-              statusHistory={order.statusHistory}
-              trackingNumber={order.trackingNumber}
-              carrier={order.carrier}
-              shopPhotoUrl={order.shopPhotoUrl}
-              variant="public"
-            />
-
-            {order.deliveryScheduledAt && (
-              <p className="font-body text-sm text-afs-chrome-mid mt-4">
-                {order.deliveryMethod === 'pickup' ? 'Pickup scheduled' : 'Delivery scheduled'} for{' '}
-                <span className="font-data text-afs-chrome-high">{formatDate(order.deliveryScheduledAt)}</span>
-                {order.deliveryWindow ? ` · ${order.deliveryWindow}` : ''}
-              </p>
-            )}
-
-            <button
-              type="button"
-              onClick={() => {
-                setOrder(null);
-                setError(null);
-              }}
-              className="font-label text-xs text-afs-chrome-mid hover:text-afs-crimson transition-colors mt-8"
-            >
-              ← Track a different order
-            </button>
-          </div>
-        )}
+      <div className="flex-1 relative">
+        <DeliveryTrackingMap
+          orderId={data.orderId}
+          deliveryAddress={data.deliveryAddress}
+          initialDriverLocation={data.driverLocation}
+          isOutForDelivery={isOutForDelivery}
+        />
       </div>
     </main>
   );

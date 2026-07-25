@@ -93,6 +93,7 @@ export interface CustomerDetail {
   creditLimit: number | null;
   taxExempt: boolean;
   createdAt: string;
+  internalNotes: string | null;
 }
 
 interface CustomerDetailSource {
@@ -107,12 +108,15 @@ interface CustomerDetailSource {
   credit_limit: number | null;
   tax_exempt: boolean;
   created_at: string;
+  internal_notes: string | null;
 }
 
 export async function getCustomerDetail(supabase: SupabaseClient, id: string): Promise<CustomerDetail | null> {
   const { data } = await supabase
     .from('profiles')
-    .select('id, full_name, company, email, phone, role, pricing_tier, net_terms, credit_limit, tax_exempt, created_at')
+    .select(
+      'id, full_name, company, email, phone, role, pricing_tier, net_terms, credit_limit, tax_exempt, created_at, internal_notes'
+    )
     .eq('id', id)
     .maybeSingle();
 
@@ -131,6 +135,7 @@ export async function getCustomerDetail(supabase: SupabaseClient, id: string): P
     creditLimit: row.credit_limit,
     taxExempt: row.tax_exempt,
     createdAt: row.created_at,
+    internalNotes: row.internal_notes,
   };
 }
 

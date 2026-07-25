@@ -7,7 +7,7 @@ import Footer from './Footer';
 
 const ChatWidget = dynamic(() => import('@/components/ai/ChatWidget'), { ssr: false });
 
-const NO_CHROME_PREFIXES = ['/login', '/register', '/forgot-password', '/reset-password', '/invite'];
+const NO_CHROME_PREFIXES = ['/login', '/register', '/forgot-password', '/reset-password', '/invite', '/track'];
 // Admin and account portals render their own sidebar (AdminShell/AccountShell)
 // and must show no public nav at all — not the NavBar, not the Footer, not
 // the marketing ChatWidget.

@@ -1,14 +1,15 @@
 # SCHEMA.md
 ## AFS — Supabase Database Schema
-**42 tables across 6 migration files. RLS on every table. Indexes on every
+**45 tables across 7 migration files. RLS on every table. Indexes on every
 foreign key and filter column.** (This document's "TABLE N" numbering below
 covers the original 25 sections designed in migration 001 — several of
 those sections define more than one physical table, e.g. TABLE 8 =
 `accessories` + `product_accessories`. The MACHINE INTEGRATION and MACHINE
 BRIDGE sections near the end of this document add 5 more tables via
-migrations 004 and 005, and the CANONICAL PROFILE LIBRARY section adds 1
-more via migration 006. 42 is the count `supabase/README.md` verifies
-against the live database after all 6 migrations are applied.)
+migrations 004 and 005, the CANONICAL PROFILE LIBRARY section adds 1
+more via migration 006, and the DELIVERY TRACKING + EMPLOYEE PWA section
+adds 3 more via migration 007. 45 is the count `supabase/README.md` should
+verify against the live database once all 7 migrations are applied.)
 
 ---
 
@@ -22,6 +23,7 @@ supabase/migrations/
   004_machine_profiles.sql             Design Studio machine profile library (see MACHINE INTEGRATION TABLES)
   005_machine_jobs.sql                 Machine Bridge job queue (see MACHINE BRIDGE TABLES)
   006_canonical_profiles.sql           Canonical profile library (see CANONICAL PROFILE LIBRARY TABLE)
+  007_delivery_tracking.sql            Delivery tracking + Employee PWA + GBP photo queue (see DELIVERY TRACKING + EMPLOYEE PWA TABLES)
 ```
 
 Run in numeric order — see `supabase/README.md` for the exact procedure.
@@ -1297,6 +1299,111 @@ Column notes:
   PROFILE LIBRARY section for why.
 - Served by `app/api/studio/canonical-profiles/route.ts` (GET, service-role
   client, `category`/`search` query params, ordered by `sort_order`).
+
+---
+
+## DELIVERY TRACKING + EMPLOYEE PWA TABLES (migration 007_delivery_tracking.sql)
+
+Backs SPEC_DELIVERY_TRACKING_AND_EMPLOYEE_PWA.md — the customer-facing
+delivery tracking map (`/track/[orderId]`), the operator-facing Employee
+PWA (`/employee`), and the GBP photo review queue inside the Command
+Center CRM. Three new tables, five new columns on `orders`, and a new
+`'operator'` profile role.
+
+```sql
+CREATE TABLE driver_locations (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  driver_id    UUID REFERENCES profiles(id),
+  order_id     UUID REFERENCES orders(id),
+  lat          DECIMAL(10,7) NOT NULL,
+  lng          DECIMAL(10,7) NOT NULL,
+  recorded_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+-- RLS: operator/admin can INSERT their own rows (auth.uid() = driver_id).
+-- No direct SELECT policy for anon/public — see get_tracking_data() below.
+
+CREATE TABLE delivery_notifications (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id            UUID NOT NULL REFERENCES orders(id) UNIQUE,
+  ten_mile_sent       BOOLEAN NOT NULL DEFAULT false,
+  ten_mile_sent_at    TIMESTAMPTZ,
+  dispatch_sms_sent   BOOLEAN NOT NULL DEFAULT false,
+  dispatch_email_sent BOOLEAN NOT NULL DEFAULT false,
+  invoice_sent        BOOLEAN NOT NULL DEFAULT false
+);
+-- RLS: admin only (FOR ALL) — same precedent as the pre-existing
+-- `notifications` table; every write happens server-side via the
+-- service-role client.
+
+CREATE TABLE gbp_photo_queue (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  queued_by    UUID REFERENCES profiles(id),
+  storage_key  TEXT NOT NULL,
+  caption      TEXT,
+  status       TEXT NOT NULL DEFAULT 'pending_review'
+               CHECK (status IN ('pending_review','approved','rejected','posted')),
+  queued_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  reviewed_at  TIMESTAMPTZ,
+  reviewed_by  UUID REFERENCES profiles(id),
+  posted_at    TIMESTAMPTZ
+);
+-- RLS: operator/admin can INSERT their own row (queued_by = auth.uid());
+-- operator/admin can SELECT/UPDATE all rows — the queue is shared, not
+-- per-uploader-owned, since both operators review each other's photos.
+
+ALTER TABLE orders
+  ADD COLUMN packaged_at        TIMESTAMPTZ,
+  ADD COLUMN dispatched_at      TIMESTAMPTZ,
+  ADD COLUMN delivered_at       TIMESTAMPTZ,
+  ADD COLUMN assigned_driver_id UUID REFERENCES profiles(id),
+  ADD COLUMN tracking_token     TEXT UNIQUE DEFAULT gen_random_uuid()::text;
+```
+
+**`is_operator()`** — a new `SECURITY DEFINER` helper (`supabase/migrations
+/007_delivery_tracking.sql`), matching `is_admin()`'s existing pattern from
+001_initial_schema.sql: `SELECT EXISTS (SELECT 1 FROM profiles WHERE id =
+auth.uid() AND role IN ('operator', 'admin'))`. Used by every RLS policy
+above instead of repeating the `EXISTS (...)` subquery inline. Admin is
+included so an admin can do anything an operator can, matching the spec's
+own "admin/operator" phrasing for CRM tab access.
+
+**`get_tracking_data(p_tracking_token TEXT)`** — a `SECURITY DEFINER`
+function, not an RLS policy, backing the public (unauthenticated)
+`/track/[orderId]` page. Per the spec's own instruction ("use a function or
+join — no direct token exposure"), the token match happens inside this
+function rather than in a `USING()` clause on `driver_locations`, so no
+anon-facing `SELECT` grant is ever needed on the table itself. Returns the
+order's id/status/delivery_address joined (via `LEFT JOIN LATERAL`) to only
+the single most recent `driver_locations` row for that order — never the
+full location history. Granted `EXECUTE` to `anon` and `authenticated`.
+
+**`profiles.role`** — `'operator'` added as a permitted value.
+**Deviation from the spec, confirmed against the real schema before
+writing the migration:** SPEC_DELIVERY_TRACKING_AND_EMPLOYEE_PWA.md ??6
+says `ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'operator'`, but per
+TABLE 1 above, `profiles.role` has never been a Postgres enum — it's
+always been `TEXT` with an inline, unnamed `CHECK (role IN (...))`
+constraint, so that statement would fail outright (`user_role` doesn't
+exist as a type in this schema). The migration instead uses a `DO` block
+that looks up the real, Postgres-auto-generated CHECK constraint name on
+`profiles.role` via `pg_constraint` at apply time, drops it, and re-adds it
+with `'operator'` appended — rather than hardcoding a guessed name (e.g.
+`profiles_role_check`), which would risk silently no-op-ing via `DROP
+CONSTRAINT IF EXISTS` and leaving the old, narrower constraint in place if
+the guess were wrong. `profiles.role` now allows: `admin`, `contractor`,
+`architect`, `customer`, `operator`.
+
+**Known gap, not addressed by this migration:** `orders.status`'s existing
+`CHECK` constraint (TABLE 18 above:
+`submitted/received/in_queue/cutting/bending/qc/ready/shipped/delivered/
+cancelled`) does not include the Employee PWA's own status vocabulary ???
+SPEC_DELIVERY_TRACKING_AND_EMPLOYEE_PWA.md ??3 references `packaged` and
+`out_for_delivery` (and `in_production`, used loosely) as order **status**
+values, not just as the timestamp columns this migration adds. Only the 5
+columns explicitly specified were added here; widening the live
+`orders.status` CHECK constraint is a real follow-up, deliberately left
+out of this migration rather than silently expanded beyond the requested
+column list.
 
 ---
 

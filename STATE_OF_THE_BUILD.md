@@ -2850,6 +2850,27 @@ When migrating DNS to the live domain, these must be updated BEFORE go-live:
 
 ## NEXT ACTION
 
+-7. **New, needs a working approval channel (d-004 recovery agent,
+    2026-07-24):** the in-progress delivery-tracking/employee-PWA feature
+    (`SPEC_DELIVERY_TRACKING_AND_EMPLOYEE_PWA.md`, entirely uncommitted —
+    no `d-00N` entry appears anywhere in this file or SESSION_STATE.md
+    before this one) is blocked on a plain `pnpm tsc --noEmit` gate
+    failure: `package.json` declares `@vis.gl/react-google-maps` and
+    `@types/google.maps` (used by `components/track/DeliveryTrackingMap.tsx`),
+    but `pnpm-lock.yaml` has zero matching entries anywhere in the file and
+    neither package exists under `node_modules` — `pnpm install` was never
+    run after the dependency was added. This is the same failure shape as
+    afs-e2e-002's `@playwright/test` gap. The d-004 prompt's own new files
+    (`app/api/orders/[id]/dispatch/route.ts`, `lib/utils/invoice-pdf.ts`,
+    `app/api/orders/[id]/delivered/route.ts`,
+    `app/api/invoices/[id]/send/route.ts`, and their `lib/auth`,
+    `lib/resend`, `lib/twilio`, `lib/utils/invoice-email.ts`,
+    `lib/utils/simple-pdf.ts` dependencies) were hand-reviewed line-by-line
+    this session and are expected to pass cleanly on their own — the
+    failure is entirely attributable to the pre-existing, unrelated Google
+    Maps dependency gap. Next step: run `pnpm install` once, then
+    `pnpm tsc --noEmit` to confirm, then commit the whole feature.
+
 **All 9 original build phases (0–8) are built. The design system is back to
 its original dark gunmetal theme (afs-028 reverted afs-027's light rebrand).
 The Design Studio (afs-030) is built and its data is live (afs-031). The

@@ -99,6 +99,28 @@ body {
   text-shadow: 0 0 20px rgba(200,210,230,0.4), 0 1px 3px rgba(0,0,0,0.8);
 }
 
+/* Delivery tracking map (app/track/[orderId], components/track/
+   DeliveryTrackingMap.tsx) — pulsating marker dots. Blue (#3B82F6) is a
+   literal hex per explicit d-002 instruction, not an afs-* token — same
+   documented CANVAS_COLORS-style exception to rule #4 already used for
+   FlashDraft's bend-radius handle (afs-034/035). afs-crimson is a real
+   token, referenced via var() as usual. */
+@keyframes track-dot-pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.4); }
+  100% { transform: scale(1); }
+}
+
+.track-dot-red {
+  background-color: var(--afs-crimson);
+  animation: track-dot-pulse 2s infinite;
+}
+
+.track-dot-blue {
+  background-color: #3B82F6;
+  animation: track-dot-pulse 1.5s infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

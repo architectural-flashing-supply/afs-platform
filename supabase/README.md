@@ -13,6 +13,8 @@ migrations/
   004_machine_profiles.sql            Thalmann DS2801 machine profile library (Design Studio)
   005_machine_jobs.sql                Machine Bridge job approval queue (Command Center)
   006_canonical_profiles.sql          Canonical profile library — hand-crafted profile geometry (Design Studio)
+  007_delivery_tracking.sql           Delivery tracking map, Employee PWA, GBP photo queue
+  008_order_geocoding.sql             Geocode cache (orders.geocoded_lat/lng) for the driver-GPS 10-mile SMS trigger
 ```
 
 Run them in numeric order. Each file is idempotent-safe to re-run only where it
@@ -30,7 +32,9 @@ re-running against a database that already has the schema will error on
 6. Paste the contents of `004_machine_profiles.sql`, run it
 7. Paste the contents of `005_machine_jobs.sql`, run it
 8. Paste the contents of `006_canonical_profiles.sql`, run it
-9. Verify: **Table Editor** should show 42 tables, all with the RLS lock icon enabled
+9. Paste the contents of `007_delivery_tracking.sql`, run it
+10. Paste the contents of `008_order_geocoding.sql`, run it
+11. Verify: **Table Editor** should show 45 tables, all with the RLS lock icon enabled
 
 ## 004_machine_profiles.sql — Design Studio machine profile library
 

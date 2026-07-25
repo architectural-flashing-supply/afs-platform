@@ -1,11 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { logAdminAction } from '@/lib/admin/audit';
-import { getCustomerNotes, type CustomerNote } from '@/lib/data/customers';
+import { getCustomerDetail, getCustomerOrders, getCustomerNotes, type CustomerNote } from '@/lib/data/customers';
 
 const ROLE_OPTIONS = ['admin', 'contractor', 'architect', 'customer'];
 const TIER_OPTIONS = ['standard', 'contractor', 'preferred', 'wholesale'];
 const NET_TERMS_OPTIONS = [0, 15, 30, 60];
+
+/**
+ * On-demand fetch for the Command Center Customers tab's CustomerDetailPanel
+ * drawer — fetching every customer's full detail + order history up front
+ * (for a table that may list every account) would be wasteful, so the drawer
+ * loads this only when a row is actually clicked.
+ */
+export async function GET(request: NextRequest, { params }: { params: { id: string } }): Promise<NextResponse> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { data: adminProfile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    if (adminProfile?.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const customer = await getCustomerDetail(supabase, params.id);
+    if (!customer) {
+      return NextResponse.json({ error: 'Customer not found.' }, { status: 404 });
+    }
+
+    const orders = await getCustomerOrders(supabase, params.id);
+
+    return NextResponse.json({ customer, orders });
+  } catch (error) {
+    console.error('[Customer Detail GET Route Error]', error);
+    return NextResponse.json({ error: 'Could not load this customer.' }, { status: 500 });
+  }
+}
 
 interface AccountSettingsInput {
   role?: string;
@@ -130,7 +165,25 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       notes = await getCustomerNotes(supabase, params.id);
     }
 
-    return NextResponse.json({ profile: updatedProfile, notes });
+    // internalNotes is a separate, single mutable field (Command Center's
+    // CustomerDetailPanel quick-note textarea) — distinct from the
+    // append-only admin_audit_log note history above. See migration
+    // 009_command_center_crm.sql for why both exist.
+    let internalNotes: string | null | undefined;
+    if (typeof body.internalNotes === 'string') {
+      const trimmed = body.internalNotes.trim();
+      const { error: notesUpdateError } = await supabase
+        .from('profiles')
+        .update({ internal_notes: trimmed === '' ? null : trimmed, updated_at: new Date().toISOString() })
+        .eq('id', params.id);
+      if (notesUpdateError) {
+        console.error('[Customer Internal Notes Update Error]', notesUpdateError);
+        return NextResponse.json({ error: 'Could not save the note. Please try again.' }, { status: 500 });
+      }
+      internalNotes = trimmed === '' ? null : trimmed;
+    }
+
+    return NextResponse.json({ profile: updatedProfile, notes, internalNotes });
   } catch (error) {
     console.error('[Customer Detail Route Error]', error);
     return NextResponse.json({ error: 'Could not save changes. Please try again.' }, { status: 500 });
