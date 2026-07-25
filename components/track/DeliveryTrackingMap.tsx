@@ -17,11 +17,12 @@ const AFS_SHOP_POSITION = { lat: 30.7584, lng: -98.2328 };
 const AFS_SHOP_LABEL = 'AFS Architectural Flashing Supply — Burnet, TX';
 
 // Fallback view (no active delivery to track) is centered on the broader
-// Central/South Texas service area rather than tight on the shop, so Austin,
-// San Antonio, and the Hill Country read alongside Burnet.
-const SERVICE_AREA_CENTER = { lat: 30.2, lng: -98.5 };
-const SERVICE_AREA_ZOOM = 7;
-const SERVICE_AREA_RADIUS_METERS = 241402; // 150 miles
+// Southwest US service area rather than tight on the shop — Houston,
+// Dallas, San Antonio, Albuquerque, and Oklahoma City should all read
+// inside the circle alongside Burnet.
+const SERVICE_AREA_CENTER = { lat: 31.5, lng: -97.0 };
+const SERVICE_AREA_ZOOM = 5;
+const SERVICE_AREA_RADIUS_METERS = 1200000; // ~750 miles — TX/LA/OK/AR/NM + parts of CO/KS
 
 // Advanced Markers require a Map ID to render at all. No custom-styled Map
 // ID has been created for this project in Google Cloud Console yet, so this
@@ -156,27 +157,28 @@ function ShopMarker() {
 
 // Overlaid at the bottom of the fallback service-area map — hidden entirely
 // once a live, out-for-delivery driver location exists to show instead.
+// Kept to a strict max-height so it reads as a thin bar, not a curtain over
+// the map — full-opacity light background so the crimson contact links
+// stay legible (the prior dark/translucent version washed them out).
 function ServiceAreaInfoPanel() {
   return (
-    <div className="absolute bottom-0 inset-x-0 w-full bg-afs-bg-raised/90 backdrop-blur-sm rounded-t-2xl p-6">
-      <h2 className="font-heading text-xl text-afs-chrome-high">AFS Delivery Tracking</h2>
-      <p className="font-body text-sm text-afs-chrome-mid mt-1">Serving Central &amp; South Texas from Burnet, TX</p>
-      <div className="border-t border-afs-border my-4" />
-      <p className="font-body text-sm text-afs-chrome-high">
-        Check back here when your delivery is scheduled — you&rsquo;ll see your driver&rsquo;s real-time location on
-        this map.
-      </p>
-      <div className="mt-3 flex flex-col gap-1">
-        <a href="tel:+15123724900" className="font-body text-sm text-afs-crimson hover:underline">
+    <div className="absolute bottom-0 inset-x-0 w-full max-h-[60px] bg-white py-2 px-4 overflow-hidden flex items-center flex-wrap gap-x-3 gap-y-0.5">
+      <span className="font-heading text-sm font-semibold text-gray-900 shrink-0">AFS Delivery Tracking</span>
+      <span className="font-body text-xs text-gray-700">
+        Serving Central &amp; South Texas — Check back when your delivery is scheduled to see real-time tracking.
+      </span>
+      <span className="ml-auto flex items-center gap-2 shrink-0">
+        <a href="tel:+15123724900" className="font-body text-xs text-afs-crimson hover:underline">
           (512) 372-4900
         </a>
+        <span className="text-gray-400 text-xs">|</span>
         <a
           href="mailto:trica@architecturalflashingsupply.com"
-          className="font-body text-sm text-afs-crimson hover:underline"
+          className="font-body text-xs text-afs-crimson hover:underline"
         >
           trica@architecturalflashingsupply.com
         </a>
-      </div>
+      </span>
     </div>
   );
 }

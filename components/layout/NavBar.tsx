@@ -10,6 +10,7 @@ const PANEL_LINKS = [
   { label: 'Home', href: '/' },
   { label: 'Products', href: '/products' },
   { label: 'Design Studio', href: '/studio' },
+  { label: 'Track Delivery', href: '/track' },
   { label: 'Architects', href: '/architects' },
 ];
 
@@ -102,6 +103,9 @@ export default function NavBar() {
           </Link>
           <Link href="/studio" className="font-label text-sm text-white transition-colors">
             Design Studio
+          </Link>
+          <Link href="/track" className="font-label text-sm text-white transition-colors">
+            Track Delivery
           </Link>
           <Link href="/architects" className="font-label text-sm text-white transition-colors">
             Architects

@@ -7,7 +7,48 @@
 
 ## CURRENT STATUS
 
-**Most recent session (track-svc-area-001, 2026-07-24): redesigned the
+**Most recent session (track-svc-area-002, 2026-07-24): expanded the
+tracking-page service area to the Southwest US, fixed the fallback info
+panel's contrast/size, and added a "Track Delivery" nav item.** Read
+`components/track/DeliveryTrackingMap.tsx`, `app/track/[orderId]/page.tsx`,
+and `components/layout/NavBar.tsx` in full first. Four changes:
+
+1. **Nav** — `NavBar.tsx`'s `PANEL_LINKS` array (sidebar) and the header's
+   hardcoded `<Link>` list (top nav) both gained "Track Delivery" → `/track`,
+   placed between "Design Studio" and "Architects" in both. **Real gap, not
+   fixed (out of scope for this task's four explicit items): `app/track/
+   page.tsx` doesn't exist** — only `app/track/[orderId]/page.tsx` does, so
+   this new nav link 404s until a root `/track` page is built. Confirmed by
+   `pnpm run build`'s route table, which lists `/track/[orderId]` but no
+   bare `/track`.
+2. **Service area** — `SERVICE_AREA_CENTER` moved from `{30.2, -98.5}` to
+   `{31.5, -97.0}`, `SERVICE_AREA_ZOOM` from 7 to 5, and
+   `SERVICE_AREA_RADIUS_METERS` from 241,402 (150mi) to 1,200,000 (~750mi)
+   — now reads as Texas/Louisiana/Oklahoma/Arkansas/New Mexico plus parts
+   of Colorado/Kansas, per the task's explicit list of cities the circle
+   should visually cover (Houston, Dallas, San Antonio, Albuquerque,
+   Oklahoma City). The `Circle`'s center (the AFS shop,
+   `{30.7584, -98.2328}`), `fillOpacity`/`strokeOpacity`, and colors are
+   unchanged.
+3. **Footer panel contrast** — `ServiceAreaInfoPanel` (the fallback map's
+   bottom-overlaid info bar) changed from `bg-afs-bg-raised/90
+   backdrop-blur-sm` (dark, translucent — the crimson contact links were
+   unreadable against it) to `bg-white` (full opacity, no blur), heading
+   `text-gray-900`, body `text-xs text-gray-700`, contact links stay
+   `text-afs-crimson` — now actually legible against the light background.
+4. **Footer panel size** — `p-6` → `py-2 px-4`, heading shrunk to `text-sm
+   font-semibold`, body to `text-xs`, `max-h-[60px]` + `overflow-hidden`
+   added, and all three pieces of copy (heading, the single-line "Serving
+   Central & South Texas — Check back when your delivery is scheduled to
+   see real-time tracking." body text, phone `|` email) now live in one
+   `flex flex-wrap` row instead of four stacked block elements — reads as
+   a thin bar, not a curtain over the map.
+
+`pnpm tsc --noEmit` → 0 errors. `pnpm run build` → passed
+(`/track/[orderId]` unchanged at 19.2 kB / 178 kB First Load JS). Committed
+and pushed to `origin/main` — no tool-approval blocker this session.
+
+**Most recent session before that (track-svc-area-001, 2026-07-24): redesigned the
 tracking page's fallback state — no token, invalid token, or an order not
 yet dispatched — from a bare "Tracking Not Available" card into a full
 Google Map.** Read `app/track/[orderId]/page.tsx` and

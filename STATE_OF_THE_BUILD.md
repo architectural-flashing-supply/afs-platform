@@ -456,7 +456,51 @@ GBP Photo Queue           session — found everything below already correctly b
                            `NEXT_PUBLIC_GOOGLE_MAPS_KEY` naming mismatch
                            flagged above is unchanged by this session — still
                            needs resolving before either map view can
-                           actually render with a real key.
+                           actually render with a real key. **CORRECTED, a
+                           later same-day session:** this mismatch was fixed
+                           — `.env.example`, `app/admin/settings/page.tsx`,
+                           `BLUEPRINT.md`, and `specs/
+                           SPEC_GOOGLE_MAPS_INTEGRATION.md` all standardized
+                           to `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` (commit
+                           `f1d3119`); `DeliveryTrackingMap.tsx` already used
+                           the correct name and needed no change. Only
+                           whether a real key value is actually set in
+                           Vercel/`.env.local` remains outside this session's
+                           visibility — the naming itself is no longer a
+                           blocker.
+
+                           **track-svc-area-002 (2026-07-24, a later
+                           session):** expanded the fallback map's service
+                           area from a 150-mile Central/South Texas circle to
+                           a 750-mile (1,200,000m) Southwest US circle —
+                           `SERVICE_AREA_CENTER` moved to `{31.5, -97.0}`,
+                           `SERVICE_AREA_ZOOM` to 5, so Houston, Dallas, San
+                           Antonio, Albuquerque, and Oklahoma City all read
+                           inside the circle alongside Burnet (the `Circle`'s
+                           own center stays the AFS shop, colors/opacities
+                           unchanged). Fixed `ServiceAreaInfoPanel`'s
+                           contrast — it was `bg-afs-bg-raised/90
+                           backdrop-blur-sm` (dark/translucent), which made
+                           its `text-afs-crimson` contact links unreadable;
+                           now `bg-white` full-opacity, `text-gray-900`/
+                           `text-gray-700` body text, no blur — and shrank it
+                           from a `p-6` stacked-block layout to a
+                           `max-h-[60px]`, `py-2 px-4`, single flex row
+                           (heading + one-line body copy + phone `|` email)
+                           so it reads as a thin bar instead of covering a
+                           third of the map. Added a "Track Delivery" → `/track`
+                           link to both `NavBar.tsx` nav locations (sidebar
+                           `PANEL_LINKS` and the top header), between "Design
+                           Studio" and "Architects" in each. **Real gap found,
+                           not fixed (out of scope for this task):
+                           `app/track/page.tsx` doesn't exist** — only
+                           `app/track/[orderId]/page.tsx` does, confirmed via
+                           `pnpm run build`'s route table — so the new nav
+                           link currently 404s until a root `/track` landing
+                           page is built. `pnpm tsc --noEmit` (0 errors) and
+                           `pnpm run build` (passed) both ran clean.
+                           Committed and pushed to `origin/main`, no
+                           tool-approval blocker.
 Design Studio page trim   NEW (2026-07-24) — `app/studio/page.tsx`: removed the
 (2026-07-24):              small red "Design Studio" eyebrow label above the `<h1>`
                            (h1 itself kept), deleted the "Profile Library" promo
