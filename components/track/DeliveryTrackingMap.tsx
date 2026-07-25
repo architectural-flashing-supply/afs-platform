@@ -268,13 +268,13 @@ function LiveMapContents({
             title="Your Delivery"
             onClick={() => setOpenInfo(openInfo === 'driver' ? null : 'driver')}
           >
-            <div style={{ position: 'relative', width: '44px', height: '44px' }}>
+            <div style={{ position: 'relative', width: '44px', height: '44px', cursor: 'pointer' }}>
               <div
                 style={{
                   position: 'absolute',
                   inset: 0,
                   borderRadius: '50%',
-                  backgroundColor: '#2563EB',
+                  backgroundColor: '#C0001A',
                   opacity: 0.35,
                   animation: 'truckPulse 1.5s ease-out infinite',
                 }}
@@ -284,10 +284,18 @@ function LiveMapContents({
                 width="44"
                 height="44"
                 viewBox="0 0 24 24"
-                fill="#2563EB"
-                style={{ position: 'relative', zIndex: 1, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))' }}
+                style={{ position: 'relative', zIndex: 1, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}
               >
-                <path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm13.5-9l1.96 2.5H17V9.5h2.5zm-1.5 9c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" />
+                {/* Truck body — black */}
+                <path
+                  d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4z"
+                  fill="#1C1F26"
+                />
+                {/* Cab accent stripe — AFS crimson */}
+                <path d="M17 8h2.5l1.96 2.5H17V8z" fill="#C0001A" />
+                {/* Wheels */}
+                <circle cx="6" cy="17" r="1.5" fill="#C0001A" />
+                <circle cx="18" cy="17" r="1.5" fill="#C0001A" />
               </svg>
             </div>
           </AdvancedMarker>
@@ -296,7 +304,19 @@ function LiveMapContents({
               position={{ lat: driverLocation.lat, lng: driverLocation.lng }}
               onCloseClick={() => setOpenInfo(null)}
             >
-              <span className="font-body text-xs text-afs-ink-900">Your Delivery</span>
+              <div style={{ minWidth: '180px', padding: '4px' }}>
+                <div style={{ fontFamily: 'sans-serif' }}>
+                  <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#C0001A' }}>AFS</span>
+                  <div style={{ fontSize: '9px', letterSpacing: '2px', color: '#6B7280', marginTop: '-2px' }}>
+                    ARCHITECTURAL FLASHING SUPPLY
+                  </div>
+                  <hr style={{ margin: '6px 0', borderColor: '#E5E7EB' }} />
+                  <div style={{ fontSize: '13px', color: '#111827' }}>🚚 Your delivery is on the way</div>
+                  <div style={{ fontSize: '11px', color: '#6B7280', marginTop: '2px' }}>
+                    Tap the truck to track progress
+                  </div>
+                </div>
+              </div>
             </InfoWindow>
           )}
         </>

@@ -616,6 +616,29 @@ GBP Photo Queue           session — found everything below already correctly b
                            build` (passed, `/track` 2.75 kB / 172 kB First Load
                            JS) both ran clean. Committed and pushed to
                            `origin/main`, no tool-approval blocker.
+                           **track-demo-003 (2026-07-25, a later session):**
+                           re-branded track-demo-002's blue truck marker to
+                           black (`#1C1F26`) + AFS crimson (`#C0001A`) — a cab
+                           stripe path and two wheel `circle`s in crimson on a
+                           black truck body, drop-shadow darkened to
+                           `rgba(0,0,0,0.5)`. The pulsing ring behind it
+                           changed from `#2563EB` to `#C0001A` to match
+                           (`truckPulse` keyframe itself unchanged). Clicking
+                           the truck (reusing the existing `openInfo ===
+                           'driver'` state/`onClick`, unchanged wiring) now
+                           opens a branded `InfoWindow` — "AFS" wordmark in
+                           crimson, "ARCHITECTURAL FLASHING SUPPLY" tracked-out
+                           subtext, a divider, "🚚 Your delivery is on the
+                           way", and a "Tap the truck to track progress" hint
+                           — replacing the previous plain "Your Delivery" text.
+                           No reverse-geocoded city/estimated-location lookup
+                           was added — the task's own literal InfoWindow markup
+                           didn't include one despite describing it as a goal,
+                           so none was built beyond what was literally
+                           specified. `pnpm tsc --noEmit` (0 errors) and `pnpm
+                           run build` (passed, `/track` 2.98 kB / 172 kB First
+                           Load JS) both ran clean. Committed and pushed to
+                           `origin/main`, no tool-approval blocker.
 Design Studio page trim   NEW (2026-07-24) — `app/studio/page.tsx`: removed the
 (2026-07-24):              small red "Design Studio" eyebrow label above the `<h1>`
                            (h1 itself kept), deleted the "Profile Library" promo

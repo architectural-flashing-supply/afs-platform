@@ -7,7 +7,34 @@
 
 ## CURRENT STATUS
 
-**Most recent session (track-demo-002, 2026-07-25): three targeted polish
+**Most recent session (track-demo-003, 2026-07-25): re-branded the live
+driver marker in `LiveMapContents` from the generic blue truck
+(track-demo-002) to black + AFS crimson, and gave it a branded
+InfoWindow on click.** Read `components/track/DeliveryTrackingMap.tsx` in
+full first. (1) Truck SVG body is now `#1C1F26` (black) with `#C0001A`
+(AFS crimson) accents — a cab stripe path (`M17 8h2.5l1.96 2.5H17V8z`)
+and two wheel `circle`s — replacing the single solid-`#2563EB`-fill
+version; drop-shadow darkened slightly (`rgba(0,0,0,0.5)` from `0.4`) to
+read against the new darker body. (2) The pulsing ring behind the truck
+changed from `#2563EB` (blue) to `#C0001A` (AFS crimson), matching the
+truck's own accent color — the `truckPulse` keyframe animation itself
+(scale 1→2.8, fade to 0, 1.5s) is unchanged. (3) Clicking the truck now
+opens a branded `InfoWindow` (reusing the existing `openInfo === 'driver'`
+state already wired to the marker's `onClick`) — "AFS" in
+`18px/bold/#C0001A`, "ARCHITECTURAL FLASHING SUPPLY" in
+`9px/letterSpacing:2px/#6B7280` beneath it, an `<hr>` divider, then "🚚
+Your delivery is on the way" (`13px/#111827`) and "Tap the truck to track
+progress" (`11px/#6B7280`) — replacing the previous plain-text "Your
+Delivery" span. The task's spec called for showing an estimated
+location/reverse-geocoded city if available, but the literal InfoWindow
+content block it provided doesn't include one — built exactly the
+literal markup given, no reverse-geocode lookup added. The marker's outer
+wrapper div also gained `cursor: 'pointer'` so it reads as clickable.
+`pnpm tsc --noEmit` → 0 errors. `pnpm run build` → passed (`/track` 2.98
+kB / 172 kB First Load JS). Committed and pushed to `origin/main`, no
+tool-approval blocker.
+
+**Most recent session before that (track-demo-002, 2026-07-25): three targeted polish
 fixes on top of track-demo-001's hardcoded demo mode, in
 `components/track/DeliveryTrackingMap.tsx` and a confirmation-only check
 of `app/track/page.tsx`.** (1) The "Texas Made. Nationally Delivered."
