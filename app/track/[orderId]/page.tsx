@@ -64,31 +64,6 @@ const STATUS_MESSAGE: Record<string, string> = {
 };
 const DEFAULT_STATUS_MESSAGE = 'Your order is being prepared';
 
-function UnavailableMessage() {
-  return (
-    <main className="min-h-screen flex items-center justify-center bg-afs-bg-base px-6">
-      <div className="max-w-md text-center bg-afs-bg-raised border border-afs-border rounded p-8 metal-edge">
-        <h1 className="font-heading text-2xl font-bold text-afs-chrome-high mb-3">Tracking Not Available</h1>
-        <p className="font-body text-sm text-afs-chrome-mid mb-6">
-          Tracking not available for this order. If you believe this is an error, contact AFS directly.
-        </p>
-        <a
-          href="tel:+15123724900"
-          className="block font-body text-sm text-afs-chrome-high hover:text-afs-crimson transition-colors mb-1"
-        >
-          (512) 372-4900
-        </a>
-        <a
-          href="mailto:trica@architecturalflashingsupply.com"
-          className="block font-body text-sm text-afs-chrome-high hover:text-afs-crimson transition-colors"
-        >
-          trica@architecturalflashingsupply.com
-        </a>
-      </div>
-    </main>
-  );
-}
-
 export default function PublicOrderTrackerPage({ params }: { params: { orderId: string } }) {
   const [loading, setLoading] = useState(true);
   const [notAvailable, setNotAvailable] = useState(false);
@@ -132,7 +107,14 @@ export default function PublicOrderTrackerPage({ params }: { params: { orderId: 
   }
 
   if (notAvailable || !data) {
-    return <UnavailableMessage />;
+    // No token, an invalid token, or the order was never found — show the
+    // Central/South Texas service-area map fallback rather than a bare
+    // error card, per DeliveryTrackingMap's fallback state.
+    return (
+      <main className="fixed inset-0">
+        <DeliveryTrackingMap isOutForDelivery={false} />
+      </main>
+    );
   }
 
   const isOutForDelivery = data.status === 'out_for_delivery';

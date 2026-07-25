@@ -7,13 +7,21 @@ import {
   AdvancedMarker,
   Pin,
   InfoWindow,
+  Circle,
   useMap,
   useMapsLibrary,
 } from '@vis.gl/react-google-maps';
 import { createClient } from '@/lib/supabase/client';
 
 const AFS_SHOP_POSITION = { lat: 30.7584, lng: -98.2328 };
-const AFS_SHOP_LABEL = 'AFS Architectural Flashing Supply — 209 Shurcast Drive, Burnet TX';
+const AFS_SHOP_LABEL = 'AFS Architectural Flashing Supply — Burnet, TX';
+
+// Fallback view (no active delivery to track) is centered on the broader
+// Central/South Texas service area rather than tight on the shop, so Austin,
+// San Antonio, and the Hill Country read alongside Burnet.
+const SERVICE_AREA_CENTER = { lat: 30.2, lng: -98.5 };
+const SERVICE_AREA_ZOOM = 7;
+const SERVICE_AREA_RADIUS_METERS = 241402; // 150 miles
 
 // Advanced Markers require a Map ID to render at all. No custom-styled Map
 // ID has been created for this project in Google Cloud Console yet, so this
@@ -37,9 +45,9 @@ export interface DriverLocation {
 }
 
 interface DeliveryTrackingMapProps {
-  orderId: string;
-  deliveryAddress: DeliveryAddress | null;
-  initialDriverLocation: DriverLocation | null;
+  orderId?: string;
+  deliveryAddress?: DeliveryAddress | null;
+  initialDriverLocation?: DriverLocation | null;
   isOutForDelivery: boolean;
 }
 
@@ -49,11 +57,7 @@ function formatAddress(address: DeliveryAddress | null): string {
   return [address.line1, address.line2, cityState, address.zip].filter(Boolean).join(', ');
 }
 
-function useLiveDriverLocation(
-  orderId: string,
-  enabled: boolean,
-  initial: DriverLocation | null
-): DriverLocation | null {
+function useLiveDriverLocation(orderId: string, initial: DriverLocation | null): DriverLocation | null {
   const [location, setLocation] = useState<DriverLocation | null>(initial);
 
   useEffect(() => {
@@ -61,8 +65,6 @@ function useLiveDriverLocation(
   }, [initial]);
 
   useEffect(() => {
-    if (!enabled) return;
-
     const supabase = createClient();
     const channel = supabase
       .channel(`driver-location-${orderId}`)
@@ -79,7 +81,7 @@ function useLiveDriverLocation(
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [orderId, enabled]);
+  }, [orderId]);
 
   return location;
 }
@@ -129,20 +131,93 @@ function FitBoundsToMarkers({ points }: { points: google.maps.LatLngLiteral[] })
   return null;
 }
 
-type OpenInfo = 'shop' | 'destination' | 'driver' | null;
-
 function PulsingDot({ className }: { className: string }) {
   return <div className={`w-4 h-4 rounded-full border-2 border-white shadow-lg ${className}`} />;
 }
 
-function MapContents({
+// Static AFS shop dot — always visible regardless of delivery status, in
+// both the fallback service-area view and the live tracking view.
+function ShopMarker() {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <AdvancedMarker position={AFS_SHOP_POSITION} title={AFS_SHOP_LABEL} onClick={() => setOpen((v) => !v)}>
+        <PulsingDot className="track-dot-red" />
+      </AdvancedMarker>
+      {open && (
+        <InfoWindow position={AFS_SHOP_POSITION} onCloseClick={() => setOpen(false)}>
+          <span className="font-body text-xs text-afs-ink-900">{AFS_SHOP_LABEL}</span>
+        </InfoWindow>
+      )}
+    </>
+  );
+}
+
+// Overlaid at the bottom of the fallback service-area map — hidden entirely
+// once a live, out-for-delivery driver location exists to show instead.
+function ServiceAreaInfoPanel() {
+  return (
+    <div className="absolute bottom-0 inset-x-0 w-full bg-afs-bg-raised/90 backdrop-blur-sm rounded-t-2xl p-6">
+      <h2 className="font-heading text-xl text-afs-chrome-high">AFS Delivery Tracking</h2>
+      <p className="font-body text-sm text-afs-chrome-mid mt-1">Serving Central &amp; South Texas from Burnet, TX</p>
+      <div className="border-t border-afs-border my-4" />
+      <p className="font-body text-sm text-afs-chrome-high">
+        Check back here when your delivery is scheduled — you&rsquo;ll see your driver&rsquo;s real-time location on
+        this map.
+      </p>
+      <div className="mt-3 flex flex-col gap-1">
+        <a href="tel:+15123724900" className="font-body text-sm text-afs-crimson hover:underline">
+          (512) 372-4900
+        </a>
+        <a
+          href="mailto:trica@architecturalflashingsupply.com"
+          className="font-body text-sm text-afs-crimson hover:underline"
+        >
+          trica@architecturalflashingsupply.com
+        </a>
+      </div>
+    </div>
+  );
+}
+
+// Fallback state: no token, invalid token, or the order hasn't been
+// dispatched yet. Fixed on the Central/South Texas service area rather than
+// fit-bounding to an actual delivery, since there isn't one to show.
+function FallbackServiceAreaMap() {
+  return (
+    <div className="relative w-full h-full">
+      <Map
+        mapId={MAP_ID}
+        defaultCenter={SERVICE_AREA_CENTER}
+        defaultZoom={SERVICE_AREA_ZOOM}
+        gestureHandling="greedy"
+        disableDefaultUI={false}
+        style={{ width: '100%', height: '100%' }}
+      >
+        <ShopMarker />
+        <Circle
+          center={AFS_SHOP_POSITION}
+          radius={SERVICE_AREA_RADIUS_METERS}
+          fillColor="#C0001A"
+          fillOpacity={0.06}
+          strokeColor="#C0001A"
+          strokeOpacity={0.25}
+        />
+      </Map>
+      <ServiceAreaInfoPanel />
+    </div>
+  );
+}
+
+function LiveMapContents({
   destinationAddress,
   driverLocation,
 }: {
   destinationAddress: string;
   driverLocation: DriverLocation | null;
 }) {
-  const [openInfo, setOpenInfo] = useState<OpenInfo>(null);
+  const [openInfo, setOpenInfo] = useState<'destination' | 'driver' | null>(null);
   const destinationPosition = useGeocodedPosition(destinationAddress);
 
   const boundsPoints: google.maps.LatLngLiteral[] = [AFS_SHOP_POSITION];
@@ -153,19 +228,7 @@ function MapContents({
     <>
       <FitBoundsToMarkers points={boundsPoints} />
 
-      {/* Static AFS shop dot — always visible regardless of delivery status */}
-      <AdvancedMarker
-        position={AFS_SHOP_POSITION}
-        title={AFS_SHOP_LABEL}
-        onClick={() => setOpenInfo(openInfo === 'shop' ? null : 'shop')}
-      >
-        <PulsingDot className="track-dot-red" />
-      </AdvancedMarker>
-      {openInfo === 'shop' && (
-        <InfoWindow position={AFS_SHOP_POSITION} onCloseClick={() => setOpenInfo(null)}>
-          <span className="font-body text-xs text-afs-ink-900">{AFS_SHOP_LABEL}</span>
-        </InfoWindow>
-      )}
+      <ShopMarker />
 
       {/* Destination — standard pin, only once the jobsite address geocodes */}
       {destinationPosition && (
@@ -185,7 +248,7 @@ function MapContents({
         </>
       )}
 
-      {/* Live driver dot — only rendered when out_for_delivery + a location exists */}
+      {/* Live driver dot — only rendered once a location has arrived */}
       {driverLocation && (
         <>
           <AdvancedMarker
@@ -209,6 +272,33 @@ function MapContents({
   );
 }
 
+// Live state: a valid token with an active (out_for_delivery) order. No info
+// panel — the live blue driver dot and destination marker take its place.
+function LiveTrackingMap({
+  orderId,
+  deliveryAddress,
+  initialDriverLocation,
+}: {
+  orderId: string;
+  deliveryAddress: DeliveryAddress | null;
+  initialDriverLocation: DriverLocation | null;
+}) {
+  const driverLocation = useLiveDriverLocation(orderId, initialDriverLocation);
+
+  return (
+    <Map
+      mapId={MAP_ID}
+      defaultCenter={AFS_SHOP_POSITION}
+      defaultZoom={12}
+      gestureHandling="greedy"
+      disableDefaultUI={false}
+      style={{ width: '100%', height: '100%' }}
+    >
+      <LiveMapContents destinationAddress={formatAddress(deliveryAddress)} driverLocation={driverLocation} />
+    </Map>
+  );
+}
+
 export default function DeliveryTrackingMap({
   orderId,
   deliveryAddress,
@@ -217,7 +307,6 @@ export default function DeliveryTrackingMap({
 }: DeliveryTrackingMapProps) {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   // TODO: Add NEXT_PUBLIC_GOOGLE_MAPS_API_KEY to .env.local
-  const driverLocation = useLiveDriverLocation(orderId, isOutForDelivery, initialDriverLocation);
 
   if (!apiKey) {
     return (
@@ -229,18 +318,21 @@ export default function DeliveryTrackingMap({
     );
   }
 
+  const showLiveView = isOutForDelivery && Boolean(orderId);
+
   return (
-    <APIProvider apiKey={apiKey}>
-      <Map
-        mapId={MAP_ID}
-        defaultCenter={AFS_SHOP_POSITION}
-        defaultZoom={12}
-        gestureHandling="greedy"
-        disableDefaultUI={false}
-        style={{ width: '100%', height: '100%' }}
-      >
-        <MapContents destinationAddress={formatAddress(deliveryAddress)} driverLocation={driverLocation} />
-      </Map>
-    </APIProvider>
+    <div className="absolute inset-0">
+      <APIProvider apiKey={apiKey}>
+        {showLiveView ? (
+          <LiveTrackingMap
+            orderId={orderId as string}
+            deliveryAddress={deliveryAddress ?? null}
+            initialDriverLocation={initialDriverLocation ?? null}
+          />
+        ) : (
+          <FallbackServiceAreaMap />
+        )}
+      </APIProvider>
+    </div>
   );
 }
