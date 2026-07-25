@@ -7,7 +7,30 @@
 
 ## CURRENT STATUS
 
-**Most recent session (track-svc-area-002, 2026-07-24): expanded the
+**Most recent session (track-root-001, 2026-07-25): built the missing
+`/track` root landing page flagged at the end of track-svc-area-002.**
+Read `components/track/DeliveryTrackingMap.tsx` in full first (picking up
+the `AFS_SHOP_POSITION` coordinate refinement to
+`{30.737075730063307, -98.23321342395246}` already sitting in the working
+tree from outside this session — left as-is, not this task's concern).
+New `app/track/page.tsx` — a plain server component, no `'use client'`
+needed since it holds no hooks of its own — renders
+`<DeliveryTrackingMap isOutForDelivery={false} />` inside the identical
+`<main className="fixed inset-0">` wrapper `app/track/[orderId]/page.tsx`
+already uses for its own no-token/invalid-token fallback branch, so the
+nav's "Track Delivery" link (added in track-svc-area-002) now lands on the
+same full-screen fallback map (AFS shop dot, 750-mile service-area circle,
+bottom info panel) instead of 404ing. Public, no auth — no session/role
+check of any kind, matching the task's explicit instruction and this
+route's existing sibling. `pnpm tsc --noEmit` → 0 errors. `pnpm run build`
+→ passed; `/track` is now a static (`○`) prerendered route in the build
+output, and `/track/[orderId]`'s own First Load JS dropped from 19.2 kB to
+3.67 kB now that `DeliveryTrackingMap`'s code is shared across two routes
+instead of one — expected webpack code-splitting behavior, not a
+regression. Committed and pushed to `origin/main`, no tool-approval
+blocker.
+
+**Most recent session before that (track-svc-area-002, 2026-07-24): expanded the
 tracking-page service area to the Southwest US, fixed the fallback info
 panel's contrast/size, and added a "Track Delivery" nav item.** Read
 `components/track/DeliveryTrackingMap.tsx`, `app/track/[orderId]/page.tsx`,

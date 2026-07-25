@@ -500,6 +500,25 @@ GBP Photo Queue           session — found everything below already correctly b
                            page is built. `pnpm tsc --noEmit` (0 errors) and
                            `pnpm run build` (passed) both ran clean.
                            Committed and pushed to `origin/main`, no
+                           tool-approval blocker. **CLOSED, track-root-001
+                           (2026-07-25, a later session):** built the missing
+                           `app/track/page.tsx` — a plain server component
+                           (no client hooks of its own) rendering
+                           `<DeliveryTrackingMap isOutForDelivery={false} />`
+                           inside the same `<main className="fixed
+                           inset-0">` wrapper the `[orderId]` route's own
+                           fallback branch uses, so "Track Delivery" now
+                           lands on the fallback service-area map instead of
+                           404ing. Public, no auth, matching the task
+                           instruction and this route's existing sibling.
+                           `pnpm tsc --noEmit` (0 errors) and `pnpm run
+                           build` (passed) both ran clean — `/track` is now a
+                           static (`○`) route in the build output, and
+                           `/track/[orderId]`'s First Load JS dropped from
+                           19.2 kB to 3.67 kB as `DeliveryTrackingMap`'s code
+                           became a shared chunk across both routes
+                           (expected code-splitting, not a regression).
+                           Committed and pushed to `origin/main`, no
                            tool-approval blocker.
 Design Studio page trim   NEW (2026-07-24) — `app/studio/page.tsx`: removed the
 (2026-07-24):              small red "Design Studio" eyebrow label above the `<h1>`
