@@ -165,7 +165,7 @@ function ServiceAreaInfoPanel() {
     <div className="absolute bottom-0 inset-x-0 w-full max-h-[60px] bg-white py-2 px-4 overflow-hidden flex items-center flex-wrap gap-x-3 gap-y-0.5">
       <span className="font-heading text-sm font-semibold text-gray-900 shrink-0">AFS Delivery Tracking</span>
       <span className="font-body text-xs text-gray-700">
-        Serving Central &amp; South Texas — Check back when your delivery is scheduled to see real-time tracking.
+        Headquartered in Burnet, TX — Delivering Across North America — Check back when your delivery is scheduled to see real-time tracking.
       </span>
       <span className="ml-auto flex items-center gap-2 shrink-0">
         <a href="tel:+15123724900" className="font-body text-xs text-afs-crimson hover:underline">
@@ -207,6 +207,11 @@ function FallbackServiceAreaMap() {
           strokeOpacity={0.25}
         />
       </Map>
+      <div className="absolute bottom-16 right-8 pointer-events-none">
+        <span className="font-heading text-2xl font-bold text-white opacity-30 tracking-widest text-right block">
+          Texas Made. Nationally Delivered.
+        </span>
+      </div>
       <ServiceAreaInfoPanel />
     </div>
   );

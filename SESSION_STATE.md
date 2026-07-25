@@ -7,7 +7,26 @@
 
 ## CURRENT STATUS
 
-**Most recent session (track-root-001, 2026-07-25): built the missing
+**Most recent session (track-messaging-001, 2026-07-25): two copy/overlay
+tweaks to `FallbackServiceAreaMap` in
+`components/track/DeliveryTrackingMap.tsx`.** (1) `ServiceAreaInfoPanel`'s
+body copy changed from "Serving Central & South Texas — Check back..." to
+"Headquartered in Burnet, TX — Delivering Across North America — Check
+back when your delivery is scheduled to see real-time tracking." — only
+the leading phrase swapped, rest of the sentence and all panel styling
+(bg-white, max-h-[60px], text sizes, contact links) untouched. (2) new
+`pointer-events-none` absolutely-positioned (`bottom-16 right-8`) ghost
+watermark — "Texas Made. Nationally Delivered." in `font-heading text-2xl
+font-bold text-white opacity-30 tracking-widest text-right` — added as a
+sibling of `<Map>` and `<ServiceAreaInfoPanel>` inside
+`FallbackServiceAreaMap`'s container div, sitting above the bottom bar over
+what reads as open water at the current 750-mile Southwest US zoom level;
+no background/border, doesn't intercept map drag/zoom. `pnpm tsc --noEmit`
+→ 0 errors. `pnpm run build` → passed (`/track` 2.34 kB / 171 kB,
+`/track/[orderId]` 3.76 kB / 178 kB First Load JS). Committed and pushed to
+`origin/main`, no tool-approval blocker.
+
+**Most recent session before that (track-root-001, 2026-07-25): built the missing
 `/track` root landing page flagged at the end of track-svc-area-002.**
 Read `components/track/DeliveryTrackingMap.tsx` in full first (picking up
 the `AFS_SHOP_POSITION` coordinate refinement to

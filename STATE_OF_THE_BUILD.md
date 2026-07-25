@@ -520,6 +520,29 @@ GBP Photo Queue           session — found everything below already correctly b
                            (expected code-splitting, not a regression).
                            Committed and pushed to `origin/main`, no
                            tool-approval blocker.
+
+                           **track-messaging-001 (2026-07-25, a later
+                           session):** two copy/overlay tweaks to
+                           `FallbackServiceAreaMap`. `ServiceAreaInfoPanel`'s
+                           body text now leads with "Headquartered in
+                           Burnet, TX — Delivering Across North America"
+                           (was "Serving Central & South Texas") — only the
+                           leading phrase changed, the rest of the sentence
+                           and every other bit of panel styling untouched.
+                           Added a `pointer-events-none` ghost watermark —
+                           "Texas Made. Nationally Delivered." in
+                           `font-heading text-2xl font-bold text-white
+                           opacity-30 tracking-widest text-right`,
+                           positioned `absolute bottom-16 right-8` — as a
+                           new sibling of `<Map>`/`<ServiceAreaInfoPanel>`
+                           inside the same container div, sitting above the
+                           bottom bar without a background/border and
+                           without intercepting map drag/zoom. `pnpm tsc
+                           --noEmit` (0 errors) and `pnpm run build`
+                           (passed — `/track` 2.34 kB / 171 kB,
+                           `/track/[orderId]` 3.76 kB / 178 kB) both ran
+                           clean. Committed and pushed to `origin/main`, no
+                           tool-approval blocker.
 Design Studio page trim   NEW (2026-07-24) — `app/studio/page.tsx`: removed the
 (2026-07-24):              small red "Design Studio" eyebrow label above the `<h1>`
                            (h1 itself kept), deleted the "Profile Library" promo
