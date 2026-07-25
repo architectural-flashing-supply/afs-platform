@@ -23,7 +23,7 @@ function buildIntegrationStatuses(): IntegrationStatus[] {
   const hasResend = Boolean(process.env.RESEND_API_KEY);
   const hasTwilio = Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN);
   const hasTaxJar = Boolean(process.env.TAXJAR_API_KEY);
-  const hasGoogleMaps = Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY);
+  const hasGoogleMaps = Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY);
   const hasMetalsApi = Boolean(process.env.METALS_API_KEY);
 
   return [
@@ -53,7 +53,7 @@ function buildIntegrationStatuses(): IntegrationStatus[] {
     },
     {
       name: 'Google Maps',
-      ...statusFromEnv(hasGoogleMaps, 'Address autocomplete and delivery maps enabled', 'Missing NEXT_PUBLIC_GOOGLE_MAPS_KEY'),
+      ...statusFromEnv(hasGoogleMaps, 'Address autocomplete and delivery maps enabled', 'Missing NEXT_PUBLIC_GOOGLE_MAPS_API_KEY'),
     },
     {
       name: 'Metals API',

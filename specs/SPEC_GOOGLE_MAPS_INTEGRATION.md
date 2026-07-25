@@ -30,7 +30,7 @@ GPS fleet tracking if AFS uses own trucks (pending checklist #80).
 // On selection: auto-populates street, city, state, ZIP fields
 // API key restrictions: Authorized domains + Places API + Maps JavaScript API only
 
-// NEXT_PUBLIC_GOOGLE_MAPS_KEY — client-side key (restrict to authorized domains)
+// NEXT_PUBLIC_GOOGLE_MAPS_API_KEY — client-side key (restrict to authorized domains)
 ```
 
 ---
