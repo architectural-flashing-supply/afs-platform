@@ -586,6 +586,36 @@ GBP Photo Queue           session — found everything below already correctly b
                            only literal prop values changed, no new code)
                            both ran clean. Committed and pushed to
                            `origin/main`, no tool-approval blocker.
+                           **track-demo-002 (2026-07-25, a later session): three
+                           targeted polish fixes on top of track-demo-001's demo
+                           mode.** (1) The "Texas Made. Nationally Delivered."
+                           watermark in `FallbackServiceAreaMap` changed from
+                           `text-white opacity-30` to `text-gray-900 opacity-20`
+                           plus an inline `textShadow: '0 1px 3px
+                           rgba(255,255,255,0.8)'` for legibility over the map —
+                           readable without being garish. (2) The live driver
+                           marker in `LiveMapContents` (previously the generic
+                           `PulsingDot className="track-dot-blue"`) is now a
+                           44×44 pulsating truck: an absolutely-positioned
+                           `#2563EB` circle (`opacity: 0.35`, `truckPulse`
+                           keyframe animation scaling 1→2.8 while fading out)
+                           behind an inline truck SVG (`fill="#2563EB"`, drop-
+                           shadow filter) — the `@keyframes truckPulse` rule is
+                           declared via a `<style>` tag rendered inside
+                           `LiveMapContents` itself. Matches the file's existing
+                           precedent for literal hex in map-marker JSX (the
+                           `Pin background="#C0001A"` destination marker already
+                           does this) — map markers aren't a normal DOM element
+                           in the page chrome, same category as the CANVAS_COLORS
+                           exception in spirit though not literally that
+                           constant. (3) Confirmed `app/track/page.tsx` already
+                           passes both `orderId="DEMO-001"` and
+                           `isOutForDelivery={true}` (set by track-demo-001) —
+                           no change needed, `showLiveView` still resolves
+                           `true`. `pnpm tsc --noEmit` (0 errors) and `pnpm run
+                           build` (passed, `/track` 2.75 kB / 172 kB First Load
+                           JS) both ran clean. Committed and pushed to
+                           `origin/main`, no tool-approval blocker.
 Design Studio page trim   NEW (2026-07-24) — `app/studio/page.tsx`: removed the
 (2026-07-24):              small red "Design Studio" eyebrow label above the `<h1>`
                            (h1 itself kept), deleted the "Profile Library" promo

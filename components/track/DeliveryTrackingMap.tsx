@@ -208,7 +208,10 @@ function FallbackServiceAreaMap() {
         />
       </Map>
       <div className="absolute bottom-16 right-8 pointer-events-none">
-        <span className="font-heading text-2xl font-bold text-white opacity-30 tracking-widest text-right block">
+        <span
+          className="font-heading text-2xl font-bold text-gray-900 opacity-20 tracking-widest text-right block"
+          style={{ textShadow: '0 1px 3px rgba(255,255,255,0.8)' }}
+        >
           Texas Made. Nationally Delivered.
         </span>
       </div>
@@ -233,6 +236,8 @@ function LiveMapContents({
 
   return (
     <>
+      <style>{`@keyframes truckPulse { 0% { transform: scale(1); opacity: 0.35; } 70% { transform: scale(2.8); opacity: 0; } 100% { transform: scale(1); opacity: 0; } }`}</style>
+
       <FitBoundsToMarkers points={boundsPoints} />
 
       <ShopMarker />
@@ -263,7 +268,28 @@ function LiveMapContents({
             title="Your Delivery"
             onClick={() => setOpenInfo(openInfo === 'driver' ? null : 'driver')}
           >
-            <PulsingDot className="track-dot-blue" />
+            <div style={{ position: 'relative', width: '44px', height: '44px' }}>
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  borderRadius: '50%',
+                  backgroundColor: '#2563EB',
+                  opacity: 0.35,
+                  animation: 'truckPulse 1.5s ease-out infinite',
+                }}
+              />
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="44"
+                height="44"
+                viewBox="0 0 24 24"
+                fill="#2563EB"
+                style={{ position: 'relative', zIndex: 1, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))' }}
+              >
+                <path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm13.5-9l1.96 2.5H17V9.5h2.5zm-1.5 9c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" />
+              </svg>
+            </div>
           </AdvancedMarker>
           {openInfo === 'driver' && (
             <InfoWindow

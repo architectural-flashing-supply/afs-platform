@@ -7,7 +7,33 @@
 
 ## CURRENT STATUS
 
-**Most recent session (track-demo-001, 2026-07-25): added a hardcoded
+**Most recent session (track-demo-002, 2026-07-25): three targeted polish
+fixes on top of track-demo-001's hardcoded demo mode, in
+`components/track/DeliveryTrackingMap.tsx` and a confirmation-only check
+of `app/track/page.tsx`.** (1) The "Texas Made. Nationally Delivered."
+watermark in `FallbackServiceAreaMap` — previously `text-white opacity-30`
+— changed to `text-gray-900 opacity-20` with an added inline `style={{
+textShadow: '0 1px 3px rgba(255,255,255,0.8)' }}`, so it reads legibly
+over the map without being garish. (2) The live driver marker in
+`LiveMapContents` — previously the generic `<PulsingDot
+className="track-dot-blue" />` — is now a 44×44px pulsating truck: a
+`#2563EB` circle (`opacity: 0.35`, animated via a new `truckPulse`
+keyframe scaling 1→2.8 while fading to 0 over 1.5s) sitting behind an
+inline truck SVG (`fill="#2563EB"`, `drop-shadow` filter), with the
+`@keyframes truckPulse` rule declared in a `<style>` tag rendered inside
+`LiveMapContents`. The literal hex here follows the file's own existing
+precedent — the destination `Pin` marker a few lines above already uses
+`background="#C0001A"` — map-marker JSX in this file isn't held to the
+afs-* token rule the way page chrome is. (3) Read both files fully before
+touching anything, per instruction: confirmed `app/track/page.tsx`
+already passes both `orderId="DEMO-001"` and `isOutForDelivery={true}`
+(set by track-demo-001, still there) — no change was needed, since
+`showLiveView = isOutForDelivery && Boolean(orderId)` already resolves
+`true`. `pnpm tsc --noEmit` → 0 errors. `pnpm run build` → passed (`/track`
+2.75 kB / 172 kB First Load JS). Committed and pushed to `origin/main`, no
+tool-approval blocker.
+
+**Most recent session before that (track-demo-001, 2026-07-25): added a hardcoded
 demo/test mode to `app/track/page.tsx` so a live driver dot is visible for
 a presentation (Steve), without a real dispatched order.** Read
 `components/track/DeliveryTrackingMap.tsx` and `app/track/page.tsx` in
