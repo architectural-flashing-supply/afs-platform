@@ -13,7 +13,7 @@ import {
 } from '@vis.gl/react-google-maps';
 import { createClient } from '@/lib/supabase/client';
 
-const AFS_SHOP_POSITION = { lat: 30.7584, lng: -98.2328 };
+const AFS_SHOP_POSITION = { lat: 30.737075730063307, lng: -98.23321342395246 };
 const AFS_SHOP_LABEL = 'AFS Architectural Flashing Supply — Burnet, TX';
 
 // Fallback view (no active delivery to track) is centered on the broader
@@ -338,3 +338,4 @@ export default function DeliveryTrackingMap({
     </div>
   );
 }
+
