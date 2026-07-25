@@ -7,7 +7,40 @@
 
 ## CURRENT STATUS
 
-**Most recent session (track-messaging-001, 2026-07-25): two copy/overlay
+**Most recent session (track-demo-001, 2026-07-25): added a hardcoded
+demo/test mode to `app/track/page.tsx` so a live driver dot is visible for
+a presentation (Steve), without a real dispatched order.** Read
+`components/track/DeliveryTrackingMap.tsx` and `app/track/page.tsx` in
+full first. The task's literal prop shapes didn't match this codebase's
+real types — it specified `deliveryAddress={{ address: "1234 Demo St,
+Austin TX 78701", lat: 30.2672, lng: -97.7431 }}`, but the exported
+`DeliveryAddress` interface is `{line1?, line2?, city?, state?, zip?}`
+(no `address`/`lat`/`lng` fields at all — the destination is geocoded
+client-side from a formatted address string, not passed as raw
+coordinates), and it omitted `DriverLocation.recordedAt`, which is a
+required (non-optional) `string | null` field. Adapted rather than pasted
+verbatim so `pnpm tsc --noEmit` would actually pass: `app/track/page.tsx`
+now passes `orderId="DEMO-001"`, `isOutForDelivery={true}`,
+`deliveryAddress={{ line1: '1234 Demo St', city: 'Austin', state: 'TX',
+zip: '78701' }}` (geocodes to the same Austin destination the task
+intended), and `initialDriverLocation={{ lat: 30.2672, lng: -97.7431,
+recordedAt: null }}`. This makes `DeliveryTrackingMap` take its
+`showLiveView` branch (`LiveTrackingMap`) — the same live blue pulsating
+driver dot, destination pin, and shop-dot fit-to-bounds behavior a real
+out-for-delivery order gets, just with hardcoded data instead of a fetched
+`TrackResponse`. `useLiveDriverLocation` still subscribes to a Supabase
+Realtime channel filtered on `order_id=eq.DEMO-001`, which isn't a real
+UUID — harmless (no matching rows will ever arrive, so the hardcoded
+initial position just stays put; no thrown error, no unhandled rejection),
+but worth knowing this isn't a fully inert static mock. **Scoped to
+`app/track/page.tsx` only, per explicit instruction** — `app/track/
+[orderId]/page.tsx` is untouched and still renders exclusively real
+`/api/track/[token]` data. `pnpm tsc --noEmit` → 0 errors. `pnpm run build`
+→ passed (`/track` 2.34 kB / 171 kB First Load JS, unchanged from before —
+the demo props don't add new code, just different literal values).
+Committed and pushed to `origin/main`, no tool-approval blocker.
+
+**Most recent session before that (track-messaging-001, 2026-07-25): two copy/overlay
 tweaks to `FallbackServiceAreaMap` in
 `components/track/DeliveryTrackingMap.tsx`.** (1) `ServiceAreaInfoPanel`'s
 body copy changed from "Serving Central & South Texas — Check back..." to

@@ -543,6 +543,49 @@ GBP Photo Queue           session — found everything below already correctly b
                            `/track/[orderId]` 3.76 kB / 178 kB) both ran
                            clean. Committed and pushed to `origin/main`, no
                            tool-approval blocker.
+
+                           **track-demo-001 (2026-07-25, a later session):**
+                           `app/track/page.tsx` now hardcodes a demo
+                           out-for-delivery order (`orderId="DEMO-001"`,
+                           `isOutForDelivery={true}`) with a driver at Austin,
+                           TX (`{lat: 30.2672, lng: -97.7431}`) so the live
+                           pulsating blue driver dot is visible for a
+                           presentation, without needing a real dispatched
+                           order. **Task's literal prop shapes were wrong for
+                           this codebase and were adapted, not pasted
+                           verbatim:** the requested `deliveryAddress={{
+                           address: "...", lat, lng }}` doesn't match the
+                           real exported `DeliveryAddress` interface
+                           (`{line1?, line2?, city?, state?, zip?}` — no
+                           `address`/`lat`/`lng` fields; the destination pin
+                           is client-side geocoded from a formatted address
+                           string, never given raw coordinates directly),
+                           and the requested `initialDriverLocation` omitted
+                           `DriverLocation.recordedAt`, a required
+                           `string | null` field. Used
+                           `deliveryAddress={{ line1: '1234 Demo St', city:
+                           'Austin', state: 'TX', zip: '78701' }}` (geocodes
+                           to the same intended Austin destination) and
+                           `initialDriverLocation={{ lat: 30.2672, lng:
+                           -97.7431, recordedAt: null }}` instead. This
+                           routes `DeliveryTrackingMap` through its real
+                           `LiveTrackingMap`/`showLiveView` branch — same
+                           code path a genuine out-for-delivery order uses,
+                           just fed hardcoded data. `useLiveDriverLocation`
+                           still opens a Supabase Realtime subscription
+                           filtered on `order_id=eq.DEMO-001` (not a real
+                           UUID) — harmless, no matching rows will ever
+                           arrive, but worth knowing this isn't a fully
+                           inert static mock if `driver_locations` RLS/
+                           filter behavior ever changes. **Scoped to
+                           `app/track/page.tsx` only** — `app/track/
+                           [orderId]/page.tsx` is untouched, still renders
+                           only real `/api/track/[token]` data. `pnpm tsc
+                           --noEmit` (0 errors) and `pnpm run build`
+                           (passed, `/track` unchanged at 2.34 kB / 171 kB —
+                           only literal prop values changed, no new code)
+                           both ran clean. Committed and pushed to
+                           `origin/main`, no tool-approval blocker.
 Design Studio page trim   NEW (2026-07-24) — `app/studio/page.tsx`: removed the
 (2026-07-24):              small red "Design Studio" eyebrow label above the `<h1>`
                            (h1 itself kept), deleted the "Profile Library" promo
