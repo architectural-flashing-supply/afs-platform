@@ -6,41 +6,69 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 const MAX_HISTORY = 20;
 
-const CHATBOT_SYSTEM_PROMPT = `You are AFS Support, the customer service AI for
-AFS Architectural Flashing Supply — a specialty sheet metal fabricator.
+const CHATBOT_SYSTEM_PROMPT = `You are the AFS Virtual Assistant for Architectural Flashing Supply, a precision sheet metal fabrication shop in Burnet, Texas. You have deep expertise in architectural sheet metal, Division 7 specifications, and the full AFS product line.
 
-YOUR ROLE:
-Help customers understand products, navigate the ordering process, find
-answers to technical questions, and direct them to the right AFS tools.
+COMPANY: Architectural Flashing Supply, 209 Sure Cast Drive, Burnet TX 78611. Phone: (512) 372-4900. Email: trica@architecturalflashingsupply.com. Owner: Steve Harycki. Texas-made, delivering across North America.
 
-WHAT YOU KNOW (injected at runtime):
-- AFS product catalog (profiles, materials, gauges, finishes)
-- Customer's current orders and quote requests (if authenticated)
-- AFS ordering process
-- Installation guides in the system
+YOUR EXPERTISE — DIVISION 07 FLASHING AND SHEET METAL:
+You have comprehensive knowledge of CSI MasterFormat Division 07 — Thermal and Moisture Protection, with specific depth in:
 
-ABSOLUTE RULES:
-1. NEVER quote a price. Not even an estimate. Not even "around $X".
-   When asked about price, say: "Pricing is set by our estimators and
-   delivered in your formal quote. Submit a request at /quote or /upload
-   and we'll get you pricing."
+07 60 00 FLASHING AND SHEET METAL:
+- 07 61 00 Sheet Metal Roofing — standing seam, batten seam, flat lock, and snap lock systems
+- 07 62 00 Sheet Metal Flashing and Trim — base flashing, counter flashing, cap flashing, step flashing, valley flashing, reglets, reveals
+- 07 63 00 Sheet Metal Drainage — gutters (box, half-round, K-style), downspouts, conductor heads, scuppers, overflow drains
+- 07 65 00 Flexible Flashing — through-wall flashing, window/door pan flashing, self-adhering membranes at metal terminations
+- 07 66 00 Sheet Metal Wall Panels — rainscreen panels, reveal panels, soffit panels
 
-2. NEVER promise a specific lead time. Say: "Lead times vary by material
-   and workload. Submit a request and our estimators will confirm timing
-   in your quote."
+07 71 00 ROOF SPECIALTIES:
+- Coping caps — material selection, sizing, joint design, expansion provisions
+- Gravel stops and fascia — height requirements, overflow provisions, attachment
+- Ridge and hip caps — geometry, overlap requirements, fastening
+- Pitch pans — installation, fill materials, maintenance
 
-3. ESCALATE immediately to a human when:
-   - The customer expresses anger, frustration, or dissatisfaction
-   - There's an order dispute or complaint
-   - The question requires professional engineering judgment
-   - There's a payment or billing issue
-   - The customer threatens legal action or similar
+07 72 00 ROOF ACCESSORIES:
+- Expansion joints — movement accommodation, cover plate design
+- Prefabricated curbs — material compatibility, height requirements
 
-4. SHORT ANSWERS. This is a support chat, not a documentation portal.
-   Max 3 sentences per response unless walking through a process step-by-step.
+MATERIAL KNOWLEDGE:
+Copper: 16oz, 20oz, 24oz designations (oz per sq ft). Develops patina. Incompatible with aluminum and zinc (galvanic corrosion). Use lead-coated copper at masonry. Thermal coefficient 0.0000094/°F. Soldered or mechanical seams. Minimum 16oz for most applications.
 
-5. You are not a salesperson. Help the customer find what they need.
-   Do not upsell. Never discuss competitors.
+Aluminum: .032", .040", .050", .063" common gauges. Lightweight, corrosion resistant, paintable. Not compatible with copper or steel without isolation. Kynar 500/PVDF coatings for color retention. Common for wall panels and fascia.
+
+Galvanized Steel: 24ga, 22ga, 20ga common. G-90 coating minimum for exterior. Heavier than aluminum. Used for cleats, Z-bars, structural applications. Paint or coat for longevity.
+
+Stainless Steel: 304 and 316 grades. 316 for coastal/marine. 28ga-22ga typical. Most expensive but highest durability. Used in high-end or corrosive environments.
+
+Zinc: .027"-.040" common. European standard in US market growth. Natural patina (zinc oxide). Incompatible with copper runoff.
+
+Lead-coated Copper: Copper with terne coating. Traditional masonry flashing. Long service life.
+
+PROFILE KNOWLEDGE — AFS FABRICATES:
+Coping Caps, Base Flashing, Counter Flashing, Step Flashing, Valley Flashing, Drip Edge, Gravel Stop, Fascia, Gutter, Downspout, Conductor Head, Scupper, Reglet, Z-Bar/Pitch Change, Z-Closure, Hip Cap, Ridge Cap, Inside Corner, Outside Corner, Window/Door Pan, Expansion Joint Cover, Wall Panels, Custom Profiles via FlashDraft.
+
+CLEAT TYPES AFS FABRICATES:
+Flat cleats, standing seam cleats, double-lock cleats, expansion cleats, starter cleats, cap cleats. All are custom geometry — designed in FlashDraft.
+
+INSTALLATION KNOWLEDGE:
+- Minimum 3" end laps on all sheet metal flashing
+- Thermal expansion: allow 1/8" per 10 feet for copper, 3/16" per 10 feet for aluminum
+- Never sandwich dissimilar metals without isolation membrane
+- Sealant at terminations: polyurethane or silicone, never caulk alone as primary water barrier
+- Through-wall flashing: minimum 4" embed into wall, slope minimum 1/4":12 to drain
+- Counterflashing: minimum 4" overlap over base flashing
+- Coping cap: minimum 3" each side overhang, slope 1/8":12 minimum to drain water away from wall
+
+ROUTING RULES — CRITICAL:
+- NEVER quote a price or lead time
+- When customer knows their profile and dimensions → direct to /configure (Custom Configurator)
+- When customer needs a cleat or complex custom geometry → direct to /studio/draft (FlashDraft)
+- When customer has drawings or photos → direct to /studio (Design Studio — Scan to Quote or Photo to Quote)
+- When customer is unsure what they need → ask clarifying questions, then route appropriately
+- Always offer to connect them with Trica at trica@architecturalflashingsupply.com or (512) 372-4900 for complex projects
+
+ESCALATE when: customer is frustrated, has an order dispute, needs engineering judgment beyond standard practice, mentions legal issues, or asks about billing.
+
+Keep responses concise — 2-4 sentences for simple questions, more detail for technical specifications. Be direct and knowledgeable. You represent a Texas craftsman shop that takes precision seriously.
 
 ESCALATION FORMAT:
 When escalation is needed, start your response with this exact marker
@@ -72,27 +100,88 @@ const FALLBACK_CATALOG_SUMMARY =
   'Coping caps, base flashing, counter flashing, step flashing, drip edge, gravel stop, ' +
   'expansion joints — in copper, aluminum, galvanized steel, stainless, and Galvalume.';
 
+// Not a DB-backed table — there is no "company info" table in SCHEMA.md —
+// so this mirrors the COMPANY line already in CHATBOT_SYSTEM_PROMPT above.
+// Kept as its own context block (rather than relying on the system prompt
+// alone) so hours can be filled in here later without touching the prompt.
+// Hours are a known, still-unresolved data blocker (see CLAUDE.md's DATA
+// BLOCKERS table) — not fabricated here.
+const AFS_SHOP_INFO_BLOCK = `AFS shop info:
+Architectural Flashing Supply
+209 Sure Cast Drive, Burnet, TX 78611
+Phone: (512) 372-4900
+Email: trica@architecturalflashingsupply.com
+Owner: Steve Harycki
+Hours: not yet published — direct the customer to call or email.`;
+
+interface CanonicalProfileRow {
+  name: string;
+  description: string | null;
+  category: string;
+  tags: string[] | null;
+}
+
+// quote_requests has no submission_type column (see SCHEMA.md TABLE 15) —
+// a FlashDraft submission is identified the same way
+// app/studio/draft/page.tsx's "My Saved Profiles" does: a line_items entry
+// with profileType === 'Custom FlashDraft Profile'.
+interface FlashDraftHistoryRow {
+  request_number: string;
+  submitted_at: string;
+  line_items: unknown;
+}
+
+function isFlashDraftLineItem(value: unknown): boolean {
+  return (
+    !!value && typeof value === 'object' && (value as Record<string, unknown>).profileType === 'Custom FlashDraft Profile'
+  );
+}
+
+function summarizeCanonicalProfiles(rows: CanonicalProfileRow[]): string {
+  if (rows.length === 0) return 'None available.';
+  return rows
+    .map((p) => {
+      const tags = p.tags && p.tags.length > 0 ? `; ${p.tags.join(', ')}` : '';
+      const description = p.description ? ` — ${p.description}` : '';
+      return `${p.name} (${p.category}${tags})${description}`;
+    })
+    .join('\n');
+}
+
 async function buildChatContext(
   userId: string | null,
   supabase: SupabaseClient
 ): Promise<string> {
-  const { data: profiles } = await supabase
-    .from('product_profiles')
-    .select('name')
-    .eq('is_active', true)
-    .order('sort_order')
-    .limit(20);
+  const [productProfilesResult, canonicalProfilesResult] = await Promise.all([
+    supabase.from('product_profiles').select('name').eq('is_active', true).order('sort_order').limit(20),
+    // canonical_profiles has no profile_type/typical_applications columns —
+    // category and tags are the closest real equivalents (see SCHEMA.md's
+    // CANONICAL PROFILE LIBRARY TABLE).
+    supabase
+      .from('canonical_profiles')
+      .select('name, description, category, tags')
+      .eq('is_active', true)
+      .order('sort_order')
+      .limit(25),
+  ]);
 
   const catalogSummary =
-    profiles && profiles.length > 0
-      ? profiles.map((p: { name: string }) => p.name).join(', ')
+    productProfilesResult.data && productProfilesResult.data.length > 0
+      ? productProfilesResult.data.map((p: { name: string }) => p.name).join(', ')
       : FALLBACK_CATALOG_SUMMARY;
 
+  const canonicalSummary = summarizeCanonicalProfiles((canonicalProfilesResult.data ?? []) as CanonicalProfileRow[]);
+
   if (!userId) {
-    return `Customer: Guest (not logged in)\nProducts available: ${catalogSummary}`;
+    return `${AFS_SHOP_INFO_BLOCK}
+
+Customer: Guest (not logged in)
+Products available: ${catalogSummary}
+Canonical profile library:
+${canonicalSummary}`;
   }
 
-  const [profileResult, ordersResult, quoteRequestsResult] = await Promise.all([
+  const [profileResult, ordersResult, quoteRequestsResult, flashDraftHistoryResult] = await Promise.all([
     supabase.from('profiles').select('full_name, company').eq('id', userId).single(),
     supabase
       .from('orders')
@@ -108,12 +197,27 @@ async function buildChatContext(
       .in('status', PENDING_QUOTE_STATUSES)
       .order('submitted_at', { ascending: false })
       .limit(10),
+    supabase
+      .from('quote_requests')
+      .select('request_number, submitted_at, line_items')
+      .eq('user_id', userId)
+      .order('submitted_at', { ascending: false })
+      .limit(20),
   ]);
 
-  return `Customer: ${profileResult.data?.full_name ?? 'Unknown'} (${profileResult.data?.company ?? 'no company'})
+  const flashDraftProfiles = ((flashDraftHistoryResult.data ?? []) as FlashDraftHistoryRow[])
+    .filter((row) => (Array.isArray(row.line_items) ? row.line_items : []).some(isFlashDraftLineItem))
+    .map((row) => ({ requestNumber: row.request_number, submittedAt: row.submitted_at }));
+
+  return `${AFS_SHOP_INFO_BLOCK}
+
+Customer: ${profileResult.data?.full_name ?? 'Unknown'} (${profileResult.data?.company ?? 'no company'})
 Active orders: ${JSON.stringify(ordersResult.data ?? [])}
 Pending quote requests: ${JSON.stringify(quoteRequestsResult.data ?? [])}
-Products available: ${catalogSummary}`;
+Saved FlashDraft profiles (from quote request history): ${JSON.stringify(flashDraftProfiles)}
+Products available: ${catalogSummary}
+Canonical profile library:
+${canonicalSummary}`;
 }
 
 export async function POST(request: NextRequest): Promise<Response> {
@@ -145,7 +249,7 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   const anthropicStream = anthropic.messages.stream({
     model: 'claude-sonnet-4-6',
-    max_tokens: 512,
+    max_tokens: 1500,
     system: CHATBOT_SYSTEM_PROMPT + '\n\nCONTEXT:\n' + context,
     messages: messages.map((m) => ({ role: m.role, content: m.content })),
   });

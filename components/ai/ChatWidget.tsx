@@ -14,6 +14,26 @@ interface ChatMessage {
 const ESCALATE_PATTERN = /^\s*\[ESCALATE:\s*(\{[\s\S]*?\})\]\s*/;
 const MAX_HISTORY = 20;
 
+// ChatWidget is mounted once, at the top of components/layout/AppChrome.tsx
+// (rendered from the root layout, outside the per-page {children} slot), so
+// client-side navigation re-renders it in place rather than unmounting it —
+// `expanded` already survives route changes without this. What it can't
+// survive is a genuine full page reload (a plain <a href> instead of next/
+// link, a mobile browser reloading a backgrounded tab, a PWA/webview
+// returning from a share sheet) — any of those remount the whole React tree
+// from scratch. sessionStorage carries `expanded` across exactly that case,
+// wrapped in try/catch since some mobile browsers (e.g. Safari private
+// browsing) throw on storage access instead of just no-op'ing.
+const EXPANDED_STORAGE_KEY = 'afs-chat-expanded';
+
+function readStoredExpanded(): boolean {
+  try {
+    return window.sessionStorage.getItem(EXPANDED_STORAGE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 function stripEscalation(content: string): { text: string; escalated: boolean; reason: string | null } {
   const match = content.match(ESCALATE_PATTERN);
   if (!match) return { text: content, escalated: false, reason: null };
@@ -40,7 +60,7 @@ function TypingIndicator() {
 }
 
 export default function ChatWidget() {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(readStoredExpanded);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -59,6 +79,12 @@ export default function ChatWidget() {
   useEffect(() => {
     expandedRef.current = expanded;
     if (expanded) setUnreadCount(0);
+    try {
+      window.sessionStorage.setItem(EXPANDED_STORAGE_KEY, expanded ? '1' : '0');
+    } catch {
+      // Storage unavailable (private browsing, etc.) — expanded still works
+      // for this page view, it just won't survive a full page reload.
+    }
   }, [expanded]);
 
   useEffect(() => {
