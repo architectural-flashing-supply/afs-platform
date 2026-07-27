@@ -191,6 +191,8 @@ export default function ConfiguratorPage() {
     [profileType]
   );
 
+  const isCleat = profileType === 'cleat';
+
   const svgMarkup = useMemo(() => {
     if (!profileType) return null;
     return generateProfileSVG({
@@ -453,58 +455,64 @@ export default function ConfiguratorPage() {
             ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-2 mb-3">
-            <div>
-              <label className={labelClass} htmlFor="material">Material</label>
-              <select
-                id="material"
-                className={selectClass}
-                value={form.material}
-                onChange={(e) => selectMaterial(e.target.value)}
-              >
-                <option value="" disabled className={optionClass}>Select</option>
-                {MATERIALS.map(m => <option key={m} value={m} className={optionClass}>{m}</option>)}
-              </select>
+          {!isCleat && (
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <div>
+                <label className={labelClass} htmlFor="material">Material</label>
+                <select
+                  id="material"
+                  className={selectClass}
+                  value={form.material}
+                  onChange={(e) => selectMaterial(e.target.value)}
+                >
+                  <option value="" disabled className={optionClass}>Select</option>
+                  {MATERIALS.map(m => <option key={m} value={m} className={optionClass}>{m}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelClass} htmlFor="gauge">Gauge</label>
+                <select
+                  id="gauge"
+                  className={selectClass}
+                  value={form.gauge}
+                  disabled={!form.material}
+                  onChange={(e) => updateField('gauge', e.target.value)}
+                >
+                  <option value="" disabled className={optionClass}>
+                    {form.material ? 'Select' : '—'}
+                  </option>
+                  {gaugeOptions.map(g => <option key={g} value={g} className={optionClass}>{g}</option>)}
+                </select>
+              </div>
             </div>
-            <div>
-              <label className={labelClass} htmlFor="gauge">Gauge</label>
-              <select
-                id="gauge"
-                className={selectClass}
-                value={form.gauge}
-                disabled={!form.material}
-                onChange={(e) => updateField('gauge', e.target.value)}
-              >
-                <option value="" disabled className={optionClass}>
-                  {form.material ? 'Select' : '—'}
-                </option>
-                {gaugeOptions.map(g => <option key={g} value={g} className={optionClass}>{g}</option>)}
-              </select>
-            </div>
-          </div>
+          )}
 
-          <span className={labelClass}>Dimensions (inches)</span>
-          <div className="grid grid-cols-2 gap-2 mb-3">
-            {(['width', 'height', 'legA', 'legB'] as DimField[]).map(dim => {
-              const active = activeDims.includes(dim);
-              return (
-                <div key={dim}>
-                  <label className={labelClass} htmlFor={dim}>{DIM_LABELS[dim]}</label>
-                  <input
-                    id={dim}
-                    type="number"
-                    min="0"
-                    step="0.0625"
-                    className={dataInputClass}
-                    value={form[dim]}
-                    disabled={!profileType || !active}
-                    onChange={(e) => updateField(dim, e.target.value)}
-                    placeholder={active ? '0.0000' : 'n/a'}
-                  />
-                </div>
-              );
-            })}
-          </div>
+          {!isCleat && (
+            <>
+              <span className={labelClass}>Dimensions (inches)</span>
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                {(['width', 'height', 'legA', 'legB'] as DimField[]).map(dim => {
+                  const active = activeDims.includes(dim);
+                  return (
+                    <div key={dim}>
+                      <label className={labelClass} htmlFor={dim}>{DIM_LABELS[dim]}</label>
+                      <input
+                        id={dim}
+                        type="number"
+                        min="0"
+                        step="0.0625"
+                        className={dataInputClass}
+                        value={form[dim]}
+                        disabled={!profileType || !active}
+                        onChange={(e) => updateField(dim, e.target.value)}
+                        placeholder={active ? '0.0000' : 'n/a'}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
 
           <div className="grid grid-cols-2 gap-2 mb-3">
             <div>
@@ -588,14 +596,16 @@ export default function ConfiguratorPage() {
           )}
 
           <div className="flex flex-col gap-3">
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={submitState === 'submitting' || showEmailCapture}
-              className="bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label font-semibold px-6 py-3 rounded text-sm transition-colors disabled:opacity-50 disabled:pointer-events-none"
-            >
-              {submitState === 'submitting' ? 'Submitting…' : 'Submit for Quote'}
-            </button>
+            {!isCleat && (
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={submitState === 'submitting' || showEmailCapture}
+                className="bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label font-semibold px-6 py-3 rounded text-sm transition-colors disabled:opacity-50 disabled:pointer-events-none"
+              >
+                {submitState === 'submitting' ? 'Submitting…' : 'Submit for Quote'}
+              </button>
+            )}
             <button
               type="button"
               onClick={addToQuoteRequest}
@@ -617,45 +627,67 @@ export default function ConfiguratorPage() {
 
         {/* RIGHT — PREVIEW */}
         <div className="flex-1 min-w-0">
-          <p className="text-sm text-afs-chrome-mid italic text-center mb-4">
-            Specify exact dimensions and see a live diagram update as you type. AFS follows up with a formal quote.
-          </p>
-          <div className="bg-slate-500 border border-afs-chrome-dim rounded metal-edge p-6 min-h-[440px] flex items-center justify-center">
-            {svgMarkup ? (
-              <div
-                className="w-full max-w-[440px] aspect-square"
-                dangerouslySetInnerHTML={{ __html: svgMarkup }}
-              />
-            ) : (
-              <div className="text-center px-6">
-                <p className="font-heading text-xl text-afs-chrome-mid mb-2">
-                  Select a Profile Type
-                </p>
-                <p className="font-body text-sm text-afs-chrome-dim max-w-xs mx-auto">
-                  Choose a profile from the left to see a live diagram update as you enter dimensions.
-                </p>
-              </div>
-            )}
-          </div>
-
-          {specSummary && (
-            <div className="mt-4 bg-afs-bg-surface border border-afs-chrome-dim rounded p-5">
-              <span className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-3">
-                Spec Summary
-              </span>
-              <div className="font-data text-sm text-afs-chrome-high space-y-1.5">
-                <p>{specSummary.label.toUpperCase()}</p>
-                <p className="text-afs-chrome-mid">{specSummary.material} — {specSummary.gauge}</p>
-                <p className="text-afs-crimson">{specSummary.dims}</p>
-                <p className="text-afs-chrome-mid">{specSummary.lengthFt} FT × QTY {specSummary.quantity}</p>
-              </div>
+          {isCleat ? (
+            <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-8 min-h-[440px] flex flex-col items-center justify-center text-center gap-4">
+              <h2 className="font-heading text-2xl text-afs-chrome-high">Cleat Profiles</h2>
+              <p className="font-body text-sm text-afs-chrome-mid max-w-sm">
+                Cleat profiles require custom geometry based on your specific application. Use
+                FlashDraft to draw your exact cleat profile — our team will engineer the bend
+                sequence and follow up with a formal quote.
+              </p>
+              <a
+                href="/studio/draft"
+                className="bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label font-semibold px-6 py-3 rounded text-sm transition-colors"
+              >
+                Design in FlashDraft
+              </a>
+              <p className="font-body text-xs text-afs-chrome-dim">
+                Need help? Call (512) 372-4900 or email trica@architecturalflashingsupply.com
+              </p>
             </div>
-          )}
+          ) : (
+            <>
+              <p className="text-sm text-afs-chrome-mid italic text-center mb-4">
+                Specify exact dimensions and see a live diagram update as you type. AFS follows up with a formal quote.
+              </p>
+              <div className="bg-slate-500 border border-afs-chrome-dim rounded metal-edge p-6 min-h-[440px] flex items-center justify-center">
+                {svgMarkup ? (
+                  <div
+                    className="w-full max-w-[440px] aspect-square"
+                    dangerouslySetInnerHTML={{ __html: svgMarkup }}
+                  />
+                ) : (
+                  <div className="text-center px-6">
+                    <p className="font-heading text-xl text-afs-chrome-mid mb-2">
+                      Select a Profile Type
+                    </p>
+                    <p className="font-body text-sm text-afs-chrome-dim max-w-xs mx-auto">
+                      Choose a profile from the left to see a live diagram update as you enter dimensions.
+                    </p>
+                  </div>
+                )}
+              </div>
 
-          <p className="font-body text-xs text-afs-chrome-dim mt-4 text-center">
-            Estimated CAD preview — for reference only. No prices shown here; AFS delivers a
-            formal quote after review.
-          </p>
+              {specSummary && (
+                <div className="mt-4 bg-afs-bg-surface border border-afs-chrome-dim rounded p-5">
+                  <span className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-3">
+                    Spec Summary
+                  </span>
+                  <div className="font-data text-sm text-afs-chrome-high space-y-1.5">
+                    <p>{specSummary.label.toUpperCase()}</p>
+                    <p className="text-afs-chrome-mid">{specSummary.material} — {specSummary.gauge}</p>
+                    <p className="text-afs-crimson">{specSummary.dims}</p>
+                    <p className="text-afs-chrome-mid">{specSummary.lengthFt} FT × QTY {specSummary.quantity}</p>
+                  </div>
+                </div>
+              )}
+
+              <p className="font-body text-xs text-afs-chrome-dim mt-4 text-center">
+                Estimated CAD preview — for reference only. No prices shown here; AFS delivers a
+                formal quote after review.
+              </p>
+            </>
+          )}
         </div>
       </div>
     </main>
