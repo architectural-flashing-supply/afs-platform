@@ -140,6 +140,59 @@ bar (afs-051):           Template" bar along the bottom of FlashDraft's
                          build` → exit 0 (`/studio/draft` 17.8 kB, up from
                          17.2 kB), no tool-approval blocker. Committed
                          (`9d1bb1c`) and pushed to `origin/main`.
+Chatbot expansion        NEW (afs-052, 2026-07-27) — `app/api/chat/route.ts`
+(afs-052):               and `components/ai/ChatWidget.tsx`. `max_tokens`
+                         512 → 1500. `CHATBOT_SYSTEM_PROMPT` replaced with a
+                         full Division 07 / material / installation
+                         knowledge version (used verbatim from the task),
+                         **plus the original ESCALATION FORMAT paragraph
+                         re-appended** — the replacement text had no marker-
+                         format spec, and `ChatWidget.tsx`'s
+                         `stripEscalation()` hardcodes a regex expecting
+                         `[ESCALATE: {"reason":"..."}]` as a literal prefix;
+                         dropping that instruction would have silently
+                         broken `EscalationCard` with no error, so it was
+                         kept. Task's "/quote references" fix (item 4) was a
+                         no-op once the replacement prompt was applied — that
+                         text already routes to /configure, /studio/draft,
+                         /studio with zero /quote mentions. `buildChatContext`
+                         gained 3 sources — **2 of 3 didn't match the task's
+                         literal column names, implemented against the real
+                         schema instead:** `canonical_profiles` has no
+                         `profile_type`/`typical_applications` columns (see
+                         SCHEMA.md's CANONICAL PROFILE LIBRARY TABLE) — used
+                         the real `category`/`tags` columns. `quote_requests`
+                         has no `submission_type` column — FlashDraft
+                         submissions are identified the same way afs-049's
+                         "My Saved Profiles" already does, a `line_items`
+                         entry with `profileType === 'Custom FlashDraft
+                         Profile'`. The shop-info block is a hardcoded
+                         constant (no company-info table exists) with hours
+                         left as "not yet published" — still an open DATA
+                         BLOCKER — but address/phone/email/owner are no
+                         longer placeholders, they're real, sourced from this
+                         task. **Item 5 (mobile disappear-on-click fix):**
+                         re-tested live via Playwright against an iPhone 13
+                         profile (open, tap textarea, shrink viewport to
+                         simulate a keyboard, close/reopen) — did not
+                         reproduce, same as the prior session's desktop
+                         testing. Confirmed `ChatWidget` is mounted once by
+                         `AppChrome` from the root layout, outside the
+                         per-page slot — client-side nav re-renders it in
+                         place, doesn't remount it, so there's no lower mount
+                         point to move it away from. What genuinely isn't
+                         defended against is a full page reload (plain `<a
+                         href>`, a backgrounded mobile tab reloading, a PWA
+                         share-sheet return) — added real defense for that:
+                         `expanded` now initializes from and syncs to
+                         `sessionStorage`, wrapped in try/catch (private-
+                         browsing storage access throws on some mobile
+                         browsers). `pnpm tsc --noEmit` → 0 errors; `pnpm run
+                         build` → exit 0 (a stray dev server from this
+                         session's own Playwright testing produced one
+                         `EPERM` on `.next/trace` on the first attempt —
+                         killed it, rebuilt clean). Committed (`7cc1bf9`) and
+                         pushed to `origin/main`.
 Database migration:      **CORRECTED afs-041 (2026-07-14) — all 5 migrations are
                          applied to the live Supabase project.** This line had long
                          (incorrectly) claimed 001-003 and 005 were NOT applied; afs-041

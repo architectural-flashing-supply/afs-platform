@@ -7,7 +7,71 @@
 
 ## CURRENT STATUS
 
-**Most recent session (flashdraft-templates-001, 2026-07-27): added a "Start
+**Most recent session (chatbot-expand-001, 2026-07-27): expanded the AI
+chatbot's knowledge and context, raised its token ceiling, and hardened
+ChatWidget against a reported (but not reproduced) mobile disappearing
+bug.** Read `app/api/chat/route.ts`, `components/ai/ChatWidget.tsx`, and
+both files in `lib/anthropic/` in full first, per instruction. (1)
+`max_tokens` 512 → 1500 — one-line change. (2) `CHATBOT_SYSTEM_PROMPT`
+replaced with the task's full Division 7 / material / installation
+knowledge version, used verbatim, **with one deliberate addition**: the
+task's replacement text doesn't include an ESCALATE marker-format spec, but
+`ChatWidget.tsx`'s `stripEscalation()` parses responses against a hardcoded
+`/^\s*\[ESCALATE:\s*(\{[\s\S]*?\})\]\s*/` regex — dropping that
+instruction from the prompt verbatim would have silently broken the
+existing escalation UI (`EscalationCard` would simply never render). Kept
+the original ESCALATION FORMAT paragraph appended after the task's text
+so the contract with the client-side parser still holds. (3) The task's
+item 4 ("fix hardcoded /quote references") turned out to be a no-op: the
+replacement prompt text it supplied already used /configure, /studio/draft,
+and /studio throughout with no /quote references — nothing left to change
+once (2) was applied. (4) `buildChatContext` expanded per the task, but two
+of its three new context sources didn't match the task's literal column
+names — implemented against the real schema instead of inventing columns:
+`canonical_profiles` has no `profile_type`/`typical_applications` columns
+(confirmed against SCHEMA.md's CANONICAL PROFILE LIBRARY TABLE) — used the
+real `category`/`tags` columns instead. `quote_requests` has no
+`submission_type` column — a FlashDraft submission is identified the same
+way `app/studio/draft/page.tsx`'s "My Saved Profiles" (chatbot-adjacent,
+built earlier this session block) already does: a `line_items` entry with
+`profileType === 'Custom FlashDraft Profile'`, so the new
+`flashDraftHistoryResult` query + `isFlashDraftLineItem` filter mirrors that
+exact pattern rather than querying a nonexistent column. The shop-info
+block (address/phone/email/owner) is a hardcoded constant, not a DB query —
+there's no company-info table — with hours left as "not yet published,"
+consistent with CLAUDE.md's still-unresolved DATA BLOCKERS line for AFS
+hours (address/phone are no longer blocked as of this session — they're now
+real, sourced from the task itself, not a placeholder). (5) **The reported
+"disappears on click" bug — investigated last session, not reproduced then
+either — still didn't reproduce this session on a real mobile viewport.**
+Before changing anything, ran a live Playwright probe against the dev
+server with an iPhone 13 device profile: open→panel visible, tapped the
+textarea, shrank the viewport to simulate a mobile keyboard opening,
+closed/reopened, all correct every time, no console errors. Checked the
+literal hypothesis in the task (remount via `usePathname()` or the
+`dynamic()` import) directly: `ChatWidget` is mounted once by
+`components/layout/AppChrome.tsx`, itself rendered from the root
+`app/layout.tsx` outside the per-page `{children}` slot — client-side
+navigation re-renders `AppChrome` (and therefore `ChatWidget`) in place, it
+doesn't remount it, so there's no lower-in-the-tree location to "move the
+mount point" to; it's already the most persistent client boundary short of
+the root layout itself. What genuinely WOULD reset unguarded local state is
+a full page reload (a plain `<a href>` instead of `next/link`, a
+backgrounded mobile tab getting discarded and reloaded, a PWA/webview
+returning from a share sheet) — none of those are a code bug, but
+`expanded` had no defense against them either. Added real defense for that
+case instead of a fix for the undemonstrated one: `expanded`'s initial
+`useState` now reads from `sessionStorage` (`readStoredExpanded()`) and the
+existing `[expanded]` effect now also writes it back, both wrapped in
+try/catch (mobile Safari private browsing throws on storage access rather
+than silently no-op'ing). `pnpm tsc --noEmit` → 0 errors. `pnpm run build`
+→ passed (a stray dev server from this session's own Playwright testing
+held a lock on `.next/trace` on the first attempt — `EPERM`, not a real
+build failure; killing that process and rebuilding produced a clean exit
+0). Committed (`7cc1bf9`) and pushed to `origin/main`, no tool-approval
+blocker.
+
+**Most recent session before that (flashdraft-templates-001, 2026-07-27): added a "Start
 From a Template" bar along the bottom of FlashDraft's canvas with 10 common
 profile templates.** Read `app/studio/draft/page.tsx` and its imported
 canvas components in full first, per instruction, to confirm how geometry is
