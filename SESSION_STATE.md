@@ -7,7 +7,38 @@
 
 ## CURRENT STATUS
 
-**Most recent session (flashdraft-saved-001, 2026-07-27): replaced the
+**Most recent session (configure-cleat-001, 2026-07-27): "Cleat" in the
+Custom Flashing Configurator's Profile Type grid now redirects to FlashDraft
+instead of showing dimension inputs and a diagram.** Read
+`app/configure/page.tsx` in full first, per instruction — there's no
+separate cleat component; it's one `profileType === 'cleat'` state value
+inside this single-file configurator, same as any other `ProfileType`. Added
+one derived `const isCleat = profileType === 'cleat';` and gated three
+existing blocks on `!isCleat` without restructuring anything else: the
+Material/Gauge `<select>` pair, the "Dimensions (inches)" width/height/legA/
+legB input grid, and the "Submit for Quote" button — exactly the four
+elements the task named, nothing more. Left Length/Quantity, Notes, "Add to
+Quote Request", and "Start Over" visible and untouched, per the task's literal
+scope (material/gauge stay blank while Cleat is selected, so "Add to Quote
+Request" just stays disabled via the pre-existing `currentItemValid` check —
+not a new bug, not separately hidden since it wasn't named). The right-side
+preview column now branches on `isCleat`: instead of the italic instructions/
+SVG diagram/Spec Summary/CAD-preview disclaimer stack, it shows a single
+panel — "Cleat Profiles" heading, the exact body copy requested, a
+`bg-afs-crimson` "Design in FlashDraft" link to `/studio/draft` (plain `<a
+href>`, no `target`, so it opens in the same tab as specified), and the
+phone/email secondary line — styled with the same `afs-bg-raised`/
+`afs-chrome-dim` panel tokens used elsewhere on this page (the pre-existing
+diagram box's `bg-slate-500` was a prior, untouched default-Tailwind-color
+exception on this page; the new panel deliberately uses proper afs-* tokens
+instead of copying that pattern). `svgMarkup` still computes for `cleat`
+under the hood (harmless, just unused while `isCleat` is true) since
+`generateProfileSVG`/`PROFILE_DIMS` weren't touched — only the render branch
+changed. `pnpm tsc --noEmit` → 0 errors. `pnpm run build` → passed
+(`/configure` 5.13 kB, up from 3.9 kB). Committed (`109f298`) and pushed to
+`origin/main`, no tool-approval blocker.
+
+**Most recent session before that (flashdraft-saved-001, 2026-07-27): replaced the
 FlashDraft top toolbar's "Load from Library" with "My Saved Profiles",
 sourced from the customer's own submitted quote requests rather than the
 shop's public/machine-history library.** Read `app/studio/draft/page.tsx`

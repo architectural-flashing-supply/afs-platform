@@ -72,6 +72,34 @@ Profiles" (afs-049):     folder-icon button (`icon="open"`, previously
                          335 kB First Load JS, up from 16.5 kB / 328 kB), no
                          tool-approval blocker. Committed (`e399673`) and
                          pushed to `origin/main`.
+Configure Cleat          NEW (afs-050, 2026-07-27) — selecting "Cleat" in the
+redirect (afs-050):      Custom Flashing Configurator's (`app/configure/
+                         page.tsx`) Profile Type grid now shows a "Design in
+                         FlashDraft" redirect panel instead of the normal
+                         Material/Gauge/Dimensions/diagram flow — cleats need
+                         custom-drawn geometry, not a parametric form. One
+                         derived `const isCleat = profileType === 'cleat'`
+                         gates exactly three existing blocks (Material/Gauge
+                         selects, the width/height/legA/legB dimension grid,
+                         the "Submit for Quote" button) — the four elements
+                         the task named; Length/Quantity, Notes, "Add to
+                         Quote Request", and "Start Over" were deliberately
+                         left alone (out of scope; "Add to Quote Request"
+                         just stays disabled via the pre-existing
+                         `currentItemValid` check since material/gauge stay
+                         blank). The right preview column branches on
+                         `isCleat` to show a single afs-* token panel
+                         (heading, body copy, `bg-afs-crimson` "Design in
+                         FlashDraft" link to `/studio/draft` — plain `<a
+                         href>`, no `target`, opens same-tab — plus the
+                         phone/email line) in place of the diagram/Spec
+                         Summary/disclaimer stack, deliberately not reusing
+                         the existing diagram box's pre-existing
+                         `bg-slate-500` (a prior, untouched default-Tailwind
+                         exception on this same page). `pnpm tsc --noEmit` →
+                         0 errors; `pnpm run build` → exit 0 (`/configure`
+                         5.13 kB, up from 3.9 kB), no tool-approval blocker.
+                         Committed (`109f298`) and pushed to `origin/main`.
 Database migration:      **CORRECTED afs-041 (2026-07-14) — all 5 migrations are
                          applied to the live Supabase project.** This line had long
                          (incorrectly) claimed 001-003 and 005 were NOT applied; afs-041
