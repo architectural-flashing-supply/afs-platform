@@ -7,7 +7,55 @@
 
 ## CURRENT STATUS
 
-**Most recent session (admin-nav-001, 2026-07-27): removed the "CAD Library"
+**Most recent session (flashdraft-saved-001, 2026-07-27): replaced the
+FlashDraft top toolbar's "Load from Library" with "My Saved Profiles",
+sourced from the customer's own submitted quote requests rather than the
+shop's public/machine-history library.** Read `app/studio/draft/page.tsx`
+in full first, per instruction, plus `app/api/quote-requests/route.ts` and
+SCHEMA.md's `quote_requests` table to find the correct data model — no
+separate "file folder dropdown" exists (each toolbar action, including the
+folder-icon `Open` button, is its own flat `ToolbarButton`), so "the file
+folder menu item" was that single button. (1) The folder-icon
+`ToolbarButton` (`icon="open"`) that called `openLibrary()` (opening the
+"Load from Library" modal listing `LibraryProfile` rows from
+`/api/studio/library-list`) now calls a new `openSavedProfiles()` instead —
+icon and button left in place, only its label/behavior changed. The old
+`openLibrary`/`loadFromLibrary`/`showLibrary` modal, its
+`/api/studio/library-list` and `/api/studio/load-profile/[id]` routes, and
+the sidebar's separate `Load` button (which also opens that same modal) were
+all deliberately left untouched — out of scope; the task named only the top
+toolbar, and `loadFromLibrary` is still load-bearing for `/studio/library`'s
+own "Load into FlashDraft" `?loadProfile=` handoff. (2) New "My Saved
+Profiles" modal queries `quote_requests` client-side
+(`.eq('user_id', user.id)`, allowed directly by SCHEMA.md's existing
+`users_own_requests` SELECT RLS policy — no new API route needed), filters
+each row's `line_items` JSONB array to items with
+`profileType === 'Custom FlashDraft Profile'`, and lists profile name (the
+`profileType` string itself — no separate name field exists in that JSONB),
+submission date, material, and gauge, with a disabled `[Load]` button state.
+**Real gap found and fixed rather than routed around:** `line_items` for a
+FlashDraft submission never stored the actual drawn `points` geometry —
+only `bendRadiiIn`/`hemStart`/`hemEnd`/`legHems`/`lengthFt`, none of which is
+enough to reconstruct the exact shape (no per-leg lengths or bend angles).
+Fixed at the source: `submitQuoteRequest`'s POST payload now also includes
+the raw `points` array (mirrors the existing `saved_configurations.dimensions`
+pattern from the Part 5 Save feature, which already stores raw points the
+same way) — `app/api/quote-requests/route.ts`'s insert passes `items`
+through unmodified, so no server-side change was required beyond
+documenting the new optional `points` field on `QuoteRequestItemInput`.
+Quote requests submitted before this session have no `points` in their
+stored `line_items`, so their `[Load]` button is disabled with a "Geometry
+not available for this submission" tooltip instead of guessing — not
+silently broken, not misrepresented as working. `loadSavedProfile()` sets
+`points` directly (no turtle-graphics reconstruction needed, since the exact
+geometry is now stored). Not-logged-in state shows "Sign in to view your
+saved profiles" with a `next/link` to `/login` (new import — wasn't
+previously used in this file). `pnpm tsc --noEmit` → 0 errors. `pnpm run
+build` → passed (`/studio/draft` 17.2 kB / 335 kB First Load JS, up from
+16.5 kB / 328 kB). Committed (`e399673`) and pushed to `origin/main`, no
+tool-approval blocker.
+
+**Most recent session before that (admin-nav-001, 2026-07-27): removed the "CAD Library"
 link from the admin sidebar nav — feature deferred until real content
 exists.** Read `components/layout/AdminShell.tsx` in full first, per
 instruction. Deleted the `{ label: 'CAD Library', href: '/admin/cad-library' }`

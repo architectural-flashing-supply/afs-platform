@@ -31,6 +31,47 @@ Admin nav cleanup        NEW (afs-048, 2026-07-27) — removed the "CAD Library"
                          logged in the `pnpm tsc --noEmit` line below — not
                          hit this session). Committed (`d7031e0`) and pushed
                          to `origin/main`.
+FlashDraft "My Saved     NEW (afs-049, 2026-07-27) — FlashDraft's top toolbar
+Profiles" (afs-049):     folder-icon button (`icon="open"`, previously
+                         labeled "Open", calling `openLibrary()` to show a
+                         "Load from Library" modal of shop/machine-history
+                         profiles from `/api/studio/library-list`) now shows
+                         "My Saved Profiles" instead — the customer's own
+                         submitted quote requests, not the shop's public
+                         library. Icon and button left in place, per
+                         instruction; only the one toolbar entry's label/
+                         handler changed. The old library modal, its two API
+                         routes, and the separate sidebar `Load` button
+                         (same modal) were deliberately left untouched —
+                         out of scope, and `loadFromLibrary` is still used by
+                         `/studio/library`'s `?loadProfile=` handoff. New
+                         modal queries `quote_requests` client-side, filtered
+                         to `auth.uid() = user_id` — allowed directly by
+                         SCHEMA.md's existing `users_own_requests` SELECT
+                         RLS policy, no new API route required — and filters
+                         each row's `line_items` JSONB to items with
+                         `profileType === 'Custom FlashDraft Profile'`.
+                         **Real gap found and fixed, not routed around:**
+                         `line_items` never stored the actual drawn `points`
+                         geometry, only `bendRadiiIn`/hem/`lengthFt` — not
+                         enough to reconstruct the shape (no per-leg lengths
+                         or angles). Fixed at the source: `submitQuoteRequest`
+                         now also sends the raw `points` array (mirrors the
+                         pre-existing `saved_configurations.dimensions`
+                         pattern from the Part 5 Save feature), and
+                         `app/api/quote-requests/route.ts` inserts `items`
+                         through unmodified, so this needed no server-side
+                         logic change beyond documenting the new optional
+                         `points` field on `QuoteRequestItemInput`. Quote
+                         requests submitted before this session have no
+                         `points` in their stored `line_items` — their
+                         `[Load]` button is disabled with a "Geometry not
+                         available" tooltip rather than guessing at
+                         reconstruction. `pnpm tsc --noEmit` → 0 errors;
+                         `pnpm run build` → exit 0 (`/studio/draft` 17.2 kB /
+                         335 kB First Load JS, up from 16.5 kB / 328 kB), no
+                         tool-approval blocker. Committed (`e399673`) and
+                         pushed to `origin/main`.
 Database migration:      **CORRECTED afs-041 (2026-07-14) — all 5 migrations are
                          applied to the live Supabase project.** This line had long
                          (incorrectly) claimed 001-003 and 005 were NOT applied; afs-041
