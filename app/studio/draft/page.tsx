@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { ALL_MATERIALS, GAUGES_BY_MATERIAL } from '@/lib/data/catalog';
 import { gaugeToThicknessMm } from '@/lib/utils/gauge-thickness';
@@ -57,6 +58,51 @@ interface LibraryProfile {
   id: string;
   name_en: string;
   profile_number: string;
+}
+
+// A FlashDraft profile recovered from a customer's own submitted quote
+// request (quote_requests.line_items), as opposed to LibraryProfile above
+// (the shop's public/machine-history library). `points` is only present for
+// requests submitted after this feature shipped — line_items previously
+// stored only the reconstruction-lossy bendRadiiIn/hemStart/hemEnd/legHems
+// fields, not the raw drawn geometry, so older submissions can't be loaded
+// back exactly and their Load button is disabled instead of guessing.
+interface SavedQuoteProfile {
+  quoteRequestId: string;
+  itemIndex: number;
+  requestNumber: string;
+  submittedAt: string;
+  name: string;
+  material: string | null;
+  gauge: string | null;
+  points: Point[] | null;
+}
+
+interface QuoteRequestRow {
+  id: string;
+  request_number: string;
+  submitted_at: string;
+  line_items: unknown;
+}
+
+function isPointArray(value: unknown): value is Point[] {
+  return (
+    Array.isArray(value) &&
+    value.length >= 2 &&
+    value.every(
+      (p) => !!p && typeof p === 'object' && typeof (p as Point).x === 'number' && typeof (p as Point).y === 'number'
+    )
+  );
+}
+
+function isFlashDraftLineItem(
+  value: unknown
+): value is { profileType: string; material?: string | null; gauge?: string | null; points?: unknown } {
+  return (
+    !!value &&
+    typeof value === 'object' &&
+    (value as Record<string, unknown>).profileType === 'Custom FlashDraft Profile'
+  );
 }
 
 // Canvas 2D fillStyle/strokeStyle can't consume Tailwind classes or CSS
@@ -411,6 +457,9 @@ export default function FlashDraftPage() {
 
   const [showLibrary, setShowLibrary] = useState(false);
   const [libraryProfiles, setLibraryProfiles] = useState<LibraryProfile[]>([]);
+  const [showSavedProfiles, setShowSavedProfiles] = useState(false);
+  const [savedProfilesLoading, setSavedProfilesLoading] = useState(false);
+  const [savedProfiles, setSavedProfiles] = useState<SavedQuoteProfile[]>([]);
   const [libraryLoading, setLibraryLoading] = useState(false);
 
   const [show3DConfirm, setShow3DConfirm] = useState(false);
@@ -1583,6 +1632,58 @@ export default function FlashDraftPage() {
     setLibraryLoading(false);
   };
 
+  const openSavedProfiles = async () => {
+    setShowSavedProfiles(true);
+    if (!isAuthenticated) {
+      setSavedProfiles([]);
+      return;
+    }
+    setSavedProfilesLoading(true);
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      setSavedProfiles([]);
+      setSavedProfilesLoading(false);
+      return;
+    }
+    const { data } = await supabase
+      .from('quote_requests')
+      .select('id, request_number, submitted_at, line_items')
+      .eq('user_id', user.id)
+      .order('submitted_at', { ascending: false });
+
+    const profiles: SavedQuoteProfile[] = [];
+    for (const row of (data ?? []) as QuoteRequestRow[]) {
+      const items = Array.isArray(row.line_items) ? (row.line_items as unknown[]) : [];
+      items.forEach((item, itemIndex) => {
+        if (!isFlashDraftLineItem(item)) return;
+        profiles.push({
+          quoteRequestId: row.id,
+          itemIndex,
+          requestNumber: row.request_number,
+          submittedAt: row.submitted_at,
+          name: item.profileType,
+          material: item.material ?? null,
+          gauge: item.gauge ?? null,
+          points: isPointArray(item.points) ? item.points : null,
+        });
+      });
+    }
+    setSavedProfiles(profiles);
+    setSavedProfilesLoading(false);
+  };
+
+  const loadSavedProfile = (profile: SavedQuoteProfile) => {
+    if (!profile.points) return;
+    setPast((p) => [...p, points]);
+    setFuture([]);
+    setPoints(profile.points);
+    setSelectedSegment(null);
+    setShowSavedProfiles(false);
+  };
+
   const loadFromLibrary = useCallback(async (profileId: string) => {
     const res = await fetch(`/api/studio/load-profile/${profileId}`);
     let bends: {
@@ -1737,6 +1838,7 @@ export default function FlashDraftPage() {
                 lengthFt: lengthFtDecimal || 0,
                 quantity: Number(quantity) || 1,
                 unit: 'LF',
+                points,
                 bendRadiiIn,
                 hemStart: hemStart ? { type: hemStart.type, gapIn: hemStart.gapIn } : undefined,
                 hemEnd: hemEnd ? { type: hemEnd.type, gapIn: hemEnd.gapIn } : undefined,
@@ -1866,7 +1968,7 @@ export default function FlashDraftPage() {
       <div className="px-4 py-2 border-b border-afs-chrome-dim flex flex-col gap-1.5 shrink-0 bg-afs-bg-dim">
         <div className="flex items-center gap-1 flex-wrap">
           <ToolbarButton icon="new" label="New" onClick={() => setShowNewConfirm(true)} />
-          <ToolbarButton icon="open" label="Open" onClick={openLibrary} />
+          <ToolbarButton icon="open" label="My Saved Profiles" onClick={openSavedProfiles} />
           <ToolbarButton icon="save" label="Save" onClick={openSaveModal} disabled={points.length < 2} />
           <ToolbarButton icon="duplicate" label="Duplicate" onClick={openDuplicateModal} disabled={points.length < 2} />
           <ToolbarButton icon="editName" label="Edit Name" onClick={openSaveModal} disabled={!savedProfileId} />
@@ -2548,6 +2650,70 @@ export default function FlashDraftPage() {
             <button
               type="button"
               onClick={() => setShowLibrary(false)}
+              className="mt-4 font-label text-sm text-afs-chrome-mid hover:text-afs-crimson transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showSavedProfiles && (
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-6"
+          onClick={() => setShowSavedProfiles(false)}
+        >
+          <div
+            className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-6 max-w-lg w-full max-h-[70vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-heading text-xl text-afs-chrome-high mb-4">My Saved Profiles</h3>
+            {!isAuthenticated ? (
+              <p className="font-body text-sm text-afs-chrome-mid">
+                Sign in to view your saved profiles.{' '}
+                <Link href="/login" className="text-afs-crimson hover:underline">
+                  Sign in
+                </Link>
+              </p>
+            ) : savedProfilesLoading ? (
+              <p className="font-body text-sm text-afs-chrome-mid">Loading…</p>
+            ) : savedProfiles.length === 0 ? (
+              <p className="font-body text-sm text-afs-chrome-mid">
+                No saved profiles yet. Profiles from your submitted orders will appear here.
+              </p>
+            ) : (
+              <ul className="flex flex-col gap-1">
+                {savedProfiles.map((p) => (
+                  <li
+                    key={`${p.quoteRequestId}-${p.itemIndex}`}
+                    className="flex items-center justify-between gap-3 px-3 py-2 rounded hover:bg-afs-bg-surface"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-body text-sm text-afs-chrome-high truncate">
+                        {p.name} <span className="font-data text-xs text-afs-chrome-dim">#{p.requestNumber}</span>
+                      </p>
+                      <p className="font-data text-xs text-afs-chrome-dim">
+                        Submitted {new Date(p.submittedAt).toLocaleDateString()}
+                        {p.material && ` · ${p.material}`}
+                        {p.gauge && ` · ${p.gauge}`}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => loadSavedProfile(p)}
+                      disabled={!p.points}
+                      title={p.points ? undefined : 'Geometry not available for this submission'}
+                      className="shrink-0 border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label text-xs font-semibold px-3 py-1.5 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-afs-bg-overlay"
+                    >
+                      Load
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowSavedProfiles(false)}
               className="mt-4 font-label text-sm text-afs-chrome-mid hover:text-afs-crimson transition-colors"
             >
               Close

@@ -16,6 +16,10 @@ interface QuoteRequestItemInput {
   unit?: string;
   confidence?: string;
   aiNote?: string | null;
+  // Raw FlashDraft-drawn geometry ({x, y, radius?} per point), stored as-is
+  // in line_items so "My Saved Profiles" (app/studio/draft/page.tsx) can
+  // reload the exact drawn shape later instead of reconstructing it.
+  points?: { x: number; y: number; radius?: number }[];
 }
 
 interface QuoteRequestResponse {
