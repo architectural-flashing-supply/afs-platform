@@ -663,6 +663,31 @@ GBP Photo Queue           session — found everything below already correctly b
                            kB / 172 kB First Load JS) both ran clean.
                            Committed and pushed to `origin/main`, no
                            tool-approval blocker.
+
+                           **track-demo-005 (2026-07-27, a later session):**
+                           swapped the driver `AdvancedMarker` image in
+                           `LiveMapContents` from `/afs-logo.png` to the
+                           higher-resolution `/afs-logo-512.png` (new asset
+                           added to `public/`), rendered larger at 56×56px
+                           (up from 48×48px) with a deeper
+                           `drop-shadow(0 2px 8px rgba(0,0,0,0.6))`; the
+                           pulsing `#C0001A` ring behind it was left at full
+                           coverage of the now-larger 56px container and the
+                           `truckPulse` keyframe/`<style>` tag and the
+                           InfoWindow content were both left unchanged. Also
+                           moved `app/track/page.tsx`'s demo
+                           `initialDriverLocation` from
+                           `{ lat: 30.3419, lng: -97.9956 }` to
+                           `{ lat: 30.3280, lng: -97.9444 }`, placing the demo
+                           marker on TX-71 at Bee Cave, on land away from Lake
+                           Travis. `pnpm tsc --noEmit` (0 errors) and `pnpm run
+                           build` both ran clean. Committed and pushed to
+                           `origin/main`, no tool-approval blocker. Note:
+                           `/afs-logo.png` (the original, lower-resolution
+                           asset) remains in `public/` and is unreferenced by
+                           this page now — left in place since other pages may
+                           still use it and it wasn't in this prompt's scope
+                           to audit.
 Design Studio page trim   NEW (2026-07-24) — `app/studio/page.tsx`: removed the
 (2026-07-24):              small red "Design Studio" eyebrow label above the `<h1>`
                            (h1 itself kept), deleted the "Profile Library" promo
