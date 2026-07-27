@@ -268,7 +268,7 @@ function LiveMapContents({
             title="Your Delivery"
             onClick={() => setOpenInfo(openInfo === 'driver' ? null : 'driver')}
           >
-            <div style={{ position: 'relative', width: '48px', height: '48px', cursor: 'pointer' }}>
+            <div style={{ position: 'relative', width: '56px', height: '56px', cursor: 'pointer' }}>
               <div
                 style={{
                   position: 'absolute',
@@ -280,15 +280,15 @@ function LiveMapContents({
                 }}
               />
               <img
-                src="/afs-logo.png"
+                src="/afs-logo-512.png"
                 alt="AFS Delivery"
                 style={{
                   position: 'relative',
                   zIndex: 1,
-                  width: '48px',
-                  height: '48px',
+                  width: '56px',
+                  height: '56px',
                   objectFit: 'contain',
-                  filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.5))',
+                  filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.6))',
                 }}
               />
             </div>

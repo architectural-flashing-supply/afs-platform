@@ -14,7 +14,7 @@ export default function TrackDeliveryLandingPage() {
         orderId="DEMO-001"
         isOutForDelivery={true}
         deliveryAddress={{ line1: '1234 Demo St', city: 'Austin', state: 'TX', zip: '78701' }}
-        initialDriverLocation={{ lat: 30.3419, lng: -97.9956, recordedAt: null }}
+        initialDriverLocation={{ lat: 30.3280, lng: -97.9444, recordedAt: null }}
       />
     </main>
   );
