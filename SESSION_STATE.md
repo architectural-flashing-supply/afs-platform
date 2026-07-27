@@ -7,7 +7,27 @@
 
 ## CURRENT STATUS
 
-**Most recent session (track-demo-005, 2026-07-27): swapped the driver
+**Most recent session (track-demo-006, 2026-07-27): swapped the driver
+marker image for a dedicated new delivery-truck asset at a larger size, and
+confirmed the demo driver marker position was already correct.** Read
+`components/track/DeliveryTrackingMap.tsx` and `app/track/page.tsx` in full
+first, per instruction. (1) In `LiveMapContents`'s driver `AdvancedMarker`,
+the `<img>` source changed from `/afs-logo-512.png` to the new
+`public/afs-delivery-truck.png` (already present, untracked, in the working
+tree before this session started), rendered at 72×72px (up from 56×56px)
+with the same `drop-shadow(0 2px 8px rgba(0,0,0,0.6))` treatment; the
+pulsing `#C0001A` ring div was widened to match the new 72px container
+(opacity kept at 0.3), the `truckPulse` keyframe `<style>` tag was left
+unchanged, and the branded InfoWindow content (AFS wordmark, tracked-out
+subtext, "🚚 Your delivery is on the way", "Tap the truck to track
+progress") was left untouched, as instructed. (2) In `app/track/page.tsx`,
+`initialDriverLocation` was checked against the target
+`{ lat: 30.3280, lng: -97.9444, recordedAt: null }` — already matched
+exactly from track-demo-005, so no change was made. `pnpm tsc --noEmit` → 0
+errors. `pnpm run build` → passed (`/track` 2.83 kB / 172 kB First Load
+JS). Committed and pushed to `origin/main`, no tool-approval blocker.
+
+**Most recent session before that (track-demo-005, 2026-07-27): swapped the driver
 marker image for a higher-resolution AFS logo asset at a larger size, and
 moved the demo driver marker further along TX-71 to Bee Cave.** Read
 `components/track/DeliveryTrackingMap.tsx` and `app/track/page.tsx` in full

@@ -688,6 +688,26 @@ GBP Photo Queue           session — found everything below already correctly b
                            this page now — left in place since other pages may
                            still use it and it wasn't in this prompt's scope
                            to audit.
+
+                           **track-demo-006 (2026-07-27, a later session):**
+                           swapped the driver `AdvancedMarker` image in
+                           `LiveMapContents` from `/afs-logo-512.png` to a
+                           dedicated new asset, `/afs-delivery-truck.png` (added
+                           to `public/`), rendered larger at 72×72px (up from
+                           56×56px), same `drop-shadow(0 2px 8px
+                           rgba(0,0,0,0.6))` treatment; the pulsing `#C0001A`
+                           ring behind it was widened to match the 72px
+                           container (opacity kept at 0.3) and the
+                           `truckPulse` keyframe/`<style>` tag and the branded
+                           InfoWindow content were both left unchanged.
+                           Confirmed `app/track/page.tsx`'s demo
+                           `initialDriverLocation` already matched the target
+                           `{ lat: 30.3280, lng: -97.9444 }` (Bee Cave, TX-71)
+                           from track-demo-005 — no change needed. `pnpm tsc
+                           --noEmit` (0 errors) and `pnpm run build` (passed,
+                           `/track` 2.83 kB / 172 kB First Load JS) both ran
+                           clean. Committed and pushed to `origin/main`, no
+                           tool-approval blocker.
 Design Studio page trim   NEW (2026-07-24) — `app/studio/page.tsx`: removed the
 (2026-07-24):              small red "Design Studio" eyebrow label above the `<h1>`
                            (h1 itself kept), deleted the "Profile Library" promo
