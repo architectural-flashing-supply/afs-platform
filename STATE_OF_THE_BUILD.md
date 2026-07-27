@@ -639,6 +639,30 @@ GBP Photo Queue           session — found everything below already correctly b
                            run build` (passed, `/track` 2.98 kB / 172 kB First
                            Load JS) both ran clean. Committed and pushed to
                            `origin/main`, no tool-approval blocker.
+
+                           **track-demo-004 (2026-07-27, a later session):**
+                           replaced track-demo-003's custom black+crimson SVG
+                           truck body in `LiveMapContents`'s driver
+                           `AdvancedMarker` with the AFS logo image
+                           (`/afs-logo.png`, `<img>` at 48×48px,
+                           `object-fit: contain`, same
+                           `drop-shadow(0 2px 6px rgba(0,0,0,0.5))` treatment)
+                           — the pulsing `#C0001A` ring behind it kept (widened
+                           slightly to 48px to match, opacity 0.35→0.3) and the
+                           `truckPulse` keyframe/`<style>` tag left unchanged;
+                           the branded InfoWindow content from track-demo-003
+                           (AFS wordmark, tracked-out subtext, "🚚 Your delivery
+                           is on the way") was left untouched. Also updated
+                           `app/track/page.tsx`'s demo `initialDriverLocation`
+                           from Austin, TX (`30.2672, -97.7431`) to
+                           `{ lat: 30.3419, lng: -97.9956 }`, placing the demo
+                           marker on TX-71 between Austin and Spicewood instead
+                           of directly in Austin proper; its explanatory comment
+                           block was updated to match. `pnpm tsc --noEmit` (0
+                           errors) and `pnpm run build` (passed, `/track` 2.83
+                           kB / 172 kB First Load JS) both ran clean.
+                           Committed and pushed to `origin/main`, no
+                           tool-approval blocker.
 Design Studio page trim   NEW (2026-07-24) — `app/studio/page.tsx`: removed the
 (2026-07-24):              small red "Design Studio" eyebrow label above the `<h1>`
                            (h1 itself kept), deleted the "Profile Library" promo

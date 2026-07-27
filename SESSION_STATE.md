@@ -7,7 +7,31 @@
 
 ## CURRENT STATUS
 
-**Most recent session (track-demo-003, 2026-07-25): re-branded the live
+**Most recent session (track-demo-004, 2026-07-27): replaced the custom
+black/crimson SVG truck body in `LiveMapContents`'s driver `AdvancedMarker`
+with the AFS logo image, and moved the demo driver marker onto TX-71.**
+Read `components/track/DeliveryTrackingMap.tsx` and `app/track/page.tsx` in
+full first, per instruction. (1) The old inline `<svg>` truck (black body,
+crimson cab stripe + wheels, from track-demo-003) is now an `<img
+src="/afs-logo.png">` at 48×48px (`object-fit: contain`), keeping the same
+`drop-shadow(0 2px 6px rgba(0,0,0,0.5))` treatment. The pulsing ring behind
+it — `#C0001A`, animated via the existing `truckPulse` keyframe — is kept
+as-is (widened from 44px to 48px to match the new marker size, opacity
+0.35→0.3 per the task's literal spec); the `<style>` tag declaring
+`@keyframes truckPulse` is unchanged, and the branded `InfoWindow` content
+added in track-demo-003 (AFS wordmark, tracked-out subtext, "🚚 Your
+delivery is on the way", "Tap the truck to track progress") was left
+untouched, as instructed. (2) In `app/track/page.tsx`, the demo
+`initialDriverLocation` changed from Austin, TX proper (`{ lat: 30.2672,
+lng: -97.7431 }`) to `{ lat: 30.3419, lng: -97.9956 }` — TX-71 between
+Austin and Spicewood — with the file's explanatory comment block updated to
+match (previously described the marker as being "at Austin, TX"). `pnpm tsc
+--noEmit` → 0 errors. `pnpm run build` → passed (`/track` 2.83 kB / 172 kB
+First Load JS). Verified `public/afs-logo.png` exists before wiring the
+`<img>` tag. Committed and pushed to `origin/main`, no tool-approval
+blocker.
+
+**Most recent session before that (track-demo-003, 2026-07-25): re-branded the live
 driver marker in `LiveMapContents` from the generic blue truck
 (track-demo-002) to black + AFS crimson, and gave it a branded
 InfoWindow on click.** Read `components/track/DeliveryTrackingMap.tsx` in

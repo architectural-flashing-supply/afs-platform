@@ -268,35 +268,29 @@ function LiveMapContents({
             title="Your Delivery"
             onClick={() => setOpenInfo(openInfo === 'driver' ? null : 'driver')}
           >
-            <div style={{ position: 'relative', width: '44px', height: '44px', cursor: 'pointer' }}>
+            <div style={{ position: 'relative', width: '48px', height: '48px', cursor: 'pointer' }}>
               <div
                 style={{
                   position: 'absolute',
                   inset: 0,
                   borderRadius: '50%',
                   backgroundColor: '#C0001A',
-                  opacity: 0.35,
+                  opacity: 0.3,
                   animation: 'truckPulse 1.5s ease-out infinite',
                 }}
               />
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="44"
-                height="44"
-                viewBox="0 0 24 24"
-                style={{ position: 'relative', zIndex: 1, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}
-              >
-                {/* Truck body — black */}
-                <path
-                  d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4z"
-                  fill="#1C1F26"
-                />
-                {/* Cab accent stripe — AFS crimson */}
-                <path d="M17 8h2.5l1.96 2.5H17V8z" fill="#C0001A" />
-                {/* Wheels */}
-                <circle cx="6" cy="17" r="1.5" fill="#C0001A" />
-                <circle cx="18" cy="17" r="1.5" fill="#C0001A" />
-              </svg>
+              <img
+                src="/afs-logo.png"
+                alt="AFS Delivery"
+                style={{
+                  position: 'relative',
+                  zIndex: 1,
+                  width: '48px',
+                  height: '48px',
+                  objectFit: 'contain',
+                  filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.5))',
+                }}
+              />
             </div>
           </AdvancedMarker>
           {openInfo === 'driver' && (
