@@ -100,6 +100,46 @@ redirect (afs-050):      Custom Flashing Configurator's (`app/configure/
                          0 errors; `pnpm run build` → exit 0 (`/configure`
                          5.13 kB, up from 3.9 kB), no tool-approval blocker.
                          Committed (`109f298`) and pushed to `origin/main`.
+FlashDraft template      NEW (afs-051, 2026-07-27) — a "Start From a
+bar (afs-051):           Template" bar along the bottom of FlashDraft's
+                         canvas (`app/studio/draft/page.tsx`), 10 common
+                         profile buttons that load preset geometry onto the
+                         canvas. **Discrepancy surfaced, not silently
+                         resolved:** the task specified "11 buttons" but its
+                         own template list explicitly excluded Cleat #4
+                         ("do not include… skip this template") — 10
+                         buttons were built, matching the explicit skip
+                         (Cleat already redirects to FlashDraft from the
+                         configurator per afs-050 immediately above; a Cleat
+                         template here would contradict that), and the
+                         task's literal commit message was used verbatim
+                         even though its "11" doesn't match. The task gave
+                         template geometry as coordinates on an assumed
+                         600x600 canvas centered on (300,300), but this
+                         file's `points` state is stored in **world inches**,
+                         origin at canvas center (`worldToScreen` places
+                         world (0,0) at screen-center, scaled by
+                         `PIXELS_PER_INCH` = 20) — converted each template
+                         point via `(x - 300) / 20` on both axes, the same
+                         math in reverse, confirmed sane by the resulting
+                         real-world sizes (e.g. Coping Cap's 240px x-range
+                         becomes a 12"-wide flat pattern). New pure
+                         `computeFitView(points, canvasWidth, canvasHeight)`
+                         extracts the pre-existing `fitToScreen` button's
+                         zoom/pan math unchanged so `loadTemplate()` can fit
+                         the just-loaded template array directly, without
+                         waiting on a `points` state update that hasn't
+                         landed yet. `loadTemplate()` mirrors the existing
+                         `loadFromLibrary` reset footprint exactly (does not
+                         additionally clear hems/matches, matching that
+                         precedent), confirms via `window.confirm` only when
+                         canvas isn't empty, and sets `profileName` to the
+                         template label — shown by the pre-existing
+                         canvas-corner title overlay, no new title UI
+                         needed. `pnpm tsc --noEmit` → 0 errors; `pnpm run
+                         build` → exit 0 (`/studio/draft` 17.8 kB, up from
+                         17.2 kB), no tool-approval blocker. Committed
+                         (`9d1bb1c`) and pushed to `origin/main`.
 Database migration:      **CORRECTED afs-041 (2026-07-14) — all 5 migrations are
                          applied to the live Supabase project.** This line had long
                          (incorrectly) claimed 001-003 and 005 were NOT applied; afs-041

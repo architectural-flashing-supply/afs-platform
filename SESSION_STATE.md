@@ -7,7 +7,50 @@
 
 ## CURRENT STATUS
 
-**Most recent session (configure-cleat-001, 2026-07-27): "Cleat" in the
+**Most recent session (flashdraft-templates-001, 2026-07-27): added a "Start
+From a Template" bar along the bottom of FlashDraft's canvas with 10 common
+profile templates.** Read `app/studio/draft/page.tsx` and its imported
+canvas components in full first, per instruction, to confirm how geometry is
+represented before adding to it: `points` (the `Point[]` state) are stored in
+**world inches**, not screen pixels — `worldToScreen` places world (0,0) at
+the canvas's screen center and scales by `PIXELS_PER_INCH` (20) — whereas the
+task's 11 template geometries were specified as literal coordinates "on a
+600x600 canvas centered on (300,300)." **Discrepancy surfaced, not silently
+resolved:** the task's layout section says "11 compact red buttons" but its
+own template list marks #4 (Cleat) "do not include… skip this template,"
+which leaves only 10 real templates — implemented 10 buttons per the
+explicit skip instruction (Cleat already redirects to FlashDraft from the
+configurator as of configure-cleat-001 above, so a Cleat template here would
+contradict that), and used the task's literal commit message verbatim even
+though its "11" doesn't match the 10 buttons actually shipped. Converted
+each template's given (x,y) into world inches via `(x - 300) / 20` on both
+axes — the same math `worldToScreen` uses in reverse at zoom 1 on a 600-wide
+canvas, so a template's design coordinates land exactly where they'd appear
+if drawn directly on a fresh 600×600 view (e.g. Coping Cap's x-range 180–420
+becomes a 12"-wide flat pattern, a plausible real coping cap size — read as
+confirmation the conversion constant was the intended one, not guessed).
+New pure top-level `computeFitView(points, canvasWidth, canvasHeight)`
+extracts the existing `fitToScreen` button's zoom/pan math unchanged (same
+padding, same clamp range) so it can be called with a template's array
+directly — `fitToScreen` itself reads `points` from React state, which
+wouldn't yet reflect a template just passed to `setPoints()` in the same
+tick. `loadTemplate()` mirrors the codebase's existing `loadFromLibrary`
+reset footprint exactly (`setPast`/`setFuture([])`/`setPoints`/
+`setSelectedSegment(null)` — deliberately does NOT also clear hemStart/
+hemEnd/legHems/matches, since that precedent doesn't either), confirms via
+`window.confirm('Load template? This will replace your current work.')`
+only when `points.length > 0`, then sets `profileName` to the template's
+label (shown in the existing canvas-corner title overlay — no new "title"
+UI needed, that overlay already exists) and fits the view to the new
+geometry. Bar styled `bg-afs-bg-raised border-t border-afs-border` per spec,
+placed as the last child of the RIGHT PANEL's canvas column (there was no
+other bottom UI to stack above); label stays fixed on the left while only
+the button row scrolls horizontally, so the label can't be scrolled out of
+view on narrow viewports. `pnpm tsc --noEmit` → 0 errors. `pnpm run build`
+→ passed (`/studio/draft` 17.8 kB, up from 17.2 kB). Committed (`9d1bb1c`)
+and pushed to `origin/main`, no tool-approval blocker.
+
+**Most recent session before that (configure-cleat-001, 2026-07-27): "Cleat" in the
 Custom Flashing Configurator's Profile Type grid now redirects to FlashDraft
 instead of showing dimension inputs and a diagram.** Read
 `app/configure/page.tsx` in full first, per instruction — there's no
