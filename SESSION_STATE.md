@@ -7,7 +7,25 @@
 
 ## CURRENT STATUS
 
-**Most recent session (track-demo-006, 2026-07-27): swapped the driver
+**Most recent session (admin-nav-001, 2026-07-27): removed the "CAD Library"
+link from the admin sidebar nav — feature deferred until real content
+exists.** Read `components/layout/AdminShell.tsx` in full first, per
+instruction. Deleted the `{ label: 'CAD Library', href: '/admin/cad-library' }`
+item and, since it was the only entry in the `NAV_SECTIONS` array's
+`'Content'` section, deleted that now-empty section too rather than leaving
+a title with no items under it — no placeholder or commented-out link left
+behind. Checked whether `app/admin/cad-library/` exists before touching
+anything: it does not (confirmed via a directory glob) — the only
+`cad-library` references left in `app/` are the public
+`app/(public)/architects/page.tsx` and `app/api/documents/download/route.ts`,
+both unrelated admin-portal routes. This matches afs-037's original finding
+that `/admin/cad-library` was documented in SITEMAP.md but never built; still
+true 13 sessions later. Nothing to leave accessible by direct URL since the
+route was never built — no route files were touched either way. `pnpm tsc
+--noEmit` → 0 errors. `pnpm run build` → passed (exit 0). Committed
+(`d7031e0`) and pushed to `origin/main`, no tool-approval blocker.
+
+**Most recent session before that (track-demo-006, 2026-07-27): swapped the driver
 marker image for a dedicated new delivery-truck asset at a larger size, and
 confirmed the demo driver marker position was already correct.** Read
 `components/track/DeliveryTrackingMap.tsx` and `app/track/page.tsx` in full

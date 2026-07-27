@@ -12,6 +12,25 @@ Feature specs:           COMPLETE (52 files)
 FORGE queue:             Phase 8 built (QuickBooks stubbed/deferred, Vercel deploy
                          prep done). ALL PHASES (0–8) NOW BUILT.
 Application code:        Phases 0–8 built (see BUILD PHASE STATUS).
+Admin nav cleanup        NEW (afs-048, 2026-07-27) — removed the "CAD Library"
+(afs-048):               link from `components/layout/AdminShell.tsx`'s
+                         `NAV_SECTIONS` (feature deferred until real content
+                         exists, per explicit instruction), and deleted the
+                         now-empty `'Content'` section it was the sole entry
+                         of rather than leaving a title with no items under
+                         it. No placeholder or commented-out link left behind.
+                         Checked `app/admin/cad-library/` first, per
+                         instruction: it does not exist — matches afs-037's
+                         original finding (line further below) that this route
+                         was documented in SITEMAP.md but never built. Since
+                         there was no route to leave alone, nothing else was
+                         touched. `pnpm tsc --noEmit` → 0 errors; `pnpm run
+                         build` → exit 0, both ran clean with no tool-approval
+                         blocker (contrast the long afs-cs-002/afs-ui-001/
+                         afs-e2e-00x/afs-mb-001/afs-gs-001 blocker chain
+                         logged in the `pnpm tsc --noEmit` line below — not
+                         hit this session). Committed (`d7031e0`) and pushed
+                         to `origin/main`.
 Database migration:      **CORRECTED afs-041 (2026-07-14) — all 5 migrations are
                          applied to the live Supabase project.** This line had long
                          (incorrectly) claimed 001-003 and 005 were NOT applied; afs-041
