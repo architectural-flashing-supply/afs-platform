@@ -226,6 +226,26 @@ function centroidOf(points: Point[]): Point {
   return { x, y };
 }
 
+// Shared by fitToScreen (reads live `points` state) and loadTemplate (fits
+// the just-loaded template array directly, before that state update has
+// landed) — same math, parameterized instead of closing over `points`.
+function computeFitView(points: Point[], canvasWidth: number, canvasHeight: number): { zoom: number; pan: Point } {
+  const xs = points.map((p) => p.x);
+  const ys = points.map((p) => p.y);
+  const widthIn = Math.max(Math.max(...xs) - Math.min(...xs), 0.5);
+  const heightIn = Math.max(Math.max(...ys) - Math.min(...ys), 0.5);
+  const PADDING_PX = 60;
+  const availW = canvasWidth - PADDING_PX * 2;
+  const availH = canvasHeight - PADDING_PX * 2;
+  const nextZoom = Math.max(
+    0.25,
+    Math.min(4, Math.min(availW / (widthIn * PIXELS_PER_INCH), availH / (heightIn * PIXELS_PER_INCH)))
+  );
+  const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
+  const centerY = (Math.min(...ys) + Math.max(...ys)) / 2;
+  return { zoom: nextZoom, pan: { x: -centerX * PIXELS_PER_INCH * nextZoom, y: -centerY * PIXELS_PER_INCH * nextZoom } };
+}
+
 function applySnapping(prev: Point, raw: Point, snapAngle: boolean, snapDimension: boolean): Point {
   let dx = raw.x - prev.x;
   let dy = raw.y - prev.y;
@@ -284,6 +304,95 @@ function distanceToSegment(p: Point, a: Point, b: Point): number {
   t = Math.max(0, Math.min(1, t));
   const proj = { x: a.x + t * abx, y: a.y + t * aby };
   return Math.hypot(p.x - proj.x, p.y - proj.y);
+}
+
+interface ProfileTemplate {
+  id: string;
+  label: string;
+  // Design-time coordinates on an assumed 600x600 canvas, centered on
+  // (300,300) — converted to world inches (origin at canvas center, same
+  // convention worldToScreen/screenToWorld use) via TEMPLATE_CANVAS_CENTER
+  // and PIXELS_PER_INCH below, not stored pre-converted.
+  points: Point[];
+}
+
+// "Common Profiles" template bar (Part 7). Cleat is intentionally not a
+// template here — cleats need custom-drawn geometry and are redirected to
+// FlashDraft directly from the Custom Flashing Configurator instead.
+const PROFILE_TEMPLATES: ProfileTemplate[] = [
+  {
+    id: 'coping-cap',
+    label: 'Coping Cap',
+    points: [
+      { x: 180, y: 200 }, { x: 180, y: 320 }, { x: 200, y: 320 }, { x: 200, y: 340 },
+      { x: 400, y: 340 }, { x: 400, y: 320 }, { x: 420, y: 320 }, { x: 420, y: 200 },
+    ],
+  },
+  {
+    id: 'drip-edge',
+    label: 'Drip Edge',
+    points: [{ x: 150, y: 250 }, { x: 150, y: 350 }, { x: 380, y: 350 }, { x: 420, y: 390 }],
+  },
+  {
+    id: 'gravel-stop',
+    label: 'Gravel Stop',
+    points: [
+      { x: 150, y: 350 }, { x: 150, y: 250 }, { x: 400, y: 250 },
+      { x: 400, y: 350 }, { x: 420, y: 350 }, { x: 420, y: 380 },
+    ],
+  },
+  {
+    id: 'fascia',
+    label: 'Fascia',
+    points: [{ x: 250, y: 180 }, { x: 250, y: 380 }, { x: 310, y: 380 }, { x: 310, y: 400 }],
+  },
+  {
+    id: 'pitch-change',
+    label: 'Pitch Change',
+    points: [{ x: 150, y: 280 }, { x: 280, y: 280 }, { x: 360, y: 340 }, { x: 460, y: 340 }],
+  },
+  {
+    id: 'pref-z-bar',
+    label: 'Pref Z Bar',
+    points: [{ x: 150, y: 260 }, { x: 280, y: 260 }, { x: 360, y: 360 }, { x: 460, y: 360 }],
+  },
+  {
+    id: 'hip-ridge',
+    label: 'Hip / Ridge',
+    points: [
+      { x: 150, y: 250 }, { x: 160, y: 270 }, { x: 300, y: 380 }, { x: 440, y: 270 }, { x: 450, y: 250 },
+    ],
+  },
+  {
+    id: 'z-closure',
+    label: 'Z Closure',
+    points: [{ x: 150, y: 280 }, { x: 250, y: 280 }, { x: 300, y: 330 }, { x: 400, y: 330 }],
+  },
+  {
+    id: 'gutter',
+    label: 'Gutter',
+    points: [{ x: 150, y: 240 }, { x: 150, y: 380 }, { x: 420, y: 380 }, { x: 420, y: 300 }],
+  },
+  {
+    id: 'inside-outside-corner',
+    label: 'Inside/Outside Corner',
+    points: [
+      { x: 150, y: 200 }, { x: 150, y: 350 }, { x: 160, y: 360 },
+      { x: 290, y: 360 }, { x: 300, y: 370 }, { x: 300, y: 200 },
+    ],
+  },
+];
+
+// Templates are authored assuming a 600x600 canvas centered on (300,300) —
+// matches CANVAS_MIN_WIDTH/HEIGHT and how worldToScreen places world (0,0)
+// at the canvas center, so this is the same conversion in reverse at zoom 1.
+const TEMPLATE_CANVAS_CENTER = 300;
+
+function templatePointsToWorld(points: Point[]): Point[] {
+  return points.map((p) => ({
+    x: (p.x - TEMPLATE_CANVAS_CENTER) / PIXELS_PER_INCH,
+    y: (p.y - TEMPLATE_CANVAS_CENTER) / PIXELS_PER_INCH,
+  }));
 }
 
 // Part 1 — professional toolbar. Minimal stroke-only line icons (matches
@@ -1439,24 +1548,32 @@ export default function FlashDraftPage() {
   const fitToScreen = () => {
     const canvas = canvasRef.current;
     if (!canvas || points.length === 0) return;
-    const xs = points.map((p) => p.x);
-    const ys = points.map((p) => p.y);
-    const widthIn = Math.max(Math.max(...xs) - Math.min(...xs), 0.5);
-    const heightIn = Math.max(Math.max(...ys) - Math.min(...ys), 0.5);
-    const PADDING_PX = 60;
-    const availW = canvas.width - PADDING_PX * 2;
-    const availH = canvas.height - PADDING_PX * 2;
-    const nextZoom = Math.max(
-      0.25,
-      Math.min(4, Math.min(availW / (widthIn * PIXELS_PER_INCH), availH / (heightIn * PIXELS_PER_INCH)))
-    );
-    const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
-    const centerY = (Math.min(...ys) + Math.max(...ys)) / 2;
+    const { zoom: nextZoom, pan: nextPan } = computeFitView(points, canvas.width, canvas.height);
     setZoom(nextZoom);
-    setPan({ x: -centerX * PIXELS_PER_INCH * nextZoom, y: -centerY * PIXELS_PER_INCH * nextZoom });
+    setPan(nextPan);
   };
 
   const centerView = () => setPan({ x: 0, y: 0 });
+
+  const loadTemplate = (template: ProfileTemplate) => {
+    if (points.length > 0) {
+      const confirmed = window.confirm('Load template? This will replace your current work.');
+      if (!confirmed) return;
+    }
+    const worldPoints = templatePointsToWorld(template.points);
+    setPast((p) => [...p, points]);
+    setFuture([]);
+    setPoints(worldPoints);
+    setSelectedSegment(null);
+    setProfileName(template.label);
+
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const { zoom: nextZoom, pan: nextPan } = computeFitView(worldPoints, canvas.width, canvas.height);
+      setZoom(nextZoom);
+      setPan(nextPan);
+    }
+  };
 
   const rotateProfile = (deltaDeg: number) => {
     if (points.length < 2) return;
@@ -2616,6 +2733,26 @@ export default function FlashDraftPage() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Part 7 — "Common Profiles" template bar. Cleat is intentionally
+              excluded (see PROFILE_TEMPLATES above). */}
+          <div className="shrink-0 bg-afs-bg-raised border-t border-afs-border flex items-center gap-4 px-4 py-2">
+            <span className="font-label text-xs text-afs-chrome-mid uppercase tracking-wider shrink-0">
+              Start From a Template
+            </span>
+            <div className="flex items-center gap-2 overflow-x-auto">
+              {PROFILE_TEMPLATES.map((template) => (
+                <button
+                  key={template.id}
+                  type="button"
+                  onClick={() => loadTemplate(template)}
+                  className="shrink-0 py-1.5 px-3 text-xs font-label bg-afs-crimson hover:bg-afs-crimson-hover text-white rounded transition-colors"
+                >
+                  {template.label}
+                </button>
+              ))}
             </div>
           </div>
         </div>
