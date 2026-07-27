@@ -38,10 +38,6 @@ const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    title: 'Content',
-    items: [{ label: 'CAD Library', href: '/admin/cad-library' }],
-  },
-  {
     title: 'Integrations',
     items: [{ label: 'QuickBooks', href: '/admin/quickbooks' }],
   },
