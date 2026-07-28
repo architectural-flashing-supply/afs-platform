@@ -377,6 +377,38 @@ color fix                nav-link color flashchat-fix-002 (below) added
                          locations: `rgb(232, 0, 31)` (`#E8001F`) in
                          both. Committed and pushed, no tool-approval
                          blocker.
+Animated AFS logo      NEW (afs-logo-009, 2026-07-28) — user: "remove
+removed entirely,      all animation from logo and return to normal
+static logo restored   static condition." Not a further tweak to
+(afs-logo-009):          afs-logo-004 through -008's animation — a full
+                         reversion. `NavBar.tsx`'s sidebar logo is back to
+                         a plain `next/image` render of `/afs-logo.png`
+                         (`width={232} height={165} priority className="w-
+                         full h-auto object-contain"`), matching what
+                         shipped before any of this session's animated-
+                         logo work started — no draw-in, no falling
+                         pieces, no smoke puff, no clang sound, no click/
+                         hover handlers, no `noscript` fallback (nothing
+                         left to fall back FROM). Confirmed
+                         `AFSAnimatedLogo` had no other call sites in the
+                         codebase (`grep -rn "AFSAnimatedLogo"` — one
+                         import, one usage, both in `NavBar.tsx`, both
+                         removed) before deleting
+                         `components/ui/AFSAnimatedLogo.tsx` outright,
+                         rather than leaving an unreferenced component
+                         sitting in the tree. Also deleted `public/
+                         sounds/afs-logo-clang.mp3` (the trimmed real-
+                         recording sample from afs-logo-008 — orphaned the
+                         moment the component that played it was gone)
+                         and the now-empty `public/sounds/` directory.
+                         Verified with a Playwright screenshot of the
+                         sidebar (not just trusted the diff) that the
+                         static logo renders cleanly with zero console
+                         errors. `pnpm tsc --noEmit`: 0 errors. `pnpm run
+                         build`: `✓ Compiled successfully`, `✓ Generating
+                         static pages (123/123)`, same route count.
+                         Committed (`f317cf8`) and pushed to
+                         `origin/main`.
 Resources page — fix   NEW (resources-001, 2026-07-28) — read
 all dead URLs, add     `components/resources/ResourcesBrowser.tsx` and
 logo placeholders       `app/(public)/resources/page.tsx` first, per

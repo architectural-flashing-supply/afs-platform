@@ -7,7 +7,27 @@
 
 ## CURRENT STATUS
 
-**Most recent session (resources-001, 2026-07-28): fixed every dead URL
+**Most recent session (afs-logo-009, 2026-07-28): removed the animated
+logo entirely, reverted to the plain static logo.** User: "remove all
+animation from logo and return to normal static condition" — a full
+reversion, not another tweak to the afs-logo-004 through -008 animation
+work. `NavBar.tsx`'s sidebar logo is back to a plain `next/image` render
+of `/afs-logo.png`, matching what shipped before any animated-logo work
+this session — no draw-in, no falling pieces, no smoke, no sound, no
+click/hover handlers.
+
+Confirmed `AFSAnimatedLogo` had no other call sites before deleting
+`components/ui/AFSAnimatedLogo.tsx` outright (rather than leaving dead
+code behind), and deleted the now-orphaned `public/sounds/afs-logo-
+clang.mp3` sample (afs-logo-008's trimmed real recording) and the empty
+`public/sounds/` directory. Verified with a Playwright screenshot that
+the static logo renders cleanly, zero console errors.
+
+**Gates passed this session** — `pnpm tsc --noEmit`: 0 errors. `pnpm run
+build`: succeeded, all 123 routes compiled. Committed (`f317cf8`) and
+pushed to `origin/main`.
+
+**Previous session (resources-001, 2026-07-28): fixed every dead URL
 on the Resources page, added logo-placeholder support.** Read
 `components/resources/ResourcesBrowser.tsx` (holds both the 32-entry
 `RESOURCES` array and `ResourceCard`) and `app/(public)/resources/
