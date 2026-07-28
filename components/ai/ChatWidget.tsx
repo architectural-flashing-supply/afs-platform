@@ -60,6 +60,13 @@ function TypingIndicator() {
 }
 
 export default function ChatWidget() {
+  // Belt-and-suspenders hydration guard. ChatWidget is already loaded via
+  // next/dynamic(..., { ssr: false }) in AppChrome.tsx, so the server never
+  // renders any markup for it and there's no first-paint mismatch possible
+  // for this component specifically — this additional mounted-gate costs
+  // one extra render and protects against a mismatch even if that dynamic()
+  // wrapper is ever changed or bypassed.
+  const [mounted, setMounted] = useState(false);
   const [expanded, setExpanded] = useState(readStoredExpanded);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -75,6 +82,10 @@ export default function ChatWidget() {
   if (!conversationIdRef.current) {
     conversationIdRef.current = crypto.randomUUID();
   }
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     expandedRef.current = expanded;
@@ -171,13 +182,15 @@ export default function ChatWidget() {
     [send]
   );
 
+  if (!mounted) return null;
+
   if (!expanded) {
     return (
       <button
         type="button"
         onClick={() => setExpanded(true)}
         aria-label="Open AFS Support chat"
-        className="fixed bottom-6 right-6 z-50 w-16 h-16 rounded-full bg-afs-crimson hover:bg-afs-crimson-hover shadow-crimson flex items-center justify-center transition-colors"
+        className="fixed bottom-6 right-6 z-[9999] w-16 h-16 rounded-full bg-afs-crimson hover:bg-afs-crimson-hover shadow-crimson flex items-center justify-center transition-colors"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -202,7 +215,7 @@ export default function ChatWidget() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 w-[380px] h-[520px] max-w-[calc(100vw-2rem)] bg-afs-bg-raised border border-afs-border rounded shadow-raised metal-edge flex flex-col overflow-hidden">
+    <div className="fixed bottom-6 right-6 z-[9999] w-[380px] h-[520px] max-w-[calc(100vw-2rem)] bg-afs-bg-raised border border-afs-border rounded shadow-raised metal-edge flex flex-col overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b border-afs-border bg-afs-bg-raised">
         <p className="font-heading text-lg font-semibold text-afs-chrome-high">AFS Support</p>
         <button
