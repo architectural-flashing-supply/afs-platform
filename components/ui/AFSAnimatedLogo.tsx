@@ -75,10 +75,14 @@ function readStoredMuted(fallback: boolean): boolean {
 // Explicit-instruction literal hex/keyword values — same precedent as
 // NavBar's `backgroundColor: '#C0001A'` active-pill style (CLAUDE.md rule
 // #4, "explicit instruction" carve-out already used elsewhere in this
-// codebase). The stroke color and shine-gradient stops were supplied
-// verbatim by the prompt, not derived from the afs-* Tailwind token system.
-const LOGO_STROKE = '#B8BFD0';
-const LOGO_STROKE_TRANSPARENT = 'rgba(184, 191, 208, 0)';
+// codebase). Mirrors the real logo (public/afs-logo.png): bold crimson
+// letterforms, a chrome bevel frame, white specular shine — not derived
+// from the afs-* Tailwind token system because an SVG source for that logo
+// doesn't exist yet (CLAUDE.md's DATA BLOCKERS table, "Logo vector file").
+const LOGO_FILL = '#C0001A'; // mirrors afs-crimson
+const LOGO_FILL_TRANSPARENT = 'rgba(192, 0, 26, 0)';
+const FRAME_STROKE = '#C8D0E0'; // mirrors afs-chrome-silver
+const FRAME_STROKE_TRANSPARENT = 'rgba(200, 208, 224, 0)';
 
 interface AFSAnimatedLogoProps {
   width?: number;
@@ -177,16 +181,20 @@ export default function AFSAnimatedLogo({
         key={playKey}
         width={width}
         height={height}
-        viewBox="0 0 200 60"
+        viewBox="-20 -14 220 84"
         xmlns="http://www.w3.org/2000/svg"
         role="img"
         aria-label="AFS — Architectural Flashing Supply"
       >
         <style>{`
+          /* Bold crimson block letters, drawn stroke-first (dasharray reveal)
+             then filled solid — mirrors the real logo's weight/color, not
+             just its rough letter silhouette. */
           .afs-logo-a path, .afs-logo-f path, .afs-logo-s path {
-            stroke: ${LOGO_STROKE};
-            stroke-width: 3;
+            stroke: ${LOGO_FILL};
+            stroke-width: 9;
             stroke-linecap: round;
+            stroke-linejoin: round;
             fill: none;
             stroke-dasharray: 1;
             stroke-dashoffset: 1;
@@ -208,13 +216,35 @@ export default function AFSAnimatedLogo({
             to { stroke-dashoffset: 0; }
           }
           @keyframes afs-logo-fill {
-            from { fill: ${LOGO_STROKE_TRANSPARENT}; }
-            to { fill: ${LOGO_STROKE}; }
+            from { fill: ${LOGO_FILL_TRANSPARENT}; }
+            to { fill: ${LOGO_FILL}; }
+          }
+
+          /* Chrome bevel frame — the site's own "Metal Edge" 12°-skew
+             signature (DESIGN_TOKENS.md §1), not a full shield trace, since
+             no vector source for the real shield logo exists yet. */
+          .afs-logo-frame path {
+            stroke: ${FRAME_STROKE};
+            stroke-width: 3;
+            stroke-linecap: round;
+            fill: none;
+            stroke-dasharray: 1;
+            stroke-dashoffset: 1;
+            animation: afs-logo-frame-draw 0.25s ease-out 0.7s forwards;
+          }
+          @keyframes afs-logo-frame-draw {
+            from { stroke-dashoffset: 1; stroke: ${FRAME_STROKE_TRANSPARENT}; }
+            to { stroke-dashoffset: 0; stroke: ${FRAME_STROKE}; }
           }
         `}</style>
 
         <defs>
-          <linearGradient id={gradientId}>
+          {/* gradientTransform="translate(-2 0)" is the REST state, not just
+              the animation's `from` — without it, the gradient sits at its
+              default (identity) transform, fully inside the box, and washes
+              the whole logo white from t=0 instead of staying hidden until
+              the 0.8s sweep. */}
+          <linearGradient id={gradientId} gradientTransform="translate(-2 0)">
             <stop offset="0%" stopColor="white" stopOpacity="0" />
             <stop offset="50%" stopColor="white" stopOpacity="0.6" />
             <stop offset="100%" stopColor="white" stopOpacity="0" />
@@ -229,24 +259,30 @@ export default function AFSAnimatedLogo({
           </linearGradient>
         </defs>
 
-        <g className="afs-logo-a">
-          <path pathLength={1} d="M32 8 L10 52" />
-          <path pathLength={1} d="M32 8 L54 52" />
-          <path pathLength={1} d="M18 35 L46 35" />
-        </g>
-        <g className="afs-logo-f">
-          <path pathLength={1} d="M70 8 L70 52" />
-          <path pathLength={1} d="M70 8 L108 8" />
-          <path pathLength={1} d="M70 30 L100 30" />
-        </g>
-        <g className="afs-logo-s">
-          <path
-            pathLength={1}
-            d="M172 16 C172 10 165 6 155 6 C140 6 128 12 128 22 C128 32 140 35 155 38 C168 41 174 46 174 54 C174 62 162 58 150 58 C138 58 128 54 128 48"
-          />
+        {/* 12° skew on the whole mark — same slant as the real logo's
+            italicized "AFS" and the site's Metal Edge signature rule. */}
+        <g transform="skewX(-12)">
+          <g className="afs-logo-frame">
+            <path pathLength={1} d="M2 -8 L182 -8" />
+            <path pathLength={1} d="M2 64 L182 64" />
+          </g>
+
+          <g className="afs-logo-a">
+            <path pathLength={1} d="M32 8 L10 52" />
+            <path pathLength={1} d="M32 8 L54 52" />
+            <path pathLength={1} d="M18 35 L46 35" />
+          </g>
+          <g className="afs-logo-f">
+            <path pathLength={1} d="M70 8 L70 52" />
+            <path pathLength={1} d="M70 8 L108 8" />
+            <path pathLength={1} d="M70 30 L100 30" />
+          </g>
+          <g className="afs-logo-s">
+            <path pathLength={1} d="M153 6 C125 6 125 27 144 32 C162 37 162 58 134 58" />
+          </g>
         </g>
 
-        <rect x="0" y="0" width="200" height="60" fill={`url(#${gradientId})`} pointerEvents="none" />
+        <rect x="-20" y="-14" width="220" height="84" fill={`url(#${gradientId})`} pointerEvents="none" />
       </svg>
 
       <button
