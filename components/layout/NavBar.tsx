@@ -13,6 +13,7 @@ const PANEL_LINKS = [
   { label: 'Track Delivery', href: '/track' },
   { label: 'Architects', href: '/architects' },
   { label: 'FAQ', href: '/faq' },
+  { label: 'Resources', href: '/resources' },
   { label: 'Contact', href: '/contact' },
 ];
 
@@ -114,6 +115,9 @@ export default function NavBar() {
           </Link>
           <Link href="/faq" className="font-label text-sm text-white transition-colors">
             FAQ
+          </Link>
+          <Link href="/resources" className="font-label text-sm text-white transition-colors">
+            Resources
           </Link>
           <Link href="/contact" className="font-label text-sm text-white transition-colors">
             Contact

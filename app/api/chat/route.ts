@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { anthropic } from '@/lib/anthropic/client';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { searchKnowledge } from '@/lib/chatbot/knowledge';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 const MAX_HISTORY = 20;
@@ -60,10 +61,10 @@ INSTALLATION KNOWLEDGE:
 
 ROUTING RULES — CRITICAL:
 - NEVER quote a price or lead time
-- When customer knows their profile and dimensions → direct to /configure (Custom Configurator)
-- When customer needs a cleat or complex custom geometry → direct to /studio/draft (FlashDraft)
-- When customer has drawings or photos → direct to /studio (Design Studio — Scan to Quote or Photo to Quote)
-- When customer is unsure what they need → ask clarifying questions, then route appropriately
+- Known standard profile + dimensions → direct to /configure (Custom Configurator)
+- Custom geometry, cleat, or complex profile → direct to /studio/draft (FlashDraft)
+- Has drawings or photos → direct to /studio (Design Studio — Scan to Quote or Photo to Quote)
+- General inquiry, not ready to spec → answer questions, then offer to help specify and route appropriately
 - Always offer to connect them with Trica at trica@architecturalflashingsupply.com or (512) 372-4900 for complex projects
 
 ESCALATE when: customer is frustrated, has an order dispute, needs engineering judgment beyond standard practice, mentions legal issues, or asks about billing.
@@ -114,11 +115,33 @@ Email: trica@architecturalflashingsupply.com
 Owner: Steve Harycki
 Hours: not yet published — direct the customer to call or email.`;
 
+// canonical_profiles' real columns (supabase/migrations/006_canonical_profiles.sql):
+// id, name, slug, category, description, blank_width_in, points, bends, tags,
+// is_active, sort_order, created_at — there is no profile_type, typical_applications,
+// or materials_available column. category and tags are the closest real
+// equivalents to profile_type/typical_applications; there is no equivalent at
+// all for materials_available (canonical profiles are geometry templates, not
+// tied to a specific material), so it's simply omitted below rather than
+// fabricated.
 interface CanonicalProfileRow {
   name: string;
   description: string | null;
   category: string;
   tags: string[] | null;
+}
+
+function formatCanonicalProfilesContext(profiles: CanonicalProfileRow[]): string {
+  if (profiles.length === 0) return '';
+  return `
+AFS CANONICAL PROFILE LIBRARY (${profiles.length} standard profiles):
+These are AFS's verified standard profiles available for immediate fabrication:
+${profiles
+  .map((p) => {
+    const applications = p.tags && p.tags.length > 0 ? ` | Applications: ${p.tags.join(', ')}` : '';
+    return `- ${p.name} (${p.category}): ${p.description ?? ''}${applications}`;
+  })
+  .join('\n')}
+`;
 }
 
 // quote_requests has no submission_type column (see SCHEMA.md TABLE 15) —
@@ -137,31 +160,19 @@ function isFlashDraftLineItem(value: unknown): boolean {
   );
 }
 
-function summarizeCanonicalProfiles(rows: CanonicalProfileRow[]): string {
-  if (rows.length === 0) return 'None available.';
-  return rows
-    .map((p) => {
-      const tags = p.tags && p.tags.length > 0 ? `; ${p.tags.join(', ')}` : '';
-      const description = p.description ? ` — ${p.description}` : '';
-      return `${p.name} (${p.category}${tags})${description}`;
-    })
-    .join('\n');
-}
-
 async function buildChatContext(
   userId: string | null,
   supabase: SupabaseClient
 ): Promise<string> {
   const [productProfilesResult, canonicalProfilesResult] = await Promise.all([
     supabase.from('product_profiles').select('name').eq('is_active', true).order('sort_order').limit(20),
-    // canonical_profiles has no profile_type/typical_applications columns —
-    // category and tags are the closest real equivalents (see SCHEMA.md's
-    // CANONICAL PROFILE LIBRARY TABLE).
+    // name, category, description, tags are canonical_profiles' real columns
+    // (see the CanonicalProfileRow comment above) — ordered by name ASC.
     supabase
       .from('canonical_profiles')
       .select('name, description, category, tags')
       .eq('is_active', true)
-      .order('sort_order')
+      .order('name', { ascending: true })
       .limit(25),
   ]);
 
@@ -170,15 +181,16 @@ async function buildChatContext(
       ? productProfilesResult.data.map((p: { name: string }) => p.name).join(', ')
       : FALLBACK_CATALOG_SUMMARY;
 
-  const canonicalSummary = summarizeCanonicalProfiles((canonicalProfilesResult.data ?? []) as CanonicalProfileRow[]);
+  const canonicalProfilesContext = formatCanonicalProfilesContext(
+    (canonicalProfilesResult.data ?? []) as CanonicalProfileRow[]
+  );
 
   if (!userId) {
     return `${AFS_SHOP_INFO_BLOCK}
 
 Customer: Guest (not logged in)
 Products available: ${catalogSummary}
-Canonical profile library:
-${canonicalSummary}`;
+${canonicalProfilesContext}`;
   }
 
   const [profileResult, ordersResult, quoteRequestsResult, flashDraftHistoryResult] = await Promise.all([
@@ -216,8 +228,7 @@ Active orders: ${JSON.stringify(ordersResult.data ?? [])}
 Pending quote requests: ${JSON.stringify(quoteRequestsResult.data ?? [])}
 Saved FlashDraft profiles (from quote request history): ${JSON.stringify(flashDraftProfiles)}
 Products available: ${catalogSummary}
-Canonical profile library:
-${canonicalSummary}`;
+${canonicalProfilesContext}`;
 }
 
 export async function POST(request: NextRequest): Promise<Response> {
@@ -247,10 +258,28 @@ export async function POST(request: NextRequest): Promise<Response> {
     context = 'Customer: Guest (not logged in)\nProducts available: ' + FALLBACK_CATALOG_SUMMARY;
   }
 
+  const userQuery = messages[messages.length - 1].content;
+  const relevantChunks = searchKnowledge(userQuery);
+
+  const ragContext = relevantChunks.length > 0 ? `
+RELEVANT KNOWLEDGE BASE CONTEXT:
+The following information from the AFS knowledge base is relevant to this question.
+Use it to provide accurate, specific answers:
+
+${relevantChunks.map(chunk => `
+[${chunk.category} — ${chunk.topic}]
+${chunk.content}
+`).join('\n---\n')}
+
+END OF KNOWLEDGE BASE CONTEXT.
+` : '';
+
+  const fullSystemPrompt = CHATBOT_SYSTEM_PROMPT + '\n\n' + ragContext;
+
   const anthropicStream = anthropic.messages.stream({
     model: 'claude-sonnet-4-6',
     max_tokens: 1500,
-    system: CHATBOT_SYSTEM_PROMPT + '\n\nCONTEXT:\n' + context,
+    system: fullSystemPrompt + '\n\nCONTEXT:\n' + context,
     messages: messages.map((m) => ({ role: m.role, content: m.content })),
   });
 

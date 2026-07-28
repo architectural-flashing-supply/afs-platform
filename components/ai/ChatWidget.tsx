@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import EscalationCard from './EscalationCard';
 
 interface ChatMessage {
@@ -13,6 +14,33 @@ interface ChatMessage {
 
 const ESCALATE_PATTERN = /^\s*\[ESCALATE:\s*(\{[\s\S]*?\})\]\s*/;
 const MAX_HISTORY = 20;
+
+const SUGGESTED_QUESTIONS = [
+  "What's the difference between coping, flashing, and drip edge?",
+  'What material should I use for coastal Texas?',
+  'How do I specify copper flashing gauge?',
+  'What is a gravel stop?',
+  'How does the quote process work?',
+  'What file formats do you accept?',
+];
+
+interface RoutingLink {
+  label: string;
+  href: string;
+}
+
+function getRoutingLinks(content: string): RoutingLink[] {
+  const links: RoutingLink[] = [];
+  if (content.includes('/configure')) {
+    links.push({ label: 'Open Configurator →', href: '/configure' });
+  }
+  if (content.includes('/studio/draft')) {
+    links.push({ label: 'Open FlashDraft →', href: '/studio/draft' });
+  } else if (content.includes('/studio')) {
+    links.push({ label: 'Go to Design Studio →', href: '/studio' });
+  }
+  return links;
+}
 
 // ChatWidget is mounted once, at the top of components/layout/AppChrome.tsx
 // (rendered from the root layout, outside the per-page {children} slot), so
@@ -52,9 +80,9 @@ function stripEscalation(content: string): { text: string; escalated: boolean; r
 function TypingIndicator() {
   return (
     <div className="flex gap-1.5 items-center px-4 py-3">
-      <span className="w-1.5 h-1.5 rounded-full bg-afs-chrome-base animate-bounce [animation-delay:-0.3s]" />
-      <span className="w-1.5 h-1.5 rounded-full bg-afs-chrome-base animate-bounce [animation-delay:-0.15s]" />
-      <span className="w-1.5 h-1.5 rounded-full bg-afs-chrome-base animate-bounce" />
+      <span className="w-1.5 h-1.5 rounded-full bg-afs-chrome-base animate-pulse [animation-delay:-0.3s]" />
+      <span className="w-1.5 h-1.5 rounded-full bg-afs-chrome-base animate-pulse [animation-delay:-0.15s]" />
+      <span className="w-1.5 h-1.5 rounded-full bg-afs-chrome-base animate-pulse" />
     </div>
   );
 }
@@ -112,8 +140,8 @@ export default function ChatWidget() {
     }
   }, []);
 
-  const send = useCallback(async () => {
-    const trimmed = input.trim();
+  const send = useCallback(async (overrideText?: string) => {
+    const trimmed = (overrideText ?? input).trim();
     if (!trimmed || isStreaming) return;
 
     setError(null);
@@ -182,6 +210,13 @@ export default function ChatWidget() {
     [send]
   );
 
+  const handleChipClick = useCallback(
+    (question: string) => {
+      send(question);
+    },
+    [send]
+  );
+
   if (!mounted) return null;
 
   if (!expanded) {
@@ -190,7 +225,7 @@ export default function ChatWidget() {
         type="button"
         onClick={() => setExpanded(true)}
         aria-label="Open AFS Support chat"
-        className="fixed bottom-6 right-6 z-[9999] w-16 h-16 rounded-full bg-afs-crimson hover:bg-afs-crimson-hover shadow-crimson flex items-center justify-center transition-colors"
+        className="fixed bottom-8 right-6 z-[9999] w-16 h-16 rounded-full bg-afs-crimson hover:bg-afs-crimson-hover shadow-crimson flex items-center justify-center transition-colors"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -215,9 +250,17 @@ export default function ChatWidget() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-[9999] w-[380px] h-[520px] max-w-[calc(100vw-2rem)] bg-afs-bg-raised border border-afs-border rounded shadow-raised metal-edge flex flex-col overflow-hidden">
+    <div className="fixed bottom-16 right-6 z-[9999] w-[380px] h-[520px] max-w-[calc(100vw-2rem)] max-h-[80vh] bg-afs-bg-raised border border-afs-border rounded shadow-raised metal-edge flex flex-col overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b border-afs-border bg-afs-bg-raised">
-        <p className="font-heading text-lg font-semibold text-afs-chrome-high">AFS Support</p>
+        <div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-afs-success" />
+            <p className="font-heading text-lg font-semibold text-afs-chrome-high leading-tight">AFS Assistant</p>
+          </div>
+          <p className="font-body text-xs text-afs-chrome-mid mt-0.5">
+            Ask me anything about flashing, materials, or your project
+          </p>
+        </div>
         <button
           type="button"
           onClick={() => setExpanded(false)}
@@ -230,9 +273,23 @@ export default function ChatWidget() {
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
         {messages.length === 0 && (
-          <p className="font-body text-sm text-afs-chrome-mid">
-            Ask about products, ordering, or your account. For pricing, submit a quote request and our estimators will follow up.
-          </p>
+          <>
+            <p className="font-body text-sm text-afs-chrome-mid">
+              Ask about products, ordering, or your account. For pricing, submit a quote request and our estimators will follow up.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {SUGGESTED_QUESTIONS.map((question) => (
+                <button
+                  key={question}
+                  type="button"
+                  onClick={() => handleChipClick(question)}
+                  className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high text-xs py-1.5 px-3 rounded-full hover:bg-afs-bg-surface cursor-pointer text-left transition-colors"
+                >
+                  {question}
+                </button>
+              ))}
+            </div>
+          </>
         )}
 
         {messages.map((message, idx) => {
@@ -247,6 +304,9 @@ export default function ChatWidget() {
             );
           }
 
+          const routingLinks =
+            message.role === 'assistant' && message.content ? getRoutingLinks(message.content) : [];
+
           return (
             <div key={message.id} className="flex flex-col gap-2">
               <div
@@ -258,6 +318,19 @@ export default function ChatWidget() {
               >
                 {message.content}
               </div>
+              {routingLinks.length > 0 && (
+                <div className="flex flex-wrap gap-2 mr-8">
+                  {routingLinks.map((link) => (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      className="bg-afs-crimson text-white text-xs font-label px-4 py-2 rounded inline-block hover:bg-afs-crimson-hover transition-colors"
+                    >
+                      {link.label}
+                    </Link>
+                  ))}
+                </div>
+              )}
               {message.escalated && (
                 <EscalationCard reason={message.escalationReason} />
               )}
@@ -280,7 +353,7 @@ export default function ChatWidget() {
         />
         <button
           type="button"
-          onClick={send}
+          onClick={() => send()}
           disabled={isStreaming || !input.trim()}
           className="bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label font-semibold px-4 py-2 rounded text-sm transition-colors disabled:opacity-50 disabled:pointer-events-none"
         >
