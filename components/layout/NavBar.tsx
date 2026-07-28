@@ -51,20 +51,17 @@ export default function NavBar() {
     return pathname === href || pathname.startsWith(`${href}/`);
   };
 
-  // Inline styles here (rather than the text-afs-crimson/border-afs-crimson
-  // Tailwind classes) sidestep a same-specificity class-order ambiguity and
-  // use --afs-crimson-hover (#E8001F) instead of the base --afs-crimson
-  // (#C0001A) — DESIGN_TOKENS.md's brighter value, matching button vibrancy
-  // more closely than the base crimson reads as an active nav indicator.
+  // Inline styles here (rather than Tailwind classes) guarantee the active
+  // background color renders regardless of class-order/specificity cascade.
   const panelLinkClass = (href: string) => {
     const active = isActive(href);
     return `font-label text-sm px-4 py-2.5 rounded transition-colors ${
-      active ? 'bg-afs-bg-raised' : 'text-white hover:bg-afs-bg-surface'
+      active ? '' : 'text-white hover:bg-afs-bg-surface'
     }`;
   };
 
   const panelLinkStyle = (href: string): React.CSSProperties | undefined =>
-    isActive(href) ? { color: 'var(--afs-crimson-hover)', borderLeft: '2px solid var(--afs-crimson-hover)' } : undefined;
+    isActive(href) ? { backgroundColor: '#C0001A', color: 'white' } : undefined;
 
   const topNavLinkClass = (href: string) => {
     const active = isActive(href);
@@ -72,7 +69,9 @@ export default function NavBar() {
   };
 
   const topNavLinkStyle = (href: string): React.CSSProperties | undefined =>
-    isActive(href) ? { color: 'var(--afs-crimson-hover)', borderBottom: '2px solid var(--afs-crimson-hover)' } : undefined;
+    isActive(href)
+      ? { backgroundColor: '#C0001A', color: 'white', borderRadius: '4px', padding: '2px 8px' }
+      : undefined;
 
   return (
     <>

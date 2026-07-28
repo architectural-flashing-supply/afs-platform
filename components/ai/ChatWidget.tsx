@@ -87,6 +87,19 @@ function TypingIndicator() {
   );
 }
 
+function HardHatQuestionIcon({ className }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className={className}>
+      {/* Hard hat - bright crimson */}
+      <path fill="#C0001A" d="M12 2C8.5 2 5.7 4.1 4.5 7H4C2.9 7 2 7.9 2 9v1c0 .6.4 1 1 1h18c.6 0 1-.4 1-1V9c0-1.1-.9-2-2-2h-.5C18.3 4.1 15.5 2 12 2zM2 12v1c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2v-1H2z" />
+      {/* Question mark - bright white */}
+      <text x="12" y="11.5" textAnchor="middle" fontFamily="Arial,sans-serif" fontWeight="bold" fontSize="7" fill="#FFFFFF">
+        ?
+      </text>
+    </svg>
+  );
+}
+
 export default function ChatWidget() {
   // Belt-and-suspenders hydration guard. ChatWidget is already loaded via
   // next/dynamic(..., { ssr: false }) in AppChrome.tsx, so the server never
@@ -101,11 +114,14 @@ export default function ChatWidget() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [showScrollButton, setShowScrollButton] = useState(false);
+  const [sendHover, setSendHover] = useState(false);
 
   const conversationIdRef = useRef<string>('');
   const expandedRef = useRef(expanded);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const isAtBottomRef = useRef(true);
 
   if (!conversationIdRef.current) {
     conversationIdRef.current = crypto.randomUUID();
@@ -149,8 +165,26 @@ export default function ChatWidget() {
 
   useEffect(() => {
     if (!scrollRef.current) return;
-    scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    if (isAtBottomRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
   }, [messages, isStreaming]);
+
+  const scrollToBottom = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    isAtBottomRef.current = true;
+    setShowScrollButton(false);
+  }, []);
+
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+    isAtBottomRef.current = isAtBottom;
+    setShowScrollButton(!isAtBottom);
+  }, []);
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
@@ -238,6 +272,12 @@ export default function ChatWidget() {
     [send]
   );
 
+  const handleClear = useCallback(() => {
+    setMessages([]);
+    setInput('');
+    setError(null);
+  }, []);
+
   if (!mounted) return null;
 
   if (!expanded) {
@@ -249,14 +289,7 @@ export default function ChatWidget() {
         style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 99999, pointerEvents: 'all' }}
         className="w-16 h-16 rounded-full bg-afs-crimson hover:bg-afs-crimson-hover shadow-crimson flex items-center justify-center transition-colors"
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 24 24"
-          fill="white"
-          className="w-7 h-7"
-        >
-          <path d="M12 2C8.5 2 5.7 4.1 4.5 7H4C2.9 7 2 7.9 2 9v1c0 .6.4 1 1 1h18c.6 0 1-.4 1-1V9c0-1.1-.9-2-2-2h-.5C18.3 4.1 15.5 2 12 2zm0 2c2.8 0 5.2 1.7 6.2 4H5.8C6.8 5.7 9.2 4 12 4zM2 12v1c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2v-1H2z" />
-        </svg>
+        <HardHatQuestionIcon className="w-7 h-7" />
 
         {unreadCount > 0 && (
           <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 rounded-full bg-white text-afs-crimson border border-afs-crimson text-xs font-label font-bold flex items-center justify-center">
@@ -275,14 +308,7 @@ export default function ChatWidget() {
       <div className="flex items-start justify-between px-4 py-3 border-b border-afs-border bg-afs-bg-dim">
         <div>
           <div className="flex items-center gap-1.5">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              className="w-5 h-5 text-afs-crimson shrink-0"
-            >
-              <path d="M12 2C8.5 2 5.7 4.1 4.5 7H4C2.9 7 2 7.9 2 9v1c0 .6.4 1 1 1h18c.6 0 1-.4 1-1V9c0-1.1-.9-2-2-2h-.5C18.3 4.1 15.5 2 12 2zm0 2c2.8 0 5.2 1.7 6.2 4H5.8C6.8 5.7 9.2 4 12 4zM2 12v1c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2v-1H2z" />
-            </svg>
+            <HardHatQuestionIcon className="w-5 h-5 shrink-0" />
             <p className="font-heading font-bold text-white text-lg leading-tight">FlashChat</p>
           </div>
           <p className="font-label text-xs text-afs-crimson uppercase tracking-widest mt-0.5">
@@ -309,6 +335,7 @@ export default function ChatWidget() {
       <div
         ref={scrollRef}
         onWheel={(e) => e.stopPropagation()}
+        onScroll={handleScroll}
         style={{ overflowY: 'auto', overscrollBehavior: 'contain' }}
         className="flex-1 px-4 py-4 flex flex-col gap-3"
       >
@@ -350,9 +377,10 @@ export default function ChatWidget() {
           return (
             <div key={message.id} className="flex flex-col gap-2">
               <div
+                style={message.role === 'user' ? { backgroundColor: '#C0001A' } : undefined}
                 className={`rounded px-4 py-2.5 font-body text-sm whitespace-pre-line ${
                   message.role === 'user'
-                    ? 'bg-afs-bg-overlay text-afs-chrome-high ml-8'
+                    ? 'text-white ml-8'
                     : 'bg-afs-bg-surface border border-afs-border text-afs-chrome-high mr-8'
                 }`}
               >
@@ -381,6 +409,19 @@ export default function ChatWidget() {
         {error && <p className="font-body text-xs text-afs-crimson">{error}</p>}
       </div>
 
+      {showScrollButton && (
+        <button
+          type="button"
+          onClick={scrollToBottom}
+          aria-label="Scroll to bottom"
+          className="absolute bottom-20 right-4 z-10 w-9 h-9 rounded-full bg-afs-crimson hover:bg-afs-crimson-hover shadow-crimson flex items-center justify-center transition-colors"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" className="w-4 h-4">
+            <path d="M12 16.5l-6-6 1.41-1.41L12 13.67l4.59-4.58L18 10.5z" />
+          </svg>
+        </button>
+      )}
+
       <div className="border-t border-afs-border p-3 flex items-end gap-2">
         <textarea
           ref={textareaRef}
@@ -393,9 +434,23 @@ export default function ChatWidget() {
         />
         <button
           type="button"
+          onClick={handleClear}
+          aria-label="Clear conversation"
+          title="Clear conversation"
+          className="text-afs-chrome-mid hover:text-afs-crimson transition-colors p-2 shrink-0"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+            <path d="M9 3a1 1 0 0 0-1 1v1H4v2h16V5h-4V4a1 1 0 0 0-1-1H9zM6 8l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12H6z" />
+          </svg>
+        </button>
+        <button
+          type="button"
           onClick={() => send()}
           disabled={isStreaming || !input.trim()}
-          className="bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label font-semibold px-4 py-2 rounded text-sm transition-colors disabled:opacity-50 disabled:pointer-events-none"
+          onMouseEnter={() => setSendHover(true)}
+          onMouseLeave={() => setSendHover(false)}
+          style={{ backgroundColor: sendHover ? '#E8001F' : '#C0001A', color: 'white' }}
+          className="font-label font-semibold px-4 py-2 rounded text-sm transition-colors disabled:opacity-50 disabled:pointer-events-none"
         >
           Send
         </button>

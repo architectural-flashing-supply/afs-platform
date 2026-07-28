@@ -7,7 +7,53 @@
 
 ## CURRENT STATUS
 
-**Most recent session (bid-006, 2026-07-28): Bid Monitor alert emails, lib
+**Most recent session (flashchat-fix-003, 2026-07-28): FlashChat smart
+scroll + crimson question bubbles + clear button + hard hat icon + Send
+button color, NavBar active pill.** Read `components/ai/ChatWidget.tsx` and
+`components/layout/NavBar.tsx` first, per instruction. Six exact changes,
+all applied:
+
+1. **Scroll behavior** — `ChatWidget.tsx` no longer force-scrolls on every
+   new/streamed message. Added `isAtBottomRef` (updated by a new `onScroll`
+   handler on the messages container using the
+   `scrollHeight - scrollTop - clientHeight < 100` "at bottom" check) and
+   gated the existing scroll-on-`[messages, isStreaming]` effect behind it.
+   A floating round scroll-to-bottom button (crimson, down-chevron icon)
+   renders absolutely positioned above the input bar when `showScrollButton`
+   is true, calling a new `scrollToBottom()` that also resets both flags.
+2. **User message highlight** — user bubbles now render `#C0001A`
+   background / white text via an inline `style` (kept `bg-afs-bg-overlay`
+   for assistant bubbles unchanged) so question starting points are easy to
+   spot when scrolling back up.
+3. **Clear chat button** — new trash-icon button between the textarea and
+   Send, `text-afs-chrome-mid hover:text-afs-crimson`, no background,
+   `aria-label`/`title="Clear conversation"`. `handleClear()` resets
+   `messages`/`input`/`error` to the empty/initial-greeting state.
+4. **Hard hat + question mark icon** — new shared `HardHatQuestionIcon`
+   component (crimson hard-hat path + white `<text>` question mark, per the
+   exact SVG given in the prompt) replaces the old plain-white hard-hat SVG
+   in both the collapsed bubble button (`w-7 h-7`) and the panel header
+   next to "FlashChat" (`w-5 h-5 shrink-0`). Bubble button background
+   stays `bg-afs-crimson`, unchanged.
+5. **Send button color** — switched from the `bg-afs-crimson
+   hover:bg-afs-crimson-hover` Tailwind classes to an inline
+   `style={{ backgroundColor: sendHover ? '#E8001F' : '#C0001A', color:
+   'white' }}` driven by a new `sendHover` state set via
+   `onMouseEnter`/`onMouseLeave`, per instruction (guarantees the color
+   can't be overridden by cascade).
+6. **NavBar active highlight** — `NavBar.tsx`'s `panelLinkStyle`/
+   `topNavLinkStyle` swapped from the border-left/border-bottom-underline
+   approach (added in nav-crimson-001, below) to a solid `#C0001A`
+   background / white text pill (`borderRadius: '4px', padding: '2px 8px'`
+   for the top nav, which has no padding of its own; the sidebar panel
+   links already have `rounded px-4 py-2.5` in their className so the style
+   object only needs background+color there). Non-active items are
+   untouched.
+
+**Gates passed this session** — `pnpm tsc --noEmit`: 0 errors. `pnpm run
+build`: succeeded, all routes compiled. Committed and pushed to `main`.
+
+**Previous session (bid-006, 2026-07-28): Bid Monitor alert emails, lib
 entry point, env vars documented.** Read `CLAUDE.md`, `lib/bid-monitor/
 types.ts`, and `app/api/bid-monitor/fetch/route.ts` first, per instruction.
 The rest of the Bid Monitor feature (`app/admin/bid-monitor/page.tsx`, the

@@ -377,6 +377,56 @@ color fix                nav-link color flashchat-fix-002 (below) added
                          locations: `rgb(232, 0, 31)` (`#E8001F`) in
                          both. Committed and pushed, no tool-approval
                          blocker.
+FlashChat smart scroll + NEW (flashchat-fix-003, 2026-07-28) — six exact,
+crimson bubbles +        scoped changes to `components/ai/ChatWidget.tsx`
+clear button + hard      and `components/layout/NavBar.tsx`. (1) Scroll no
+hat icon + Send color +  longer force-jumps to bottom on every streamed
+nav pill                 token: new `isAtBottomRef` (kept current by an
+(flashchat-fix-003):     `onScroll` handler using `scrollHeight - scrollTop
+                         - clientHeight < 100`) gates the existing
+                         scroll-on-`[messages, isStreaming]` effect; a
+                         floating crimson round scroll-to-bottom button
+                         (down-chevron) appears via `showScrollButton` when
+                         the user has scrolled up, and a new
+                         `scrollToBottom()` both scrolls and resets both
+                         flags. (2) User message bubbles now get `#C0001A`
+                         background / white text via inline `style`
+                         (assistant bubbles unchanged) so scrolling back up
+                         to find a question is easier. (3) New trash-icon
+                         "Clear conversation" button between the textarea
+                         and Send (`text-afs-chrome-mid
+                         hover:text-afs-crimson`, no background,
+                         `aria-label`/`title`); `handleClear()` resets
+                         `messages`/`input`/`error`, returning the panel to
+                         its empty/initial-greeting state. (4) New shared
+                         `HardHatQuestionIcon` (crimson hard-hat path +
+                         white `<text>` "?" glyph, exact SVG supplied)
+                         replaces the old plain hard-hat SVG in both the
+                         collapsed bubble button and the panel header next
+                         to "FlashChat" — bubble button's `bg-afs-crimson`
+                         background kept unchanged. (5) Send button switched
+                         from `bg-afs-crimson hover:bg-afs-crimson-hover`
+                         Tailwind classes to inline `style={{
+                         backgroundColor: sendHover ? '#E8001F' :
+                         '#C0001A', color: 'white' }}` driven by a new
+                         `sendHover` state on `onMouseEnter`/`onMouseLeave`,
+                         per explicit instruction (guarantees the color
+                         over cascade). (6) `NavBar.tsx`'s active-link
+                         styling replaced entirely — border-left/
+                         border-bottom-underline approach from
+                         nav-crimson-001 (above) is gone; both
+                         `panelLinkStyle` (sidebar) and `topNavLinkStyle`
+                         (top nav) now return a solid `#C0001A` background /
+                         white text pill, with `borderRadius: '4px',
+                         padding: '2px 8px'` added on the top nav only
+                         (sidebar links already carry `rounded px-4 py-2.5`
+                         in their className). Non-active items untouched in
+                         both. Literal hex values here fall under the same
+                         CLAUDE.md rule #4 reasoning as elsewhere — inline
+                         style, not a hardcoded value inside a `className`.
+                         `pnpm tsc --noEmit`: 0 errors. `pnpm run build`:
+                         exit 0, same route count. Committed and pushed, no
+                         tool-approval blocker.
 FlashChat scroll +       NEW (flashchat-fix-002, 2026-07-27) — three
 nav highlight +          targeted fixes. (1) `ChatWidget.tsx`'s message-
 resources bug            list container gained `onWheel={(e) =>
