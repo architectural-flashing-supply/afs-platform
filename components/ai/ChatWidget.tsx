@@ -306,7 +306,12 @@ export default function ChatWidget() {
         </button>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
+      <div
+        ref={scrollRef}
+        onWheel={(e) => e.stopPropagation()}
+        style={{ overflowY: 'auto', overscrollBehavior: 'contain' }}
+        className="flex-1 px-4 py-4 flex flex-col gap-3"
+      >
         {messages.length === 0 && (
           <>
             <p className="font-body text-sm text-afs-chrome-mid">

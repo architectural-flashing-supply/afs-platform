@@ -448,7 +448,7 @@ export default function ResourcesBrowser() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search resources..."
-            className="w-full bg-afs-bg-overlay border border-afs-border rounded px-4 py-3 pr-10 font-body text-sm text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
+            className="w-full bg-afs-bg-overlay border border-afs-border rounded px-4 py-3 pr-10 font-body text-sm text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors [&::-webkit-search-cancel-button]:appearance-none"
           />
           {query && (
             <button

@@ -7,7 +7,71 @@
 
 ## CURRENT STATUS
 
-**Most recent session (flashchat-fix-001, 2026-07-27): four targeted
+**Most recent session (flashchat-fix-002, 2026-07-27): FlashChat scroll
+isolation, active nav highlighting, and a real Resources page rendering
+bug.** Read `components/ai/ChatWidget.tsx`, `app/(public)/resources/
+page.tsx`, `components/resources/ResourcesBrowser.tsx`, and `components/
+layout/NavBar.tsx` first, per instruction. (1) Scroll isolation:
+`ChatWidget.tsx`'s message-list container (`scrollRef`) gained
+`onWheel={(e) => e.stopPropagation()}` and `style={{ overflowY: 'auto',
+overscrollBehavior: 'contain' }}` (the `overflow-y-auto` Tailwind class
+was removed from its `className` since the inline style now owns that
+property — no point declaring it twice), per explicit instruction; the
+`flex-1`/padding/layout classes stayed in `className`. (2) Active nav
+highlighting: `NavBar.tsx` already had partial sidebar-only active-state
+logic (`pathname === href` exact match, `bg-afs-bg-surface`/`border-l-2`,
+no `text-afs-crimson`) — replaced with a shared `isActive(href)` helper
+(exact match, or `startsWith(href + '/')` for section routes, e.g. `/
+studio` now also matches `/studio/draft`/`/studio/library`) used by both
+`panelLinkClass` (sidebar: `bg-afs-bg-raised text-afs-crimson
+border-l-2 border-afs-crimson` when active, `text-white
+hover:bg-afs-bg-surface` otherwise — moved `text-white` into the
+inactive branch specifically so it can't collide with `text-afs-crimson`
+in Tailwind's generated stylesheet order, since two same-specificity
+text-color utilities in one class string have undefined win order) and
+a new `topNavLinkClass` (top header: `border-b-2 border-afs-crimson
+text-afs-crimson` when active, plain `text-white` otherwise) — the top
+header previously had no active-state logic or shared array at all, 7
+`<Link>`s hand-written with a static className; replaced with a `.map()`
+over a new `TOP_NAV_LINKS` (`PANEL_LINKS` filtered to drop Home, exactly
+reproducing the header's pre-existing manual order) so the two nav
+surfaces can't drift out of sync going forward. Verified live via
+Playwright screenshots on `/resources` (both "Resources" links
+highlighted) and `/studio/library` (both "Design Studio" links
+highlighted via the `startsWith` section match, confirming the literal
+`/studio` example from the instructions). (3) Resources page bug: `pnpm
+tsc --noEmit` was already clean and the page rendered with zero console
+errors — the bug wasn't a compile/crash issue. Found it by actually
+driving the page with Playwright rather than static reading alone:
+`ResourcesBrowser.tsx`'s search `<input type="search" .../>` combined
+with a custom absolutely-positioned "✕" clear button, but never
+suppressed the browser's own native WebKit search-cancel button —
+typing a query rendered **two** overlapping clear controls (a
+default-styled blue native "×" plus the custom afs-token gray "✕"),
+visible in a zoomed screenshot of the search box. Fixed by adding
+`[&::-webkit-search-cancel-button]:appearance-none` to the input's
+className — `type="search"` itself was kept (correct mobile-keyboard
+semantics), only its native cancel-button pseudo-element is now
+suppressed. Two false leads investigated and ruled out before finding
+the real bug, worth recording so a future session doesn't re-tread them:
+(a) the FlashChat bubble button appearing to overlap a resource card in
+a `fullPage: true` Playwright screenshot — confirmed via a
+viewport-only screenshot before and after scrolling that the button
+correctly stays pinned to the visual viewport's bottom-right at all
+scroll positions; the overlap was Chromium's `fullPage` capture
+anchoring `position: fixed` elements to their original small-viewport
+coordinates within the tall stitched image, not a real bug a user would
+ever see. (b) `RESOURCES.length` appearing to be 32 rather than the
+"36" a raw `<h3>` count suggested — the raw count also included the 4
+`VideoCard` headings; 32 resources + 4 videos = 36, correct math, not a
+bug. `pnpm tsc --noEmit`: 0 errors. `pnpm run build`: exit 0, same route
+count as the prior session. All debug/scratch files (`_scratch_*.js`/
+`.png`, used to drive a temporary local dev server for the Playwright
+checks above) were deleted before committing — confirmed via `git
+status` that none were staged. Committed and pushed — no tool-approval
+blocker this session.
+
+**Prior session (flashchat-fix-001, 2026-07-27): four targeted
 FlashChat widget fixes.** Read `components/ai/ChatWidget.tsx`,
 `app/(public)/flashchat/page.tsx`, and `components/flashchat/
 FlashChatOpenButton.tsx` first, per instruction. (1) Panel/button
@@ -2530,6 +2594,7 @@ committed, NOT pushed, NOT gate-verified for real.** See SPEC_DELIVERY_TRACKING_
 | 2026-07-24 | d-007 (this session): final wiring prompt (7th of 7) for the Delivery Tracking/Employee PWA/Command Center CRM/GBP Photo Queue feature block. Read CLAUDE.md and SPEC_DELIVERY_TRACKING_AND_EMPLOYEE_PWA.md in full, then explored the codebase to find d-001–d-006 had already built nearly everything (migrations 007-009, the tracking page, the Employee PWA, all 4 CRM tabs, dispatch/delivered/packaged/driver-location/invoice-send routes) — confirmed via file listing and `git log`, not assumed. (1) `app/api/gbp/post/[id]/route.ts` already existed but as a full stub (never called the real API, returned `{status:'posted'}` not `{posted:true}`, 400 not 503) — rewrote it and `lib/integrations/google-business.ts` to match this prompt's literal spec: approved-status check, a Storage-signed URL from the `gbp-photos` bucket for `storage_key`, a real `fetch()` POST to the v4.9 Media API endpoint exactly as specified, the exact 503 error message when unconfigured, `{posted:true}` on success. Flagged rather than silently built around: CLIENT_ID/SECRET are OAuth app credentials, not a bearer token, so a new `GOOGLE_BUSINESS_ACCESS_TOKEN` env var (added to `.env.example`) is a documented manual stand-in until a real OAuth exchange flow exists. (2) Added `🚚 Deliveries`/`📸 GBP Photos` to `AdminShell.tsx`'s Operations section and a new "Employee" section with `📱 Employee App` → `/employee` (new tab) — added an `openInNewTab` field to the nav item type. (3) Found and fixed a real staleness bug while documenting migrations: `009_command_center_crm.sql` existed on disk but was completely missing from `supabase/README.md`'s migration list and apply steps — added it. (4) Wrote a new §11 "IMPLEMENTATION NOTES" section in the spec doc covering the whole feature block's actual routes/migrations/decisions, since d-001–d-006 were never individually written up this way. **Hit the identical tool-approval blocker documented throughout this file, immediately after the prior session's channel had worked cleanly**: `pnpm tsc --noEmit`, `pnpm run build`, `git add -A` (Bash and PowerShell) all denied with "This command requires approval," no prompt surfacing; `git status` (read-only) worked. The 3 changed files plus `.env.example`/`supabase/README.md` were hand-reviewed against this codebase's existing gate-verified patterns (matching signatures for `requireOperatorApi`, `logAdminAction`, `createAdminClient().storage.createSignedUrl`, and plain global `fetch` as already used in `lib/twilio/sms.ts`) but this is hand review, not a passing gate. **Not committed, not pushed.** Migrations 007/008/009 remain unapplied to the live Supabase project; `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`/`GOOGLE_MAPS_API_KEY`/`GOOGLE_BUSINESS_CLIENT_ID`/`_CLIENT_SECRET`/`_LOCATION_ID`/`GOOGLE_BUSINESS_ACCESS_TOKEN` remain unset. See SPEC_DELIVERY_TRACKING_AND_EMPLOYEE_PWA.md §11 for full detail. |
 | 2026-07-24 | d-007-verify (this session): asked to build the same 4 items the d-007 entry directly above already describes (GBP post route, AdminShell nav additions, employee nav link, spec doc §11), then run gates/commit/push/update governance docs. Read CLAUDE.md and the spec doc, then audited the real filesystem before writing anything — found all 4 already correctly present: `app/api/gbp/post/[id]/route.ts` matches the prompt's literal behavior exactly (approved-status 409, signed-URL "download," real `fetch()` to the v4.9 Media API, 503 with the exact literal message when unconfigured, `{posted:true}` on success — verified by reading the file, not the doc's description of it); `AdminShell.tsx` has `🚚 Deliveries`/`📸 GBP Photos` under Operations and a new Employee section with `📱 Employee App` → `/employee`, `target="_blank"`/`rel="noopener noreferrer"` correctly wired off a new `openInNewTab` field; the spec doc's §11 is already comprehensive. **The real finding this session:** `git log`/`git status -sb` show this is no longer "not committed, not pushed" as the entry directly above (and, at the time, STATE_OF_THE_BUILD.md's item -8) claimed — `origin/main` is at `0ff4447` ("fix: Google Maps types, employee PWA order detail page," authored by Reid Whitesides directly, not through a FORGE `d-007:`-prefixed commit), which bundles the exact d-007 diff together with the rest of the feature block that was still uncommitted at the time (the Employee PWA's real page/component files, `app/api/gbp/queue`, `app/api/orders/[id]/packaged`, `lib/data/orders.ts`, the manifest/icon-gen script) plus an unrelated Google-Maps-types fix and an employee order-detail page — `git status -sb` shows only `tsconfig.tsbuildinfo` modified, working tree otherwise clean, `main` even with `origin/main`. Corrected both docs' stale self-referential "not committed" claims rather than leaving them contradicted by their own git history. **Gates: attempted, blocked again.** `pnpm tsc --noEmit` (Bash, PowerShell, `dangerouslyDisableSandbox: true`, and a direct `node_modules/.bin/tsc` call) all denied with "This command requires approval," no prompt ever surfacing — the identical recurring blocker logged throughout this file. `git add STATE_OF_THE_BUILD.md SESSION_STATE.md` (this session's own doc updates) was also attempted, via both Bash and PowerShell, and denied identically — so, per the established pattern, this pass's doc corrections are themselves written but **not committed, not pushed** as of this entry; the code itself needed no changes and is already committed/pushed as `0ff4447`. **One new real finding, surfaced not fixed (out of this prompt's explicit scope):** `components/track/DeliveryTrackingMap.tsx` reads `process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`, but `.env.example` and `app/admin/settings/page.tsx`'s integration-status card both read/document `NEXT_PUBLIC_GOOGLE_MAPS_KEY` (no `_API_`) — confirmed by grepping every reference to either name across the repo, not a guess. Setting the name `.env.example` documents will not unblock the tracking map; whoever adds the real key needs to either set both names or reconcile the mismatch in code. Also confirmed still-open, unchanged: `public/employee-icon-192.png`/`-512.png` do not exist (the generator script does, was never run — needs the same blocked `pnpm`/`node` invocation); migrations 007/008/009 confirmed present on disk and correctly listed in `supabase/README.md` but not confirmed applied to the live Supabase project (no DB credentials available to check directly this session, unlike afs-041's live-DB queries elsewhere in this file — this status is carried forward from the spec doc's own note, not independently re-verified against the database this time). |
 | 2026-07-27 | flashchat-fix-001: four targeted FlashChat widget fixes — see "CURRENT STATUS" at the top of this file for full detail. (1) Replaced Tailwind `fixed`/`z-[9999]` positioning classes on the collapsed bubble button and expanded panel with inline `style={{ position: 'fixed', ... zIndex: 99999, pointerEvents: 'all' }}`, per explicit instruction (no scroll-container ancestor was actually found in `AppChrome.tsx`, but applied as instructed regardless). (2) Replaced the hard hat SVG path in the bubble button, panel header, and `/flashchat` hero with the exact path supplied. (3) Confirmed via repo-wide grep that "AFS Assistant"/"AFS Support" already don't appear in any application code — only in historical doc narrative, left untouched; `app/api/chat/route.ts` already said "You are FlashChat." (4) Split `FlashChatOpenButton.tsx`'s single `open-flashchat` dispatch into `open-flashchat` (always) + a `flashchat-prefill` CustomEvent 300ms later (only when a `question` prop is set, i.e. the 9 sample chips), with `ChatWidget.tsx` gaining a matching second listener; removed the now-unused `FlashChatOpenEventDetail` export. `pnpm tsc --noEmit` 0 errors, `pnpm run build` exit 0. Also corrected the rag-006/rag-007 entries' stale "Not committed" claims (git log confirms both are live on `origin/main` via `88e5151`/`4336446`). Committed and pushed, no tool-approval blocker. |
+| 2026-07-27 | flashchat-fix-002: FlashChat scroll isolation, active nav highlighting, Resources page bug fix — see "CURRENT STATUS" at the top of this file for full detail. (1) `ChatWidget.tsx`'s message list gained `onWheel` propagation-stop + `overscrollBehavior: 'contain'` so scrolling inside the open chat panel no longer scrolls the page underneath. (2) `NavBar.tsx`: added a shared `isActive()` helper (exact match or `startsWith(href + '/')` for section routes) driving both `panelLinkClass` (sidebar) and a new `topNavLinkClass` (top header, previously had no active-state logic at all); top header's 7 hand-written `<Link>`s replaced with a `.map()` over a new `TOP_NAV_LINKS` derived from the existing `PANEL_LINKS` array. Verified live via Playwright on `/resources` and `/studio/library` (confirming the `/studio` → `/studio/draft` startsWith case from the instructions). (3) Found and fixed a real bug by actually driving the page with Playwright, not just reading code (`tsc`/build/console were all already clean): `ResourcesBrowser.tsx`'s `type="search"` input plus its own custom "✕" clear button meant the browser's native search-cancel button rendered too — two overlapping clear controls, one an unstyled blue "×" breaking the afs-* design system. Fixed with `[&::-webkit-search-cancel-button]:appearance-none` on the input. Ruled out two false leads before finding this (documented in full above): a fullPage-screenshot-only FlashChat/card overlap artifact, and a `RESOURCES.length` count that only looked wrong because a raw `<h3>` count included the 4 video cards too. `pnpm tsc --noEmit` 0 errors, `pnpm run build` exit 0. All scratch Playwright debug files deleted before commit. Committed and pushed, no tool-approval blocker. |
 
 ---
 

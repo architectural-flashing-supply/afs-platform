@@ -17,6 +17,10 @@ const PANEL_LINKS = [
   { label: 'Contact', href: '/contact' },
 ];
 
+// Same links as the sidebar, minus Home — matches the top header's
+// long-standing manual list exactly, just no longer duplicated by hand.
+const TOP_NAV_LINKS = PANEL_LINKS.filter((link) => link.href !== '/');
+
 export default function NavBar() {
   const pathname = usePathname();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -41,12 +45,25 @@ export default function NavBar() {
     window.location.href = '/login';
   };
 
+  const isActive = (href: string) => {
+    if (!pathname) return false;
+    if (href === '/') return pathname === '/';
+    return pathname === href || pathname.startsWith(`${href}/`);
+  };
+
   const panelLinkClass = (href: string) => {
-    const active = pathname === href;
-    return `font-label text-sm text-white px-4 py-2.5 rounded transition-colors ${
+    const active = isActive(href);
+    return `font-label text-sm px-4 py-2.5 rounded transition-colors ${
       active
-        ? 'bg-afs-bg-surface border-l-2 border-afs-crimson'
-        : 'hover:bg-afs-bg-surface'
+        ? 'bg-afs-bg-raised text-afs-crimson border-l-2 border-afs-crimson'
+        : 'text-white hover:bg-afs-bg-surface'
+    }`;
+  };
+
+  const topNavLinkClass = (href: string) => {
+    const active = isActive(href);
+    return `font-label text-sm transition-colors ${
+      active ? 'border-b-2 border-afs-crimson text-afs-crimson' : 'text-white'
     }`;
   };
 
@@ -101,27 +118,11 @@ export default function NavBar() {
 
       <header className="fixed top-0 left-48 right-0 z-40 h-11 bg-afs-bg-raised border-b border-afs-chrome-dim flex items-center px-8">
         <div className="hidden md:flex items-center gap-8">
-          <Link href="/products" className="font-label text-sm text-white transition-colors">
-            Products
-          </Link>
-          <Link href="/studio" className="font-label text-sm text-white transition-colors">
-            Design Studio
-          </Link>
-          <Link href="/track" className="font-label text-sm text-white transition-colors">
-            Track Delivery
-          </Link>
-          <Link href="/architects" className="font-label text-sm text-white transition-colors">
-            Architects
-          </Link>
-          <Link href="/faq" className="font-label text-sm text-white transition-colors">
-            FAQ
-          </Link>
-          <Link href="/resources" className="font-label text-sm text-white transition-colors">
-            Resources
-          </Link>
-          <Link href="/contact" className="font-label text-sm text-white transition-colors">
-            Contact
-          </Link>
+          {TOP_NAV_LINKS.map((link) => (
+            <Link key={link.href} href={link.href} className={topNavLinkClass(link.href)}>
+              {link.label}
+            </Link>
+          ))}
         </div>
       </header>
     </>

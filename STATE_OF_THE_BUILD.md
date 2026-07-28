@@ -240,6 +240,69 @@ FlashChat widget fixes   NEW (flashchat-fix-001, 2026-07-27) — four targeted
                          — those two entries' "Not committed" claims are
                          now stale but left as point-in-time records rather
                          than rewritten.
+FlashChat scroll +       NEW (flashchat-fix-002, 2026-07-27) — three
+nav highlight +          targeted fixes. (1) `ChatWidget.tsx`'s message-
+resources bug            list container gained `onWheel={(e) =>
+(flashchat-fix-002):     e.stopPropagation()}` and `style={{ overflowY:
+                         'auto', overscrollBehavior: 'contain' }}` (the
+                         `overflow-y-auto` Tailwind class was removed
+                         from its `className` in favor of the inline
+                         style now owning that property) so scrolling the
+                         open chat panel's messages no longer scrolls the
+                         page underneath it. (2) `NavBar.tsx` gained a
+                         shared `isActive(href)` helper (exact match, or
+                         `startsWith(href + '/')` for section routes —
+                         e.g. `/studio` now also matches `/studio/draft`)
+                         used by both `panelLinkClass` (sidebar —
+                         previously exact-match only and missing
+                         `text-afs-crimson`; now `bg-afs-bg-raised
+                         text-afs-crimson border-l-2 border-afs-crimson`
+                         when active) and a new `topNavLinkClass` (top
+                         header — previously had no active-state logic
+                         at all); the header's 7 hand-written `<Link>`s
+                         were replaced with a `.map()` over a new
+                         `TOP_NAV_LINKS` (`PANEL_LINKS` filtered to drop
+                         Home) so the sidebar and header link lists can't
+                         drift apart. Verified live via Playwright
+                         screenshots on `/resources` and `/studio/library`
+                         (confirming the `/studio`→`/studio/draft`
+                         startsWith case explicitly named in the
+                         instructions). (3) A real Resources-page bug,
+                         found by actually driving the page with
+                         Playwright rather than static reading alone
+                         (`pnpm tsc --noEmit`, the build, and the browser
+                         console were all already clean, so this wasn't a
+                         compile/crash bug): `ResourcesBrowser.tsx`'s
+                         search `<input type="search">` was paired with
+                         its own custom absolutely-positioned "✕" clear
+                         button but never suppressed the browser's native
+                         WebKit search-cancel button, so typing a query
+                         rendered two overlapping clear controls — a
+                         default-styled blue native "×" plus the custom
+                         afs-token gray "✕" — confirmed in a zoomed
+                         screenshot of the search box. Fixed with
+                         `[&::-webkit-search-cancel-button]:appearance-
+                         none` on the input's className; `type="search"`
+                         itself was kept for its mobile-keyboard
+                         semantics. Two false leads were investigated and
+                         ruled out first: the FlashChat bubble appearing
+                         to overlap a card in a `fullPage: true`
+                         Playwright screenshot turned out to be Chromium
+                         anchoring `position: fixed` elements to their
+                         original small-viewport coordinates within the
+                         tall stitched image (a viewport-only screenshot
+                         before/after scrolling confirmed the button
+                         actually stays correctly pinned to the visual
+                         viewport at all scroll positions, not a real
+                         bug); and `RESOURCES.length` appearing to be 32
+                         against a raw `<h3>`-count of 36 was correct
+                         math once the 4 `VideoCard` headings included in
+                         that raw count were accounted for. `pnpm tsc
+                         --noEmit`: 0 errors. `pnpm run build`: exit 0,
+                         same route count. All scratch Playwright debug
+                         files used for verification were deleted before
+                         committing. Committed and pushed, no
+                         tool-approval blocker.
 FlashDraft "My Saved     NEW (afs-049, 2026-07-27) — FlashDraft's top toolbar
 Profiles" (afs-049):     folder-icon button (`icon="open"`, previously
                          labeled "Open", calling `openLibrary()` to show a
