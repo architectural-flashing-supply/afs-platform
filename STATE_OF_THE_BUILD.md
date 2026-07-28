@@ -377,6 +377,128 @@ color fix                nav-link color flashchat-fix-002 (below) added
                          locations: `rgb(232, 0, 31)` (`#E8001F`) in
                          both. Committed and pushed, no tool-approval
                          blocker.
+Animated AFS logo v3 —  NEW (afs-logo-004, 2026-07-28) — user feedback on
+real chrome band falls  afs-logo-003 (below), in all caps: "WHEN I SAY
++ working sound          THE CHROME PARIMETER AROUND THE LOGO, I AM NOT
+(afs-logo-004):          SAYING CREATE A NEW ONE. I AM SAYING USE THE
+                         EXISTING CHROME OUTLINE IMMEDIATELY SURROUNDING
+                         THE RED 'AFS' LETTERS, AND HAVE THEM FALL INTO
+                         PLACE WITH A TOUGH METAL CLANG SOUND ... AND NONE
+                         OF THESE HAVE ANY SOUND AT ALL." Two real,
+                         separate problems, both confirmed and both fixed
+                         this session — not assumed from the prior
+                         write-up. **Problem 1: still inventing new
+                         geometry.** afs-logo-003's 4 bars were generic
+                         `<div>`s with a hand-picked gradient, not any part
+                         of the real asset — exactly what was rejected.
+                         Fixed by tracing the ACTUAL chrome band baked
+                         into `public/afs-logo.png` itself: no image-
+                         editing tool is available in this environment (no
+                         `sharp`, no `pngjs`, no ImageMagick — `convert`
+                         on this Windows box is the disk-format utility,
+                         not ImageMagick), so wrote a throwaway Node
+                         script using only built-in `zlib` to manually
+                         parse the PNG's IDAT chunks, inflate them, and
+                         un-filter each scanline per the PNG spec (color
+                         type 6 confirmed via the IHDR byte at offset 25 —
+                         RGBA8, no interlace) into a raw pixel buffer, then
+                         scanned rows at 8px steps for the frame's dark
+                         inner panel (the panel sits directly against the
+                         frame's inner edge, and is far more reliably
+                         color-detectable than the frame-vs-pale-
+                         background transition, which is two similar
+                         grays). That scan gave real coordinates for the
+                         panel's left tip (~6%, 49% of the mark's own box)
+                         and its taper on both sides, which — combined
+                         with a deliberately generous outward margin for
+                         the frame's outer edge — became `TOP_BAND`/
+                         `BOTTOM_BAND`, two 8-point polygons in
+                         `AFSAnimatedLogo.tsx` tracing the real band, split
+                         top/bottom. Generous margin is safe here
+                         specifically because the falling pieces AND the
+                         static base are crops of the identical source
+                         image — an over-cut just re-reveals identical
+                         pixels once landed, so only the inner/outer
+                         overlap between the two pieces actually matters,
+                         not pixel-perfect tracing. Rendering: three
+                         stacked `<img src="/afs-logo.png">` layers at
+                         identical position — a static base clipped with
+                         `clip-path: path(evenodd, "...")` (full-canvas
+                         rect + both band polygons as an evenodd hole, so
+                         letters/subtext/background stay put and only the
+                         band region is empty), plus the two band pieces
+                         clipped with plain `clip-path: polygon(...)`,
+                         each starting `translateY(-70px)` and animating
+                         to rest with the same `cubic-bezier(0.34, 1.56,
+                         0.64, 1)` overshoot ease as afs-logo-003 (still
+                         the right choice for "slam," wasn't what was
+                         wrong) — top piece lands at 0.3s, bottom at 0.5s.
+                         **Also caught and fixed in the same pass:**
+                         `LOGO_NATURAL_ASPECT` had been `2404/1080` since
+                         afs-logo-003, sourced from DESIGN_TOKENS.md §9's
+                         logo asset note — decoding the PNG's own IHDR
+                         chunk this session (`buf.readUInt32BE(16)`/`(20)`)
+                         found the real file is **1536×1024**, a
+                         completely different aspect ratio (1.5 vs 2.226).
+                         That stale doc note was wrong on every other
+                         claim too (background "pure black" — actual
+                         corner pixels sampled at brightness ~218-255, a
+                         pale gray; path `afs-web/public/assets/afs-
+                         logo.png` — doesn't exist in this repo, real path
+                         is `public/afs-logo.png`; "RGB PNG" — it's RGBA,
+                         color type 6). Rewrote DESIGN_TOKENS.md §9 with
+                         the verified values and a one-line note citing
+                         how they were checked, per CLAUDE.md rule #8 (**a
+                         memory/doc claim is not verified fact — check
+                         before recommending from it**, which is exactly
+                         what caught this). **Problem 2: zero sound.**
+                         True, but not for the reason it looked like at
+                         first — the code path was correct; the actual
+                         bug was structural. `loop=false`'s replay trigger
+                         is `onMouseEnter` (hover), and hover is **never**
+                         accepted by any browser as a user-gesture for
+                         unlocking `AudioContext` output — only a real
+                         click/keypress is. A visitor who only ever
+                         hovered the logo (the single most natural way to
+                         test "does replay work") would get silence every
+                         time, regardless of how correct the scheduling
+                         code was — `sharedAudioCtx` simply never gets
+                         created. Confirmed this exact mechanism with an
+                         instrumented Playwright run (wrapped
+                         `AudioContext`'s constructor + `createOscillator`/
+                         `createBufferSource` via `page.addInitScript`
+                         before any app code loads): a fresh page with
+                         **only** `hover()` calls (no click anywhere)
+                         produced zero audio events; the same page with an
+                         actual `.click()` on the logo produced
+                         `AudioContext created, state=running` followed by
+                         exactly 4 `createOscillator` + 3
+                         `createBufferSource` calls — matching the two
+                         clangs (2 oscillators + 1 noise buffer each) plus
+                         one shimmer buffer, precisely. Fixed by adding a
+                         real `onClick` handler that calls a new
+                         `unlockAudio()` (creates/resumes the shared
+                         `AudioContext` synchronously, inside the gesture)
+                         before triggering replay — clicking the logo is
+                         now a guaranteed-sound interaction; hover-replay
+                         is kept for visuals (unchanged from spec) but
+                         still only has sound if the user already clicked
+                         something else on the page first, which is
+                         unavoidable browser policy, not something
+                         further code can fix. **Sound design also
+                         changed**, per "tough metal CLANG," not the old
+                         bright `synthesizeMetalClink`: new
+                         `synthesizeMetalClang` layers a low `triangle`-
+                         wave thump (weight), the old sine "ring"
+                         (metallic timbre) at reduced level, and a short
+                         bandpass-filtered noise burst (sharp impact
+                         transient) — three components per clang instead
+                         of one oscillator. `pnpm tsc --noEmit`: 0 errors.
+                         `pnpm run build`: exit 0, same 123-route count.
+                         Deleted all three scratch scripts (PNG decoder,
+                         screenshot, audio-instrumentation) from the repo
+                         root before committing. Committed (`0442e6b`) and
+                         pushed to `origin/main`.
 Animated AFS logo v2 —  NEW (afs-logo-003, 2026-07-28) — user feedback on
 real logo + slamming    afs-logo-002 (below), in all caps: "DO YOU NOT
 chrome bars              UNDERSTAND I WANT MY COMPANY LOGO USED, AND THE

@@ -7,7 +7,64 @@
 
 ## CURRENT STATUS
 
-**Most recent session (afs-logo-003, 2026-07-28): rebuilt the logo
+**Most recent session (afs-logo-004, 2026-07-28): the frame is now the
+real logo's OWN chrome band, and sound actually works.** User feedback on
+afs-logo-003, in all caps: "WHEN I SAY THE CHROME PARIMETER AROUND THE
+LOGO, I AM NOT SAYING CREATE A NEW ONE. I AM SAYING USE THE EXISTING
+CHROME OUTLINE IMMEDIATELY SURROUNDING THE RED 'AFS' LETTERS, AND HAVE
+THEM FALL INTO PLACE WITH A TOUGH METAL CLANG SOUND ... AND NONE OF THESE
+HAVE ANY SOUND AT ALL." Two distinct, both-real problems, both confirmed
+independently rather than assumed:
+
+1. **Still building new geometry, not using the asset.** afs-logo-003's 4
+   bars were generic divs, not traced from the real logo. Fixed by
+   extracting the actual chrome band from `public/afs-logo.png` itself:
+   with no image tool available (`sharp`/`pngjs`/ImageMagick all absent —
+   `convert` on this box is Windows' disk utility, not ImageMagick),
+   wrote a throwaway Node script using built-in `zlib` to manually parse
+   the PNG's IDAT chunks and un-filter each scanline (color type 6, RGBA8,
+   confirmed from the IHDR byte at offset 25), then scanned rows for the
+   frame's dark inner panel — far more reliably color-detectable than the
+   frame-vs-pale-background edge, which is two similar grays. That gave
+   real coordinates for `TOP_BAND`/`BOTTOM_BAND`, two 8-point polygons
+   tracing the real band, split top/bottom. Rendering is three stacked
+   `<img src="/afs-logo.png">` layers at identical position: a static
+   base clipped with `clip-path: path(evenodd, "...")` (canvas rect +
+   both bands as a hole, so letters/subtext/background stay in place with
+   just the band missing), plus the two band pieces clipped with
+   `clip-path: polygon(...)`, each falling in (`translateY(-70px)` →
+   `0`) with the same overshoot ease as before — top lands at 0.3s,
+   bottom at 0.5s. **Also found in the same pass:** `LOGO_NATURAL_ASPECT`
+   had been using DESIGN_TOKENS.md's documented "2404×1080" — decoding the
+   PNG's own IHDR chunk found the real file is **1536×1024** (aspect 1.5,
+   not 2.226). That doc note was wrong on every other claim too (path,
+   "pure black" background, "RGB" vs actual RGBA) — rewrote
+   DESIGN_TOKENS.md §9 with verified values.
+2. **Zero sound — real bug, but not where it first looked.** The
+   scheduling code was correct; the trigger mechanism wasn't. Replay is
+   `onMouseEnter` (hover), and hover is never accepted by any browser as
+   an audio-unlock gesture — only a real click/keypress is. A visitor who
+   only ever hovered (the most natural way to test "does this work") gets
+   silence every time, regardless of how correct the sound code is.
+   Confirmed with an instrumented Playwright run (wrapped
+   `AudioContext`'s constructor/`createOscillator`/`createBufferSource`
+   via `page.addInitScript`): hover-only produced zero audio events;
+   `.click()` on the logo produced `AudioContext created, state=running`
+   plus exactly 4 `createOscillator` + 3 `createBufferSource` calls,
+   matching two clangs plus one shimmer precisely. Fixed with a real
+   `onClick` that unlocks/resumes the AudioContext synchronously inside
+   the gesture before replaying — clicking is now guaranteed-sound; hover
+   still replays visually but its sound still depends on an earlier click
+   elsewhere, which is unavoidable browser policy. Also redesigned the
+   sound itself per "tough metal CLANG" (not the old bright clink): a low
+   triangle-wave thump + the old sine ring (reduced) + a short filtered
+   noise-burst impact click, layered per landing.
+
+**Gates passed this session** — `pnpm tsc --noEmit`: 0 errors. `pnpm run
+build`: succeeded, all 123 routes compiled. Committed (`0442e6b`) and
+pushed to `origin/main`.
+
+**Previous session (afs-logo-003, 2026-07-28): rebuilt the logo
 animation around the real logo image and slamming chrome bars.** User
 feedback on afs-logo-002, below, in all caps: "DO YOU NOT UNDERSTAND I
 WANT MY COMPANY LOGO USED, AND THE SURROUNDING CHROME BARS AROUND THE
