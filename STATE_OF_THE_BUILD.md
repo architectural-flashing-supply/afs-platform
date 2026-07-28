@@ -377,6 +377,93 @@ color fix                nav-link color flashchat-fix-002 (below) added
                          locations: `rgb(232, 0, 31)` (`#E8001F`) in
                          both. Committed and pushed, no tool-approval
                          blocker.
+Animated AFS logo v7 —  NEW (afs-logo-008, 2026-07-28) — user supplied a
+real recorded clang     real reference recording instead of continuing to
+replaces synthesis      iterate on synthesis blind: freesound.org's
+(afs-logo-008):          `406197__kyles__door-metal-big-heavy-close-kinda-
+                         slam-thud-echo-offmic.wav`, downloaded to
+                         `Downloads\Recent Downloads\`, found via `find`
+                         after the user twice asked "where on my
+                         machine" — first about where THEY should save
+                         it (answer: anywhere, Downloads is the natural
+                         default), then, after confirming it had arrived,
+                         about where the previously-mentioned `ffmpeg`
+                         binary itself lives (a genuinely different
+                         question the user's phrasing initially read as
+                         a repeat of the first — worth noting since
+                         re-reading a repeated-looking question
+                         literally, rather than assuming it's the same
+                         question again, is what caught the actual ask).
+                         Source file: mono, 24-bit PCM, 48khz, 2.96s —
+                         a heavy door slam with a long off-mic room-echo
+                         tail. Repeating that full 3s clip once per
+                         falling piece at the existing 0.25s stagger
+                         would overlap 10+ copies of the echo tail into
+                         noise, so trimmed it first: extracted raw PCM
+                         via `ffmpeg -f s16le`, computed a 20ms-window RMS
+                         amplitude envelope in a throwaway Node script
+                         (no audio-analysis library available, same
+                         hand-rolled-decoder approach as the PNG pixel
+                         scans in afs-logo-004/006) to find real data
+                         rather than guess a trim point — attack transient
+                         peaks at 0.34s, still 70-95% of peak through
+                         ~0.6s, decays to 25-40% by ~0.85s, then a long
+                         low-level (1-5%) tail for the remaining ~2s.
+                         Trimmed to 0.295s→0.845s (0.55s) with `afade` (80ms
+                         fade-out, avoids a click at the cut) and
+                         `loudnorm`, encoded to
+                         `public/sounds/afs-logo-clang.mp3` (5.3kb).
+                         **Component change:** deleted
+                         `synthesizeMetalClang`/`METAL_PARTIALS` (the
+                         inharmonic-partial synthesis from afs-logo-007)
+                         entirely, per explicit instruction to use the
+                         real file — replaced with `loadClangBuffer()`
+                         (fetches + `decodeAudioData`s the mp3 once,
+                         cached in a module-level `clangBufferPromise` so
+                         every subsequent play reuses the same decoded
+                         `AudioBuffer`) and `playClangSample()` (a fresh
+                         `AudioBufferSourceNode` per play, since a source
+                         node can only be started once but the underlying
+                         buffer is reusable). `BAND_PIECES`'s per-piece
+                         `clangFrequency` field renamed to `playbackRate`
+                         (0.92-1.08×) so the 5 repeats aren't identical
+                         copies — the "make the sound repeat for each
+                         piece" instruction, satisfied literally (same
+                         clip, 5 times, once per landing) with a small
+                         natural variation rather than 5 robotically
+                         identical hits. Also moved the fetch+decode to
+                         start inside `unlockAudio()` (not just on first
+                         actual play attempt), so it's warming up in
+                         parallel as early as possible — relevant now
+                         that there's real async network/decode latency
+                         involved, which the pure-synthesis versions never
+                         had. **Verified end-to-end, not assumed:** an
+                         instrumented Playwright run confirmed the mp3
+                         request returns `200`, the decoded
+                         `AudioBuffer.duration` is exactly `0.550`
+                         (matching the ffmpeg trim precisely, proving
+                         `decodeAudioData` succeeded on the encoded mp3,
+                         not just that the fetch succeeded), and all 5
+                         `start()` calls per firing land at the intended
+                         staggered times (0.300/0.550/0.800/1.050/1.300,
+                         i.e. `t0 + i*0.25 + 0.3`) with the intended
+                         `playbackRate` values (1.00/1.08/0.92/0.96/1.04)
+                         — zero page errors, zero failed requests. Same
+                         honest limit as afs-logo-007: this agent cannot
+                         listen to confirm the perceptual result, only
+                         that the pipeline (fetch → decode → schedule →
+                         play) is wired correctly and uses the exact file
+                         the user provided, trimmed on real waveform data
+                         rather than a guess. `pnpm tsc --noEmit`: 0
+                         errors. `pnpm run build`: `✓ Compiled
+                         successfully`, `✓ Generating static pages
+                         (123/123)`. Deleted the two scratch scripts (PCM
+                         envelope analysis, Playwright audio check) and
+                         the temporary `scratch-sound/` working directory
+                         before committing — `public/sounds/afs-logo-
+                         clang.mp3` is the only new tracked file.
+                         Committed (`deb3df7`) and pushed to
+                         `origin/main`.
 Animated AFS logo v6 —  NEW (afs-logo-007, 2026-07-28) — user asked for
 inharmonic-partial      the clang to sound "more like metallic metal
 metal synthesis          hitting metal." Diagnosed why the prior version

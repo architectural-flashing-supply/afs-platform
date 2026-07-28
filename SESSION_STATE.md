@@ -7,7 +7,50 @@
 
 ## CURRENT STATUS
 
-**Most recent session (afs-logo-007, 2026-07-28): the clang now
+**Most recent session (afs-logo-008, 2026-07-28): the clang is now a
+real recorded metal sound, not synthesis.** User supplied a real
+reference file instead of continuing to iterate on synthesis blind:
+freesound.org's `406197__kyles__door-metal-big-heavy-close-kinda-slam-
+thud-echo-offmic.wav`, saved to `Downloads\Recent Downloads\` (found via
+`find` after the user asked twice "where on my machine" — first about
+where they should save it, then, after confirming it arrived, about
+where the previously-mentioned `ffmpeg` binary itself lives — a genuinely
+different question, not a repeat).
+
+Source: mono 24-bit/48kHz, 2.96s — a heavy door slam with a long
+off-mic room-echo tail. Repeating that full clip once per falling piece
+at the existing 0.25s stagger would overlap 10+ echo tails into noise,
+so trimmed it on real data first: extracted raw PCM via ffmpeg, computed
+a 20ms-window RMS amplitude envelope in a throwaway Node script (attack
+peaks at 0.34s, still 70-95% of peak through ~0.6s, decays to 25-40% by
+~0.85s, then a long low-level tail) and cut to 0.295s→0.845s (0.55s)
+with an 80ms fade-out and loudness normalization, encoded to
+`public/sounds/afs-logo-clang.mp3` (5.3kb).
+
+Deleted the inharmonic-partial synthesis from afs-logo-007 entirely, per
+explicit instruction to use the real file. Replaced with `loadClangBuffer()`
+(fetch + `decodeAudioData`, cached so every play reuses the same decoded
+buffer) and `playClangSample()` (fresh `AudioBufferSourceNode` per play).
+Each of the 5 pieces plays the same clip with slight `playbackRate`
+variation (0.92-1.08×) so the repeats aren't identical copies — "make
+the sound repeat for each piece," satisfied literally. Moved the
+fetch+decode to start inside `unlockAudio()` rather than waiting for
+first actual play, since real async network/decode latency is now
+involved.
+
+**Verified end-to-end:** an instrumented Playwright run confirmed the
+mp3 request returns 200, the decoded buffer's duration is exactly 0.550s
+(matching the trim precisely — proves decode succeeded, not just fetch),
+and all 5 plays land at the correct staggered times with the intended
+pitch variation, zero errors. Same honest limit as afs-logo-007: can't
+confirm the perceptual result by ear, only that the pipeline is wired
+correctly and uses the exact file provided.
+
+**Gates passed this session** — `pnpm tsc --noEmit`: 0 errors. `pnpm run
+build`: succeeded, all 123 routes compiled. Committed (`deb3df7`) and
+pushed to `origin/main`.
+
+**Previous session (afs-logo-007, 2026-07-28): the clang now
 synthesizes actual metal timbre, not a thump plus a single tone.** User
 asked for the sound to be "more like metallic metal hitting metal."
 Diagnosed the likely cause: the prior clang had exactly one swept sine
