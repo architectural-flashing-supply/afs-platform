@@ -431,22 +431,35 @@ ACCENT (non-semantic, feature-specific — FlashDraft radius UI only)
 
 ## 9. LOGO ASSET NOTE
 
+**Corrected afs-logo-003, 2026-07-28** — the block below was stale on
+every factual point, not just the dimensions. Verified this session by
+reading the PNG's own IHDR chunk directly (`buf.readUInt32BE(16/20)` for
+width/height, byte 25 for color type — no image-editing tool was
+available, so this was done with Node's built-in `zlib` against the raw
+file bytes) rather than trusting the old note. Real values:
+
 ```
 File:         afs-logo.png
-Dimensions:   2404×1080px, RGB PNG
-Background:   Pure black (#000000)
-Location:     afs-web/public/assets/afs-logo.png
+Dimensions:   1536×1024px, RGBA PNG (color type 6 — has an alpha channel)
+Background:   Pale gray radial gradient (NOT pure black — sampled
+              corner pixels are brightness ~218-255, not ~0)
+Location:     public/afs-logo.png (repo root's public/, not
+              afs-web/public/assets/ — that path doesn't exist in this repo)
 
-Usage on bg-base (#1A1A1E):
-  Logo background (#000000) differs from page background (#1A1A1E).
-  Wrap in bg-afs-bg-dim (#14151A) container to blend:
+Mark geometry: an italicized crimson "AFS" wordmark inside a beveled
+  chrome parallelogram frame (pointed tip at the left, ~1.5%/49% of the
+  mark's own box), with "ARCHITECTURAL FLASHING SUPPLY" in a separate
+  chrome/crimson line below the frame, not enclosed by it. See
+  components/ui/AFSAnimatedLogo.tsx's TOP_BAND/BOTTOM_BAND polygons for
+  the frame band's traced boundary, if reusing this geometry elsewhere.
 
-  <div className="bg-afs-bg-dim inline-block px-4 py-2 rounded-sm">
-    <Image src="/assets/afs-logo.png" alt="AFS Architectural Flashing Supply"
-           width={200} height={90} priority />
-  </div>
+Usage: <Image src="/afs-logo.png" alt="AFS Architectural Flashing Supply"
+       className="w-full h-auto object-contain" /> — object-contain
+       already handles the real 1536x1024 (1.5) aspect ratio; no
+       bg-afs-bg-dim wrapper needed since the background isn't black.
 
-  Request SVG or transparent PNG from client to resolve permanently.
+  Still true: no SVG source exists for this logo (CLAUDE.md's DATA
+  BLOCKERS table). Request one from the client to resolve permanently.
 ```
 
 ---

@@ -1,23 +1,61 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
-// Web Audio API synthesis — no audio files. A metallic "clink" for each
-// chrome bar slamming into place, and a brushed-metal "shimmer" under the
-// finishing shine sweep.
-function synthesizeMetalClink(audioCtx: AudioContext, frequency: number, startTime: number) {
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.connect(gain);
-  gain.connect(audioCtx.destination);
-  osc.type = 'sine';
-  osc.frequency.setValueAtTime(frequency, startTime);
-  osc.frequency.exponentialRampToValueAtTime(frequency * 0.6, startTime + 0.08);
-  gain.gain.setValueAtTime(0, startTime);
-  gain.gain.linearRampToValueAtTime(0.3, startTime + 0.005);
-  gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.12);
-  osc.start(startTime);
-  osc.stop(startTime + 0.15);
+// Web Audio API synthesis — no audio files. A tough metal "clang" (low
+// thump + bright metallic ring + a sharp impact click) for each half of
+// the real logo's chrome frame slamming into place, and a soft "shimmer"
+// under the finishing shine.
+function synthesizeMetalClang(audioCtx: AudioContext, frequency: number, startTime: number) {
+  // Low thump — the weight of the impact.
+  const thumpOsc = audioCtx.createOscillator();
+  const thumpGain = audioCtx.createGain();
+  thumpOsc.connect(thumpGain);
+  thumpGain.connect(audioCtx.destination);
+  thumpOsc.type = 'triangle';
+  thumpOsc.frequency.setValueAtTime(frequency * 0.22, startTime);
+  thumpOsc.frequency.exponentialRampToValueAtTime(frequency * 0.12, startTime + 0.18);
+  thumpGain.gain.setValueAtTime(0, startTime);
+  thumpGain.gain.linearRampToValueAtTime(0.5, startTime + 0.004);
+  thumpGain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.22);
+  thumpOsc.start(startTime);
+  thumpOsc.stop(startTime + 0.25);
+
+  // Metallic ring — layered on top, brighter and shorter.
+  const ringOsc = audioCtx.createOscillator();
+  const ringGain = audioCtx.createGain();
+  ringOsc.connect(ringGain);
+  ringGain.connect(audioCtx.destination);
+  ringOsc.type = 'sine';
+  ringOsc.frequency.setValueAtTime(frequency, startTime);
+  ringOsc.frequency.exponentialRampToValueAtTime(frequency * 0.5, startTime + 0.1);
+  ringGain.gain.setValueAtTime(0, startTime);
+  ringGain.gain.linearRampToValueAtTime(0.22, startTime + 0.003);
+  ringGain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.14);
+  ringOsc.start(startTime);
+  ringOsc.stop(startTime + 0.16);
+
+  // Sharp impact click — a brief filtered noise burst at the very onset.
+  const bufferSize = Math.floor(audioCtx.sampleRate * 0.02);
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    data[i] = Math.random() * 2 - 1;
+  }
+  const noiseSource = audioCtx.createBufferSource();
+  const noiseFilter = audioCtx.createBiquadFilter();
+  const noiseGain = audioCtx.createGain();
+  noiseSource.buffer = buffer;
+  noiseFilter.type = 'bandpass';
+  noiseFilter.frequency.value = frequency * 1.5;
+  noiseFilter.Q.value = 1.2;
+  noiseSource.connect(noiseFilter);
+  noiseFilter.connect(noiseGain);
+  noiseGain.connect(audioCtx.destination);
+  noiseGain.gain.setValueAtTime(0, startTime);
+  noiseGain.gain.linearRampToValueAtTime(0.25, startTime + 0.002);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.03);
+  noiseSource.start(startTime);
 }
 
 function synthesizeShimmer(audioCtx: AudioContext, startTime: number) {
@@ -61,6 +99,20 @@ function getSharedAudioContext(): AudioContext | null {
   }
 }
 
+// A hover (mouseenter) is never accepted by browsers as an audio-unlock
+// gesture — only a real click/keypress is. This unlocks + resumes the
+// context synchronously inside a real click handler, so there's at least
+// one interaction on this component guaranteed to produce sound, not just
+// "works after you happen to click something else first."
+function unlockAudio(): void {
+  const ctx = getSharedAudioContext();
+  if (ctx && ctx.state === 'suspended') {
+    ctx.resume().catch(() => {
+      // Fail silently — sound stays off, animation is unaffected.
+    });
+  }
+}
+
 const MUTED_STORAGE_KEY = 'afs-logo-muted';
 
 function readStoredMuted(fallback: boolean): boolean {
@@ -72,18 +124,39 @@ function readStoredMuted(fallback: boolean): boolean {
   }
 }
 
-// public/afs-logo.png's real pixel dimensions (DESIGN_TOKENS.md §9) — used
-// to size the logo's own box so the chrome bars land flush against its
-// actual edges instead of an outer box with mismatched aspect ratio.
-const LOGO_NATURAL_ASPECT = 2404 / 1080;
+// public/afs-logo.png's REAL pixel dimensions, read directly from the
+// file's PNG IHDR chunk (1536x1024) — DESIGN_TOKENS.md's "2404x1080"
+// asset note is stale/wrong, do not trust it for this component.
+const LOGO_NATURAL_ASPECT = 1536 / 1024;
 
-// Explicit-instruction literal hex values — same precedent as NavBar's
-// `backgroundColor: '#C0001A'` active-pill style (CLAUDE.md rule #4). This
-// is a brushed-chrome bar gradient, not derived from a single afs-* token;
-// each stop mirrors a real chrome-scale token (chrome-dim/silver/high).
-const FRAME_GRADIENT =
-  'linear-gradient(90deg, #7A8299 0%, #C8D0E0 35%, #FFFFFF 50%, #C8D0E0 65%, #7A8299 100%)';
-const FRAME_THICKNESS = 4;
+// Polygons below trace the two halves of afs-logo.png's OWN existing
+// chrome bevel band around "AFS" — found by decoding the PNG's raw pixel
+// data (no image-editing tool available in this environment) and scanning
+// rows for the dark inner panel that sits directly inside the frame, then
+// adding a margin for the frame's outer edge. Points are [xPercent,
+// yPercent] of the logo's own box. Deliberately generous on the outer
+// edge and the inner/letter side: both the falling pieces and the static
+// base are crops of the SAME source image, so a slight over-cut just
+// re-reveals identical pixels once landed — the only real precision
+// needed is enough overlap that no gap in the band goes uncovered.
+const TOP_BAND: Array<[number, number]> = [
+  [2, 46], [27, 10], [97, 7], [99, 40], [92, 42], [90, 20], [30, 16], [7, 47],
+];
+const BOTTOM_BAND: Array<[number, number]> = [
+  [2, 52], [22, 68], [86, 74], [99, 45], [92, 47], [83, 66], [25, 65], [7, 53],
+];
+
+function toPolygon(points: Array<[number, number]>): string {
+  return `polygon(${points.map(([x, y]) => `${x}% ${y}%`).join(', ')})`;
+}
+
+function toPathD(points: Array<[number, number]>, boxWidth: number, boxHeight: number): string {
+  return (
+    points
+      .map(([x, y], i) => `${i === 0 ? 'M' : 'L'} ${((x / 100) * boxWidth).toFixed(1)} ${((y / 100) * boxHeight).toFixed(1)}`)
+      .join(' ') + ' Z'
+  );
+}
 
 interface AFSAnimatedLogoProps {
   width?: number;
@@ -102,7 +175,6 @@ export default function AFSAnimatedLogo({
 }: AFSAnimatedLogoProps) {
   const [isMuted, setIsMuted] = useState(muted);
   const [playKey, setPlayKey] = useState(0);
-  const unlockedRef = useRef(false);
 
   useEffect(() => {
     setIsMuted(readStoredMuted(muted));
@@ -112,21 +184,13 @@ export default function AFSAnimatedLogo({
   }, []);
 
   useEffect(() => {
-    if (unlockedRef.current) return;
-    const unlock = () => {
-      unlockedRef.current = true;
-      const ctx = getSharedAudioContext();
-      if (ctx && ctx.state === 'suspended') {
-        ctx.resume().catch(() => {
-          // Fail silently — sound stays off, animation is unaffected.
-        });
-      }
-    };
-    window.addEventListener('pointerdown', unlock, { once: true });
-    window.addEventListener('keydown', unlock, { once: true });
+    // Bonus unlock: a click ANYWHERE on the page (nav links, buttons,
+    // etc.) also counts, so a hover-replay after that has sound too.
+    window.addEventListener('pointerdown', unlockAudio, { once: true });
+    window.addEventListener('keydown', unlockAudio, { once: true });
     return () => {
-      window.removeEventListener('pointerdown', unlock);
-      window.removeEventListener('keydown', unlock);
+      window.removeEventListener('pointerdown', unlockAudio);
+      window.removeEventListener('keydown', unlockAudio);
     };
   }, []);
 
@@ -136,28 +200,30 @@ export default function AFSAnimatedLogo({
     return () => window.clearInterval(id);
   }, [loop]);
 
-  // Four bars slam in clockwise (top, right, bottom, left), each landing
-  // with its own clink; a shimmer/shine caps the sequence once the frame
-  // has closed around the logo.
+  // Top half lands first, bottom half a beat later, each with its own
+  // clang; a shimmer caps it once the frame has closed.
   useEffect(() => {
     if (isMuted) return;
     const ctx = sharedAudioCtx;
     if (!ctx) return;
     try {
       const t0 = ctx.currentTime;
-      synthesizeMetalClink(ctx, 2100, t0 + 0.22);
-      synthesizeMetalClink(ctx, 2300, t0 + 0.37);
-      synthesizeMetalClink(ctx, 1900, t0 + 0.52);
-      synthesizeMetalClink(ctx, 2000, t0 + 0.67);
-      synthesizeShimmer(ctx, t0 + 0.8);
+      synthesizeMetalClang(ctx, 180, t0 + 0.3);
+      synthesizeMetalClang(ctx, 150, t0 + 0.5);
+      synthesizeShimmer(ctx, t0 + 0.7);
     } catch {
       // Fail silently — a blocked/closed AudioContext shouldn't break the
       // visual animation.
     }
   }, [playKey, isMuted]);
 
-  const handleReplay = () => {
+  const replay = () => {
     if (!loop) setPlayKey((k) => k + 1);
+  };
+
+  const handleClick = () => {
+    unlockAudio();
+    replay();
   };
 
   const toggleMuted = () => {
@@ -174,18 +240,21 @@ export default function AFSAnimatedLogo({
   };
 
   // Fit the logo's own natural aspect ratio inside the width/height box
-  // (same math `object-contain` does) so the frame bars below are placed
+  // (same math `object-contain` does) so the two frame pieces below land
   // against the logo's real rendered edges, not the outer box's edges.
   const outerAspect = width / height;
   const widthConstrained = LOGO_NATURAL_ASPECT > outerAspect;
   const boxWidth = widthConstrained ? width : height * LOGO_NATURAL_ASPECT;
   const boxHeight = widthConstrained ? width / LOGO_NATURAL_ASPECT : height;
 
+  const baseClipPath = `path(evenodd, "M 0 0 L ${boxWidth.toFixed(1)} 0 L ${boxWidth.toFixed(1)} ${boxHeight.toFixed(1)} L 0 ${boxHeight.toFixed(1)} Z ${toPathD(TOP_BAND, boxWidth, boxHeight)} ${toPathD(BOTTOM_BAND, boxWidth, boxHeight)}")`;
+
   return (
     <div
       className={`relative inline-block ${className ?? ''}`}
       style={{ width, height }}
-      onMouseEnter={handleReplay}
+      onMouseEnter={replay}
+      onClick={handleClick}
     >
       <div
         style={{
@@ -195,31 +264,23 @@ export default function AFSAnimatedLogo({
           width: boxWidth,
           height: boxHeight,
           transform: 'translate(-50%, -50%)',
+          cursor: 'pointer',
         }}
       >
         <style>{`
-          @keyframes afs-bar-top-in {
-            from { transform: translateY(-${FRAME_THICKNESS + 24}px); opacity: 0; }
+          @keyframes afs-band-fall {
+            from { transform: translateY(-70px); opacity: 0; }
             to { transform: translateY(0); opacity: 1; }
           }
-          @keyframes afs-bar-bottom-in {
-            from { transform: translateY(${FRAME_THICKNESS + 24}px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-          }
-          @keyframes afs-bar-left-in {
-            from { transform: translateX(-${FRAME_THICKNESS + 24}px); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-          }
-          @keyframes afs-bar-right-in {
-            from { transform: translateX(${FRAME_THICKNESS + 24}px); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-          }
-          .afs-logo-bar {
+          .afs-logo-band {
             position: absolute;
-            background: ${FRAME_GRADIENT};
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            animation-name: afs-band-fall;
             animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
             animation-fill-mode: both;
-            animation-duration: 0.22s;
+            animation-duration: 0.3s;
           }
           @keyframes afs-logo-shine-sweep {
             from { transform: translateX(-120%) skewX(-12deg); }
@@ -236,66 +297,47 @@ export default function AFSAnimatedLogo({
             left: 0;
             width: 40%;
             height: 100%;
-            background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.55) 50%, rgba(255,255,255,0) 100%);
+            background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.5) 50%, rgba(255,255,255,0) 100%);
             opacity: 0;
-            animation: afs-logo-shine-sweep 0.4s ease-in-out 0.8s forwards,
-                       afs-logo-shine-fade-in 0.4s linear 0.8s forwards;
+            animation: afs-logo-shine-sweep 0.4s ease-in-out 0.7s forwards,
+                       afs-logo-shine-fade-in 0.4s linear 0.7s forwards;
             pointer-events: none;
           }
         `}</style>
 
+        {/* Static base: the real logo, minus the two chrome-band regions
+            (evenodd hole) — always visible immediately. */}
         <img
           src="/afs-logo.png"
           alt="AFS — Architectural Flashing Supply"
-          style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            objectFit: 'contain',
+            display: 'block',
+            clipPath: baseClipPath,
+          }}
         />
 
         <div key={playKey}>
-          <div
-            className="afs-logo-bar"
-            style={{
-              top: -FRAME_THICKNESS,
-              left: -FRAME_THICKNESS,
-              right: -FRAME_THICKNESS,
-              height: FRAME_THICKNESS,
-              animationName: 'afs-bar-top-in',
-              animationDelay: '0s',
-            }}
+          {/* Top half of the logo's own chrome band, falling in. */}
+          <img
+            src="/afs-logo.png"
+            alt=""
+            aria-hidden="true"
+            className="afs-logo-band"
+            style={{ objectFit: 'contain', clipPath: toPolygon(TOP_BAND), animationDelay: '0s' }}
           />
-          <div
-            className="afs-logo-bar"
-            style={{
-              bottom: -FRAME_THICKNESS,
-              left: -FRAME_THICKNESS,
-              right: -FRAME_THICKNESS,
-              height: FRAME_THICKNESS,
-              animationName: 'afs-bar-bottom-in',
-              animationDelay: '0.3s',
-            }}
-          />
-          <div
-            className="afs-logo-bar"
-            style={{
-              left: -FRAME_THICKNESS,
-              top: 0,
-              bottom: 0,
-              width: FRAME_THICKNESS,
-              background: FRAME_GRADIENT.replace('90deg', '180deg'),
-              animationName: 'afs-bar-left-in',
-              animationDelay: '0.45s',
-            }}
-          />
-          <div
-            className="afs-logo-bar"
-            style={{
-              right: -FRAME_THICKNESS,
-              top: 0,
-              bottom: 0,
-              width: FRAME_THICKNESS,
-              background: FRAME_GRADIENT.replace('90deg', '180deg'),
-              animationName: 'afs-bar-right-in',
-              animationDelay: '0.15s',
-            }}
+          {/* Bottom half, falling in a beat later. */}
+          <img
+            src="/afs-logo.png"
+            alt=""
+            aria-hidden="true"
+            className="afs-logo-band"
+            style={{ objectFit: 'contain', clipPath: toPolygon(BOTTOM_BAND), animationDelay: '0.2s' }}
           />
 
           <div className="afs-logo-shine" />
