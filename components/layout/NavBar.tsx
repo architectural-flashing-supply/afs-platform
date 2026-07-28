@@ -5,7 +5,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import AFSAnimatedLogo from '@/components/ui/AFSAnimatedLogo';
 
 const PANEL_LINKS = [
   { label: 'Home', href: '/' },
@@ -79,16 +78,14 @@ export default function NavBar() {
       <div className="fixed top-0 left-0 bottom-0 w-48 z-50 bg-afs-bg-dim border-r border-afs-chrome-dim flex flex-col">
         <div className="flex items-center justify-center px-2 pt-2 pb-3">
           <Link href="/">
-            <AFSAnimatedLogo width={176} height={117} className="cursor-pointer" />
-            <noscript>
-              <Image
-                src="/afs-logo.png"
-                alt="AFS Architectural Flashing Supply"
-                width={232}
-                height={165}
-                className="w-full h-auto object-contain"
-              />
-            </noscript>
+            <Image
+              src="/afs-logo.png"
+              alt="AFS Architectural Flashing Supply"
+              width={232}
+              height={165}
+              priority
+              className="w-full h-auto object-contain"
+            />
           </Link>
         </div>
 
