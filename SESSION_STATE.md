@@ -7,7 +7,36 @@
 
 ## CURRENT STATUS
 
-**Most recent session (afs-logo-006, 2026-07-28): 5 sequential chrome
+**Most recent session (afs-logo-007, 2026-07-28): the clang now
+synthesizes actual metal timbre, not a thump plus a single tone.** User
+asked for the sound to be "more like metallic metal hitting metal."
+Diagnosed the likely cause: the prior clang had exactly one swept sine
+"ring" partial, and a single pure tone can't produce a metallic timbre
+at any pitch — real metal rings INHARMONICALLY (overtones that aren't
+integer multiples of the fundamental), which is what actually produces
+that shimmering "clang" character, and is the standard principle behind
+bell/gong synthesis. Replaced the single ring oscillator with a bank of
+5 sine partials at inharmonic ratios (1.0, 2.41, 3.76, 5.4, 7.1× the
+base frequency), each with its own decay time (higher partials decay
+faster, matching how real struck metal behaves) and a slight downward
+pitch drift as it rings out. Kept the noise-burst impact click and the
+low thump (gain reduced since the partial bank now carries more
+perceived weight itself).
+
+**Verification limit stated honestly:** this agent cannot literally
+listen to audio, so "does it sound like metal now" can't be confirmed
+by ear the way the visual fixes in prior sessions were confirmed by
+screenshot. What was verified: an instrumented Playwright run confirmed
+the oscillator graph builds with zero runtime errors and the exact
+intended frequencies (130/313/489/702/923Hz for a 130Hz-based clang,
+matching the ratios precisely) — confirming correct wiring of an
+established, textbook-correct DSP technique, not a guess.
+
+**Gates passed this session** — `pnpm tsc --noEmit`: 0 errors. `pnpm run
+build`: succeeded, all 123 routes compiled. Committed (`55a4bc0`) and
+pushed to `origin/main`.
+
+**Previous session (afs-logo-006, 2026-07-28): 5 sequential chrome
 pieces instead of 2, a smoke puff, sound attempted on page load.** User
 confirmed afs-logo-005's sizing was correct and said to leave it
 untouched, then asked for three enhancements:

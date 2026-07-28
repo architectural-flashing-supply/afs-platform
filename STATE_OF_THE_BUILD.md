@@ -377,6 +377,64 @@ color fix                nav-link color flashchat-fix-002 (below) added
                          locations: `rgb(232, 0, 31)` (`#E8001F`) in
                          both. Committed and pushed, no tool-approval
                          blocker.
+Animated AFS logo v6 —  NEW (afs-logo-007, 2026-07-28) — user asked for
+inharmonic-partial      the clang to sound "more like metallic metal
+metal synthesis          hitting metal." Diagnosed why the prior version
+(afs-logo-007):          (afs-logo-004/006's `synthesizeMetalClang`)
+                         likely didn't read as convincingly metallic even
+                         after being made audibly loud enough: it had
+                         exactly ONE swept sine "ring" partial layered
+                         over a thump and a noise click — a single pure
+                         tone cannot produce a metallic timbre at any
+                         pitch or envelope. Real metal (unlike a plucked
+                         string or drum head, which ring at harmonic —
+                         integer-multiple — overtones) rings
+                         INHARMONICALLY: its overtone frequencies are NOT
+                         simple integer multiples of the fundamental,
+                         which is exactly what produces the shimmering,
+                         faintly dissonant "clang" of two metal surfaces
+                         striking each other, and is the textbook
+                         principle behind bell/gong synthesis (the
+                         classic "Risset bell" technique). Replaced the
+                         single ring oscillator with a new module-level
+                         `METAL_PARTIALS` bank of 5 sine partials at
+                         inharmonic ratios (1.0, 2.41, 3.76, 5.4, 7.1× the
+                         clang's base `impactFrequency`), each with its
+                         own independent decay time (0.34s down to 0.11s,
+                         higher partials decaying faster — also
+                         physically accurate, higher overtones of a
+                         struck object die out quicker) and a slight
+                         downward pitch drift as it rings out (real
+                         struck metal audibly "settles" as it decays).
+                         Kept the sharp noise-burst impact click (onset
+                         transient, unchanged in spirit, slightly
+                         shortened/brightened) and the low triangle-wave
+                         thump for weight (gain reduced from 0.85→0.55
+                         since the 5-partial bank now carries more of the
+                         perceived weight/energy itself, avoiding an
+                         over-loud mix). **Verification, with an honest
+                         limit stated rather than overclaimed:** this
+                         agent cannot literally listen to audio output, so
+                         "does it now sound like metal" can't be confirmed
+                         by ear the way the visual fixes this session were
+                         confirmed by screenshot. What WAS verified via an
+                         instrumented Playwright run: the oscillator graph
+                         builds with zero runtime errors and the exact
+                         intended frequencies — for a 130hz-based clang,
+                         successive `frequency.setValueAtTime` calls
+                         landed at 130/313/489/702/923hz, matching
+                         `130 × [1.0, 2.41, 3.76, 5.4, 7.1]` precisely —
+                         confirming the synthesis is wired up exactly as
+                         designed, on top of applying the established,
+                         correct DSP technique for metallic timbre rather
+                         than guessing at EQ/gain tweaks on a single tone.
+                         `pnpm tsc --noEmit`: 0 errors. `pnpm run build`:
+                         exit 0 (`✓ Compiled successfully`, `✓ Generating
+                         static pages (123/123)`), same 123-route count.
+                         Deleted the one scratch audio-instrumentation
+                         script from the repo root before committing.
+                         Committed (`55a4bc0`) and pushed to
+                         `origin/main`.
 Animated AFS logo v5 —  NEW (afs-logo-006, 2026-07-28) — user asked for
 5 sequential pieces +   three enhancements on top of afs-logo-005 (which
 smoke + load sound       they confirmed as correctly sized — explicit
