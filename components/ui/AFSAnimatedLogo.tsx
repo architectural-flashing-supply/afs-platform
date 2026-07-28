@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react';
 
 // Web Audio API synthesis — no audio files. A tough metal "clang" (low
-// thump + bright metallic ring + a sharp impact click) for each half of
-// the real logo's chrome frame slamming into place.
+// thump + bright metallic ring + a sharp impact click) for each of the
+// real logo's chrome frame pieces slamming into place.
 function synthesizeMetalClang(audioCtx: AudioContext, impactFrequency: number, startTime: number) {
   // Low thump — the weight of the impact. Kept in the ~90-140Hz range
   // (not the ~35-45Hz a naive "low" multiplier lands on) because most
@@ -100,22 +100,48 @@ function unlockAudio(): void {
 // asset note is stale/wrong, do not trust it for this component.
 const LOGO_NATURAL_ASPECT = 1536 / 1024;
 
-// Polygons below trace the two halves of afs-logo.png's OWN existing
-// chrome bevel band around "AFS" — found by decoding the PNG's raw pixel
-// data (no image-editing tool available in this environment) and scanning
-// rows for the dark inner panel that sits directly inside the frame, then
-// adding a margin for the frame's outer edge. Points are [xPercent,
-// yPercent] of the logo's own box. Deliberately generous on the outer
-// edge and the inner/letter side: both the falling pieces and the static
-// base are crops of the SAME source image, so a slight over-cut just
-// re-reveals identical pixels once landed — the only real precision
-// needed is enough overlap that no gap in the band goes uncovered.
-const TOP_BAND: Array<[number, number]> = [
-  [2, 46], [27, 10], [97, 7], [99, 40], [92, 42], [90, 20], [30, 16], [7, 47],
+// Five pieces traced from afs-logo.png's OWN existing chrome bevel band
+// around "AFS" — found by decoding the PNG's raw pixel data (no image-
+// editing tool available in this environment) and scanning rows/columns
+// for the frame's dark inner panel and, separately, the distinct
+// brushed-chrome underline bar sitting between the frame and
+// "ARCHITECTURAL" (confirmed as its own contiguous gray band, y=63.5-
+// 73%, independent of the frame above it). The top and bottom halves of
+// the main frame are each further bisected at their x=50% crossing so
+// every quadrant plus the underline lands as its own piece. Points are
+// [xPercent, yPercent] of the logo's own box. Deliberately generous on
+// outer edges and inner/letter sides: every piece and the static base
+// are crops of the SAME source image, so a slight over-cut just
+// re-reveals identical pixels once landed.
+const BAND_PIECES: Array<{ points: Array<[number, number]>; clangFrequency: number }> = [
+  {
+    // top-left
+    points: [[2, 46], [27, 10], [50, 9], [50, 17.3], [30, 16], [7, 47]],
+    clangFrequency: 130,
+  },
+  {
+    // top-right
+    points: [[50, 9], [97, 7], [99, 40], [92, 42], [90, 20], [50, 17.3]],
+    clangFrequency: 140,
+  },
+  {
+    // bottom-right
+    points: [[50, 62.9], [85, 64], [99, 45], [92, 47], [83, 63], [50, 61.9]],
+    clangFrequency: 115,
+  },
+  {
+    // bottom-left
+    points: [[2, 52], [20, 62], [50, 62.9], [50, 61.9], [24, 61], [7, 53]],
+    clangFrequency: 110,
+  },
+  {
+    // underline bar, below the frame, above "ARCHITECTURAL"
+    points: [[14, 65], [87, 63], [89, 73], [12, 75]],
+    clangFrequency: 120,
+  },
 ];
-const BOTTOM_BAND: Array<[number, number]> = [
-  [2, 52], [22, 68], [86, 74], [99, 45], [92, 47], [83, 66], [25, 65], [7, 53],
-];
+const FALL_STAGGER_S = 0.25;
+const FALL_DURATION_S = 0.3;
 
 function toPolygon(points: Array<[number, number]>): string {
   return `polygon(${points.map(([x, y]) => `${x}% ${y}%`).join(', ')})`;
@@ -147,8 +173,13 @@ export default function AFSAnimatedLogo({
   const [playKey, setPlayKey] = useState(0);
 
   useEffect(() => {
-    // Bonus unlock: a click ANYWHERE on the page (nav links, buttons,
-    // etc.) also counts, so a hover-replay after that has sound too.
+    // Best-effort: try to unlock audio the instant this mounts, so sound
+    // plays on page load if the browser allows it (e.g. Chrome grants
+    // autoplay audio after enough prior engagement with the site). Most
+    // fresh, first-ever visits will still be silently blocked by browser
+    // autoplay policy no matter what code runs — no page can override
+    // that — so the click/keydown unlock below remains the guaranteed path.
+    unlockAudio();
     window.addEventListener('pointerdown', unlockAudio, { once: true });
     window.addEventListener('keydown', unlockAudio, { once: true });
     return () => {
@@ -159,19 +190,21 @@ export default function AFSAnimatedLogo({
 
   useEffect(() => {
     if (!loop) return;
-    const id = window.setInterval(() => setPlayKey((k) => k + 1), 1800);
+    const id = window.setInterval(() => setPlayKey((k) => k + 1), 3200);
     return () => window.clearInterval(id);
   }, [loop]);
 
-  // Top half lands first, bottom half a beat later, each with its own clang.
+  // Each piece lands in sequence, one at a time, its own clang firing the
+  // instant it lands.
   useEffect(() => {
     if (muted) return;
     const ctx = sharedAudioCtx;
     if (!ctx) return;
     try {
       const t0 = ctx.currentTime;
-      synthesizeMetalClang(ctx, 130, t0 + 0.3);
-      synthesizeMetalClang(ctx, 110, t0 + 0.5);
+      BAND_PIECES.forEach((piece, i) => {
+        synthesizeMetalClang(ctx, piece.clangFrequency, t0 + i * FALL_STAGGER_S + FALL_DURATION_S);
+      });
     } catch {
       // Fail silently — a blocked/closed AudioContext shouldn't break the
       // visual animation.
@@ -188,14 +221,17 @@ export default function AFSAnimatedLogo({
   };
 
   // Fit the logo's own natural aspect ratio inside the width/height box
-  // (same math `object-contain` does) so the two frame pieces below land
+  // (same math `object-contain` does) so the five frame pieces below land
   // against the logo's real rendered edges, not the outer box's edges.
   const outerAspect = width / height;
   const widthConstrained = LOGO_NATURAL_ASPECT > outerAspect;
   const boxWidth = widthConstrained ? width : height * LOGO_NATURAL_ASPECT;
   const boxHeight = widthConstrained ? width / LOGO_NATURAL_ASPECT : height;
 
-  const baseClipPath = `path(evenodd, "M 0 0 L ${boxWidth.toFixed(1)} 0 L ${boxWidth.toFixed(1)} ${boxHeight.toFixed(1)} L 0 ${boxHeight.toFixed(1)} Z ${toPathD(TOP_BAND, boxWidth, boxHeight)} ${toPathD(BOTTOM_BAND, boxWidth, boxHeight)}")`;
+  const holeSubpaths = BAND_PIECES.map((piece) => toPathD(piece.points, boxWidth, boxHeight)).join(' ');
+  const baseClipPath = `path(evenodd, "M 0 0 L ${boxWidth.toFixed(1)} 0 L ${boxWidth.toFixed(1)} ${boxHeight.toFixed(1)} L 0 ${boxHeight.toFixed(1)} Z ${holeSubpaths}")`;
+
+  const smokeDelay = BAND_PIECES.length * FALL_STAGGER_S + FALL_DURATION_S;
 
   return (
     <div
@@ -228,12 +264,30 @@ export default function AFSAnimatedLogo({
             animation-name: afs-band-fall;
             animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
             animation-fill-mode: both;
-            animation-duration: 0.3s;
+            animation-duration: ${FALL_DURATION_S}s;
+          }
+          @keyframes afs-smoke-puff {
+            0% { transform: translate(-50%, -50%) scale(0.2); opacity: 0; }
+            25% { opacity: 0.55; }
+            100% { transform: translate(-50%, -50%) scale(2.4); opacity: 0; }
+          }
+          .afs-smoke-puff {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 26%;
+            height: 26%;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(210,212,218,0.85) 0%, rgba(210,212,218,0.4) 45%, rgba(210,212,218,0) 75%);
+            filter: blur(1.5px);
+            opacity: 0;
+            animation: afs-smoke-puff 0.7s ease-out both;
+            pointer-events: none;
           }
         `}</style>
 
-        {/* Static base: the real logo, minus the two chrome-band regions
-            (evenodd hole) — always visible immediately. */}
+        {/* Static base: the real logo, minus the five chrome-piece
+            regions (evenodd hole) — always visible immediately. */}
         <img
           src="/afs-logo.png"
           alt="AFS — Architectural Flashing Supply"
@@ -250,22 +304,35 @@ export default function AFSAnimatedLogo({
         />
 
         <div key={playKey}>
-          {/* Top half of the logo's own chrome band, falling in. */}
-          <img
-            src="/afs-logo.png"
-            alt=""
-            aria-hidden="true"
-            className="afs-logo-band"
-            style={{ objectFit: 'contain', clipPath: toPolygon(TOP_BAND), animationDelay: '0s' }}
-          />
-          {/* Bottom half, falling in a beat later. */}
-          <img
-            src="/afs-logo.png"
-            alt=""
-            aria-hidden="true"
-            className="afs-logo-band"
-            style={{ objectFit: 'contain', clipPath: toPolygon(BOTTOM_BAND), animationDelay: '0.2s' }}
-          />
+          {BAND_PIECES.map((piece, i) => (
+            <img
+              key={i}
+              src="/afs-logo.png"
+              alt=""
+              aria-hidden="true"
+              className="afs-logo-band"
+              style={{
+                objectFit: 'contain',
+                clipPath: toPolygon(piece.points),
+                animationDelay: `${i * FALL_STAGGER_S}s`,
+              }}
+            />
+          ))}
+
+          {/* Puff of smoke once every piece has landed. Five staggered
+              circles, not one, for a slightly organic burst rather than a
+              single perfect ring. */}
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              className="afs-smoke-puff"
+              style={{
+                animationDelay: `${smokeDelay + i * 0.03}s`,
+                marginLeft: `${(i - 2) * 4}%`,
+                marginTop: `${(i % 2 === 0 ? -1 : 1) * 3}%`,
+              }}
+            />
+          ))}
         </div>
       </div>
     </div>
