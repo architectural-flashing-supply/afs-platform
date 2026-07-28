@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-// Web Audio API synthesis — no audio files. Exact spec supplied for the two
-// sounds AFSAnimatedLogo plays: a metallic "clink" as each letter finishes
-// drawing, and a brushed-metal "shimmer" under the shine sweep.
+// Web Audio API synthesis — no audio files. A metallic "clink" for each
+// chrome bar slamming into place, and a brushed-metal "shimmer" under the
+// finishing shine sweep.
 function synthesizeMetalClink(audioCtx: AudioContext, frequency: number, startTime: number) {
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
@@ -72,17 +72,18 @@ function readStoredMuted(fallback: boolean): boolean {
   }
 }
 
-// Explicit-instruction literal hex/keyword values — same precedent as
-// NavBar's `backgroundColor: '#C0001A'` active-pill style (CLAUDE.md rule
-// #4, "explicit instruction" carve-out already used elsewhere in this
-// codebase). Mirrors the real logo (public/afs-logo.png): bold crimson
-// letterforms, a chrome bevel frame, white specular shine — not derived
-// from the afs-* Tailwind token system because an SVG source for that logo
-// doesn't exist yet (CLAUDE.md's DATA BLOCKERS table, "Logo vector file").
-const LOGO_FILL = '#C0001A'; // mirrors afs-crimson
-const LOGO_FILL_TRANSPARENT = 'rgba(192, 0, 26, 0)';
-const FRAME_STROKE = '#C8D0E0'; // mirrors afs-chrome-silver
-const FRAME_STROKE_TRANSPARENT = 'rgba(200, 208, 224, 0)';
+// public/afs-logo.png's real pixel dimensions (DESIGN_TOKENS.md §9) — used
+// to size the logo's own box so the chrome bars land flush against its
+// actual edges instead of an outer box with mismatched aspect ratio.
+const LOGO_NATURAL_ASPECT = 2404 / 1080;
+
+// Explicit-instruction literal hex values — same precedent as NavBar's
+// `backgroundColor: '#C0001A'` active-pill style (CLAUDE.md rule #4). This
+// is a brushed-chrome bar gradient, not derived from a single afs-* token;
+// each stop mirrors a real chrome-scale token (chrome-dim/silver/high).
+const FRAME_GRADIENT =
+  'linear-gradient(90deg, #7A8299 0%, #C8D0E0 35%, #FFFFFF 50%, #C8D0E0 65%, #7A8299 100%)';
+const FRAME_THICKNESS = 4;
 
 interface AFSAnimatedLogoProps {
   width?: number;
@@ -99,7 +100,6 @@ export default function AFSAnimatedLogo({
   className,
   muted = false,
 }: AFSAnimatedLogoProps) {
-  const gradientBaseId = useId().replace(/[:]/g, '');
   const [isMuted, setIsMuted] = useState(muted);
   const [playKey, setPlayKey] = useState(0);
   const unlockedRef = useRef(false);
@@ -132,19 +132,23 @@ export default function AFSAnimatedLogo({
 
   useEffect(() => {
     if (!loop) return;
-    const id = window.setInterval(() => setPlayKey((k) => k + 1), 1600);
+    const id = window.setInterval(() => setPlayKey((k) => k + 1), 1800);
     return () => window.clearInterval(id);
   }, [loop]);
 
+  // Four bars slam in clockwise (top, right, bottom, left), each landing
+  // with its own clink; a shimmer/shine caps the sequence once the frame
+  // has closed around the logo.
   useEffect(() => {
     if (isMuted) return;
     const ctx = sharedAudioCtx;
     if (!ctx) return;
     try {
       const t0 = ctx.currentTime;
-      synthesizeMetalClink(ctx, 2100, t0 + 0.25);
-      synthesizeMetalClink(ctx, 1900, t0 + 0.5);
-      synthesizeMetalClink(ctx, 2300, t0 + 0.75);
+      synthesizeMetalClink(ctx, 2100, t0 + 0.22);
+      synthesizeMetalClink(ctx, 2300, t0 + 0.37);
+      synthesizeMetalClink(ctx, 1900, t0 + 0.52);
+      synthesizeMetalClink(ctx, 2000, t0 + 0.67);
       synthesizeShimmer(ctx, t0 + 0.8);
     } catch {
       // Fail silently — a blocked/closed AudioContext shouldn't break the
@@ -169,7 +173,13 @@ export default function AFSAnimatedLogo({
     });
   };
 
-  const gradientId = `afs-shine-${gradientBaseId}`;
+  // Fit the logo's own natural aspect ratio inside the width/height box
+  // (same math `object-contain` does) so the frame bars below are placed
+  // against the logo's real rendered edges, not the outer box's edges.
+  const outerAspect = width / height;
+  const widthConstrained = LOGO_NATURAL_ASPECT > outerAspect;
+  const boxWidth = widthConstrained ? width : height * LOGO_NATURAL_ASPECT;
+  const boxHeight = widthConstrained ? width / LOGO_NATURAL_ASPECT : height;
 
   return (
     <div
@@ -177,113 +187,120 @@ export default function AFSAnimatedLogo({
       style={{ width, height }}
       onMouseEnter={handleReplay}
     >
-      <svg
-        key={playKey}
-        width={width}
-        height={height}
-        viewBox="-20 -14 220 84"
-        xmlns="http://www.w3.org/2000/svg"
-        role="img"
-        aria-label="AFS — Architectural Flashing Supply"
+      <div
+        style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          width: boxWidth,
+          height: boxHeight,
+          transform: 'translate(-50%, -50%)',
+        }}
       >
         <style>{`
-          /* Bold crimson block letters, drawn stroke-first (dasharray reveal)
-             then filled solid — mirrors the real logo's weight/color, not
-             just its rough letter silhouette. */
-          .afs-logo-a path, .afs-logo-f path, .afs-logo-s path {
-            stroke: ${LOGO_FILL};
-            stroke-width: 9;
-            stroke-linecap: round;
-            stroke-linejoin: round;
-            fill: none;
-            stroke-dasharray: 1;
-            stroke-dashoffset: 1;
+          @keyframes afs-bar-top-in {
+            from { transform: translateY(-${FRAME_THICKNESS + 24}px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
           }
-          .afs-logo-a path {
-            animation: afs-logo-draw 0.25s ease-out 0s forwards,
-                       afs-logo-fill 0.2s ease-out 0.25s forwards;
+          @keyframes afs-bar-bottom-in {
+            from { transform: translateY(${FRAME_THICKNESS + 24}px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
           }
-          .afs-logo-f path {
-            animation: afs-logo-draw 0.25s ease-out 0.25s forwards,
-                       afs-logo-fill 0.2s ease-out 0.5s forwards;
+          @keyframes afs-bar-left-in {
+            from { transform: translateX(-${FRAME_THICKNESS + 24}px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
           }
-          .afs-logo-s path {
-            animation: afs-logo-draw 0.25s ease-out 0.5s forwards,
-                       afs-logo-fill 0.2s ease-out 0.75s forwards;
+          @keyframes afs-bar-right-in {
+            from { transform: translateX(${FRAME_THICKNESS + 24}px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
           }
-          @keyframes afs-logo-draw {
-            from { stroke-dashoffset: 1; }
-            to { stroke-dashoffset: 0; }
+          .afs-logo-bar {
+            position: absolute;
+            background: ${FRAME_GRADIENT};
+            animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
+            animation-fill-mode: both;
+            animation-duration: 0.22s;
           }
-          @keyframes afs-logo-fill {
-            from { fill: ${LOGO_FILL_TRANSPARENT}; }
-            to { fill: ${LOGO_FILL}; }
+          @keyframes afs-logo-shine-sweep {
+            from { transform: translateX(-120%) skewX(-12deg); }
+            to { transform: translateX(220%) skewX(-12deg); }
           }
-
-          /* Chrome bevel frame — the site's own "Metal Edge" 12°-skew
-             signature (DESIGN_TOKENS.md §1), not a full shield trace, since
-             no vector source for the real shield logo exists yet. */
-          .afs-logo-frame path {
-            stroke: ${FRAME_STROKE};
-            stroke-width: 3;
-            stroke-linecap: round;
-            fill: none;
-            stroke-dasharray: 1;
-            stroke-dashoffset: 1;
-            animation: afs-logo-frame-draw 0.25s ease-out 0.7s forwards;
+          @keyframes afs-logo-shine-fade-in {
+            0%, 79% { opacity: 0; }
+            80% { opacity: 1; }
+            100% { opacity: 1; }
           }
-          @keyframes afs-logo-frame-draw {
-            from { stroke-dashoffset: 1; stroke: ${FRAME_STROKE_TRANSPARENT}; }
-            to { stroke-dashoffset: 0; stroke: ${FRAME_STROKE}; }
+          .afs-logo-shine {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 40%;
+            height: 100%;
+            background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.55) 50%, rgba(255,255,255,0) 100%);
+            opacity: 0;
+            animation: afs-logo-shine-sweep 0.4s ease-in-out 0.8s forwards,
+                       afs-logo-shine-fade-in 0.4s linear 0.8s forwards;
+            pointer-events: none;
           }
         `}</style>
 
-        <defs>
-          {/* gradientTransform="translate(-2 0)" is the REST state, not just
-              the animation's `from` — without it, the gradient sits at its
-              default (identity) transform, fully inside the box, and washes
-              the whole logo white from t=0 instead of staying hidden until
-              the 0.8s sweep. */}
-          <linearGradient id={gradientId} gradientTransform="translate(-2 0)">
-            <stop offset="0%" stopColor="white" stopOpacity="0" />
-            <stop offset="50%" stopColor="white" stopOpacity="0.6" />
-            <stop offset="100%" stopColor="white" stopOpacity="0" />
-            <animateTransform
-              attributeName="gradientTransform"
-              type="translate"
-              values="-2 0; 3 0"
-              dur="0.4s"
-              begin="0.8s"
-              fill="freeze"
-            />
-          </linearGradient>
-        </defs>
+        <img
+          src="/afs-logo.png"
+          alt="AFS — Architectural Flashing Supply"
+          style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+        />
 
-        {/* 12° skew on the whole mark — same slant as the real logo's
-            italicized "AFS" and the site's Metal Edge signature rule. */}
-        <g transform="skewX(-12)">
-          <g className="afs-logo-frame">
-            <path pathLength={1} d="M2 -8 L182 -8" />
-            <path pathLength={1} d="M2 64 L182 64" />
-          </g>
+        <div key={playKey}>
+          <div
+            className="afs-logo-bar"
+            style={{
+              top: -FRAME_THICKNESS,
+              left: -FRAME_THICKNESS,
+              right: -FRAME_THICKNESS,
+              height: FRAME_THICKNESS,
+              animationName: 'afs-bar-top-in',
+              animationDelay: '0s',
+            }}
+          />
+          <div
+            className="afs-logo-bar"
+            style={{
+              bottom: -FRAME_THICKNESS,
+              left: -FRAME_THICKNESS,
+              right: -FRAME_THICKNESS,
+              height: FRAME_THICKNESS,
+              animationName: 'afs-bar-bottom-in',
+              animationDelay: '0.3s',
+            }}
+          />
+          <div
+            className="afs-logo-bar"
+            style={{
+              left: -FRAME_THICKNESS,
+              top: 0,
+              bottom: 0,
+              width: FRAME_THICKNESS,
+              background: FRAME_GRADIENT.replace('90deg', '180deg'),
+              animationName: 'afs-bar-left-in',
+              animationDelay: '0.45s',
+            }}
+          />
+          <div
+            className="afs-logo-bar"
+            style={{
+              right: -FRAME_THICKNESS,
+              top: 0,
+              bottom: 0,
+              width: FRAME_THICKNESS,
+              background: FRAME_GRADIENT.replace('90deg', '180deg'),
+              animationName: 'afs-bar-right-in',
+              animationDelay: '0.15s',
+            }}
+          />
 
-          <g className="afs-logo-a">
-            <path pathLength={1} d="M32 8 L10 52" />
-            <path pathLength={1} d="M32 8 L54 52" />
-            <path pathLength={1} d="M18 35 L46 35" />
-          </g>
-          <g className="afs-logo-f">
-            <path pathLength={1} d="M70 8 L70 52" />
-            <path pathLength={1} d="M70 8 L108 8" />
-            <path pathLength={1} d="M70 30 L100 30" />
-          </g>
-          <g className="afs-logo-s">
-            <path pathLength={1} d="M153 6 C125 6 125 27 144 32 C162 37 162 58 134 58" />
-          </g>
-        </g>
-
-        <rect x="-20" y="-14" width="220" height="84" fill={`url(#${gradientId})`} pointerEvents="none" />
-      </svg>
+          <div className="afs-logo-shine" />
+        </div>
+      </div>
 
       <button
         type="button"
