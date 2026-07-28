@@ -283,19 +283,27 @@ export default function ChatWidget() {
   if (!expanded) {
     return (
       <button
-        type="button"
         onClick={() => setExpanded(true)}
+        style={{
+          position: 'fixed',
+          bottom: '24px',
+          right: '24px',
+          zIndex: 99999,
+          pointerEvents: 'all',
+          background: 'none',
+          border: 'none',
+          padding: 0,
+          cursor: 'pointer',
+          width: '64px',
+          height: '64px'
+        }}
         aria-label="Open FlashChat"
-        style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 99999, pointerEvents: 'all' }}
-        className="w-16 h-16 rounded-full bg-afs-crimson hover:bg-afs-crimson-hover shadow-crimson flex items-center justify-center transition-colors"
       >
-        <img src="/chat_bubble_icon.png" alt="FlashChat" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
-
-        {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 rounded-full bg-white text-afs-crimson border border-afs-crimson text-xs font-label font-bold flex items-center justify-center">
-            {unreadCount}
-          </span>
-        )}
+        <img
+          src="/chat_bubble_icon.png"
+          alt="FlashChat"
+          style={{ width: '64px', height: '64px', objectFit: 'contain' }}
+        />
       </button>
     );
   }
