@@ -251,6 +251,87 @@ FAQ + Contact pages      NEW (afs-053, 2026-07-27) — `app/(public)/faq/
                          errors; `pnpm run build` → exit 0 (`/faq` 1.16 kB,
                          `/contact` 1.7 kB). Committed (`e720e4d`) and
                          pushed to `origin/main`.
+Chat hydration guard +   NEW (afs-054, 2026-07-27) — `components/ai/
+CC dashboard (afs-054):  ChatWidget.tsx` + `app/admin/command-center/
+                         page.tsx` (new dashboard). **ChatWidget:** the
+                         task's hydration-mismatch theory doesn't match
+                         reality — `ChatWidget` is loaded via `next/
+                         dynamic(..., { ssr: false })` in `AppChrome.tsx`,
+                         so the server renders no markup for it and no
+                         first-paint mismatch is possible for this
+                         component today. Implemented every requested
+                         change anyway as safe hardening: `mounted`-state
+                         guard (documented as redundant given the existing
+                         `dynamic(ssr:false)`, kept in case that wrapper
+                         changes), `z-50` → `z-[9999]` on both the button
+                         and panel, confirmed no `pointer-events-none`/
+                         `overflow-hidden` ancestor exists. sessionStorage
+                         persistence of `expanded` was already added
+                         afs-052 two sessions ago (key
+                         `afs-chat-expanded` — task asked for
+                         `afs-chat-open`; left as-is, functionally
+                         identical, nothing else reads the literal key
+                         name). **Verified a third time, this time against
+                         a real `next build && next start` production
+                         server** (not dev — the report said "on the live
+                         site"): repeated open/close cycles, client-side
+                         nav, desktop + iPhone 13 viewport, zero console
+                         errors. Still not reproduced in any of 3 sessions'
+                         testing (dev desktop, dev mobile, now
+                         production), but the requested defense is in
+                         place regardless. **Command Center dashboard:**
+                         task assumed order statuses `in_production`/
+                         `packaged`/`out_for_delivery` that SCHEMA.md's own
+                         TABLE 18 prose says don't exist on
+                         `orders.status` — reading the actual migration
+                         file (not just SCHEMA.md) showed a later,
+                         already-documented follow-up ("Added for d-002")
+                         widened the real CHECK constraint to include all
+                         three; SCHEMA.md's trailing note is stale, not
+                         the live schema. `packaged`/`out_for_delivery`
+                         are real and load-bearing
+                         (`app/api/orders/[id]/packaged/route.ts`,
+                         `.../dispatch/route.ts`); nothing sets
+                         `in_production` itself (the granular in_queue/
+                         cutting/bending/qc stages are what's actually
+                         used), so "In Production" counts all four plus
+                         `in_production` together rather than a literal,
+                         always-zero filter. New `lib/data/command-center-
+                         dashboard.ts` (order status counts, a lightweight
+                         GBP pending head-count distinct from the existing
+                         signed-URL-fetching `getGbpPhotos`, and a
+                         last-10-any-status quote request query distinct
+                         from the existing submitted-only
+                         `getPendingQuoteRequests`). New `components/admin/
+                         CommandCenterDashboard.tsx` reuses
+                         `InvoicesCrmTab`'s existing "outstanding" status
+                         definition and the existing
+                         `MachineBridgeStatusDot` directly (now polling
+                         twice on the dashboard view — page header +
+                         bottom strip — accepted as harmless rather than
+                         restructuring the shared header). Machine Queue
+                         combines pending quote requests + sent
+                         `machine_jobs` into one compact read-only list
+                         (deliberately not reusing `CommandCenterJobCard`/
+                         `PendingQuoteRequestCard`, which carry real
+                         approve/reject actions still used by the full tab
+                         views) with a client-side filter toggled by the
+                         Pending/Sent status cards; the other 3 status
+                         cards and both bottom-strip links navigate to
+                         `?tab=orders`/`?tab=gbp` since no existing view
+                         supports a status-scoped deep link. Dashboard
+                         shows only when `searchParams.tab` is `undefined`
+                         (not merely invalid) — every previously-reachable
+                         tab URL, including bare `?tab=pending`, is
+                         unchanged; added a "Dashboard" tab-strip entry for
+                         navigability back. **Not visually verified live**
+                         — no admin test credentials exist in this
+                         environment to actually log in — verified via
+                         `pnpm tsc --noEmit` (0 errors), `pnpm run build`
+                         (exit 0, `/admin/command-center` 10.5 kB), and
+                         re-reading every field name against the real data
+                         layer, not by viewing the rendered page. Committed
+                         (`66b9eb9`) and pushed to `origin/main`.
 Database migration:      **CORRECTED afs-041 (2026-07-14) — all 5 migrations are
                          applied to the live Supabase project.** This line had long
                          (incorrectly) claimed 001-003 and 005 were NOT applied; afs-041

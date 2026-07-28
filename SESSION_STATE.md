@@ -7,7 +7,98 @@
 
 ## CURRENT STATUS
 
-**Most recent session (faq-contact-001, 2026-07-27): built a comprehensive
+**Most recent session (chat-hydration-cc-dashboard-001, 2026-07-27): added
+a defensive hydration guard to ChatWidget (still not reproduced as an
+actual bug, tested a third time — now against a real production build) and
+built the Command Center's new unified at-a-glance dashboard.** Read
+`components/ai/ChatWidget.tsx` and `components/layout/AppChrome.tsx` in
+full first, per instruction.
+
+**PART 1 — ChatWidget.** The task's root-cause theory was a hydration
+mismatch remounting the component on first click. Checked this directly:
+`ChatWidget` is loaded via `next/dynamic(() => import(...), { ssr: false })`
+in `AppChrome.tsx`, so the server renders zero markup for it — there is no
+first-paint mismatch possible for this specific component under the
+current architecture. Implemented every requested change anyway, since
+they're safe and the task was explicit: (1) added a `mounted` state +
+`useEffect(() => setMounted(true), [])` + `if (!mounted) return null`
+gate — genuinely redundant given the existing `dynamic(ssr:false)`
+wrapper, kept as a documented belt-and-suspenders guard in case that
+wrapper is ever changed or bypassed. (2) sessionStorage persistence of
+`expanded` was **already implemented** two sessions ago
+(flashdraft/chatbot session) under the key `afs-chat-expanded` (task asked
+for `afs-chat-open`) — left the existing key name as-is since nothing else
+reads it and renaming would be pure churn; functionally identical to what
+was requested (read on mount, write on every `expanded` change, wrapped in
+try/catch for private-browsing storage exceptions). (3) `z-50` → `z-[9999]`
+on both the collapsed button and the expanded panel. (4) Audited
+`components/layout/` for any `pointer-events-none`/`overflow-hidden`
+ancestor that could block clicks — none exists; `ChatWidget` is a direct
+sibling of `AppChrome`'s content wrapper, not nested inside it. **Verified
+live a third time, this time against an actual production build** (`next
+build && next start`, not `next dev` — the report said "on the live
+site," and dev-mode behavior can differ from production in ways worth
+ruling out separately): repeated open/close cycles, client-side
+navigation, both desktop and an iPhone 13 mobile viewport — all correct,
+zero console/page errors, on both viewports. Still no reproduction across
+three separate investigation sessions (dev desktop, dev mobile + simulated
+keyboard-resize, and now production build both viewports), but the
+requested hardening is in place regardless.
+
+**PART 2 — Command Center dashboard.** Read `app/admin/command-center/
+page.tsx` and every component/data module it imports before changing
+anything. **Real data-model check that changed the implementation:** the
+task assumed order statuses `in_production`/`ready`/`packaged`/
+`out_for_delivery` — SCHEMA.md's own TABLE 18 text says the `orders.status`
+CHECK constraint doesn't include these and flags it as an unresolved gap,
+but reading the actual migration file
+(`supabase/migrations/007_delivery_tracking.sql`, not just SCHEMA.md's
+prose) showed a later, documented follow-up ("Added for d-002") that
+already widened the constraint to include `packaged`/`out_for_delivery`/
+`in_production` — SCHEMA.md's trailing note is stale, not the live schema.
+Confirmed `packaged` and `out_for_delivery` are real and load-bearing
+(`app/api/orders/[id]/packaged/route.ts`, `.../dispatch/route.ts` both
+read/write them) but nothing in the app ever sets `in_production` itself
+(the granular `in_queue`/`cutting`/`bending`/`qc` stages are what's
+actually used) — so "In Production" counts `in_queue`/`cutting`/`bending`/
+`qc`/`in_production` together, a real, defensible mapping instead of a
+literal (and always-zero) `status = 'in_production'` filter. New
+`lib/data/command-center-dashboard.ts`: `getOrderStatusCounts` (3 head-count
+queries), `getGbpPendingCount` (a lightweight head-count — deliberately
+NOT reusing `getGbpPhotos`, which does a per-row Storage signed-URL fetch
+that a badge number doesn't need), `getRecentQuoteRequests` (last 10, any
+status — distinct from the existing `getPendingQuoteRequests`, which is
+scoped to `status = 'submitted'` only). New `components/admin/
+CommandCenterDashboard.tsx` (client component) renders all 3 sections;
+reused rather than re-derived: the exact "outstanding" definition
+(`draft`/`sent`/`overdue`) already established in `InvoicesCrmTab.tsx`,
+and the existing `MachineBridgeStatusDot` component directly in the bottom
+strip (so it's now polling twice on the dashboard view — once from the
+page header, once from the strip — a minor, harmless duplication accepted
+rather than restructuring the shared header). The "Machine Queue" list
+normalizes pending quote requests + sent `machine_jobs` rows into one
+compact, read-only `QueueItem[]` — deliberately not reusing
+`CommandCenterJobCard`/`PendingQuoteRequestCard` directly (those carry
+real approve/reject/mark-delivered actions used by the full tab views);
+each compact row instead links to `?tab=pending`/`?tab=sent` to act on it.
+Clicking the Pending Approval / Sent to Machine status cards filters this
+list client-side (`queueFilter` state); the other three status cards and
+the two bottom-strip links navigate to `?tab=orders`/`?tab=gbp` since
+neither `OrdersCrmTab` nor anywhere else supports a status-scoped deep
+link today (adding that was out of scope). `app/admin/command-center/
+page.tsx`: dashboard shows only when `searchParams.tab` is `undefined`
+(not merely invalid) — every previously-reachable URL, including the bare
+`?tab=pending`, resolves exactly as before; added a "Dashboard" entry to
+the tab strip for navigability back. **Not visually verified live** — no
+`E2E_TEST_EMAIL`/`E2E_TEST_PASSWORD` or other admin credentials exist in
+this environment to actually log in and load `/admin/command-center`, so
+this was verified by `pnpm tsc --noEmit` (0 errors), `pnpm run build`
+(exit 0, `/admin/command-center` 10.5 kB), and careful re-reading against
+every real field name in the data layer — not by looking at the rendered
+page, unlike Part 1. Committed (`66b9eb9`) and pushed to `origin/main`, no
+tool-approval blocker.
+
+**Most recent session before that (faq-contact-001, 2026-07-27): built a comprehensive
 FAQ page (46 questions across 6 categories) and a new Contact page, added
 both to navigation, and added FAQPage/LocalBusiness JSON-LD.** Read
 `CLAUDE.md`, `DESIGN_TOKENS.md`, and `components/layout/NavBar.tsx` in
