@@ -237,6 +237,22 @@ const RESOURCES: Resource[] = [
       'Technical resources and product information for steel roofing and wall panel systems. Covers standing seam, corrugated, and ribbed metal panels along with associated trim and flashing components.',
     url: 'https://www.steelroofing.com',
   },
+  {
+    id: 'csi-div7',
+    category: 'Specification & Product Resources',
+    title: 'CSI MasterFormat Division 07 — Thermal and Moisture Protection',
+    description:
+      'The CSI MasterFormat numbering system organizes all construction specifications by division. Division 07 covers all Thermal and Moisture Protection work including: 07 62 00 Sheet Metal Flashing and Trim, 07 63 00 Sheet Metal Drainage, 07 71 00 Roof Specialties (coping caps, gravel stops, fascia), 07 72 00 Roof Accessories, and 07 90 00 Joint Protection and Sealants. Architects use Division 07 section numbers to organize project specifications and coordinate all flashing and waterproofing work. AFS products are specified under Sections 07 62 00 and 07 71 00.',
+    url: 'https://www.csiresources.org/practice/masterformat',
+  },
+  {
+    id: 'spec-076200',
+    category: 'Specification & Product Resources',
+    title: '07 62 00 — Sheet Metal Flashing and Trim Specification Guide',
+    description:
+      'The specific CSI MasterFormat section covering custom-fabricated architectural sheet metal flashing including base flashing, counter flashing, cap flashing, step flashing, valley flashing, coping caps, gravel stops, drip edge, reglets, Z-bars, expansion joint covers, gutters, downspouts, conductor heads, scuppers, and specialty profiles. When specifying AFS-fabricated products, reference Section 07 62 00 for flashing and trim and Section 07 71 00 for roof specialties. Include SMACNA Architectural Sheet Metal Manual as the fabrication reference standard.',
+    url: 'https://www.csiresources.org/practice/masterformat',
+  },
 
   // Texas-Specific Resources
   {
@@ -267,6 +283,35 @@ const RESOURCES: Resource[] = [
 
 const CATEGORY_ORDER = Array.from(new Set(RESOURCES.map((r) => r.category)));
 
+interface VideoPlaceholder {
+  id: string;
+  title: string;
+  searchUrl: string;
+}
+
+const VIDEOS: VideoPlaceholder[] = [
+  {
+    id: 'copper-flashing-installation',
+    title: 'Copper Flashing Installation',
+    searchUrl: 'https://www.youtube.com/results?search_query=copper+flashing+installation',
+  },
+  {
+    id: 'standing-seam-roofing',
+    title: 'Standing Seam Roofing',
+    searchUrl: 'https://www.youtube.com/results?search_query=standing+seam+metal+roof+installation',
+  },
+  {
+    id: 'coping-cap-installation',
+    title: 'Coping Cap Installation',
+    searchUrl: 'https://www.youtube.com/results?search_query=metal+coping+cap+installation',
+  },
+  {
+    id: 'flashing-at-wall-intersections',
+    title: 'Flashing at Wall Intersections',
+    searchUrl: 'https://www.youtube.com/results?search_query=sheet+metal+flashing+wall+intersection',
+  },
+];
+
 function matchesQuery(resource: Resource, term: string): boolean {
   if (!term) return true;
   const haystack = `${resource.title} ${resource.description} ${resource.category}`.toLowerCase();
@@ -289,6 +334,51 @@ function ExternalLinkIcon() {
       <line x1="7" y1="17" x2="17" y2="7" />
       <polyline points="7 7 17 7 17 17" />
     </svg>
+  );
+}
+
+function PlayCircleIcon() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function VideoCard({ video }: { video: VideoPlaceholder }) {
+  return (
+    <div className="bg-afs-bg-raised border border-afs-border rounded flex flex-col overflow-hidden">
+      <div className="aspect-video bg-afs-bg-surface flex items-center justify-center">
+        <div className="w-14 h-14 rounded-full bg-afs-crimson flex items-center justify-center text-white">
+          <PlayCircleIcon />
+        </div>
+      </div>
+      <div className="p-4 flex flex-col flex-1">
+        <h3 className="font-label font-semibold text-afs-chrome-high text-sm mb-2">{video.title}</h3>
+        <a
+          href={video.searchUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-afs-crimson text-xs font-label hover:underline flex items-center gap-1 mb-2"
+        >
+          Watch on YouTube →
+        </a>
+        <p className="font-body text-xs text-afs-chrome-dim leading-relaxed mt-auto">
+          Steve — add a specific YouTube video ID here to embed a video you recommend
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -404,6 +494,27 @@ export default function ResourcesBrowser() {
           ))}
         </div>
       )}
+
+      <section className="mt-16 pt-12 border-t border-afs-border">
+        <div className="flex items-center justify-center gap-2 mb-2">
+          <span className="text-afs-crimson">
+            <PlayCircleIcon />
+          </span>
+          <h2 className="font-heading text-2xl font-semibold text-afs-chrome-high">Video Library</h2>
+        </div>
+        <p className="font-body text-sm text-afs-chrome-mid text-center max-w-2xl mx-auto mb-2">
+          Installation guides, technical training, and manufacturer resources
+        </p>
+        <p className="text-xs text-afs-chrome-dim text-center max-w-2xl mx-auto mb-8">
+          Videos are hosted by their respective organizations. AFS is not affiliated with video
+          producers unless noted.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {VIDEOS.map((video) => (
+            <VideoCard key={video.id} video={video} />
+          ))}
+        </div>
+      </section>
     </div>
   );
 }

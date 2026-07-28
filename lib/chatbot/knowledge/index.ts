@@ -5,15 +5,20 @@ import { afsProfilesKnowledge } from './afs-profiles';
 import { afsCompanyKnowledge } from './afs-company';
 import { resourcesKnowledge } from './resources';
 import { specFilesKnowledge } from './spec-files';
+import { youtubeKnowledge } from './youtube-data';
+import { webKnowledge } from './web-knowledge';
 
 export type { KnowledgeChunk };
 
 // Combined AFS chatbot RAG knowledge base — Division 7 reference
 // content, material data, AFS-specific profiles, company/operational
-// info, industry resources, and customer-facing platform feature
-// descriptions extracted from specs/. Consumed by app/api/chat/route.ts
-// to ground responses without relying purely on the system prompt or an
-// external vector DB.
+// info, industry resources, customer-facing platform feature
+// descriptions extracted from specs/, and AFS-authored technical
+// installation guidance (including the larger web-knowledge.ts
+// technical library covering copper/aluminum/steel systems and
+// flashing principles). Consumed by app/api/chat/route.ts to ground
+// responses without relying purely on the system prompt or an external
+// vector DB.
 export const allKnowledge: KnowledgeChunk[] = [
   ...division7Knowledge,
   ...materialsKnowledge,
@@ -21,6 +26,8 @@ export const allKnowledge: KnowledgeChunk[] = [
   ...afsCompanyKnowledge,
   ...resourcesKnowledge,
   ...specFilesKnowledge,
+  ...youtubeKnowledge,
+  ...webKnowledge,
 ];
 
 const STOP_WORDS = new Set([
@@ -42,9 +49,12 @@ function tokenize(text: string): string[] {
 /**
  * Simple keyword-overlap scoring — no external vector DB required.
  * Each chunk is scored against the tokenized query with weighted hits:
- * exact keyword match > topic-text match > content-text match, plus a
- * small bonus for category/subcategory hits. Chunks with a zero score
- * are excluded. Returns the top 5 highest-scoring chunks.
+ * an exact keyword token match is weighted well above a partial/
+ * substring keyword match, topic-text and category/subcategory hits
+ * carry their own (smaller) weights, and content-text matches are the
+ * lightest signal. Chunks with a zero score are excluded. Returns the
+ * top 8 highest-scoring chunks (widened from 5 to make better use of
+ * the chat route's larger ~1500-token context budget).
  */
 export function searchKnowledge(query: string): KnowledgeChunk[] {
   const queryTokens = tokenize(query);
@@ -59,19 +69,22 @@ export function searchKnowledge(query: string): KnowledgeChunk[] {
     let score = 0;
 
     for (const token of queryTokens) {
-      // Exact keyword token match (highest weight)
-      if (keywordSet.has(token)) score += 5;
-
-      // Keyword phrase contains the token (e.g. "coping" inside "coping cap")
-      for (const keyword of keywordSet) {
-        if (keyword.includes(token) || token.includes(keyword)) {
-          score += 3;
-          break;
+      // Exact keyword token match — highest weight, kept clearly above
+      // the partial/substring keyword match below.
+      if (keywordSet.has(token)) {
+        score += 8;
+      } else {
+        // Keyword phrase contains the token (e.g. "coping" inside "coping cap")
+        for (const keyword of keywordSet) {
+          if (keyword.includes(token) || token.includes(keyword)) {
+            score += 3;
+            break;
+          }
         }
       }
 
       if (topicText.includes(token)) score += 3;
-      if (categoryText.includes(token)) score += 1;
+      if (categoryText.includes(token)) score += 2;
       if (contentText.includes(token)) score += 1;
     }
 
@@ -79,6 +92,7 @@ export function searchKnowledge(query: string): KnowledgeChunk[] {
     // the topic or keywords (rewards precise matches like "coping cap").
     const queryLower = query.toLowerCase();
     if (topicText.includes(queryLower) && queryLower.length > 3) score += 4;
+    if (categoryText.includes(queryLower) && queryLower.length > 3) score += 3;
     for (const keyword of keywordSet) {
       if (queryLower.includes(keyword) && keyword.length > 3) score += 2;
     }
@@ -89,6 +103,6 @@ export function searchKnowledge(query: string): KnowledgeChunk[] {
   return scored
     .filter((s) => s.score > 0)
     .sort((a, b) => b.score - a.score)
-    .slice(0, 5)
+    .slice(0, 8)
     .map((s) => s.chunk);
 }

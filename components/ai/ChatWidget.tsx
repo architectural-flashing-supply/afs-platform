@@ -16,12 +16,12 @@ const ESCALATE_PATTERN = /^\s*\[ESCALATE:\s*(\{[\s\S]*?\})\]\s*/;
 const MAX_HISTORY = 20;
 
 const SUGGESTED_QUESTIONS = [
-  "What's the difference between coping, flashing, and drip edge?",
-  'What material should I use for coastal Texas?',
-  'How do I specify copper flashing gauge?',
-  'What is a gravel stop?',
-  'How does the quote process work?',
-  'What file formats do you accept?',
+  "What's the minimum slope for a coping cap?",
+  'Copper vs aluminum — which for coastal Texas?',
+  'What does Section 07 62 00 cover?',
+  'How do I prevent oil-canning in flat panels?',
+  'What is the SMACNA standard for end laps?',
+  'What profile do I need for a parapet wall?',
 ];
 
 interface RoutingLink {
@@ -115,6 +115,22 @@ export default function ChatWidget() {
     setMounted(true);
   }, []);
 
+  // Lets other pages (e.g. app/(public)/flashchat/page.tsx) open this
+  // globally-mounted widget without importing it directly — dispatch
+  // window.dispatchEvent(new CustomEvent('open-flashchat', { detail: { question } }))
+  // to expand the widget and optionally pre-fill (not auto-send) a question.
+  useEffect(() => {
+    const handleOpenFlashChat = (e: Event) => {
+      setExpanded(true);
+      const question = (e as CustomEvent<{ question?: string }>).detail?.question;
+      if (question) {
+        setInput(question);
+      }
+    };
+    window.addEventListener('open-flashchat', handleOpenFlashChat);
+    return () => window.removeEventListener('open-flashchat', handleOpenFlashChat);
+  }, []);
+
   useEffect(() => {
     expandedRef.current = expanded;
     if (expanded) setUnreadCount(0);
@@ -193,7 +209,7 @@ export default function ChatWidget() {
         setUnreadCount((c) => c + 1);
       }
     } catch {
-      setError('AFS Support is unavailable right now. Please try again, or contact us directly.');
+      setError('FlashChat is unavailable right now. Please try again, or contact us directly.');
       setMessages((prev) => prev.filter((m) => m.id !== assistantId));
     } finally {
       setIsStreaming(false);
@@ -224,20 +240,16 @@ export default function ChatWidget() {
       <button
         type="button"
         onClick={() => setExpanded(true)}
-        aria-label="Open AFS Support chat"
+        aria-label="Open FlashChat"
         className="fixed bottom-8 right-6 z-[9999] w-16 h-16 rounded-full bg-afs-crimson hover:bg-afs-crimson-hover shadow-crimson flex items-center justify-center transition-colors"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 24 24"
-          fill="none"
-          stroke="white"
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
+          fill="white"
           className="w-7 h-7"
         >
-          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+          <path d="M12 2C8.5 2 5.5 4.5 5 8H4C3.4 8 3 8.4 3 9v2c0 .6.4 1 1 1h16c.6 0 1-.4 1-1V9c0-.6-.4-1-1-1h-1C18.5 4.5 15.5 2 12 2zm0 2c2.5 0 4.7 1.7 5.5 4h-11C7.3 5.7 9.5 4 12 4zM3 13v1c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-1H3z" />
         </svg>
 
         {unreadCount > 0 && (
@@ -251,21 +263,35 @@ export default function ChatWidget() {
 
   return (
     <div className="fixed bottom-16 right-6 z-[9999] w-[380px] h-[520px] max-w-[calc(100vw-2rem)] max-h-[80vh] bg-afs-bg-raised border border-afs-border rounded shadow-raised metal-edge flex flex-col overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-afs-border bg-afs-bg-raised">
+      <div className="flex items-start justify-between px-4 py-3 border-b border-afs-border bg-afs-bg-dim">
         <div>
           <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-afs-success" />
-            <p className="font-heading text-lg font-semibold text-afs-chrome-high leading-tight">AFS Assistant</p>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              className="w-5 h-5 text-afs-crimson shrink-0"
+            >
+              <path d="M12 2C8.5 2 5.5 4.5 5 8H4C3.4 8 3 8.4 3 9v2c0 .6.4 1 1 1h16c.6 0 1-.4 1-1V9c0-.6-.4-1-1-1h-1C18.5 4.5 15.5 2 12 2zm0 2c2.5 0 4.7 1.7 5.5 4h-11C7.3 5.7 9.5 4 12 4zM3 13v1c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-1H3z" />
+            </svg>
+            <p className="font-heading font-bold text-white text-lg leading-tight">FlashChat</p>
           </div>
-          <p className="font-body text-xs text-afs-chrome-mid mt-0.5">
-            Ask me anything about flashing, materials, or your project
+          <p className="font-label text-xs text-afs-crimson uppercase tracking-widest mt-0.5">
+            Industry Intelligence
+          </p>
+          <p className="font-body text-xs text-afs-chrome-mid leading-relaxed mt-1 max-w-[280px]">
+            Trained on Division 7 standards, SMACNA specifications, material science,
+            and 30+ years of Texas fabrication expertise. Ask anything.
+          </p>
+          <p className="font-body text-xs text-afs-chrome-dim mt-1 italic">
+            For formal quotes and engineering decisions, contact AFS directly.
           </p>
         </div>
         <button
           type="button"
           onClick={() => setExpanded(false)}
           aria-label="Close chat"
-          className="text-afs-chrome-mid hover:text-afs-chrome-high transition-colors text-xl leading-none px-1"
+          className="text-afs-chrome-mid hover:text-afs-chrome-high transition-colors text-xl leading-none px-1 shrink-0"
         >
           &times;
         </button>
