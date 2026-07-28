@@ -289,7 +289,7 @@ export default function ChatWidget() {
         style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 99999, pointerEvents: 'all' }}
         className="w-16 h-16 rounded-full bg-afs-crimson hover:bg-afs-crimson-hover shadow-crimson flex items-center justify-center transition-colors"
       >
-        <HardHatQuestionIcon className="w-7 h-7" />
+        <img src="/chat_bubble_icon.png" alt="FlashChat" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
 
         {unreadCount > 0 && (
           <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 rounded-full bg-white text-afs-crimson border border-afs-crimson text-xs font-label font-bold flex items-center justify-center">
@@ -308,7 +308,7 @@ export default function ChatWidget() {
       <div className="flex items-start justify-between px-4 py-3 border-b border-afs-border bg-afs-bg-dim">
         <div>
           <div className="flex items-center gap-1.5">
-            <HardHatQuestionIcon className="w-5 h-5 shrink-0" />
+            <img src="/chat_bubble_icon.png" alt="FlashChat" style={{ width: '20px', height: '20px', objectFit: 'contain' }} />
             <p className="font-heading font-bold text-white text-lg leading-tight">FlashChat</p>
           </div>
           <p className="font-label text-xs text-afs-crimson uppercase tracking-widest mt-0.5">
