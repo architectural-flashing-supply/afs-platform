@@ -7,7 +7,67 @@
 
 ## CURRENT STATUS
 
-**Most recent session (chatbot-expand-001, 2026-07-27): expanded the AI
+**Most recent session (faq-contact-001, 2026-07-27): built a comprehensive
+FAQ page (46 questions across 6 categories) and a new Contact page, added
+both to navigation, and added FAQPage/LocalBusiness JSON-LD.** Read
+`CLAUDE.md`, `DESIGN_TOKENS.md`, and `components/layout/NavBar.tsx` in
+full first, per instruction. **Two real conflicts surfaced against the
+literal task, both resolved by checking the actual codebase first rather
+than assuming a blank slate:**
+
+(1) **`/contact` already existed** — `app/(public)/contact/page.tsx` was a
+fully built, functioning page (hero, address sidebar, map placeholder) with
+a real lead-capture form (`ContactForm`) that POSTs to `/api/contact`,
+which inserts into the `consultation_requests` table — a live business
+pipeline (the admin portal's Consultations tab reads that same table). The
+task's "create app/contact/page.tsx" would have either collided with this
+existing route (two `page.tsx` resolving to `/contact` — a hard Next.js
+build error) if placed unwisely, or silently deleted a working lead-gen
+feature if the file were simply overwritten to match the task's literal
+(simpler) spec. Neither was acceptable. **Resolution:** extracted the
+existing form logic unchanged into `components/contact/ContactForm.tsx`
+(now its own client component), then rebuilt `app/(public)/contact/page.tsx`
+as a server component carrying every element the task asked for — the
+`metadata` export (impossible on the old `'use client'` page file), the
+three contact cards (Phone/General/Owner, exact hrefs and copy as
+specified), the "Visit or Ship To" address block with the exact Get
+Directions Google Maps link, the Design Studio CTA, and the LocalBusiness
+JSON-LD — while keeping the working `ContactForm` in place as a "Send a
+Message" section between the cards and the address block, so the
+`consultation_requests`/admin-Consultations pipeline keeps working. (2)
+**Route placement:** the task said `app/faq/page.tsx` / `app/contact/
+page.tsx`, but every other public marketing page in this codebase
+(`/about`, `/architects`, `/products`, the pre-existing `/contact`) lives
+under the `app/(public)/` route group — a Next.js route group that doesn't
+affect the URL. Placed the new FAQ page at `app/(public)/faq/page.tsx` to
+match that convention; the URL is `/faq` either way. Content: `lib/data/
+faq.ts` holds all 46 Q&A pairs verbatim across the 6 requested categories
+(Company & Contact, Products & Profiles, Materials, Process & Ordering,
+Division 7 & Technical, Delivery & Tracking) as a typed, shared array;
+`components/faq/FaqAccordion.tsx` (client component) renders the search
+box and per-question expand/collapse (a `Set<string>` of expanded keys,
+individually toggled, matching "each question is individually expandable
+via useState") and filters by matching the search term against either the
+question or answer text; `app/(public)/faq/page.tsx` (server component)
+carries the `metadata` export and a `FAQPage` JSON-LD script whose
+`mainEntity` is the first 15 Q&A pairs in display order (all of "Company &
+Contact" plus the front of "Products & Profiles"). NavBar: added `FAQ` →
+`/faq` and `Contact` → `/contact` to both `PANEL_LINKS` (sidebar) and the
+top header's hardcoded `<Link>` list, immediately after Architects in both
+places, per instruction. Smoke-tested live in a real browser (Playwright)
+before calling this done, per the UI-verification instruction in this
+project's own operating rules: loaded `/faq`, confirmed the JSON-LD parses
+to 15 `mainEntity` entries, clicked a question open then closed (both
+states rendered correctly), searched "coping cap" (correctly narrowed to
+matching questions only); loaded `/contact`, confirmed the LocalBusiness
+JSON-LD's phone/name, that the Phone/Owner mailto/Get Directions/Studio CTA
+links all render, and that the preserved `ContactForm` still renders as
+"Send a Message"; confirmed both new NavBar links render on the homepage.
+No console or page errors. `pnpm tsc --noEmit` → 0 errors. `pnpm run build`
+→ passed (`/faq` 1.16 kB, `/contact` 1.7 kB). Committed (`e720e4d`) and
+pushed to `origin/main`, no tool-approval blocker.
+
+**Most recent session before that (chatbot-expand-001, 2026-07-27): expanded the AI
 chatbot's knowledge and context, raised its token ceiling, and hardened
 ChatWidget against a reported (but not reproduced) mobile disappearing
 bug.** Read `app/api/chat/route.ts`, `components/ai/ChatWidget.tsx`, and

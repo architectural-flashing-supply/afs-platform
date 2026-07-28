@@ -193,6 +193,64 @@ Chatbot expansion        NEW (afs-052, 2026-07-27) — `app/api/chat/route.ts`
                          `EPERM` on `.next/trace` on the first attempt —
                          killed it, rebuilt clean). Committed (`7cc1bf9`) and
                          pushed to `origin/main`.
+FAQ + Contact pages      NEW (afs-053, 2026-07-27) — `app/(public)/faq/
+(afs-053):               page.tsx` (new) and `app/(public)/contact/
+                         page.tsx` (rebuilt), plus NavBar additions and
+                         JSON-LD. **Two conflicts against the literal task,
+                         both caught by checking the real codebase before
+                         writing anything:** (1) `/contact` already
+                         existed — a fully working page with a real
+                         lead-capture form (`ContactForm` → POST
+                         `/api/contact` → inserts into `consultation_
+                         requests`, read by the admin portal's
+                         Consultations tab). Creating a second, literal
+                         `app/contact/page.tsx` would either collide with
+                         it (duplicate route → Next.js build error) or,
+                         if the existing file were simply overwritten,
+                         silently delete a live business pipeline. Fixed
+                         by extracting the existing form into
+                         `components/contact/ContactForm.tsx` (client
+                         component, logic unchanged) and rebuilding
+                         `app/(public)/contact/page.tsx` as a server
+                         component that carries every element the task
+                         asked for (metadata — impossible on the old
+                         `'use client'` page — three cards, address block,
+                         Studio CTA, LocalBusiness JSON-LD) while keeping
+                         `ContactForm` mounted as a "Send a Message"
+                         section, so the consultation pipeline still
+                         works. (2) Task said `app/faq/page.tsx` / `app/
+                         contact/page.tsx`; every other public marketing
+                         page (`/about`, `/architects`, `/products`, the
+                         pre-existing `/contact`) lives under the `app/
+                         (public)/` route group (doesn't affect the URL) —
+                         placed the new FAQ page there too, for
+                         consistency; `/faq` resolves identically either
+                         way. Content: `lib/data/faq.ts` — 46 Q&A pairs
+                         verbatim across the 6 requested categories, a
+                         typed shared array. `components/faq/
+                         FaqAccordion.tsx` (client) — search box filtering
+                         on question-or-answer text, and a `Set<string>`
+                         of expanded keys so each question toggles
+                         independently. `app/(public)/faq/page.tsx`
+                         (server) — metadata export + `FAQPage` JSON-LD
+                         over the first 15 Q&A pairs in display order.
+                         NavBar: `FAQ` → `/faq` and `Contact` → `/contact`
+                         added to both `PANEL_LINKS` (sidebar) and the top
+                         header's `<Link>` list, right after Architects in
+                         both. Smoke-tested live via Playwright before
+                         calling this done (per this project's own
+                         UI-verification rule): both pages' JSON-LD
+                         parsed correctly (15 `mainEntity` entries; correct
+                         LocalBusiness phone), the FAQ accordion opened/
+                         closed and the search filter narrowed results
+                         correctly, all three contact cards' links and the
+                         Get Directions/Studio CTA links rendered, the
+                         preserved `ContactForm` still rendered, and both
+                         new NavBar links appeared on the homepage — no
+                         console or page errors. `pnpm tsc --noEmit` → 0
+                         errors; `pnpm run build` → exit 0 (`/faq` 1.16 kB,
+                         `/contact` 1.7 kB). Committed (`e720e4d`) and
+                         pushed to `origin/main`.
 Database migration:      **CORRECTED afs-041 (2026-07-14) — all 5 migrations are
                          applied to the live Supabase project.** This line had long
                          (incorrectly) claimed 001-003 and 005 were NOT applied; afs-041
