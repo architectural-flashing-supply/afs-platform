@@ -2,10 +2,6 @@
 
 import type { ReactNode } from 'react';
 
-export interface FlashChatOpenEventDetail {
-  question?: string;
-}
-
 interface FlashChatOpenButtonProps {
   question?: string;
   className: string;
@@ -13,16 +9,18 @@ interface FlashChatOpenButtonProps {
 }
 
 // Dispatched on `window` and picked up by components/ai/ChatWidget.tsx's
-// 'open-flashchat' listener — lets any page open the (globally-mounted)
-// chat widget, optionally pre-filling a question, without either side
-// importing the other.
+// 'open-flashchat' / 'flashchat-prefill' listeners — lets any page open the
+// (globally-mounted) chat widget, optionally pre-filling a question, without
+// either side importing the other. The prefill fires ~300ms after open so
+// the panel is already expanding before the input value changes.
 export default function FlashChatOpenButton({ question, className, children }: FlashChatOpenButtonProps) {
   const handleClick = () => {
-    window.dispatchEvent(
-      new CustomEvent<FlashChatOpenEventDetail>('open-flashchat', {
-        detail: question ? { question } : undefined,
-      })
-    );
+    window.dispatchEvent(new CustomEvent('open-flashchat'));
+    if (question) {
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('flashchat-prefill', { detail: question }));
+      }, 300);
+    }
   };
 
   return (

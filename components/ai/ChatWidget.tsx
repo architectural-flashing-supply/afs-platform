@@ -117,18 +117,23 @@ export default function ChatWidget() {
 
   // Lets other pages (e.g. app/(public)/flashchat/page.tsx) open this
   // globally-mounted widget without importing it directly — dispatch
-  // window.dispatchEvent(new CustomEvent('open-flashchat', { detail: { question } }))
-  // to expand the widget and optionally pre-fill (not auto-send) a question.
+  // window.dispatchEvent(new CustomEvent('open-flashchat')) to expand it.
   useEffect(() => {
-    const handleOpenFlashChat = (e: Event) => {
-      setExpanded(true);
-      const question = (e as CustomEvent<{ question?: string }>).detail?.question;
-      if (question) {
-        setInput(question);
-      }
+    const handler = () => setExpanded(true);
+    window.addEventListener('open-flashchat', handler);
+    return () => window.removeEventListener('open-flashchat', handler);
+  }, []);
+
+  // Companion event — dispatched ~300ms after 'open-flashchat' (see
+  // FlashChatOpenButton) so the widget is already expanding before the
+  // input gets pre-filled (not auto-sent) with a sample question.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const question = (e as CustomEvent<string>).detail;
+      if (typeof question === 'string') setInput(question);
     };
-    window.addEventListener('open-flashchat', handleOpenFlashChat);
-    return () => window.removeEventListener('open-flashchat', handleOpenFlashChat);
+    window.addEventListener('flashchat-prefill', handler);
+    return () => window.removeEventListener('flashchat-prefill', handler);
   }, []);
 
   useEffect(() => {
@@ -241,7 +246,8 @@ export default function ChatWidget() {
         type="button"
         onClick={() => setExpanded(true)}
         aria-label="Open FlashChat"
-        className="fixed bottom-8 right-6 z-[9999] w-16 h-16 rounded-full bg-afs-crimson hover:bg-afs-crimson-hover shadow-crimson flex items-center justify-center transition-colors"
+        style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 99999, pointerEvents: 'all' }}
+        className="w-16 h-16 rounded-full bg-afs-crimson hover:bg-afs-crimson-hover shadow-crimson flex items-center justify-center transition-colors"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -249,7 +255,7 @@ export default function ChatWidget() {
           fill="white"
           className="w-7 h-7"
         >
-          <path d="M12 2C8.5 2 5.5 4.5 5 8H4C3.4 8 3 8.4 3 9v2c0 .6.4 1 1 1h16c.6 0 1-.4 1-1V9c0-.6-.4-1-1-1h-1C18.5 4.5 15.5 2 12 2zm0 2c2.5 0 4.7 1.7 5.5 4h-11C7.3 5.7 9.5 4 12 4zM3 13v1c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-1H3z" />
+          <path d="M12 2C8.5 2 5.7 4.1 4.5 7H4C2.9 7 2 7.9 2 9v1c0 .6.4 1 1 1h18c.6 0 1-.4 1-1V9c0-1.1-.9-2-2-2h-.5C18.3 4.1 15.5 2 12 2zm0 2c2.8 0 5.2 1.7 6.2 4H5.8C6.8 5.7 9.2 4 12 4zM2 12v1c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2v-1H2z" />
         </svg>
 
         {unreadCount > 0 && (
@@ -262,7 +268,10 @@ export default function ChatWidget() {
   }
 
   return (
-    <div className="fixed bottom-16 right-6 z-[9999] w-[380px] h-[520px] max-w-[calc(100vw-2rem)] max-h-[80vh] bg-afs-bg-raised border border-afs-border rounded shadow-raised metal-edge flex flex-col overflow-hidden">
+    <div
+      style={{ position: 'fixed', bottom: '80px', right: '24px', zIndex: 99999, width: '380px', pointerEvents: 'all' }}
+      className="h-[520px] max-w-[calc(100vw-2rem)] max-h-[80vh] bg-afs-bg-raised border border-afs-border rounded shadow-raised metal-edge flex flex-col overflow-hidden"
+    >
       <div className="flex items-start justify-between px-4 py-3 border-b border-afs-border bg-afs-bg-dim">
         <div>
           <div className="flex items-center gap-1.5">
@@ -272,7 +281,7 @@ export default function ChatWidget() {
               fill="currentColor"
               className="w-5 h-5 text-afs-crimson shrink-0"
             >
-              <path d="M12 2C8.5 2 5.5 4.5 5 8H4C3.4 8 3 8.4 3 9v2c0 .6.4 1 1 1h16c.6 0 1-.4 1-1V9c0-.6-.4-1-1-1h-1C18.5 4.5 15.5 2 12 2zm0 2c2.5 0 4.7 1.7 5.5 4h-11C7.3 5.7 9.5 4 12 4zM3 13v1c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-1H3z" />
+              <path d="M12 2C8.5 2 5.7 4.1 4.5 7H4C2.9 7 2 7.9 2 9v1c0 .6.4 1 1 1h18c.6 0 1-.4 1-1V9c0-1.1-.9-2-2-2h-.5C18.3 4.1 15.5 2 12 2zm0 2c2.8 0 5.2 1.7 6.2 4H5.8C6.8 5.7 9.2 4 12 4zM2 12v1c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2v-1H2z" />
             </svg>
             <p className="font-heading font-bold text-white text-lg leading-tight">FlashChat</p>
           </div>

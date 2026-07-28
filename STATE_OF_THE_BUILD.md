@@ -186,6 +186,60 @@ Admin nav cleanup        NEW (afs-048, 2026-07-27) — removed the "CAD Library"
                          logged in the `pnpm tsc --noEmit` line below — not
                          hit this session). Committed (`d7031e0`) and pushed
                          to `origin/main`.
+FlashChat widget fixes   NEW (flashchat-fix-001, 2026-07-27) — four targeted
+(flashchat-fix-001):     fixes scoped to `components/ai/ChatWidget.tsx`,
+                         `app/(public)/flashchat/page.tsx`, `components/
+                         flashchat/FlashChatOpenButton.tsx`. (1) Panel/
+                         button positioning: replaced the Tailwind `fixed
+                         bottom-8`/`bottom-16 right-6 z-[9999]` classes with
+                         inline `style={{ position: 'fixed', ...zIndex:
+                         99999, pointerEvents: 'all' }}` on both the
+                         collapsed bubble and expanded panel, per explicit
+                         instruction — no scroll-container/overflow
+                         ancestor was actually found in `AppChrome.tsx`
+                         (ChatWidget already renders as a layout-level
+                         sibling of the `ml-48 pt-11` content div, not
+                         nested inside it), but the inline-style rewrite
+                         was applied regardless, as instructed. (2)
+                         Replaced the hard hat SVG path everywhere it
+                         appears (bubble button, panel header, and the
+                         `/flashchat` hero — which had previously rendered
+                         an unrelated icon, not a hard hat) with the exact
+                         path supplied, keeping each usage's existing
+                         color mechanism (`fill="white"` on the crimson
+                         button, `text-afs-crimson`/`currentColor`
+                         elsewhere) rather than hardcoding a literal fill
+                         value, since token-driven color already satisfied
+                         rule #4. (3) Rename audit: repo-wide grep
+                         confirmed "AFS Assistant"/"AFS Support" no longer
+                         appear anywhere in `app/` or `components/` — the
+                         only remaining matches are historical narrative in
+                         this file, `SESSION_STATE.md`, and `specs/
+                         SPEC_AI_CHATBOT.md`, left as point-in-time
+                         records; `app/api/chat/route.ts`'s system prompt
+                         already opens "You are FlashChat", no code change
+                         needed. (4) Event wiring: `FlashChatOpenButton.tsx`
+                         now dispatches a bare `open-flashchat` CustomEvent
+                         always, then — only when a `question` prop is
+                         passed (the 9 sample-question chips, not the hero
+                         "Ask FlashChat Now" button) — a `flashchat-prefill`
+                         CustomEvent carrying the question string as
+                         `detail`, 300ms later; `ChatWidget.tsx` now has
+                         two separate listeners (`open-flashchat` →
+                         `setExpanded(true)`, `flashchat-prefill` →
+                         `setInput(detail)`) replacing the prior single
+                         combined listener that read `detail.question`.
+                         `pnpm tsc --noEmit`: 0 errors. `pnpm run build`:
+                         exit 0, no route-count change. Committed and
+                         pushed — no tool-approval blocker this session.
+                         Also confirmed via `git log` that the rag-006/
+                         rag-007 entries above (each logged as "Not
+                         committed" at the time) are in fact live on
+                         `origin/main`, bundled into `88e5151`/`4336446` by
+                         a later session not reflected in this doc's prose
+                         — those two entries' "Not committed" claims are
+                         now stale but left as point-in-time records rather
+                         than rewritten.
 FlashDraft "My Saved     NEW (afs-049, 2026-07-27) — FlashDraft's top toolbar
 Profiles" (afs-049):     folder-icon button (`icon="open"`, previously
                          labeled "Open", calling `openLibrary()` to show a

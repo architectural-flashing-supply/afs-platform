@@ -144,12 +144,13 @@ export default function FlashChatPage() {
       {/* Hero */}
       <section className="metal-edge metal-edge-red px-6 pt-20 pb-16 text-center border-b border-afs-border">
         <svg
+          xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 24 24"
           fill="currentColor"
           className="w-16 h-16 text-afs-crimson mx-auto mb-6"
           aria-hidden="true"
         >
-          <path d="M12 2a1 1 0 0 1 1 1v1.06A8.5 8.5 0 0 1 20.5 12v1H21a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-1a1 1 0 0 1 1-1h.5v-1A8.5 8.5 0 0 1 11 4.06V3a1 1 0 0 1 1-1Zm-6.48 10h12.96A6.5 6.5 0 0 0 13 6.08V10a1 1 0 0 1-2 0V6.08A6.5 6.5 0 0 0 5.52 12ZM2 18a1 1 0 0 1 1-1h18a1 1 0 0 1 1 1 3 3 0 0 1-3 3H5a3 3 0 0 1-3-3Z" />
+          <path d="M12 2C8.5 2 5.7 4.1 4.5 7H4C2.9 7 2 7.9 2 9v1c0 .6.4 1 1 1h18c.6 0 1-.4 1-1V9c0-1.1-.9-2-2-2h-.5C18.3 4.1 15.5 2 12 2zm0 2c2.8 0 5.2 1.7 6.2 4H5.8C6.8 5.7 9.2 4 12 4zM2 12v1c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2v-1H2z" />
         </svg>
 
         <h1 className="font-heading text-5xl font-bold text-white mb-3">FlashChat</h1>
