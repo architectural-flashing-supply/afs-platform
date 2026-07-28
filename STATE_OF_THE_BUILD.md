@@ -377,6 +377,102 @@ color fix                nav-link color flashchat-fix-002 (below) added
                          locations: `rgb(232, 0, 31)` (`#E8001F`) in
                          both. Committed and pushed, no tool-approval
                          blocker.
+Animated AFS logo +      NEW (afs-logo-001, 2026-07-28) — read `CLAUDE.md`,
+FlashChat/nav re-verify  `DESIGN_TOKENS.md`, and `components/layout/
+(afs-logo-001):          NavBar.tsx` first, per instruction. Three-part
+                         prompt; only part 1 required new code — parts 2
+                         and 3 were already live from flashchat-fix-004/
+                         -005 and nav-crimson-001 (below/above), confirmed
+                         by reading `ChatWidget.tsx`/`NavBar.tsx` in full
+                         before touching anything, not assumed from memory.
+                         **(1) New `components/ui/AFSAnimatedLogo.tsx`** —
+                         pure inline SVG, `viewBox="0 0 200 60"`, no
+                         external animation library. Each letter (A/F/S) is
+                         a `<g>` of the exact `pathLength={1}` paths
+                         supplied, drawn via a `stroke-dasharray: 1` /
+                         `stroke-dashoffset: 1→0` CSS `@keyframes`
+                         (`afs-logo-draw`, 0.25s each) staggered by
+                         `animation-delay` — A at 0s, F at 0.25s, S at
+                         0.5s — then a second `@keyframes`
+                         (`afs-logo-fill`) transitions each letter's `fill`
+                         from transparent to `#B8BFD0` starting the instant
+                         its own draw finishes. A `linearGradient` (white
+                         stops at 0/50/100% opacity 0/0.6/0, exact SVG
+                         given) sweeps across a full-size overlay `<rect>`
+                         via a native SMIL `<animateTransform>`
+                         (`begin="0.8s"`, `dur="0.4s"`, `fill="freeze"`) —
+                         kept as SMIL rather than converted to CSS since
+                         the prompt supplied literal SMIL markup and CSS
+                         can't animate `gradientTransform`. Gradient `id`
+                         is namespaced per instance via `useId()` so two
+                         logos on one page (unlikely today, but NavBar
+                         could render more than once in Storybook/tests)
+                         don't collide on `url(#afs-shine)`. Sound is Web
+                         Audio API, no audio files, using the exact
+                         `synthesizeMetalClink`/`synthesizeShimmer`
+                         functions supplied — a module-scope
+                         `sharedAudioCtx` is created lazily by a one-time
+                         `pointerdown`/`keydown` window listener (browsers
+                         block audio output before a real gesture; the
+                         initial page-load play is silent until the user
+                         interacts once, then every replay after that has
+                         sound — matches "fail silently if blocked", not a
+                         bug). Clinks fire at `ctx.currentTime +
+                         0.25/0.5/0.75` (2100/1900/2300hz) and the shimmer
+                         at `+0.8`, scheduled off the Web Audio clock
+                         itself rather than `setTimeout` so they can't
+                         drift from the CSS/SMIL visual timing. Replaying
+                         (hover, when `loop` is false — the default) and
+                         auto-looping (`loop=true`, a `setInterval` every
+                         1.6s) both work by putting `key={playKey}` on the
+                         `<svg>` element itself, not an inner `<g>` — SMIL
+                         `begin` times are relative to the nearest `<svg>`
+                         time container's own creation, so only a full
+                         `<svg>` remount actually restarts the shine
+                         animation; keying an inner element would leave the
+                         shine playing just once, ever, and only redraw
+                         the letters on repeat. Mute toggle
+                         (🔊/🔇, `opacity-40 hover:opacity-100`, bottom-right
+                         overlay, `e.preventDefault()` + `stopPropagation()`
+                         so it doesn't trigger the wrapping `<Link>`'s
+                         navigation) persists to `sessionStorage` key
+                         `afs-logo-muted`, read once on mount so SSR/client
+                         first paint match (no hydration mismatch) and
+                         corrected right after. Literal hex/keyword values
+                         (`#B8BFD0` stroke/fill, `white` gradient stops)
+                         are called out in a comment citing the same
+                         "explicit instruction" rule-#4 carve-out already
+                         used for `NavBar`'s `backgroundColor: '#C0001A'`
+                         (nav-crimson-001) — the prompt supplied this exact
+                         SVG/color code verbatim, it isn't derived from the
+                         afs-* token system. **`NavBar.tsx`** — the sidebar
+                         `<Image src="/afs-logo.png">` is replaced by
+                         `<AFSAnimatedLogo width={120} height={36}
+                         className="cursor-pointer" />` inside the existing
+                         `<Link href="/">`; the original `Image` (same
+                         `232×165`, `w-full h-auto object-contain`, minus
+                         `priority` since it's no longer the
+                         critical-path/LCP element) is kept as a
+                         `<noscript>` fallback, per instruction — `Image`
+                         import stays in use, no unused-import warning.
+                         **(2) FlashChat A–E and (3) nav active pill** —
+                         re-verified against the prompt's exact specs by
+                         reading the live files, not memory: smart scroll
+                         (`isAtBottomRef`/`onScroll`/floating ↓ button),
+                         crimson user bubbles (`#C0001A`/white text), the
+                         trash-icon clear button, the bare `chat_bubble_
+                         icon.png` trigger button with no badge, the
+                         `sendHover`-driven Send button
+                         (`#C0001A`/`#E8001F`), and both `panelLinkStyle`/
+                         `topNavLinkStyle`'s `#C0001A` background pill (no
+                         border-based active state left) were all already
+                         present exactly as specified — from
+                         flashchat-fix-003/-004/-005 and nav-crimson-001,
+                         logged above/below. Nothing further changed in
+                         `ChatWidget.tsx` this session. `pnpm tsc --noEmit`:
+                         0 errors. `pnpm run build`: exit 0, same 123-route
+                         count. Committed (`0e39f53`) and pushed to
+                         `origin/main`.
 FlashChat trigger        NEW (flashchat-fix-005, 2026-07-28) — replaced the
 button restyle           collapsed trigger's circular `bg-afs-crimson`
 (flashchat-fix-005):     bubble in `components/ai/ChatWidget.tsx` with a

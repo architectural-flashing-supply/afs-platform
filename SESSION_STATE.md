@@ -7,7 +7,61 @@
 
 ## CURRENT STATUS
 
-**Most recent session (flashchat-fix-005, 2026-07-28): FlashChat trigger
+**Most recent session (afs-logo-001, 2026-07-28): Animated AFS logo with
+metallic sound; FlashChat + nav re-verified against spec.** Read
+`CLAUDE.md`, `DESIGN_TOKENS.md`, `components/layout/NavBar.tsx`, and
+`components/ai/ChatWidget.tsx` first, per instruction — a three-part
+prompt, but only part 1 needed new code.
+
+1. **New `components/ui/AFSAnimatedLogo.tsx`** — pure inline SVG
+   (`viewBox="0 0 200 60"`), no animation library. "AFS" draws stroke-by-
+   stroke via `pathLength={1}` + `stroke-dasharray/dashoffset` CSS
+   keyframes, staggered A→0s, F→0.25s, S→0.5s (0.25s each), then each
+   letter's `fill` transitions to `#B8BFD0` right as its own draw
+   finishes. A white `linearGradient` shine sweeps a full-size overlay
+   `<rect>` via a native SMIL `<animateTransform>` at 0.8s (kept as SMIL,
+   not CSS, per the exact markup supplied — CSS can't animate
+   `gradientTransform`). Sound is Web Audio API only (no audio files),
+   using the exact `synthesizeMetalClink`/`synthesizeShimmer` functions
+   given: clinks at `ctx.currentTime + 0.25/0.5/0.75` (2100/1900/2300hz)
+   and a shimmer at `+0.8`, all scheduled off the Web Audio clock (not
+   `setTimeout`) so they track the visual timing exactly. A shared
+   `AudioContext` is created lazily on the first `pointerdown`/`keydown`
+   anywhere on the page (browsers block audio before a real gesture, so
+   the very first, auto-playing page-load animation is silent by design —
+   every replay after the user's first click/keypress has sound).
+   Replay-on-hover (`loop=false`, the default) and auto-loop
+   (`loop=true`, re-fires every 1.6s) both work by putting `key={playKey}`
+   on the `<svg>` element itself — SMIL `begin` times are relative to the
+   nearest `<svg>`'s own creation, so keying anything narrower than the
+   full `<svg>` would leave the shine sweep playing only once, ever. Mute
+   toggle (🔊/🔇, bottom-right overlay, `opacity-40 hover:opacity-100`)
+   persists to `sessionStorage` key `afs-logo-muted`, `e.preventDefault()`
+   + `stopPropagation()`'d so clicking it doesn't also fire the wrapping
+   `<Link>`'s navigation. `#B8BFD0`/`white` literals are called out in a
+   comment citing the same rule-#4 "explicit instruction" carve-out
+   already used for NavBar's `backgroundColor: '#C0001A'` — supplied
+   verbatim by the prompt, not from the afs-* token system.
+2. **`NavBar.tsx`** — sidebar `<Image src="/afs-logo.png">` replaced with
+   `<AFSAnimatedLogo width={120} height={36} className="cursor-pointer" />`
+   inside the existing `<Link href="/">`; the original `Image` (unchanged
+   props, `priority` dropped since it's no longer the LCP element) is kept
+   as a `<noscript>` fallback, per instruction.
+3. **FlashChat (A–E) and nav active-pill re-verification** — read
+   `ChatWidget.tsx`/`NavBar.tsx` in full rather than trusting memory;
+   smart scroll, crimson user bubbles, the clear button, the bare
+   `chat_bubble_icon.png` trigger with no badge, the `sendHover`-driven
+   Send button, and both nav link styles' `#C0001A` background pill (no
+   border-based active indicator) were already exactly as specified — all
+   from flashchat-fix-003/-004/-005 and nav-crimson-001, below. Nothing
+   further changed in `ChatWidget.tsx` or `NavBar.tsx`'s `isActive` logic
+   this session.
+
+**Gates passed this session** — `pnpm tsc --noEmit`: 0 errors. `pnpm run
+build`: succeeded, all 123 routes compiled. Committed (`0e39f53`) and
+pushed to `origin/main`.
+
+**Previous session (flashchat-fix-005, 2026-07-28): FlashChat trigger
 button restyled to a bare icon image, unread badge removed.** Read
 `components/ai/ChatWidget.tsx` first, per instruction. Two changes, both
 applied:
