@@ -2,87 +2,38 @@
 
 import { useEffect, useState } from 'react';
 
-// Web Audio API synthesis — no audio files. What actually reads as
-// "metal hitting metal" rather than a generic thud/beep is INHARMONICITY:
-// real metal rings at overtones that are NOT simple integer multiples of
-// a fundamental (unlike a plucked string or a drum head), which is why a
-// struck wrench or steel beam has that shimmering, slightly dissonant
-// "clang" instead of a clean musical tone. This is the same principle
-// classic bell/gong synthesis (e.g. the Risset bell technique) is built
-// on. The previous version had exactly one swept sine "ring" partial —
-// a single pure tone can't produce that beating/shimmering quality no
-// matter how it's EQ'd, which is almost certainly why it read as
-// "not metallic enough." This version replaces that with a small bank of
-// sine partials at inharmonic frequency ratios, each decaying at its own
-// independent rate, plus a sharp noise-burst impact click and a lower
-// thump for weight.
-const METAL_PARTIALS: Array<{ ratio: number; gain: number; decay: number }> = [
-  { ratio: 1.0, gain: 0.32, decay: 0.34 },
-  { ratio: 2.41, gain: 0.24, decay: 0.27 },
-  { ratio: 3.76, gain: 0.17, decay: 0.21 },
-  { ratio: 5.4, gain: 0.12, decay: 0.15 },
-  { ratio: 7.1, gain: 0.08, decay: 0.11 },
-];
+// A real recorded metal impact — user-supplied reference file
+// (406197__kyles__door-metal-big-heavy-close-kinda-slam-thud-echo-offmic.wav,
+// freesound.org, "big heavy metal door slam"), trimmed with ffmpeg from
+// its original ~3s (attack + a long off-mic room-echo tail that would
+// wash into an unintelligible blur if repeated every ~0.25s) down to
+// 0.55s — 0.295s→0.845s of the source, which an amplitude-envelope scan
+// (20ms RMS windows, plotted via a throwaway Node script) showed covers
+// the actual attack transient (peaks at 0.34s) through its initial decay
+// (still ~30-40% of peak at the cut point), with an 80ms fade-out and
+// loudness normalization applied. Replaces the previous inharmonic-
+// partial synthesis entirely, per explicit instruction to use this file.
+const CLANG_SAMPLE_URL = '/sounds/afs-logo-clang.mp3';
+let clangBufferPromise: Promise<AudioBuffer> | null = null;
 
-function synthesizeMetalClang(audioCtx: AudioContext, impactFrequency: number, startTime: number) {
-  // Sharp impact click — a brief, bright filtered noise burst at the
-  // very onset, the sound of the two surfaces actually making contact.
-  const bufferSize = Math.floor(audioCtx.sampleRate * 0.015);
-  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < bufferSize; i++) {
-    data[i] = Math.random() * 2 - 1;
+function loadClangBuffer(audioCtx: AudioContext): Promise<AudioBuffer> {
+  if (!clangBufferPromise) {
+    clangBufferPromise = fetch(CLANG_SAMPLE_URL)
+      .then((res) => res.arrayBuffer())
+      .then((data) => audioCtx.decodeAudioData(data));
   }
-  const noiseSource = audioCtx.createBufferSource();
-  const noiseFilter = audioCtx.createBiquadFilter();
-  const noiseGain = audioCtx.createGain();
-  noiseSource.buffer = buffer;
-  noiseFilter.type = 'bandpass';
-  noiseFilter.frequency.value = impactFrequency * 9;
-  noiseFilter.Q.value = 0.7;
-  noiseSource.connect(noiseFilter);
-  noiseFilter.connect(noiseGain);
-  noiseGain.connect(audioCtx.destination);
-  noiseGain.gain.setValueAtTime(0, startTime);
-  noiseGain.gain.linearRampToValueAtTime(0.4, startTime + 0.001);
-  noiseGain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.025);
-  noiseSource.start(startTime);
+  return clangBufferPromise;
+}
 
-  // Inharmonic partial bank — the actual "metal" of the sound. Each
-  // partial also drops slightly in pitch as it decays, the way a real
-  // struck object's ring settles.
-  for (const partial of METAL_PARTIALS) {
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    osc.type = 'sine';
-    const freq = impactFrequency * partial.ratio;
-    osc.frequency.setValueAtTime(freq, startTime);
-    osc.frequency.exponentialRampToValueAtTime(freq * 0.96, startTime + partial.decay);
-    gain.gain.setValueAtTime(0, startTime);
-    gain.gain.linearRampToValueAtTime(partial.gain, startTime + 0.002);
-    gain.gain.exponentialRampToValueAtTime(0.0005, startTime + partial.decay);
-    osc.start(startTime);
-    osc.stop(startTime + partial.decay + 0.05);
-  }
-
-  // Low thump — the weight of the impact, underneath the metallic ring.
-  // Kept in the ~90-140Hz range (not the ~35-45Hz a naive "low" multiplier
-  // lands on) because most laptop/phone speakers roll off steeply below
-  // ~100Hz and would render anything lower essentially silent.
-  const thumpOsc = audioCtx.createOscillator();
-  const thumpGain = audioCtx.createGain();
-  thumpOsc.connect(thumpGain);
-  thumpGain.connect(audioCtx.destination);
-  thumpOsc.type = 'triangle';
-  thumpOsc.frequency.setValueAtTime(impactFrequency, startTime);
-  thumpOsc.frequency.exponentialRampToValueAtTime(impactFrequency * 0.6, startTime + 0.15);
-  thumpGain.gain.setValueAtTime(0, startTime);
-  thumpGain.gain.linearRampToValueAtTime(0.55, startTime + 0.004);
-  thumpGain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.28);
-  thumpOsc.start(startTime);
-  thumpOsc.stop(startTime + 0.3);
+function playClangSample(audioCtx: AudioContext, buffer: AudioBuffer, playbackRate: number, startTime: number) {
+  const source = audioCtx.createBufferSource();
+  const gain = audioCtx.createGain();
+  source.buffer = buffer;
+  source.playbackRate.value = playbackRate;
+  source.connect(gain);
+  gain.connect(audioCtx.destination);
+  gain.gain.setValueAtTime(0.9, startTime);
+  source.start(startTime);
 }
 
 // Lazily created on first user interaction (browsers block AudioContext
@@ -111,11 +62,17 @@ function getSharedAudioContext(): AudioContext | null {
 // "works after you happen to click something else first."
 function unlockAudio(): void {
   const ctx = getSharedAudioContext();
-  if (ctx && ctx.state === 'suspended') {
+  if (!ctx) return;
+  if (ctx.state === 'suspended') {
     ctx.resume().catch(() => {
       // Fail silently — sound stays off, animation is unaffected.
     });
   }
+  // Kick the fetch+decode off as early as possible so the sample is
+  // already in memory by the time a piece actually needs to play it.
+  loadClangBuffer(ctx).catch(() => {
+    // Fail silently — same reasoning as above.
+  });
 }
 
 // public/afs-logo.png's REAL pixel dimensions, read directly from the
@@ -136,31 +93,31 @@ const LOGO_NATURAL_ASPECT = 1536 / 1024;
 // outer edges and inner/letter sides: every piece and the static base
 // are crops of the SAME source image, so a slight over-cut just
 // re-reveals identical pixels once landed.
-const BAND_PIECES: Array<{ points: Array<[number, number]>; clangFrequency: number }> = [
+const BAND_PIECES: Array<{ points: Array<[number, number]>; playbackRate: number }> = [
   {
     // top-left
     points: [[2, 46], [27, 10], [50, 9], [50, 17.3], [30, 16], [7, 47]],
-    clangFrequency: 130,
+    playbackRate: 1.0,
   },
   {
     // top-right
     points: [[50, 9], [97, 7], [99, 40], [92, 42], [90, 20], [50, 17.3]],
-    clangFrequency: 140,
+    playbackRate: 1.08,
   },
   {
     // bottom-right
     points: [[50, 62.9], [85, 64], [99, 45], [92, 47], [83, 63], [50, 61.9]],
-    clangFrequency: 115,
+    playbackRate: 0.92,
   },
   {
     // bottom-left
     points: [[2, 52], [20, 62], [50, 62.9], [50, 61.9], [24, 61], [7, 53]],
-    clangFrequency: 110,
+    playbackRate: 0.96,
   },
   {
     // underline bar, below the frame, above "ARCHITECTURAL"
     points: [[14, 65], [87, 63], [89, 73], [12, 75]],
-    clangFrequency: 120,
+    playbackRate: 1.04,
   },
 ];
 const FALL_STAGGER_S = 0.25;
@@ -217,21 +174,23 @@ export default function AFSAnimatedLogo({
     return () => window.clearInterval(id);
   }, [loop]);
 
-  // Each piece lands in sequence, one at a time, its own clang firing the
-  // instant it lands.
+  // Each piece lands in sequence, one at a time, the real recorded clang
+  // repeating for each landing.
   useEffect(() => {
     if (muted) return;
     const ctx = sharedAudioCtx;
     if (!ctx) return;
-    try {
-      const t0 = ctx.currentTime;
-      BAND_PIECES.forEach((piece, i) => {
-        synthesizeMetalClang(ctx, piece.clangFrequency, t0 + i * FALL_STAGGER_S + FALL_DURATION_S);
+    loadClangBuffer(ctx)
+      .then((buffer) => {
+        const t0 = ctx.currentTime;
+        BAND_PIECES.forEach((piece, i) => {
+          playClangSample(ctx, buffer, piece.playbackRate, t0 + i * FALL_STAGGER_S + FALL_DURATION_S);
+        });
+      })
+      .catch(() => {
+        // Fail silently — a blocked/closed AudioContext, or the sample
+        // not being available, shouldn't break the visual animation.
       });
-    } catch {
-      // Fail silently — a blocked/closed AudioContext shouldn't break the
-      // visual animation.
-    }
   }, [playKey, muted]);
 
   const replay = () => {
