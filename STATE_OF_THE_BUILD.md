@@ -377,6 +377,105 @@ color fix                nav-link color flashchat-fix-002 (below) added
                          locations: `rgb(232, 0, 31)` (`#E8001F`) in
                          both. Committed and pushed, no tool-approval
                          blocker.
+Animated AFS logo v5 —  NEW (afs-logo-006, 2026-07-28) — user asked for
+5 sequential pieces +   three enhancements on top of afs-logo-005 (which
+smoke + load sound       they confirmed as correctly sized — explicit
+(afs-logo-006):          instruction to leave that untouched, honored):
+                         (1) "each of the five bars — each individual
+                         section" should slam down one at a time, not as
+                         2 halves; (2) a puff of smoke after they land;
+                         (3) sound should attempt to play on page load,
+                         not just on click. **(1) Five pieces, not two.**
+                         Re-examined `public/afs-logo.png` with the same
+                         zlib-based PNG-pixel-decoding approach as
+                         afs-logo-004 (still no image-editing tool
+                         available) and found a genuine 5th element the
+                         prior 2-piece version had silently absorbed into
+                         its `BOTTOM_BAND`: a separate, contiguous
+                         brushed-chrome underline bar sitting between the
+                         main frame and "ARCHITECTURAL" — confirmed via a
+                         column-by-column grayness scan (x=300 through
+                         x=1300) showing a consistent bright-gray band
+                         from y=63.5% to ~73% independent of the frame
+                         above it, distinct from the false read at
+                         x=768 (dead center) which cut straight through a
+                         letter glyph and returned red, not gray — a
+                         reminder that a single sample column isn't
+                         enough evidence on its own. The prior 2 working
+                         bands (`TOP_BAND`/`BOTTOM_BAND`) were each
+                         bisected at their own x=50% edge-crossing
+                         (computed via linear interpolation along each
+                         polygon edge, not eyeballed) into left/right
+                         halves, `BOTTOM_BAND`'s lower boundary pulled up
+                         from y=74%→~63% first so it no longer overlapped
+                         the newly-separated underline piece. Net: 5
+                         `BAND_PIECES` (top-left, top-right, bottom-right,
+                         bottom-left, underline), each its own polygon +
+                         clang frequency, driving both the static base's
+                         evenodd hole and the falling `<img>`s via
+                         `.map()` instead of 2 hand-duplicated blocks.
+                         Landings staggered 0.25s apart (was 0.2s for 2
+                         pieces) so each is visibly a distinct, separate
+                         landing — confirmed via a mid-fall screenshot
+                         (~950ms into a fresh reload) that caught the
+                         underline piece still visibly translating in
+                         (ghosted "ARCHITECTURAL" text above its landing
+                         position), not just popping into place.
+                         **(2) Smoke puff** — 5 staggered
+                         `radial-gradient` circles (`rgba(210,212,218,…)`,
+                         blurred, `scale(0.2)→scale(2.4)` +
+                         `opacity 0→0.55→0` over 0.7s), centered on the
+                         logo, firing once all 5 pieces have landed
+                         (`BAND_PIECES.length * 0.25 + 0.3` = 1.55s).
+                         Confirmed visible via screenshot at t=1550-1650ms
+                         — a soft light burst over the letters, subtle
+                         rather than overwhelming. **(3) Sound on page
+                         load, with an honest caveat.** Added an
+                         `unlockAudio()` call directly in the mount
+                         effect (previously only wired to
+                         `pointerdown`/`keydown` listeners). This is
+                         genuinely best-effort, not a guarantee — no
+                         client-side code can override a browser's
+                         autoplay-audio policy; a fresh visitor with zero
+                         prior engagement on the domain will still get a
+                         silent first play in most browsers, full stop.
+                         Verified this precisely rather than asserting it
+                         either way: an instrumented Playwright run
+                         wrapping `AudioContext`/`createOscillator`/
+                         `createBufferSource` showed the DEV server
+                         reporting exactly double the expected node counts
+                         on every checkpoint (20 oscillators/10 buffer
+                         sources on a fresh load with zero interaction,
+                         where 10/5 — one full 5-clang firing — was
+                         expected) — traced to Next.js dev mode's default
+                         `reactStrictMode: true` intentionally double-
+                         invoking effects on mount to surface missing-
+                         cleanup bugs, not a real defect. Re-ran the exact
+                         same instrumented test against `pnpm run build`
+                         + `pnpm start` (a real production server, not
+                         dev) and got the clean expected numbers: 10
+                         oscillators/5 buffer sources (one 5-clang firing)
+                         on load with no interaction, 20/10 (two firings)
+                         after a single real click — confirming both the
+                         load-time attempt fires correctly AND a click
+                         still produces exactly one additional clean
+                         replay, not a double-fire stutter (React's
+                         update batching coalesces the `mouseenter`-then-
+                         `click` pair from a real mouse click into a
+                         single net `playKey` change). **Explicitly
+                         untouched, per instruction:** `width`/`height`
+                         defaults (176×117), `LOGO_NATURAL_ASPECT`
+                         fitting math, `NavBar.tsx`'s call site — none of
+                         the sizing logic was touched this session.
+                         `pnpm tsc --noEmit`: 0 errors. `pnpm run build`:
+                         exit 0, same 123-route count (this session's
+                         build doubled as the production-mode audio
+                         verification environment, not a separate,
+                         wasted step). Deleted all six scratch scripts
+                         (PNG scan ×2, screenshot ×2, audio-instrumentation
+                         ×2) from the repo root before committing.
+                         Committed (`771c41c`) and pushed to
+                         `origin/main`.
 Animated AFS logo v4 —  NEW (afs-logo-005, 2026-07-28) — user attached
 cleanup: mute icon,     a real screenshot (`Screenshot 2026-07-28
 shine bug, sizing,      141556.png`) of afs-logo-004 rendered live in the

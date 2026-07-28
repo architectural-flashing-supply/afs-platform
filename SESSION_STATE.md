@@ -7,7 +7,53 @@
 
 ## CURRENT STATUS
 
-**Most recent session (afs-logo-005, 2026-07-28): cleanup pass from a
+**Most recent session (afs-logo-006, 2026-07-28): 5 sequential chrome
+pieces instead of 2, a smoke puff, sound attempted on page load.** User
+confirmed afs-logo-005's sizing was correct and said to leave it
+untouched, then asked for three enhancements:
+
+1. **Five pieces, not two.** Re-examined `public/afs-logo.png` with the
+   same zlib PNG-pixel-decoding approach from afs-logo-004 and found a
+   genuine 5th element the 2-piece version had silently absorbed into its
+   bottom band: a separate chrome underline bar between the frame and
+   "ARCHITECTURAL," confirmed via a column-scan across x=300-1300 showing
+   a consistent bright-gray band at y=63.5-73% independent of the frame
+   above it (a naive single-column sample at dead-center x=768 gave a
+   false negative — it happened to cut through a letter glyph). Split the
+   2 working bands at their own x=50% edge-crossing (computed by linear
+   interpolation, not eyeballed) into 4 quadrants, pulled the bottom
+   band's lower boundary up so it stopped overlapping the newly-separated
+   underline piece, and added the underline as the 5th. All 5 now land
+   staggered 0.25s apart, confirmed via a mid-fall screenshot that caught
+   the underline piece still visibly translating in, not popping into
+   place.
+2. **Smoke puff** — 5 staggered blurred radial-gradient circles,
+   scale+fade over 0.7s, firing once all 5 pieces have landed. Confirmed
+   visible in a screenshot at the right timestamp.
+3. **Sound on page load, with an honest caveat given up front, not
+   discovered by the user later.** Added an unlock attempt directly in
+   the mount effect. This is genuinely best-effort — no client-side code
+   can override a browser's autoplay-audio policy, so a first-ever
+   visitor with zero prior engagement will still get a silent first play
+   in most browsers. Verified precisely with an instrumented Playwright
+   run: the dev server showed exactly double the expected audio node
+   counts on every checkpoint, traced to Next.js dev mode's
+   `reactStrictMode: true` intentionally double-invoking mount effects
+   (a dev-only artifact, not a bug) — re-ran the same test against a real
+   `pnpm run build` + `pnpm start` production server and got clean
+   numbers: one full clang sequence fires on load with zero interaction,
+   and a single click produces exactly one additional clean replay, not
+   a double-fire stutter.
+
+**Explicitly untouched, per instruction:** the 176×117 sizing defaults
+and aspect-fitting math.
+
+**Gates passed this session** — `pnpm tsc --noEmit`: 0 errors. `pnpm run
+build`: succeeded, all 123 routes compiled (this build also served as the
+production-mode audio verification environment). Committed (`771c41c`)
+and pushed to `origin/main`.
+
+**Previous session (afs-logo-005, 2026-07-28): cleanup pass from a
 real screenshot — removed mute icon, fixed a shine-effect bug, tripled
 the logo's size, made the clang audible.** User attached a screenshot of
 afs-logo-004 rendered live and pointed at 4 concrete problems: a speaker
