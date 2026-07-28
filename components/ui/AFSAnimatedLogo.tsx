@@ -4,38 +4,42 @@ import { useEffect, useState } from 'react';
 
 // Web Audio API synthesis — no audio files. A tough metal "clang" (low
 // thump + bright metallic ring + a sharp impact click) for each half of
-// the real logo's chrome frame slamming into place, and a soft "shimmer"
-// under the finishing shine.
-function synthesizeMetalClang(audioCtx: AudioContext, frequency: number, startTime: number) {
-  // Low thump — the weight of the impact.
+// the real logo's chrome frame slamming into place.
+function synthesizeMetalClang(audioCtx: AudioContext, impactFrequency: number, startTime: number) {
+  // Low thump — the weight of the impact. Kept in the ~90-140Hz range
+  // (not the ~35-45Hz a naive "low" multiplier lands on) because most
+  // laptop/phone speakers roll off steeply below ~100Hz and would render
+  // anything lower essentially silent.
   const thumpOsc = audioCtx.createOscillator();
   const thumpGain = audioCtx.createGain();
   thumpOsc.connect(thumpGain);
   thumpGain.connect(audioCtx.destination);
   thumpOsc.type = 'triangle';
-  thumpOsc.frequency.setValueAtTime(frequency * 0.22, startTime);
-  thumpOsc.frequency.exponentialRampToValueAtTime(frequency * 0.12, startTime + 0.18);
+  thumpOsc.frequency.setValueAtTime(impactFrequency, startTime);
+  thumpOsc.frequency.exponentialRampToValueAtTime(impactFrequency * 0.6, startTime + 0.15);
   thumpGain.gain.setValueAtTime(0, startTime);
-  thumpGain.gain.linearRampToValueAtTime(0.5, startTime + 0.004);
-  thumpGain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.22);
+  thumpGain.gain.linearRampToValueAtTime(0.85, startTime + 0.004);
+  thumpGain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.28);
   thumpOsc.start(startTime);
-  thumpOsc.stop(startTime + 0.25);
+  thumpOsc.stop(startTime + 0.3);
 
-  // Metallic ring — layered on top, brighter and shorter.
+  // Metallic ring — a bright present-midrange partial, not a thin high
+  // whistle, layered on top of the thump.
   const ringOsc = audioCtx.createOscillator();
   const ringGain = audioCtx.createGain();
   ringOsc.connect(ringGain);
   ringGain.connect(audioCtx.destination);
   ringOsc.type = 'sine';
-  ringOsc.frequency.setValueAtTime(frequency, startTime);
-  ringOsc.frequency.exponentialRampToValueAtTime(frequency * 0.5, startTime + 0.1);
+  ringOsc.frequency.setValueAtTime(impactFrequency * 3.2, startTime);
+  ringOsc.frequency.exponentialRampToValueAtTime(impactFrequency * 1.6, startTime + 0.12);
   ringGain.gain.setValueAtTime(0, startTime);
-  ringGain.gain.linearRampToValueAtTime(0.22, startTime + 0.003);
-  ringGain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.14);
+  ringGain.gain.linearRampToValueAtTime(0.4, startTime + 0.003);
+  ringGain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.2);
   ringOsc.start(startTime);
-  ringOsc.stop(startTime + 0.16);
+  ringOsc.stop(startTime + 0.22);
 
-  // Sharp impact click — a brief filtered noise burst at the very onset.
+  // Sharp impact click — a brief, bright filtered noise burst at the
+  // onset for the "metal on metal" snap.
   const bufferSize = Math.floor(audioCtx.sampleRate * 0.02);
   const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
   const data = buffer.getChannelData(0);
@@ -47,37 +51,15 @@ function synthesizeMetalClang(audioCtx: AudioContext, frequency: number, startTi
   const noiseGain = audioCtx.createGain();
   noiseSource.buffer = buffer;
   noiseFilter.type = 'bandpass';
-  noiseFilter.frequency.value = frequency * 1.5;
-  noiseFilter.Q.value = 1.2;
+  noiseFilter.frequency.value = impactFrequency * 8;
+  noiseFilter.Q.value = 0.9;
   noiseSource.connect(noiseFilter);
   noiseFilter.connect(noiseGain);
   noiseGain.connect(audioCtx.destination);
   noiseGain.gain.setValueAtTime(0, startTime);
-  noiseGain.gain.linearRampToValueAtTime(0.25, startTime + 0.002);
-  noiseGain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.03);
+  noiseGain.gain.linearRampToValueAtTime(0.45, startTime + 0.002);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.05);
   noiseSource.start(startTime);
-}
-
-function synthesizeShimmer(audioCtx: AudioContext, startTime: number) {
-  const bufferSize = audioCtx.sampleRate * 0.04;
-  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < bufferSize; i++) {
-    data[i] = (Math.random() * 2 - 1) * 0.08;
-  }
-  const source = audioCtx.createBufferSource();
-  const gain = audioCtx.createGain();
-  const filter = audioCtx.createBiquadFilter();
-  source.buffer = buffer;
-  filter.type = 'highpass';
-  filter.frequency.value = 4000;
-  source.connect(filter);
-  filter.connect(gain);
-  gain.connect(audioCtx.destination);
-  gain.gain.setValueAtTime(0, startTime);
-  gain.gain.linearRampToValueAtTime(0.15, startTime + 0.01);
-  gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.04);
-  source.start(startTime);
 }
 
 // Lazily created on first user interaction (browsers block AudioContext
@@ -110,17 +92,6 @@ function unlockAudio(): void {
     ctx.resume().catch(() => {
       // Fail silently — sound stays off, animation is unaffected.
     });
-  }
-}
-
-const MUTED_STORAGE_KEY = 'afs-logo-muted';
-
-function readStoredMuted(fallback: boolean): boolean {
-  try {
-    const stored = window.sessionStorage.getItem(MUTED_STORAGE_KEY);
-    return stored === null ? fallback : stored === '1';
-  } catch {
-    return fallback;
   }
 }
 
@@ -167,21 +138,13 @@ interface AFSAnimatedLogoProps {
 }
 
 export default function AFSAnimatedLogo({
-  width = 200,
-  height = 60,
+  width = 176,
+  height = 117,
   loop = false,
   className,
   muted = false,
 }: AFSAnimatedLogoProps) {
-  const [isMuted, setIsMuted] = useState(muted);
   const [playKey, setPlayKey] = useState(0);
-
-  useEffect(() => {
-    setIsMuted(readStoredMuted(muted));
-    // Only read the stored override once, on mount — `muted` itself is a
-    // default, not a controlled value this effect should keep re-syncing to.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   useEffect(() => {
     // Bonus unlock: a click ANYWHERE on the page (nav links, buttons,
@@ -200,22 +163,20 @@ export default function AFSAnimatedLogo({
     return () => window.clearInterval(id);
   }, [loop]);
 
-  // Top half lands first, bottom half a beat later, each with its own
-  // clang; a shimmer caps it once the frame has closed.
+  // Top half lands first, bottom half a beat later, each with its own clang.
   useEffect(() => {
-    if (isMuted) return;
+    if (muted) return;
     const ctx = sharedAudioCtx;
     if (!ctx) return;
     try {
       const t0 = ctx.currentTime;
-      synthesizeMetalClang(ctx, 180, t0 + 0.3);
-      synthesizeMetalClang(ctx, 150, t0 + 0.5);
-      synthesizeShimmer(ctx, t0 + 0.7);
+      synthesizeMetalClang(ctx, 130, t0 + 0.3);
+      synthesizeMetalClang(ctx, 110, t0 + 0.5);
     } catch {
       // Fail silently — a blocked/closed AudioContext shouldn't break the
       // visual animation.
     }
-  }, [playKey, isMuted]);
+  }, [playKey, muted]);
 
   const replay = () => {
     if (!loop) setPlayKey((k) => k + 1);
@@ -224,19 +185,6 @@ export default function AFSAnimatedLogo({
   const handleClick = () => {
     unlockAudio();
     replay();
-  };
-
-  const toggleMuted = () => {
-    setIsMuted((prev) => {
-      const next = !prev;
-      try {
-        window.sessionStorage.setItem(MUTED_STORAGE_KEY, next ? '1' : '0');
-      } catch {
-        // Storage unavailable (private browsing, etc.) — mute still applies
-        // for this page view.
-      }
-      return next;
-    });
   };
 
   // Fit the logo's own natural aspect ratio inside the width/height box
@@ -282,27 +230,6 @@ export default function AFSAnimatedLogo({
             animation-fill-mode: both;
             animation-duration: 0.3s;
           }
-          @keyframes afs-logo-shine-sweep {
-            from { transform: translateX(-120%) skewX(-12deg); }
-            to { transform: translateX(220%) skewX(-12deg); }
-          }
-          @keyframes afs-logo-shine-fade-in {
-            0%, 79% { opacity: 0; }
-            80% { opacity: 1; }
-            100% { opacity: 1; }
-          }
-          .afs-logo-shine {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 40%;
-            height: 100%;
-            background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.5) 50%, rgba(255,255,255,0) 100%);
-            opacity: 0;
-            animation: afs-logo-shine-sweep 0.4s ease-in-out 0.7s forwards,
-                       afs-logo-shine-fade-in 0.4s linear 0.7s forwards;
-            pointer-events: none;
-          }
         `}</style>
 
         {/* Static base: the real logo, minus the two chrome-band regions
@@ -339,23 +266,8 @@ export default function AFSAnimatedLogo({
             className="afs-logo-band"
             style={{ objectFit: 'contain', clipPath: toPolygon(BOTTOM_BAND), animationDelay: '0.2s' }}
           />
-
-          <div className="afs-logo-shine" />
         </div>
       </div>
-
-      <button
-        type="button"
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          toggleMuted();
-        }}
-        aria-label={isMuted ? 'Unmute logo sound' : 'Mute logo sound'}
-        className="absolute bottom-0 right-0 text-[10px] leading-none opacity-40 hover:opacity-100 transition-opacity bg-transparent border-none cursor-pointer p-0.5"
-      >
-        {isMuted ? '🔇' : '🔊'}
-      </button>
     </div>
   );
 }
