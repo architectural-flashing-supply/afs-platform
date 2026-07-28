@@ -7,7 +7,51 @@
 
 ## CURRENT STATUS
 
-**Most recent session (afs-logo-001, 2026-07-28): Animated AFS logo with
+**Most recent session (afs-logo-002, 2026-07-28): fixed the animated logo
+to actually look like AFS's logo.** User feedback on afs-logo-001, below:
+"you did not do the animation of my logo, but some generic crap." Fair —
+afs-logo-001 rendered the letters exactly as the thin gray skeleton
+strokes given in the prompt's literal path data, without checking that
+against `public/afs-logo.png` (bold glossy crimson block letters, chrome
+bevel frame) and without opening a browser to actually look. Both misses,
+fixed this session:
+
+1. **Read the real logo first.** Then rebuilt `AFSAnimatedLogo.tsx`'s
+   *rendering* (kept the letter paths and the draw/fill/shine/sound
+   choreography from afs-logo-001 — that part wasn't what was wrong):
+   stroke/fill color gray → `#C0001A` (afs-crimson), `stroke-width` 3 → 9,
+   added a `skewX(-12)` italic lean on the whole mark (matches both the
+   real logo's slant and DESIGN_TOKENS.md's own "Metal Edge" 12°-skew
+   signature — reused that documented motif on purpose), and added a
+   two-line chrome frame accent (`#C8D0E0`) that draws in after the
+   letters — a simplified stand-in for the real logo's shield border,
+   since no SVG source for that shield exists (CLAUDE.md's DATA BLOCKERS
+   table still lists "Logo vector file" as missing).
+2. **Actually looked at it — twice, and both times found a real bug.**
+   Started `pnpm dev`, drove headless Chromium via `@playwright/test`'s
+   bundled `chromium` launcher (no `chromium-cli` binary in this
+   environment, no standalone `playwright` package installed — used
+   what's actually here) from a throwaway script, and screenshotted the
+   NavBar logo at 4x DPI. First pass: the given S path's tight curve
+   radii self-intersected at the new bold stroke width and read as a red
+   blob, not a letter — redrawn as two broad cubic-bezier hooks with more
+   radius. Second: the shine `linearGradient`'s `animateTransform` only
+   defines its value *during* the `0.8s`–`1.2s` window; before `begin`,
+   SMIL falls back to the gradient's static base attribute, which
+   defaulted to identity (centered, inside the box) — so the "sweep" was
+   actually a permanent white wash over the whole logo from frame one.
+   Fixed by setting `gradientTransform="translate(-2 0)"` as the rest
+   state. Confirmed the fix, and confirmed the letters genuinely draw in
+   sequence (not just snap to a finished state), via reload screenshots at
+   t≈80/300/600/1200ms with the route pre-warmed first. Deleted the four
+   scratch screenshot scripts before committing — `git status` showed only
+   `AFSAnimatedLogo.tsx` changed.
+
+**Gates passed this session** — `pnpm tsc --noEmit`: 0 errors. `pnpm run
+build`: succeeded, all 123 routes compiled. Committed (`1df58bb`) and
+pushed to `origin/main`.
+
+**Previous session (afs-logo-001, 2026-07-28): Animated AFS logo with
 metallic sound; FlashChat + nav re-verified against spec.** Read
 `CLAUDE.md`, `DESIGN_TOKENS.md`, `components/layout/NavBar.tsx`, and
 `components/ai/ChatWidget.tsx` first, per instruction — a three-part

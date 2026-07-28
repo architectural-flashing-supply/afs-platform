@@ -377,6 +377,85 @@ color fix                nav-link color flashchat-fix-002 (below) added
                          locations: `rgb(232, 0, 31)` (`#E8001F`) in
                          both. Committed and pushed, no tool-approval
                          blocker.
+Animated AFS logo       NEW (afs-logo-002, 2026-07-28) — user feedback on
+redesign (afs-logo-002): afs-logo-001 (below): "you did not do the
+                         animation of my logo, but some generic crap."
+                         Correct — afs-logo-001 rendered the letters exactly
+                         as thin gray (`#B8BFD0`) skeleton strokes per the
+                         prompt's literal path data, without checking that
+                         against the real logo (`public/afs-logo.png`: bold
+                         glossy crimson "AFS" block letters, italic lean,
+                         chrome bevel parallelogram frame), and without
+                         opening it in a browser to look — a real miss,
+                         not a defensible reading of an ambiguous prompt.
+                         Read `public/afs-logo.png` directly this time
+                         before touching code. Kept the letter *paths* and
+                         the full draw/fill/shine/sound choreography from
+                         afs-logo-001 (still on-spec, not what was wrong)
+                         but changed the rendering: stroke/fill color
+                         `#B8BFD0` → `#C0001A` (mirrors afs-crimson, real
+                         logo's letter color), `stroke-width` 3 → 9 (bold,
+                         not skeletal), a `skewX(-12)` on the whole mark
+                         (matches both the real logo's italic lean and
+                         DESIGN_TOKENS.md §1's own "Metal Edge" 12°-skew
+                         signature — deliberately reused that documented
+                         motif rather than inventing a new angle), and a
+                         new two-line chrome frame (`#C8D0E0`, mirrors
+                         afs-chrome-silver) that draws in at 0.7s, after
+                         the S — a simplified stand-in for the real logo's
+                         hexagonal shield border, not a full trace, since
+                         no SVG source for that shield exists (CLAUDE.md's
+                         DATA BLOCKERS table, "Logo vector file"). `viewBox`
+                         widened from `0 0 200 60` to `-20 -14 220 84` to
+                         give the thicker strokes and skew room without
+                         clipping. **Two real bugs found by actually
+                         looking at it, not by re-reading the code:** (1)
+                         the given S path's tight curve radii self-
+                         intersected at the new bold stroke width, reading
+                         as a red blob, not an "S" — redrawn as two broad
+                         cubic-bezier hooks (`M153 6 C125 6 125 27 144 32
+                         C162 37 162 58 134 58`) with enough radius to
+                         stay clean at `stroke-width: 9`, confirmed by a
+                         4x-DPI Playwright element screenshot. (2) the
+                         shine `linearGradient`'s `animateTransform` only
+                         defines the value *during* its `0.8s`–`1.2s`
+                         active window — before `begin`, SMIL renders the
+                         gradient's static base attribute, which defaulted
+                         to identity (centered, fully inside the box), so
+                         the "sweep" was actually visible as a permanent
+                         white wash over the whole logo from frame one, not
+                         hidden until 0.8s as intended. Fixed by setting
+                         `gradientTransform="translate(-2 0)"` as the
+                         `<linearGradient>`'s static/rest attribute so the
+                         gradient sits off-screen until the animation
+                         starts. Caught by screenshotting mid-animation
+                         (`~120ms` after a fresh nav) and seeing the whole
+                         mark already washed white — would not have been
+                         caught by `tsc`/`build` alone. **Verification this
+                         session, not skipped:** started `pnpm dev`,
+                         confirmed the port with `curl`, then drove headless
+                         Chromium via `@playwright/test`'s bundled
+                         `chromium` launcher (no standalone `playwright`
+                         package installed, no `chromium-cli` binary
+                         available in this environment — used what's
+                         actually here) from a throwaway script, not a
+                         committed test file. Screenshotted the NavBar logo
+                         element at 4x `deviceScaleFactor` at t≈80/300/
+                         600/1200ms across fresh page reloads (route
+                         pre-warmed once first, since Next dev's on-demand
+                         compile swamps a 120ms window otherwise) —
+                         confirmed the letters actually draw in sequence
+                         (A complete → F drawing → S drawing → frame → full
+                         mark), not just present a finished PNG-like state
+                         immediately. Zero `console --errors`-equivalent
+                         (checked `page.on('console')` for `type() ===
+                         'error'`) across all loads. Deleted the four
+                         scratch screenshot scripts from the repo root
+                         before committing — `git status` confirmed only
+                         `AFSAnimatedLogo.tsx` (+ `tsconfig.tsbuildinfo`)
+                         changed. `pnpm tsc --noEmit`: 0 errors. `pnpm run
+                         build`: exit 0, same 123-route count. Committed
+                         (`1df58bb`) and pushed to `origin/main`.
 Animated AFS logo +      NEW (afs-logo-001, 2026-07-28) — read `CLAUDE.md`,
 FlashChat/nav re-verify  `DESIGN_TOKENS.md`, and `components/layout/
 (afs-logo-001):          NavBar.tsx` first, per instruction. Three-part
