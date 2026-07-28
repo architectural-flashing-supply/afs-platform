@@ -25,6 +25,7 @@ const NAV_SECTIONS: NavSection[] = [
       { label: 'Quote Requests', href: '/admin/quote-requests' },
       { label: 'Production Queue', href: '/admin/orders' },
       { label: 'Consultations', href: '/admin/consultations' },
+      { label: '📡 Bid Monitor', href: '/admin/bid-monitor' },
       { label: '🚚 Deliveries', href: '/admin/command-center?tab=orders' },
       { label: '📸 GBP Photos', href: '/admin/command-center?tab=gbp' },
     ],

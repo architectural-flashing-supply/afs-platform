@@ -1,6 +1,6 @@
 # SCHEMA.md
 ## AFS — Supabase Database Schema
-**45 tables across 7 migration files. RLS on every table. Indexes on every
+**49 tables across 10 migration files. RLS on every table. Indexes on every
 foreign key and filter column.** (This document's "TABLE N" numbering below
 covers the original 25 sections designed in migration 001 — several of
 those sections define more than one physical table, e.g. TABLE 8 =
@@ -8,8 +8,11 @@ those sections define more than one physical table, e.g. TABLE 8 =
 BRIDGE sections near the end of this document add 5 more tables via
 migrations 004 and 005, the CANONICAL PROFILE LIBRARY section adds 1
 more via migration 006, and the DELIVERY TRACKING + EMPLOYEE PWA section
-adds 3 more via migration 007. 45 is the count `supabase/README.md` should
-verify against the live database once all 7 migrations are applied.)
+adds 3 more via migration 007. Migrations 008 and 009 are column-only
+additions (no new tables — see the MIGRATION FILE LOCATION table below).
+The BID MONITOR section adds 4 more tables via migration 010. 49 is the
+count `supabase/README.md` should verify against the live database once
+all 10 migrations are applied.)
 
 ---
 
@@ -24,6 +27,9 @@ supabase/migrations/
   005_machine_jobs.sql                 Machine Bridge job queue (see MACHINE BRIDGE TABLES)
   006_canonical_profiles.sql           Canonical profile library (see CANONICAL PROFILE LIBRARY TABLE)
   007_delivery_tracking.sql            Delivery tracking + Employee PWA + GBP photo queue (see DELIVERY TRACKING + EMPLOYEE PWA TABLES)
+  008_order_geocoding.sql              Adds orders.geocoded_lat/geocoded_lng — no new tables
+  009_command_center_crm.sql           Adds profiles.internal_notes, orders.invoice_paid_at — no new tables
+  010_bid_monitor.sql                  Bid Monitor — sources/projects/keywords/alerts (see BID MONITOR TABLES)
 ```
 
 Run in numeric order — see `supabase/README.md` for the exact procedure.
@@ -32,7 +38,13 @@ live Supabase project — verified directly via the service-role client
 across two sessions (STATE_OF_THE_BUILD.md's afs-041 correction for
 001–005, and this session's direct pre/post query for 006), not carried
 forward from this line's long-stale "001–003 and 005 NOT yet applied"
-claim.
+claim. 007–010's live-apply status was not independently reverified in
+this session — go by `supabase/README.md`'s own tracking, not this line.
+
+**Naming note (010):** this migration was requested as
+`008_bid_monitor.sql`, but `008` and `009` were already real, applied-
+looking files on disk (see above) by the time this task ran — numbered
+`010` instead of colliding with or overwriting either.
 
 ---
 
@@ -1404,6 +1416,126 @@ columns explicitly specified were added here; widening the live
 `orders.status` CHECK constraint is a real follow-up, deliberately left
 out of this migration rather than silently expanded beyond the requested
 column list.
+
+---
+
+## BID MONITOR TABLES (migration 010_bid_monitor.sql)
+
+Internal AFS sales-ops tool — tracks government/commercial procurement
+portals, discovers individual bid opportunities from them, flags the ones
+relevant to flashing/sheet-metal/Division 07 work by keyword match, and
+logs notifications sent about them. Never customer-facing — every table
+is admin-only (`FOR ALL` RLS, same `admin_all_*` pattern used throughout
+this schema), matching the internal-only precedent already set by
+`pricing_rules`/`commodity_prices`/`admin_audit_log`.
+
+```sql
+CREATE TABLE bid_sources (
+  id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name                    TEXT NOT NULL,
+  source_type             TEXT NOT NULL
+                          CHECK (source_type IN (
+                            'federal','state','city','county','dot','planroom','exchange'
+                          )),
+  state                   TEXT,
+  url                     TEXT NOT NULL,
+  api_url                 TEXT,
+  api_key_env             TEXT,
+  is_active               BOOLEAN NOT NULL DEFAULT true,
+  is_free                 BOOLEAN NOT NULL DEFAULT true,
+  requires_membership     BOOLEAN NOT NULL DEFAULT false,
+  membership_cost_annual  INTEGER,
+  notes                   TEXT,
+  last_checked_at         TIMESTAMPTZ,
+  created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE bid_projects (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  source_id           UUID REFERENCES bid_sources(id),
+  external_id         TEXT,                          -- ID from the source system
+  title               TEXT NOT NULL,
+  description         TEXT,
+  agency              TEXT,
+  location_city       TEXT,
+  location_state      TEXT,
+  location_address    TEXT,
+  bid_due_date        TIMESTAMPTZ,
+  pre_bid_date        TIMESTAMPTZ,
+  estimated_value     BIGINT,                        -- cents
+  project_type        TEXT
+                      CHECK (project_type IN (
+                        'roofing','flashing','sheet_metal','general_construction','other'
+                      )),
+  division7_relevant  BOOLEAN NOT NULL DEFAULT false,
+  keywords_matched    TEXT[],
+  source_url          TEXT,
+  raw_data            JSONB,                         -- full response from source
+  status              TEXT NOT NULL DEFAULT 'new'
+                      CHECK (status IN (
+                        'new','reviewing','bidding','bid_submitted',
+                        'won','lost','passed','expired'
+                      )),
+  assigned_to         UUID REFERENCES profiles(id),
+  internal_notes      TEXT,
+  discovered_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  bid_submitted_at    TIMESTAMPTZ,
+  result_at           TIMESTAMPTZ,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (source_id, external_id)
+);
+
+CREATE TABLE bid_keywords (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  keyword      TEXT NOT NULL UNIQUE,
+  category     TEXT CHECK (category IN ('profile','material','division','trade')),
+  is_active    BOOLEAN NOT NULL DEFAULT true,
+  match_count  INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE bid_alerts (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id  UUID REFERENCES bid_projects(id),
+  alert_type  TEXT CHECK (alert_type IN ('new_match','bid_due_soon','status_change')),
+  sent_to     TEXT,
+  sent_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  read_at     TIMESTAMPTZ
+);
+-- RLS on all 4 tables: admin only (FOR ALL), via the standard
+-- EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+-- pattern.
+```
+
+**CHECK constraints** on every enum-like text column (`source_type`,
+`project_type`, `status`, `category`, `alert_type`) were added beyond the
+task's literal column list — not explicitly requested, but every other
+status/type column in this schema (001–009) has one, and every seeded
+value already falls inside its own enum, so this costs nothing at seed
+time.
+
+**Seed data:** `bid_keywords` seeded with 30 rows (trade/profile/
+division/material terms — flashing, coping cap, Division 07, copper
+flashing, etc.). `bid_sources` seeded with 81 rows: 2 federal (SAM.gov,
+USASpending.gov), Texas ESBD + TxDOT, 11 Texas cities, 4 Texas counties,
+49 other state procurement portals (all states except Texas, already
+covered), 3 free plan-room/bid-board sites, and 10 state DOT letting
+portals (including a second, differently-named `TxDOT` row alongside
+`TxDOT Letting Calendar` — both given explicitly in the seed spec; kept
+as two rows since `bid_sources.name` has no uniqueness constraint and
+nothing in the spec asked to dedupe them).
+
+**Seed column-mapping judgment call:** the seed spec gave 10 positional
+values per `bid_sources` row (name, source_type, state, url, api_url,
+api_key_env, is_active, `<bool>`, membership_cost_annual, notes), with
+that 8th value always `false` and `membership_cost_annual` always
+`null` — on every single row, including ones whose own notes describe
+the source as free ("Free for subcontractors," "Free public API
+available," "Free bid invitation tier"). Mapped literally onto `is_free`,
+that would mark all 81 sources as *not* free, contradicting every note.
+Mapped onto `requires_membership` instead (also always false/null in the
+seed, and consistent with every note), it's self-consistent — so that's
+the mapping used in `010_bid_monitor.sql`, leaving `is_free` at its
+schema default (`true`) for all 81 rows.
 
 ---
 
