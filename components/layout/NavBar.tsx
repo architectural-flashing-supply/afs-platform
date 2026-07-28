@@ -51,21 +51,28 @@ export default function NavBar() {
     return pathname === href || pathname.startsWith(`${href}/`);
   };
 
+  // Inline styles here (rather than the text-afs-crimson/border-afs-crimson
+  // Tailwind classes) sidestep a same-specificity class-order ambiguity and
+  // use --afs-crimson-hover (#E8001F) instead of the base --afs-crimson
+  // (#C0001A) — DESIGN_TOKENS.md's brighter value, matching button vibrancy
+  // more closely than the base crimson reads as an active nav indicator.
   const panelLinkClass = (href: string) => {
     const active = isActive(href);
     return `font-label text-sm px-4 py-2.5 rounded transition-colors ${
-      active
-        ? 'bg-afs-bg-raised text-afs-crimson border-l-2 border-afs-crimson'
-        : 'text-white hover:bg-afs-bg-surface'
+      active ? 'bg-afs-bg-raised' : 'text-white hover:bg-afs-bg-surface'
     }`;
   };
 
+  const panelLinkStyle = (href: string): React.CSSProperties | undefined =>
+    isActive(href) ? { color: 'var(--afs-crimson-hover)', borderLeft: '2px solid var(--afs-crimson-hover)' } : undefined;
+
   const topNavLinkClass = (href: string) => {
     const active = isActive(href);
-    return `font-label text-sm transition-colors ${
-      active ? 'border-b-2 border-afs-crimson text-afs-crimson' : 'text-white'
-    }`;
+    return `font-label text-sm transition-colors ${active ? '' : 'text-white'}`;
   };
+
+  const topNavLinkStyle = (href: string): React.CSSProperties | undefined =>
+    isActive(href) ? { color: 'var(--afs-crimson-hover)', borderBottom: '2px solid var(--afs-crimson-hover)' } : undefined;
 
   return (
     <>
@@ -85,14 +92,14 @@ export default function NavBar() {
 
         <nav className="flex flex-col gap-1 px-3">
           {PANEL_LINKS.map(link => (
-            <Link key={link.href} href={link.href} className={panelLinkClass(link.href)}>
+            <Link key={link.href} href={link.href} className={panelLinkClass(link.href)} style={panelLinkStyle(link.href)}>
               {link.label}
             </Link>
           ))}
 
           <div className="my-2 border-t border-afs-chrome-dim mx-1" />
 
-          <Link href={accountLink.href} className={panelLinkClass(accountLink.href)}>
+          <Link href={accountLink.href} className={panelLinkClass(accountLink.href)} style={panelLinkStyle(accountLink.href)}>
             {accountLink.label}
           </Link>
 
@@ -119,7 +126,7 @@ export default function NavBar() {
       <header className="fixed top-0 left-48 right-0 z-40 h-11 bg-afs-bg-raised border-b border-afs-chrome-dim flex items-center px-8">
         <div className="hidden md:flex items-center gap-8">
           {TOP_NAV_LINKS.map((link) => (
-            <Link key={link.href} href={link.href} className={topNavLinkClass(link.href)}>
+            <Link key={link.href} href={link.href} className={topNavLinkClass(link.href)} style={topNavLinkStyle(link.href)}>
               {link.label}
             </Link>
           ))}

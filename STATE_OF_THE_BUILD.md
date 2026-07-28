@@ -240,6 +240,36 @@ FlashChat widget fixes   NEW (flashchat-fix-001, 2026-07-27) — four targeted
                          — those two entries' "Not committed" claims are
                          now stale but left as point-in-time records rather
                          than rewritten.
+Active nav highlight     NEW (nav-crimson-001, 2026-07-28) — the active
+color fix                nav-link color flashchat-fix-002 (below) added
+(nav-crimson-001):       read `text-afs-crimson` (`--afs-crimson`,
+                         `#C0001A`), reported as reading faded next to
+                         the site's buttons (which brighten to
+                         `--afs-crimson-hover`, `#E8001F`, on hover).
+                         Checked DESIGN_TOKENS.md per instruction —
+                         `--afs-crimson-hover` confirmed as the brighter
+                         token — and switched both the top-nav and
+                         sidebar active states to it via inline `style`
+                         (new `panelLinkStyle`/`topNavLinkStyle` helpers
+                         in `NavBar.tsx`, each returning `undefined` when
+                         inactive). Used `style={{ color:
+                         'var(--afs-crimson-hover)' }}` rather than the
+                         task's literal `'#E8001F'`/`'#C0001A'` hex
+                         string example — same rendered color (the CSS
+                         custom property already resolves to that exact
+                         value, `app/globals.css` line 21) without
+                         putting a hardcoded hex literal directly in JSX,
+                         which CLAUDE.md rule #4 prohibits outside its
+                         two sanctioned exceptions (canvas 2D context,
+                         Stripe's CardElement iframe) — neither applies
+                         to a nav `<Link>`. `pnpm tsc --noEmit`: 0
+                         errors. `pnpm run build`: exit 0, same route
+                         count. Verified post-build with `pnpm start` +
+                         a Playwright `getComputedStyle` read on
+                         `/resources`'s "Resources" links in both nav
+                         locations: `rgb(232, 0, 31)` (`#E8001F`) in
+                         both. Committed and pushed, no tool-approval
+                         blocker.
 FlashChat scroll +       NEW (flashchat-fix-002, 2026-07-27) — three
 nav highlight +          targeted fixes. (1) `ChatWidget.tsx`'s message-
 resources bug            list container gained `onWheel={(e) =>
