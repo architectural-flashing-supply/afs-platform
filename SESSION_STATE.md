@@ -7,7 +7,51 @@
 
 ## CURRENT STATUS
 
-**Most recent session (afs-logo-002, 2026-07-28): fixed the animated logo
+**Most recent session (afs-logo-003, 2026-07-28): rebuilt the logo
+animation around the real logo image and slamming chrome bars.** User
+feedback on afs-logo-002, below, in all caps: "DO YOU NOT UNDERSTAND I
+WANT MY COMPANY LOGO USED, AND THE SURROUNDING CHROME BARS AROUND THE
+PARIMETER TO BE THE ANIMATED ASPECT THAT 'SLAM' INTO PLACE WITH A METALIC
+METAL CLINK SOUND?" afs-logo-002 fixed the color/blob/shine-wash bugs but
+was still the wrong concept — a hand-drawn vector "AFS" standing in for
+the logo, when the ask was the real logo image with a chrome frame
+slamming onto it as the entire animation. Missed twice; rebuilt properly
+this time:
+
+1. **Deleted all the SVG letterform code.** The logo is now a plain
+   `<img src="/afs-logo.png">`, unmodified, always visible — no draw-in,
+   no fill transition. Its box is sized from the asset's real 2404×1080
+   aspect ratio (cited to DESIGN_TOKENS.md §9), not the outer
+   `width`/`height` props directly, so at NavBar's mismatched 120×36 box
+   the frame bars key off the logo's actual rendered edges (36×80.1
+   height-constrained), not the outer box's edges with a gap.
+2. **Four chrome `<div>` bars** (top/right/bottom/left, brushed gradient
+   mirroring afs-chrome-dim/silver/high) sit just outside those edges,
+   each starting ~28px off-frame and animating to rest with
+   `cubic-bezier(0.34, 1.56, 0.64, 1)` — a "back"/overshoot ease, so it
+   actually overshoots and springs back for the requested "slam," not a
+   plain slide. Staggered clockwise (top 0s, right 0.15s, bottom 0.3s,
+   left 0.45s) so the frame visibly closes around the logo. Each landing
+   gets its own metal clink (unchanged `synthesizeMetalClink` from
+   afs-logo-001/-002, just retimed to the bars), then a shimmer + shine
+   sweep once the frame closes — kept, since it wasn't part of the
+   complaint. Mute toggle / replay-on-hover / lazy `AudioContext` unlock
+   all unchanged.
+3. **Verified twice, not once.** A normal-speed Playwright pass confirmed
+   the real logo renders and the frame closes, but couldn't tell "bars
+   animate in sequence" from "bars pop in instantly" — Next dev-mode
+   hydration overhead was inconsistent enough to swamp a 0.67s animation
+   window. Rather than trust an ambiguous screenshot, backed up the file,
+   patched the CSS timings 6× longer on disk (fast refresh picked it up
+   live), re-screenshotted at scaled wait times, and confirmed a clean
+   top→right→bottom→left reveal — then restored from backup and diffed
+   byte-for-byte before re-running gates.
+
+**Gates passed this session** — `pnpm tsc --noEmit`: 0 errors. `pnpm run
+build`: succeeded, all 123 routes compiled. Committed (`9f0fb2a`) and
+pushed to `origin/main`.
+
+**Previous session (afs-logo-002, 2026-07-28): fixed the animated logo
 to actually look like AFS's logo.** User feedback on afs-logo-001, below:
 "you did not do the animation of my logo, but some generic crap." Fair —
 afs-logo-001 rendered the letters exactly as the thin gray skeleton

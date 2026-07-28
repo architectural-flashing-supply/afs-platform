@@ -377,6 +377,88 @@ color fix                nav-link color flashchat-fix-002 (below) added
                          locations: `rgb(232, 0, 31)` (`#E8001F`) in
                          both. Committed and pushed, no tool-approval
                          blocker.
+Animated AFS logo v2 —  NEW (afs-logo-003, 2026-07-28) — user feedback on
+real logo + slamming    afs-logo-002 (below), in all caps: "DO YOU NOT
+chrome bars              UNDERSTAND I WANT MY COMPANY LOGO USED, AND THE
+(afs-logo-003):          SURROUNDING CHROME BARS AROUND THE PARIMETER TO
+                         BE THE ANIMATED ASPECT THAT 'SLAM' INTO PLACE
+                         WITH A METALIC METAL CLINK SOUND?" afs-logo-002
+                         had fixed the color/weight/bug problems but was
+                         still fundamentally the wrong concept — a hand-
+                         drawn vector recreation of "AFS" as the animated
+                         subject, when the actual ask (clear in hindsight,
+                         missed twice) was: the real logo image, static and
+                         untouched, with a chrome frame that flies in and
+                         slams onto its edges as the entire animation.
+                         Rebuilt `AFSAnimatedLogo.tsx` around that: deleted
+                         all SVG letterform/skew/gradient code from
+                         afs-logo-001/-002. **The logo itself** is now a
+                         plain `<img src="/afs-logo.png">`, unmodified,
+                         always visible — no draw-in, no fill transition,
+                         nothing hand-drawn standing in for it. Its own box
+                         is sized from the asset's real 2404×1080 aspect
+                         ratio (`LOGO_NATURAL_ASPECT`, cited to
+                         DESIGN_TOKENS.md §9) rather than the outer
+                         `width`/`height` props directly, so at NavBar's
+                         mismatched 120×36 box the computed inner box
+                         (height-constrained here: 36×80.1) is what the
+                         frame bars key off — otherwise they'd sit at the
+                         outer box's edges with a visible gap from the
+                         actual (letterboxed) logo pixels. **The animation**
+                         is four `<div>` chrome bars (top/right/bottom/left,
+                         brushed gradient mirroring afs-chrome-dim/silver/
+                         high, cited under the same rule-#4 "explicit
+                         instruction" carve-out as before) positioned just
+                         outside the logo's real edges, each starting
+                         translated ~28px off in its own direction and
+                         animating to rest with `cubic-bezier(0.34, 1.56,
+                         0.64, 1)` (a standard "back"/overshoot ease) for
+                         the requested "slam" — it overshoots past the
+                         resting position and springs back, not a plain
+                         linear slide. Staggered clockwise (top 0s, right
+                         0.15s, bottom 0.3s, left 0.45s, 0.22s each), so
+                         the frame visibly closes in around the logo
+                         rather than all four bars landing at once. Each
+                         bar's landing gets its own `synthesizeMetalClink`
+                         (2100/2300/1900/2000hz at `ctx.currentTime +
+                         0.22/0.37/0.52/0.67`, unchanged synthesis
+                         function from afs-logo-001/-002 — only the
+                         trigger count/timing changed, not the sound
+                         design), then a `synthesizeShimmer` + CSS shine
+                         sweep at `+0.8` once the frame has closed, kept
+                         from the prior versions since it wasn't part of
+                         the complaint. Mute toggle, replay-on-hover/loop,
+                         and the lazy-`AudioContext`-on-first-gesture logic
+                         are all unchanged from afs-logo-001/-002 — none of
+                         that was wrong, only the visual subject was.
+                         **Verified twice in a real browser, not just by
+                         re-reading the code:** first pass (normal speed,
+                         `@playwright/test`'s bundled `chromium`, same
+                         approach as afs-logo-002) confirmed the real logo
+                         renders and the frame closes, but couldn't
+                         distinguish "bars genuinely animate in sequence"
+                         from "bars pop in instantly" — reload/hydration
+                         overhead in Next dev mode was large and
+                         inconsistent enough (an early miscalibration this
+                         session estimated it at ~700-800ms, larger than
+                         afs-logo-002's ~200-300ms estimate, run-to-run
+                         variance) to swamp a ~0.67s total animation
+                         window. Rather than trust an ambiguous screenshot,
+                         backed up the file, patched all four CSS
+                         durations/delays 6× longer (1.32s/0.9s/1.8s/2.7s
+                         bar delays, 4.8s shine delay) directly on disk so
+                         Next's dev-mode fast refresh picked it up live,
+                         re-screenshotted at proportionally-scaled wait
+                         times (300/1500/2500/3500/5500ms), and confirmed
+                         a clean top→right→bottom→left progressive
+                         reveal — then restored the file from the backup
+                         and diffed it byte-for-byte against the backup to
+                         confirm the revert was exact before re-running
+                         gates. Deleted both scratch screenshot scripts
+                         from the repo root before committing. `pnpm tsc
+                         --noEmit`: 0 errors. `pnpm run build`: exit 0,
+                         same 123-route count. Committed (`9f0fb2a`) and
+                         pushed to `origin/main`.
 Animated AFS logo       NEW (afs-logo-002, 2026-07-28) — user feedback on
 redesign (afs-logo-002): afs-logo-001 (below): "you did not do the
                          animation of my logo, but some generic crap."
