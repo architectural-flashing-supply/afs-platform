@@ -19,7 +19,8 @@ const RESOURCES: Resource[] = [
     title: 'SMACNA Architectural Sheet Metal Manual',
     description:
       "The definitive industry reference for architectural sheet metal design, material selection, and installation practice. Covers every flashing profile, seam type, expansion provision, and material specification. Required reading for any Division 07 specifier or sheet metal fabricator. Referenced in specifications as 'fabricate per SMACNA Architectural Sheet Metal Manual, current edition.'",
-    url: 'https://www.smacna.org/store/technical-resources',
+    url: 'https://www.smacna.org/technical-standards',
+    logo: '/resources/logos/smacna.png',
   },
   {
     id: 'nrca-roofing-manual-architectural-metal-flashing',
@@ -27,7 +28,8 @@ const RESOURCES: Resource[] = [
     title: 'NRCA Roofing Manual: Architectural Metal Flashing',
     description:
       'National Roofing Contractors Association manual covering architectural metal flashing and condensation control. Provides installation details, material guidance, and best practices for metal flashing integration with roofing systems. The 2022 edition covers copper, aluminum, galvanized, and stainless flashing applications.',
-    url: 'https://www.nrca.net/technical/manuals',
+    url: 'https://www.nrca.net/manuals',
+    logo: '/resources/logos/nrca.png',
   },
   {
     id: 'ansi-spri-fm-4435-es-1-wind-design-standard',
@@ -35,7 +37,8 @@ const RESOURCES: Resource[] = [
     title: 'ANSI/SPRI/FM 4435 ES-1 Wind Design Standard',
     description:
       'The definitive wind uplift testing and design standard for roof edge metal systems including coping caps, gravel stops, fascia, and drip edge. Required for code-compliant commercial roofing edge metal specifications. Defines testing methodology and minimum performance requirements by wind zone.',
-    url: 'https://www.spri.org/resources/',
+    url: 'https://www.spri.org/standards/wind-calculator/',
+    logo: '/resources/logos/spri.png',
   },
   {
     id: 'fm-global-fm-4435-roof-edge-metal-approvals',
@@ -44,6 +47,7 @@ const RESOURCES: Resource[] = [
     description:
       'Factory Mutual approval listings for roof edge metal systems. FM-approved edge metals are required on FM-insured buildings. Covers coping, gravel stop, fascia, and drip edge assemblies tested for wind uplift resistance.',
     url: 'https://www.fmglobal.com/research-and-resources/tools-and-resources/fm-approvals',
+    logo: '/resources/logos/fmglobal.png',
   },
   {
     id: 'copper-development-association-architectural-manual',
@@ -51,7 +55,8 @@ const RESOURCES: Resource[] = [
     title: 'Copper Development Association Architectural Manual',
     description:
       'Comprehensive technical manual for architectural copper applications including roofing, flashing, gutters, and cladding. Covers soldering techniques, expansion provisions, seam design, patina development, and compatibility with other materials. Freely available at copper.org.',
-    url: 'https://www.copper.org/applications/architecture/arch_dhb/',
+    url: 'https://www.copper.org/applications/architecture/arch_dhb/arch-details/',
+    logo: '/resources/logos/copper-dev.png',
   },
   {
     id: 'aluminum-association-aluminum-in-architecture',
@@ -60,6 +65,7 @@ const RESOURCES: Resource[] = [
     description:
       'Technical resources for aluminum use in architectural applications including sheet metal, panels, and extrusions. Covers alloy selection, finish specifications (Kynar/PVDF per AAMA 2605), thermal properties, and installation guidance.',
     url: 'https://www.aluminum.org/aluminum-advantage/building-construction',
+    logo: '/resources/logos/aluminum-assoc.png',
   },
 
   // ASTM Material Specifications
@@ -69,7 +75,8 @@ const RESOURCES: Resource[] = [
     title: 'ASTM B370 — Copper Sheet and Strip for Building Construction',
     description:
       'The standard specification for copper sheet used in architectural applications including flashing, roofing, and gutters. Defines temper designations, thickness tolerances, and mechanical properties for 16oz, 20oz, and 24oz copper. Essential reference for copper flashing specifications.',
-    url: 'https://www.astm.org/b0370-12r18.html',
+    url: 'https://store.astm.org/b0370-22.html',
+    logo: '/resources/logos/astm.png',
   },
   {
     id: 'astm-b209-aluminum-sheet-and-plate',
@@ -77,7 +84,8 @@ const RESOURCES: Resource[] = [
     title: 'ASTM B209 — Aluminum Sheet and Plate',
     description:
       'Standard specification for aluminum sheet used in architectural flashing and wall panels. Covers alloy and temper designations including 3003-H14 (standard architectural alloy), thickness tolerances, and mechanical properties. Reference for aluminum flashing gauge specifications.',
-    url: 'https://www.astm.org/b0209-14.html',
+    url: 'https://store.astm.org/b0209-14.html',
+    logo: '/resources/logos/astm.png',
   },
   {
     id: 'astm-a653-galvanized-steel-sheet',
@@ -85,7 +93,8 @@ const RESOURCES: Resource[] = [
     title: 'ASTM A653 — Galvanized Steel Sheet (Hot-Dip)',
     description:
       'Standard specification for hot-dip zinc-coated (galvanized) steel sheet. Defines G-90 coating designation (minimum 0.90 oz/sq ft zinc coating) required for exterior architectural applications. Covers 24ga, 22ga, and 20ga commonly used in architectural flashing.',
-    url: 'https://www.astm.org/a0653_a0653m-23.html',
+    url: 'https://store.astm.org/a0653_a0653m-23.html',
+    logo: '/resources/logos/astm.png',
   },
   {
     id: 'astm-a240-stainless-steel-sheet-and-strip',
@@ -93,7 +102,8 @@ const RESOURCES: Resource[] = [
     title: 'ASTM A240 — Stainless Steel Sheet and Strip',
     description:
       'Standard specification for chromium and chromium-nickel stainless steel sheet used in architectural applications. Covers 304 and 316 grades — 316 contains molybdenum for superior chloride corrosion resistance required in coastal environments. Reference for stainless flashing specifications.',
-    url: 'https://www.astm.org/a0240_a0240m-23a.html',
+    url: 'https://store.astm.org/a0240_a0240m-23a.html',
+    logo: '/resources/logos/astm.png',
   },
   {
     id: 'astm-a792-galvalume-steel-sheet',
@@ -101,7 +111,8 @@ const RESOURCES: Resource[] = [
     title: 'ASTM A792 — Galvalume Steel Sheet',
     description:
       'Standard specification for steel sheet coated with 55% aluminum-zinc alloy (Galvalume/AZ55). Provides superior corrosion resistance vs standard galvanized for roofing and flashing applications. Commonly specified for metal roofing panels and trim.',
-    url: 'https://www.astm.org/a0792_a0792m-23.html',
+    url: 'https://store.astm.org/a0792_a0792m-23.html',
+    logo: '/resources/logos/astm.png',
   },
   {
     id: 'aama-2605-fluoropolymer-coatings',
@@ -110,6 +121,7 @@ const RESOURCES: Resource[] = [
     description:
       'American Architectural Manufacturers Association standard for 70% PVDF (Kynar 500/Hylar 5000) fluoropolymer coatings on aluminum. Required specification for color-coated aluminum flashing, wall panels, and fascia where long-term color retention and chalk resistance are specified.',
     url: 'https://www.aamanet.org/publication/aama-2605-23/',
+    logo: '/resources/logos/aama.png',
   },
 
   // Building Codes & Regulations
@@ -120,6 +132,7 @@ const RESOURCES: Resource[] = [
     description:
       'The model building code adopted by most US jurisdictions. Chapter 14 covers exterior wall flashing requirements including through-wall flashing, window and door flashing, and penetration flashing. Essential reference for minimum code-required flashing scope on commercial construction.',
     url: 'https://codes.iccsafe.org/',
+    logo: '/resources/logos/icc.png',
   },
   {
     id: 'irc-flashing-requirements',
@@ -128,6 +141,7 @@ const RESOURCES: Resource[] = [
     description:
       'Model residential building code covering flashing requirements for one- and two-family dwellings. Section R903 covers roof flashing; R703 covers wall flashing at windows, doors, and penetrations. Widely adopted by Texas jurisdictions.',
     url: 'https://codes.iccsafe.org/',
+    logo: '/resources/logos/icc.png',
   },
   {
     id: 'asce-7-minimum-design-loads',
@@ -136,6 +150,7 @@ const RESOURCES: Resource[] = [
     description:
       'The structural engineering standard that establishes wind load requirements used to design coping caps, gravel stops, and other roof edge metals for wind uplift resistance. Wind speed maps in ASCE 7 form the basis for SPRI ES-1 wind zone selection.',
     url: 'https://www.asce.org/publications-and-news/asce-7',
+    logo: '/resources/logos/asce.png',
   },
   {
     id: 'tdi-windstorm-requirements',
@@ -144,6 +159,7 @@ const RESOURCES: Resource[] = [
     description:
       'TDI windstorm inspection and compliance requirements for the Texas Gulf Coast and designated catastrophe areas. Sheet metal flashing on TDI-regulated construction must comply with windstorm standards. Critical reference for coastal Texas projects.',
     url: 'https://www.tdi.texas.gov/wind/',
+    logo: '/resources/logos/tdi.png',
   },
   {
     id: 'tdlr-roofing',
@@ -152,6 +168,7 @@ const RESOURCES: Resource[] = [
     description:
       'TDLR licensing requirements for roofing contractors in Texas. Includes continuing education requirements and contractor lookup. Reference for verifying contractor credentials on projects specifying AFS-fabricated flashing.',
     url: 'https://www.tdlr.texas.gov/roofing/',
+    logo: '/resources/logos/tdlr.png',
   },
 
   // Professional Organizations
@@ -162,6 +179,7 @@ const RESOURCES: Resource[] = [
     description:
       'The primary trade association for union sheet metal contractors. SMACNA publishes the Architectural Sheet Metal Manual and numerous other technical references. Member contractors and fabricators adhere to SMACNA quality and installation standards.',
     url: 'https://www.smacna.org',
+    logo: '/resources/logos/smacna.png',
   },
   {
     id: 'nrca-org',
@@ -170,6 +188,7 @@ const RESOURCES: Resource[] = [
     description:
       'The national trade association for roofing contractors. Publishes the NRCA Roofing Manual series, advocates for the roofing industry, and provides technical education. The NRCA Roofing Manual is a companion reference to SMACNA for flashing and sheet metal work.',
     url: 'https://www.nrca.net',
+    logo: '/resources/logos/nrca.png',
   },
   {
     id: 'spri-org',
@@ -178,6 +197,7 @@ const RESOURCES: Resource[] = [
     description:
       'Trade association representing manufacturers of membrane roofing products and components. Publishes the ANSI/SPRI ES-1 wind design standard for roof edge metals. Critical organization for specifiers of coping caps, gravel stops, and fascia on commercial roofing projects.',
     url: 'https://www.spri.org',
+    logo: '/resources/logos/spri.png',
   },
   {
     id: 'metal-construction-association',
@@ -186,6 +206,7 @@ const RESOURCES: Resource[] = [
     description:
       'Trade association for the metal construction industry including metal roofing, wall panels, and architectural sheet metal. Publishes technical guides on metal panel systems, coatings, and sustainability. Resource for specifiers of metal wall panels and standing seam roofing.',
     url: 'https://www.metalconstruction.org',
+    logo: '/resources/logos/mca.png',
   },
   {
     id: 'aia-org',
@@ -194,6 +215,7 @@ const RESOURCES: Resource[] = [
     description:
       'The national professional organization for licensed architects. AIA MasterSpec includes Division 07 specification sections for sheet metal flashing and trim (076200) used as the basis for project specifications. AIA contract documents are the standard for architectural services.',
     url: 'https://www.aia.org',
+    logo: '/resources/logos/aia.png',
   },
   {
     id: 'csi-resources',
@@ -202,6 +224,7 @@ const RESOURCES: Resource[] = [
     description:
       "CSI maintains MasterFormat, the standard filing system for construction specifications and cost data. Division 07 — Thermal and Moisture Protection is the CSI division covering all architectural flashing and sheet metal work. CSI's SectionFormat and PageFormat guide specification writing.",
     url: 'https://www.csiresources.org',
+    logo: '/resources/logos/csi.png',
   },
 
   // Specification & Product Resources
@@ -212,6 +235,7 @@ const RESOURCES: Resource[] = [
     description:
       'Free online library of manufacturer CAD drawings, BIM files, specifications, and product data for Division 07 products including sheet metal flashing, coping, gravel stops, and edge metals. Architects use ARCAT to source product data and download manufacturer specifications.',
     url: 'https://www.arcat.com/content-type/product/thermal-and-moisture-protection-07/flashing-and-sheet-metal-076000',
+    logo: '/resources/logos/arcat.png',
   },
   {
     id: 'speclink-division-07-sections',
@@ -220,6 +244,7 @@ const RESOURCES: Resource[] = [
     description:
       'BSD SpecLink is a master guide specification system used by architects to create project specifications. Division 07 sections in SpecLink cover sheet metal flashing (076200), roof specialties (077100), and related work. Integration with manufacturer data allows automated updates.',
     url: 'https://www.speclink.com',
+    logo: '/resources/logos/speclink.png',
   },
   {
     id: 'copper-org-architectural-flashing-details',
@@ -228,6 +253,7 @@ const RESOURCES: Resource[] = [
     description:
       "The Copper Development Association's free online architectural design handbook includes detailed drawings and specifications for copper flashing applications including coping caps, gravel stops, reglets, counter flashing, gutters, and standing seam roofing. Excellent reference for copper specification.",
     url: 'https://www.copper.org/applications/architecture/arch_dhb/arch-details/flashings_copings/',
+    logo: '/resources/logos/copper-dev.png',
   },
   {
     id: 'steel-roofing-institute',
@@ -236,6 +262,7 @@ const RESOURCES: Resource[] = [
     description:
       'Technical resources and product information for steel roofing and wall panel systems. Covers standing seam, corrugated, and ribbed metal panels along with associated trim and flashing components.',
     url: 'https://www.steelroofing.com',
+    logo: '/resources/logos/steel-roofing.png',
   },
   {
     id: 'csi-div7',
@@ -244,6 +271,7 @@ const RESOURCES: Resource[] = [
     description:
       'The CSI MasterFormat numbering system organizes all construction specifications by division. Division 07 covers all Thermal and Moisture Protection work including: 07 62 00 Sheet Metal Flashing and Trim, 07 63 00 Sheet Metal Drainage, 07 71 00 Roof Specialties (coping caps, gravel stops, fascia), 07 72 00 Roof Accessories, and 07 90 00 Joint Protection and Sealants. Architects use Division 07 section numbers to organize project specifications and coordinate all flashing and waterproofing work. AFS products are specified under Sections 07 62 00 and 07 71 00.',
     url: 'https://www.csiresources.org/practice/masterformat',
+    logo: '/resources/logos/csi.png',
   },
   {
     id: 'spec-076200',
@@ -252,6 +280,7 @@ const RESOURCES: Resource[] = [
     description:
       'The specific CSI MasterFormat section covering custom-fabricated architectural sheet metal flashing including base flashing, counter flashing, cap flashing, step flashing, valley flashing, coping caps, gravel stops, drip edge, reglets, Z-bars, expansion joint covers, gutters, downspouts, conductor heads, scuppers, and specialty profiles. When specifying AFS-fabricated products, reference Section 07 62 00 for flashing and trim and Section 07 71 00 for roof specialties. Include SMACNA Architectural Sheet Metal Manual as the fabrication reference standard.',
     url: 'https://www.csiresources.org/practice/masterformat',
+    logo: '/resources/logos/csi.png',
   },
 
   // Texas-Specific Resources
@@ -278,6 +307,7 @@ const RESOURCES: Resource[] = [
     description:
       'OSHA regulations applicable to sheet metal installation including fall protection, heat illness prevention (critical for Texas), and general industry standards. Reference for contractors installing AFS-fabricated flashing on job sites.',
     url: 'https://www.osha.gov/sheet-metal-workers',
+    logo: '/resources/logos/osha.png',
   },
 ];
 
@@ -385,19 +415,24 @@ function VideoCard({ video }: { video: VideoPlaceholder }) {
 function ResourceCard({ resource }: { resource: Resource }) {
   return (
     <div className="bg-afs-bg-raised border border-afs-border rounded p-5 hover:border-afs-crimson transition-colors flex flex-col">
-      <div className="flex items-start justify-between gap-3 mb-2">
+      <div className="mb-2">
         <span className="text-xs font-label uppercase tracking-wider text-afs-crimson">
           {resource.category}
         </span>
-        <div className="w-12 h-12 shrink-0 bg-afs-bg-surface rounded flex items-center justify-center text-afs-chrome-dim text-xs">
-          {resource.logo ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={resource.logo} alt="" className="w-full h-full object-contain rounded" />
-          ) : (
-            'LOGO'
-          )}
-        </div>
       </div>
+      {resource.logo && (
+        <div className="w-12 h-12 mb-3 flex items-center justify-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={resource.logo}
+            alt={resource.title}
+            className="w-full h-full object-contain"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+            }}
+          />
+        </div>
+      )}
       <h3 className="font-label font-semibold text-afs-chrome-high text-sm mb-2">{resource.title}</h3>
       <p className="font-body text-xs text-afs-chrome-mid leading-relaxed mb-3 flex-1">
         {resource.description}
