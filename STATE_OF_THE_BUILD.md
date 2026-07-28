@@ -377,6 +377,77 @@ color fix                nav-link color flashchat-fix-002 (below) added
                          locations: `rgb(232, 0, 31)` (`#E8001F`) in
                          both. Committed and pushed, no tool-approval
                          blocker.
+Resources page — fix   NEW (resources-001, 2026-07-28) — read
+all dead URLs, add     `components/resources/ResourcesBrowser.tsx` and
+logo placeholders       `app/(public)/resources/page.tsx` first, per
+(resources-001):        instruction — the 32-entry `RESOURCES` data array
+                         and its `ResourceCard` renderer both live in
+                         `ResourcesBrowser.tsx`; `page.tsx` is just the
+                         hero + metadata wrapper and needed no changes.
+                         Replaced the `url` field on every entry matching
+                         one of the 30 title/id mappings supplied,
+                         exactly as given — checked each old value first
+                         rather than blindly overwriting: about half
+                         (Aluminum Association, AAMA 2605, FM Global,
+                         both IBC/IRC codes.iccsafe.org entries, all 6
+                         Professional Organizations root-domain entries,
+                         all 6 Specification & Product Resources entries,
+                         OSHA) already held the exact target URL and only
+                         needed the new `logo` field added; the other
+                         half (SMACNA manual, NRCA manual, SPRI ES-1, all
+                         5 ASTM `store.astm.org` specs, Copper
+                         Development Association) had genuinely different
+                         — actually dead/wrong-path — URLs that were
+                         replaced outright. Two entries were deliberately
+                         left untouched since neither appeared in the
+                         supplied mapping: `austin-building-criteria-
+                         manual-roofing` (its existing URL already
+                         happened to match what "City of Austin" would
+                         have pointed to anyway) and `texas-state-
+                         library-building-codes` (no mapping given at
+                         all — still points at `tsl.texas.gov`, not
+                         verified this session, and got no `logo` field
+                         either). Added `logo:
+                         '/resources/logos/<name>.png'` to the other 30
+                         entries per the exact 19-file naming convention
+                         given — several logo files are intentionally
+                         shared across multiple entries where that's the
+                         same organization (`smacna.png` on both the
+                         manual and the org-homepage cards, `nrca.png`
+                         ditto, `spri.png` ditto, `copper-dev.png` across
+                         both Copper Development Association entries,
+                         `astm.png` across all 5 ASTM specs, `icc.png`
+                         across both IBC and IRC, `csi.png` across all 3
+                         CSI-affiliated entries — CSI resources, CSI
+                         MasterFormat Division 07, and the 07 62 00 spec
+                         guide, since that's also CSI MasterFormat-based)
+                         — 30 of 32 entries now carry a `logo`, matching
+                         the 19 distinct filenames supplied. **Card
+                         markup** — the `Resource` interface already had
+                         an optional `logo?: string` field and
+                         `ResourceCard` already rendered SOME logo
+                         handling (a top-right `w-12 h-12` box showing
+                         either the image or a literal `'LOGO'` text
+                         fallback, next to the category label) from an
+                         earlier, undocumented session — replaced that
+                         entirely with the exact block supplied in the
+                         prompt (logo above the title, `onError` hides
+                         the `<img>` gracefully via
+                         `e.currentTarget.style.display = 'none'` if the
+                         file doesn't exist yet, category label kept on
+                         its own line above it) rather than layering a
+                         second logo rendering on top of the first, which
+                         would have shown the same image twice per card
+                         for all 30 entries that now have one. No logo
+                         image files exist in `public/resources/logos/`
+                         yet — the `onError` fallback is confirmed
+                         working as designed since every card currently
+                         renders with the image silently hidden (a 404 on
+                         a nonexistent file path), not broken-image icons.
+                         `pnpm tsc --noEmit`: 0 errors. `pnpm run build`:
+                         `✓ Compiled successfully`, `✓ Generating static
+                         pages (123/123)`, same route count. Committed
+                         (`b78e051`) and pushed to `origin/main`.
 Animated AFS logo v7 —  NEW (afs-logo-008, 2026-07-28) — user supplied a
 real recorded clang     real reference recording instead of continuing to
 replaces synthesis      iterate on synthesis blind: freesound.org's

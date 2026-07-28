@@ -7,7 +7,45 @@
 
 ## CURRENT STATUS
 
-**Most recent session (afs-logo-008, 2026-07-28): the clang is now a
+**Most recent session (resources-001, 2026-07-28): fixed every dead URL
+on the Resources page, added logo-placeholder support.** Read
+`components/resources/ResourcesBrowser.tsx` (holds both the 32-entry
+`RESOURCES` array and `ResourceCard`) and `app/(public)/resources/
+page.tsx` (hero + metadata only, unchanged) first, per instruction.
+
+1. **URLs** — replaced the `url` field on every entry matching one of
+   the 30 title/id mappings given, checking the old value first rather
+   than blind-overwriting: about half already held the exact target URL
+   (only needed a `logo` field added), the other half (SMACNA manual,
+   NRCA manual, SPRI ES-1, all 5 ASTM specs, Copper Development
+   Association) had genuinely dead/wrong-path URLs that got replaced.
+   Two entries were deliberately left untouched — neither appeared in
+   the supplied mapping: `austin-building-criteria-manual-roofing`
+   (unaffected either way, its existing URL already matched) and
+   `texas-state-library-building-codes` (still points at
+   `tsl.texas.gov`, not verified this session, no mapping was given for
+   it).
+2. **Logos** — added `logo: '/resources/logos/<name>.png'` to 30 of the
+   32 entries per the 19-file naming convention given, sharing filenames
+   across entries for the same organization where that's correct
+   (`astm.png` across all 5 ASTM specs, `icc.png` across IBC+IRC,
+   `csi.png` across all 3 CSI-affiliated entries, etc.).
+3. **Card markup** — `ResourceCard` already had SOME logo handling from
+   an earlier, undocumented session (a top-right box showing the image or
+   a literal `'LOGO'` fallback). Replaced it entirely with the exact
+   block supplied in the prompt (logo above the title, `onError` hides
+   the `<img>` gracefully if the file doesn't exist yet) rather than
+   stacking a second logo render on top of the first, which would have
+   shown the same image twice on all 30 now-logo'd cards. No actual logo
+   files exist in `public/resources/logos/` yet — confirmed the
+   `onError` fallback is doing its job, since cards currently render
+   with the image silently hidden rather than a broken-image icon.
+
+**Gates passed this session** — `pnpm tsc --noEmit`: 0 errors. `pnpm run
+build`: succeeded, all 123 routes compiled. Committed (`b78e051`) and
+pushed to `origin/main`.
+
+**Previous session (afs-logo-008, 2026-07-28): the clang is now a
 real recorded metal sound, not synthesis.** User supplied a real
 reference file instead of continuing to iterate on synthesis blind:
 freesound.org's `406197__kyles__door-metal-big-heavy-close-kinda-slam-
