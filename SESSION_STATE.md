@@ -7,7 +7,48 @@
 
 ## CURRENT STATUS
 
-**Most recent session (flashchat-fix-003, 2026-07-28): FlashChat smart
+**Most recent session (flashchat-fix-005, 2026-07-28): FlashChat trigger
+button restyled to a bare icon image, unread badge removed.** Read
+`components/ai/ChatWidget.tsx` first, per instruction. Two changes, both
+applied:
+
+1. **Trigger button** — the collapsed chat trigger's circular
+   `bg-afs-crimson`/`shadow-crimson`/`rounded-full` bubble is gone.
+   Replaced with a borderless, background-less `<button>`
+   (`background: 'none', border: 'none', padding: 0`, 64×64px) whose only
+   visual is a 64×64px `<img src="/chat_bubble_icon.png" alt="FlashChat">`
+   — matches the exact JSX given in the prompt.
+2. **Unread badge removed** — the `{unreadCount > 0 && <span>...}` badge
+   is gone, since it depended on the circular background for
+   placement/contrast and doesn't work visually over a bare image. The
+   `unreadCount` state itself (set on `expanded`/new-message) was left in
+   place, just no longer rendered — removing the state wasn't asked for and
+   doesn't affect behavior or either gate.
+
+Panel header icon (20×20 `<img>`) explicitly left unchanged, per
+instruction.
+
+**Gates passed this session** — `pnpm tsc --noEmit`: 0 errors. `pnpm run
+build`: succeeded, all 123 routes compiled. Committed (`ad8bb61`) and
+pushed to `origin/main`.
+
+**Previous session (flashchat-fix-004, 2026-07-28): FlashChat hard-hat SVG
+replaced with `/public/chat_bubble_icon.png`.** Read
+`components/ai/ChatWidget.tsx` first, per instruction. Replaced the shared
+`HardHatQuestionIcon` SVG (added in flashchat-fix-003, below) with the new
+PNG asset in both places it rendered: the collapsed trigger button (32×32
+`<img>`) and the panel header next to "FlashChat" (20×20 `<img>`), each
+`alt="FlashChat"`, `objectFit: 'contain'`. `HardHatQuestionIcon`'s function
+definition was left in place, now unused elsewhere in the file — no
+`noUnusedLocals` in `tsconfig.json` and no project-level `.eslintrc`
+enforcing unused-var errors, so it doesn't fail either gate; removing it
+wasn't asked for.
+
+**Gates passed this session** — `pnpm tsc --noEmit`: 0 errors. `pnpm run
+build`: succeeded, all 123 routes compiled. Committed (`0e77675`) and
+pushed to `origin/main`.
+
+**Previous session (flashchat-fix-003, 2026-07-28): FlashChat smart
 scroll + crimson question bubbles + clear button + hard hat icon + Send
 button color, NavBar active pill.** Read `components/ai/ChatWidget.tsx` and
 `components/layout/NavBar.tsx` first, per instruction. Six exact changes,

@@ -377,6 +377,45 @@ color fix                nav-link color flashchat-fix-002 (below) added
                          locations: `rgb(232, 0, 31)` (`#E8001F`) in
                          both. Committed and pushed, no tool-approval
                          blocker.
+FlashChat trigger        NEW (flashchat-fix-005, 2026-07-28) — replaced the
+button restyle           collapsed trigger's circular `bg-afs-crimson`
+(flashchat-fix-005):     bubble in `components/ai/ChatWidget.tsx` with a
+                         borderless image-only button per explicit
+                         instruction: `background: 'none'`, `border: 'none'`,
+                         `padding: 0`, a 64×64px `<img
+                         src="/chat_bubble_icon.png">` as the sole visual —
+                         no `rounded-full`/`bg-afs-crimson`/`shadow-crimson`
+                         classes left on it. Unread-count badge (the
+                         `{unreadCount > 0 && ...}` span) removed per
+                         instruction, since it depended on the circular
+                         background for placement/contrast and "doesn't
+                         work visually" without it. `unreadCount` state
+                         itself (`setUnreadCount(0)` on expand,
+                         `setUnreadCount((c) => c + 1)` on a new message
+                         while collapsed) was left in place — still set,
+                         just no longer displayed — since removing it
+                         wasn't asked for and it doesn't affect behavior or
+                         either gate. Panel header icon (20×20 `<img>`, from
+                         flashchat-fix-004 below) left untouched, per
+                         instruction. `pnpm tsc --noEmit`: 0 errors. `pnpm
+                         run build`: exit 0, same route count. Committed
+                         (`ad8bb61`) and pushed to `origin/main`.
+FlashChat icon swap      NEW (flashchat-fix-004, 2026-07-28) — replaced the
+(flashchat-fix-004):     shared `HardHatQuestionIcon` SVG (introduced in
+                         flashchat-fix-003 below) with the new `/public/
+                         chat_bubble_icon.png` asset in both places it
+                         rendered: the collapsed trigger button (32×32
+                         `<img>`) and the panel header next to "FlashChat"
+                         (20×20 `<img>`), each `alt="FlashChat"`,
+                         `objectFit: 'contain'`. `HardHatQuestionIcon`'s
+                         function definition was left in place, now unused
+                         — no `noUnusedLocals` in `tsconfig.json` and no
+                         project-level `.eslintrc` enforcing unused-var
+                         errors, so this doesn't fail either gate; removing
+                         it wasn't asked for. `pnpm tsc --noEmit`: 0
+                         errors. `pnpm run build`: exit 0, same route
+                         count. Committed (`0e77675`) and pushed to
+                         `origin/main`.
 FlashChat smart scroll + NEW (flashchat-fix-003, 2026-07-28) — six exact,
 crimson bubbles +        scoped changes to `components/ai/ChatWidget.tsx`
 clear button + hard      and `components/layout/NavBar.tsx`. (1) Scroll no
