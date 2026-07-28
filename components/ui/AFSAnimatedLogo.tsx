@@ -2,45 +2,32 @@
 
 import { useEffect, useState } from 'react';
 
-// Web Audio API synthesis — no audio files. A tough metal "clang" (low
-// thump + bright metallic ring + a sharp impact click) for each of the
-// real logo's chrome frame pieces slamming into place.
+// Web Audio API synthesis — no audio files. What actually reads as
+// "metal hitting metal" rather than a generic thud/beep is INHARMONICITY:
+// real metal rings at overtones that are NOT simple integer multiples of
+// a fundamental (unlike a plucked string or a drum head), which is why a
+// struck wrench or steel beam has that shimmering, slightly dissonant
+// "clang" instead of a clean musical tone. This is the same principle
+// classic bell/gong synthesis (e.g. the Risset bell technique) is built
+// on. The previous version had exactly one swept sine "ring" partial —
+// a single pure tone can't produce that beating/shimmering quality no
+// matter how it's EQ'd, which is almost certainly why it read as
+// "not metallic enough." This version replaces that with a small bank of
+// sine partials at inharmonic frequency ratios, each decaying at its own
+// independent rate, plus a sharp noise-burst impact click and a lower
+// thump for weight.
+const METAL_PARTIALS: Array<{ ratio: number; gain: number; decay: number }> = [
+  { ratio: 1.0, gain: 0.32, decay: 0.34 },
+  { ratio: 2.41, gain: 0.24, decay: 0.27 },
+  { ratio: 3.76, gain: 0.17, decay: 0.21 },
+  { ratio: 5.4, gain: 0.12, decay: 0.15 },
+  { ratio: 7.1, gain: 0.08, decay: 0.11 },
+];
+
 function synthesizeMetalClang(audioCtx: AudioContext, impactFrequency: number, startTime: number) {
-  // Low thump — the weight of the impact. Kept in the ~90-140Hz range
-  // (not the ~35-45Hz a naive "low" multiplier lands on) because most
-  // laptop/phone speakers roll off steeply below ~100Hz and would render
-  // anything lower essentially silent.
-  const thumpOsc = audioCtx.createOscillator();
-  const thumpGain = audioCtx.createGain();
-  thumpOsc.connect(thumpGain);
-  thumpGain.connect(audioCtx.destination);
-  thumpOsc.type = 'triangle';
-  thumpOsc.frequency.setValueAtTime(impactFrequency, startTime);
-  thumpOsc.frequency.exponentialRampToValueAtTime(impactFrequency * 0.6, startTime + 0.15);
-  thumpGain.gain.setValueAtTime(0, startTime);
-  thumpGain.gain.linearRampToValueAtTime(0.85, startTime + 0.004);
-  thumpGain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.28);
-  thumpOsc.start(startTime);
-  thumpOsc.stop(startTime + 0.3);
-
-  // Metallic ring — a bright present-midrange partial, not a thin high
-  // whistle, layered on top of the thump.
-  const ringOsc = audioCtx.createOscillator();
-  const ringGain = audioCtx.createGain();
-  ringOsc.connect(ringGain);
-  ringGain.connect(audioCtx.destination);
-  ringOsc.type = 'sine';
-  ringOsc.frequency.setValueAtTime(impactFrequency * 3.2, startTime);
-  ringOsc.frequency.exponentialRampToValueAtTime(impactFrequency * 1.6, startTime + 0.12);
-  ringGain.gain.setValueAtTime(0, startTime);
-  ringGain.gain.linearRampToValueAtTime(0.4, startTime + 0.003);
-  ringGain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.2);
-  ringOsc.start(startTime);
-  ringOsc.stop(startTime + 0.22);
-
   // Sharp impact click — a brief, bright filtered noise burst at the
-  // onset for the "metal on metal" snap.
-  const bufferSize = Math.floor(audioCtx.sampleRate * 0.02);
+  // very onset, the sound of the two surfaces actually making contact.
+  const bufferSize = Math.floor(audioCtx.sampleRate * 0.015);
   const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
   const data = buffer.getChannelData(0);
   for (let i = 0; i < bufferSize; i++) {
@@ -51,15 +38,51 @@ function synthesizeMetalClang(audioCtx: AudioContext, impactFrequency: number, s
   const noiseGain = audioCtx.createGain();
   noiseSource.buffer = buffer;
   noiseFilter.type = 'bandpass';
-  noiseFilter.frequency.value = impactFrequency * 8;
-  noiseFilter.Q.value = 0.9;
+  noiseFilter.frequency.value = impactFrequency * 9;
+  noiseFilter.Q.value = 0.7;
   noiseSource.connect(noiseFilter);
   noiseFilter.connect(noiseGain);
   noiseGain.connect(audioCtx.destination);
   noiseGain.gain.setValueAtTime(0, startTime);
-  noiseGain.gain.linearRampToValueAtTime(0.45, startTime + 0.002);
-  noiseGain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.05);
+  noiseGain.gain.linearRampToValueAtTime(0.4, startTime + 0.001);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.025);
   noiseSource.start(startTime);
+
+  // Inharmonic partial bank — the actual "metal" of the sound. Each
+  // partial also drops slightly in pitch as it decays, the way a real
+  // struck object's ring settles.
+  for (const partial of METAL_PARTIALS) {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = 'sine';
+    const freq = impactFrequency * partial.ratio;
+    osc.frequency.setValueAtTime(freq, startTime);
+    osc.frequency.exponentialRampToValueAtTime(freq * 0.96, startTime + partial.decay);
+    gain.gain.setValueAtTime(0, startTime);
+    gain.gain.linearRampToValueAtTime(partial.gain, startTime + 0.002);
+    gain.gain.exponentialRampToValueAtTime(0.0005, startTime + partial.decay);
+    osc.start(startTime);
+    osc.stop(startTime + partial.decay + 0.05);
+  }
+
+  // Low thump — the weight of the impact, underneath the metallic ring.
+  // Kept in the ~90-140Hz range (not the ~35-45Hz a naive "low" multiplier
+  // lands on) because most laptop/phone speakers roll off steeply below
+  // ~100Hz and would render anything lower essentially silent.
+  const thumpOsc = audioCtx.createOscillator();
+  const thumpGain = audioCtx.createGain();
+  thumpOsc.connect(thumpGain);
+  thumpGain.connect(audioCtx.destination);
+  thumpOsc.type = 'triangle';
+  thumpOsc.frequency.setValueAtTime(impactFrequency, startTime);
+  thumpOsc.frequency.exponentialRampToValueAtTime(impactFrequency * 0.6, startTime + 0.15);
+  thumpGain.gain.setValueAtTime(0, startTime);
+  thumpGain.gain.linearRampToValueAtTime(0.55, startTime + 0.004);
+  thumpGain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.28);
+  thumpOsc.start(startTime);
+  thumpOsc.stop(startTime + 0.3);
 }
 
 // Lazily created on first user interaction (browsers block AudioContext
