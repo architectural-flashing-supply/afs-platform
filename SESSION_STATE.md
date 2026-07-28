@@ -7,7 +7,56 @@
 
 ## CURRENT STATUS
 
-**Most recent session (afs-logo-004, 2026-07-28): the frame is now the
+**Most recent session (afs-logo-005, 2026-07-28): cleanup pass from a
+real screenshot — removed mute icon, fixed a shine-effect bug, tripled
+the logo's size, made the clang audible.** User attached a screenshot of
+afs-logo-004 rendered live and pointed at 4 concrete problems: a speaker
+icon and gray line floating to the right of the logo ("these do not
+belong"), the logo being "3-4 times undersized," and — after I asked via
+`AskUserQuestion` to disambiguate "there is SO STRONG metal sound" (could
+read as "too loud" or a dropped "NOT," meaning "too weak") — confirmed as
+too weak. Matched each complaint to real code before touching anything:
+
+1. **Speaker icon** — the mute-toggle button from the original afs-logo-
+   001 spec, positioned at the OUTER box's corner while the actual logo
+   content (fit to its real aspect ratio) was much smaller and centered —
+   so it rendered visibly detached. Removed entirely, along with the
+   `isMuted`/`sessionStorage` toggle machinery (the `muted` prop is now
+   read directly).
+2. **Gray line** — a real bug in the shine-sweep decoration (never
+   explicitly requested by any prompt): its fade-in keyframe ended at
+   `opacity:1` and never faded back out, and its `translateX(220%)`
+   sweep-out was relative to the shine div's own ~20px width, not the
+   parent box, so it only moved ~44px — nowhere near off a 176px logo.
+   Together: a permanent semi-opaque bar stuck near the right edge.
+   Deleted the shine effect entirely rather than debug it, since it
+   wasn't asked for in the first place.
+3. **3-4x undersized** — `NavBar.tsx` passed a `120×36` outer box (aspect
+   3.33) against the logo's real 1.5 aspect ratio, so the actually-
+   visible logo shrank to just 54×36 — well under a third of the ~176px
+   available sidebar width the original static `<Image>` used.  Changed
+   the component's defaults and `NavBar.tsx`'s call site to `176×117`
+   (exactly matches the real aspect, zero dead space) — confirmed via a
+   full-sidebar screenshot (not just the logo's own div, so anything
+   floating outside it would show) that it now matches the reference PNG.
+4. **Clang too weak** — the thump oscillator was derived as
+   `impactFrequency * 0.22` from a 150-180Hz input, landing at ~35-40Hz —
+   below what most laptop/phone speakers reproduce. Now driven directly
+   in the 110-130Hz range with higher gain throughout and a brighter
+   impact click.
+
+**Verified, not just read:** Playwright-screenshotted the full sidebar
+top area (catches anything floating outside the logo's own bounds) —
+clean, no speaker icon, no gray line, full-width logo. Re-ran the same
+`AudioContext`-instrumented click test from afs-logo-004 and confirmed
+exactly 4 `createOscillator` + 2 `createBufferSource` calls (two clangs,
+shimmer correctly gone) after a real click.
+
+**Gates passed this session** — `pnpm tsc --noEmit`: 0 errors. `pnpm run
+build`: succeeded, all 123 routes compiled. Committed (`03c280a`) and
+pushed to `origin/main`.
+
+**Previous session (afs-logo-004, 2026-07-28): the frame is now the
 real logo's OWN chrome band, and sound actually works.** User feedback on
 afs-logo-003, in all caps: "WHEN I SAY THE CHROME PARIMETER AROUND THE
 LOGO, I AM NOT SAYING CREATE A NEW ONE. I AM SAYING USE THE EXISTING
