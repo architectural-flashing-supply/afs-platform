@@ -43,10 +43,10 @@ const RESOURCES: Resource[] = [
   {
     id: 'fm-global-fm-4435-roof-edge-metal-approvals',
     category: 'Industry Standards & Manuals',
-    title: 'FM Global FM 4435 Roof Edge Metal Approvals',
+    title: 'FM Approvals — Roofing Certification & RoofNav',
     description:
-      'Factory Mutual approval listings for roof edge metal systems. FM-approved edge metals are required on FM-insured buildings. Covers coping, gravel stop, fascia, and drip edge assemblies tested for wind uplift resistance.',
-    url: 'https://www.fmglobal.com/research-and-resources/tools-and-resources/fm-approvals',
+      "FM Approvals tests and certifies roofing systems and components including roof edge metals. RoofNav is FM's free tool for specifiers to find FM-approved roofing assemblies. FM-approved edge metals are required on FM-insured buildings.",
+    url: 'https://www.fmapprovals.com/products-we-certify/understanding-the-benefits/fm-approved-roofing',
     logo: '/resources/logos/fmglobal.png',
   },
   {
@@ -63,8 +63,8 @@ const RESOURCES: Resource[] = [
     category: 'Industry Standards & Manuals',
     title: 'Aluminum Association — Aluminum in Architecture',
     description:
-      'Technical resources for aluminum use in architectural applications including sheet metal, panels, and extrusions. Covers alloy selection, finish specifications (Kynar/PVDF per AAMA 2605), thermal properties, and installation guidance.',
-    url: 'https://www.aluminum.org/aluminum-advantage/building-construction',
+      'The Aluminum Association represents aluminum producers and fabricators. Visit aluminum.org for technical resources on aluminum alloy selection, finish specifications, and architectural applications including Kynar/PVDF coated aluminum sheet.',
+    url: 'https://www.aluminum.org',
     logo: '/resources/logos/aluminum-assoc.png',
   },
 
@@ -119,7 +119,7 @@ const RESOURCES: Resource[] = [
     category: 'ASTM Material Specifications',
     title: 'AAMA 2605 — Voluntary Specification for Fluoropolymer Coatings',
     description:
-      'American Architectural Manufacturers Association standard for 70% PVDF (Kynar 500/Hylar 5000) fluoropolymer coatings on aluminum. Required specification for color-coated aluminum flashing, wall panels, and fascia where long-term color retention and chalk resistance are specified.',
+      'AAMA 2605 is the highest-performance standard for factory-applied organic coatings on aluminum — requiring 70% PVDF (Kynar 500/Hylar 5000) minimum content, 10-year South Florida outdoor exposure testing, and stringent color/chalk retention. Now published by FGIA (Fenestration and Glazing Industry Alliance), the successor to AAMA.',
     url: 'https://www.aamanet.org/publication/aama-2605-23/',
     logo: '/resources/logos/aama.png',
   },
@@ -130,7 +130,7 @@ const RESOURCES: Resource[] = [
     category: 'Building Codes & Regulations',
     title: 'International Building Code (IBC) — Flashing Requirements',
     description:
-      'The model building code adopted by most US jurisdictions. Chapter 14 covers exterior wall flashing requirements including through-wall flashing, window and door flashing, and penetration flashing. Essential reference for minimum code-required flashing scope on commercial construction.',
+      'The IBC is the model building code adopted by most US jurisdictions for commercial construction. Chapter 14 covers exterior wall flashing requirements; roofing flashing is covered in Chapter 15. IBC flashing requirements specify minimum lap dimensions, materials, and through-wall flashing at all wall penetrations and openings.',
     url: 'https://codes.iccsafe.org/',
     logo: '/resources/logos/icc.png',
   },
@@ -139,7 +139,7 @@ const RESOURCES: Resource[] = [
     category: 'Building Codes & Regulations',
     title: 'International Residential Code (IRC) — Flashing Requirements',
     description:
-      'Model residential building code covering flashing requirements for one- and two-family dwellings. Section R903 covers roof flashing; R703 covers wall flashing at windows, doors, and penetrations. Widely adopted by Texas jurisdictions.',
+      'The IRC governs one- and two-family dwellings. Section R903 covers roof flashing requirements; R703 covers wall flashing at windows, doors, and wall penetrations. Both sections mandate flashing at all roof-wall intersections, valleys, roof edges, and penetrations. Widely adopted by Texas jurisdictions.',
     url: 'https://codes.iccsafe.org/',
     logo: '/resources/logos/icc.png',
   },
@@ -164,10 +164,10 @@ const RESOURCES: Resource[] = [
   {
     id: 'tdlr-roofing',
     category: 'Building Codes & Regulations',
-    title: 'Texas Department of Licensing and Regulation — Roofing',
+    title: 'Roofing Contractors Association of Texas (RCAT) — Licensing',
     description:
-      'TDLR licensing requirements for roofing contractors in Texas. Includes continuing education requirements and contractor lookup. Reference for verifying contractor credentials on projects specifying AFS-fabricated flashing.',
-    url: 'https://www.tdlr.texas.gov/roofing/',
+      'Texas does NOT require a state roofing license through TDLR — roofing is unregulated at the state level. RCAT (Roofing Contractors Association of Texas) administers the voluntary Licensed Roofing Contractor program. Architects specifying work in Texas should request RCAT credentials from roofing contractors.',
+    url: 'https://www.rcat.net/licensing.html',
     logo: '/resources/logos/tdlr.png',
   },
 
@@ -287,10 +287,10 @@ const RESOURCES: Resource[] = [
   {
     id: 'austin-building-criteria-manual-roofing',
     category: 'Texas-Specific Resources',
-    title: 'City of Austin Building Criteria Manual — Roofing',
+    title: 'City of Austin — Building Technical Codes',
     description:
-      "Austin's local amendments to the IBC and IRC affecting roofing and flashing requirements. Projects in the City of Austin must comply with local amendments in addition to state and model codes. Reference for AFS customers on Austin-area projects.",
-    url: 'https://www.austintexas.gov/department/development-services',
+      "Austin's official building technical codes page covering IBC/IRC local amendments, energy code requirements, roofing and flashing requirements, and permit information for construction in the City of Austin.",
+    url: 'https://www.austintexas.gov/development-services/building-technical-codes',
   },
   {
     id: 'texas-state-library-building-codes',
@@ -305,8 +305,8 @@ const RESOURCES: Resource[] = [
     category: 'Texas-Specific Resources',
     title: 'OSHA — Sheet Metal Workers Safety',
     description:
-      'OSHA regulations applicable to sheet metal installation including fall protection, heat illness prevention (critical for Texas), and general industry standards. Reference for contractors installing AFS-fabricated flashing on job sites.',
-    url: 'https://www.osha.gov/sheet-metal-workers',
+      'OSHA SIC 3444 covers Sheet Metal Work manufacturing safety standards. Includes regulations for fabricated structural metal products, fall protection, heat illness prevention (critical for Texas), and general industry standards applicable to sheet metal fabrication and installation.',
+    url: 'https://www.osha.gov/sic-manual/3444',
     logo: '/resources/logos/osha.png',
   },
 
@@ -468,20 +468,17 @@ function PlayCircleIcon() {
 function VideoCard({ video }: { video: VideoEmbed }) {
   return (
     <div className="bg-afs-bg-raised border border-afs-border rounded flex flex-col overflow-hidden">
-      <div className="aspect-video">
-        <iframe
-          width="100%"
-          height="100%"
-          src={`https://www.youtube.com/embed/${video.id}`}
-          title={video.title}
-          frameBorder="0"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-        />
-      </div>
-      <div className="p-4 flex flex-col flex-1">
-        <h3 className="font-label font-semibold text-afs-chrome-high text-sm mb-2">{video.title}</h3>
-        <p className="font-body text-xs text-afs-chrome-mid leading-relaxed">{video.description}</p>
+      <iframe
+        width="100%"
+        height="140px"
+        src={`https://www.youtube.com/embed/${video.id}`}
+        title={video.title}
+        frameBorder="0"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowFullScreen
+      />
+      <div className="px-2 py-1.5">
+        <h3 className="text-xs font-label mt-1 truncate text-afs-chrome-high">{video.title}</h3>
       </div>
     </div>
   );
@@ -636,7 +633,7 @@ export default function ResourcesBrowser() {
         <p className="font-body text-sm text-afs-chrome-mid text-center max-w-2xl mx-auto mb-8">
           Installation guides, technical training, and manufacturer resources
         </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {VIDEOS.map((video) => (
             <VideoCard key={video.id} video={video} />
           ))}

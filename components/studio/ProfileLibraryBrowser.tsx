@@ -207,7 +207,7 @@ export default function ProfileLibraryBrowser({
       </div>
 
       {compareProfiles.length > 0 && (
-        <div className="fixed bottom-0 left-0 lg:left-48 right-0 z-40 bg-afs-bg-raised border-t border-afs-chrome-dim p-4">
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-afs-bg-raised border-t border-afs-chrome-dim p-4">
           <div className="flex items-center justify-between mb-3 max-w-4xl">
             <p className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid">
               Compare ({compareProfiles.length}/{MAX_COMPARE})
