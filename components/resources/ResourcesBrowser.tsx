@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 interface Resource {
   id: string;
@@ -55,7 +55,7 @@ const RESOURCES: Resource[] = [
     title: 'Copper Development Association Architectural Manual',
     description:
       'Comprehensive technical manual for architectural copper applications including roofing, flashing, gutters, and cladding. Covers soldering techniques, expansion provisions, seam design, patina development, and compatibility with other materials. Freely available at copper.org.',
-    url: 'https://www.copper.org/applications/architecture/arch_dhb/arch-details/',
+    url: 'https://copper.org/markets-and-applications/building-construction/elevating-architecture/copper-in-architecture-design-handbook/',
     logo: '/resources/logos/copper-dev.png',
   },
   {
@@ -252,7 +252,7 @@ const RESOURCES: Resource[] = [
     title: 'Copper.org — Architectural Flashing Details',
     description:
       "The Copper Development Association's free online architectural design handbook includes detailed drawings and specifications for copper flashing applications including coping caps, gravel stops, reglets, counter flashing, gutters, and standing seam roofing. Excellent reference for copper specification.",
-    url: 'https://www.copper.org/applications/architecture/arch_dhb/arch-details/flashings_copings/',
+    url: 'https://copper.org/markets-and-applications/building-construction/elevating-architecture/copper-in-architecture-design-handbook/',
     logo: '/resources/logos/copper-dev.png',
   },
   {
@@ -309,36 +309,115 @@ const RESOURCES: Resource[] = [
     url: 'https://www.osha.gov/sheet-metal-workers',
     logo: '/resources/logos/osha.png',
   },
+
+  // Free Installation Manuals
+  {
+    id: 'standing-seam-install-guide',
+    category: 'Free Installation Manuals',
+    title: 'Standing Seam Metal Roof Installation Guide',
+    description:
+      'Comprehensive 38-page installation guide covering standing seam panel layout, valley flashing, hip and ridge details, cleat installation, Z-closure flashing, and trim installation. Includes step-by-step instructions with diagrams. Published by Best Buy Metals — freely downloadable PDF.',
+    url: 'https://www.bestbuymetals.com/wp-content/uploads/2019/02/standing-seam-architectural-install-guide.pdf',
+    logo: '/resources/logos/bestbuymetals.png',
+  },
+  {
+    id: 'copper-arch-handbook',
+    category: 'Free Installation Manuals',
+    title: 'Copper in Architecture — Design Handbook (Free Online)',
+    description:
+      "The Copper Development Association's complete free online architectural design handbook. Covers standing seam roofing, batten seam, flat lock roofing, flashings, copings, gutters, downspouts, and reglets — all with dimensioned construction details and installation specifications. Freely accessible, no registration required.",
+    url: 'https://copper.org/markets-and-applications/building-construction/elevating-architecture/copper-in-architecture-design-handbook/',
+    logo: '/resources/logos/copper-dev.png',
+  },
+  {
+    id: 'wbdg-division7',
+    category: 'Free Installation Manuals',
+    title: 'WBDG — Division 07 60 00 Flashing and Sheet Metal Specification',
+    description:
+      'Free government publication from the Whole Building Design Guide (WBDG) — a complete Division 07 60 00 specification covering copper, aluminum, galvanized, and stainless flashing and trim. References SMACNA, NRCA, ASTM, and AAMA standards. Freely downloadable PDF from a US government source.',
+    url: 'https://www.wbdg.org/FFC/VA/VANCAS/VANCA076000.pdf',
+    logo: '/resources/logos/wbdg.png',
+  },
+  {
+    id: 'internet-archive-copper',
+    category: 'Free Installation Manuals',
+    title: 'Modern Application of Sheet Copper in Building Construction (Public Domain)',
+    description:
+      'Historic public domain handbook covering copper roofing, flashing, gutters, and downspouts — freely available through the Internet Archive. Covers standing seam, batten seam, flat seam roofing, sheet metal flashing and trim, gravel stops, gutters, and downspouts. Freely downloadable.',
+    url: 'https://archive.org/details/ModernApplicationOfSheetCopperInBuildingConstructionAHandbookFor',
+    logo: '/resources/logos/internet-archive.png',
+  },
 ];
 
 const CATEGORY_ORDER = Array.from(new Set(RESOURCES.map((r) => r.category)));
 
-interface VideoPlaceholder {
-  id: string;
+interface VideoEmbed {
+  id: string; // YouTube video ID
   title: string;
-  searchUrl: string;
+  description: string;
 }
 
-const VIDEOS: VideoPlaceholder[] = [
+const VIDEOS: VideoEmbed[] = [
+  // Standing seam
   {
-    id: 'copper-flashing-installation',
-    title: 'Copper Flashing Installation',
-    searchUrl: 'https://www.youtube.com/results?search_query=copper+flashing+installation',
+    id: '_PH5dyBSHb8',
+    title: 'Snap Lock Standing Seam Metal Roof — Full Installation Breakdown',
+    description:
+      'Complete 20-minute deep dive into 24-gauge black steel snap lock installation including tools, skylights, and pro tips. Published June 2025.',
   },
   {
-    id: 'standing-seam-roofing',
-    title: 'Standing Seam Roofing',
-    searchUrl: 'https://www.youtube.com/results?search_query=standing+seam+metal+roof+installation',
+    id: 'ii_-KeoJbbA',
+    title: 'DIY Standing Seam Metal Porch Roof — Step by Step',
+    description: 'Residential standing seam metal roofing installation from start to finish. Published November 2024.',
   },
   {
-    id: 'coping-cap-installation',
-    title: 'Coping Cap Installation',
-    searchUrl: 'https://www.youtube.com/results?search_query=metal+coping+cap+installation',
+    id: 'pmIF5kAnDMk',
+    title: 'How to Install a Standing Seam Metal Roof from Start to Finish',
+    description: 'Comprehensive standing seam installation using weathertight warranty details.',
   },
   {
-    id: 'flashing-at-wall-intersections',
-    title: 'Flashing at Wall Intersections',
-    searchUrl: 'https://www.youtube.com/results?search_query=sheet+metal+flashing+wall+intersection',
+    id: 'EQw0Zj8U_N4',
+    title: 'How to Install Standing Seam Metal Roofing Like a Pro',
+    description: 'Expert crew training covering layout, clips, seaming, and trim details.',
+  },
+  // Copper flashing
+  {
+    id: '3OWfXe9KJ8g',
+    title: 'How to Install Copper Flashing — Chimney Flashing with Patina Finish',
+    description: 'Step-by-step copper chimney flashing installation. Published November 2025.',
+  },
+  {
+    id: 'xKfwqZJjedI',
+    title: 'How to Solder Copper Cap Flashing',
+    description: 'Fine Homebuilding tutorial on shaping and soldering copper cap flashing at windows.',
+  },
+  {
+    id: 'Vrlc0AvIQ2E',
+    title: 'How to Bend Copper Chimney Flashing on a Sheet Metal Brake',
+    description: 'Fine Homebuilding tutorial on fabricating complex copper flashing pieces on a press brake.',
+  },
+  // Coping caps
+  {
+    id: 'xDljUMTYYwA',
+    title: 'How to Install Coping Caps With and Without Cleats',
+    description:
+      'Tech Tuesday tutorial covering coping cap installation methods, cleat attachment, and weatherproofing. Published October 2023.',
+  },
+  // Drip edge
+  {
+    id: 'LKUiTqC0YgE',
+    title: 'The Correct Way to Install Drip Edge and Underlayment',
+    description: 'Covers proper drip edge sequencing with underlayment to prevent leaks. Published November 2025.',
+  },
+  {
+    id: 'UvLpM_MZB8M',
+    title: 'How to Install Drip Edge and Step Flashing',
+    description: 'This Old House tutorial covering drip edge and step flashing installation techniques.',
+  },
+  {
+    id: '9T4C02iDSOo',
+    title: 'How to Install Eave Trim and Drip Edge on a Metal Roof',
+    description: 'Step-by-step eave trim and drip edge installation for metal roofing systems.',
   },
 ];
 
@@ -386,28 +465,57 @@ function PlayCircleIcon() {
   );
 }
 
-function VideoCard({ video }: { video: VideoPlaceholder }) {
+function VideoCard({ video }: { video: VideoEmbed }) {
   return (
     <div className="bg-afs-bg-raised border border-afs-border rounded flex flex-col overflow-hidden">
-      <div className="aspect-video bg-afs-bg-surface flex items-center justify-center">
-        <div className="w-14 h-14 rounded-full bg-afs-crimson flex items-center justify-center text-white">
-          <PlayCircleIcon />
-        </div>
+      <div className="aspect-video">
+        <iframe
+          width="100%"
+          height="100%"
+          src={`https://www.youtube.com/embed/${video.id}`}
+          title={video.title}
+          frameBorder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+        />
       </div>
       <div className="p-4 flex flex-col flex-1">
         <h3 className="font-label font-semibold text-afs-chrome-high text-sm mb-2">{video.title}</h3>
-        <a
-          href={video.searchUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-afs-crimson text-xs font-label hover:underline flex items-center gap-1 mb-2"
-        >
-          Watch on YouTube →
-        </a>
-        <p className="font-body text-xs text-afs-chrome-dim leading-relaxed mt-auto">
-          Steve — add a specific YouTube video ID here to embed a video you recommend
-        </p>
+        <p className="font-body text-xs text-afs-chrome-mid leading-relaxed">{video.description}</p>
       </div>
+    </div>
+  );
+}
+
+function ResourceLogo({ src, alt }: { src: string; alt: string }) {
+  const [hidden, setHidden] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  useEffect(() => {
+    // This page is server-rendered, so the browser can start (and finish
+    // failing) the request for a not-yet-uploaded logo file before React
+    // hydrates and attaches the onError handler below — a native error
+    // event that fires before hydration is simply missed, not queued, so
+    // onError alone leaves broken-image icons + overflowing alt text
+    // sitting in the cards. Checking the DOM's actual load state directly
+    // once mounted catches that already-failed case too.
+    if (imgRef.current?.complete && imgRef.current.naturalWidth === 0) {
+      setHidden(true);
+    }
+  }, []);
+
+  if (hidden) return null;
+
+  return (
+    <div className="w-12 h-12 mb-3 flex items-center justify-center">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        ref={imgRef}
+        src={src}
+        alt={alt}
+        className="w-full h-full object-contain"
+        onError={() => setHidden(true)}
+      />
     </div>
   );
 }
@@ -420,19 +528,7 @@ function ResourceCard({ resource }: { resource: Resource }) {
           {resource.category}
         </span>
       </div>
-      {resource.logo && (
-        <div className="w-12 h-12 mb-3 flex items-center justify-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={resource.logo}
-            alt={resource.title}
-            className="w-full h-full object-contain"
-            onError={(e) => {
-              e.currentTarget.style.display = 'none';
-            }}
-          />
-        </div>
-      )}
+      {resource.logo && <ResourceLogo src={resource.logo} alt={resource.title} />}
       <h3 className="font-label font-semibold text-afs-chrome-high text-sm mb-2">{resource.title}</h3>
       <p className="font-body text-xs text-afs-chrome-mid leading-relaxed mb-3 flex-1">
         {resource.description}
@@ -537,18 +633,19 @@ export default function ResourcesBrowser() {
           </span>
           <h2 className="font-heading text-2xl font-semibold text-afs-chrome-high">Video Library</h2>
         </div>
-        <p className="font-body text-sm text-afs-chrome-mid text-center max-w-2xl mx-auto mb-2">
+        <p className="font-body text-sm text-afs-chrome-mid text-center max-w-2xl mx-auto mb-8">
           Installation guides, technical training, and manufacturer resources
         </p>
-        <p className="text-xs text-afs-chrome-dim text-center max-w-2xl mx-auto mb-8">
-          Videos are hosted by their respective organizations. AFS is not affiliated with video
-          producers unless noted.
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {VIDEOS.map((video) => (
             <VideoCard key={video.id} video={video} />
           ))}
         </div>
+        <p className="text-xs text-afs-chrome-dim text-center max-w-2xl mx-auto mt-8">
+          Videos are published by their respective creators. AFS is not affiliated with video
+          producers. All installation work should comply with applicable codes and SMACNA
+          standards.
+        </p>
       </section>
     </div>
   );
