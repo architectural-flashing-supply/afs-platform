@@ -7,7 +7,80 @@
 
 ## CURRENT STATUS
 
-**Most recent session (navbar-002, 2026-07-28): doubled the logo, and
+**Most recent session (bridge-002 / navbar-003, 2026-07-29): DS2801
+generator rewrite (separate repo, uncommitted), compact 56px header, and
+a thorough FlashDraft investigation that found nothing to fix.** A
+4-part combined request spanning two git repos.
+
+**Machine bridge (`C:\Users\manag\Documents\afs-machine-bridge` — the
+prompt's `C:\afs-machine-bridge\` was a root-path typo).** None of the
+prompt's referenced files existed: no hex dumps, no pending review
+files, no `SteveHarycki` profile on this machine (the real
+`THALMANN_DS2801_PATH` points at `C:\Users\steve\...` on the shop-floor
+computer this bridge is built to run on, not this dev machine). More
+importantly, this exact reverse-engineering task had already been
+attempted once — `ds1-generator.js`'s own header comment documents a
+prior pass against the two real sample `.ds1` files, with an explicit
+"do not remove this review gate until someone with real format
+knowledge confirms the generated files are correct." Declined to
+fabricate bend data or copy anything to a live machine path; reported
+the concrete findings back instead of silently complying or refusing.
+
+The user then supplied a full binary spec directly, sourced from the
+same hex dumps on the shop-floor machine (still not accessible here).
+Implemented it faithfully in a rewritten `ds1-generator.js`, documented
+honestly that this revision is unverified BY WHOEVER WROTE THIS CODE
+(unlike the first revision's string header, which was actually checked
+byte-by-byte) — it's supplied-on-trust, not independently confirmed.
+Two new fields (bend direction, bend tool) have no real per-job data
+source anywhere in the schema — defaulted, not fabricated, and
+documented as such. Checked the pending-jobs API before implementing
+"calculate angles from FlashDraft canvas points via dot product": the
+bridge only ever receives an already-computed `bendAngleDegrees`, never
+raw points — and that value is already produced by this exact formula
+upstream in `app/studio/draft/page.tsx`. Added the dot-product helper as
+available infrastructure rather than dead code that recomputes from data
+the generator doesn't have. Smoke-tested by generating a buffer and
+manually re-parsing every field back out — exact match, terminator
+landing precisely at EOF. The `review/` gate was left completely
+intact — nothing copied anywhere, Steve's machine never touched. Machine-
+bridge repo left uncommitted, confirmed via `git status` there, per this
+session's explicit "local machine work only."
+
+**Compact header (afs-website repo).** Shrunk the top nav from 128px
+(navbar-002) to the requested 56px, logo scaled to its max-36px-tall
+proportional size. Same grep-sweep pattern as navbar-002 caught 2 more
+stale spots before they became bugs (`AppChrome.tsx`'s content offset,
+`ResourcesBrowser.tsx`'s sticky heading) — plus a third, older bug the
+sweep incidentally surfaced: FlashDraft's canvas had been hardcoded to
+the *original* 44px header height (`calc(100vh-2.75rem)`) since before
+either header resize, silently wrong through both. Fixed to
+`calc(100vh-56px)`. Verified all three via Playwright bounding-box
+checks, not just visually.
+
+**FlashDraft hem-types/drag-angle: investigated thoroughly, found
+already fully built, changed nothing.** `components/flashdraft/`
+doesn't exist — the ~2900-line canvas logic lives inline in
+`app/studio/draft/page.tsx`. Grepped for `hem` first: found a complete
+working system (exactly the 3 requested hem types, two creation
+gestures broader than what was asked, distinct rendering, a live count
+stat) and a bend-angle label already shown for every bend point, not
+just when selected. For the "broken drag handler": read the pointer-
+event chain, found nothing wrong statically, then drove the actual
+interaction live via Playwright — dragged a vertex (angle updated
+correctly, 90°→75°) and used the numeric angle panel (typed 45, rotated
+to exactly 45°). Both work. Wrote no new code rather than risk a
+regression in something that measurably already works — noted a nearby
+comment suggesting the prompt may describe a deliberately-removed
+interaction (drag-the-arc-directly) rather than a current bug.
+
+**Gates passed this session** — `pnpm tsc --noEmit`: 0 errors. `pnpm run
+build`: succeeded, all 123 routes compiled. Commit message written to
+match what's actually in the diff (compact-header fixes only), not the
+prompt's suggested message describing work that isn't part of this
+repo. Committed (`dd59f9f`) and pushed to `origin/main`.
+
+**Previous session (navbar-002, 2026-07-28): doubled the logo, and
 grew the header to actually fit it.** User: "the AFS logo was just
 restored... but it's too small... double it." Doubled the `<Image>`
 props exactly as asked (80×56 → 160×112; `AFSAnimatedLogo` still doesn't

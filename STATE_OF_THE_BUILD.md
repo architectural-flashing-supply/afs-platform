@@ -377,6 +377,176 @@ color fix                nav-link color flashchat-fix-002 (below) added
                          locations: `rgb(232, 0, 31)` (`#E8001F`) in
                          both. Committed and pushed, no tool-approval
                          blocker.
+DS2801 generator v2    NEW (bridge-002, 2026-07-29) — a 4-part combined
+(machine-bridge repo,   request spanning two separate git repos. Read
+uncommitted) + compact  `bridge.js`/`ds1-generator.js`/`README.md` in
+header/FlashDraft        `C:\afs-machine-bridge\src\` first, per
+investigation (bridge-  instruction — except that path doesn't exist;
+002 / navbar-003):       neither does the rest of the prompt's file list
+                         (`gravel-stop-hex.txt`, `american-bank-hex.txt`,
+                         two "pending review" `.ds1` files, `C:\Users\
+                         SteveHarycki\Documents\DS2801\`). Found the real
+                         project at `C:\Users\manag\Documents\afs-machine-
+                         bridge` (simple root-path typo) and confirmed via
+                         `Test-Path`/directory search that the hex dumps,
+                         the review files, and the `SteveHarycki` profile
+                         genuinely do not exist anywhere on this machine —
+                         `THALMANN_DS2801_PATH` in the real `.env` is
+                         `C:\Users\steve\Documents\DS2801`, on the shop-
+                         floor computer this bridge is built to run on
+                         (per its own README), not this dev machine.
+                         **This was not the first attempt at this exact
+                         task.** `ds1-generator.js`'s own header comment
+                         and the README already documented a full prior
+                         reverse-engineering pass against the two REAL
+                         sample files (`machine-data/AFS_Profile_A-
+                         Profiles.ds1`/`AFS_Profile_Breast_plates.ds1`,
+                         gitignored, present locally) — verified string
+                         header, explicitly UNVERIFIED bend-sequence
+                         region, and an explicit instruction: "do not
+                         remove this gate... until someone with real
+                         format knowledge... confirms the generated files
+                         are correct." Also checked `SCHEMA.md`'s
+                         `quote_line_items` (no bend-angle/per-step
+                         columns at all) before concluding anything.
+                         Given all of this, declined the original prompt's
+                         request to fabricate bend data and copy files
+                         into the live DS2801 folder — flagged it back to
+                         the user with the concrete findings above rather
+                         than either complying or refusing without
+                         explanation. **User follow-up supplied a full
+                         binary spec directly** (17-byte fixed magic,
+                         2-byte-length-prefixed name/material, blank-width
+                         + thickness doubles, bend count, per-bend angle/
+                         length/direction/tool, 4-byte terminator),
+                         sourced from the same two hex dumps on the shop-
+                         floor machine, still not accessible from here —
+                         implemented it faithfully in `ds1-generator.js`
+                         (rewrite, not the old Pascal-string layout),
+                         documented the file's own header comment and the
+                         README honestly: this is unverified BY WHOEVER
+                         WROTE THIS CODE (unlike the first revision's
+                         string header, which the original author did
+                         check byte-by-byte), on trust from the user's own
+                         analysis. Two fields in the new spec (bend
+                         direction, bend tool) have no source of real
+                         per-job data anywhere in `machine_profile_bends`/
+                         `custom_bends` — defaulted (0x00/0x01) rather
+                         than fabricated per job, documented inline.
+                         Checked `app/api/machine-bridge/pending-jobs/
+                         route.ts` before writing the "calculate bend
+                         angles from FlashDraft canvas points via dot
+                         product" part of the request: the bridge only
+                         ever receives a pre-computed `bendAngleDegrees`
+                         per bend, never raw canvas points — and that
+                         value is already produced by exactly this dot-
+                         product formula upstream, in `app/studio/draft/
+                         page.tsx`'s `bendAngleAt`. Added a
+                         `bendAngleFromPoints` helper mirroring that
+                         formula byte-for-byte (available infrastructure
+                         for if/when raw points are ever sent, not dead
+                         code) rather than pointlessly recomputing a value
+                         from data the generator doesn't have. Smoke-
+                         tested by generating a buffer and manually re-
+                         parsing every field back out — byte offsets,
+                         values, and total length all matched exactly,
+                         including the terminator landing precisely at
+                         EOF. **The review/ gate in `bridge.js` was left
+                         completely intact** — still writes only to
+                         `review/`, never `THALMANN_DS2801_PATH`; nothing
+                         was copied anywhere; Steve's machine was never
+                         touched. Per this session's explicit "local
+                         machine work only," the machine-bridge repo's 4
+                         changed files were left uncommitted (confirmed
+                         via `git status` there at the end — still just
+                         the one `Initial commit`). **Separately, two more
+                         parts of the same combined request, in the
+                         afs-website repo:** compact top nav from 128px
+                         (`h-32`, set in navbar-002) down to the requested
+                         56px (`h-14`), logo scaled to its max-36px-tall
+                         proportional size (54×36, matching the real
+                         1536×1024 source aspect ratio established in
+                         afs-logo-004's PNG analysis) — and, via the same
+                         `grep -rn "top-32|pt-32|h-32\b"` sweep pattern
+                         established in navbar-002, caught 2 more spots
+                         still sized against the old header height before
+                         they could become stale bugs: `AppChrome.tsx`'s
+                         content-offset (`pt-32`→`pt-14`) and
+                         `ResourcesBrowser.tsx`'s sticky category-heading
+                         offset (`top-32`→`top-14`) — plus a THIRD, found
+                         only because the sweep for the *current* fix
+                         turned up a stale reference to the *original*
+                         44px header that neither of the last two sessions
+                         had touched: `app/studio/draft/page.tsx`'s
+                         FlashDraft canvas was still hardcoded to
+                         `calc(100vh-2.75rem)` (44px) — meaning it had
+                         been silently wrong (either too tall, clipped, or
+                         gapped depending on the header height at the
+                         time) through both the 128px and now-56px header
+                         changes until this session's sweep caught it.
+                         Fixed to `calc(100vh-56px)`, matching the
+                         request's own literal px value. Verified all
+                         three geometrically via Playwright bounding-box
+                         checks (header exactly 56px, logo exactly
+                         contained, FlashDraft `<main>` box height exactly
+                         `700 - 56 = 644` at a 700px test viewport), not
+                         just visually eyeballed. **FlashDraft hem-types/
+                         drag-angle request: investigated thoroughly,
+                         found already fully built, made zero code
+                         changes.** `components/flashdraft/` doesn't exist
+                         — FlashDraft's ~2900-line canvas logic lives
+                         entirely inline in `app/studio/draft/page.tsx`.
+                         Grepped for `hem` first rather than reading
+                         linearly: found a complete, working system —
+                         `HemType = 'open' | 'smashed' | 'teardrop'`
+                         (exactly the 3 requested), two complementary
+                         creation gestures (double-click either of the
+                         profile's two absolute endpoints, or drag-back
+                         on ANY leg for hem-anywhere placement — broader
+                         than the prompt's "double-click on segment"
+                         ask, per the canvas's own on-screen hint text),
+                         distinct rendering for all three types, and a
+                         live `Hem Count` stat. The requested "bend angle
+                         label near the bend point when selected" also
+                         already exists — MORE comprehensively than
+                         asked, rendered for every bend point always
+                         (`ctx.fillText(`${signedDeg.toFixed(0)}°`...)`),
+                         not gated on selection. For "broken drag handler
+                         for segment angle adjustment": read
+                         `getPointerPos` (fresh `getBoundingClientRect()`
+                         every call, no staleness), the `ResizeObserver`-
+                         driven canvas sizing, and the full pointer-event
+                         chain — found nothing wrong statically, then
+                         didn't stop there — launched the dev server and
+                         drove the actual interaction via Playwright mouse
+                         events: drew a 3-point profile, dragged the bend
+                         vertex, confirmed the angle label updated live
+                         and correctly (90°→75°) with the final state
+                         matching mid-drag exactly; separately tested the
+                         numeric angle-entry panel (typed 45, pressed
+                         Enter, confirmed the geometry visibly rotated to
+                         exactly 45°). Both paths work. A code comment
+                         nearby (`// no canvas drag anymore... Angle is
+                         set via the Part 8 panel`) suggests the prompt
+                         may be describing a DIFFERENT, deliberately-
+                         removed interaction (drag directly on the angle
+                         arc itself) rather than a current bug — noted
+                         in the final report rather than silently
+                         reintroducing a design that was intentionally
+                         reversed once already. Wrote no new hem/drag/
+                         angle-label code, to avoid risking a regression
+                         in a system that measurably already works.
+                         `pnpm tsc --noEmit`: 0 errors. `pnpm run build`:
+                         `✓ Compiled successfully`, `✓ Generating static
+                         pages (123/123)`. Commit message written to
+                         accurately describe what's actually in this
+                         commit (compact-header fixes only) rather than
+                         reusing the prompt's suggested message, which
+                         described DS2801/FlashDraft work that isn't part
+                         of this repo's diff at all. Deleted all 5 scratch
+                         Playwright scripts from the repo root before
+                         committing. Committed (`dd59f9f`) and pushed to
+                         `origin/main`.
 NavBar logo doubled +   NEW (navbar-002, 2026-07-28) — user: "the AFS
 header grew to fit,     logo was just restored to the top nav but it's
 ripple fixes (navbar-  too small... double it." Doubled the `<Image>`
