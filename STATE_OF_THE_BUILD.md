@@ -377,6 +377,131 @@ color fix                nav-link color flashchat-fix-002 (below) added
                          locations: `rgb(232, 0, 31)` (`#E8001F`) in
                          both. Committed and pushed, no tool-approval
                          blocker.
+Resources URL fixes,   NEW (resources-003, 2026-07-28) — read
+quarter-size videos,   `ResourcesBrowser.tsx`, `page.tsx`, and
+sidebar nav removed,   `NavBar.tsx` first, per instruction. Four
+IBC/IRC split, My      requested changes; two of the seven given URLs
+Account added          were found broken before applying and routed
+(resources-003):        through `AskUserQuestion` rather than guessed at
+                         — this project has enough dead-URL history now
+                         that "confirmed working URL" claims get checked,
+                         not trusted. **URL/title/description fixes (7
+                         requested, 5 applied as-given + 2 resolved by
+                         user decision):** FM Global entry renamed to
+                         "FM Approvals — Roofing Certification & RoofNav"
+                         pointing at `fmapprovals.com` (200, verified),
+                         Aluminum Association simplified to bare
+                         `aluminum.org` (200), TDLR entry renamed to
+                         "Roofing Contractors Association of Texas (RCAT)
+                         — Licensing" at `rcat.net/licensing.html` (200,
+                         `id`/`logo` deliberately left as `tdlr-roofing`/
+                         `tdlr.png` — task said update title/description/
+                         url only, not `id`/`logo`), City of Austin
+                         renamed to "Building Technical Codes" at the new
+                         `austintexas.gov/development-services/building-
+                         technical-codes` path (200), OSHA repointed to
+                         `osha.gov/sic-manual/3444` (200) — all 5 curl-
+                         verified before committing. **Two required a
+                         decision:** (1) AAMA 2605's given
+                         `fgia.com/standards/aama-2605/` failed a TLS
+                         handshake from 3 independent paths — local
+                         `curl` (`schannel: SEC_E_INTERNAL_ERROR`),
+                         PowerShell `Invoke-WebRequest` (same local
+                         failure, different client, ruling out a curl-
+                         specific bug), and `WebFetch` (Anthropic's own
+                         infrastructure, a completely different network —
+                         returned a DIFFERENT error, `TLSV1_ALERT_
+                         INTERNAL_ERROR`, an alert the remote SERVER
+                         sends, not a local-client failure) — while the
+                         other 6 URLs checked in the same pass all
+                         returned clean 200s, ruling out a general local
+                         network/TLS problem. Asked the user rather than
+                         either silently using an unverifiable URL or
+                         silently substituting one; chose to keep the
+                         previously-working `aamanet.org` URL, with the
+                         new, more detailed description text (FGIA-as-
+                         AAMA's-successor framing) applied regardless,
+                         since that content is accurate independent of
+                         which domain currently hosts it. (2) The Copper
+                         in Architecture handbook entry's given url,
+                         `copper.org/applications/architecture/arch_dhb/
+                         arch-details/`, re-confirmed via `curl` as the
+                         exact same dead path found and fixed in
+                         resources-002 (copper.org fully migrated off
+                         `/arch_dhb/`) — asked whether reintroducing a
+                         known-404 was intentional; user confirmed no,
+                         kept resources-002's verified working
+                         replacement, zero changes to that entry.
+                         **IBC/IRC** — already two separate cards since
+                         an earlier session (not a single combined card
+                         needing a split, as the prompt's conditional
+                         anticipated); refreshed both descriptions to the
+                         newer, more detailed supplied text (Chapter
+                         14/15 split for IBC, explicit R903/R703 mandate
+                         language for IRC) since titles/urls already
+                         matched. **Video cards shrunk to quarter size**
+                         — grid `lg:grid-cols-3 gap-6` → `grid-cols-2
+                         sm:grid-cols-3 lg:grid-cols-4 gap-3`, each
+                         iframe's `aspect-video` wrapper replaced with a
+                         fixed `height="140px"`, title now `text-xs
+                         font-label mt-1 truncate` directly (description
+                         paragraph removed from the render — the
+                         `description` field itself was deliberately left
+                         in the `VIDEOS` data/`VideoEmbed` interface,
+                         unused but harmless, since the instruction was
+                         about the rendered UI, not the data model).
+                         **Sidebar nav removed entirely from
+                         `NavBar.tsx`** — no hamburger/toggle or overlay
+                         existed to remove (the sidebar was always-
+                         visible, not a drawer); `PANEL_LINKS` and the
+                         fixed `w-48` sidebar `<div>` deleted outright,
+                         `<header>` changed from `left-48` to `left-0`.
+                         Confirmed via `grep -rn "ml-48|left-48|pl-48"
+                         --include=*.tsx` that the removal didn't leave
+                         dangling references, but found two real ones
+                         that DID need fixing as a consequence, not
+                         mentioned in the prompt: `AppChrome.tsx`'s
+                         `<div className="ml-48 pt-11">` page-content
+                         wrapper (sized for the sidebar's width — now
+                         just `pt-11`) and `ProfileLibraryBrowser.tsx`'s
+                         fixed bottom compare bar
+                         (`lg:left-48`→ removed, same reasoning). **My
+                         Account added to top nav**, exactly the existing
+                         `isAuthenticated`-driven `accountLink` logic
+                         NavBar already had, just relocated from the
+                         (now-deleted) sidebar into `TOP_NAV_LINKS`
+                         rendering, appended after Contact. **Noted, not
+                         acted on beyond the prompt's literal scope:**
+                         removing the sidebar also removed the site's
+                         only rendered logo (`<Image src="/afs-logo.png">`
+                         lived inside the sidebar `<div>`, nowhere else)
+                         and its only Sign Out control — "keep the top
+                         nav completely unchanged" (beyond the one
+                         requested addition) was read literally, so
+                         neither was added to the top header; a logged-in
+                         user reaches Sign Out via My Account →
+                         `/account`, which `AccountShell.tsx` already
+                         handles independently — confirmed via `grep` for
+                         `signOut` before assuming this wasn't a dead
+                         end. Flagging the missing logo explicitly here
+                         and in the user-facing summary rather than
+                         silently reintroducing it, since it wasn't
+                         requested. **Verified visually, not just by
+                         reading the diff:** Playwright screenshots of
+                         the homepage (full-width layout, no sidebar gap,
+                         top nav with "Sign In" after Contact), `/products`,
+                         and every affected Resources section (video grid
+                         at 4-per-row with truncated titles only,
+                         Building Codes showing both IBC/IRC cards
+                         distinctly plus RCAT, Texas-Specific showing the
+                         new Austin/OSHA text, Industry Standards showing
+                         FM Approvals/Aluminum Association) before
+                         committing. `pnpm tsc --noEmit`: 0 errors. `pnpm
+                         run build`: `✓ Compiled successfully`, `✓
+                         Generating static pages (123/123)`. Deleted both
+                         scratch Playwright scripts before committing.
+                         Committed (`c90e1d0`) and pushed to
+                         `origin/main`.
 Resources page — free  NEW (resources-002, 2026-07-28) — read
 manuals section, 11    `components/resources/ResourcesBrowser.tsx` and
 real video embeds,     `app/(public)/resources/page.tsx` first, per

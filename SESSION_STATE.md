@@ -7,7 +7,60 @@
 
 ## CURRENT STATUS
 
-**Most recent session (resources-002, 2026-07-28): added a Free
+**Most recent session (resources-003, 2026-07-28): fixed 7 URLs (2 needed
+a user decision), shrunk video cards to quarter size, removed the
+sidebar nav entirely, split/refreshed IBC-IRC, added My Account to the
+top nav.** Read `ResourcesBrowser.tsx`, `page.tsx`, `NavBar.tsx` first.
+
+1. **URL fixes** — 5 of 7 applied straightforwardly after `curl`-
+   verifying each first (FM Global → "FM Approvals — Roofing
+   Certification & RoofNav" at fmapprovals.com, Aluminum Association →
+   bare aluminum.org, TDLR → renamed "Roofing Contractors Association of
+   Texas (RCAT) — Licensing" at rcat.net, City of Austin → renamed
+   "Building Technical Codes" at the new austintexas.gov path, OSHA →
+   osha.gov/sic-manual/3444). Two needed a real decision, routed through
+   `AskUserQuestion` rather than guessed: AAMA 2605's given fgia.com URL
+   failed a TLS handshake from 3 independent tools/networks (local curl,
+   PowerShell, and Anthropic's own WebFetch — each with a different
+   error, ruling out a single point of failure) while 6 other URLs in
+   the same pass worked fine — kept the previously-working aamanet.org
+   URL, updated the description text only. The copper.org handbook entry
+   asked for the exact same dead `/arch_dhb/` path fixed last session —
+   confirmed still 404, user said keep last session's fix, no change.
+2. **IBC/IRC** — already split into two cards from an earlier session
+   (the prompt's "if combined, split it" condition didn't apply);
+   refreshed both descriptions to the newer, more detailed text supplied.
+3. **Video cards → quarter size** — grid changed to `grid-cols-2
+   sm:grid-cols-3 lg:grid-cols-4 gap-3`, iframes fixed at `140px` height
+   instead of `aspect-video`, titles now `text-xs truncate`, description
+   paragraph removed from the render (left in the data model, unused —
+   the ask was about the UI, not the data).
+4. **Sidebar removed entirely from NavBar.tsx** — no hamburger/overlay
+   existed to remove (it was always-visible, not a drawer). Found and
+   fixed the ripple effects the prompt didn't mention: `AppChrome.tsx`'s
+   `ml-48` content-wrapper offset (sized for the sidebar's width) and
+   `ProfileLibraryBrowser.tsx`'s fixed compare bar (`lg:left-48`, same
+   reason) both assumed the sidebar existed — both now flush-left.
+   Confirmed via `grep -rn "ml-48|left-48|pl-48"` no other file
+   references it. **Noted but not acted on beyond scope:** removing the
+   sidebar also removed the site's only rendered logo and only Sign Out
+   control (neither existed elsewhere) — "keep top nav completely
+   unchanged" (beyond the one requested addition) was read literally, so
+   neither was re-added; confirmed `AccountShell.tsx` already has its own
+   sign-out before treating this as a non-issue.
+5. **My Account added to top nav** — reused the existing
+   `isAuthenticated`-driven `accountLink` logic NavBar already had, just
+   moved it from the deleted sidebar into the top nav, after Contact.
+
+**Verified visually** — Playwright screenshots of the homepage (full-
+width, no sidebar gap), `/products`, and every affected Resources
+section before committing, not just read the diff.
+
+**Gates passed this session** — `pnpm tsc --noEmit`: 0 errors. `pnpm run
+build`: succeeded, all 123 routes compiled. Committed (`c90e1d0`) and
+pushed to `origin/main`.
+
+**Previous session (resources-002, 2026-07-28): added a Free
 Installation Manuals section, replaced video placeholders with 11 real
 YouTube embeds, and fixed a real logo-hiding bug along the way.** Read
 `ResourcesBrowser.tsx` and `page.tsx` first, per instruction.
