@@ -377,6 +377,65 @@ color fix                nav-link color flashchat-fix-002 (below) added
                          locations: `rgb(232, 0, 31)` (`#E8001F`) in
                          both. Committed and pushed, no tool-approval
                          blocker.
+NavBar logo + Sign Out NEW (navbar-001, 2026-07-28) — resources-003
+restored to top nav    (above) removed the sidebar per instruction and
+(navbar-001):            explicitly flagged, unprompted, that doing so
+                         also removed the site's only logo and only Sign
+                         Out control, neither of which the prompt had
+                         asked to restore at the time. This session is
+                         the user acting on that flag. Read `NavBar.tsx`
+                         first, per instruction. **Logo** — instruction
+                         said use `AFSAnimatedLogo` if it still exists,
+                         otherwise fall back to a plain `<Image>`;
+                         confirmed via `ls components/ui/AFSAnimatedLogo.tsx`
+                         that it does not (deleted outright in afs-
+                         logo-009, "remove all animation... return to
+                         normal static condition") rather than assuming
+                         either way, so used the given `<Image
+                         src="/afs-logo.png" width={80} height={56}
+                         className="object-contain">` fallback exactly as
+                         specified. Placed as a new first child of the
+                         `<header>`, wrapped in `<Link href="/">
+                         className="mr-6 shrink-0">`, BEFORE the existing
+                         `hidden md:flex` nav-links container (not inside
+                         it) — deliberately, so the logo stays visible at
+                         all viewport widths instead of disappearing
+                         alongside the nav links below the `md:` mobile
+                         breakpoint. **Sign Out** — reused the exact
+                         `handleSignOut` pattern already standardized
+                         across `AccountShell.tsx`/`AdminShell.tsx`
+                         (confirmed identical via `grep -n signOut` across
+                         `components/` first, per instruction to "use the
+                         existing sign out pattern," rather than inventing
+                         a new one): `createClient()` →
+                         `supabase.auth.signOut()` → hard
+                         `window.location.href = '/login'` redirect. This
+                         is the same code NavBar.tsx itself had before the
+                         sidebar was removed, restored verbatim. Rendered
+                         conditionally on `isAuthenticated`, placed after
+                         the `accountLink` link (My Account/Sign In) as
+                         the last item inside the same `hidden md:flex`
+                         row those already live in. `pnpm tsc --noEmit`:
+                         0 errors. `pnpm run build`: `✓ Compiled
+                         successfully`, `✓ Generating static pages
+                         (123/123)`. **Verified visually, not just
+                         assumed correct from the diff:** Playwright
+                         screenshot of the logged-out homepage header
+                         confirmed the logo renders cleanly, correctly
+                         positioned before the nav links with visible
+                         `mr-6` spacing, no layout breakage from being
+                         taller (56px) than the `h-11` (44px) header bar
+                         it sits in — the given fallback dimensions were
+                         used exactly as specified rather than
+                         second-guessed. The authenticated Sign Out
+                         render path was verified by code review, not a
+                         live screenshot — faking a real Supabase session
+                         in a throwaway script wasn't worth the effort
+                         for a one-line conditional that mirrors the
+                         already-proven `accountLink` ternary immediately
+                         above it. Deleted the one scratch Playwright
+                         script before committing. Committed (`2f55c70`)
+                         and pushed to `origin/main`.
 Resources URL fixes,   NEW (resources-003, 2026-07-28) — read
 quarter-size videos,   `ResourcesBrowser.tsx`, `page.tsx`, and
 sidebar nav removed,   `NavBar.tsx` first, per instruction. Four

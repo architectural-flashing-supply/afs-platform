@@ -7,7 +7,42 @@
 
 ## CURRENT STATUS
 
-**Most recent session (resources-003, 2026-07-28): fixed 7 URLs (2 needed
+**Most recent session (navbar-001, 2026-07-28): restored the logo and
+Sign Out to the top nav.** resources-003 (below) removed the sidebar per
+instruction and proactively flagged that doing so had also removed the
+site's only logo and only Sign Out control — this session is the user
+acting on that flag. Read `NavBar.tsx` first.
+
+1. **Logo** — instruction said use `AFSAnimatedLogo` if it still exists,
+   else fall back to a plain `<Image>`; confirmed via `ls` it doesn't
+   (deleted outright in afs-logo-009's "remove all animation" request)
+   rather than assuming, so used the given `<Image src="/afs-logo.png"
+   width={80} height={56}>` fallback exactly as specified. Placed as a
+   new first child of `<header>`, wrapped in a `Link` to `/` with `mr-6`,
+   BEFORE the `hidden md:flex` nav-links container — deliberately, so it
+   stays visible at all viewport widths instead of disappearing below
+   the mobile breakpoint along with the links.
+2. **Sign Out** — reused the exact `handleSignOut` pattern already
+   standardized in `AccountShell.tsx`/`AdminShell.tsx` (confirmed
+   identical via `grep` across `components/` first, per instruction to
+   use the existing pattern): `signOut()` then a hard redirect to
+   `/login`. Same code NavBar.tsx itself had before the sidebar was
+   removed. Rendered conditionally on `isAuthenticated`, after My
+   Account/Sign In as the last nav item.
+
+**Verified visually** — Playwright screenshot of the logged-out header
+confirmed the logo renders cleanly with correct spacing, no breakage
+from being taller than the header bar (56px logo in a 44px bar, per the
+given fallback dimensions). The authenticated Sign Out path was verified
+by code review rather than a live screenshot — faking a real Supabase
+session wasn't worth it for a one-line conditional mirroring the
+already-proven accountLink ternary right above it.
+
+**Gates passed this session** — `pnpm tsc --noEmit`: 0 errors. `pnpm run
+build`: succeeded, all 123 routes compiled. Committed (`2f55c70`) and
+pushed to `origin/main`.
+
+**Previous session (resources-003, 2026-07-28): fixed 7 URLs (2 needed
 a user decision), shrunk video cards to quarter size, removed the
 sidebar nav entirely, split/refreshed IBC-IRC, added My Account to the
 top nav.** Read `ResourcesBrowser.tsx`, `page.tsx`, `NavBar.tsx` first.
