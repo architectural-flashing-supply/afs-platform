@@ -7,7 +7,94 @@
 
 ## CURRENT STATUS
 
-**Most recent session (bridge-002 / navbar-003, 2026-07-29): DS2801
+**Most recent session (navbar-004 / flashdraft-005, 2026-07-29): logo
+pulled out of the header into its own large fixed overlay, FlashDraft
+canvas maximized, toolbar consolidated to one row, and two real bugs
+found and fixed in hem rendering and bend-point drag-snap.** A 5-part
+combined request against `app/studio/draft/page.tsx`,
+`components/layout/NavBar.tsx`, and `components/layout/AppChrome.tsx`
+(all read in full first, per instruction).
+
+**Logo (`NavBar.tsx`).** Moved the `<Image>` out of the `<header>` flex
+row entirely into a sibling `fixed top-0 left-0 z-50` `<Link>` sized
+200×80 (previously 54×36 inline, capped by the 56px header). At that
+size it overhangs the header by 24px into the page content beneath —
+an explicitly accepted tradeoff in the prompt ("logo overhangs it
+vertically if needed"), confirmed visually via Playwright screenshot
+(it overlaps the FlashDraft page's own title text in the corner, which
+is cosmetic and page-specific, not a functional break). Nav links get
+`paddingLeft: 210` to clear it. The header itself is untouched at
+`h-14` (56px), so every page's `pt-14` / `h-[calc(100vh-56px)]` offset
+still lines up — did not need to touch `AppChrome.tsx` for this part.
+
+**FlashDraft canvas + toolbar (`app/studio/draft/page.tsx`).** Deleted
+the redundant 2D/3D-toggle-and-hint row that sat above the canvas
+(rolled the toggle into the consolidated toolbar below) and moved the
+"Start From a Template" bar from its own row below the canvas to an
+`absolute bottom-0` overlay inside the canvas wrapper — both hand their
+freed vertical space straight to the canvas's existing `flex-1 min-h-0`
+sizing rather than requiring a new hardcoded height. Merged the
+toolbar's two button rows into one (`py-1 px-2`, 14px icons, was 20px),
+appended the 2D/3D toggle to its end, and shrank the draw-instructions
+line to small text under the toolbar instead of its own row.
+
+**Hem rendering — real bug found and fixed.** The prompt claimed
+clicking a hem type doesn't visually render anything; the previous
+session (bridge-002/navbar-003, see below) had separately concluded the
+opposite — "found already fully built, changed nothing." Investigated
+by actually drawing a profile and applying an Open hem in a live
+`next dev` session via a scratch Playwright script (not committed),
+then zooming a cropped screenshot on the exact endpoint pixels rather
+than trusting the "Hem Count" stat or the text label alone. Confirmed
+the fold line was there in code but invisible in practice: `renderHemAt`
+computed the fold-back LENGTH from `hem.gapIn` (the user-editable
+perpendicular-gap field, default 0.1875") instead of a real length
+constant, making the whole fold ~4px long — exactly small enough to
+sit entirely under the endpoint's own 4px-radius dot. The parallel
+`legHems` renderer (`renderLegHemAt`) already keeps length (`lengthIn`)
+and gap (`gapIn`) as two separate fields and was not affected. Fixed
+`renderHemAt` to use the existing `HEM_FOLD_DEPTH_IN` constant (already
+used by the teardrop/smashed branches) for fold length, leaving `gapIn`
+for the perpendicular offset only. Re-ran the same Playwright script
+post-fix: the fold line is now clearly visible extending from the
+endpoint. This is why bridge-002/navbar-003's "found already fully
+built" conclusion missed it — that session's live check confirmed the
+popup and hem-count stat worked, not the rendered pixel size.
+
+**Bend-point drag-angle — real bug found and fixed.** The prompt
+claimed the drag/rotate interaction is broken; bridge-002/navbar-003
+had tested it live and reported both the canvas drag (90°→75°) and the
+numeric angle panel working. Re-checked the actual drag code
+(`handlePointerMove`'s `draggingVertexIndex` branch) line by line
+against the four listed likely-cause categories (missing handlers,
+missing pointer capture, stale closures, stale coordinate transforms) —
+none of those four were actually wrong: `setPointerCapture` is called,
+`getBoundingClientRect` is read fresh every event, and there's no stale
+closure since the handler is a fresh inline function each render. The
+real, narrower bug: that branch only ever applied grid-snap
+(`snapToGrid`, gated on `snapDimension`) — the "Snap to 15° angle"
+checkbox had **zero effect while dragging an existing bend point**, only
+during fresh line-drawing (a separate code path, `applySnapping`, used
+by the click-and-drag-to-draw tool). The previous session's 90°→75° drag
+result likely landed on a 15°-multiple by chance rather than because
+snapping was actually engaged — its test never compared the checkbox on
+vs. off. Fixed by anchoring the drag to the vertex's fixed upstream
+neighbor and reusing the existing `applySnapping` helper so both
+"Snap to 15° angle" and "Snap to 1/8" dimension" apply consistently
+whether drawing a new segment or dragging an existing bend point. Also
+switched the hover cursor on draggable vertices from `pointer` to
+`grab`, matching the requested affordance (`grabbing` while dragging was
+already correct). Verified live: with snap-to-15° on, dragging a bend
+point now leaves the angle panel reading an exact multiple of 15°
+(`-75.0`) and the dimension label updates in real time during the drag.
+
+**Gates passed this session** — `pnpm tsc --noEmit`: 0 errors. `pnpm run
+build`: succeeded, same route count as before. Scratch Playwright
+verification script was written to a temp file inside the repo root
+(`tmp-hem-test.mjs`, needed for `@playwright/test` module resolution)
+and deleted before committing — not part of the diff.
+
+**Previous session (bridge-002 / navbar-003, 2026-07-29): DS2801
 generator rewrite (separate repo, uncommitted), compact 56px header, and
 a thorough FlashDraft investigation that found nothing to fix.** A
 4-part combined request spanning two git repos.

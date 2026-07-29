@@ -12,6 +12,77 @@ Feature specs:           COMPLETE (52 files)
 FORGE queue:             Phase 8 built (QuickBooks stubbed/deferred, Vercel deploy
                          prep done). ALL PHASES (0–8) NOW BUILT.
 Application code:        Phases 0–8 built (see BUILD PHASE STATUS).
+FlashDraft canvas/toolbar NEW (navbar-004 / flashdraft-005, 2026-07-29) — a
++ logo overhaul + hem/    5-part combined request: read `app/studio/draft/
+drag bug fixes            page.tsx`, `components/layout/NavBar.tsx`, and
+(navbar-004 /             `components/layout/AppChrome.tsx` in full before
+flashdraft-005):          changing anything, per instruction. (1) Pulled the
+                         AFS logo out of the 56px `<header>` entirely into
+                         its own `fixed top-0 left-0 z-50` `<Link>` at
+                         200×80 (was 54×36 inline) — big enough that it
+                         now overhangs the header by 24px into page
+                         content below, same tradeoff the prompt explicitly
+                         signed off on ("logo overhangs it vertically if
+                         needed"); nav links get `paddingLeft: 210` so they
+                         clear it. Header itself stays `h-14` (56px) —
+                         every page's `pt-14`/`h-[calc(100vh-56px)]` offset
+                         (AppChrome, FlashDraft, etc.) still lines up.
+                         (2) FlashDraft: deleted the redundant 2D/3D-toggle-
+                         plus-hint row above the canvas (moved into the
+                         toolbar, see below) and moved the "Start From a
+                         Template" bar from its own `shrink-0` row below
+                         the canvas to an `absolute bottom-0` overlay
+                         inside the canvas wrapper — both changes hand the
+                         freed rows' height straight to the canvas's
+                         existing `flex-1 min-h-0` sizing. (3) Toolbar's
+                         two rows merged into one (`py-1 px-2` buttons,
+                         14px icons vs. the old 20px), 2D/3D toggle moved
+                         to the end of that single row, and the "Click
+                         empty space to draw…" instruction line moved to
+                         small text under the toolbar instead of its own
+                         row. (4) **Real bug found and fixed**: clicking
+                         an Open hem on a profile endpoint rendered
+                         essentially nothing — traced it to `renderHemAt`
+                         reusing `hem.gapIn` (default 0.1875", the user-
+                         editable perpendicular-gap field) for the fold-
+                         back LENGTH too, so the fold was ~4px long —
+                         fully hidden under the endpoint's own 4px-radius
+                         dot. `legHems`' equivalent `renderLegHemAt` was
+                         already correct (uses a separate `lengthIn`) —
+                         made `renderHemAt`'s open-hem fold length use the
+                         fixed `HEM_FOLD_DEPTH_IN` constant instead (same
+                         one teardrop/smashed already use), leaving
+                         `gapIn` for the perpendicular offset only,
+                         matching the legHem pattern. **This corrects
+                         bridge-002/navbar-003's "investigated thoroughly,
+                         found already fully built, changed nothing"
+                         conclusion on the hem system** — that session's
+                         check confirmed the hem TYPES and popup wired up
+                         and a count stat incremented, but never zoomed in
+                         on the actual rendered fold pixels to notice they
+                         were sub-4px and hidden under the endpoint dot.
+                         (5) **Real bug found and fixed**: the bend-point
+                         drag handler (`draggingVertexIndex` branch of
+                         `handlePointerMove`) only ever applied grid-snap
+                         (`snapToGrid`, gated on `snapDimension`) — the
+                         "Snap to 15° angle" checkbox had zero effect
+                         while dragging a bend point, only during fresh
+                         line-drawing. Fixed by anchoring to the dragged
+                         vertex's fixed upstream neighbor and reusing the
+                         existing `applySnapping` helper (the same one
+                         freehand drawing already uses) so both snaps
+                         apply consistently; also changed the hover cursor
+                         on draggable vertices from `pointer` to `grab` to
+                         match the requested affordance. **Verified live**
+                         with a scratch Playwright script (not committed)
+                         against a real `next dev` session: drew a 3-point
+                         profile, applied an Open hem end (confirmed a
+                         visible fold line post-fix vs. only a dot+label
+                         pre-fix), and dragged the bend point with snap-to-
+                         15° on (angle panel read an exact multiple of 15°,
+                         `-75.0`, and the dimension label updated live
+                         during the drag). `pnpm tsc --noEmit`: 0 errors.
+                         `pnpm run build`: exit 0, same route count.
 Bid Monitor (bid-006,     NEW (bid-006, 2026-07-28) — a federal/state/local
 2026-07-28):             procurement bid discovery feature, entirely new (this
                          is the first commit for it — the lib/app files below

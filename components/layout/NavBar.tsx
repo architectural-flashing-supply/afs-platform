@@ -59,11 +59,22 @@ export default function NavBar() {
       : undefined;
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-40 h-14 bg-afs-bg-raised border-b border-afs-chrome-dim flex items-center px-8">
-      <Link href="/" className="mr-6 shrink-0">
-        <Image src="/afs-logo.png" alt="AFS Architectural Flashing Supply" width={54} height={36} className="object-contain" />
+    <>
+      <Link
+        href="/"
+        className="fixed top-0 left-0 z-50 shrink-0 flex items-center justify-center"
+        style={{ width: 200, height: 80 }}
+      >
+        <Image
+          src="/afs-logo.png"
+          alt="AFS Architectural Flashing Supply"
+          width={200}
+          height={80}
+          className="object-contain"
+        />
       </Link>
-      <div className="hidden md:flex items-center gap-8">
+      <header className="fixed top-0 left-0 right-0 z-40 h-14 bg-afs-bg-raised border-b border-afs-chrome-dim flex items-center px-8">
+      <div className="hidden md:flex items-center gap-8" style={{ paddingLeft: 210 }}>
         {TOP_NAV_LINKS.map((link) => (
           <Link key={link.href} href={link.href} className={topNavLinkClass(link.href)} style={topNavLinkStyle(link.href)}>
             {link.label}
@@ -78,6 +89,7 @@ export default function NavBar() {
           </button>
         )}
       </div>
-    </header>
+      </header>
+    </>
   );
 }

@@ -446,11 +446,11 @@ function ToolbarButton({
       aria-label={label}
       onClick={onClick}
       disabled={disabled}
-      className={`p-2 rounded transition-colors ${
+      className={`py-1 px-2 rounded transition-colors ${
         active ? 'bg-afs-crimson text-white' : 'bg-afs-bg-raised text-afs-chrome-mid hover:bg-afs-bg-surface hover:text-white'
       } disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-afs-bg-raised disabled:hover:text-afs-chrome-mid`}
     >
-      <span className="block w-5 h-5">
+      <span className="block" style={{ width: 14, height: 14 }}>
         <ToolbarIcon name={icon} />
       </span>
     </button>
@@ -909,8 +909,14 @@ export default function FlashDraftPage() {
         // space, and a perpendicular cap at the far end (the fold's tip,
         // not its attachment point) closes it — that's where the open
         // gap actually reads as "open."
+        // Fold-back LENGTH (how far the return leg runs) is a fixed visual
+        // depth — same constant teardrop/smashed use below — independent of
+        // gapIn, which is the perpendicular air-gap width the user actually
+        // controls via the popup's "Gap (in)" field. Reusing gapIn for both
+        // previously made the fold shrink to the gap's own tiny default
+        // (3/16") and disappear entirely under the endpoint's dot.
         const foldDir = { x: -u.x, y: -u.y };
-        const foldTip = { x: p.x + foldDir.x * hem.gapIn, y: p.y + foldDir.y * hem.gapIn };
+        const foldTip = { x: p.x + foldDir.x * HEM_FOLD_DEPTH_IN, y: p.y + foldDir.y * HEM_FOLD_DEPTH_IN };
         const offsetBase = { x: p.x + perp.x * hem.gapIn, y: p.y + perp.y * hem.gapIn };
         const offsetTip = { x: foldTip.x + perp.x * hem.gapIn, y: foldTip.y + perp.y * hem.gapIn };
 
@@ -1332,11 +1338,15 @@ export default function FlashDraftPage() {
         canvas.style.cursor = 'grabbing';
       }
       const raw = screenToWorld(screenPos.x, screenPos.y, canvas);
-      const snapped = snapDimension ? snapToGrid(raw) : raw;
       const idx = draggingVertexIndex;
       const original = draggingVertexOriginalPoints.current;
       if (!original) return;
       const originalPos = original[idx];
+      // Snap relative to the fixed incoming-leg neighbor (same helper the
+      // freehand click-drag tool uses) so "Snap to 15° angle" applies to
+      // the incoming leg's new direction, not just grid position.
+      const anchor = original[idx - 1];
+      const snapped = anchor && (snapAngle || snapDimension) ? applySnapping(anchor, raw, snapAngle, snapDimension) : raw;
       const delta = { x: snapped.x - originalPos.x, y: snapped.y - originalPos.y };
       // The incoming leg's endpoint (this vertex) moves to the cursor;
       // everything downstream translates by the same delta so downstream
@@ -1386,7 +1396,7 @@ export default function FlashDraftPage() {
     if (vertexHover !== null) {
       const isTooTight = isGauge18OrThicker(gauge) && getEffectiveRadius(vertexHover) < thicknessIn * 1.5;
       canvas.title = isTooTight ? 'Radius too tight for this gauge' : '';
-      canvas.style.cursor = 'pointer';
+      canvas.style.cursor = 'grab';
       setHoveredSegment(null);
       return;
     }
@@ -2071,18 +2081,15 @@ export default function FlashDraftPage() {
 
   return (
     <main className="h-[calc(100vh-56px)] bg-afs-bg-base flex flex-col overflow-hidden">
-      <div className="px-6 py-1.5 border-b border-afs-chrome-dim flex items-center justify-between gap-4 shrink-0">
+      <div className="px-6 py-1 border-b border-afs-chrome-dim flex items-center gap-4 shrink-0">
         <div className="flex items-baseline gap-2">
           <span className="font-label text-afs-crimson text-[10px] tracking-widest uppercase">FlashDraft</span>
           <h1 className="font-heading text-base text-afs-chrome-high leading-tight">Draw Your Profile</h1>
         </div>
-        <p className="font-body text-xs text-afs-chrome-dim hidden md:block text-right">
-          Click empty space to draw · click a segment or bend to select it · double-click an endpoint for a hem · drag back on any leg for a hem there
-        </p>
       </div>
 
-      {/* PART 1 — PROFESSIONAL TOOLBAR */}
-      <div className="px-4 py-2 border-b border-afs-chrome-dim flex flex-col gap-1.5 shrink-0 bg-afs-bg-dim">
+      {/* PART 1 — PROFESSIONAL TOOLBAR (single row) */}
+      <div className="px-4 py-1.5 border-b border-afs-chrome-dim shrink-0 bg-afs-bg-dim">
         <div className="flex items-center gap-1 flex-wrap">
           <ToolbarButton icon="new" label="New" onClick={() => setShowNewConfirm(true)} />
           <ToolbarButton icon="open" label="My Saved Profiles" onClick={openSavedProfiles} />
@@ -2090,8 +2097,7 @@ export default function FlashDraftPage() {
           <ToolbarButton icon="duplicate" label="Duplicate" onClick={openDuplicateModal} disabled={points.length < 2} />
           <ToolbarButton icon="editName" label="Edit Name" onClick={openSaveModal} disabled={!savedProfileId} />
           <ToolbarButton icon="print" label="Print" onClick={printCanvas} />
-        </div>
-        <div className="flex items-center gap-1 flex-wrap">
+          <span className="w-px h-5 bg-afs-chrome-dim mx-1" />
           <ToolbarButton icon="fitToScreen" label="Fit to Screen" onClick={fitToScreen} disabled={points.length === 0} />
           <ToolbarButton icon="center" label="Center" onClick={centerView} />
           <ToolbarButton icon="zoomOut" label="Zoom Out" onClick={() => setZoom((z) => Math.max(0.25, z * (1 - ZOOM_STEP_RATIO)))} />
@@ -2109,10 +2115,29 @@ export default function FlashDraftPage() {
           />
           <ToolbarButton icon="prev" label="Prev" onClick={() => selectAdjacentBendPoint(-1)} disabled={points.length < 3} />
           <ToolbarButton icon="next" label="Next" onClick={() => selectAdjacentBendPoint(1)} disabled={points.length < 3} />
+          <span className="w-px h-5 bg-afs-chrome-dim mx-1" />
+          <div className="flex items-center gap-1 bg-afs-bg-overlay border border-afs-border rounded p-0.5" role="group" aria-label="View mode">
+            {(['2d', '3d'] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setViewMode(v)}
+                title={v === '2d' ? '2D View' : '3D View'}
+                className={`font-label text-[10px] px-2 py-1 rounded transition-colors ${
+                  viewMode === v ? 'bg-afs-crimson text-white' : 'bg-afs-bg-raised text-white'
+                }`}
+              >
+                {v === '2d' ? '2D' : '3D'}
+              </button>
+            ))}
+          </div>
         </div>
+        <p className="font-body text-[10px] text-afs-chrome-dim mt-1 hidden md:block" title="Click empty space to draw · click a segment or bend to select it · double-click an endpoint for a hem · drag back on any leg for a hem there">
+          Click empty space to draw · click a segment or bend to select it · double-click an endpoint for a hem · drag back on any leg for a hem there
+        </p>
       </div>
 
-      <div className="flex-1 flex flex-col lg:flex-row gap-4 p-4 min-h-0">
+      <div className="flex-1 flex flex-col lg:flex-row gap-4 pt-4 px-4 min-h-0">
         {/* LEFT PANEL */}
         <div className="w-full lg:w-[320px] lg:shrink-0 bg-afs-bg-raised border border-afs-chrome-dim rounded p-5 flex flex-col gap-4 overflow-y-auto">
           <div className="grid grid-cols-2 gap-4">
@@ -2408,27 +2433,7 @@ export default function FlashDraftPage() {
         </div>
 
         {/* RIGHT PANEL — CANVAS (+ Part 6 split-screen match panel) */}
-        <div className="flex-1 min-w-0 flex flex-col gap-2 min-h-0">
-          <div className="flex items-center justify-between gap-2 shrink-0">
-            <div className="flex items-center gap-1 bg-afs-bg-overlay border border-afs-border rounded p-1">
-              {(['2d', '3d'] as const).map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  onClick={() => setViewMode(v)}
-                  className={`font-label text-xs px-3 py-1.5 rounded transition-colors ${
-                    viewMode === v ? 'bg-afs-crimson text-white' : 'bg-afs-bg-raised text-white'
-                  }`}
-                >
-                  {v === '2d' ? '2D' : '3D'}
-                </button>
-              ))}
-            </div>
-            <p className="font-body text-xs text-afs-chrome-dim hidden md:block">
-              Ctrl+Z undo · Ctrl+Y redo · Delete removes the selection · middle-mouse or Space+drag to pan
-            </p>
-          </div>
-
+        <div className="flex-1 min-w-0 flex flex-col min-h-0">
           <div className="flex-1 min-h-0 flex overflow-hidden rounded border border-afs-chrome-dim metal-edge bg-afs-bg-raised">
             <div
               ref={canvasWrapRef}
@@ -2671,6 +2676,27 @@ export default function FlashDraftPage() {
             )}
                 </>
               )}
+
+              {/* Part 7 — "Common Profiles" template bar, overlaid at the
+                  bottom of the canvas instead of a separate row below it.
+                  Cleat is intentionally excluded (see PROFILE_TEMPLATES above). */}
+              <div className="absolute bottom-0 left-0 right-0 z-20 bg-afs-bg-raised/95 border-t border-afs-border flex items-center gap-4 px-4 py-2">
+                <span className="font-label text-xs text-afs-chrome-mid uppercase tracking-wider shrink-0">
+                  Start From a Template
+                </span>
+                <div className="flex items-center gap-2 overflow-x-auto">
+                  {PROFILE_TEMPLATES.map((template) => (
+                    <button
+                      key={template.id}
+                      type="button"
+                      onClick={() => loadTemplate(template)}
+                      className="shrink-0 py-1.5 px-3 text-xs font-label bg-afs-crimson hover:bg-afs-crimson-hover text-white rounded transition-colors"
+                    >
+                      {template.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             {/* PART 6 — split-screen matched-profile panel, always mounted
@@ -2733,26 +2759,6 @@ export default function FlashDraftPage() {
                   </div>
                 </div>
               )}
-            </div>
-          </div>
-
-          {/* Part 7 — "Common Profiles" template bar. Cleat is intentionally
-              excluded (see PROFILE_TEMPLATES above). */}
-          <div className="shrink-0 bg-afs-bg-raised border-t border-afs-border flex items-center gap-4 px-4 py-2">
-            <span className="font-label text-xs text-afs-chrome-mid uppercase tracking-wider shrink-0">
-              Start From a Template
-            </span>
-            <div className="flex items-center gap-2 overflow-x-auto">
-              {PROFILE_TEMPLATES.map((template) => (
-                <button
-                  key={template.id}
-                  type="button"
-                  onClick={() => loadTemplate(template)}
-                  className="shrink-0 py-1.5 px-3 text-xs font-label bg-afs-crimson hover:bg-afs-crimson-hover text-white rounded transition-colors"
-                >
-                  {template.label}
-                </button>
-              ))}
             </div>
           </div>
         </div>
