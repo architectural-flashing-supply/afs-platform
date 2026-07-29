@@ -610,7 +610,7 @@ export default function ResourcesBrowser() {
         <div className="flex flex-col gap-12">
           {CATEGORY_ORDER.map((category) => (
             <section key={category}>
-              <h2 className="sticky top-32 z-10 bg-afs-bg-base font-heading text-xl font-semibold text-afs-chrome-high mb-4 py-2 border-b border-afs-border">
+              <h2 className="sticky top-14 z-10 bg-afs-bg-base font-heading text-xl font-semibold text-afs-chrome-high mb-4 py-2 border-b border-afs-border">
                 {category}
               </h2>
               <div className={gridClass}>

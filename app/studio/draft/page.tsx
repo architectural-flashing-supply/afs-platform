@@ -2070,7 +2070,7 @@ export default function FlashDraftPage() {
   }
 
   return (
-    <main className="h-[calc(100vh-2.75rem)] bg-afs-bg-base flex flex-col overflow-hidden">
+    <main className="h-[calc(100vh-56px)] bg-afs-bg-base flex flex-col overflow-hidden">
       <div className="px-6 py-1.5 border-b border-afs-chrome-dim flex items-center justify-between gap-4 shrink-0">
         <div className="flex items-baseline gap-2">
           <span className="font-label text-afs-crimson text-[10px] tracking-widest uppercase">FlashDraft</span>
