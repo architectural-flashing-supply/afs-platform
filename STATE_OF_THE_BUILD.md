@@ -377,6 +377,84 @@ color fix                nav-link color flashchat-fix-002 (below) added
                          locations: `rgb(232, 0, 31)` (`#E8001F`) in
                          both. Committed and pushed, no tool-approval
                          blocker.
+NavBar logo doubled +   NEW (navbar-002, 2026-07-28) — user: "the AFS
+header grew to fit,     logo was just restored to the top nav but it's
+ripple fixes (navbar-  too small... double it." Doubled the `<Image>`
+002):                    props exactly as instructed (`width={80}
+                         height={56}` → `width={160} height={112}`) —
+                         confirmed via `Read` that `AFSAnimatedLogo`
+                         still doesn't exist (deleted in afs-logo-009, no
+                         change since navbar-001's same check), so the
+                         `<Image>` branch was the only applicable path,
+                         per the prompt's own conditional. Prompt's
+                         suggested overflow guard was "add `flex
+                         items-center`... if needed" — the header already
+                         had it from navbar-001, so nothing to add there
+                         on its face; but centering isn't the same as
+                         preventing overflow, and the prompt's OTHER
+                         instruction was an unambiguous requirement:
+                         "Ensure it doesn't overflow the nav bar height."
+                         Didn't assume the existing `flex items-center`
+                         satisfied that just because it was already
+                         present — measured it. A Playwright bounding-box
+                         check on the doubled logo before any further fix
+                         showed real, confirmed overflow: logo rendered
+                         160×106.66 (106.66, not the nominal 112 — Next
+                         `Image` auto-corrects to the source PNG's true
+                         1536×1024/1.5 aspect ratio when the given
+                         width/height props imply a slightly different
+                         one, 160/112=1.4286 vs the real 1.5) inside a
+                         44px-tall (`h-11`) header, positioned
+                         `y: -31.8` to `y: 74.8` — 31.8px of the logo
+                         rendering ABOVE the viewport's top edge (`fixed
+                         top-0` header, so this portion isn't scrollable
+                         into view, it's genuinely gone) and a matching
+                         amount overlapping the hero image below the
+                         header's bottom border. Confirmed visually via
+                         screenshot, not just the numbers: the top of the
+                         "AFS" wordmark was cleanly clipped off, and
+                         "FLASHING SUPPLY" bled messily into the hero
+                         photo — a real, broken-looking bug, not a
+                         stylistic "logo bigger than the bar" look.
+                         `flex items-center` was doing exactly what it
+                         does — centering the overflow symmetrically top/
+                         bottom — which is why the prompt's own suggested
+                         fix couldn't have been sufficient on its own;
+                         satisfying "doesn't overflow" required growing
+                         the bar itself. Changed `header`'s `h-11` (44px)
+                         → `h-32` (128px), sized with roughly 10px of
+                         breathing room above/below the logo's actual
+                         106.66px rendered height rather than an exact
+                         107px fit. **Ripple, found via the same `grep`
+                         sweep pattern established for the sidebar-width
+                         removal (resources-003):** searched for
+                         `top-11|pt-11|h-11\b` across all `.tsx` files
+                         rather than assuming only `NavBar.tsx` needed
+                         touching — found 2 more places sized against the
+                         old 44px header, neither mentioned in the
+                         prompt: `AppChrome.tsx`'s `<div className="pt-11">`
+                         page-content offset (→ `pt-32`, otherwise every
+                         page's content would start 84px too high, hidden
+                         under the taller header) and
+                         `ResourcesBrowser.tsx`'s sticky category-heading
+                         `top-11` (→ `top-32`, otherwise category headers
+                         would activate their sticky position while still
+                         behind the header, effectively appearing to not
+                         stick until scrolled well past where they should).
+                         **Verified both fixes, not just applied and
+                         assumed correct:** re-ran the same bounding-box
+                         check post-fix — logo now `y: 10.17` to
+                         `y: 116.83`, fully inside the header's `0`–`128`
+                         range, zero overflow either direction; separately
+                         screenshotted the Resources page scrolled to a
+                         category boundary and confirmed the sticky
+                         heading lands cleanly below the header, not
+                         hidden behind it. `pnpm tsc --noEmit`: 0 errors.
+                         `pnpm run build`: `✓ Compiled successfully`, `✓
+                         Generating static pages (123/123)`. Deleted both
+                         scratch Playwright scripts before committing.
+                         Committed (`407fae7`) and pushed to
+                         `origin/main`.
 NavBar logo + Sign Out NEW (navbar-001, 2026-07-28) — resources-003
 restored to top nav    (above) removed the sidebar per instruction and
 (navbar-001):            explicitly flagged, unprompted, that doing so

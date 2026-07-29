@@ -7,7 +7,46 @@
 
 ## CURRENT STATUS
 
-**Most recent session (navbar-001, 2026-07-28): restored the logo and
+**Most recent session (navbar-002, 2026-07-28): doubled the logo, and
+grew the header to actually fit it.** User: "the AFS logo was just
+restored... but it's too small... double it." Doubled the `<Image>`
+props exactly as asked (80×56 → 160×112; `AFSAnimatedLogo` still doesn't
+exist, confirmed again, so the `<Image>` branch was the only option).
+
+The prompt's suggested overflow guard was "add `flex items-center`... if
+needed" — already present from navbar-001. Didn't assume that was
+sufficient just because it was already there: measured it with a
+Playwright bounding-box check first. Real, confirmed overflow: the
+doubled logo (rendered 160×106.66 — Next `Image` auto-corrects to the
+source PNG's true 1.5 aspect ratio rather than the slightly-off
+1.4286 implied by 160×112) inside the old 44px header, positioned
+31.8px above the viewport's top edge (genuinely clipped, not just
+off-screen-but-scrollable, since the header is `fixed top-0`) and
+bleeding the same amount into the hero image below. Screenshot
+confirmed it visually — the top of "AFS" was cut off, "FLASHING SUPPLY"
+overlapped the hero photo messily. `flex items-center` only centers
+overflow, it can't prevent it, so satisfying the prompt's explicit
+"ensure it doesn't overflow" requirement meant growing the bar itself:
+`h-11` (44px) → `h-32` (128px).
+
+**Ripple, found via the same grep-sweep pattern from resources-003's
+sidebar removal:** searched `top-11|pt-11|h-11\b` across all `.tsx`
+files rather than assuming only NavBar.tsx needed touching. Found 2 more
+places sized against the old 44px header: `AppChrome.tsx`'s `pt-11`
+page-content offset (→ `pt-32`) and `ResourcesBrowser.tsx`'s sticky
+category-heading `top-11` (→ `top-32`).
+
+**Verified both fixes, not just applied and assumed correct:** re-ran
+the bounding-box check post-fix (logo now fully inside the header's 0–128
+range, zero overflow), and separately screenshotted the Resources page
+scrolled to a category boundary confirming the sticky heading lands
+below the header, not hidden behind it.
+
+**Gates passed this session** — `pnpm tsc --noEmit`: 0 errors. `pnpm run
+build`: succeeded, all 123 routes compiled. Committed (`407fae7`) and
+pushed to `origin/main`.
+
+**Previous session (navbar-001, 2026-07-28): restored the logo and
 Sign Out to the top nav.** resources-003 (below) removed the sidebar per
 instruction and proactively flagged that doing so had also removed the
 site's only logo and only Sign Out control — this session is the user
