@@ -7,7 +7,50 @@
 
 ## CURRENT STATUS
 
-**Most recent session (afs-logo-009, 2026-07-28): removed the animated
+**Most recent session (resources-002, 2026-07-28): added a Free
+Installation Manuals section, replaced video placeholders with 11 real
+YouTube embeds, and fixed a real logo-hiding bug along the way.** Read
+`ResourcesBrowser.tsx` and `page.tsx` first, per instruction.
+
+1. **Free Installation Manuals** — added the 4 entries as supplied, but
+   verified every URL with `curl` before shipping rather than trusting
+   "confirmed free resources" at face value (this project has a multi-
+   session history of dead-URL fixes). 3 of 4 checked out; the Copper
+   Development Association handbook URL given was a genuine 404 — traced
+   it to copper.org having fully migrated off its old `/arch_dhb/` path
+   structure onto WordPress, found the real current URL (confirmed 200)
+   pointing at their new consolidated handbook PDF, and used that
+   instead. Also proactively fixed 2 pre-existing dead copper.org
+   entries in the same file (set in resources-001 to the same now-defunct
+   path, never actually verified then) to the same corrected URL.
+2. **11 real YouTube embeds** — verified all 11 supplied video IDs via
+   YouTube's oEmbed endpoint before embedding; all 11 valid. Replaced the
+   4-card placeholder system (fake cards linking to a YouTube search,
+   with a "Steve — add a video ID" note) with real `<iframe>` embeds,
+   grid changed to the requested `lg:grid-cols-3 gap-6`, and the exact
+   disclaimer text added below the grid.
+3. **Real bug found and fixed, not part of either request:** the first
+   screenshot this session showed every logo-bearing card (all ~30 from
+   resources-001, not just today's new ones) rendering a broken-image
+   icon with overflowing alt text instead of hiding cleanly, despite the
+   `onError` handler being exactly as resources-001 specified. Root-caused
+   via DOM inspection: `naturalWidth: 0` (failed load) but
+   `style.display` was never set — a classic SSR hydration race. This
+   page server-renders, so the browser starts (and can finish failing) an
+   `<img src>` request from the server HTML before React hydrates and
+   attaches the `onError` listener; a native error event that fires
+   pre-hydration is missed entirely, not queued. Fixed by extracting a
+   `ResourceLogo` component that also checks the DOM's actual load state
+   (`img.complete && img.naturalWidth === 0`) in a mount-time
+   `useEffect`, covering the pre-hydration-race case that `onError` alone
+   can't catch. Re-screenshotted after the fix: zero broken-image icons
+   anywhere on the page.
+
+**Gates passed this session** — `pnpm tsc --noEmit`: 0 errors. `pnpm run
+build`: succeeded, all 123 routes compiled. Committed (`61230f9`) and
+pushed to `origin/main`.
+
+**Previous session (afs-logo-009, 2026-07-28): removed the animated
 logo entirely, reverted to the plain static logo.** User: "remove all
 animation from logo and return to normal static condition" — a full
 reversion, not another tweak to the afs-logo-004 through -008 animation

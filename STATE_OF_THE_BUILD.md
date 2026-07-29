@@ -377,6 +377,117 @@ color fix                nav-link color flashchat-fix-002 (below) added
                          locations: `rgb(232, 0, 31)` (`#E8001F`) in
                          both. Committed and pushed, no tool-approval
                          blocker.
+Resources page — free  NEW (resources-002, 2026-07-28) — read
+manuals section, 11    `components/resources/ResourcesBrowser.tsx` and
+real video embeds,     `app/(public)/resources/page.tsx` first, per
+fixed a real logo bug  instruction. Two additions requested, plus one
+(resources-002):        real bug found and fixed along the way — not
+                         assumed working from the prompt's claims, each
+                         checked before shipping. **(1) Free Installation
+                         Manuals category** — added the 4 entries exactly
+                         as supplied, but verified each URL with `curl`
+                         first rather than trusting "confirmed free
+                         resources" at face value (this project has a
+                         multi-session history of dead-URL fixes, so that
+                         checked was warranted): Best Buy Metals PDF,
+                         WBDG PDF, and the Internet Archive page all
+                         returned `200`. The Copper Development
+                         Association handbook URL given
+                         (`copper.org/applications/architecture/arch_dhb/
+                         arch-details/`) returned a genuine `404` — not a
+                         bot-block (the bare `copper.org` domain returned
+                         `200` fine with the same request) — traced via
+                         `curl` + grep on the site's actual architecture
+                         landing page to find copper.org has fully
+                         migrated off the legacy `/arch_dhb/` path
+                         structure onto WordPress; the real current URL,
+                         confirmed `200`, is `copper.org/markets-and-
+                         applications/building-construction/elevating-
+                         architecture/copper-in-architecture-design-
+                         handbook/` (the whole handbook is now one
+                         consolidated PDF,
+                         `A4050-Architectural-Handbook.pdf`, linked from
+                         that page, not a browsable multi-page site
+                         anymore) — used the corrected URL for the new
+                         entry instead of the given dead one.
+                         **Proactively fixed 2 pre-existing dead
+                         copper.org entries in the same file**
+                         (`copper-development-association-architectural-
+                         manual` and `copper-org-architectural-flashing-
+                         details`, both set in resources-001 to the same
+                         now-defunct `/arch_dhb/` path and never actually
+                         verified then) to the same corrected URL, since
+                         leaving 2 known-dead links sitting on the same
+                         page while shipping a third correct one made no
+                         sense. **(2) Video Library — 11 real embeds** —
+                         verified all 11 supplied YouTube video IDs via
+                         YouTube's `oembed` endpoint (no API key needed)
+                         before embedding any of them; all 11 returned
+                         valid titles (confirming they're real, public,
+                         embeddable videos — actual titles differ
+                         slightly in wording from the prompt's supplied
+                         titles, e.g. "Installing a modern standing seam
+                         metal roof" vs. the given "DIY Standing Seam
+                         Metal Porch Roof", but same video — kept the
+                         prompt's supplied title text for display, per
+                         instruction, not the video's own YouTube title).
+                         Replaced the `VideoPlaceholder`/`VIDEOS`/
+                         `VideoCard` placeholder system (4 fake cards
+                         linking to a YouTube search query, with a
+                         "Steve — add a specific video ID" placeholder
+                         note) with a `VideoEmbed` interface and real
+                         `<iframe src="https://www.youtube.com/embed/
+                         {id}">` per card, `aspect-video` wrapper, title +
+                         description below, grid changed from
+                         `lg:grid-cols-4 gap-4` to the requested
+                         `lg:grid-cols-3 gap-6`, and the exact disclaimer
+                         text added below the grid (replacing the
+                         similar-but-different old blurb that sat above
+                         it, to avoid two slightly-conflicting disclaimers
+                         on the same section). **Real bug found while
+                         verifying, not part of either requested
+                         addition:** the resources page's very first
+                         Playwright screenshot this session showed every
+                         logo-bearing card (all ~30 from resources-001,
+                         not just today's 4 new ones) rendering a small
+                         broken-image icon with overflowing alt text
+                         ("Standi", "Coppe", "WBDG"...) instead of
+                         cleanly hiding, even though `onError={(e) =>
+                         e.currentTarget.style.display = 'none'}` was
+                         already in place exactly as resources-001
+                         specified. Root-caused via `page.evaluate()`
+                         DOM inspection rather than guessing: the failed
+                         `<img>` had `complete: true`, `naturalWidth: 0`
+                         (definitively a failed load) but
+                         `style.display: ''` — the `onError` handler had
+                         simply never fired. This page is server-rendered
+                         (`'use client'` components still SSR in Next.js);
+                         the browser starts requesting an `<img src>`
+                         the instant it parses the server-rendered HTML,
+                         and a local 404 on a small static asset resolves
+                         fast enough to plausibly complete BEFORE
+                         React hydration finishes and attaches the
+                         `onError` listener — a native error event that
+                         fires pre-hydration is missed entirely, not
+                         queued for React to catch later. Fixed by
+                         extracting a new `ResourceLogo` component that
+                         checks the actual DOM state
+                         (`imgRef.current.complete &&
+                         imgRef.current.naturalWidth === 0`) in a
+                         mount-time `useEffect`, in addition to keeping
+                         `onError` for genuine post-hydration failures —
+                         covers both the pre-hydration-race case and the
+                         normal case. Re-screenshotted after the fix:
+                         zero broken-image icons across every card,
+                         confirmed via `page.evaluate` that the 22
+                         still-expected 404s (no logo PNGs exist in
+                         `public/resources/logos/` yet) are now all
+                         silently and cleanly hidden. `pnpm tsc --noEmit`:
+                         0 errors. `pnpm run build`: `✓ Compiled
+                         successfully`, `✓ Generating static pages
+                         (123/123)`. Deleted all four scratch Playwright/
+                         curl-output scripts before committing. Committed
+                         (`61230f9`) and pushed to `origin/main`.
 Animated AFS logo      NEW (afs-logo-009, 2026-07-28) — user: "remove
 removed entirely,      all animation from logo and return to normal
 static logo restored   static condition." Not a further tweak to
