@@ -59,9 +59,9 @@ export default function NavBar() {
       : undefined;
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-40 h-11 bg-afs-bg-raised border-b border-afs-chrome-dim flex items-center px-8">
+    <header className="fixed top-0 left-0 right-0 z-40 h-32 bg-afs-bg-raised border-b border-afs-chrome-dim flex items-center px-8">
       <Link href="/" className="mr-6 shrink-0">
-        <Image src="/afs-logo.png" alt="AFS Architectural Flashing Supply" width={80} height={56} className="object-contain" />
+        <Image src="/afs-logo.png" alt="AFS Architectural Flashing Supply" width={160} height={112} className="object-contain" />
       </Link>
       <div className="hidden md:flex items-center gap-8">
         {TOP_NAV_LINKS.map((link) => (
