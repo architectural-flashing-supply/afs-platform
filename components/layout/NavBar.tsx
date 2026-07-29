@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
@@ -32,6 +33,13 @@ export default function NavBar() {
     ? { label: 'My Account', href: '/account' }
     : { label: 'Sign In', href: '/login' };
 
+  const handleSignOut = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    // Hard redirect so any stale client-side auth state is guaranteed gone.
+    window.location.href = '/login';
+  };
+
   const isActive = (href: string) => {
     if (!pathname) return false;
     if (href === '/') return pathname === '/';
@@ -52,6 +60,9 @@ export default function NavBar() {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-40 h-11 bg-afs-bg-raised border-b border-afs-chrome-dim flex items-center px-8">
+      <Link href="/" className="mr-6 shrink-0">
+        <Image src="/afs-logo.png" alt="AFS Architectural Flashing Supply" width={80} height={56} className="object-contain" />
+      </Link>
       <div className="hidden md:flex items-center gap-8">
         {TOP_NAV_LINKS.map((link) => (
           <Link key={link.href} href={link.href} className={topNavLinkClass(link.href)} style={topNavLinkStyle(link.href)}>
@@ -61,6 +72,11 @@ export default function NavBar() {
         <Link href={accountLink.href} className={topNavLinkClass(accountLink.href)} style={topNavLinkStyle(accountLink.href)}>
           {accountLink.label}
         </Link>
+        {isAuthenticated && (
+          <button type="button" onClick={handleSignOut} className="text-sm text-afs-crimson hover:underline font-label">
+            Sign Out
+          </button>
+        )}
       </div>
     </header>
   );
