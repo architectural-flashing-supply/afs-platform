@@ -12,6 +12,63 @@ Feature specs:           COMPLETE (52 files)
 FORGE queue:             Phase 8 built (QuickBooks stubbed/deferred, Vercel deploy
                          prep done). ALL PHASES (0–8) NOW BUILT.
 Application code:        Phases 0–8 built (see BUILD PHASE STATUS).
+Real FlashDraft geometry NEW (bend-geometry-001, 2026-07-30) — follow-up to
+in machine-job bend       a prior session (see below) that was asked to make
+mapping                  the standalone afs-machine-bridge repo's bridge.js
+(bend-geometry-001):     parse a `customer_notes` field with regex to get
+                         real bend geometry into generated `.ds1` files.
+                         That session investigated instead of complying:
+                         grepped the whole repo and confirmed no
+                         `customer_notes` column/field exists anywhere (the
+                         real column is `quote_requests.notes`); traced that
+                         even where FlashDraft's human-readable bend-summary
+                         text does reach `machine_jobs.notes` (via
+                         `approve-quote-request/route.ts`), the values are
+                         inches with a `"` suffix while `ds1-generator.js`
+                         writes raw doubles into fields it documents as
+                         millimeters — parsing that text as-is would have
+                         encoded every bend length 25.4× too small in a file
+                         whose own header comment says "a wrong file here
+                         drives a real physical bending machine." Also
+                         declined an instruction to pad generated files to
+                         "1000+ bytes to match real Thalmann files" — no
+                         confirmed real sample supports that number; forcing
+                         it would fabricate structure with no geometric
+                         basis. Proposed the real fix instead: the actual
+                         bug was upstream, in `afs-website`'s
+                         `approve-quote-request/route.ts`, whose
+                         `buildBendsFromItem()` already had a comment
+                         admitting it discards real FlashDraft geometry and
+                         assumes a generic 2-bend 90° box from
+                         `legA`/`legB`/`width` — even though the line item
+                         already carries the real drawn `points` array and
+                         `bendRadiiIn` (world inches). This session
+                         implemented that fix: `buildBendsFromItem()` now
+                         checks for `item.points` (2+ entries) and, when
+                         present, computes real per-bend geometry via a new
+                         `buildBendsFromPoints()` — segment lengths by
+                         Pythagorean distance between consecutive points
+                         (×25.4 for mm), bend angle via the same dot-product
+                         formula already duplicated in three other places in
+                         this codebase (`page.tsx`'s `bendAngleAt`,
+                         `ds1-generator.js`'s unused `bendAngleFromPoints`,
+                         now a fourth copy here — same "duplicate with a
+                         comment, don't cross-import between a client page/
+                         two separate repos" pattern already established),
+                         and radius from `bendRadiiIn` (×25.4, defaulting to
+                         an obviously-wrong 0 rather than guessing when
+                         missing). Added a best-effort alternating
+                         up/down `direction` field per bend — the exact gap
+                         `ds1-generator.js`'s own comment already flagged as
+                         missing from the schema — populated only on this
+                         new path; the box fallback is untouched, still
+                         reached whenever `item.points` is absent or has
+                         fewer than 2 entries. `pnpm tsc --noEmit`: 0
+                         errors. `pnpm run build`: exit 0, same route count.
+                         Not yet exercised against a live approval click —
+                         no admin test login available this session; correct
+                         by code review against the same formula used
+                         elsewhere, not by a driven browser session.
 FlashDraft canvas/toolbar NEW (navbar-004 / flashdraft-005, 2026-07-29) — a
 + logo overhaul + hem/    5-part combined request: read `app/studio/draft/
 drag bug fixes            page.tsx`, `components/layout/NavBar.tsx`, and

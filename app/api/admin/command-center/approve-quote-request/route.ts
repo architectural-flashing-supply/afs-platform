@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { logAdminAction } from '@/lib/admin/audit';
 
+interface FlashDraftPoint {
+  x: number;
+  y: number;
+  radius?: number | null;
+}
+
 interface QuoteRequestLineItem {
   profileType: string;
   material?: string | null;
@@ -11,6 +17,12 @@ interface QuoteRequestLineItem {
   legA?: number | null;
   legB?: number | null;
   quantity: number;
+  // Present on "Custom FlashDraft Profile" items submitted from
+  // app/studio/draft/page.tsx — the real drawn geometry (world inches) and
+  // its per-bend-point radii, in the same order buildBendsFromPoints below
+  // expects.
+  points?: FlashDraftPoint[] | null;
+  bendRadiiIn?: number[] | null;
 }
 
 interface CustomBend {
@@ -18,6 +30,11 @@ interface CustomBend {
   rightLegMm: number;
   bendAngleDegrees: number;
   radiusMm: number;
+  // Only populated on the real-geometry path below — no source of real
+  // per-bend up/down data exists yet, so this is a best-effort alternation,
+  // not measured. See ds1-generator.js's own note that direction has no
+  // real source in the schema; this starts filling that gap.
+  direction?: 'up' | 'down';
 }
 
 const MM_PER_INCH = 25.4;
@@ -30,14 +47,75 @@ function describeItem(item: QuoteRequestLineItem): string {
   return parts.join(' — ');
 }
 
-// quote_requests.line_items only ever carries width/height/legA/legB, never
-// a real bend angle — same 90°-corner assumption already used for the 3D
-// Profile Viewer's upload-page preview (app/upload/page.tsx's
-// buildBendsFromItem / lib/utils/profile-svg.ts). A wrong guess here still
-// can't reach the physical machine unreviewed: the Machine Bridge's
-// mandatory human-review gate (staged_for_review) requires a person to
-// verify the generated file before it's copied to the machine's live folder.
+function distanceIn(a: FlashDraftPoint, b: FlashDraftPoint): number {
+  return Math.hypot(b.x - a.x, b.y - a.y);
+}
+
+// Interior bend angle at `curr`, in degrees (0-180) — the same dot-product
+// formula as app/studio/draft/page.tsx's bendAngleAt and afs-machine-
+// bridge's ds1-generator.js bendAngleFromPoints, duplicated (not imported)
+// since the first lives in a 'use client' page component and the second in
+// a separate standalone repo — same reasoning ds1-generator.js's own
+// version documents for not importing across that repo boundary.
+function bendAngleFromPoints(prev: FlashDraftPoint, curr: FlashDraftPoint, next: FlashDraftPoint): number {
+  const v1 = { x: prev.x - curr.x, y: prev.y - curr.y };
+  const v2 = { x: next.x - curr.x, y: next.y - curr.y };
+  const dot = v1.x * v2.x + v1.y * v2.y;
+  const mag = Math.hypot(v1.x, v1.y) * Math.hypot(v2.x, v2.y);
+  if (mag === 0) return 0;
+  const cos = Math.max(-1, Math.min(1, dot / mag));
+  return (Math.acos(cos) * 180) / Math.PI;
+}
+
+// Real per-bend geometry from FlashDraft's drawn points, converted from
+// world inches to mm. One CustomBend per interior point (points[1] ..
+// points[length-2]), matching machine_profile_bends' one-row-per-bend
+// convention. bendRadiiIn is indexed exactly how FlashDraft itself builds
+// it in page.tsx's submitQuoteRequest (bendRadiiIn[0] is points[1]'s
+// radius, etc.) — missing entries default to 0 (obviously wrong to a human
+// reviewer) rather than guessing a plausible-looking radius.
+function buildBendsFromPoints(
+  points: FlashDraftPoint[],
+  bendRadiiIn: number[] | null | undefined
+): { bends: CustomBend[]; blankWidthMm: number } {
+  let blankWidthMm = 0;
+  for (let i = 0; i < points.length - 1; i++) {
+    blankWidthMm += distanceIn(points[i], points[i + 1]) * MM_PER_INCH;
+  }
+
+  const bends: CustomBend[] = [];
+  let up = true;
+  for (let i = 1; i < points.length - 1; i++) {
+    const radiusIn = bendRadiiIn?.[i - 1] ?? 0;
+    bends.push({
+      leftLegMm: distanceIn(points[i - 1], points[i]) * MM_PER_INCH,
+      rightLegMm: distanceIn(points[i], points[i + 1]) * MM_PER_INCH,
+      bendAngleDegrees: bendAngleFromPoints(points[i - 1], points[i], points[i + 1]),
+      radiusMm: radiusIn * MM_PER_INCH,
+      direction: up ? 'up' : 'down',
+    });
+    up = !up;
+  }
+
+  return { bends, blankWidthMm };
+}
+
+// quote_requests.line_items carries real drawn geometry (points/
+// bendRadiiIn, world inches) for FlashDraft-submitted items — used
+// whenever present. Older/non-FlashDraft items only ever carry
+// width/height/legA/legB, never a real bend angle, so those still fall back
+// to the generic 2-bend 90°-corner box assumption below (same one already
+// used by the 3D Profile Viewer's upload-page preview — app/upload/
+// page.tsx's buildBendsFromItem / lib/utils/profile-svg.ts). Either way, a
+// wrong guess still can't reach the physical machine unreviewed: the
+// Machine Bridge's mandatory human-review gate (staged_for_review) requires
+// a person to verify the generated file before it's copied to the
+// machine's live folder.
 function buildBendsFromItem(item: QuoteRequestLineItem): { bends: CustomBend[]; blankWidthMm: number } {
+  if (item.points && item.points.length >= 2) {
+    return buildBendsFromPoints(item.points, item.bendRadiiIn);
+  }
+
   const legAIn = item.legA ?? DEFAULT_DIMENSIONS_IN.legA;
   const legBIn = item.legB ?? DEFAULT_DIMENSIONS_IN.legB;
   const widthIn = item.width ?? item.height ?? DEFAULT_DIMENSIONS_IN.width;

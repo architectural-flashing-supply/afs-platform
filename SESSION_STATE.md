@@ -7,7 +7,71 @@
 
 ## CURRENT STATUS
 
-**Most recent session (navbar-004 / flashdraft-005, 2026-07-29): logo
+**Most recent session (bend-geometry-001, 2026-07-30): fixed
+`approve-quote-request/route.ts` to use FlashDraft's real drawn geometry
+instead of a generic 2-bend 90° box, after declining a riskier ask in an
+earlier prompt this same day.**
+
+**Context this builds on.** An earlier prompt asked for a Chrome
+extension (`chrome-extension/` in the standalone `afs-machine-bridge`
+repo) that auto-polls the AFS platform and pushes jobs into
+PathfinderEdge over a guessed SignalR contract, riding the browser's
+ambient session — built exactly as specified (it's local, uncommitted
+files, fully reversible), but flagged clearly first: this repo's own
+README documents that PathfinderEdge was already investigated and found
+to have no discoverable REST API, which is *why* the DS2801 bridge
+exists at all, and the new extension both re-opens that closed decision
+and drops the mandatory human-review gate the DS2801 path has always
+had. A follow-up prompt then asked the DS2801 bridge itself
+(`bridge.js`/`ds1-generator.js`) to parse a `customer_notes` field via
+regex for real bend geometry. Investigated rather than complying:
+`customer_notes` doesn't exist anywhere in the schema (grepped the full
+repo); the closest real thing — FlashDraft's human-readable bend-summary
+text — does reach `machine_jobs.notes` on approval, but as inches with a
+`"` suffix, while `ds1-generator.js` writes raw doubles into fields
+documented as millimeters. Parsing it as specified would have silently
+encoded every bend length 25.4× too small, in a file whose own header
+comment says "a wrong file here drives a real physical bending machine."
+Also declined padding generated files to "1000+ bytes to match real
+Thalmann files" — no confirmed real sample supports that number, and
+forcing it would fabricate structure with no geometric basis. Proposed
+the real fix instead: `approve-quote-request/route.ts`'s
+`buildBendsFromItem()` already admitted (in its own comment) that it
+discards real FlashDraft geometry in favor of a generic box guess, even
+though the submitted line item already carries the real `points` array
+and `bendRadiiIn`. Only the diagnostic ask from that prompt (log the
+full job object) was implemented, in `bridge.js`.
+
+**This session implemented that proposed fix.** Read
+`approve-quote-request/route.ts` and `app/studio/draft/page.tsx` in full
+again per instruction. `buildBendsFromItem()` now checks for
+`item.points` (2+ entries) and, when present, routes to a new
+`buildBendsFromPoints()`: segment lengths by Pythagorean distance between
+consecutive points (×25.4 for mm), bend angle via the same dot-product
+formula already duplicated in `page.tsx`'s `bendAngleAt` and
+`ds1-generator.js`'s unused `bendAngleFromPoints` — now a third copy
+here, same "duplicate with a comment instead of importing across a
+client-page/separate-repo boundary" pattern this codebase already uses —
+and radius from `bendRadiiIn` (×25.4, defaulting to an obviously-wrong 0
+when missing rather than guessing a plausible value). Added a best-
+effort alternating up/down `direction` per bend, populated only on this
+new path — fills the exact gap `ds1-generator.js`'s own comment already
+flagged as missing from the schema. The box fallback
+(`legA`/`legB`/`width`, generic 90° corners) is untouched and still
+reached whenever `points` is absent or under 2 entries — old/non-
+FlashDraft line items are unaffected.
+
+**Gates passed this session** — `pnpm tsc --noEmit`: 0 errors. `pnpm run
+build`: succeeded, same route count as before. **Not verified live** —
+no admin test login was available this session, so the fix is correct
+by code review (same formula already proven correct in three other
+call sites) rather than a driven browser session through an actual
+approval click. Worth a real end-to-end check — draw a multi-bend
+profile in FlashDraft, submit, approve it in the Command Center, and
+confirm `machine_jobs.custom_bends` holds real per-bend mm values —
+next time an admin session is available.
+
+**Previous session (navbar-004 / flashdraft-005, 2026-07-29): logo
 pulled out of the header into its own large fixed overlay, FlashDraft
 canvas maximized, toolbar consolidated to one row, and two real bugs
 found and fixed in hem rendering and bend-point drag-snap.** A 5-part
