@@ -6862,3 +6862,47 @@ also authored this session but its manifest entry was mistakenly added to
 a different, unrelated project's manifest file during a file-collision
 incident and needs to be re-added to this project's correct
 library-manifest.yaml.
+
+## CORRECTED 2026-07-31 — Real findings, verified live
+
+The "unconfirmed" status above is now resolved. Ran
+scripts/check-migrations-007-010.ts directly in a real terminal (no
+tool-approval blocker in this session). Found a genuine, previously
+undetected gap: migration 007's three tables (driver_locations,
+delivery_notifications, gbp_photo_queue) did NOT exist live despite the
+check script initially reporting them as EXISTS -- that report was later
+found to be a false positive (traced to a stale PostgREST schema-cache
+read, not a real catalog check). Direct information_schema queries were
+used to get the authoritative answer instead.
+
+**Real state found, before fixes applied this session:**
+- Migration 007: NOT applied at all (0 of 3 tables, 0 of 5 new orders
+  columns, 0 of 3 functions, both widened CHECK constraints unwidened)
+- Migration 008: NOT applied (orders.geocoded_lat/lng missing)
+- Migration 009: NOT applied (profiles.internal_notes,
+  orders.invoice_paid_at missing)
+- Migration 010: FULLY applied and correctly seeded (81 bid_sources, 30
+  bid_keywords, confirmed via live row counts)
+
+**All of 007, 008, and 009 were applied this session**, in dependency
+order (is_operator() first, since two RLS policies depend on it; then
+the three CREATE TABLE blocks; then the orders/profiles ALTER TABLE
+statements; then the two widened CHECK constraints, applied directly by
+constraint name after the original DO $`$ block's ILIKE pattern-match
+failed to find them -- Postgres renders CHECK constraints as
+= ANY (ARRAY[...]), not literal IN, which the original lookup
+pattern didn't account for; then the three functions and the final RLS
+policy). Every column, function, and table existence was independently
+re-verified via direct information_schema/pg_proc queries after
+applying, not assumed from the apply step succeeding.
+
+**Practical impact of the pre-fix gap:** delivery tracking, the
+employee PWA's order-status transitions (packaged/dispatched/delivered),
+the customer tracking page's get_tracking_data() call, and Command
+Center's internal-notes/invoice-paid-tracking were all built in code
+against a schema that did not exist live. Any real use of those features
+before this session would have failed with live Postgres errors
+(confirmed via the exact 42703/PGRST202 error codes the check script
+surfaced).
+
+All 4 migrations (007-010) are now confirmed live and correct.
