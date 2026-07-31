@@ -116,6 +116,14 @@ export default function OrdersCrmTab({ orders: initialOrders, operators }: Order
     }
   }
 
+  async function handleMarkPickedUp(id: string) {
+    const ok = await callAction(id, `/api/orders/${id}/picked-up`);
+    if (ok) {
+      patchOrderLocal(id, { status: 'delivered' });
+      router.refresh();
+    }
+  }
+
   return (
     <div>
       <div className="flex items-center gap-3 mb-4 flex-wrap">
@@ -197,75 +205,103 @@ export default function OrdersCrmTab({ orders: initialOrders, operators }: Order
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <select
-                        value={order.assignedDriverId ?? ''}
-                        disabled={busy}
-                        onChange={(e) =>
-                          saveCrmField(
-                            order.id,
-                            { assignedDriverId: e.target.value || null },
-                            {
-                              assignedDriverId: e.target.value || null,
-                              assignedDriverName: operators.find((o) => o.id === e.target.value)?.fullName ?? null,
-                            }
-                          )
-                        }
-                        className="bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 text-xs text-afs-chrome-high focus:border-afs-crimson outline-none font-body"
-                      >
-                        <option value="">Unassigned</option>
-                        {operators.map((op) => (
-                          <option key={op.id} value={op.id}>
-                            {op.fullName}
-                          </option>
-                        ))}
-                      </select>
+                      {order.deliveryMethod === 'pickup' ? (
+                        <Badge variant="chrome">Pickup</Badge>
+                      ) : (
+                        <select
+                          value={order.assignedDriverId ?? ''}
+                          disabled={busy}
+                          onChange={(e) =>
+                            saveCrmField(
+                              order.id,
+                              { assignedDriverId: e.target.value || null },
+                              {
+                                assignedDriverId: e.target.value || null,
+                                assignedDriverName: operators.find((o) => o.id === e.target.value)?.fullName ?? null,
+                              }
+                            )
+                          }
+                          className="bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 text-xs text-afs-chrome-high focus:border-afs-crimson outline-none font-body"
+                        >
+                          <option value="">Unassigned</option>
+                          {operators.map((op) => (
+                            <option key={op.id} value={op.id}>
+                              {op.fullName}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                     </td>
                     <td className="px-4 py-3">
-                      <input
-                        type="date"
-                        defaultValue={toDateInputValue(order.deliveryScheduledAt)}
-                        disabled={busy}
-                        onChange={(e) =>
-                          saveCrmField(
-                            order.id,
-                            { deliveryScheduledAt: e.target.value ? new Date(e.target.value).toISOString() : null },
-                            { deliveryScheduledAt: e.target.value ? new Date(e.target.value).toISOString() : null }
-                          )
-                        }
-                        className="bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 text-xs text-afs-chrome-high focus:border-afs-crimson outline-none font-data"
-                      />
+                      {order.deliveryMethod === 'pickup' ? (
+                        <div className="font-data text-xs text-afs-chrome-high">
+                          {formatDate(order.deliveryScheduledAt)}
+                          {order.deliveryWindow && (
+                            <span className="text-afs-chrome-mid capitalize"> · {order.deliveryWindow}</span>
+                          )}
+                        </div>
+                      ) : (
+                        <input
+                          type="date"
+                          defaultValue={toDateInputValue(order.deliveryScheduledAt)}
+                          disabled={busy}
+                          onChange={(e) =>
+                            saveCrmField(
+                              order.id,
+                              { deliveryScheduledAt: e.target.value ? new Date(e.target.value).toISOString() : null },
+                              { deliveryScheduledAt: e.target.value ? new Date(e.target.value).toISOString() : null }
+                            )
+                          }
+                          className="bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 text-xs text-afs-chrome-high focus:border-afs-crimson outline-none font-data"
+                        />
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col gap-1.5 min-w-[140px]">
-                        {order.status !== 'out_for_delivery' && order.status !== 'delivered' && order.status !== 'cancelled' && (
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => setDispatchConfirmId(order.id)}
-                            className="bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label font-semibold text-xs px-3 py-1.5 rounded transition-colors disabled:opacity-50"
-                          >
-                            Dispatch
-                          </button>
-                        )}
-                        {order.status !== 'delivered' && order.status !== 'cancelled' && (
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => handleMarkDelivered(order.id)}
-                            className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label text-xs px-3 py-1.5 rounded transition-colors disabled:opacity-50"
-                          >
-                            Mark Delivered
-                          </button>
-                        )}
-                        {order.trackingToken && (
-                          <a
-                            href={`/track/${order.trackingToken}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="font-label text-xs text-afs-chrome-mid hover:text-afs-crimson transition-colors"
-                          >
-                            Track ↗
-                          </a>
+                        {order.deliveryMethod === 'pickup' ? (
+                          order.status === 'ready' && (
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => handleMarkPickedUp(order.id)}
+                              className="bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label font-semibold text-xs px-3 py-1.5 rounded transition-colors disabled:opacity-50"
+                            >
+                              Mark Picked Up
+                            </button>
+                          )
+                        ) : (
+                          <>
+                            {order.status !== 'out_for_delivery' && order.status !== 'delivered' && order.status !== 'cancelled' && (
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => setDispatchConfirmId(order.id)}
+                                className="bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label font-semibold text-xs px-3 py-1.5 rounded transition-colors disabled:opacity-50"
+                              >
+                                Dispatch
+                              </button>
+                            )}
+                            {order.status !== 'delivered' && order.status !== 'cancelled' && (
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => handleMarkDelivered(order.id)}
+                                className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label text-xs px-3 py-1.5 rounded transition-colors disabled:opacity-50"
+                              >
+                                Mark Delivered
+                              </button>
+                            )}
+                            {order.trackingToken && (
+                              <a
+                                href={`/track/${order.trackingToken}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="font-label text-xs text-afs-chrome-mid hover:text-afs-crimson transition-colors"
+                              >
+                                Track ↗
+                              </a>
+                            )}
+                          </>
                         )}
                         {rowError[order.id] && <p className="font-body text-xs text-afs-crimson">{rowError[order.id]}</p>}
                       </div>

@@ -88,6 +88,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       changedAt: h.created_at,
     }));
 
+    // The "orders" storage bucket is private — shop_photo_url is a raw
+    // object key, not a working URL (PRODUCTION_QUEUE_AUDIT.md §2c).
+    let shopPhotoUrl: string | null = null;
+    if (order.shop_photo_url) {
+      const { data: signed } = await admin.storage.from('orders').createSignedUrl(order.shop_photo_url, 900);
+      shopPhotoUrl = signed?.signedUrl ?? null;
+    }
+
     const response: TrackOrderResponse = {
       orderNumber: order.order_number,
       orderDate: order.created_at,
@@ -97,7 +105,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       deliveryWindow: order.delivery_window,
       trackingNumber: order.tracking_number,
       carrier: order.carrier,
-      shopPhotoUrl: order.shop_photo_url,
+      shopPhotoUrl,
       statusHistory,
     };
 

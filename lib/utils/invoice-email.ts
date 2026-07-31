@@ -25,7 +25,7 @@ export async function sendInvoiceEmail(orderId: string): Promise<SendInvoiceEmai
 
   const { data: orderRaw, error: orderError } = await admin
     .from('orders')
-    .select('id, order_number, total, payment_method, net_terms, created_at, user_id')
+    .select('id, order_number, total, payment_method, net_terms, created_at, invoice_paid_at, user_id')
     .eq('id', orderId)
     .maybeSingle();
 

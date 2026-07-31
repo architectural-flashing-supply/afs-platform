@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requireAdminUser } from '@/lib/admin/auth';
 import Badge from '@/components/ui/Badge';
 import QuoteEstimatorForm, { type EstimatorLineItem } from '@/components/admin/QuoteEstimatorForm';
+import { estimateShipmentWeight, type WeightReferenceGauge } from '@/lib/admin/pricing';
 
 interface QuoteRequestDetailRow {
   id: string;
@@ -72,6 +73,24 @@ export default async function AdminQuoteRequestDetailPage({ params }: { params: 
   const items = request.line_items ?? [];
   const customerName = request.profiles?.company || request.profiles?.full_name || request.guest_email || 'Guest';
   const jobsiteAddress = typeof request.jobsite_address === 'string' ? request.jobsite_address : null;
+
+  const { data: gaugeRows } = await supabase
+    .from('gauges')
+    .select('label, weight_lbs_sqft, materials(name)')
+    .eq('is_active', true);
+
+  const weightReference: WeightReferenceGauge[] = (gaugeRows ?? [])
+    .filter(
+      (row): row is { label: string; weight_lbs_sqft: number; materials: { name: string } } =>
+        row.weight_lbs_sqft != null && row.materials != null
+    )
+    .map((row) => ({
+      materialName: row.materials.name,
+      gaugeLabel: row.label,
+      weightLbsPerSqft: row.weight_lbs_sqft,
+    }));
+
+  const weightEstimate = estimateShipmentWeight(items, weightReference);
 
   return (
     <div>
@@ -199,7 +218,12 @@ export default async function AdminQuoteRequestDetailPage({ params }: { params: 
           </p>
         </div>
       ) : (
-        <QuoteEstimatorForm requestId={request.id} items={items} jobsiteAddress={jobsiteAddress} />
+        <QuoteEstimatorForm
+          requestId={request.id}
+          items={items}
+          jobsiteAddress={jobsiteAddress}
+          weightEstimate={weightEstimate}
+        />
       )}
     </div>
   );

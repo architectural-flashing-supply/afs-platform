@@ -352,8 +352,12 @@ Customer clicks "Approve & Pay"
   ↓
 Checkout: delivery info + payment
 Stripe PaymentIntent created from quotes.total
-Payment succeeds → webhook fires
-  ↓
+Payment succeeds → webhook fires (payment_intent.succeeded)
+  ↓ (client also calls POST /api/checkout/confirm-order as a synchronous
+     fallback right after stripe.confirmCardPayment resolves — whichever of
+     {webhook, confirm-order} runs first creates the order via the shared,
+     idempotent createOrderFromQuote(); the second call is a no-op. See
+     ORDER_LIFECYCLE_DECISION.md.)
 order created: orders.status = 'submitted'
 quote.status = 'converted'
 order_status_history record inserted

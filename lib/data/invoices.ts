@@ -22,9 +22,13 @@ interface OrderInvoiceSource {
   payment_method: string | null;
   net_terms: number;
   created_at: string;
+  invoice_paid_at: string | null;
 }
 
 function computeStatus(order: OrderInvoiceSource): { status: InvoiceStatus; dueDate: string | null } {
+  if (order.invoice_paid_at) {
+    return { status: 'paid', dueDate: null };
+  }
   if (order.payment_method === 'net_terms' && order.net_terms > 0) {
     const due = new Date(order.created_at);
     due.setDate(due.getDate() + order.net_terms);
@@ -36,9 +40,14 @@ function computeStatus(order: OrderInvoiceSource): { status: InvoiceStatus; dueD
 
 /**
  * SCHEMA.md has no standalone `invoices` table — every order already carries
- * AFS-set pricing, so an invoice is derived 1:1 from its order. Net-terms
- * orders are 'due'/'overdue' relative to created_at + net_terms; everything
- * else is captured at checkout and considered 'paid'.
+ * AFS-set pricing, so an invoice is derived 1:1 from its order (and always
+ * reflects the order's *current* state — there is no point-in-time snapshot
+ * of what was emailed/downloaded; the `notifications` table only records
+ * that a send was attempted, not what it contained). `invoice_paid_at` is
+ * checked first, mirroring command-center-crm.ts's `getCrmInvoices()`
+ * precedence exactly so the two implementations can't drift again.
+ * Net-terms orders are 'due'/'overdue' relative to created_at + net_terms;
+ * everything else is captured at checkout and considered 'paid'.
  */
 export function toInvoiceRow(order: OrderInvoiceSource): InvoiceRow {
   const { status, dueDate } = computeStatus(order);
@@ -63,7 +72,7 @@ export async function getInvoiceRows(
 ): Promise<InvoiceRow[]> {
   let query = supabase
     .from('orders')
-    .select('id, order_number, total, payment_method, net_terms, created_at')
+    .select('id, order_number, total, payment_method, net_terms, created_at, invoice_paid_at')
     .eq('user_id', userId);
 
   if (range?.from) query = query.gte('created_at', range.from);

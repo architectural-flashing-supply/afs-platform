@@ -287,7 +287,22 @@ function CheckoutForm({
       }
 
       if (paymentIntent?.status === 'succeeded') {
-        setOrderSuccess({ orderId: null, orderNumber: null });
+        try {
+          const confirmRes = await fetch('/api/checkout/confirm-order', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ paymentIntentId: paymentIntent.id }),
+          });
+          const confirmData = await confirmRes.json().catch(() => ({}));
+          if (confirmRes.ok) {
+            setOrderSuccess({ orderId: confirmData.orderId ?? null, orderNumber: confirmData.orderNumber ?? null });
+          } else {
+            // Card was already charged — still show success. The webhook may land shortly after.
+            setOrderSuccess({ orderId: null, orderNumber: null });
+          }
+        } catch {
+          setOrderSuccess({ orderId: null, orderNumber: null });
+        }
       } else {
         setSubmitError('Payment could not be completed. Please try again.');
       }

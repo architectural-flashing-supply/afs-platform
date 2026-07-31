@@ -1,67 +1,29 @@
 // Stage labels are PLACEHOLDERS pending exact shop language from AFS (checklist #39).
 // See SPEC_PRODUCTION_TIMELINE.md §2.
-export const ORDER_STAGES = [
-  {
-    key: 'submitted',
-    label: 'Order Received',
-    adminLabel: 'Submitted',
-    description: 'Your order is confirmed and in our system.',
-  },
-  {
-    key: 'received',
-    label: 'Acknowledged',
-    adminLabel: 'Acknowledged',
-    description: 'Our team has reviewed your order details.',
-  },
-  {
-    key: 'in_queue',
-    label: 'In Production Queue',
-    adminLabel: 'In Queue',
-    description: 'Scheduled for fabrication.',
-  },
-  {
-    key: 'cutting',
-    label: 'Cutting',
-    adminLabel: 'Cutting',
-    description: 'Your material is being cut to specification.',
-  },
-  {
-    key: 'bending',
-    label: 'Forming',
-    adminLabel: 'Bending/Forming',
-    description: 'Profiles are being bent and formed.',
-  },
-  {
-    key: 'qc',
-    label: 'Quality Check',
-    adminLabel: 'QC',
-    description: 'Final inspection before packaging.',
-  },
-  {
-    key: 'ready',
-    label: 'Ready',
-    adminLabel: 'Ready to Ship',
-    description: 'Your order is packaged and ready.',
-  },
-  {
-    key: 'shipped',
-    label: 'Shipped',
-    adminLabel: 'Shipped',
-    description: 'On its way to you.',
-  },
-  {
-    key: 'delivered',
-    label: 'Delivered',
-    adminLabel: 'Delivered',
-    description: 'Order complete.',
-  },
-] as const;
+//
+// Only the customer-facing render path is implemented here — this component
+// used to accept a `variant` prop with 'admin'/'public' branches, but neither
+// was ever rendered anywhere in the app (PRODUCTION_QUEUE_AUDIT.md §2b): the
+// admin order detail page uses the purpose-built StatusAdvancer instead, and
+// the public order tracker at app/track/[orderId]/page.tsx is a separate,
+// hand-rolled live-delivery-map page with its own status vocabulary. Those
+// branches were removed rather than built out further — see
+// SPEC_PRODUCTION_TIMELINE.md §1 for the documented decision.
+import {
+  ORDER_STAGES,
+  POST_PRODUCTION_STATUSES,
+  stageIndex,
+  type OrderStageKey,
+  type OrderStatus,
+} from '@/lib/admin/orderStages';
 
-export type OrderStageKey = (typeof ORDER_STAGES)[number]['key'];
-export type OrderStatus = OrderStageKey | 'cancelled';
+export type { OrderStatus, OrderStageKey };
 
 export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   ...(Object.fromEntries(ORDER_STAGES.map((s) => [s.key, s.label])) as Record<OrderStageKey, string>),
+  in_production: 'In Production',
+  packaged: 'Packaged',
+  out_for_delivery: 'Out for Delivery',
   cancelled: 'Cancelled',
 };
 
@@ -78,7 +40,6 @@ export interface ProductionTimelineProps {
   trackingNumber?: string | null;
   carrier?: string | null;
   shopPhotoUrl?: string | null;
-  variant: 'customer' | 'admin' | 'public';
 }
 
 const CARRIER_TRACKING_URLS: Record<string, (trackingNumber: string) => string> = {
@@ -129,6 +90,21 @@ function Connector({ dashed }: { dashed: boolean }) {
   );
 }
 
+// PRODUCTION_QUEUE_AUDIT.md §2a — orders.status accepts three Employee PWA /
+// delivery-tracking values (in_production, packaged, out_for_delivery) that
+// aren't part of the ORDER_STAGES fabrication sequence. Without this, an
+// order sitting in one of these statuses has no match in ORDER_STAGES
+// (currentIndex === -1), so every stage below rendered as 'pending' — the
+// timeline looked like nothing had happened yet for an order that had
+// actually left the shop floor. Each is mapped to the fabrication stage it
+// is closest to/past, so the timeline still shows real progress, plus an
+// explicit banner naming the real status.
+const POST_PRODUCTION_EQUIVALENT_STAGE: Record<string, OrderStageKey> = {
+  in_production: 'ready',
+  packaged: 'ready',
+  out_for_delivery: 'shipped',
+};
+
 export default function ProductionTimeline({
   currentStatus,
   statusHistory,
@@ -136,10 +112,11 @@ export default function ProductionTimeline({
   trackingNumber = null,
   carrier = null,
   shopPhotoUrl = null,
-  variant,
 }: ProductionTimelineProps) {
   const isCancelled = currentStatus === 'cancelled';
-  const currentIndex = ORDER_STAGES.findIndex((s) => s.key === currentStatus);
+  const isPostProduction = (POST_PRODUCTION_STATUSES as readonly string[]).includes(currentStatus);
+  const equivalentStage = POST_PRODUCTION_EQUIVALENT_STAGE[currentStatus];
+  const currentIndex = equivalentStage ? stageIndex(equivalentStage) : ORDER_STAGES.findIndex((s) => s.key === currentStatus);
 
   const historyByStage = new Map<string, StatusHistoryItem>();
   for (const item of [...statusHistory].sort(
@@ -158,7 +135,7 @@ export default function ProductionTimeline({
   const cancelledEntry = statusHistory.find((h) => h.status === 'cancelled') ?? null;
   const trackingUrl = resolveTrackingUrl(carrier, trackingNumber);
   const showTrackingBlock =
-    Boolean(trackingNumber) && (currentStatus === 'shipped' || currentStatus === 'delivered');
+    Boolean(trackingNumber) && (currentStatus === 'shipped' || currentStatus === 'delivered' || currentStatus === 'out_for_delivery');
 
   return (
     <div data-testid="production-timeline" className="flex flex-col">
@@ -169,6 +146,14 @@ export default function ProductionTimeline({
           </svg>
           <p className="font-label text-sm text-afs-chrome-high">
             This order was cancelled{cancelledEntry ? ` on ${formatDateTime(cancelledEntry.changedAt)}` : ''}.
+          </p>
+        </div>
+      )}
+
+      {!isCancelled && isPostProduction && (
+        <div className="flex items-center gap-2 mb-6 bg-afs-bg-overlay border border-afs-border rounded px-4 py-3">
+          <p className="font-label text-sm text-afs-chrome-high">
+            Current status: <span className="text-afs-crimson">{ORDER_STATUS_LABEL[currentStatus]}</span>
           </p>
         </div>
       )}
@@ -192,8 +177,6 @@ export default function ProductionTimeline({
 
         const history = historyByStage.get(stage.key) ?? null;
         const isLast = idx === ORDER_STAGES.length - 1;
-        const displayLabel = variant === 'admin' ? stage.adminLabel : stage.label;
-        const showDescription = variant !== 'public';
         const struckThrough = isCancelled && state === 'pending';
 
         return (
@@ -210,7 +193,7 @@ export default function ProductionTimeline({
                       state === 'pending' ? 'text-afs-chrome-dim' : 'text-afs-chrome-high'
                     }`}
                   >
-                    {displayLabel}
+                    {stage.label}
                   </span>
                   {history && (
                     <span className="font-data text-xs text-afs-chrome-base shrink-0">
@@ -218,14 +201,11 @@ export default function ProductionTimeline({
                     </span>
                   )}
                 </div>
-                {showDescription && state !== 'pending' && (
+                {state !== 'pending' && (
                   <p className="font-body text-sm text-afs-chrome-mid mt-1">{stage.description}</p>
                 )}
-                {state === 'active' && (
+                {state === 'active' && !isPostProduction && (
                   <p className="font-label text-xs text-afs-crimson uppercase tracking-wide mt-1">In progress</p>
-                )}
-                {variant === 'admin' && history?.note && (
-                  <p className="font-body text-xs text-afs-chrome-dim italic mt-1">Note: {history.note}</p>
                 )}
                 {stage.key === 'shipped' && showTrackingBlock && (
                   <div className="mt-2">

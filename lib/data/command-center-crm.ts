@@ -19,9 +19,11 @@ export interface CrmOrderRow {
   customerCompany: string | null;
   status: string;
   isRush: boolean;
+  deliveryMethod: 'ship' | 'pickup';
   assignedDriverId: string | null;
   assignedDriverName: string | null;
   deliveryScheduledAt: string | null;
+  deliveryWindow: string | null;
   trackingToken: string | null;
   total: number;
   createdAt: string;
@@ -32,8 +34,10 @@ interface CrmOrderSource {
   order_number: string;
   status: string;
   is_rush: boolean;
+  delivery_method: 'ship' | 'pickup';
   assigned_driver_id: string | null;
   delivery_scheduled_at: string | null;
+  delivery_window: string | null;
   tracking_token: string | null;
   total: number;
   created_at: string;
@@ -44,12 +48,15 @@ interface CrmOrderSource {
  * "Delivery Date" in the CRM spec maps to the existing orders.delivery_scheduled_at
  * column (SCHEMA.md TABLE 18) — there is no separate `delivery_date` column
  * anywhere in the schema, and this is the only field with matching meaning.
+ * delivery_method/delivery_window are selected so OrdersCrmTab can tell a
+ * pickup order apart from a ship order (PICKUP_SCHEDULING_SCOPE.md item 3) —
+ * previously this tab showed the same Assign Driver/Dispatch controls for both.
  */
 export async function getCrmOrders(supabase: SupabaseClient): Promise<CrmOrderRow[]> {
   const { data } = await supabase
     .from('orders')
     .select(
-      'id, order_number, status, is_rush, assigned_driver_id, delivery_scheduled_at, tracking_token, total, created_at, user_id'
+      'id, order_number, status, is_rush, delivery_method, assigned_driver_id, delivery_scheduled_at, delivery_window, tracking_token, total, created_at, user_id'
     )
     .order('created_at', { ascending: false });
 
@@ -78,9 +85,11 @@ export async function getCrmOrders(supabase: SupabaseClient): Promise<CrmOrderRo
       customerCompany: customer?.company ?? null,
       status: o.status,
       isRush: o.is_rush,
+      deliveryMethod: o.delivery_method,
       assignedDriverId: o.assigned_driver_id,
       assignedDriverName: driver?.full_name ?? null,
       deliveryScheduledAt: o.delivery_scheduled_at,
+      deliveryWindow: o.delivery_window,
       trackingToken: o.tracking_token,
       total: o.total,
       createdAt: o.created_at,

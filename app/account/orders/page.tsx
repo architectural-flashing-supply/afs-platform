@@ -24,7 +24,10 @@ const ORDER_STATUS_VARIANT: Record<OrderStatus, BadgeVariant> = {
   bending: 'warning',
   qc: 'warning',
   ready: 'success',
+  in_production: 'warning',
+  packaged: 'success',
   shipped: 'success',
+  out_for_delivery: 'success',
   delivered: 'chrome',
   cancelled: 'error',
 };

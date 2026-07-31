@@ -176,4 +176,39 @@ test('pre-ship photo upload triggers customer notification', async ({ page }) =>
 
 ---
 
+## 6. AS-BUILT NOTES (PRODUCTION_QUEUE_AUDIT.md follow-up)
+
+- **Expected column + SortControls (§1) are implemented** sourced from
+  `orders.delivery_scheduled_at` (there is no separate estimated-ship-date
+  column — this is the same field the customer order detail page already
+  labels "Expected ship" pending a dedicated fabrication-estimate field).
+  `getProductionQueue()`'s default sort (rush first, then oldest) is
+  unchanged; `SortControls` re-sorts the same row set by expected ship date
+  or by fabrication-stage order.
+- **`in_production`/`packaged`/`out_for_delivery` are explicitly NOT
+  additional production-queue stages.** These three values are accepted by
+  `orders.status`'s DB constraint (`007_delivery_tracking.sql`) but belong to
+  a separate, coarser vocabulary driven entirely by the Employee PWA
+  (dispatch/packaged routes, `getEmployeeOrderQueue()`) — not this admin
+  queue's granular fabrication sequence. The "All"/"Rush" tabs now include
+  orders in one of these statuses (so they're no longer invisible), with a
+  correct status badge instead of a raw DB value, but there is deliberately
+  no dedicated filter tab for them and `QuickAdvanceButton` correctly shows
+  them as non-advanceable from this screen — advancing past `ready` in this
+  phase happens through the Employee PWA, not the admin queue.
+- **Production-queue stage advancement is an intentional admin assertion,
+  independent of `machine_jobs` progress.** An admin can mark an order
+  "Cutting" or "Bending/Forming" here while its linked `machine_jobs` row is
+  still `pending_approval` (or `machine_error`) on the Thalmann side — the
+  two lifecycles are joined only for display in Command Center
+  (`lib/data/machine-jobs.ts`) and are not automatically synced in either
+  direction. This is a deliberate scope boundary, not an oversight: an
+  estimator's production-queue status is a different signal from a machine
+  operator's job status, and auto-advancing one from the other would need a
+  reliability guarantee (what happens on a `machine_error`?) that hasn't
+  been specified. If AFS wants `orders.status` to reflect real machine
+  progress, that is a distinct future feature, not a bug in this one.
+
+---
+
 *SPEC_PRODUCTION_QUEUE.md | AFS | Reid Whitesides | June 2026*

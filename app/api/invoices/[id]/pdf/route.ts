@@ -17,7 +17,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     const { data: order } = await supabase
       .from('orders')
       .select(
-        'id, order_number, total, subtotal, freight, tax, rush_surcharge, payment_method, net_terms, delivery_address, created_at'
+        'id, order_number, total, subtotal, freight, tax, rush_surcharge, payment_method, net_terms, delivery_address, created_at, invoice_paid_at'
       )
       .eq('id', params.id)
       .eq('user_id', user.id)

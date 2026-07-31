@@ -20,6 +20,7 @@ export interface InvoiceOrderRecord {
   net_terms: number;
   delivery_address: { line1?: string; line2?: string; city?: string; state?: string; zip?: string } | null;
   created_at: string;
+  invoice_paid_at: string | null;
 }
 
 export interface InvoiceProfileRecord {
@@ -134,7 +135,7 @@ export async function generateInvoicePDF(orderId: string): Promise<Buffer> {
   const { data: orderRaw, error: orderError } = await admin
     .from('orders')
     .select(
-      'id, order_number, total, subtotal, freight, tax, rush_surcharge, payment_method, net_terms, delivery_address, created_at, user_id'
+      'id, order_number, total, subtotal, freight, tax, rush_surcharge, payment_method, net_terms, delivery_address, created_at, invoice_paid_at, user_id'
     )
     .eq('id', orderId)
     .maybeSingle();

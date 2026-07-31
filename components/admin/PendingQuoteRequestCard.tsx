@@ -52,7 +52,10 @@ export default function PendingQuoteRequestCard({ request }: { request: PendingQ
             <p className="font-body text-xs text-afs-chrome-mid">{request.customerCompany}</p>
           )}
         </div>
-        {request.isRush && <Badge variant="warning">RUSH</Badge>}
+        <div className="flex flex-col items-end gap-1">
+          {request.isRush && <Badge variant="warning">RUSH</Badge>}
+          {request.willUseFallbackGeometry && <Badge variant="error">Placeholder Geometry</Badge>}
+        </div>
       </div>
 
       <div className="mb-4">
@@ -77,16 +80,41 @@ export default function PendingQuoteRequestCard({ request }: { request: PendingQ
         </div>
       )}
 
+      {request.willUseFallbackGeometry && (
+        <div className="bg-afs-bg-surface border border-afs-crimson rounded p-3 mb-4">
+          <p className="font-label text-xs uppercase tracking-wide text-afs-crimson mb-1">Placeholder Geometry</p>
+          <p className="font-body text-xs text-afs-chrome-high">
+            This request didn&apos;t capture real width/leg dimensions or a FlashDraft drawing. Approving will
+            create a machine job with a fabricated 12&quot;/2&quot;/2&quot; placeholder shape, not a real
+            measurement — verify or rebuild it in Design Studio / FlashDraft before this reaches the machine.
+          </p>
+        </div>
+      )}
+
       {error && <p className="font-body text-xs text-afs-crimson mb-3">{error}</p>}
 
-      <button
-        type="button"
-        disabled={busy}
-        onClick={handleApprove}
-        className="bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label font-semibold text-sm px-4 py-2 rounded transition-colors disabled:opacity-50"
-      >
-        {busy ? 'Sending…' : 'Approve & Send to Machine'}
-      </button>
+      {request.hasMultipleLineItems ? (
+        <div className="bg-afs-bg-surface border border-afs-chrome-dim rounded p-3">
+          <p className="font-body text-xs text-afs-chrome-high">
+            This request has {request.lineItemDescriptions.length} line items. &quot;Approve &amp; Send to
+            Machine&quot; can only map a single item&apos;s geometry, so it&apos;s disabled here — build a bend
+            program for each item individually in{' '}
+            <a href="/studio/draft" className="text-afs-crimson underline">
+              Design Studio / FlashDraft
+            </a>{' '}
+            instead.
+          </p>
+        </div>
+      ) : (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={handleApprove}
+          className="bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label font-semibold text-sm px-4 py-2 rounded transition-colors disabled:opacity-50"
+        >
+          {busy ? 'Sending…' : 'Approve & Send to Machine'}
+        </button>
+      )}
     </div>
   );
 }

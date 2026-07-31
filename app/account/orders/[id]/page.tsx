@@ -1,9 +1,11 @@
 import Link from 'next/link';
 import { redirect, notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import Badge, { type BadgeVariant } from '@/components/ui/Badge';
 import ReorderButton from '@/components/account/ReorderButton';
 import OrderRealtimeListener from '@/components/account/OrderRealtimeListener';
+import PickupScheduler from '@/components/account/PickupScheduler';
 import ProductionTimeline, {
   ORDER_STATUS_LABEL,
   type OrderStatus,
@@ -53,7 +55,10 @@ const ORDER_STATUS_VARIANT: Record<OrderStatus, BadgeVariant> = {
   bending: 'warning',
   qc: 'warning',
   ready: 'success',
+  in_production: 'warning',
+  packaged: 'success',
   shipped: 'success',
+  out_for_delivery: 'success',
   delivered: 'chrome',
   cancelled: 'error',
 };
@@ -126,6 +131,18 @@ export default async function OrderDetailPage({ params }: { params: { id: string
 
   const isDelivered = order.status === 'delivered';
   const isCancelled = order.status === 'cancelled';
+
+  // The "orders" storage bucket is private — order.shop_photo_url is a raw
+  // object key, not a working URL. Every other file on the same bucket
+  // signs it first (lib/data/orders.ts's getOrderAttachments,
+  // app/api/admin/orders/[id]/photos/route.ts); this page must too
+  // (PRODUCTION_QUEUE_AUDIT.md §2c).
+  let shopPhotoUrl: string | null = null;
+  if (order.shop_photo_url) {
+    const admin = createAdminClient();
+    const { data: signed } = await admin.storage.from('orders').createSignedUrl(order.shop_photo_url, 900);
+    shopPhotoUrl = signed?.signedUrl ?? null;
+  }
 
   return (
     <div className="max-w-[1000px] mx-auto">
@@ -254,10 +271,10 @@ export default async function OrderDetailPage({ params }: { params: { id: string
         <ProductionTimeline
           currentStatus={order.status}
           statusHistory={statusHistory}
+          estimatedShipDate={order.delivery_scheduled_at}
           trackingNumber={order.tracking_number}
           carrier={order.carrier}
-          shopPhotoUrl={order.shop_photo_url}
-          variant="customer"
+          shopPhotoUrl={shopPhotoUrl}
         />
       </div>
 
@@ -266,22 +283,11 @@ export default async function OrderDetailPage({ params }: { params: { id: string
           {order.delivery_method === 'pickup' ? 'Pickup' : 'Delivery'}
         </h2>
         {order.delivery_method === 'pickup' ? (
-          <dl className="flex flex-col gap-2 font-body text-sm">
-            <div className="flex justify-between">
-              <dt className="text-afs-chrome-mid">Pickup Date</dt>
-              <dd className="font-data text-afs-chrome-high">
-                {order.delivery_scheduled_at ? formatDate(order.delivery_scheduled_at) : 'Not yet scheduled'}
-              </dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-afs-chrome-mid">Window</dt>
-              <dd className="font-data text-afs-chrome-high">{order.delivery_window ?? '—'}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-afs-chrome-mid">Facility</dt>
-              <dd className="font-body text-afs-chrome-high text-right">Contact AFS for pickup address.</dd>
-            </div>
-          </dl>
+          <PickupScheduler
+            orderId={order.id}
+            initial={{ pickupDate: order.delivery_scheduled_at, pickupWindow: order.delivery_window }}
+            canSchedule={!isDelivered && !isCancelled}
+          />
         ) : (
           <dl className="flex flex-col gap-2 font-body text-sm">
             <div className="flex justify-between gap-6">

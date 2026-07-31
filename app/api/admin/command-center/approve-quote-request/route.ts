@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { logAdminAction } from '@/lib/admin/audit';
+import { sendEmail } from '@/lib/resend/send';
+import { baseEmailTemplate } from '@/lib/resend/templates/base';
+import { usesFallbackGeometry } from '@/lib/machine-jobs/fallback-geometry';
 
 interface FlashDraftPoint {
   x: number;
@@ -110,10 +113,16 @@ function buildBendsFromPoints(
 // wrong guess still can't reach the physical machine unreviewed: the
 // Machine Bridge's mandatory human-review gate (staged_for_review) requires
 // a person to verify the generated file before it's copied to the
-// machine's live folder.
-function buildBendsFromItem(item: QuoteRequestLineItem): { bends: CustomBend[]; blankWidthMm: number } {
+// machine's live folder. `usedFallbackGeometry` mirrors
+// usesFallbackGeometry() exactly (same points-first, then
+// legA/legB/width-or-height check) so the flag written to the created
+// machine_jobs row always agrees with what was actually built here.
+function buildBendsFromItem(
+  item: QuoteRequestLineItem
+): { bends: CustomBend[]; blankWidthMm: number; usedFallbackGeometry: boolean } {
   if (item.points && item.points.length >= 2) {
-    return buildBendsFromPoints(item.points, item.bendRadiiIn);
+    const { bends, blankWidthMm } = buildBendsFromPoints(item.points, item.bendRadiiIn);
+    return { bends, blankWidthMm, usedFallbackGeometry: false };
   }
 
   const legAIn = item.legA ?? DEFAULT_DIMENSIONS_IN.legA;
@@ -129,7 +138,7 @@ function buildBendsFromItem(item: QuoteRequestLineItem): { bends: CustomBend[]; 
     { leftLegMm: widthMm, rightLegMm: legBMm, bendAngleDegrees: 90, radiusMm: 0 },
   ];
 
-  return { bends, blankWidthMm: legAMm + widthMm + legBMm };
+  return { bends, blankWidthMm: legAMm + widthMm + legBMm, usedFallbackGeometry: usesFallbackGeometry(item) };
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -155,7 +164,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const { data: quoteRequest, error: qrError } = await supabase
       .from('quote_requests')
-      .select('id, user_id, line_items, is_rush, notes, status')
+      .select('id, user_id, guest_email, line_items, is_rush, notes, status')
       .eq('id', quoteRequestId)
       .maybeSingle();
     if (qrError || !quoteRequest) {
@@ -164,6 +173,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const qr = quoteRequest as {
       id: string;
       user_id: string | null;
+      guest_email: string | null;
       line_items: QuoteRequestLineItem[] | null;
       is_rush: boolean;
       notes: string | null;
@@ -178,24 +188,29 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Quote request has no line items.' }, { status: 400 });
     }
 
-    const profileName =
-      items.length === 1
-        ? describeItem(items[0])
-        : `${describeItem(items[0])} (+${items.length - 1} more item${items.length - 1 === 1 ? '' : 's'})`;
+    // This route only ever maps a single item's geometry into a bend
+    // program (see buildBendsFromItem below) — it has no way to create more
+    // than one machine_jobs row per click. Silently mapping only item 0 and
+    // dropping the rest into a text note (the prior behavior) let an admin
+    // one-click "approve" a job that was actually missing most of the
+    // request's real parts. Block instead: a multi-item request must be
+    // built per-item in Design Studio/FlashDraft, not approved from this
+    // card. See STATE_OF_THE_BUILD.md's afs-mj-001/afs-mj-002 entries.
+    if (items.length > 1) {
+      return NextResponse.json(
+        {
+          error: `This request has ${items.length} line items. "Approve & Send to Machine" can only map a single item's geometry — build a bend program for each item individually in Design Studio / FlashDraft (/studio/draft) instead of approving here.`,
+        },
+        { status: 422 }
+      );
+    }
+
+    const profileName = describeItem(items[0]);
     const quantity = Math.max(1, Math.round(items.reduce((sum, item) => sum + (item.quantity || 0), 0)));
     const material = items[0]?.material ?? null;
     const gauge = items[0]?.gauge ?? null;
 
-    // Only the first item's geometry is mapped into a bend program — a
-    // multi-item request needs per-item bend setup in Design Studio/
-    // FlashDraft before it's actually ready for the machine, flagged below
-    // rather than silently collapsing multiple real parts into one shape.
-    const { bends, blankWidthMm } = buildBendsFromItem(items[0]);
-    const multiItemNote =
-      items.length > 1
-        ? `NOTE: this request has ${items.length} line items — only "${items[0].profileType}" geometry was mapped automatically. Remaining items need manual bend-program setup before fabrication.`
-        : null;
-    const combinedNotes = [qr.notes, multiItemNote].filter(Boolean).join('\n\n') || null;
+    const { bends, blankWidthMm, usedFallbackGeometry } = buildBendsFromItem(items[0]);
 
     const now = new Date().toISOString();
 
@@ -209,8 +224,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         quantity,
         blank_width_mm: blankWidthMm,
         custom_bends: bends,
+        used_fallback_geometry: usedFallbackGeometry,
         is_rush: qr.is_rush,
-        notes: combinedNotes,
+        notes: qr.notes,
         status: 'approved_for_machine',
         requested_by: qr.user_id,
         approved_by: user.id,
@@ -234,6 +250,42 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         { error: 'Machine job created, but could not update the quote request status.' },
         { status: 500 }
       );
+    }
+
+    // --- Customer notification: job approved / moved to production (never blocks; ARCHITECTURE.md §9) ---
+    let recipientEmail: string | null = null;
+    let recipientName: string | null = null;
+    if (qr.user_id) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name, email')
+        .eq('id', qr.user_id)
+        .maybeSingle();
+      recipientEmail = (profile?.email as string | undefined) ?? null;
+      recipientName = (profile?.full_name as string | undefined) ?? null;
+    } else {
+      recipientEmail = qr.guest_email;
+    }
+
+    if (recipientEmail) {
+      const emailResult = await sendEmail({
+        to: recipientEmail,
+        subject: 'Your AFS Quote Request Has Been Approved',
+        html: baseEmailTemplate(`
+          <h1 style="font-size:20px;margin:0 0 16px;">Your Job Has Been Approved</h1>
+          <p style="margin:0 0 12px;">Hi ${recipientName ?? 'there'},</p>
+          <p style="margin:0 0 12px;">Your quote request has been approved and moved into production
+          scheduling. We'll be in touch with a formal quote soon.</p>
+        `),
+      });
+      await supabase.from('notifications').insert({
+        user_id: qr.user_id,
+        channel: 'email',
+        type: 'job_approved',
+        recipient: recipientEmail,
+        status: emailResult.success ? 'sent' : 'failed',
+        error: emailResult.success ? null : emailResult.error,
+      });
     }
 
     await logAdminAction({

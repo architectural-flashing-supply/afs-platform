@@ -547,6 +547,7 @@ export default function FlashDraftPage() {
   const [lengthInches, setLengthInches] = useState('0');
   const [quantity, setQuantity] = useState('1');
   const [notes, setNotes] = useState('');
+  const [rush, setRush] = useState(false);
 
   const [matches, setMatches] = useState<ProfileMatch[]>([]);
   const [matchLoading, setMatchLoading] = useState(false);
@@ -1982,7 +1983,7 @@ export default function FlashDraftPage() {
               },
             ],
             notes: combinedNotes,
-            isRush: false,
+            isRush: rush,
             guestEmail: email,
           }),
         });
@@ -2000,7 +2001,7 @@ export default function FlashDraftPage() {
         setSubmitState('idle');
       }
     },
-    [points, material, gauge, lengthFtDecimal, quantity, notes, getEffectiveRadius, hemStart, hemEnd, legHems]
+    [points, material, gauge, lengthFtDecimal, quantity, notes, rush, getEffectiveRadius, hemStart, hemEnd, legHems]
   );
 
   const openSubmitFlow = () => {
@@ -2328,6 +2329,32 @@ export default function FlashDraftPage() {
               placeholder="Anything else we should know?"
               className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 font-body text-sm text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
             />
+          </div>
+
+          <div>
+            <span className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1.5 block">Rush Order</span>
+            <button
+              type="button"
+              onClick={() => setRush((r) => !r)}
+              className={`flex items-center gap-3 border rounded px-3 py-2.5 w-full transition-colors ${
+                rush ? 'bg-afs-crimson border-afs-crimson' : 'bg-afs-bg-overlay border-afs-border hover:bg-afs-bg-surface'
+              }`}
+            >
+              <span
+                className={`w-10 h-5 rounded-full relative transition-colors shrink-0 ${
+                  rush ? 'bg-afs-crimson' : 'bg-afs-bg-overlay border border-afs-border'
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white transition-transform ${
+                    rush ? 'translate-x-5' : 'translate-x-0.5'
+                  }`}
+                />
+              </span>
+              <span className="font-label text-sm text-afs-chrome-high">
+                {rush ? 'Rush requested' : 'Standard timeline'}
+              </span>
+            </button>
           </div>
 
           <div className="bg-afs-bg-surface border border-afs-chrome-dim rounded overflow-hidden">

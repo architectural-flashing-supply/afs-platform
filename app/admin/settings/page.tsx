@@ -1,6 +1,9 @@
 import { createClient } from '@/lib/supabase/server';
 import { requireAdminUser } from '@/lib/admin/auth';
+import { getProductStockRows } from '@/lib/data/product-stock';
 import Badge, { type BadgeVariant } from '@/components/ui/Badge';
+import EmptyState from '@/components/ui/EmptyState';
+import ProductStockTable from '@/components/admin/ProductStockTable';
 
 interface IntegrationStatus {
   name: string;
@@ -95,6 +98,7 @@ export default async function AdminSettingsPage() {
   ]);
 
   const integrations = buildIntegrationStatuses();
+  const stockRows = await getProductStockRows(supabase);
 
   const cronJobs: CronJobStatus[] = [
     {
@@ -141,6 +145,23 @@ export default async function AdminSettingsPage() {
             </div>
           ))}
         </div>
+      </section>
+
+      <section className="mb-8">
+        <h2 className="font-heading text-lg text-afs-chrome-high mb-4">Inventory / Stock Status</h2>
+        <p className="font-body text-xs text-afs-chrome-mid mb-4 max-w-2xl">
+          A manually-set signal, not a real-time quantity count — AFS fabricates custom, so nothing is
+          truly "in stock." Set which products fabricate fast from material on hand vs. require a
+          special order (see SPEC_LIVE_INVENTORY.md).
+        </p>
+        {stockRows.length === 0 ? (
+          <EmptyState
+            title="No products yet"
+            description="Stock status will appear here once the product catalog is loaded (blocked on checklist #12-21)."
+          />
+        ) : (
+          <ProductStockTable rows={stockRows} />
+        )}
       </section>
 
       <section>

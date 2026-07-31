@@ -16,6 +16,9 @@ migrations/
   007_delivery_tracking.sql           Delivery tracking map, Employee PWA, GBP photo queue
   008_order_geocoding.sql             Geocode cache (orders.geocoded_lat/lng) for the driver-GPS 10-mile SMS trigger
   009_command_center_crm.sql          Command Center CRM tabs — profiles.internal_notes, orders.invoice_paid_at
+  010_bid_monitor.sql                  Bid Monitor — sources/projects/keywords/alerts
+  011_orders_quote_id_unique.sql       Adds UNIQUE(orders.quote_id) — real double-insert guard for createOrderFromQuote()
+  012_machine_jobs_fallback_geometry.sql  Adds machine_jobs.used_fallback_geometry — visible flag for the approve-quote-request route's placeholder-dimension fallback
 ```
 
 Run them in numeric order. Each file is idempotent-safe to re-run only where it

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { getNextStage } from '@/lib/admin/orderStages';
+import { getNextStage, STATUS_LABEL } from '@/lib/admin/orderStages';
 
 interface QuickAdvanceButtonProps {
   orderId: string;
@@ -25,13 +25,19 @@ export default function QuickAdvanceButton({ orderId, status, testId, onAdvanced
   }
 
   if (!next) {
+    // No entry in ORDER_STAGES has a "next" past this status — true for
+    // 'delivered' and also for the three Employee PWA / delivery-tracking
+    // statuses (in_production/packaged/out_for_delivery), which sit outside
+    // the fabrication sequence entirely (PRODUCTION_QUEUE_AUDIT.md §2a). The
+    // label used to be hardcoded "Delivered" regardless of which of these
+    // it actually was.
     return (
       <button
         type="button"
         disabled
         className="font-label text-xs text-afs-chrome-dim px-3 py-1.5 rounded border border-afs-border cursor-not-allowed"
       >
-        Delivered
+        {STATUS_LABEL[status] ?? status}
       </button>
     );
   }

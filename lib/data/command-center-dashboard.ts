@@ -56,6 +56,7 @@ export interface RecentQuoteRequestRow {
   profileType: string;
   status: string;
   submittedAt: string;
+  isRush: boolean;
 }
 
 /**
@@ -67,7 +68,7 @@ export interface RecentQuoteRequestRow {
 export async function getRecentQuoteRequests(supabase: SupabaseClient, limit = 10): Promise<RecentQuoteRequestRow[]> {
   const { data, error } = await supabase
     .from('quote_requests')
-    .select('id, request_number, user_id, guest_email, line_items, status, submitted_at')
+    .select('id, request_number, user_id, guest_email, line_items, is_rush, status, submitted_at')
     .order('submitted_at', { ascending: false })
     .limit(limit);
   if (error || !data) return [];
@@ -78,6 +79,7 @@ export async function getRecentQuoteRequests(supabase: SupabaseClient, limit = 1
     user_id: string | null;
     guest_email: string | null;
     line_items: RecentQuoteRequestLineItem[] | null;
+    is_rush: boolean;
     status: string;
     submitted_at: string;
   }[];
@@ -105,6 +107,7 @@ export async function getRecentQuoteRequests(supabase: SupabaseClient, limit = 1
       profileType,
       status: r.status,
       submittedAt: r.submitted_at,
+      isRush: r.is_rush,
     };
   });
 }

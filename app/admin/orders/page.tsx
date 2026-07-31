@@ -1,10 +1,22 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { requireAdminUser } from '@/lib/admin/auth';
-import { getProductionQueue, getProductionQueueCounts, type ProductionQueueFilter } from '@/lib/data/orders';
+import {
+  getProductionQueue,
+  getProductionQueueCounts,
+  type ProductionQueueFilter,
+  type ProductionQueueSort,
+} from '@/lib/data/orders';
 import EmptyState from '@/components/ui/EmptyState';
 import ProductionQueueTable from '@/components/admin/ProductionQueueTable';
 import ProductionQueueRealtime from '@/components/admin/ProductionQueueRealtime';
+import SortControls from '@/components/admin/SortControls';
+
+const SORT_VALUES: ProductionQueueSort[] = ['default', 'expected', 'status'];
+
+function isQueueSort(value: string | undefined): value is ProductionQueueSort {
+  return SORT_VALUES.some((v) => v === value);
+}
 
 const TABS: { value: ProductionQueueFilter; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -21,13 +33,18 @@ function isQueueFilter(value: string | undefined): value is ProductionQueueFilte
   return TABS.some((tab) => tab.value === value);
 }
 
-export default async function AdminOrdersPage({ searchParams }: { searchParams: { status?: string } }) {
+export default async function AdminOrdersPage({
+  searchParams,
+}: {
+  searchParams: { status?: string; sort?: string };
+}) {
   const supabase = await createClient();
   await requireAdminUser(supabase);
 
   const activeTab: ProductionQueueFilter = isQueueFilter(searchParams.status) ? searchParams.status : 'all';
+  const activeSort: ProductionQueueSort = isQueueSort(searchParams.sort) ? searchParams.sort : 'default';
   const [rows, counts] = await Promise.all([
-    getProductionQueue(supabase, activeTab),
+    getProductionQueue(supabase, activeTab, activeSort),
     getProductionQueueCounts(supabase),
   ]);
 
@@ -35,17 +52,24 @@ export default async function AdminOrdersPage({ searchParams }: { searchParams: 
     <div>
       <ProductionQueueRealtime />
 
-      <div className="mb-6">
-        <h1 className="font-heading text-3xl text-afs-chrome-high">Production Queue</h1>
-        <p className="font-body text-sm text-afs-chrome-mid mt-1">
-          Active orders in fabrication — rush orders first, then oldest first.
-        </p>
+      <div className="mb-6 flex items-start justify-between gap-6 flex-wrap">
+        <div>
+          <h1 className="font-heading text-3xl text-afs-chrome-high">Production Queue</h1>
+          <p className="font-body text-sm text-afs-chrome-mid mt-1">
+            Active orders in fabrication — rush orders first, then oldest first.
+          </p>
+        </div>
+        <SortControls sort={activeSort} />
       </div>
 
       <div className="flex items-center gap-1 border-b border-afs-border mb-6 overflow-x-auto">
         {TABS.map((tab) => {
           const active = tab.value === activeTab;
-          const href = tab.value === 'all' ? '/admin/orders' : `/admin/orders?status=${tab.value}`;
+          const params = new URLSearchParams();
+          if (tab.value !== 'all') params.set('status', tab.value);
+          if (activeSort !== 'default') params.set('sort', activeSort);
+          const qs = params.toString();
+          const href = qs ? `/admin/orders?${qs}` : '/admin/orders';
           return (
             <Link
               key={tab.value}

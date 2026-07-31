@@ -2,7 +2,14 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { computeBilledQuantity, computeLineTotal, round2, DEFAULT_WASTE_FACTOR } from '@/lib/admin/pricing';
+import {
+  computeBilledQuantity,
+  computeLineTotal,
+  round2,
+  DEFAULT_WASTE_FACTOR,
+  getFreightClass,
+  type WeightEstimateResult,
+} from '@/lib/admin/pricing';
 
 export interface EstimatorLineItem {
   profileType: string;
@@ -22,6 +29,7 @@ interface QuoteEstimatorFormProps {
   requestId: string;
   items: EstimatorLineItem[];
   jobsiteAddress: string | null;
+  weightEstimate: WeightEstimateResult;
 }
 
 const inputClass =
@@ -46,7 +54,7 @@ function formatDimensions(item: EstimatorLineItem): string {
   return parts.length ? parts.join('   ') : '—';
 }
 
-export default function QuoteEstimatorForm({ requestId, items, jobsiteAddress }: QuoteEstimatorFormProps) {
+export default function QuoteEstimatorForm({ requestId, items, jobsiteAddress, weightEstimate }: QuoteEstimatorFormProps) {
   const router = useRouter();
   const [unitPrices, setUnitPrices] = useState<string[]>(() => items.map(() => ''));
   const [freight, setFreight] = useState('');
@@ -66,6 +74,12 @@ export default function QuoteEstimatorForm({ requestId, items, jobsiteAddress }:
   );
 
   const subtotal = useMemo(() => round2(lineTotals.reduce((sum, t) => sum + t, 0)), [lineTotals]);
+
+  const longestPieceFt = useMemo(
+    () => items.reduce((max, item) => Math.max(max, item.lengthFt), 0),
+    [items]
+  );
+  const freightClass = getFreightClass(longestPieceFt);
   const freightAmount = Number(freight);
   const hasValidFreight = freight.trim() !== '' && Number.isFinite(freightAmount) && freightAmount >= 0;
   const total = round2(subtotal + (hasValidFreight ? freightAmount : 0));
@@ -229,6 +243,21 @@ export default function QuoteEstimatorForm({ requestId, items, jobsiteAddress }:
               placeholder="0.00"
               className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-data"
             />
+          </div>
+          <div className="mt-4 pt-4 border-t border-afs-border flex flex-col gap-1.5">
+            <div className="flex justify-between font-body text-xs">
+              <span className="text-afs-chrome-mid">Longest piece</span>
+              <span className="font-data text-afs-chrome-high">
+                {longestPieceFt > 0 ? `${longestPieceFt} ft → Class ${freightClass}` : '—'}
+              </span>
+            </div>
+            <div className="flex justify-between font-body text-xs">
+              <span className="text-afs-chrome-mid">Estimated weight</span>
+              <span className="font-data text-afs-chrome-high">
+                {weightEstimate.matchedCount > 0 ? `~${Math.round(weightEstimate.totalLbs)} lbs` : '—'} (
+                {weightEstimate.matchedCount} of {weightEstimate.totalCount} items matched)
+              </span>
+            </div>
           </div>
         </div>
 

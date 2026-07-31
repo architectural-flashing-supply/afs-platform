@@ -32,7 +32,7 @@ const TABS: StudioTab[] = [
     title: 'Photo to Quote',
     body: 'Photograph existing flashing in the field. AI identifies profile type and material. You enter site measurements.',
     ctaLabel: 'Upload Photos',
-    ctaHref: '/upload/photo',
+    ctaHref: '/upload',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-6 h-6">
         <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.25 2.25 0 018.978 4.5h6.044a2.25 2.25 0 012.151 1.675l.107.376a1.5 1.5 0 001.436 1.099h.594c1.036 0 1.875.84 1.875 1.875v10.126c0 1.035-.84 1.875-1.875 1.875H4.75A1.875 1.875 0 012.875 19.65V9.525c0-1.036.84-1.875 1.875-1.875h.594a1.5 1.5 0 001.436-1.099l.047-.376z" />

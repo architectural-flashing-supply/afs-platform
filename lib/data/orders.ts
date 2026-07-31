@@ -1,6 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { ACTIVE_ORDER_STATUSES, ORDER_STAGES, type OrderStageKey } from '@/lib/admin/orderStages';
+import {
+  ACTIVE_ORDER_STATUSES,
+  ORDER_STAGES,
+  POST_PRODUCTION_STATUSES,
+  stageIndex,
+  type OrderStageKey,
+} from '@/lib/admin/orderStages';
 
 export interface DeliveryAddressInput {
   address: string;
@@ -70,9 +76,16 @@ async function generateOrderNumber(admin: SupabaseClient): Promise<string> {
 }
 
 /**
- * Shared by the Stripe webhook (card payment_intent.succeeded) and the net-terms
- * checkout path — both convert an AFS-approved quote into an order the same way.
- * Idempotent on quote_id so retried webhook deliveries don't double-create orders.
+ * Shared by the Stripe webhook (card payment_intent.succeeded), the net-terms
+ * checkout path, and the client-side confirm-order fallback — all convert an
+ * AFS-approved quote into an order the same way. The webhook and confirm-order
+ * fallback can run concurrently for the same quote (see
+ * ORDER_LIFECYCLE_DECISION.md), so the SELECT-then-INSERT below is not by
+ * itself race-safe — the real guard is the DB-level UNIQUE constraint on
+ * orders.quote_id (011_orders_quote_id_unique.sql). If two calls both pass
+ * the SELECT and both attempt the INSERT, the loser gets a Postgres
+ * unique-violation (23505), which is caught below and turned into a re-query
+ * for the winner's row so every caller still returns the same order.
  */
 export async function createOrderFromQuote(
   admin: SupabaseClient,
@@ -134,7 +147,22 @@ export async function createOrderFromQuote(
     delivery_address: deliveryAddress,
     stripe_payment_intent_id: input.stripePaymentIntentId,
   });
-  if (orderError) throw orderError;
+  if (orderError) {
+    // 23505 = Postgres unique_violation. A concurrent caller (webhook vs.
+    // confirm-order fallback) won the race on orders_quote_id_unique — its
+    // insert committed first, so return its row instead of erroring out.
+    if (orderError.code === '23505') {
+      const { data: winner } = await admin
+        .from('orders')
+        .select('id, order_number')
+        .eq('quote_id', input.quoteId)
+        .maybeSingle();
+      if (winner) {
+        return { orderId: winner.id as string, orderNumber: winner.order_number as string };
+      }
+    }
+    throw orderError;
+  }
 
   if (lineItems.length > 0) {
     const orderLineItems = lineItems.map((item) => ({
@@ -174,12 +202,25 @@ export async function createOrderFromQuote(
 
 export type ProductionQueueFilter = 'all' | 'rush' | OrderStageKey;
 
+/**
+ * "all"/"rush" match every fabrication stage PLUS the three Employee PWA /
+ * delivery-tracking statuses (PRODUCTION_QUEUE_AUDIT.md §2a) — without this,
+ * an order that reached in_production/packaged/out_for_delivery vanished
+ * from every tab and every count in the admin production queue, with no
+ * filter tab that could ever show it again. Individual stage tabs are
+ * unaffected — they still filter to exactly one ORDER_STAGES key.
+ */
+const QUEUE_VISIBLE_STATUSES: string[] = [...ACTIVE_ORDER_STATUSES, ...POST_PRODUCTION_STATUSES];
+
+export type ProductionQueueSort = 'default' | 'expected' | 'status';
+
 export interface ProductionQueueRow {
   id: string;
   orderNumber: string;
   customerName: string;
   profileSummary: string;
   createdAt: string;
+  expectedShipDate: string | null;
   isRush: boolean;
   status: string;
 }
@@ -192,6 +233,7 @@ interface ProductionQueueSource {
   id: string;
   order_number: string;
   created_at: string;
+  delivery_scheduled_at: string | null;
   is_rush: boolean;
   status: string;
   profiles: { full_name: string; company: string | null } | null;
@@ -207,40 +249,61 @@ function summarizeOrderLineItems(items: OrderLineItemDescriptionSource[] | null)
 
 /**
  * Rush orders always sort first, then oldest-created within each group
- * (SPEC_PRODUCTION_QUEUE.md §3). "all" and stage tabs exclude delivered orders —
- * a delivered order has left the production queue by definition.
+ * (SPEC_PRODUCTION_QUEUE.md §3) — this is the DB-level default order and what
+ * `sort: 'default'` returns unchanged. "expected"/"status" (SPEC §1's
+ * SortControls) re-sort that same result set in JS rather than via SQL —
+ * "status" needs the ORDER_STAGES fabrication sequence, not alphabetical
+ * order, which isn't expressible as a plain `ORDER BY`, and queue row counts
+ * are small enough that sorting in memory is simpler than two more SQL
+ * shapes. "all" and stage tabs exclude delivered orders — a delivered order
+ * has left the production queue by definition.
  */
 export async function getProductionQueue(
   supabase: SupabaseClient,
-  filter: ProductionQueueFilter
+  filter: ProductionQueueFilter,
+  sort: ProductionQueueSort = 'default'
 ): Promise<ProductionQueueRow[]> {
   let query = supabase
     .from('orders')
     .select(
-      'id, order_number, created_at, is_rush, status, profiles(full_name, company), order_line_items(description)'
+      'id, order_number, created_at, delivery_scheduled_at, is_rush, status, profiles(full_name, company), order_line_items(description)'
     )
     .order('is_rush', { ascending: false })
     .order('created_at', { ascending: true });
 
   if (filter === 'rush') {
-    query = query.eq('is_rush', true).in('status', ACTIVE_ORDER_STATUSES);
+    query = query.eq('is_rush', true).in('status', QUEUE_VISIBLE_STATUSES);
   } else if (filter === 'all') {
-    query = query.in('status', ACTIVE_ORDER_STATUSES);
+    query = query.in('status', QUEUE_VISIBLE_STATUSES);
   } else {
     query = query.eq('status', filter);
   }
 
   const { data } = await query;
 
-  return ((data ?? []) as unknown as ProductionQueueSource[]).map((row) => ({
+  const rows: ProductionQueueRow[] = ((data ?? []) as unknown as ProductionQueueSource[]).map((row) => ({
     id: row.id,
     orderNumber: row.order_number,
     customerName: row.profiles?.company || row.profiles?.full_name || 'Unknown',
     profileSummary: summarizeOrderLineItems(row.order_line_items),
     createdAt: row.created_at,
+    expectedShipDate: row.delivery_scheduled_at,
     isRush: row.is_rush,
     status: row.status,
   }));
+
+  if (sort === 'expected') {
+    return [...rows].sort((a, b) => {
+      if (!a.expectedShipDate && !b.expectedShipDate) return 0;
+      if (!a.expectedShipDate) return 1;
+      if (!b.expectedShipDate) return -1;
+      return new Date(a.expectedShipDate).getTime() - new Date(b.expectedShipDate).getTime();
+    });
+  }
+  if (sort === 'status') {
+    return [...rows].sort((a, b) => stageIndex(a.status) - stageIndex(b.status));
+  }
+  return rows;
 }
 
 // Employee PWA statuses (SPEC_DELIVERY_TRACKING_AND_EMPLOYEE_PWA.md §3) —
@@ -262,7 +325,7 @@ export async function getEmployeeOrderQueue(admin: SupabaseClient, driverId: str
   const { data } = await admin
     .from('orders')
     .select(
-      'id, order_number, created_at, is_rush, status, profiles(full_name, company), order_line_items(description)'
+      'id, order_number, created_at, delivery_scheduled_at, is_rush, status, profiles(full_name, company), order_line_items(description)'
     )
     .in('status', EMPLOYEE_QUEUE_STATUSES)
     .or(`assigned_driver_id.eq.${driverId},assigned_driver_id.is.null`)
@@ -275,15 +338,25 @@ export async function getEmployeeOrderQueue(admin: SupabaseClient, driverId: str
     customerName: row.profiles?.company || row.profiles?.full_name || 'Unknown',
     profileSummary: summarizeOrderLineItems(row.order_line_items),
     createdAt: row.created_at,
+    expectedShipDate: row.delivery_scheduled_at,
     isRush: row.is_rush,
     status: row.status,
   }));
 }
 
-export type ProductionQueueCounts = Record<'all' | 'rush' | OrderStageKey, number>;
+/**
+ * `delivered` is intentionally absent at runtime — a delivered order has
+ * left the production queue by definition, so getProductionQueueCounts()
+ * below never queries for it. Making it optional here (rather than a
+ * required `number`, as this type previously claimed) matches that: nothing
+ * reads `counts.delivered` today since there's no "Delivered" tab, but the
+ * type no longer lies about a value that was actually `undefined` at
+ * runtime (PRODUCTION_QUEUE_AUDIT.md §2i).
+ */
+export type ProductionQueueCounts = Partial<Record<OrderStageKey, number>> & { all: number; rush: number };
 
 export async function getProductionQueueCounts(supabase: SupabaseClient): Promise<ProductionQueueCounts> {
-  const { data } = await supabase.from('orders').select('status, is_rush').in('status', ACTIVE_ORDER_STATUSES);
+  const { data } = await supabase.from('orders').select('status, is_rush').in('status', QUEUE_VISIBLE_STATUSES);
   const rows = (data ?? []) as { status: string; is_rush: boolean }[];
 
   const counts = {

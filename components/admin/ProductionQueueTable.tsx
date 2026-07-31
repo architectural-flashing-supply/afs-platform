@@ -18,6 +18,11 @@ function formatTimeAgo(iso: string): string {
   return `${days}d ago`;
 }
 
+function formatExpected(iso: string | null): string {
+  if (!iso) return 'Not set';
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 interface ProductionQueueTableProps {
   rows: ProductionQueueRow[];
 }
@@ -67,6 +72,9 @@ export default function ProductionQueueTable({ rows }: ProductionQueueTableProps
                 Created
               </th>
               <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+                Expected
+              </th>
+              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
                 Rush
               </th>
               <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
@@ -97,6 +105,7 @@ export default function ProductionQueueTable({ rows }: ProductionQueueTableProps
                 <td className="font-body text-sm text-afs-chrome-high px-4 py-3">{row.customerName}</td>
                 <td className="font-body text-sm text-afs-chrome-mid px-4 py-3">{row.profileSummary}</td>
                 <td className="font-data text-xs text-afs-chrome-dim px-4 py-3">{formatTimeAgo(row.createdAt)}</td>
+                <td className="font-data text-xs text-afs-chrome-mid px-4 py-3">{formatExpected(row.expectedShipDate)}</td>
                 <td className="px-4 py-3">
                   {row.isRush && (
                     <span className="bg-afs-crimson text-white font-label text-xs font-bold px-2 py-1 rounded">

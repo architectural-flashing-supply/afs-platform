@@ -4,7 +4,14 @@ import { Fragment, useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { MATERIAL_STOCK_STATUS } from '@/lib/data/catalog';
 import MaterialRecommendationPanel from '@/components/quote/MaterialRecommendationPanel';
+import WasteFactorDisplay from '@/components/quote/WasteFactorDisplay';
+import TrimLengthOptimizerSection from '@/components/quote/TrimLengthOptimizerSection';
 import CrossSellPanel from '@/components/ai/CrossSellPanel';
+import {
+  getProfileStockLengths,
+  resolveStockLengthByQuoteLabel,
+  type ProfileStockLength,
+} from '@/lib/data/product-profiles';
 
 type Step = 1 | 2 | 3 | 4;
 type SubmitState = 'idle' | 'submitting' | 'submitted';
@@ -158,10 +165,16 @@ export default function QuotePage() {
   const [showEmailCapture, setShowEmailCapture] = useState(false);
   const [guestEmail, setGuestEmail] = useState('');
   const [selectedAccessories, setSelectedAccessories] = useState<string[]>([]);
+  const [profileStockLengths, setProfileStockLengths] = useState<ProfileStockLength[]>([]);
 
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data }) => setIsAuthenticated(!!data.user));
+  }, []);
+
+  useEffect(() => {
+    const supabase = createClient();
+    getProfileStockLengths(supabase).then(setProfileStockLengths);
   }, []);
 
   const updateField = (field: Exclude<keyof QuoteFormData, 'rush'>, value: string) => {
@@ -499,6 +512,16 @@ export default function QuotePage() {
                     value={form.quantity} onChange={(e) => updateField('quantity', e.target.value)} placeholder="1" />
                 </div>
               </div>
+
+              <WasteFactorDisplay
+                lengthFt={isPositiveNumber(form.lengthFt) ? Number(form.lengthFt) : 0}
+                quantity={isPositiveNumber(form.quantity) ? Number(form.quantity) : 0}
+              />
+              <TrimLengthOptimizerSection
+                lengthFt={isPositiveNumber(form.lengthFt) ? Number(form.lengthFt) : 0}
+                quantity={isPositiveNumber(form.quantity) ? Number(form.quantity) : 0}
+                stockLengthFt={resolveStockLengthByQuoteLabel(profileStockLengths, form.profileType)}
+              />
             </div>
           )}
 

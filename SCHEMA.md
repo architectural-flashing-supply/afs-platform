@@ -1,6 +1,6 @@
 # SCHEMA.md
 ## AFS — Supabase Database Schema
-**49 tables across 10 migration files. RLS on every table. Indexes on every
+**49 tables across 12 migration files. RLS on every table. Indexes on every
 foreign key and filter column.** (This document's "TABLE N" numbering below
 covers the original 25 sections designed in migration 001 — several of
 those sections define more than one physical table, e.g. TABLE 8 =
@@ -10,9 +10,12 @@ migrations 004 and 005, the CANONICAL PROFILE LIBRARY section adds 1
 more via migration 006, and the DELIVERY TRACKING + EMPLOYEE PWA section
 adds 3 more via migration 007. Migrations 008 and 009 are column-only
 additions (no new tables — see the MIGRATION FILE LOCATION table below).
-The BID MONITOR section adds 4 more tables via migration 010. 49 is the
+The BID MONITOR section adds 4 more tables via migration 010. Migration
+011 is constraint-only (no new tables, no new columns — see TABLE 18
+below). Migration 012 is column-only (adds `machine_jobs.
+used_fallback_geometry` — see MACHINE BRIDGE TABLES). 49 is the table
 count `supabase/README.md` should verify against the live database once
-all 10 migrations are applied.)
+all 12 migrations are applied.)
 
 ---
 
@@ -30,6 +33,8 @@ supabase/migrations/
   008_order_geocoding.sql              Adds orders.geocoded_lat/geocoded_lng — no new tables
   009_command_center_crm.sql           Adds profiles.internal_notes, orders.invoice_paid_at — no new tables
   010_bid_monitor.sql                  Bid Monitor — sources/projects/keywords/alerts (see BID MONITOR TABLES)
+  011_orders_quote_id_unique.sql       Adds UNIQUE(orders.quote_id) — no new tables/columns (see TABLE 18)
+  012_machine_jobs_fallback_geometry.sql  Adds machine_jobs.used_fallback_geometry — no new tables (see MACHINE BRIDGE TABLES)
 ```
 
 Run in numeric order — see `supabase/README.md` for the exact procedure.
@@ -609,11 +614,23 @@ CREATE POLICY "admin_all_line_items" ON quote_line_items
 
 ## TABLE 18 — orders
 
+**Migration 011 (`011_orders_quote_id_unique.sql`) adds
+`UNIQUE (quote_id)`** (not shown in the `CREATE TABLE` below since it was
+added after this table was originally designed). `createOrderFromQuote()`
+(`lib/data/orders.ts`) is called from two independently-triggered paths for
+the same card payment — the Stripe webhook and the client-side
+`app/api/checkout/confirm-order` fallback (see ORDER_LIFECYCLE_DECISION.md)
+— and its only prior guard was a non-atomic SELECT-then-INSERT check. This
+constraint is the real duplicate-order guard: a losing concurrent INSERT now
+fails with a Postgres unique-violation instead of silently creating a second
+`orders` row for the same quote, and that function catches exactly that
+error code to return the winning row.
+
 ```sql
 CREATE TABLE orders (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   order_number        TEXT UNIQUE NOT NULL,  -- AFS-2026-XXXXX
-  quote_id            UUID NOT NULL REFERENCES quotes(id),
+  quote_id            UUID NOT NULL REFERENCES quotes(id),  -- UNIQUE as of migration 011
   user_id             UUID NOT NULL REFERENCES profiles(id),
   project_id          UUID REFERENCES projects(id),
   status              TEXT NOT NULL DEFAULT 'submitted'
@@ -1206,6 +1223,19 @@ tracks its approval → generation → delivery lifecycle, separate from
 machine-delivery states). See ARCHITECTURE.md §11 for the full lifecycle
 and the Machine Bridge service that consumes `approved_for_machine` jobs.
 Admin-only — internal production-queue tool, not customer-facing.
+
+**Migration 012 (`012_machine_jobs_fallback_geometry.sql`) adds
+`used_fallback_geometry BOOLEAN NOT NULL DEFAULT false`** (nullable-safe
+`ADD COLUMN IF NOT EXISTS`, same pattern as migration 003's `cost_notes`).
+Set by `app/api/admin/command-center/approve-quote-request/route.ts`
+whenever the source `quote_requests` line item had no real FlashDraft-drawn
+points and was missing `legA`/`legB`/`width`(-or-`height`), so the route
+substituted its hardcoded 12"/2"/2" placeholder box instead of real
+geometry — surfaced as a visible warning badge on both
+`PendingQuoteRequestCard.tsx` (before approval) and
+`CommandCenterJobCard.tsx` (after). Not shown in the `CREATE TABLE` below
+since it was added after this table was originally designed — it is a
+real column on the live schema once 012 is applied.
 
 ```sql
 CREATE TABLE machine_jobs (

@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { logAdminAction } from '@/lib/admin/audit';
-import { NOTIFICATION_STAGES, isBackwardMove, isOrderStatus } from '@/lib/admin/orderStages';
+import { NOTIFICATION_STAGES, isBackwardMove, isOrderStatus, getStage } from '@/lib/admin/orderStages';
+import { sendEmail } from '@/lib/resend/send';
+import { baseEmailTemplate, ctaButton } from '@/lib/resend/templates/base';
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://afs-website-alpha.vercel.app';
 
 interface OrderStatusSource {
   id: string;
@@ -83,16 +87,38 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       try {
         const { data: customerProfile } = await supabase
           .from('profiles')
-          .select('email')
+          .select('full_name, email')
           .eq('id', order.user_id)
           .single();
+        const email = (customerProfile?.email as string | undefined) ?? '';
+
+        let emailResult: { success: boolean; error?: string } = {
+          success: false,
+          error: 'Customer has no email on file.',
+        };
+        if (email) {
+          const stageLabel = getStage(newStatus)?.label ?? newStatus;
+          emailResult = await sendEmail({
+            to: email,
+            subject: `Order #${order.order_number} Update: ${stageLabel}`,
+            html: baseEmailTemplate(`
+              <h1 style="font-size:20px;margin:0 0 16px;">Order Status Update</h1>
+              <p style="margin:0 0 12px;">Hi ${(customerProfile?.full_name as string | undefined) ?? 'there'},</p>
+              <p style="margin:0 0 12px;">Order <strong>#${order.order_number}</strong> is now:
+              <strong>${stageLabel}</strong>.</p>
+              ${ctaButton(`${APP_URL}/account/orders/${order.id}`, 'View Order')}
+            `),
+          });
+        }
+
         await supabase.from('notifications').insert({
           order_id: order.id,
           user_id: order.user_id,
           channel: 'email',
           type: 'order_status_changed',
-          recipient: (customerProfile?.email as string | undefined) ?? '',
-          status: 'sent',
+          recipient: email,
+          status: emailResult.success ? 'sent' : 'failed',
+          error: emailResult.success ? null : emailResult.error,
         });
       } catch (notifyError) {
         console.error('[Order Status Notification Error]', notifyError);

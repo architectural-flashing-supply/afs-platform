@@ -228,4 +228,46 @@ const NOTIFICATION_STAGES: OrderStatus[] = [
 
 ---
 
+## 9. AS-BUILT NOTES (PRODUCTION_QUEUE_AUDIT.md follow-up)
+
+**§1's "shared across three surfaces" was never fully built, and the
+`admin`/`public` variants have been removed rather than built out.** As
+actually shipped:
+
+- **Customer order detail** (`app/account/orders/[id]/page.tsx`) renders
+  `ProductionTimeline` — this is the only real usage, and the component's
+  `variant` prop has been deleted since the other two branches were dead
+  code with zero call sites.
+- **Admin order detail** (`app/admin/orders/[id]/page.tsx`) uses the
+  purpose-built `StatusAdvancer` component instead, which already satisfies
+  §8 (quick-advance + manual override + backward-move confirmation) and is
+  a better fit for an *editable* admin surface than a read-only timeline
+  would be.
+- **Public order tracker** is `app/track/[orderId]/page.tsx` — a separate,
+  hand-rolled live-delivery-map page (GPS driver location, token-based
+  lookup via `/api/track/[token]`) built for a wider status vocabulary
+  (`in_production`, `packaged`, `out_for_delivery` — see §10) that doesn't
+  render `ProductionTimeline` at all. Building a second public tracker on
+  top of `ProductionTimeline` would duplicate this without adding capability
+  the live map doesn't already cover.
+
+`ORDER_STAGES` (with `description` for the customer view) now lives in
+`lib/admin/orderStages.ts` as the single source of truth — both the admin
+production queue and `ProductionTimeline` import it from there instead of
+keeping independent copies.
+
+## 10. AS-BUILT NOTES — post-production statuses
+
+`currentStatus` can be `in_production`, `packaged`, or `out_for_delivery` —
+Employee PWA / delivery-tracking values outside the `ORDER_STAGES` sequence
+(see `lib/admin/orderStages.ts`'s `POST_PRODUCTION_STATUSES`). Rather than
+rendering every stage as pending (`currentIndex === -1`, the bug this
+follow-up fixes), `ProductionTimeline` maps each to the fabrication stage
+it's closest to/past (`in_production`/`packaged` → `ready`, `out_for_delivery`
+→ `shipped`) for the visual timeline, plus an explicit banner naming the
+real status so the customer isn't shown a stage label that doesn't match
+what actually happened.
+
+---
+
 *SPEC_PRODUCTION_TIMELINE.md | AFS | Reid Whitesides | June 2026*

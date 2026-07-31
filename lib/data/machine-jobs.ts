@@ -39,6 +39,10 @@ export interface MachineJobRow {
   stagedAt: string | null;
   deliveredAt: string | null;
   bends: MachineJobBend[];
+  // True when approve-quote-request/route.ts had to substitute the
+  // hardcoded 12"/2"/2" placeholder dimensions for this job's custom_bends
+  // — see migration 012_machine_jobs_fallback_geometry.sql.
+  usedFallbackGeometry: boolean;
 }
 
 interface MachineJobSource {
@@ -61,15 +65,17 @@ interface MachineJobSource {
   staged_at: string | null;
   delivered_at: string | null;
   created_at: string;
+  used_fallback_geometry: boolean;
 }
 
 export async function getMachineJobs(supabase: SupabaseClient, tab: MachineJobTab): Promise<MachineJobRow[]> {
   const { data: jobs, error } = await supabase
     .from('machine_jobs')
     .select(
-      'id, order_id, quote_request_id, machine_profile_id, custom_bends, profile_name, material, gauge, quantity, blank_width_mm, is_rush, notes, status, rejection_reason, requested_by, approved_at, staged_at, delivered_at, created_at'
+      'id, order_id, quote_request_id, machine_profile_id, custom_bends, profile_name, material, gauge, quantity, blank_width_mm, is_rush, notes, status, rejection_reason, requested_by, approved_at, staged_at, delivered_at, created_at, used_fallback_geometry'
     )
     .in('status', STATUSES_BY_TAB[tab])
+    .order('is_rush', { ascending: false })
     .order('created_at', { ascending: false });
   if (error || !jobs) return [];
 
@@ -161,6 +167,7 @@ export async function getMachineJobs(supabase: SupabaseClient, tab: MachineJobTa
       stagedAt: job.staged_at,
       deliveredAt: job.delivered_at,
       bends: job.machine_profile_id ? bendsByProfile.get(job.machine_profile_id) ?? [] : job.custom_bends ?? [],
+      usedFallbackGeometry: job.used_fallback_geometry,
     };
   });
 }

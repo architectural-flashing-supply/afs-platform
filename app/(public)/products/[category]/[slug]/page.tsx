@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import ProductDetailView from '@/components/product/ProductDetailView';
 import { PRODUCTS, getCategory, getProduct } from '@/lib/data/catalog';
+import { withLiveStock } from '@/lib/data/product-stock';
+import { createClient } from '@/lib/supabase/server';
 
 interface ProductPageParams {
   params: { category: string; slug: string };
@@ -23,10 +25,13 @@ export function generateMetadata({ params }: ProductPageParams): Metadata {
   };
 }
 
-export default function ProductDetailPage({ params }: ProductPageParams) {
+export default async function ProductDetailPage({ params }: ProductPageParams) {
   const category = getCategory(params.category);
-  const product = getProduct(params.category, params.slug);
-  if (!category || !product) notFound();
+  const staticProduct = getProduct(params.category, params.slug);
+  if (!category || !staticProduct) notFound();
+
+  const supabase = await createClient();
+  const [product] = await withLiveStock(supabase, [staticProduct]);
 
   return (
     <main className="min-h-screen bg-afs-bg-base">

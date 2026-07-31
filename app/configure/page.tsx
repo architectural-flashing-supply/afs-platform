@@ -3,6 +3,13 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { generateProfileSVG, type ProfileType } from '@/lib/utils/profile-svg';
+import WasteFactorDisplay from '@/components/quote/WasteFactorDisplay';
+import TrimLengthOptimizerSection from '@/components/quote/TrimLengthOptimizerSection';
+import {
+  getProfileStockLengths,
+  resolveStockLengthBySlug,
+  type ProfileStockLength,
+} from '@/lib/data/product-profiles';
 
 type SubmitState = 'idle' | 'submitting' | 'submitted';
 type DimField = 'width' | 'height' | 'legA' | 'legB';
@@ -180,10 +187,17 @@ export default function ConfiguratorPage() {
   const [showEmailCapture, setShowEmailCapture] = useState(false);
   const [guestEmail, setGuestEmail] = useState('');
   const [addedNotice, setAddedNotice] = useState(false);
+  const [profileStockLengths, setProfileStockLengths] = useState<ProfileStockLength[]>([]);
+  const [rush, setRush] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data }) => setIsAuthenticated(!!data.user));
+  }, []);
+
+  useEffect(() => {
+    const supabase = createClient();
+    getProfileStockLengths(supabase).then(setProfileStockLengths);
   }, []);
 
   const activeDims = useMemo(
@@ -311,7 +325,7 @@ export default function ConfiguratorPage() {
         body: JSON.stringify({
           items,
           notes: form.notes.trim() || null,
-          isRush: false,
+          isRush: rush,
           guestEmail: email,
         }),
       });
@@ -329,7 +343,7 @@ export default function ConfiguratorPage() {
       setSubmitError('Submission failed. Please try again.');
       setSubmitState('idle');
     }
-  }, [allItemsForSubmit, form.notes]);
+  }, [allItemsForSubmit, form.notes, rush]);
 
   const handleSubmit = () => {
     if (allItemsForSubmit().length === 0) {
@@ -362,6 +376,7 @@ export default function ConfiguratorPage() {
     setRequestNumber(null);
     setShowEmailCapture(false);
     setGuestEmail('');
+    setRush(false);
   };
 
   const specSummary = useMemo(() => {
@@ -527,11 +542,47 @@ export default function ConfiguratorPage() {
             </div>
           </div>
 
-          <div className="mb-3">
+          <WasteFactorDisplay
+            lengthFt={isPositiveNumber(form.lengthFt) ? Number(form.lengthFt) : 0}
+            quantity={isPositiveNumber(form.quantity) ? Number(form.quantity) : 0}
+          />
+          <TrimLengthOptimizerSection
+            lengthFt={isPositiveNumber(form.lengthFt) ? Number(form.lengthFt) : 0}
+            quantity={isPositiveNumber(form.quantity) ? Number(form.quantity) : 0}
+            stockLengthFt={profileType ? resolveStockLengthBySlug(profileStockLengths, profileType) : null}
+          />
+
+          <div className="mb-3 mt-3">
             <label className={labelClass} htmlFor="notes">Notes (optional)</label>
             <textarea id="notes" rows={3} className={inputClass}
               value={form.notes} onChange={(e) => updateField('notes', e.target.value)}
               placeholder="Anything else we should know?" />
+          </div>
+
+          <div className="mb-3">
+            <span className={labelClass}>Rush Order</span>
+            <button
+              type="button"
+              onClick={() => setRush(r => !r)}
+              className={`flex items-center gap-3 border rounded px-3 py-2.5 w-full transition-colors ${
+                rush ? 'bg-afs-crimson border-afs-crimson' : 'bg-afs-bg-overlay border-afs-border hover:bg-afs-bg-surface'
+              }`}
+            >
+              <span
+                className={`w-10 h-5 rounded-full relative transition-colors shrink-0 ${
+                  rush ? 'bg-afs-crimson' : 'bg-afs-bg-overlay border border-afs-border'
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white transition-transform ${
+                    rush ? 'translate-x-5' : 'translate-x-0.5'
+                  }`}
+                />
+              </span>
+              <span className="font-label text-sm text-afs-chrome-high">
+                {rush ? 'Rush requested' : 'Standard timeline'}
+              </span>
+            </button>
           </div>
 
           {queue.length > 0 && (

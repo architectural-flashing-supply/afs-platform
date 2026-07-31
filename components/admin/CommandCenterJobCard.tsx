@@ -76,6 +76,7 @@ export default function CommandCenterJobCard({ job }: { job: MachineJobRow }) {
             {STATUS_LABEL[job.status] ?? job.status}
           </Badge>
           {job.isRush && <Badge variant="warning">RUSH</Badge>}
+          {job.usedFallbackGeometry && <Badge variant="error">Placeholder Geometry</Badge>}
         </div>
       </div>
 
@@ -98,6 +99,17 @@ export default function CommandCenterJobCard({ job }: { job: MachineJobRow }) {
           {job.deliveredAt && <p>Delivered: <span className="text-afs-chrome-high">{formatDateTime(job.deliveredAt)}</span></p>}
         </div>
       </div>
+
+      {job.usedFallbackGeometry && (
+        <div className="bg-afs-bg-surface border border-afs-crimson rounded p-3 mb-4">
+          <p className="font-label text-xs uppercase tracking-wide text-afs-crimson mb-1">Placeholder Geometry</p>
+          <p className="font-body text-xs text-afs-chrome-high">
+            This job&apos;s bend program is a fabricated 12&quot;/2&quot;/2&quot; placeholder shape, not a real
+            measurement — the source request didn&apos;t capture real dimensions or a FlashDraft drawing. Do not
+            send this to the machine as-is.
+          </p>
+        </div>
+      )}
 
       {job.notes && (
         <div className="bg-afs-bg-surface border border-afs-chrome-dim rounded p-3 mb-4">

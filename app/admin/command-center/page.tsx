@@ -91,6 +91,7 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
           profileName: r.lineItemDescriptions[0] ?? '—',
           status: 'pending_approval',
           submittedAt: r.submittedAt,
+          isRush: r.isRush,
         })
       ),
       ...sentJobs.map(
@@ -102,9 +103,13 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
           profileName: j.profileName,
           status: j.status,
           submittedAt: j.submittedAt,
+          isRush: j.isRush,
         })
       ),
-    ].sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+    ].sort((a, b) => {
+      if (a.isRush !== b.isRush) return a.isRush ? -1 : 1;
+      return new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime();
+    });
 
     const outstandingInvoicesAll = crmInvoices.filter((inv) => inv.status !== 'paid');
     const outstandingTotal = outstandingInvoicesAll.reduce((sum, inv) => sum + inv.amount, 0);

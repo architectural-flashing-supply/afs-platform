@@ -23,6 +23,7 @@ export interface QueueItem {
   profileName: string;
   status: string;
   submittedAt: string;
+  isRush: boolean;
 }
 
 interface StatusStripCounts {
@@ -163,7 +164,7 @@ export default function CommandCenterDashboard({
                     key={req.id}
                     className={`flex items-center justify-between gap-3 px-4 py-3 ${
                       idx > 0 ? 'border-t border-afs-border' : ''
-                    }`}
+                    } ${req.isRush ? 'bg-[var(--afs-crimson-ghost)]' : ''}`}
                   >
                     <div className="min-w-0">
                       <p className="font-body text-sm text-afs-chrome-high truncate">
@@ -175,6 +176,7 @@ export default function CommandCenterDashboard({
                       </p>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
+                      {req.isRush && <Badge variant="warning">RUSH</Badge>}
                       <Badge variant={QR_STATUS_VARIANT[req.status] ?? 'chrome'}>
                         {QR_STATUS_LABEL[req.status] ?? req.status}
                       </Badge>
@@ -213,7 +215,7 @@ export default function CommandCenterDashboard({
                     key={`${item.kind}-${item.id}`}
                     className={`flex items-center justify-between gap-3 px-4 py-3 ${
                       idx > 0 ? 'border-t border-afs-border' : ''
-                    }`}
+                    } ${item.isRush ? 'bg-[var(--afs-crimson-ghost)]' : ''}`}
                   >
                     <div className="min-w-0">
                       <p className="font-body text-sm text-afs-chrome-high truncate">
@@ -225,6 +227,7 @@ export default function CommandCenterDashboard({
                       </p>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
+                      {item.isRush && <Badge variant="warning">RUSH</Badge>}
                       <Badge variant={QUEUE_STATUS_VARIANT[item.status] ?? 'chrome'}>
                         {QUEUE_STATUS_LABEL[item.status] ?? item.status}
                       </Badge>

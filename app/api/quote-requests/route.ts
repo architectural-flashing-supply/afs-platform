@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { sendEmail } from '@/lib/resend/send';
+import { baseEmailTemplate } from '@/lib/resend/templates/base';
 
 interface QuoteRequestItemInput {
   profileType: string;
@@ -119,6 +121,42 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (insertError) {
       console.error('[Quote Request Insert Error]', insertError);
       return NextResponse.json({ error: 'Submission failed. Please try again.' }, { status: 500 });
+    }
+
+    // --- Customer confirmation email (never blocks the response; ARCHITECTURE.md §9) ---
+    let recipientEmail = guestEmail;
+    let recipientName: string | null = null;
+    if (user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name, email')
+        .eq('id', user.id)
+        .maybeSingle();
+      recipientEmail = (profile?.email as string | undefined) ?? '';
+      recipientName = (profile?.full_name as string | undefined) ?? null;
+    }
+
+    if (recipientEmail) {
+      const itemCount = items.length;
+      const emailResult = await sendEmail({
+        to: recipientEmail,
+        subject: `We've Received Your Quote Request #${requestNumber}`,
+        html: baseEmailTemplate(`
+          <h1 style="font-size:20px;margin:0 0 16px;">Quote Request Received</h1>
+          <p style="margin:0 0 12px;">Hi ${recipientName ?? 'there'},</p>
+          <p style="margin:0 0 12px;">We've received your quote request <strong>#${requestNumber}</strong>
+          with ${itemCount} item${itemCount === 1 ? '' : 's'}. An AFS estimator is reviewing it now and
+          will follow up with a formal quote.</p>
+        `),
+      });
+      await admin.from('notifications').insert({
+        user_id: user?.id ?? null,
+        channel: 'email',
+        type: 'quote_request_received',
+        recipient: recipientEmail,
+        status: emailResult.success ? 'sent' : 'failed',
+        error: emailResult.success ? null : emailResult.error,
+      });
     }
 
     const response: QuoteRequestResponse = { requestId, requestNumber };
