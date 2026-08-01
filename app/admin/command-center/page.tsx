@@ -13,6 +13,7 @@ import {
   type OperatorRow,
 } from '@/lib/data/command-center-crm';
 import { getOrderStatusCounts, getGbpPendingCount, getRecentQuoteRequests } from '@/lib/data/command-center-dashboard';
+import { getBidDocuments } from '@/lib/data/bid-documents';
 import { isGbpConfigured } from '@/lib/integrations/google-business';
 import EmptyState from '@/components/ui/EmptyState';
 import CommandCenterJobCard from '@/components/admin/CommandCenterJobCard';
@@ -22,13 +23,14 @@ import CustomersCrmTab from '@/components/admin/CustomersCrmTab';
 import OrdersCrmTab from '@/components/admin/OrdersCrmTab';
 import InvoicesCrmTab from '@/components/admin/InvoicesCrmTab';
 import GbpPhotosTab from '@/components/admin/GbpPhotosTab';
+import BidsCrmTab from '@/components/admin/BidsCrmTab';
 import CommandCenterDashboard, { type QueueItem } from '@/components/admin/CommandCenterDashboard';
 
 // Machine-queue tabs (pending/sent/completed) come from CommandCenterTab
-// (lib/data/machine-jobs.ts) — the 4 new CRM tabs below are a distinct,
+// (lib/data/machine-jobs.ts) — the 5 new CRM tabs below are a distinct,
 // wider set of admin tools sharing this same page/URL per d-005, so the
 // page's own tab union extends that type rather than editing it.
-type CrmTab = 'customers' | 'orders' | 'invoices' | 'gbp';
+type CrmTab = 'customers' | 'orders' | 'invoices' | 'gbp' | 'bids';
 type PageTab = CommandCenterTab | CrmTab;
 
 const MACHINE_TABS: { value: CommandCenterTab; label: string }[] = [
@@ -42,6 +44,7 @@ const CRM_TABS: { value: CrmTab; label: string }[] = [
   { value: 'orders', label: 'Orders' },
   { value: 'invoices', label: 'Invoices' },
   { value: 'gbp', label: 'GBP Photos' },
+  { value: 'bids', label: 'Bids' },
 ];
 
 const ALL_TABS = [...MACHINE_TABS, ...CRM_TABS];
@@ -56,7 +59,7 @@ function isTab(value: string | undefined): value is PageTab {
 
 export default async function CommandCenterPage({ searchParams }: { searchParams: { tab?: string } }) {
   const supabase = await createClient();
-  await requireAdminUser(supabase);
+  const adminUser = await requireAdminUser(supabase);
 
   // Landing on /admin/command-center with no ?tab at all shows the new
   // unified dashboard (Section 1/2/3 below). Any explicit ?tab=... value —
@@ -186,13 +189,14 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
   ]);
 
   const emptyCrmOrdersData: [CrmOrderRow[], OperatorRow[]] = [[], []];
-  const [crmCustomers, crmOrdersData, crmInvoices, crmGbpPhotos] = await Promise.all([
+  const [crmCustomers, crmOrdersData, crmInvoices, crmGbpPhotos, crmBids] = await Promise.all([
     activeTab === 'customers' ? getCrmCustomers(supabase) : Promise.resolve([]),
     activeTab === 'orders'
       ? Promise.all([getCrmOrders(supabase), getOperators(supabase)])
       : Promise.resolve(emptyCrmOrdersData),
     activeTab === 'invoices' ? getCrmInvoices(supabase) : Promise.resolve([]),
     activeTab === 'gbp' ? getGbpPhotos(supabase) : Promise.resolve([]),
+    activeTab === 'bids' ? getBidDocuments(supabase) : Promise.resolve([]),
   ]);
   const [crmOrders, crmOperators] = crmOrdersData;
 
@@ -208,7 +212,7 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
           </h1>
           <p className="font-body text-sm text-afs-chrome-mid mt-1">
             {isCrmTab(activeTab)
-              ? 'Customers, orders, invoices, and Google Business photos in one place.'
+              ? 'Customers, orders, invoices, Google Business photos, and GC bid pricing in one place.'
               : 'Review and approve fabrication jobs before they go to the Thalmann.'}
           </p>
         </div>
@@ -261,6 +265,7 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
       {activeTab === 'orders' && <OrdersCrmTab orders={crmOrders} operators={crmOperators} />}
       {activeTab === 'invoices' && <InvoicesCrmTab invoices={crmInvoices} />}
       {activeTab === 'gbp' && <GbpPhotosTab photos={crmGbpPhotos} gbpConfigured={isGbpConfigured()} />}
+      {activeTab === 'bids' && <BidsCrmTab bids={crmBids} currentUserId={adminUser.id} />}
 
       {isMachineTab &&
         (isEmpty ? (

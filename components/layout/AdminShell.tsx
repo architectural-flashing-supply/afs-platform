@@ -28,6 +28,7 @@ const NAV_SECTIONS: NavSection[] = [
       { label: '📡 Bid Monitor', href: '/admin/bid-monitor' },
       { label: '🚚 Deliveries', href: '/admin/command-center?tab=orders' },
       { label: '📸 GBP Photos', href: '/admin/command-center?tab=gbp' },
+      { label: '📋 Bids', href: '/admin/command-center?tab=bids' },
     ],
   },
   {

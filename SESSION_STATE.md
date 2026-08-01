@@ -7,7 +7,236 @@
 
 ## CURRENT STATUS
 
-**Most recent session (afs-mig-001, 2026-07-31): read MIGRATIONS_STATUS.md
+**Most recent session (bid-doc-004, 2026-07-31): built the two pieces
+bid-doc-002/003 explicitly deferred — real PDF generation for the bid
+document and real Resend email delivery to the GC. Gates could not be
+run and nothing could be committed/pushed — same tool-approval blocker
+this file has documented across 8+ prior sessions, still unresolved.**
+
+Read `BID_DOCUMENT_SCOPE.md` again plus the actual diff bid-doc-002/003
+produced (`git diff` against the prior commit — all of it uncommitted
+working-tree changes, not a real commit range) before writing anything,
+per instruction. Also read `lib/utils/invoice-pdf.ts`, `lib/utils/
+simple-pdf.ts`, `lib/utils/invoice-email.ts`, `lib/resend/{client,send}.ts`
+and `lib/resend/templates/base.ts` in full, since the whole point of this
+session was to extend those exact patterns rather than invent new ones.
+
+**Built:**
+- `lib/utils/png-decode.ts` (new) — a from-scratch, dependency-free PNG
+  pixel decoder: chunk-walks IHDR/IDAT/IEND (skipping the real logo
+  file's c2pa/jumb metadata chunks generically), `zlib.inflateSync`s the
+  concatenated IDAT stream, then hand-reverses PNG's per-scanline
+  adaptive filtering (all 5 filter types, including Paeth) per the PNG
+  spec's reference algorithm — the same "hand-write the bytes, no
+  library" approach `simple-pdf.ts` already established, extended rather
+  than abandoned for an `sharp`/`pngjs` dependency. Only supports 8-bit,
+  non-interlaced RGB/RGBA (the two shapes real image editors actually
+  export) — throws rather than silently mis-decoding anything else.
+  Also exports `downsamplePngBoxFilter()`, a simple integer-factor
+  box-average downsampler, since `public/afs-logo-512.png` turned out
+  (confirmed via a raw hex dump of its IHDR chunk — its filename does
+  not match its real dimensions) to actually be 1024×1024, far more
+  resolution than a letterhead-sized print logo needs.
+- `lib/utils/simple-pdf.ts` extended, backward-compatibly (every
+  existing invoice/statement call site still works unchanged):
+  pagination (breaks to a new page whenever the next line would cross
+  the bottom margin — invoices always fit on one page so this was never
+  needed before; a bid document's section/line-item count is unbounded)
+  and an optional embedded logo image (`opts.logo`) — a real Image
+  XObject (+ SMask for the alpha channel) drawn on page 1 only,
+  independent of the text cursor, built by deflating the decoded PNG's
+  raw RGB/alpha planes with `zlib.deflateSync` (valid PDF `/FlateDecode`
+  image data). `PAGE_WIDTH`/`MARGIN_LEFT` now exported so callers can
+  position a logo against the same page geometry instead of duplicating
+  magic numbers.
+- `lib/utils/bid-document-pdf.ts` (new) — `buildBidDocumentPdfLines()` /
+  `generateBidDocumentPDF()`, the exact same split
+  `invoice-pdf.ts` uses. Reads the real
+  `public/afs-logo-512.png` asset once (memoized), downsamples it 4x
+  (→256×256), and renders: AFS header with the logo top-right,
+  project/GC-contact block, bid date, one repeating group per
+  work-description section (hand-priced qty/spec/unit-price/
+  extended-price rows, mono-column-aligned the same way invoice line
+  items already are), subtotal, tax-note/delivery-terms/price-validity
+  disclaimers, and the free-text customer note.
+- `lib/utils/bid-document-email.ts` (new) — `sendBidDocumentEmail()`,
+  mirroring `sendInvoiceEmail()`'s shape: service-role client throughout
+  (no customer session — a bid document has no account-holder
+  recipient), validates a GC contact email is on file and at least one
+  priced line item exists, generates the PDF, sends via the *existing*
+  `lib/resend/send.ts`/`lib/resend/templates/base.ts` (no second
+  email-sending path built), attaches the PDF, flips
+  `bid_documents.status` to `'sent'` + sets `sent_at` on success, and
+  logs every attempt (success or failure) via the existing
+  `logAdminAction()` helper — `admin_audit_log`, not `notifications`,
+  since a bid document has no `order_id`/`user_id` to hang a
+  notification off of.
+- Two new routes: `GET .../[id]/pdf` (any operator/admin, streams the
+  PDF inline — the "generate the PDF for review" approval step) and
+  `POST .../[id]/send` (`requireOperatorApi`, calls
+  `sendBidDocumentEmail`). `[id]/route.ts`'s PATCH handler had `'sent'`
+  removed from its allowed status list — that transition now only
+  happens through the send route, so "sent" always means the GC
+  actually received the document, not just a status flip.
+- `BidBuilder.tsx`: new "Approval" panel between Line Items and Status —
+  a "Preview PDF" link (gated on `bid.subtotal != null`, i.e. pricing
+  entered) and a "Send to Customer" button (additionally gated on a GC
+  contact email being on file and `status === 'draft'`), replacing the
+  old bare "Mark as Sent" PATCH button. Autosave never sends anything —
+  sending is one explicit, separately-gated click.
+
+**Gates: NOT VERIFIED, same blocker.** `pnpm tsc --noEmit`, `pnpm
+--version` (checking whether pnpm was reachable at all), the same
+command again via PowerShell, via Bash with `dangerouslyDisableSandbox:
+true`, a throwaway `node` PNG-header-inspection script, and `git add` on
+a single new file were all denied outright with "This command requires
+approval." No gate result is claimed as passing. **`git add -A && git
+commit && git push` were never run either — also denied — so nothing
+from bid-doc-002/003 or this session has been committed or pushed; every
+file listed above and in the bid-doc-002/003 entry below only exists in
+the local working tree.** The generated PDF's byte structure (object
+numbering, xref offsets, PNG unfilter/Paeth math) was manually re-traced
+against spec by hand, and the code contains zero `any` types, but **the
+actual PDF output and the Resend email send were never live-verified** —
+no real PDF viewer opened the output, no real `RESEND_API_KEY` sent a
+real email. Both are code-reviewed only.
+
+---
+
+**Prior session (bid-doc-002/003 combined, 2026-07-31): built the
+full Bid Documents feature from BID_DOCUMENT_SCOPE.md — data model,
+migration, claim-lock (claim/mutual release/reclaim, automatic staleness
+release, live presence via Supabase Realtime), and the Command Center UI
+surface for viewing/claiming/editing a bid and manually pricing line
+items. PDF/print generation and email-send are explicitly out of scope
+(bid-doc-003's own document scopes those separately). Gates could not be
+run — same tool-approval blocker this file has documented across 8+ prior
+sessions.**
+
+Read `BID_DOCUMENT_SCOPE.md` in full first, per instruction, plus every
+precedent file it names (`007_delivery_tracking.sql`'s `is_operator()`,
+`ProductionQueueRealtime.tsx`, `DeliveryTrackingMap.tsx`'s
+`useLiveDriverLocation`, `MachineBridgeStatusDot.tsx`'s lazy staleness
+check, `GbpPhotosTab.tsx`, `send/route.ts`'s `nextQuoteNumber`/subtotal
+discipline, `lib/admin/pricing.ts`, `lib/admin/audit.ts`, `app/employee/
+layout.tsx`, `lib/auth/require-operator.ts`) before writing any code, to
+match this codebase's conventions exactly rather than inventing new ones.
+
+**Built exactly what that document's §2/§3/§6/§7 specify** (skipping only
+§7's print/PDF page, per this session's explicit instruction):
+- `supabase/migrations/013_bid_documents.sql` — `bid_documents`,
+  `bid_document_sections`, `bid_document_line_items`,
+  `bid_document_viewers`, verbatim per §2. RLS on all four is
+  `role IN ('operator','admin')`, not admin-only — the one deliberate
+  precedent deviation the source document calls out (§0.2: Steve is
+  scoped `operator`, and would be locked out of a feature he's named as
+  one of exactly two real users of under the admin-only pattern
+  `quotes`/`pricing_rules` use). **Not applied to the live Supabase
+  project** — pasting it in is a real next step, not done automatically,
+  per this project's established convention (a human pastes migrations
+  into the SQL Editor).
+- `lib/data/bid-documents.ts` — types, `getBidDocuments`/`getBidDocument`/
+  `nextBidNumber`, and the single shared `CLAIM_INACTIVITY_TIMEOUT_MINUTES`
+  (30) / `isClaimActive()` pair both the API routes and every render
+  import, so the staleness threshold can never drift between them (§3.3).
+- Nine new API routes under `app/api/admin/bid-documents/`: create
+  (POST), `[id]` (PATCH — header autosave + status transitions, bumps
+  `last_activity_at` on every successful call), `claim`/`release`
+  (unconditional, no 409 — per explicit "not admin-gated" instruction,
+  claim/release always succeed and always overwrite), `heartbeat`
+  (2-minute client interval), `sections` + `sections/[sectionId]/
+  line-items` (server always computes `extended_price` and recomputes
+  `bid_documents.subtotal`, never trusts a client-sent number —
+  same discipline `send/route.ts` already applies to quotes), and
+  `viewer-ping`/`viewers` (presence, §3.7). `admin_audit_log` entries on
+  claim/release/transfer via the existing `logAdminAction` helper,
+  matching `app/api/admin/customers/[id]/route.ts`'s pattern exactly.
+- Command Center: new "Bids" tab wired into `app/admin/command-center/
+  page.tsx`'s existing `CrmTab`/`CRM_TABS` (now 5), `BidsCrmTab.tsx` (list
+  + "+ New Bid" modal, following `GbpPhotosTab.tsx`'s shape), and a new
+  `AdminShell.tsx` nav entry ("📋 Bids"), matching the "🚚 Deliveries"/
+  "📸 GBP Photos" one-line-diff precedent exactly.
+- Detail/builder page: `app/admin/command-center/bids/[id]/page.tsx` +
+  `BidBuilder.tsx` — silent auto-claim on mount when unclaimed, read-only
+  rendering + "Take Over" button when actively claimed by someone else,
+  debounced header-field autosave (local state seeded once so a refresh
+  triggered by realtime never clobbers in-progress typing — read-only
+  viewers render server props directly instead, which do stay fresh),
+  work-description sections with an inline "+ Add Line" form per section,
+  claim banner + Release button, 2-minute heartbeat, `BidDocumentRealtime.
+  tsx` (claim-state refresh) and `BidDocumentViewers.tsx` (presence chips,
+  20s ping / 60s staleness) both mounted only here, and status buttons
+  (Sent/Won/Lost/Withdrawn/Expired) that only ever touch
+  `bid_documents.status` — per §5, nothing here creates an `orders`/
+  `quotes`/`quote_requests` row from an awarded bid.
+- `SCHEMA.md` (new BID DOCUMENT TABLES section, table/migration counts
+  updated to 53/13) and `supabase/README.md` (migration list + a new
+  `013_bid_documents.sql` section) updated to match, same tone/format as
+  the existing BID MONITOR TABLES section.
+
+**Known gap found, not fixed here (wider than this feature's own
+scope):** `middleware.ts`'s `isAdminRoute` branch redirects any non-
+`'admin'` role away from every `/admin/**` route. This means an operator
+like Steve cannot actually reach the Bids tab or its detail page at all
+right now, despite every RLS policy and API route in this build correctly
+being operator-inclusive per the source document's explicit instruction —
+the exact same gap that already silently affects the pre-existing GBP
+Photos CRM tab. Deciding which `/admin/**` sub-routes operators may reach
+is a real product decision `BID_DOCUMENT_SCOPE.md` never scoped, so it
+was flagged in `STATE_OF_THE_BUILD.md`'s NEXT ACTION rather than guessed
+at and silently patched.
+
+**Gates: NOT VERIFIED, reported honestly rather than guessed.**
+`pnpm tsc --noEmit` was attempted via Bash (plain and with
+`dangerouslyDisableSandbox: true`), via PowerShell (plain, with the call
+operator, and via `node node_modules/typescript/lib/tsc.js --noEmit`
+directly), and via a general-purpose subagent given the exact same two
+commands to run independently — every single attempt returned "This
+command requires approval" with no interactive prompt ever surfacing.
+`pnpm run build` was never attempted since it depends on step 1. This is
+the identical, by-now extensively documented blocker this file has logged
+across afs-cs-002, afs-ui-001, afs-e2e-002 through -004, afs-audit-001,
+afs-mb-001/002, afs-gs-001, afs-mj-001/002, and afs-mig-001 — not a new
+failure mode. In place of an actual compiler run, every new/edited file
+was manually re-read end-to-end against this project's real conventions
+(untyped `SupabaseClient` + `as`-cast interfaces exactly matching
+`lib/data/command-center-crm.ts`; `Record<Status, Variant>` badge maps
+checked for exhaustiveness against each status union; every Supabase
+`.insert()`/`.select()` chain checked against the working precedent it
+was copied from) and grepped clean of any explicit `any` type — but this
+is a manual review, not a substitute for `tsc`, and is not reported as a
+passing gate. Nothing was live-tested in a browser either — this session
+had no test credentials — so the claim/release/heartbeat/presence
+mechanics described above are implemented per spec but functionally
+unverified against a real two-tab session.
+
+**Files changed this session** (bid-doc-002/003 only — this repo's
+working tree also carries unrelated, already-uncommitted credit-
+application changes from a different task that predate this session; see
+git status, not touched here): new
+`supabase/migrations/013_bid_documents.sql`,
+`lib/data/bid-documents.ts`,
+`app/api/admin/bid-documents/route.ts`,
+`app/api/admin/bid-documents/[id]/route.ts`,
+`app/api/admin/bid-documents/[id]/claim/route.ts`,
+`app/api/admin/bid-documents/[id]/release/route.ts`,
+`app/api/admin/bid-documents/[id]/heartbeat/route.ts`,
+`app/api/admin/bid-documents/[id]/sections/route.ts`,
+`app/api/admin/bid-documents/[id]/sections/[sectionId]/line-items/route.ts`,
+`app/api/admin/bid-documents/[id]/viewer-ping/route.ts`,
+`app/api/admin/bid-documents/[id]/viewers/route.ts`,
+`app/admin/command-center/bids/[id]/page.tsx`,
+`components/admin/BidsCrmTab.tsx`, `components/admin/BidBuilder.tsx`,
+`components/admin/BidDocumentRealtime.tsx`,
+`components/admin/BidDocumentViewers.tsx`; edited
+`app/admin/command-center/page.tsx`, `components/layout/AdminShell.tsx`,
+`lib/admin/pricing.ts` (added `computeExtendedPrice`), `SCHEMA.md`,
+`supabase/README.md`. Not committed — user has not asked for a commit
+this session.
+
+---
+
+**Previous session (afs-mig-001, 2026-07-31): read MIGRATIONS_STATUS.md
 in full and re-attempted its own recommended live verification of
 migrations 007-010 — remained blocked identically to the four methods that
 doc already logged failing. Real status is still UNCONFIRMED; corrected

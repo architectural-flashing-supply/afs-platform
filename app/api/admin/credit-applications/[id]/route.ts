@@ -6,12 +6,15 @@ interface CreditDecisionInput {
   status?: 'approved' | 'denied';
   approvedLimit?: number;
   approvedTerms?: number;
+  requirePo?: boolean;
   reviewerNotes?: string | null;
 }
 
 interface CreditApplicationSource {
   id: string;
   status: string;
+  user_id: string;
+  company_id: string | null;
 }
 
 const APPROVED_TERMS_OPTIONS = [15, 30, 60];
@@ -51,7 +54,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
     const { data: existingRaw } = await supabase
       .from('credit_applications')
-      .select('id, status')
+      .select('id, status, user_id, company_id')
       .eq('id', params.id)
       .maybeSingle();
     if (!existingRaw) {
@@ -84,6 +87,54 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       beforeValue: { status: existing.status },
       afterValue: update,
     });
+
+    // Approval is supposed to set profiles.net_terms + companies.credit_limit/
+    // require_po — SPEC_ONLINE_CREDIT_APPLICATION.md §3 calls for this but the
+    // route previously only ever touched the credit_applications row itself.
+    // No company row exists for applicants who never went through Team
+    // Accounts, so the company-level write is skipped (not failed) when
+    // company_id is null — the admin review modal surfaces that gap instead.
+    if (body.status === 'approved') {
+      const { error: profileUpdateError } = await supabase
+        .from('profiles')
+        .update({ net_terms: body.approvedTerms, updated_at: new Date().toISOString() })
+        .eq('id', existing.user_id);
+      if (profileUpdateError) {
+        console.error('[Credit Application Profile Update Error]', profileUpdateError);
+        return NextResponse.json(
+          { error: 'Decision saved, but could not update the customer net terms. Please try again.' },
+          { status: 500 }
+        );
+      }
+      await logAdminAction({
+        adminId: user.id,
+        action: 'update_customer_account_settings',
+        resourceType: 'profile',
+        resourceId: existing.user_id,
+        afterValue: { netTerms: body.approvedTerms },
+      });
+
+      if (existing.company_id) {
+        const { error: companyUpdateError } = await supabase
+          .from('companies')
+          .update({ credit_limit: body.approvedLimit, require_po: body.requirePo ?? false })
+          .eq('id', existing.company_id);
+        if (companyUpdateError) {
+          console.error('[Credit Application Company Update Error]', companyUpdateError);
+          return NextResponse.json(
+            { error: 'Decision saved, but could not update the company credit limit / PO requirement. Please try again.' },
+            { status: 500 }
+          );
+        }
+        await logAdminAction({
+          adminId: user.id,
+          action: 'update_company_credit_terms',
+          resourceType: 'company',
+          resourceId: existing.company_id,
+          afterValue: { creditLimit: body.approvedLimit, requirePo: body.requirePo ?? false },
+        });
+      }
+    }
 
     return NextResponse.json({ success: true, status: body.status });
   } catch (error) {

@@ -19,6 +19,16 @@ export function computeLineTotal(unitPrice: number, quantity: number, lengthFt: 
 }
 
 /**
+ * Bid document line items (BID_DOCUMENT_SCOPE.md §1.1) are hand-priced
+ * qty/spec/unit-price rows, not configurator output — no waste factor, no
+ * billed-quantity rounding, just quantity × unit price. Extended, not
+ * duplicated, per that document's §1.3.
+ */
+export function computeExtendedPrice(quantity: number, unitPrice: number): number {
+  return round2(quantity * unitPrice);
+}
+
+/**
  * SPEC_FREIGHT_ESTIMATOR.md §4's NMFC-style freight class table. Pure
  * classification — no carrier rate data required.
  */

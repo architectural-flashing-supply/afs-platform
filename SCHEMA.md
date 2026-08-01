@@ -1,6 +1,6 @@
 # SCHEMA.md
 ## AFS — Supabase Database Schema
-**49 tables across 12 migration files. RLS on every table. Indexes on every
+**53 tables across 13 migration files. RLS on every table. Indexes on every
 foreign key and filter column.** (This document's "TABLE N" numbering below
 covers the original 25 sections designed in migration 001 — several of
 those sections define more than one physical table, e.g. TABLE 8 =
@@ -13,9 +13,10 @@ additions (no new tables — see the MIGRATION FILE LOCATION table below).
 The BID MONITOR section adds 4 more tables via migration 010. Migration
 011 is constraint-only (no new tables, no new columns — see TABLE 18
 below). Migration 012 is column-only (adds `machine_jobs.
-used_fallback_geometry` — see MACHINE BRIDGE TABLES). 49 is the table
+used_fallback_geometry` — see MACHINE BRIDGE TABLES). The BID DOCUMENT
+TABLES section adds 4 more tables via migration 013. 53 is the table
 count `supabase/README.md` should verify against the live database once
-all 12 migrations are applied.)
+all 13 migrations are applied.)
 
 ---
 
@@ -35,6 +36,7 @@ supabase/migrations/
   010_bid_monitor.sql                  Bid Monitor — sources/projects/keywords/alerts (see BID MONITOR TABLES)
   011_orders_quote_id_unique.sql       Adds UNIQUE(orders.quote_id) — no new tables/columns (see TABLE 18)
   012_machine_jobs_fallback_geometry.sql  Adds machine_jobs.used_fallback_geometry — no new tables (see MACHINE BRIDGE TABLES)
+  013_bid_documents.sql                Bid Documents — project-level GC bid pricing (see BID DOCUMENT TABLES)
 ```
 
 Run in numeric order — see `supabase/README.md` for the exact procedure.
@@ -45,6 +47,9 @@ across two sessions (STATE_OF_THE_BUILD.md's afs-041 correction for
 forward from this line's long-stale "001–003 and 005 NOT yet applied"
 claim. 007–010's live-apply status was not independently reverified in
 this session — go by `supabase/README.md`'s own tracking, not this line.
+Migration 013 (`013_bid_documents.sql`, bid-doc-002/003) is new code as of
+this session and has not been applied to the live Supabase project — see
+`supabase/README.md`'s own note on it.
 
 **Naming note (010):** this migration was requested as
 `008_bid_monitor.sql`, but `008` and `009` were already real, applied-
@@ -1566,6 +1571,106 @@ Mapped onto `requires_membership` instead (also always false/null in the
 seed, and consistent with every note), it's self-consistent — so that's
 the mapping used in `010_bid_monitor.sql`, leaving `is_free` at its
 schema default (`true`) for all 81 rows.
+
+---
+
+## BID DOCUMENT TABLES (migration 013_bid_documents.sql)
+
+Backs project-level GC bid pricing — see `BID_DOCUMENT_SCOPE.md` for the
+full decision record; this section only restates the resulting schema, not
+the reasoning behind it. Four new tables, deliberately independent of
+`bid_projects`/`bid_sources` (BID MONITOR TABLES above — a different
+feature that discovers procurement opportunities, not one that prices a
+GC bid) and of `quote_requests`/`quotes`/`quote_line_items` (TABLE 15–17 —
+shaped around one flashing profile per line via a configurator; a bid
+document's line items are hand-typed free-text spec strings, grouped
+under work-description section headings that the quote tables have no
+equivalent of at all).
+
+```sql
+CREATE TABLE bid_documents (
+  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  bid_number         TEXT UNIQUE NOT NULL,       -- AFS-BID-2026-XXXXX
+  status             TEXT NOT NULL DEFAULT 'draft'
+                     CHECK (status IN ('draft','sent','awarded','lost','expired','withdrawn')),
+  project_name       TEXT NOT NULL,
+  gc_name            TEXT NOT NULL,               -- free text — a GC is very often not an AFS account holder
+  gc_contact_name    TEXT,
+  gc_contact_email   TEXT,
+  gc_contact_phone   TEXT,
+  project_location   TEXT,
+  bid_project_id     UUID REFERENCES bid_projects(id),  -- optional link to a Bid Monitor opportunity
+  price_valid_until  DATE,
+  delivery_terms     TEXT,
+  tax_note           TEXT NOT NULL DEFAULT 'Price excludes applicable sales tax.',
+  customer_note      TEXT,
+  subtotal           DECIMAL(10,2),                -- NULL until first line item exists
+  claimed_by         UUID REFERENCES profiles(id),
+  claimed_at         TIMESTAMPTZ,
+  last_activity_at   TIMESTAMPTZ,                  -- heartbeat; drives lazy auto-release, see below
+  created_by         UUID NOT NULL REFERENCES profiles(id),
+  sent_at            TIMESTAMPTZ,
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE bid_document_sections (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  bid_id            UUID NOT NULL REFERENCES bid_documents(id) ON DELETE CASCADE,
+  work_description  TEXT NOT NULL,                 -- e.g. "Coping Cap — North Parapet"
+  sort_order        INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE bid_document_line_items (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  section_id     UUID NOT NULL REFERENCES bid_document_sections(id) ON DELETE CASCADE,
+  quantity       DECIMAL(10,2) NOT NULL,
+  spec_text      TEXT NOT NULL,       -- free-text dimension/spec, e.g. `24 GA GALV, 12" girth, mill finish`
+  unit           TEXT NOT NULL DEFAULT 'LF',
+  unit_price     DECIMAL(10,4) NOT NULL,
+  extended_price DECIMAL(10,2) NOT NULL,   -- server-computed = round2(quantity * unit_price), never client-trusted
+  sort_order     INTEGER NOT NULL DEFAULT 0
+);
+
+-- Ephemeral presence rows — upserted on a 20s heartbeat while the builder
+-- page is mounted, best-effort deleted on unmount. Staleness (last_seen_at
+-- older than 60s) is what actually drops a closed tab from the viewer
+-- list, not row deletion.
+CREATE TABLE bid_document_viewers (
+  bid_id        UUID NOT NULL REFERENCES bid_documents(id) ON DELETE CASCADE,
+  user_id       UUID NOT NULL REFERENCES profiles(id),
+  last_seen_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (bid_id, user_id)
+);
+-- RLS on all 4 tables: operator/admin (FOR ALL), via
+-- EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('operator','admin'))
+-- — NOT the admin-only pattern quotes/pricing_rules use. Deliberate: Steve,
+-- one of exactly two named pricing staff, is scoped as 'operator', not
+-- 'admin' (007_delivery_tracking.sql's is_operator()), and must not be
+-- locked out of a feature he's named as one of the two real users of.
+```
+
+**Claim-lock is advisory, not a security boundary.** Every operator/admin
+already has full RLS read/write access to every `bid_documents` row via
+the single policy above — `claimed_by`/`claimed_at`/`last_activity_at`
+exist purely as a UI coordination signal ("someone else is actively
+working on this"), not an access gate. Per explicit business instruction,
+overriding an existing claim is not admin-gated: any eligible user can
+claim, release, or take over any bid's claim, including one currently held
+by someone else — there is no 409/"already claimed" response anywhere in
+this design. Auto-release on inactivity is computed lazily at read time
+(`isClaimActive()`, `lib/data/bid-documents.ts`, 30-minute threshold) by
+comparing `last_activity_at` against `Date.now()` — exactly the pattern
+`MachineBridgeStatusDot.tsx` already uses for its connection dot. No cron
+job ever clears these columns; a stale claim simply reads as unclaimed
+everywhere until the next successful claim overwrites it.
+
+**Presence** (`bid_document_viewers`) reuses the same `postgres_changes`
+Realtime idiom already established by `ProductionQueueRealtime.tsx` and
+`DeliveryTrackingMap.tsx`'s `useLiveDriverLocation` — a plain subscription
+over a real table that triggers a refetch on any change, not Supabase's
+separate ephemeral Presence-channel API (grepping this repo for
+`.channel(` never turns up that API anywhere).
 
 ---
 

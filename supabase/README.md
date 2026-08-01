@@ -19,6 +19,7 @@ migrations/
   010_bid_monitor.sql                  Bid Monitor — sources/projects/keywords/alerts
   011_orders_quote_id_unique.sql       Adds UNIQUE(orders.quote_id) — real double-insert guard for createOrderFromQuote()
   012_machine_jobs_fallback_geometry.sql  Adds machine_jobs.used_fallback_geometry — visible flag for the approve-quote-request route's placeholder-dimension fallback
+  013_bid_documents.sql                Bid Documents — bid_documents/bid_document_sections/bid_document_line_items/bid_document_viewers (project-level GC bid pricing, Command Center "Bids" tab)
 ```
 
 Run them in numeric order. Each file is idempotent-safe to re-run only where it
@@ -131,6 +132,18 @@ SCHEMA.md's CANONICAL PROFILE LIBRARY TABLE section and
 STATE_OF_THE_BUILD.md's CANONICAL PROFILE LIBRARY section for full detail,
 including why FlashDraft's "Load into FlashDraft" path uses the stored
 `points` directly rather than reconstructing from `bends`.
+
+## 013_bid_documents.sql — Bid Documents
+
+Also **not** run automatically — paste it into the SQL Editor. Adds
+`bid_documents` (header + claim-lock columns), `bid_document_sections`
+(work-description groupings), `bid_document_line_items` (hand-priced
+qty/spec/unit-price rows — server always computes `extended_price`, never
+trusts a client-sent value), and `bid_document_viewers` (ephemeral
+presence pings). RLS on all four is `role IN ('operator','admin')`, not
+admin-only — see `BID_DOCUMENT_SCOPE.md` §0.2 and SCHEMA.md's BID DOCUMENT
+TABLES section for why. No seed data. Not yet applied to the live project
+as of this writing.
 
 ## Option B — Supabase CLI
 

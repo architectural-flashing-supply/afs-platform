@@ -12,13 +12,27 @@ interface CreditApplicationReviewModalProps {
 const inputClass =
   'w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-data';
 const labelClass = 'font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-1.5';
+const sectionLabelClass = 'font-label text-xs uppercase tracking-wide text-afs-chrome-high mb-2 pt-4 border-t border-afs-border';
+const dtClass = 'font-body text-xs text-afs-chrome-mid';
+const ddClass = 'font-body text-sm text-afs-chrome-high';
+
+function Field({ label, value }: { label: string; value: string | null | undefined }) {
+  return (
+    <div>
+      <dt className={dtClass}>{label}</dt>
+      <dd className={ddClass}>{value?.trim() ? value : '—'}</dd>
+    </div>
+  );
+}
 
 export default function CreditApplicationReviewModal({ application, onClose }: CreditApplicationReviewModalProps) {
   const router = useRouter();
+  const data = application.applicationData;
   const [approvedLimit, setApprovedLimit] = useState(
     application.requestedLimit != null ? String(application.requestedLimit) : ''
   );
   const [approvedTerms, setApprovedTerms] = useState(String(application.requestedTerms ?? 30));
+  const [requirePo, setRequirePo] = useState(data?.poRequired ?? false);
   const [reviewerNotes, setReviewerNotes] = useState(application.reviewerNotes ?? '');
   const [submitting, setSubmitting] = useState<'approve' | 'deny' | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -36,14 +50,15 @@ export default function CreditApplicationReviewModal({ application, onClose }: C
                 status: 'approved',
                 approvedLimit: Number(approvedLimit),
                 approvedTerms: Number(approvedTerms),
+                requirePo,
                 reviewerNotes: reviewerNotes.trim() || null,
               }
             : { status: 'denied', reviewerNotes: reviewerNotes.trim() || null }
         ),
       });
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      const resData = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
-        setError(data.error ?? 'Could not save this decision.');
+        setError(resData.error ?? 'Could not save this decision.');
         setSubmitting(null);
         return;
       }
@@ -58,11 +73,11 @@ export default function CreditApplicationReviewModal({ application, onClose }: C
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-afs-bg-modal" onClick={onClose} />
-      <div className="relative bg-afs-bg-raised border border-afs-border rounded max-w-md w-full p-6">
+      <div className="relative bg-afs-bg-raised border border-afs-border rounded max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
         <h2 className="font-heading text-xl text-afs-chrome-high mb-1">Review Credit Application</h2>
-        <p className="font-body text-sm text-afs-chrome-mid mb-6">{application.companyName}</p>
+        <p className="font-body text-sm text-afs-chrome-mid mb-4">{application.companyName}</p>
 
-        <dl className="grid grid-cols-2 gap-3 mb-6 font-body text-sm">
+        <dl className="grid grid-cols-2 gap-3 mb-2 font-body text-sm">
           <div>
             <dt className="text-afs-chrome-mid">Requested Limit</dt>
             <dd className="font-data text-afs-chrome-high">
@@ -77,7 +92,96 @@ export default function CreditApplicationReviewModal({ application, onClose }: C
           </div>
         </dl>
 
-        <div className="grid grid-cols-2 gap-4 mb-4">
+        {data && (
+          <div className="flex flex-col gap-4">
+            <div>
+              <h3 className={sectionLabelClass}>Business Contact Information</h3>
+              <dl className="grid grid-cols-2 gap-3">
+                <Field label="PO Required" value={data.poRequired ? 'Yes' : 'No'} />
+                <Field label="Company Name" value={data.legalBusinessName} />
+                <Field label="DBA" value={data.dbaName} />
+                <Field label="Phone" value={data.phone} />
+                <Field label="Fax" value={data.fax} />
+                <Field label="Email" value={data.email} />
+                <Field label="Registered Address" value={data.registeredAddress?.street} />
+                <Field label="City / State / ZIP" value={data.registeredAddress?.cityStateZip} />
+                <Field label="Date Commenced" value={data.dateCommenced} />
+                <Field label="Business Type" value={data.businessType} />
+                <Field label="EIN / Tax ID" value={data.taxId} />
+                <Field label="Annual Revenue" value={data.annualRevenue} />
+              </dl>
+            </div>
+
+            <div>
+              <h3 className={sectionLabelClass}>Business and Credit Information</h3>
+              <dl className="grid grid-cols-2 gap-3">
+                <Field label="Primary Business Address" value={data.primaryAddress?.street} />
+                <Field label="City / State / ZIP" value={data.primaryAddress?.cityStateZip} />
+                <Field label="Time at Address" value={data.timeAtAddress} />
+                <Field label="Telephone" value={data.businessTelephone} />
+                <Field label="Fax" value={data.businessFax} />
+                <Field label="Email" value={data.businessEmail} />
+                <Field label="Bank Name" value={data.bankName} />
+                <Field label="Bank Phone" value={data.bankPhone} />
+                <Field label="Bank Address" value={data.bankAddress} />
+                <Field label="Bank City / State / ZIP" value={data.bankCityStateZip} />
+                <Field label="Savings Acct #" value={data.bankAccounts?.savingsAccountNumber} />
+                <Field label="Checking Acct #" value={data.bankAccounts?.checkingAccountNumber} />
+                <Field label="Other Acct #" value={data.bankAccounts?.otherAccountNumber} />
+              </dl>
+            </div>
+
+            <div>
+              <h3 className={sectionLabelClass}>Trade References</h3>
+              <div className="flex flex-col gap-2">
+                {(data.tradeReferences ?? []).map((ref, i) => (
+                  <div key={i} className="border border-afs-border rounded p-3">
+                    <dl className="grid grid-cols-2 gap-2">
+                      <Field label="Company" value={ref.businessName} />
+                      <Field label="Type of Account" value={ref.accountType} />
+                      <Field label="Address" value={ref.address} />
+                      <Field label="City / State / ZIP" value={ref.cityStateZip} />
+                      <Field label="Phone" value={ref.phone} />
+                      <Field label="Fax" value={ref.fax} />
+                      <Field label="Email" value={ref.email} />
+                    </dl>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <h3 className={sectionLabelClass}>Agreement</h3>
+              <dl className="grid grid-cols-2 gap-3">
+                <Field label="Certification Accepted" value={data.certificationAccepted ? 'Yes' : 'No'} />
+                <Field label="Terms Version" value={data.agreementTermsVersion} />
+              </dl>
+            </div>
+
+            <div>
+              <h3 className={sectionLabelClass}>Signatures</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="border border-afs-border rounded p-3">
+                  <dl className="grid gap-2">
+                    <Field label="Signature 1 — Name" value={data.signerOne?.name} />
+                    <Field label="Title" value={data.signerOne?.title} />
+                    <Field label="Signed" value={data.signerOne?.signatureTyped} />
+                  </dl>
+                </div>
+                <div className="border border-afs-border rounded p-3">
+                  <dl className="grid gap-2">
+                    <Field label="Signature 2 — Name" value={data.signerTwo?.name} />
+                    <Field label="Title" value={data.signerTwo?.title} />
+                    <Field label="Signed" value={data.signerTwo?.signatureTyped} />
+                  </dl>
+                </div>
+              </div>
+              <p className="font-body text-xs text-afs-chrome-dim mt-2">Signed {data.signedAt ?? '—'}</p>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-afs-border">
           <div>
             <label className={labelClass} htmlFor="approved-limit">
               Approved Limit ($)
@@ -109,7 +213,26 @@ export default function CreditApplicationReviewModal({ application, onClose }: C
           </div>
         </div>
 
-        <div className="mb-6">
+        <div className="mt-4">
+          {application.companyId ? (
+            <label className="flex items-center gap-3 font-body text-sm text-afs-chrome-mid">
+              <input
+                type="checkbox"
+                checked={requirePo}
+                onChange={(e) => setRequirePo(e.target.checked)}
+                className="accent-afs-crimson"
+              />
+              Require PO Number on all orders for this company
+            </label>
+          ) : (
+            <p className="font-body text-xs text-afs-chrome-dim bg-afs-bg-overlay border border-afs-border rounded p-3">
+              No company on file — PO requirement and credit limit must be set manually once this customer has a
+              company (via Team Accounts).
+            </p>
+          )}
+        </div>
+
+        <div className="mb-2 mt-4">
           <label className={labelClass} htmlFor="reviewer-notes">
             Reviewer Notes
           </label>
@@ -125,7 +248,7 @@ export default function CreditApplicationReviewModal({ application, onClose }: C
 
         {error && <p className="font-body text-xs text-afs-crimson mb-3">{error}</p>}
 
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3 pt-2">
           <button
             type="button"
             onClick={onClose}
