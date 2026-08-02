@@ -81,11 +81,11 @@ export default async function AdminQuoteRequestDetailPage({ params }: { params: 
 
   const weightReference: WeightReferenceGauge[] = (gaugeRows ?? [])
     .filter(
-      (row): row is { label: string; weight_lbs_sqft: number; materials: { name: string } } =>
-        row.weight_lbs_sqft != null && row.materials != null
+      (row): row is { label: string; weight_lbs_sqft: number; materials: { name: string }[] } =>
+        row.weight_lbs_sqft != null && row.materials != null && row.materials[0] != null
     )
     .map((row) => ({
-      materialName: row.materials.name,
+      materialName: row.materials[0].name,
       gaugeLabel: row.label,
       weightLbsPerSqft: row.weight_lbs_sqft,
     }));

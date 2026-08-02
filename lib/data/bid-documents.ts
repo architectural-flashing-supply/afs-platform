@@ -155,7 +155,7 @@ export async function getBidDocument(supabase: SupabaseClient, id: string): Prom
     .eq('id', id)
     .maybeSingle();
   if (bidError || !bidRaw) return null;
-  const bid = bidRaw as BidDocumentSource;
+  const bid = bidRaw as unknown as BidDocumentSource;
 
   const [{ data: sectionRows }, nameById] = await Promise.all([
     supabase

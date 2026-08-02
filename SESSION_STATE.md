@@ -7,7 +7,54 @@
 
 ## CURRENT STATUS
 
-**Most recent session (bid-doc-004, 2026-07-31): built the two pieces
+**Most recent session (ts-fix-weightref-001, 2026-08-02): fixed a TS2677
+compile error and confirmed `pnpm tsc --noEmit` is clean.**
+
+`app/admin/quote-requests/[id]/page.tsx`'s `weightReference` build (was
+lines 82-87) filtered `gaugeRows` with a type predicate declaring the
+joined `gauges → materials` relation as a single object
+(`{ name: string }`); Supabase/PostgREST returns joined relations as
+arrays (`{ name: string }[]`), so the predicate's asserted type wasn't
+assignable to the row's real inferred type — "Type predicate's type must
+be assignable to its parameter's type." Fixed the predicate to
+`materials: { name: string }[]` (checking `row.materials[0] != null`) and
+the downstream `.map()` to read `row.materials[0].name` instead of
+`row.materials.name`.
+
+Grepped the rest of the codebase for the same pattern (any other type
+predicate or destructure assuming a joined Supabase relation is a single
+object when it's actually an array). Spawned an Explore agent to check
+every other `.select()` call with a nested `field(...)` embed
+(`lib/data/admin.ts`, `orders.ts`, `customers.ts`, `pricing.ts`,
+`product-stock.ts`, `credit.ts`, `bid-monitor.ts`,
+`app/studio/library/page.tsx`, both architects pages, etc.) against the
+real FK direction in `supabase/migrations/001_initial_schema.sql` — every
+other one already matches its real to-one/to-many cardinality (to-one FKs
+like `products.material_id → materials.id` are correctly consumed as
+singular objects; genuine to-many relations like `pricing_rules` or
+`order_line_items` are already typed/indexed as arrays). No other instance
+of this bug found. One unrelated, pre-existing note surfaced during that
+audit: `lib/data/credit.ts`'s `credit_applications` select uses a bare
+`profiles(full_name, company)` even though the table has two FKs into
+`profiles` (`user_id` and `reviewer_id`) — not this bug, but a latent
+`PGRST201` ambiguous-embed risk once `reviewer_id` is populated with real
+data; worth a follow-up `profiles!user_id(...)` disambiguation, not fixed
+here since it was out of scope.
+
+Also fixed one unrelated, pre-existing TS2352 error found while getting
+`pnpm tsc --noEmit` to 0 errors: `lib/data/bid-documents.ts`'s
+`getBidDocument()` did `bidRaw as BidDocumentSource` directly, which
+TypeScript flagged as too lossy a cast; changed to
+`bidRaw as unknown as BidDocumentSource`, the same double-cast pattern
+this repo already uses in the quote-requests file above.
+
+**Gates: `pnpm tsc --noEmit` run directly and passed with 0 errors** — no
+tool-approval blocker this session, unlike the 8+ prior sessions logged
+below.
+
+---
+
+**Most recent session before that (bid-doc-004, 2026-07-31): built the two pieces
 bid-doc-002/003 explicitly deferred — real PDF generation for the bid
 document and real Resend email delivery to the GC. Gates could not be
 run and nothing could be committed/pushed — same tool-approval blocker

@@ -7,6 +7,32 @@
 ## OVERALL STATUS
 
 ```
+TS compile fix           NEW (ts-fix-weightref-001, 2026-08-02) — fixed the
+(ts-fix-weightref-001): TS2677 compile error in `app/admin/quote-requests/
+                         [id]/page.tsx`: the `weightReference` filter/type
+                         predicate (around what was line 82-87) declared
+                         `gaugeRows`' joined `materials` relation as a
+                         single object (`{ name: string }`), but Supabase
+                         returns joined relations as arrays
+                         (`{ name: string }[]`) — predicate and the
+                         downstream `.map()` now read `row.materials[0]`/
+                         `row.materials[0]?.name` instead of treating it as
+                         a single object. Repo-wide grep for the same
+                         pattern (an Explore agent cross-checked every
+                         other joined `.select()` against its real FK
+                         direction in `supabase/migrations/001_initial_
+                         schema.sql`) found no other occurrence — every
+                         other embedded-relation consumer in the codebase
+                         already matches its real to-one/to-many
+                         cardinality. Also fixed one unrelated, pre-existing
+                         TS2352 error in `lib/data/bid-documents.ts`
+                         (`bidRaw as BidDocumentSource` needed the
+                         `as unknown as` double-cast this repo already uses
+                         elsewhere for the same reason) so `pnpm tsc
+                         --noEmit` reports 0 errors overall, not just at the
+                         reported location. Gates: `pnpm tsc --noEmit` run
+                         directly and passed (0 errors) — no tool-approval
+                         blocker this session.
 Governance documents:    COMPLETE (12 files)
 Feature specs:           COMPLETE (52 files)
 FORGE queue:             Phase 8 built (QuickBooks stubbed/deferred, Vercel deploy
