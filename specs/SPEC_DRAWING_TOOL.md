@@ -32,7 +32,7 @@ for less capable tools. AFS provides this as part of the platform.
 | PNG / JPEG / WEBP | .png .jpg .jpeg .webp | Direct AI vision |
 | TIFF | .tiff .tif | Convert to PNG → AI vision |
 
-**Limits:** 50MB per file. 20 pages maximum per upload. 1 concurrent upload per session.
+**Limits:** 50MB per file. 100 pages maximum per upload. 1 concurrent upload per session.
 
 ---
 
@@ -293,9 +293,20 @@ interface UploadResponse {
 
 ```typescript
 interface TakeoffRequest {
-  uploadId:   string;
-  storageKey: string;
-  fileType:   string;
+  uploadId:       string;
+  storageKey:     string;
+  fileType:       string;
+  scopeDirective?: ScopeDirective;
+}
+
+// scopeDirective narrows what the AI extracts — see "SCOPE DIRECTIVE" below.
+// It is passed through the request/response cycle only; it is NOT persisted
+// to takeoff_uploads.
+type ScopeOption = 'full' | 'roof' | 'flashing' | 'roof_flashing' | 'custom';
+
+interface ScopeDirective {
+  option:      ScopeOption;
+  customText?: string; // required (non-empty) when option === 'custom'
 }
 
 // Server-side process:
@@ -324,9 +335,39 @@ interface TakeoffResponse {
   pagesProcessed:   number;
   processingNotes:  string | null;
   status:           'success' | 'partial' | 'failed';
+  scopeDirective:   ScopeDirective | null;
   error?:           string;
 }
 ```
+
+---
+
+## 3A. SCOPE DIRECTIVE
+
+Shown on `/upload` before processing begins — a required single-select control:
+
+```
+"Full Takeoff (all sheet metal)"        (default)
+"Roof Only"
+"Flashing & Components Only"
+"Roof + Flashing Combined"
+"Custom"  → reveals a free-text textarea, max 300 chars,
+            placeholder: "e.g. Only the north and east parapet
+            details on sheet A3.1"
+```
+
+The selection is sent as `scopeDirective` in the `POST /api/takeoff` body (see
+Section 2 interfaces above). Server-side, a SCOPE_CONSTRAINT block is injected
+into TAKEOFF_SYSTEM_PROMPT ahead of the extraction rules, worded per the
+selected option (e.g. "Roof Only" instructs the AI to extract only roofing
+items and to note in `processingNotes` what was excluded and why). "Full
+Takeoff" injects no constraint — the default behavior is unchanged. "Custom"
+injects the user's free text verbatim, wrapped to make clear it LIMITS scope
+rather than expands it.
+
+`processingNotes` in the response always reports what was excluded due to
+scope (not just what was included), so a user bidding a partial scope can
+confirm the AI filtered correctly rather than missed something.
 
 ### `POST /api/quote-requests`
 

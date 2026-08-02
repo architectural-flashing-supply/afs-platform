@@ -7,6 +7,64 @@
 ## OVERALL STATUS
 
 ```
+Blueprint Takeoff scope  NEW (takeoff-scope-001, 2026-08-02) — two changes to
++ page limit:            the Blueprint Takeoff AI (`/upload`), per
+(takeoff-scope-001)      SPEC_DRAWING_TOOL.md:
+                         1. PAGE LIMIT raised 20 → 100. Discovered no page
+                            count was actually enforced anywhere in code —
+                            `/api/takeoff/route.ts` sent the whole PDF to
+                            Claude as a single `document` block and hardcoded
+                            `pagesProcessed: 1`; "20 pages maximum" was only
+                            spec prose. Added real enforcement: `pdf-lib`
+                            (new dependency) counts pages in
+                            `app/api/upload/route.ts` right after the
+                            existing 50MB check, before the file is stored,
+                            rejecting PDFs over `MAX_PAGES = 100` with
+                            `PDF exceeds 100 page limit. Your file has N
+                            pages.` — same 400-response pattern as the
+                            existing oversized-file message. Corrupted/
+                            encrypted PDFs that fail to parse get a distinct
+                            400 rather than silently passing through.
+                            SPEC_DRAWING_TOOL.md's limits line updated to
+                            match.
+                         2. SCOPE DIRECTIVE added: a required single-select
+                            control (Full Takeoff / Roof Only / Flashing &
+                            Components Only / Roof + Flashing Combined /
+                            Custom) now renders on `/upload` before
+                            processing begins. Selection is sent as
+                            `scopeDirective` in the `POST /api/takeoff` body
+                            (`ScopeOption`/`ScopeDirective` types exported
+                            from `app/api/takeoff/route.ts`, imported as
+                            `import type` into the client page so no server
+                            code reaches the bundle). Server splits
+                            `TAKEOFF_SYSTEM_PROMPT` into an intro + rules
+                            pair and injects a `SCOPE_CONSTRAINT` block
+                            between them per the selected option; "Full
+                            Takeoff" injects nothing (unchanged default
+                            behavior); "Custom" injects the user's free text
+                            (300-char max, enforced client-side) wrapped to
+                            read as a LIMIT on scope, not an expansion. Every
+                            non-full constraint instructs the AI to report
+                            exclusions in `processingNotes`, which the
+                            existing results panel already renders. Not
+                            persisted to `takeoff_uploads` — request/response
+                            only, per instruction.
+                         Incidental fix: `app/upload/page.tsx`'s
+                         `POST /api/takeoff` call was pre-existing broken —
+                         it sent `{ fileBase64, fileType, filename }`, but
+                         the route only ever read `{ uploadId, storageKey,
+                         fileType }` and 400'd on every real request (dead
+                         `FileReader`/base64 code, never reached because the
+                         upload response's `uploadId`/`storageKey` were
+                         never captured). Fixed so the client actually sends
+                         what the route expects — otherwise the new scope
+                         control had no working request to attach to.
+                         SCOPE OUT (user-confirmed): Photo-to-Quote AI has
+                         no code yet — no tab, no upload UI, no API route,
+                         just SPEC_PHOTO_TO_QUOTE_AI.md prose. The scope-
+                         directive control was NOT added there; building the
+                         feature itself is separate, larger work.
+                         Gates: `pnpm tsc --noEmit` run directly, 0 errors.
 TS compile fix           NEW (ts-fix-weightref-001, 2026-08-02) — fixed the
 (ts-fix-weightref-001): TS2677 compile error in `app/admin/quote-requests/
                          [id]/page.tsx`: the `weightReference` filter/type

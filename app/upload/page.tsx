@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { gaugeToThicknessMm } from '@/lib/utils/gauge-thickness';
 import ProfileViewer3D, { type ProfileBend } from '@/components/studio/ProfileViewer3D';
+import type { ScopeOption, ScopeDirective } from '@/app/api/takeoff/route';
 
 const MM_PER_INCH = 25.4;
 const DEFAULT_DIMENSIONS_IN = { width: 12, legA: 2, legB: 2 };
@@ -55,7 +56,18 @@ interface TakeoffResult {
   processingNotes: string | null;
   overallConfidence: Confidence;
   status: 'success' | 'partial' | 'failed';
+  scopeDirective: ScopeDirective | null;
 }
+
+const SCOPE_DIRECTIVE_OPTIONS: { value: ScopeOption; label: string }[] = [
+  { value: 'full', label: 'Full Takeoff (all sheet metal)' },
+  { value: 'roof', label: 'Roof Only' },
+  { value: 'flashing', label: 'Flashing & Components Only' },
+  { value: 'roof_flashing', label: 'Roof + Flashing Combined' },
+  { value: 'custom', label: 'Custom' },
+];
+
+const CUSTOM_SCOPE_MAX_LENGTH = 300;
 
 interface QuoteRequestSuccessResponse {
   requestId: string;
@@ -80,6 +92,8 @@ export default function UploadPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [requestNumber, setRequestNumber] = useState<string | null>(null);
   const [viewingIndex, setViewingIndex] = useState<number | null>(null);
+  const [scopeOption, setScopeOption] = useState<ScopeOption>('full');
+  const [customScopeText, setCustomScopeText] = useState('');
 
   useEffect(() => {
     const supabase = createClient();
@@ -89,6 +103,13 @@ export default function UploadPage() {
   const handleFile = useCallback(async (file: File) => {
     setError(null);
     setFilename(file.name);
+
+    if (scopeOption === 'custom' && customScopeText.trim().length === 0) {
+      setError('Enter a custom scope description before uploading.');
+      setState('failed');
+      return;
+    }
+
     setState('uploading');
     setStage(0);
 
@@ -115,24 +136,28 @@ export default function UploadPage() {
     setState('processing');
     setStage(1);
 
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = async () => {
-      const base64 = (reader.result as string).split(',')[1];
-      setStage(2);
-      const takeoffRes = await fetch('/api/takeoff', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileBase64: base64, fileType: ext, filename: file.name }),
-      });
-      setStage(3);
-      const takeoffData: TakeoffResult = await takeoffRes.json();
-      if (!takeoffRes.ok) { setError('AI processing failed.'); setState('failed'); return; }
-      setResult(takeoffData);
-      setItems(takeoffData.items);
-      setState(takeoffData.items?.length === 0 ? 'failed' : 'results');
-    };
-  }, []);
+    const scopeDirective: ScopeDirective = scopeOption === 'custom'
+      ? { option: 'custom', customText: customScopeText.trim() }
+      : { option: scopeOption };
+
+    setStage(2);
+    const takeoffRes = await fetch('/api/takeoff', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        uploadId: uploadData.uploadId,
+        storageKey: uploadData.storageKey,
+        fileType: ext,
+        scopeDirective,
+      }),
+    });
+    setStage(3);
+    const takeoffData: TakeoffResult = await takeoffRes.json();
+    if (!takeoffRes.ok) { setError('AI processing failed.'); setState('failed'); return; }
+    setResult(takeoffData);
+    setItems(takeoffData.items);
+    setState(takeoffData.items?.length === 0 ? 'failed' : 'results');
+  }, [scopeOption, customScopeText]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -229,6 +254,68 @@ export default function UploadPage() {
             Upload a construction drawing and our AI extracts every flashing profile, dimension, and quantity automatically.
           </p>
         </div>
+
+        {/* SCOPE DIRECTIVE */}
+        {state === 'idle' && (
+          <div style={{ backgroundColor: 'var(--afs-bg-raised)', border: '1px solid var(--afs-bg-overlay)', borderRadius: '8px', padding: '24px', marginBottom: '24px' }}>
+            <label htmlFor="scope-directive-select" style={{ fontFamily: 'var(--font-barlow)', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--afs-chrome-mid)', display: 'block', marginBottom: '10px' }}>
+              Takeoff Scope
+            </label>
+            <select
+              id="scope-directive-select"
+              data-testid="scope-directive-select"
+              value={scopeOption}
+              onChange={(e) => setScopeOption(e.target.value as ScopeOption)}
+              required
+              style={{
+                width: '100%',
+                maxWidth: '420px',
+                backgroundColor: 'var(--afs-bg-base)',
+                border: '1px solid var(--afs-chrome-dim)',
+                borderRadius: '6px',
+                padding: '10px 12px',
+                color: 'var(--afs-chrome-high)',
+                fontFamily: 'var(--font-inter)',
+                fontSize: '14px',
+                outline: 'none',
+              }}
+            >
+              {SCOPE_DIRECTIVE_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+
+            {scopeOption === 'custom' && (
+              <div style={{ marginTop: '12px' }}>
+                <textarea
+                  data-testid="scope-directive-custom-text"
+                  value={customScopeText}
+                  onChange={(e) => setCustomScopeText(e.target.value.slice(0, CUSTOM_SCOPE_MAX_LENGTH))}
+                  maxLength={CUSTOM_SCOPE_MAX_LENGTH}
+                  required
+                  placeholder="e.g. Only the north and east parapet details on sheet A3.1"
+                  rows={3}
+                  style={{
+                    width: '100%',
+                    maxWidth: '520px',
+                    backgroundColor: 'var(--afs-bg-base)',
+                    border: '1px solid var(--afs-chrome-dim)',
+                    borderRadius: '6px',
+                    padding: '10px 12px',
+                    color: 'var(--afs-chrome-high)',
+                    fontFamily: 'var(--font-inter)',
+                    fontSize: '13px',
+                    outline: 'none',
+                    resize: 'vertical',
+                  }}
+                />
+                <p style={{ fontFamily: 'var(--font-inter)', fontSize: '11px', color: 'var(--afs-chrome-dim)', marginTop: '4px' }}>
+                  {customScopeText.length}/{CUSTOM_SCOPE_MAX_LENGTH}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* IDLE */}
         {state === 'idle' && (

@@ -7,7 +7,99 @@
 
 ## CURRENT STATUS
 
-**Most recent session (ts-fix-weightref-001, 2026-08-02): fixed a TS2677
+**Most recent session (takeoff-scope-001, 2026-08-02): raised the Blueprint
+Takeoff AI page limit from 20 to 100 (with real enforcement added, since
+none existed) and added a scope-selection control to `/upload`.**
+
+Two changes requested against SPEC_DRAWING_TOOL.md and
+SPEC_PHOTO_TO_QUOTE_AI.md. Before writing anything, grepped the codebase for
+"20"/"page"/"MAX_PAGES" and read `app/api/takeoff/route.ts`,
+`app/api/upload/route.ts`, and `app/upload/page.tsx` in full. Two scope
+questions surfaced that didn't match the prompt's assumptions, so I asked
+the user before proceeding rather than guessing:
+
+1. **Page limit wasn't enforced anywhere.** `/api/takeoff/route.ts` sent the
+   entire PDF to Claude as one `document` content block and hardcoded
+   `pagesProcessed: 1` — there was no page-counting logic at all, client or
+   server. "20 pages maximum" existed only as a line of prose in
+   SPEC_DRAWING_TOOL.md. User chose to build real enforcement rather than
+   just retitle the spec number.
+2. **Photo-to-Quote AI doesn't exist as code.** `app/upload/page.tsx` is a
+   single flow with no tabs — no "Upload Photos" tab, no photo upload UI, no
+   `PHOTO_SYSTEM_PROMPT` API route. SPEC_PHOTO_TO_QUOTE_AI.md describes a
+   feature that was never built. User chose to scope this session to
+   Blueprint Takeoff only and leave Photo-to-Quote as a separate future
+   task.
+
+**Built:**
+- `pdf-lib` (new dependency, `pnpm add pdf-lib`) — pure-JS PDF page
+  counting, no native build step.
+- `app/api/upload/route.ts` — added `MAX_PAGES = 100`. After the existing
+  50MB size check, if the extension is `.pdf`, loads the buffer with
+  `PDFDocument.load(buffer, { ignoreEncryption: true })` and rejects (400)
+  anything over 100 pages with
+  `PDF exceeds 100 page limit. Your file has ${pageCount} pages.` — mirrors
+  the existing `File exceeds 50MB limit. Your file is ${size}MB.` message
+  pattern exactly. A PDF that fails to parse (corrupted/password-protected)
+  gets its own 400 rather than silently reaching Claude. Runs before the
+  Supabase Storage upload, so an oversized file is never stored.
+- `app/api/takeoff/route.ts` — exported `ScopeOption`
+  (`'full' | 'roof' | 'flashing' | 'roof_flashing' | 'custom'`) and
+  `ScopeDirective` (`{ option, customText? }`) types. Split the prompt into
+  `TAKEOFF_SYSTEM_PROMPT_INTRO` (unchanged opening paragraph) and
+  `TAKEOFF_SYSTEM_PROMPT_RULES` (unchanged "PROFILE TYPES TO IDENTIFY..."
+  onward), with `buildScopeConstraintBlock()` producing the text injected
+  between them. `full` (the default) injects nothing — behavior for
+  existing/default requests is byte-for-byte unchanged. `roof` /
+  `flashing` / `roof_flashing` each get a fixed constraint paragraph
+  instructing the AI to extract only that category and to report exclusions
+  in `processingNotes`. `custom` injects the user's free text verbatim
+  inside a wrapper stating it LIMITS scope rather than expands it.
+  `scopeDirective` added to `TakeoffRequestBody` and echoed back in every
+  response branch (including the early "unsupported file type" return) so
+  the client always has a matching record of what scope was actually
+  applied.
+- `app/upload/page.tsx` — added a required `<select>` (`Full Takeoff (all
+  sheet metal)` default / `Roof Only` / `Flashing & Components Only` /
+  `Roof + Flashing Combined` / `Custom`) rendered above the dropzone,
+  visible only in the `idle` state (i.e., before processing starts).
+  Selecting `Custom` reveals a `<textarea>` capped at 300 chars
+  (`CUSTOM_SCOPE_MAX_LENGTH`) with a live character counter and the
+  specified placeholder. `handleFile()` blocks with an inline error if
+  `Custom` is selected with empty text. `ScopeOption`/`ScopeDirective` are
+  imported via `import type { ... } from '@/app/api/takeoff/route'` — a
+  type-only import, so it compiles away and no server code (the Anthropic
+  client, admin Supabase client) reaches the client bundle.
+  - **Incidental fix, same file:** the `POST /api/takeoff` call was already
+    broken before this session — it sent
+    `{ fileBase64, fileType, filename }` via a `FileReader`, but the route
+    only ever read `{ uploadId, storageKey, fileType }` from the body and
+    would 400 on every real submission (`uploadData.uploadId`/
+    `storageKey` from the `/api/upload` response were computed but never
+    used). Every Blueprint Takeoff request was failing end-to-end before
+    this fix. Rewrote `handleFile()` to a single sequential `async`
+    function that forwards the real `uploadId`/`storageKey` from
+    `/api/upload`'s response, plus the new `scopeDirective` — this was
+    necessary to have anything to test the new control against, not a
+    drive-by refactor.
+- `specs/SPEC_DRAWING_TOOL.md` — "20 pages maximum" → "100 pages maximum";
+  added `scopeDirective`/`ScopeOption`/`ScopeDirective` to the documented
+  `TakeoffRequest`/`TakeoffResponse` interfaces; added a new "3A. SCOPE
+  DIRECTIVE" section describing the control and server-side behavior.
+
+**Not done (explicitly out of scope, per user's own choice above):**
+Photo-to-Quote AI tab/UI/API route were not built, so no scope-directive
+control exists there yet. `SPEC_PHOTO_TO_QUOTE_AI.md` was left unmodified.
+No new Playwright coverage was added for `/upload` — `tests/e2e/` has no
+`upload.spec.ts` today (SPEC_DRAWING_TOOL.md's Playwright block, like the
+20-page limit, was pseudocode that was never turned into a real test file);
+not in scope for this prompt.
+
+**Gates: `pnpm tsc --noEmit` run directly and passed with 0 errors.**
+
+---
+
+**Session before that (ts-fix-weightref-001, 2026-08-02): fixed a TS2677
 compile error and confirmed `pnpm tsc --noEmit` is clean.**
 
 `app/admin/quote-requests/[id]/page.tsx`'s `weightReference` build (was

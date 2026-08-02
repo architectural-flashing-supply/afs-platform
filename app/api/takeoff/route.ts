@@ -2,8 +2,35 @@ import { NextRequest, NextResponse } from 'next/server';
 import { anthropic } from '@/lib/anthropic/client';
 import { createAdminClient } from '@/lib/supabase/admin';
 
-const TAKEOFF_SYSTEM_PROMPT = `You are a construction drawing analyzer for AFS Architectural Flashing Supply, a sheet metal fabricator. Your job is to read architectural drawings and extract all flashing and sheet metal details into a structured specification.
+export type ScopeOption = 'full' | 'roof' | 'flashing' | 'roof_flashing' | 'custom';
 
+export interface ScopeDirective {
+  option: ScopeOption;
+  customText?: string;
+}
+
+const SCOPE_CONSTRAINT_TEXT: Record<Exclude<ScopeOption, 'full' | 'custom'>, string> = {
+  roof: 'Only extract items related to roofing systems. Do not extract flashing, coping, or other sheet metal details unless they are integral roofing components. If the drawing contains other categories, note what was excluded and why in processingNotes.',
+  flashing: 'Only extract flashing and sheet metal component items (coping caps, base flashing, counter flashing, step flashing, drip edge, gravel stop, expansion joints, reglets, through-wall flashing, valley flashing). Do not extract roofing membrane, decking, or other non-flashing roofing systems. If the drawing contains other categories, note what was excluded and why in processingNotes.',
+  roof_flashing: 'Extract both roofing system items and flashing/sheet metal component items. Do not extract unrelated categories (structural framing, MEP, glazing, etc.) unless they are integral to a roofing or flashing assembly. If the drawing contains other categories, note what was excluded and why in processingNotes.',
+};
+
+function buildScopeConstraintBlock(scopeDirective?: ScopeDirective): string {
+  if (!scopeDirective || scopeDirective.option === 'full') return '';
+
+  if (scopeDirective.option === 'custom') {
+    const customText = (scopeDirective.customText ?? '').trim();
+    if (!customText) return '';
+    return `\nSCOPE_CONSTRAINT — read before extracting:\nThis constraint LIMITS what you extract from the drawing; it does not expand the categories listed below. Only extract items matching the following user-specified scope: "${customText}". If the drawing contains items outside this scope, note what was excluded and why in processingNotes.\n\n`;
+  }
+
+  return `\nSCOPE_CONSTRAINT — read before extracting:\n${SCOPE_CONSTRAINT_TEXT[scopeDirective.option]}\n\n`;
+}
+
+const TAKEOFF_SYSTEM_PROMPT_INTRO = `You are a construction drawing analyzer for AFS Architectural Flashing Supply, a sheet metal fabricator. Your job is to read architectural drawings and extract all flashing and sheet metal details into a structured specification.
+`;
+
+const TAKEOFF_SYSTEM_PROMPT_RULES = `
 PROFILE TYPES TO IDENTIFY:
 - Coping Cap (parapet cap) — note width, height, leg lengths
 - Base Flashing — note height, leg lengths
@@ -51,10 +78,15 @@ RETURN ONLY valid JSON, no prose, no markdown, no code fences:
 
 If no flashing details found: { "items": [], "processingNotes": "No flashing details identified.", "overallConfidence": "low" }`;
 
+function buildTakeoffSystemPrompt(scopeDirective?: ScopeDirective): string {
+  return TAKEOFF_SYSTEM_PROMPT_INTRO + buildScopeConstraintBlock(scopeDirective) + TAKEOFF_SYSTEM_PROMPT_RULES;
+}
+
 interface TakeoffRequestBody {
   uploadId: string;
   storageKey: string;
   fileType: string;
+  scopeDirective?: ScopeDirective;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -64,7 +96,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const body: TakeoffRequestBody = await request.json();
     uploadId = body.uploadId;
-    const { storageKey, fileType } = body;
+    const { storageKey, fileType, scopeDirective } = body;
 
     if (!uploadId || !storageKey || !fileType) {
       return NextResponse.json({ error: 'Missing uploadId, storageKey, or fileType' }, { status: 400 });
@@ -99,6 +131,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         pagesProcessed: 0,
         processingNotes,
         status: 'partial',
+        scopeDirective: scopeDirective ?? null,
       });
     }
 
@@ -127,7 +160,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 4096,
-      system: TAKEOFF_SYSTEM_PROMPT,
+      system: buildTakeoffSystemPrompt(scopeDirective),
       messages: [{
         role: 'user',
         content: [
@@ -172,6 +205,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       pagesProcessed: 1,
       processingNotes: result.processingNotes ?? null,
       status,
+      scopeDirective: scopeDirective ?? null,
     });
 
   } catch (error) {

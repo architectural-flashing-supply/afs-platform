@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { PDFDocument } from 'pdf-lib';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -7,6 +8,7 @@ const ACCEPTED_EXTENSIONS = [
 ];
 
 const MAX_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_PAGES = 100;
 
 function sanitizeFilename(filename: string): string {
   return filename.replace(/[^a-zA-Z0-9.\-_]/g, '_').replace(/_+/g, '_');
@@ -45,6 +47,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const storageKey = `blueprints/${userId ?? 'guest'}/${uploadId}/${sanitizedFilename}`;
 
     const buffer = Buffer.from(await file.arrayBuffer());
+
+    if (ext === '.pdf') {
+      let pageCount: number;
+      try {
+        const pdfDoc = await PDFDocument.load(buffer, { ignoreEncryption: true });
+        pageCount = pdfDoc.getPageCount();
+      } catch (pdfError) {
+        console.error('[Upload PDF Parse Error]', pdfError);
+        return NextResponse.json({
+          error: 'Could not read this PDF. It may be corrupted or password-protected.'
+        }, { status: 400 });
+      }
+
+      if (pageCount > MAX_PAGES) {
+        return NextResponse.json({
+          error: `PDF exceeds ${MAX_PAGES} page limit. Your file has ${pageCount} pages.`
+        }, { status: 400 });
+      }
+    }
+
     const admin = createAdminClient();
 
     const { error: storageError } = await admin.storage
