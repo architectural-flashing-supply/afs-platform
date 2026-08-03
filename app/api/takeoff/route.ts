@@ -29,6 +29,8 @@ function buildScopeConstraintBlock(scopeDirective?: ScopeDirective): string {
 }
 
 const TAKEOFF_SYSTEM_PROMPT_INTRO = `You are a construction drawing analyzer for AFS Architectural Flashing Supply, a sheet metal fabricator. Your job is to read architectural drawings and extract all flashing and sheet metal details into a structured specification.
+
+You must review every page of this document individually before responding. For each page, note any flashing or sheet metal callout, even if partial or unclear. Do not stop after finding the first few items -- continue through the entire document. List every distinct occurrence, even if the same profile type appears on multiple sheets.
 `;
 
 const TAKEOFF_SYSTEM_PROMPT_RULES = `
@@ -54,6 +56,8 @@ FOR EACH ITEM EXTRACT:
 7. Confidence: high, medium, or low
 8. Note the drawing sheet and detail reference if visible
 
+Architectural CD sets often omit fabrication-level specs and leave them to the fabricator. When material, gauge, or a dimension genuinely is not specified on the drawing, set that field to null -- do not omit the item for lack of dimensional detail. Report the item's existence, its sheet/location, and profile type even when every other field is null.
+
 RETURN ONLY valid JSON, no prose, no markdown, no code fences:
 {
   "items": [
@@ -77,7 +81,9 @@ RETURN ONLY valid JSON, no prose, no markdown, no code fences:
   "overallConfidence": "medium"
 }
 
-If no flashing details found: { "items": [], "processingNotes": "No flashing details identified.", "overallConfidence": "low" }`;
+If no flashing details found: { "items": [], "processingNotes": "No flashing details identified.", "overallConfidence": "low" }
+
+Before responding, confirm you have checked all pages and listed every distinct flashing item found, not just the clearest examples.`;
 
 function buildTakeoffSystemPrompt(scopeDirective?: ScopeDirective): string {
   return TAKEOFF_SYSTEM_PROMPT_INTRO + buildScopeConstraintBlock(scopeDirective) + TAKEOFF_SYSTEM_PROMPT_RULES;
@@ -190,7 +196,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 4096,
+      max_tokens: 8000,
       system: buildTakeoffSystemPrompt(scopeDirective),
       messages: [{
         role: 'user',

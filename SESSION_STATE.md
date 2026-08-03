@@ -7,7 +7,56 @@
 
 ## CURRENT STATUS
 
-**Most recent session (takeoff-scope-001, 2026-08-02): raised the Blueprint
+**Most recent session (takeoff-coverage-001, 2026-08-03): fixed a systematic
+extraction-coverage gap in the Blueprint Takeoff AI — on a real 20-page
+combined architectural + structural PDF, Claude returned only 4 items total,
+mostly null fields aside from `profileType` and a citation note, despite
+being well under both Claude's document limits and the 4096-token response
+ceiling.**
+
+Root cause was the prompt, not a platform limit: `TAKEOFF_SYSTEM_PROMPT` (see
+SPEC_DRAWING_TOOL.md Section 6) never instructed the model to work through
+every page systematically, so it appeared to stop after the first few clear
+hits rather than enumerating the whole document. The diagnostic logging from
+the prior session (commit 3f4f26d, `[Takeoff Diagnostic]` console logs in
+`app/api/takeoff/route.ts`) confirmed there's no pdfjs/rasterization pipeline
+to instrument per-page — the whole PDF is base64-encoded and handed to
+Claude's document API as one opaque block, so the fix had to be prompt-level,
+not pipeline-level. Left that diagnostic logging in place per instruction, to
+confirm on re-test that coverage actually improved.
+
+**Built (`app/api/takeoff/route.ts` and `specs/SPEC_DRAWING_TOOL.md`,
+kept in sync):**
+- `TAKEOFF_SYSTEM_PROMPT_INTRO` gained an explicit page-by-page instruction
+  up front: review every page individually, note every callout even if
+  partial/unclear, don't stop after the first few items, list every distinct
+  occurrence even if the same profile type recurs across sheets.
+- `TAKEOFF_SYSTEM_PROMPT_RULES` gained a paragraph, placed right after the
+  "FOR EACH ITEM EXTRACT" list, explicitly permitting/expecting null
+  material/gauge/dimension fields when a CD set genuinely doesn't specify
+  them (real architectural sets routinely leave fabrication-level detail to
+  the fabricator) — the model should still report the item's existence,
+  sheet/location, and profile type rather than dropping it for lack of
+  dimensional detail.
+- A final self-check line added immediately before the JSON output
+  instruction: confirm all pages were checked and every distinct item
+  listed, not just the clearest examples.
+- `max_tokens` on this Claude API call raised 4096 → 8000 as truncation
+  headroom now that more items are expected per response (today's usage is
+  ~3837 chars, well under 4096 tokens, but that headroom shrinks as coverage
+  improves).
+
+**Not done:** no re-test against the real 20-page PDF was run in this
+session (would require a live upload through `/upload`) — the diagnostic
+logs from commit 3f4f26d remain in place specifically so the next real
+upload can be checked against `itemCount`/`responseCharCount` to confirm
+this actually fixes coverage, per instruction.
+
+**Gates: `pnpm tsc --noEmit` run directly and passed with 0 errors.**
+
+---
+
+**Session before that (takeoff-scope-001, 2026-08-02): raised the Blueprint
 Takeoff AI page limit from 20 to 100 (with real enforcement added, since
 none existed) and added a scope-selection control to `/upload`.**
 

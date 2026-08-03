@@ -7,6 +7,40 @@
 ## OVERALL STATUS
 
 ```
+Takeoff prompt coverage  NEW (takeoff-coverage-001, 2026-08-03) — fixed a
+fix (takeoff-coverage-  systematic extraction-coverage gap: on a real
+001)                     20-page combined architectural + structural PDF,
+                         Claude returned only 4 items total, mostly null
+                         fields aside from `profileType`, despite being well
+                         under both Claude's document limits and the old
+                         4096-token response ceiling — the diagnostic
+                         logging from the prior session (commit 3f4f26d)
+                         confirmed this was a prompt-coverage problem, not a
+                         platform limit, since there's no per-page pipeline
+                         to bottleneck on. `TAKEOFF_SYSTEM_PROMPT` (split
+                         across `TAKEOFF_SYSTEM_PROMPT_INTRO`/`_RULES` in
+                         `app/api/takeoff/route.ts`, mirrored in
+                         SPEC_DRAWING_TOOL.md Section 6) now: (1) explicitly
+                         instructs the model to review every page
+                         individually and enumerate every distinct callout
+                         before responding, rather than stopping after the
+                         first few clear hits; (2) explicitly permits/
+                         expects items with null material/gauge/dimension
+                         fields when a CD set genuinely doesn't specify them
+                         — the item's existence, location, and profile type
+                         should still be reported; (3) ends with a
+                         self-check instruction immediately before the JSON
+                         output rule, confirming all pages were checked and
+                         every distinct item listed. `max_tokens` on this
+                         call raised 4096 → 8000 as truncation headroom
+                         against the expected increase in item count (today's
+                         usage is ~3837 chars, well under 4096 tokens).
+                         Existing `[Takeoff Diagnostic]` console logging
+                         (commit 3f4f26d) left in place, unchanged, so the
+                         next real upload's `itemCount`/`responseCharCount`
+                         can confirm coverage actually improved — no re-test
+                         was run in this session.
+                         Gates: `pnpm tsc --noEmit` run directly, 0 errors.
 Blueprint Takeoff scope  NEW (takeoff-scope-001, 2026-08-02) — two changes to
 + page limit:            the Blueprint Takeoff AI (`/upload`), per
 (takeoff-scope-001)      SPEC_DRAWING_TOOL.md:

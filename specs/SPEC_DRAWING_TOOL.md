@@ -323,7 +323,7 @@ interface ScopeDirective {
 //    Model: claude-sonnet-4-6
 //    System: TAKEOFF_SYSTEM_PROMPT (see Section 6)
 //    User: processed file content
-//    Max tokens: 4096
+//    Max tokens: 8000
 // 6. Parse JSON response from Claude
 // 7. Validate against TakeoffItem schema
 // 8. Update takeoff_uploads with results
@@ -384,6 +384,12 @@ You are a construction drawing analyzer for AFS Architectural Flashing Supply,
 a sheet metal fabricator. Your job is to read architectural drawings and extract
 all flashing and sheet metal details into a structured specification.
 
+You must review every page of this document individually before responding.
+For each page, note any flashing or sheet metal callout, even if partial or
+unclear. Do not stop after finding the first few items -- continue through the
+entire document. List every distinct occurrence, even if the same profile type
+appears on multiple sheets.
+
 PROFILE TYPES TO IDENTIFY:
 - Coping Cap (parapet cap) — note width, height, leg lengths
 - Base Flashing — note height, leg lengths
@@ -413,6 +419,12 @@ FOR EACH ITEM EXTRACT:
    medium: profile identifiable but dimensions estimated or partially legible
    low:    profile type uncertain or dimensions not readable
 9. Note the drawing sheet and detail reference if visible
+
+Architectural CD sets often omit fabrication-level specs and leave them to the
+fabricator. When material, gauge, or a dimension genuinely is not specified on
+the drawing, set that field to null -- do not omit the item for lack of
+dimensional detail. Report the item's existence, its sheet/location, and
+profile type even when every other field is null.
 
 OUTPUT — Return ONLY valid JSON, no prose, no markdown, no code fences:
 {
@@ -444,6 +456,9 @@ RULES:
   { "items": [], "processingNotes": "No flashing details identified.", "overallConfidence": "low" }
 - Aggregate repeated identical details (e.g., 6 identical coping cap sections = 1 item, quantity 6)
 - Note every drawing sheet and detail reference you can read in aiNote
+
+Before responding, confirm you have checked all pages and listed every distinct
+flashing item found, not just the clearest examples.
 ```
 
 ---
