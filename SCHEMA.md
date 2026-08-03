@@ -823,8 +823,11 @@ CREATE TABLE takeoff_uploads (
   file_type        TEXT NOT NULL,
   file_size_bytes  BIGINT,
   page_count       INTEGER,
-  status           TEXT NOT NULL DEFAULT 'uploaded'
-                   CHECK (status IN ('uploaded','processing','complete','partial','failed')),
+  status           TEXT NOT NULL DEFAULT 'pending'
+                   -- 'pending' added in migration 014: the row is now created
+                   -- when a signed Storage upload URL is issued, before the
+                   -- browser has actually PUT the file bytes to Storage.
+                   CHECK (status IN ('pending','uploaded','processing','complete','partial','failed')),
   result_items     JSONB,
   confirmed_items  JSONB,
   request_id       UUID REFERENCES quote_requests(id),

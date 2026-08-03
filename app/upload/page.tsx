@@ -5,7 +5,9 @@ import { createClient } from '@/lib/supabase/client';
 import { gaugeToThicknessMm } from '@/lib/utils/gauge-thickness';
 import ProfileViewer3D, { type ProfileBend } from '@/components/studio/ProfileViewer3D';
 import { ALL_MATERIALS, GAUGES_BY_MATERIAL } from '@/lib/data/catalog';
+import { UPLOAD_ACCEPTED_EXTENSIONS, UPLOAD_MAX_SIZE_BYTES } from '@/lib/utils/upload-limits';
 import type { ScopeOption, ScopeDirective } from '@/app/api/takeoff/route';
+import type { SignUploadResponse } from '@/app/api/upload/route';
 
 const MM_PER_INCH = 25.4;
 const DEFAULT_DIMENSIONS_IN = { width: 12, legA: 2, legB: 2 };
@@ -148,6 +150,32 @@ interface QuoteRequestErrorResponse {
   error: string;
 }
 
+interface ApiErrorResponse {
+  error: string;
+}
+
+// Vercel serverless functions return a plain-text 413 (not JSON) when a
+// request body exceeds their hard 4.5MB limit, and other infra-level
+// failures (gateway timeouts, etc.) can do the same. res.json() throws on a
+// non-JSON body, which without this guard left the UI stuck on "Uploading..."
+// / "Processing..." forever instead of surfacing an error.
+async function parseJsonResponse<T>(res: Response): Promise<T | ApiErrorResponse> {
+  const contentType = res.headers.get('content-type') ?? '';
+  if (!contentType.includes('application/json')) {
+    const text = await res.text().catch(() => '');
+    return { error: text.trim().slice(0, 200) || `Request failed with status ${res.status}` };
+  }
+  try {
+    return (await res.json()) as T;
+  } catch {
+    return { error: `Request failed with status ${res.status}` };
+  }
+}
+
+function isApiError(data: unknown): data is ApiErrorResponse {
+  return typeof data === 'object' && data !== null && 'error' in data && typeof (data as ApiErrorResponse).error === 'string';
+}
+
 export default function UploadPage() {
   const [state, setState] = useState<UploadState>('idle');
   const [dragOver, setDragOver] = useState(false);
@@ -183,50 +211,80 @@ export default function UploadPage() {
     setState('uploading');
     setStage(0);
 
-    if (file.size > 50 * 1024 * 1024) {
-      setError('File exceeds 50MB.');
+    if (file.size > UPLOAD_MAX_SIZE_BYTES) {
+      setError(`File exceeds ${UPLOAD_MAX_SIZE_BYTES / 1024 / 1024}MB.`);
       setState('failed');
       return;
     }
 
     const ext = '.' + file.name.split('.').pop()?.toLowerCase();
-    const accepted = ['.dwg', '.dxf', '.pdf', '.png', '.jpg', '.jpeg', '.tiff', '.tif', '.webp'];
-    if (!accepted.includes(ext)) {
+    if (!UPLOAD_ACCEPTED_EXTENSIONS.includes(ext)) {
       setError(`${ext.toUpperCase()} is not supported.`);
       setState('failed');
       return;
     }
 
-    const formData = new FormData();
-    formData.append('file', file);
-    const uploadRes = await fetch('/api/upload', { method: 'POST', body: formData });
-    const uploadData = await uploadRes.json();
-    if (!uploadRes.ok) { setError(uploadData.error); setState('failed'); return; }
+    try {
+      // 1. Ask for a signed Storage upload URL — metadata only, no file
+      // bytes in this request, so it never touches Vercel's 4.5MB
+      // serverless body limit.
+      const signRes = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: file.name, fileSize: file.size }),
+      });
+      const signData = await parseJsonResponse<SignUploadResponse>(signRes);
+      if (!signRes.ok || isApiError(signData)) {
+        setError(isApiError(signData) ? signData.error : 'Could not prepare upload.');
+        setState('failed');
+        return;
+      }
 
-    setState('processing');
-    setStage(1);
+      // 2. Upload the file bytes directly from the browser to Supabase
+      // Storage using that signed URL — this is the request that actually
+      // carries the file, and it never passes through this app's servers.
+      const supabase = createClient();
+      const { error: storageError } = await supabase.storage
+        .from('blueprints')
+        .uploadToSignedUrl(signData.storageKey, signData.token, file);
+      if (storageError) {
+        setError(`Upload to storage failed: ${storageError.message}`);
+        setState('failed');
+        return;
+      }
 
-    const scopeDirective: ScopeDirective = scopeOption === 'custom'
-      ? { option: 'custom', customText: customScopeText.trim() }
-      : { option: scopeOption };
+      setState('processing');
+      setStage(1);
 
-    setStage(2);
-    const takeoffRes = await fetch('/api/takeoff', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        uploadId: uploadData.uploadId,
-        storageKey: uploadData.storageKey,
-        fileType: ext,
-        scopeDirective,
-      }),
-    });
-    setStage(3);
-    const takeoffData: TakeoffResult = await takeoffRes.json();
-    if (!takeoffRes.ok) { setError('AI processing failed.'); setState('failed'); return; }
-    setResult(takeoffData);
-    setItems(takeoffData.items);
-    setState(takeoffData.items?.length === 0 ? 'failed' : 'results');
+      const scopeDirective: ScopeDirective = scopeOption === 'custom'
+        ? { option: 'custom', customText: customScopeText.trim() }
+        : { option: scopeOption };
+
+      setStage(2);
+      const takeoffRes = await fetch('/api/takeoff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uploadId: signData.uploadId,
+          storageKey: signData.storageKey,
+          fileType: ext,
+          scopeDirective,
+        }),
+      });
+      setStage(3);
+      const takeoffData = await parseJsonResponse<TakeoffResult>(takeoffRes);
+      if (!takeoffRes.ok || isApiError(takeoffData)) {
+        setError(isApiError(takeoffData) ? takeoffData.error : 'AI processing failed.');
+        setState('failed');
+        return;
+      }
+      setResult(takeoffData);
+      setItems(takeoffData.items);
+      setState(takeoffData.items?.length === 0 ? 'failed' : 'results');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Upload failed.');
+      setState('failed');
+    }
   }, [scopeOption, customScopeText]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {

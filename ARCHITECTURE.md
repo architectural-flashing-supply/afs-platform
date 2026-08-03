@@ -318,6 +318,22 @@ cad-library         private   250MB/file   CAD/BIM files (browse public, downloa
 orders              private   25MB/file    Pre-ship photos, delivery confirmations
 ```
 
+**Per Supabase's own docs** (`/docs/guides/storage/uploads/file-limits`),
+these per-bucket numbers are only reachable if the project's *global* Storage
+file size limit (Dashboard → Storage → Settings) is raised to match — a
+bucket limit can never exceed the global one, and the global one itself
+maxes out at **50MB on the Free plan**; Pro/Team allow up to 500GB. That
+means:
+- The `blueprints` bucket's 50MB is exactly the Free-plan ceiling — it only
+  works if the global limit has been explicitly raised to 50MB (nothing in
+  this repo does that; it's a dashboard setting). A fresh/default project
+  may be lower.
+- `documents` (100MB) and `cad-library` (250MB) are **not possible on the
+  Free plan at all** — they require Pro or higher.
+No MCP/CLI access to this project's actual Supabase dashboard config was
+available to confirm the current setting — verify in Storage Settings before
+relying on any of the above.
+
 ### Realtime Subscriptions
 
 Used selectively — only where real-time updates materially improve UX:
@@ -430,17 +446,33 @@ invoked from customer-facing routes.
 
 ## 8. FILE PROCESSING PIPELINE (PHASE 1)
 
+**Revised (2026-08-03) — direct-to-Storage upload.** Vercel serverless
+functions have a hard, unconfigurable 4.5MB request body limit
+(`FUNCTION_PAYLOAD_TOO_LARGE`, plain text not JSON) — well under this app's
+50MB business limit. No file's raw bytes may ever be sent to an `app/api/*`
+route. The file goes browser → Supabase Storage directly, authorized by a
+short-lived signed upload URL; API routes only ever see metadata or the
+already-uploaded bytes (fetched server-side via the admin client, not
+received from the client's request body).
+
 ```
-Client → POST /api/upload (multipart form)
-  Server validates: type, size, extension
-  Server uploads to Supabase Storage: blueprints/{userId}/{uuid}/{filename}
-  Server inserts takeoff_uploads record
-  Returns: { uploadId, storageKey }
+Client → POST /api/upload { filename, fileSize }   (JSON, no file bytes)
+  Server validates: extension, claimed size (a friendly pre-check only —
+    not authoritative; see step below)
+  Server calls admin.storage.from('blueprints').createSignedUploadUrl(path)
+  Server inserts takeoff_uploads record, status: 'pending'
+  Returns: { uploadId, storageKey, token }
   ↓
-Client → POST /api/takeoff { uploadId, storageKey, fileType }
-  Server downloads file from Storage
-  Converts to base64 (images) or parses (DXF text)
-  Calls claude-sonnet-4-6 with file + TAKEOFF_SYSTEM_PROMPT
+Client → supabase.storage.from('blueprints').uploadToSignedUrl(storageKey, token, file)
+  Browser PUTs the file directly to Supabase Storage. Never touches this
+  app's servers — this is the request that actually carries the bytes.
+  ↓
+Client → POST /api/takeoff { uploadId, storageKey, fileType, scopeDirective }
+  Server downloads file from Storage (admin client — this is the first
+    point in the pipeline holding the real bytes)
+  Enforces real size (50MB) and, for PDFs, real page count (100) here —
+    the authoritative check, since nothing upstream saw true bytes
+  Converts to base64, calls claude-sonnet-4-6 with file + TAKEOFF_SYSTEM_PROMPT
   Parses structured JSON response
   Updates takeoff_uploads.result_items
   Returns: { items: TakeoffItem[], confidence, status }
@@ -452,6 +484,11 @@ Client → POST /api/quote-requests { uploadId, confirmedItems, ... }
   Notifies admin
   Returns: { requestId, requestNumber }
 ```
+
+Photo-to-Quote AI (not yet built — see SPEC_PHOTO_TO_QUOTE_AI.md) will face
+the identical 4.5MB wall on any real multi-photo upload and must use this
+same direct-to-Storage pattern from the start, not the old multipart-through-
+serverless approach.
 
 ---
 

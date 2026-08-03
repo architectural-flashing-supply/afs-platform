@@ -7,6 +7,98 @@
 ## OVERALL STATUS
 
 ```
+Upload architecture     NEW (upload-4-5mb-fix-001, 2026-08-03) — root-caused
+fix: direct-to-         and fixed a real production failure: a large
+Storage signed URLs      real-world drawing hung silently on /upload after
+(upload-4-5mb-fix-001)   working fine all day for smaller files. Cause: every
+                         file's raw bytes were sent through a Vercel
+                         serverless function (`/api/upload`'s multipart
+                         formData handler), which has a hard, unconfigurable
+                         4.5MB request body limit — returns
+                         `FUNCTION_PAYLOAD_TOO_LARGE` as plain text, not
+                         JSON. Files under 4.5MB worked by coincidence; this
+                         app's own "50MB" limit (SPEC_DRAWING_TOOL.md) was
+                         never actually enforceable past 4.5MB with that
+                         architecture, on any file, ever.
+                         Fixed — file bytes now go browser → Supabase
+                         Storage directly, never through this app's servers:
+                         1. `app/api/upload/route.ts` rewritten from a
+                            multipart-file handler to a metadata-only JSON
+                            route: validates filename extension + claimed
+                            size, creates the `takeoff_uploads` row (status
+                            `pending` — see migration below), and calls
+                            `admin.storage.from('blueprints')
+                            .createSignedUploadUrl()`, returning
+                            `{ uploadId, storageKey, token }`. No file bytes
+                            ever enter this request.
+                         2. `app/upload/page.tsx`'s `handleFile` now uploads
+                            straight to Storage via the browser Supabase
+                            client's `uploadToSignedUrl(storageKey, token,
+                            file)` — this is the request that actually
+                            carries the bytes, and it goes to Supabase, not
+                            to this app's servers — before calling
+                            `/api/takeoff` with just the resulting
+                            `storageKey`, exactly as before.
+                         3. Real size (50MB) and PDF page-count (100)
+                            enforcement moved to `app/api/takeoff/route.ts`,
+                            right after it downloads the file from Storage —
+                            the first point in the pipeline where the server
+                            actually holds true bytes. (The old formData
+                            route's enforcement of these same limits is gone
+                            along with that route; nothing upstream of
+                            `/api/takeoff` can see real bytes anymore, so
+                            this is now the only authoritative check. The
+                            client's own pre-upload checks in
+                            `app/upload/page.tsx` are unchanged and remain a
+                            friendly-but-non-authoritative first pass.)
+                         4. New shared `lib/utils/upload-limits.ts`
+                            (`UPLOAD_ACCEPTED_EXTENSIONS`,
+                            `UPLOAD_MAX_SIZE_BYTES`, `UPLOAD_MAX_PAGES`) used
+                            by the client, the sign route, and the takeoff
+                            route so the three enforcement points can't
+                            drift out of sync.
+                         5. Migration `014_takeoff_uploads_pending_status.sql`
+                            adds `'pending'` to `takeoff_uploads.status`'s
+                            CHECK constraint (new default) — the row is now
+                            created when a signed URL is issued, before the
+                            browser has actually PUT the bytes to Storage,
+                            so `'uploaded'` could no longer be an honest
+                            initial value. `SCHEMA.md` updated to match.
+                         Secondary bug also fixed: `response.json()` calls
+                         on the upload/takeoff fetches in
+                         `app/upload/page.tsx` had no non-JSON-body handling,
+                         so a 413 (or any infra-level plain-text error) threw
+                         an uncaught exception and left the UI stuck on
+                         "Uploading..."/"Processing..." forever with no
+                         error shown. Added a `parseJsonResponse()` helper
+                         (checks `content-type`, falls back to response text
+                         truncated to 200 chars) plus a wrapping try/catch
+                         around the whole upload flow.
+                         Supabase Storage limit check (per user request,
+                         "don't assume"): per Supabase's own docs
+                         (`/docs/guides/storage/uploads/file-limits`), the
+                         *global* Storage file size limit — which a bucket
+                         limit can never exceed — maxes out at **50MB on the
+                         Free plan**; Pro/Team allow up to 500GB. This
+                         project's actual plan/dashboard setting could NOT be
+                         confirmed — the connected Supabase MCP account
+                         points at unrelated projects ("tarritrix",
+                         "tarritrix-audit"), not this codebase's real
+                         backend. Action item for a human with dashboard
+                         access: confirm Storage Settings → Global file size
+                         limit is actually raised to at least 50MB (Free
+                         plan's absolute ceiling — leaves zero headroom) or
+                         that the project is on Pro+ (ample headroom). See
+                         ARCHITECTURE.md §"Supabase Storage Buckets" for the
+                         same finding applied to the `documents` (100MB) and
+                         `cad-library` (250MB) buckets, which are impossible
+                         on Free regardless.
+                         Also affects: Photo-to-Quote AI
+                         (SPEC_PHOTO_TO_QUOTE_AI.md, not yet built) will hit
+                         the identical 4.5MB wall on any real multi-photo
+                         upload and must use this same direct-to-Storage
+                         pattern from the start.
+                         Gates: `pnpm tsc --noEmit` run directly, 0 errors.
 Takeoff results table   NEW (takeoff-results-editable-001, 2026-08-03) —
 editable fields +       investigated 3 suspected gaps in the Blueprint
 3D preview fix          Takeoff results screen (`app/upload/page.tsx`'s

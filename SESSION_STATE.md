@@ -7,7 +7,61 @@
 
 ## CURRENT STATUS
 
-**Most recent session (takeoff-results-editable-001, 2026-08-03): investigated
+**Most recent session (upload-4-5mb-fix-001, 2026-08-03): root-caused and
+fixed a real production failure — large drawings hung silently on /upload
+because every file's bytes were routed through a Vercel serverless function
+with a hard, unconfigurable 4.5MB request body limit.**
+
+Root cause: `/api/upload` received the file as multipart formData — a
+Vercel serverless function request body, capped at 4.5MB regardless of any
+in-app size limit. Files under 4.5MB worked all day; a larger real-world
+document hit `FUNCTION_PAYLOAD_TOO_LARGE` (plain text, not JSON), which the
+client's unguarded `response.json()` call then threw on, leaving the UI
+stuck on "Uploading..." with no error ever shown. This app's own "50MB"
+limit (SPEC_DRAWING_TOOL.md) had never actually been reachable past 4.5MB.
+
+Fixed — file bytes now go browser → Supabase Storage directly, never
+through this app's servers:
+- `app/api/upload/route.ts`: rewritten to a metadata-only JSON route.
+  Validates extension + claimed size, creates the `takeoff_uploads` row
+  (`status: 'pending'`), issues a Supabase Storage signed upload URL via
+  `admin.storage.from('blueprints').createSignedUploadUrl()`. No file bytes
+  in this request.
+- `app/upload/page.tsx`: `handleFile` now calls that route, then uploads
+  the actual file straight to Storage with the browser client's
+  `uploadToSignedUrl(storageKey, token, file)`, then calls `/api/takeoff`
+  with the resulting `storageKey` exactly as before. Also added
+  `parseJsonResponse()` (content-type check + text fallback) and a
+  try/catch around the whole flow, so a non-JSON error body now shows a
+  real message instead of hanging.
+- `app/api/takeoff/route.ts`: real 50MB size and 100-page PDF enforcement
+  moved here, right after downloading the file from Storage — the first
+  point in the pipeline holding true bytes (previously the old formData
+  route did this check, but that route no longer sees real bytes).
+- New `lib/utils/upload-limits.ts` — shared size/page/extension constants
+  so client, sign route, and takeoff route can't drift.
+- Migration `014_takeoff_uploads_pending_status.sql` adds `'pending'` to
+  `takeoff_uploads.status`; `SCHEMA.md` updated to match.
+
+Supabase Storage's own limit (checked, not assumed, per
+`/docs/guides/storage/uploads/file-limits`): global file size limit maxes
+at 50MB on Free, 500GB on Pro/Team — a bucket limit can never exceed the
+global one. **Could not confirm this project's actual plan/dashboard
+setting** — the connected Supabase MCP account is scoped to unrelated
+projects ("tarritrix", "tarritrix-audit"), not this repo's real backend.
+Flagged as an action item in STATE_OF_THE_BUILD.md and ARCHITECTURE.md for
+whoever has dashboard access: confirm Storage Settings → Global file size
+limit is ≥50MB, or that the project is Pro+.
+
+Also flagged: Photo-to-Quote AI (not yet built) will hit the identical
+4.5MB wall on any real multi-photo upload and must use this same
+direct-to-Storage pattern from the start.
+
+`pnpm tsc --noEmit`: 0 errors.
+
+---
+
+**Previous session (takeoff-results-editable-001, 2026-08-03): investigated
 and fixed 2 real gaps in the Blueprint Takeoff results screen
 (`app/upload/page.tsx`) — missing dimension inputs and a one-size-fits-all
 3D preview shape — plus confirmed a 3rd suspected gap was already fine.**

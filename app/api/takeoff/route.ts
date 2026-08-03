@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { PDFDocument } from 'pdf-lib';
 import { anthropic } from '@/lib/anthropic/client';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { UPLOAD_MAX_PAGES, UPLOAD_MAX_SIZE_BYTES } from '@/lib/utils/upload-limits';
 
 export type ScopeOption = 'full' | 'roof' | 'flashing' | 'roof_flashing' | 'custom';
 
@@ -156,6 +157,55 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const buffer = Buffer.from(await fileBlob.arrayBuffer());
+
+    // This is the first point in the pipeline where the server holds the
+    // real uploaded bytes (the client goes straight to Supabase Storage via
+    // a signed upload URL — see app/api/upload/route.ts — so nothing
+    // upstream of here has verified actual size or page count against the
+    // app's business limits; the client's own checks only guard against a
+    // sloppy user, not a byte-accurate one).
+    if (buffer.length > UPLOAD_MAX_SIZE_BYTES) {
+      await admin
+        .from('takeoff_uploads')
+        .update({ status: 'failed', updated_at: new Date().toISOString() })
+        .eq('id', uploadId);
+      return NextResponse.json({
+        error: `File exceeds ${UPLOAD_MAX_SIZE_BYTES / 1024 / 1024}MB limit. Your file is ${(buffer.length / 1024 / 1024).toFixed(1)}MB.`
+      }, { status: 400 });
+    }
+
+    if (isPDF) {
+      let pageCount: number;
+      try {
+        const pdfDoc = await PDFDocument.load(buffer, { ignoreEncryption: true });
+        pageCount = pdfDoc.getPageCount();
+      } catch (pdfLoadError) {
+        console.error('[Takeoff PDF Parse Error]', pdfLoadError);
+        await admin
+          .from('takeoff_uploads')
+          .update({ status: 'failed', updated_at: new Date().toISOString() })
+          .eq('id', uploadId);
+        return NextResponse.json({
+          error: 'Could not read this PDF. It may be corrupted or password-protected.'
+        }, { status: 400 });
+      }
+
+      if (pageCount > UPLOAD_MAX_PAGES) {
+        await admin
+          .from('takeoff_uploads')
+          .update({ status: 'failed', updated_at: new Date().toISOString() })
+          .eq('id', uploadId);
+        return NextResponse.json({
+          error: `PDF exceeds ${UPLOAD_MAX_PAGES} page limit. Your file has ${pageCount} pages.`
+        }, { status: 400 });
+      }
+
+      await admin
+        .from('takeoff_uploads')
+        .update({ page_count: pageCount, updated_at: new Date().toISOString() })
+        .eq('id', uploadId);
+    }
+
     const fileBase64 = buffer.toString('base64');
 
     const mediaType = isPDF ? 'application/pdf' :
@@ -176,21 +226,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       isImage,
       bytes: buffer.length,
     });
-
-    if (isPDF) {
-      try {
-        const pdfDoc = await PDFDocument.load(buffer, { ignoreEncryption: true });
-        console.log('[Takeoff Diagnostic] pdf page count', {
-          uploadId,
-          pageCount: pdfDoc.getPageCount(),
-        });
-      } catch (pdfLoadError) {
-        console.log('[Takeoff Diagnostic] pdf page count unavailable (load failed)', {
-          uploadId,
-          error: pdfLoadError instanceof Error ? pdfLoadError.message : String(pdfLoadError),
-        });
-      }
-    }
 
     const startedAt = Date.now();
 
