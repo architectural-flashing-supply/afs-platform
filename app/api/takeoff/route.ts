@@ -1,8 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PDFDocument } from 'pdf-lib';
+import type Anthropic from '@anthropic-ai/sdk';
+import { toFile } from '@anthropic-ai/sdk';
 import { anthropic } from '@/lib/anthropic/client';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { UPLOAD_MAX_PAGES, UPLOAD_MAX_SIZE_BYTES } from '@/lib/utils/upload-limits';
+
+// The Messages API has a hard 32MB total request size limit, and base64
+// inflates raw bytes by ~33% — so a raw file as small as ~24MB could blow
+// that ceiling even while passing both this app's 50MB business limit and
+// Vercel's request-size limit. The Files API (500MB per file, well past
+// this app's own 50MB cap) avoids that inflation entirely: the file is
+// uploaded once to Anthropic and referenced by `file_id` in the Messages
+// request instead of being embedded as inline base64 data.
+const FILES_API_BETA = 'files-api-2025-04-14' as const;
 
 export type ScopeOption = 'full' | 'roof' | 'flashing' | 'roof_flashing' | 'custom';
 
@@ -206,18 +217,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         .eq('id', uploadId);
     }
 
-    const fileBase64 = buffer.toString('base64');
-
     const mediaType = isPDF ? 'application/pdf' :
       normalizedType === 'png' ? 'image/png' :
       normalizedType === 'webp' ? 'image/webp' : 'image/jpeg';
 
     // DIAGNOSTIC (temporary — revert once we've seen output): there is no
     // pdfjs-dist text/vector extraction or 300 DPI rasterization branch in
-    // this route today. The whole file is base64-encoded and handed to
-    // Claude's document API as a single opaque block. These logs show what
-    // that actually looks like per request, not per page, since there is no
-    // per-page pipeline to instrument yet.
+    // this route today. The whole file is uploaded to Anthropic's Files API
+    // as one opaque document/image and referenced by file_id — no per-page
+    // pipeline to instrument yet.
     console.log('[Takeoff Diagnostic] file', {
       uploadId,
       storageKey,
@@ -227,30 +235,43 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       bytes: buffer.length,
     });
 
+    const uploadedFile = await anthropic.beta.files.upload({
+      file: await toFile(buffer, storageKey.split('/').pop() || 'upload', { type: mediaType }),
+      betas: [FILES_API_BETA],
+    });
+
+    const contentBlock: Anthropic.Beta.Messages.BetaContentBlockParam = isPDF
+      ? { type: 'document', source: { type: 'file', file_id: uploadedFile.id } }
+      : { type: 'image', source: { type: 'file', file_id: uploadedFile.id } };
+
     const startedAt = Date.now();
 
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 8000,
-      system: buildTakeoffSystemPrompt(scopeDirective),
-      messages: [{
-        role: 'user',
-        content: [
-          {
-            type: isPDF ? 'document' : 'image',
-            source: {
-              type: 'base64',
-              media_type: mediaType,
-              data: fileBase64,
-            },
-          } as any,
-          {
-            type: 'text',
-            text: `Analyze this construction drawing file: ${storageKey}. Extract all flashing and sheet metal details.`,
-          }
-        ],
-      }],
-    });
+    let response: Anthropic.Beta.Messages.BetaMessage;
+    try {
+      response = await anthropic.beta.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 8000,
+        system: buildTakeoffSystemPrompt(scopeDirective),
+        betas: [FILES_API_BETA],
+        messages: [{
+          role: 'user',
+          content: [
+            contentBlock,
+            {
+              type: 'text',
+              text: `Analyze this construction drawing file: ${storageKey}. Extract all flashing and sheet metal details.`,
+            }
+          ],
+        }],
+      });
+    } finally {
+      // No reuse case for a given takeoff upload's file once this call
+      // returns (no "reprocess" flow reads it again) — delete it either way
+      // rather than let it sit against the Files API's 100GB org-wide cap.
+      await anthropic.beta.files.delete(uploadedFile.id, { betas: [FILES_API_BETA] }).catch((deleteError) => {
+        console.error('[Takeoff Files API] failed to delete uploaded file', { uploadId, fileId: uploadedFile.id, deleteError });
+      });
+    }
 
     const text = response.content.find(b => b.type === 'text')?.text ?? '{}';
     const clean = text.replace(/```json|```/g, '').trim();

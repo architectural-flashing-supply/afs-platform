@@ -7,7 +7,73 @@
 
 ## CURRENT STATUS
 
-**Most recent session (upload-4-5mb-fix-001, 2026-08-03): root-caused and
+**Most recent session (takeoff-files-api-001, 2026-08-03): root-caused and
+fixed a second, independent size ceiling on the same `/api/takeoff` path the
+prior session's 4.5MB fix already touched — Claude's Messages API 32MB
+total-request limit, hit via inline base64 inflation, well before this app's
+own 50MB business limit.**
+
+The prior session (upload-4-5mb-fix-001, immediately below) fixed bytes
+getting from the browser to Supabase Storage without dying at Vercel's
+4.5MB function body limit. That fix didn't touch what `/api/takeoff` does
+with the file *after* downloading it from Storage: it still base64-encoded
+the whole buffer and embedded it inline in the Claude Messages API request
+body. Anthropic's Messages API has a hard 32MB total request size limit
+(confirmed via official docs), and base64 encoding inflates raw bytes by
+~33% — so any raw file above roughly ~24MB blows this ceiling even though
+both this app's 50MB limit and Vercel's 4.5MB limit (already fixed) allow it
+through. Failed on a real commercial document with:
+`413 {"error":{"type":"request_too_large","message":"Request exceeds the
+maximum size"}}`.
+
+**Fixed (`app/api/takeoff/route.ts`, full file replacement) — switched to
+Anthropic's Files API instead of inline base64:**
+1. Checked the installed SDK first rather than assuming a method name:
+   `@anthropic-ai/sdk` is 0.111.0 (`node_modules/@anthropic-ai/sdk/
+   package.json`), and its `beta/files.d.ts` confirms `client.beta.files
+   .upload(params: FileUploadParams)` returning `FileMetadata` (`.id` is the
+   file_id), plus `.delete(fileID, params)`. Both require the
+   `files-api-2025-04-14` beta header (confirmed in `beta/beta.d.ts`'s
+   `AnthropicBeta` union), passed via each call's own `betas` array param —
+   not a request-options field.
+2. After the existing download-from-Storage + 50MB/page-count checks
+   (unchanged), the buffer is uploaded once via `anthropic.beta.files
+   .upload({ file: await toFile(buffer, filename, { type: mediaType }),
+   betas: ['files-api-2025-04-14'] })`. `toFile` is the SDK's own helper for
+   turning a `Buffer` into an `Uploadable`, imported from the package root.
+3. The Messages call moved from `anthropic.messages.create` to
+   `anthropic.beta.messages.create` (same `files-api-2025-04-14` beta
+   header), with the document/image content block's `source` now
+   `{ type: 'file', file_id: uploadedFile.id }` in place of
+   `{ type: 'base64', media_type, data }`.
+4. Bonus cleanup: this also let a pre-existing `as any` cast on that
+   content block go away — a real CLAUDE.md "zero any types" violation that
+   predated this session (the ternary building `type: isPDF ? 'document' :
+   'image'` alongside a shared `source` shape couldn't discriminate the
+   union without it). Rewritten as a ternary whose result is typed against
+   `Anthropic.Beta.Messages.BetaContentBlockParam` up front, so each branch
+   is independently checked and no cast is needed.
+5. Files API supports files up to 500MB — well past this app's own 50MB
+   limit, so no file within that limit should hit this ceiling again.
+6. Deletion: checked whether anything re-reads a takeoff upload's file
+   after processing (grepped for `anthropic_file_id`-shaped columns and any
+   "reprocess" flow) — found none. So the uploaded file is deleted via
+   `anthropic.beta.files.delete()` inside a `finally` block wrapping the
+   Messages call, unconditionally (success or failure), rather than
+   accumulating against the Files API's 100GB org-wide storage cap.
+
+**Flagged, not built:** Photo-to-Quote AI (`SPEC_PHOTO_TO_QUOTE_AI.md`) still
+doesn't exist as code. When it's built, it must use this same Files API
+pattern from day one — real multi-photo submissions will routinely approach
+or exceed the ~24MB inline-base64 ceiling well before hitting any of this
+app's own size limits, and building it against `anthropic.messages.create`
+with inline base64 would just reintroduce this exact bug in a second place.
+
+**Gates: `pnpm tsc --noEmit` run directly and passed with 0 errors.**
+
+---
+
+**Session before that (upload-4-5mb-fix-001, 2026-08-03): root-caused and
 fixed a real production failure — large drawings hung silently on /upload
 because every file's bytes were routed through a Vercel serverless function
 with a hard, unconfigurable 4.5MB request body limit.**

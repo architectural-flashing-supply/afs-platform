@@ -7,6 +7,69 @@
 ## OVERALL STATUS
 
 ```
+Takeoff Files API       NEW (takeoff-files-api-001, 2026-08-03) — root-caused
+fix: switched off        and fixed a second, independent size ceiling on the
+inline base64            same request path the 4.5MB fix (upload-4-5mb-fix-
+(takeoff-files-api-001)  001, immediately below) already touched: even after
+                         bytes reach `/api/takeoff` intact via direct-to-
+                         Storage upload, that route was still handing the
+                         raw file to the Claude Messages API as inline
+                         base64 in the request body. The Messages API has a
+                         hard 32MB TOTAL request size limit (confirmed via
+                         Anthropic's own docs), and base64 inflates raw
+                         bytes ~33% — so any raw file above roughly ~24MB
+                         blows this ceiling even though the app's own 50MB
+                         limit and Vercel's 4.5MB limit (already fixed) both
+                         let it through. Failed on a real commercial
+                         document with `413
+                         {"error":{"type":"request_too_large",...}}`.
+                         Fixed — `app/api/takeoff/route.ts` now uses
+                         Anthropic's Files API instead of inline base64:
+                         1. After downloading the file from Supabase Storage
+                            (unchanged first step) and running the existing
+                            50MB/page-count checks (unchanged), the buffer is
+                            uploaded via `anthropic.beta.files.upload({file:
+                            await toFile(buffer, filename, {type:
+                            mediaType}), betas: ['files-api-2025-04-14']})`
+                            — `@anthropic-ai/sdk` 0.111.0 (installed version)
+                            exposes this at `client.beta.files`, confirmed by
+                            reading `node_modules/@anthropic-ai/sdk/
+                            resources/beta/files.d.ts` directly rather than
+                            assuming a method name.
+                         2. The Messages call moved from `anthropic.messages
+                            .create` to `anthropic.beta.messages.create`
+                            (also requires the `files-api-2025-04-14` beta
+                            header) with the document/image content block's
+                            `source` now `{ type: 'file', file_id:
+                            uploadedFile.id }` instead of `{ type: 'base64',
+                            media_type, data }`. This also let a pre-existing
+                            `as any` cast on that content block (a CLAUDE.md
+                            "zero any types" violation predating this
+                            session) be removed cleanly — a ternary
+                            pre-typed against `Anthropic.Beta.Messages
+                            .BetaContentBlockParam` discriminates the
+                            document-vs-image branches without one.
+                         3. Files API supports up to 500MB/file — comfortably
+                            past this app's own 50MB business limit, so no
+                            file within that limit should ever hit this
+                            ceiling again.
+                         4. Deletion: confirmed no reuse case exists for a
+                            given takeoff upload's file after this call
+                            returns (no "reprocess" flow re-reads it, no
+                            `anthropic_file_id`-shaped column anywhere in
+                            `SCHEMA.md`) — so the uploaded file is deleted via
+                            `anthropic.beta.files.delete()` in a `finally`
+                            block wrapping the Messages call, unconditionally
+                            (success or failure), against the Files API's
+                            100GB org-wide storage cap.
+                         Flagged for later: Photo-to-Quote AI
+                         (SPEC_PHOTO_TO_QUOTE_AI.md, not yet built) must use
+                         this same Files API pattern from day one rather than
+                         inline base64 — real multi-photo submissions will
+                         routinely approach or exceed the ~24MB inline
+                         ceiling well before hitting any of this app's own
+                         size limits.
+                         Gates: `pnpm tsc --noEmit` run directly, 0 errors.
 Upload architecture     NEW (upload-4-5mb-fix-001, 2026-08-03) — root-caused
 fix: direct-to-         and fixed a real production failure: a large
 Storage signed URLs      real-world drawing hung silently on /upload after
