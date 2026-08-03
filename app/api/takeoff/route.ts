@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { PDFDocument } from 'pdf-lib';
 import { anthropic } from '@/lib/anthropic/client';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -155,6 +156,36 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       normalizedType === 'png' ? 'image/png' :
       normalizedType === 'webp' ? 'image/webp' : 'image/jpeg';
 
+    // DIAGNOSTIC (temporary — revert once we've seen output): there is no
+    // pdfjs-dist text/vector extraction or 300 DPI rasterization branch in
+    // this route today. The whole file is base64-encoded and handed to
+    // Claude's document API as a single opaque block. These logs show what
+    // that actually looks like per request, not per page, since there is no
+    // per-page pipeline to instrument yet.
+    console.log('[Takeoff Diagnostic] file', {
+      uploadId,
+      storageKey,
+      fileType: normalizedType,
+      isPDF,
+      isImage,
+      bytes: buffer.length,
+    });
+
+    if (isPDF) {
+      try {
+        const pdfDoc = await PDFDocument.load(buffer, { ignoreEncryption: true });
+        console.log('[Takeoff Diagnostic] pdf page count', {
+          uploadId,
+          pageCount: pdfDoc.getPageCount(),
+        });
+      } catch (pdfLoadError) {
+        console.log('[Takeoff Diagnostic] pdf page count unavailable (load failed)', {
+          uploadId,
+          error: pdfLoadError instanceof Error ? pdfLoadError.message : String(pdfLoadError),
+        });
+      }
+    }
+
     const startedAt = Date.now();
 
     const response = await anthropic.messages.create({
@@ -186,6 +217,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const status: 'success' | 'partial' = result.items?.length > 0 ? 'success' : 'partial';
     const processingMs = Date.now() - startedAt;
+
+    // DIAGNOSTIC (temporary — revert once we've seen output): logs what the
+    // model actually produced from the raw file (no branch/char-count/raster
+    // fields since there's no extraction step upstream to report on).
+    console.log('[Takeoff Diagnostic] claude response', {
+      uploadId,
+      processingMs,
+      responseCharCount: text.length,
+      responseFirst500: text.slice(0, 500),
+      itemCount: result.items?.length ?? 0,
+      overallConfidence: result.overallConfidence ?? null,
+      status,
+    });
 
     await admin
       .from('takeoff_uploads')
