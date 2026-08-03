@@ -7,6 +7,89 @@
 ## OVERALL STATUS
 
 ```
+Takeoff results table   NEW (takeoff-results-editable-001, 2026-08-03) —
+editable fields +       investigated 3 suspected gaps in the Blueprint
+3D preview fix          Takeoff results screen (`app/upload/page.tsx`'s
+(takeoff-results-        results table + `ProfileViewer3D` modal) against
+editable-001)            SPEC_DRAWING_TOOL.md Section 3.1. Findings, in order
+                         asked:
+                         1. Editable inputs: profileType, material, gauge,
+                            lengthFt, and quantity were ALREADY editable
+                            (plain text/number `<input>`s wired to
+                            `updateItem`) — rows were never static text with
+                            only a Remove action. The real gap: W/H/A/B
+                            dimensions had NO inputs at all — rendered as a
+                            single concatenated read-only string
+                            (`W:12" H:4"...`) with no way to correct a
+                            misread dimension.
+                         2. Submission validation ("Each item requires a
+                            profile type, length, and quantity",
+                            `app/api/quote-requests/route.ts`) already had
+                            corresponding editable UI for all 3 required
+                            fields (see #1) — not actually broken.
+                         3. The 3D preview (`buildBendsFromItem` in
+                            `app/upload/page.tsx`, feeding `ProfileViewer3D`)
+                            builds its bend sequence from the row's own
+                            width/legA/legB — never hardcoded to a specific
+                            item — but used one fixed 2-bend "hat channel"
+                            topology for every row regardless of
+                            `profileType`, so a Drip Edge and a Base
+                            Flashing rendered as the same shape family as a
+                            Coping Cap. Confirmed real, not the user's
+                            suspicion of a literal single hardcoded model.
+                         Fixed:
+                         - Profile Type and Material are now `<select>`
+                           dropdowns (`TAKEOFF_PROFILE_TYPES` — matching
+                           `/api/takeoff`'s TAKEOFF_SYSTEM_PROMPT profile
+                           list exactly — and `ALL_MATERIALS` from
+                           `lib/data/catalog.ts`). Gauge is a dropdown
+                           filtered by the row's selected material via
+                           `GAUGES_BY_MATERIAL`, disabled until a material is
+                           chosen. `lib/data/catalog.ts`'s constants were
+                           reused rather than querying the real
+                           `product_profiles`/`materials` tables directly:
+                           those tables' RLS policies require
+                           `auth.uid() IS NOT NULL`, and `/upload` is
+                           guest-accessible (guest email-capture flow
+                           exists) — a live query would silently return
+                           empty option lists for every unauthenticated
+                           user. `app/quote/page.tsx`'s existing guest-safe
+                           manual quote builder already established this
+                           same static-constants pattern for the identical
+                           guest-access problem.
+                         - A `selectOptions()` helper always includes a
+                           blank option (AI found no data) plus the row's
+                           current value even when it falls outside the
+                           canonical list, so nothing the AI actually
+                           extracted is ever silently discarded by adding a
+                           dropdown.
+                         - W/H/A/B are now 4 numeric inputs
+                           (`type="number" step="0.125"`) per
+                           `DIMENSION_FIELDS`, each wired to `updateItem`,
+                           null when cleared.
+                         - `buildBendsFromItem` now branches on a new
+                           `classifyProfileShape()` (keyword-matched against
+                           `item.profileType`) into 3 topologies: single
+                           90° L-bend (Base/Counter/Step Flashing, Drip Edge,
+                           Gravel Stop), a near-flat shallow bend (Valley,
+                           Through-wall Flashing, Reglet), or the original
+                           2-bend hat-channel (Coping Cap, Expansion Joint
+                           Cover, and any unrecognized/custom profile type —
+                           unchanged fallback behavior for those).
+                         NOT touched: `app/api/admin/command-center/
+                         approve-quote-request/route.ts`'s own
+                         `buildBendsFromItem` (drives real `machine_jobs`
+                         bend programs sent toward the Thalmann DS2801) — a
+                         separate, independently-implemented copy of the old
+                         generic-hat fallback, out of scope for this
+                         session's "Blueprint Takeoff results screen"
+                         request. Its comment referencing "the same one
+                         already used by the 3D Profile Viewer's upload-page
+                         preview" is now slightly stale (that page no longer
+                         uses one fixed shape) but was left as-is rather
+                         than edited speculatively on an unrelated,
+                         machine-critical file.
+                         Gates: `pnpm tsc --noEmit` run directly, 0 errors.
 Takeoff prompt coverage  NEW (takeoff-coverage-001, 2026-08-03) — fixed a
 fix (takeoff-coverage-  systematic extraction-coverage gap: on a real
 001)                     20-page combined architectural + structural PDF,

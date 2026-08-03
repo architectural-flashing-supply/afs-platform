@@ -4,17 +4,39 @@ import { useState, useCallback, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { gaugeToThicknessMm } from '@/lib/utils/gauge-thickness';
 import ProfileViewer3D, { type ProfileBend } from '@/components/studio/ProfileViewer3D';
+import { ALL_MATERIALS, GAUGES_BY_MATERIAL } from '@/lib/data/catalog';
 import type { ScopeOption, ScopeDirective } from '@/app/api/takeoff/route';
 
 const MM_PER_INCH = 25.4;
 const DEFAULT_DIMENSIONS_IN = { width: 12, legA: 2, legB: 2 };
 
+// The takeoff AI's PROFILE TYPES TO IDENTIFY list (see /api/takeoff's
+// TAKEOFF_SYSTEM_PROMPT) sorted into the 3 cross-section shapes the 3D
+// preview below can actually distinguish with the leg/angle "bend"
+// primitives ProfileViewer3D consumes. Coping Cap and Expansion Joint
+// Cover (both a flat span framed by two legs) fall through to the
+// default 'hat' branch in classifyProfileShape below, matching prior
+// behavior exactly for those two types.
+const L_BEND_PROFILE_KEYWORDS = ['base flashing', 'counter flashing', 'step flashing', 'drip edge', 'gravel stop'];
+const FLAT_PROFILE_KEYWORDS = ['valley', 'through-wall', 'through wall', 'reglet'];
+
+type ProfileShape = 'hat' | 'l-bend' | 'flat';
+
+function classifyProfileShape(profileType: string): ProfileShape {
+  const t = profileType.toLowerCase();
+  if (FLAT_PROFILE_KEYWORDS.some((k) => t.includes(k))) return 'flat';
+  if (L_BEND_PROFILE_KEYWORDS.some((k) => t.includes(k))) return 'l-bend';
+  return 'hat';
+}
+
 // The AI takeoff extracts width/height/legA/legB per line item, not a
 // linked machine_profile record — there is no "matched profile" to look
-// up. This builds an illustrative 3-segment, two-90°-bend cross-section
-// from the item's own extracted dimensions (falling back to generic
-// defaults when a dimension wasn't captured), the same 90°-corner
-// assumption lib/utils/profile-svg.ts already makes for these fields.
+// up. This builds an illustrative cross-section from the item's own
+// extracted dimensions (falling back to generic defaults when a
+// dimension wasn't captured, the same 90°-corner assumption
+// lib/utils/profile-svg.ts already makes for these fields), shaped
+// according to the row's own profileType via classifyProfileShape
+// rather than a single fixed shape for every row.
 function buildBendsFromItem(item: TakeoffItem): { bends: ProfileBend[]; blankWidthMm: number } {
   const legAIn = item.legA ?? DEFAULT_DIMENSIONS_IN.legA;
   const legBIn = item.legB ?? DEFAULT_DIMENSIONS_IN.legB;
@@ -24,12 +46,29 @@ function buildBendsFromItem(item: TakeoffItem): { bends: ProfileBend[]; blankWid
   const legBMm = legBIn * MM_PER_INCH;
   const widthMm = widthIn * MM_PER_INCH;
 
-  const bends: ProfileBend[] = [
-    { leftLeg: legAMm, rightLeg: 0, angle: 90, radius: 0 },
-    { leftLeg: widthMm, rightLeg: legBMm, angle: 90, radius: 0 },
-  ];
+  const shape = classifyProfileShape(item.profileType);
 
-  return { bends, blankWidthMm: legAMm + widthMm + legBMm };
+  if (shape === 'l-bend') {
+    return {
+      bends: [{ leftLeg: legAMm, rightLeg: legBMm, angle: 90, radius: 0 }],
+      blankWidthMm: legAMm + legBMm,
+    };
+  }
+
+  if (shape === 'flat') {
+    return {
+      bends: [{ leftLeg: widthMm / 2, rightLeg: widthMm / 2, angle: 160, radius: 0 }],
+      blankWidthMm: widthMm,
+    };
+  }
+
+  return {
+    bends: [
+      { leftLeg: legAMm, rightLeg: 0, angle: 90, radius: 0 },
+      { leftLeg: widthMm, rightLeg: legBMm, angle: 90, radius: 0 },
+    ],
+    blankWidthMm: legAMm + widthMm + legBMm,
+  };
 }
 
 type UploadState = 'idle' | 'uploading' | 'processing' | 'results' | 'submitting' | 'submitted' | 'failed';
@@ -68,6 +107,37 @@ const SCOPE_DIRECTIVE_OPTIONS: { value: ScopeOption; label: string }[] = [
 ];
 
 const CUSTOM_SCOPE_MAX_LENGTH = 300;
+
+// Matches /api/takeoff's TAKEOFF_SYSTEM_PROMPT "PROFILE TYPES TO IDENTIFY" list.
+const TAKEOFF_PROFILE_TYPES = [
+  'Coping Cap',
+  'Base Flashing',
+  'Counter Flashing',
+  'Step Flashing',
+  'Drip Edge',
+  'Gravel Stop',
+  'Valley Flashing',
+  'Expansion Joint Cover',
+  'Reglet',
+  'Through-wall Flashing',
+];
+
+const DIMENSION_FIELDS: { key: 'width' | 'height' | 'legA' | 'legB'; label: string }[] = [
+  { key: 'width', label: 'W' },
+  { key: 'height', label: 'H' },
+  { key: 'legA', label: 'A' },
+  { key: 'legB', label: 'B' },
+];
+
+// Always surfaces a blank option (AI found no data) plus the current value
+// even when the AI extracted something outside the canonical list, so an
+// unusual value is never silently discarded by the dropdown.
+function selectOptions(current: string | null, canonical: readonly string[]): string[] {
+  const options = [...canonical];
+  if (current && !options.includes(current)) options.unshift(current);
+  if (!options.includes('')) options.unshift('');
+  return options;
+}
 
 interface QuoteRequestSuccessResponse {
   requestId: string;
@@ -454,13 +524,19 @@ export default function UploadPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((item, i) => (
+                  {items.map((item, i) => {
+                    const gaugeChoices = item.material ? GAUGES_BY_MATERIAL[item.material] ?? [] : [];
+                    return (
                     <tr key={i} style={{ borderBottom: '1px solid var(--afs-bg-surface)', borderLeft: item.confidence === 'low' ? '3px solid var(--afs-warning)' : '3px solid transparent' }}>
                       <td style={{ padding: '12px 16px', color: 'var(--afs-chrome-dim)', fontFamily: 'var(--font-jetbrains)' }}>{i + 1}</td>
                       <td style={{ padding: '12px 16px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <input value={item.profileType} disabled={state === 'submitting'} onChange={(e) => updateItem(i, 'profileType', e.target.value)}
-                            style={{ background: 'transparent', border: 'none', color: 'var(--afs-chrome-high)', fontFamily: 'var(--font-inter)', fontSize: '13px', width: '100%', outline: 'none' }} />
+                          <select value={item.profileType} disabled={state === 'submitting'} onChange={(e) => updateItem(i, 'profileType', e.target.value)}
+                            style={{ background: 'transparent', border: '1px solid var(--afs-bg-overlay)', borderRadius: '4px', color: 'var(--afs-chrome-high)', fontFamily: 'var(--font-inter)', fontSize: '13px', width: '100%', outline: 'none', padding: '4px' }}>
+                            {selectOptions(item.profileType, TAKEOFF_PROFILE_TYPES).map(opt => (
+                              <option key={opt} value={opt}>{opt === '' ? '— Select —' : opt}</option>
+                            ))}
+                          </select>
                           <button onClick={() => setViewingIndex(i)} type="button"
                             style={{ background: 'none', border: '1px solid var(--afs-chrome-dim)', borderRadius: '4px', color: 'var(--afs-chrome-mid)', cursor: 'pointer', fontSize: '11px', fontFamily: 'var(--font-barlow)', padding: '3px 8px', whiteSpace: 'nowrap', flexShrink: 0 }}>
                             View 3D
@@ -469,15 +545,32 @@ export default function UploadPage() {
                         {item.aiNote && <p style={{ fontFamily: 'var(--font-inter)', fontSize: '11px', color: 'var(--afs-chrome-dim)', marginTop: '2px' }}>{item.aiNote}</p>}
                       </td>
                       <td style={{ padding: '12px 16px' }}>
-                        <input value={item.material ?? ''} disabled={state === 'submitting'} onChange={(e) => updateItem(i, 'material', e.target.value)}
-                          style={{ background: 'transparent', border: 'none', color: 'var(--afs-chrome-mid)', fontFamily: 'var(--font-inter)', fontSize: '13px', width: '100%', outline: 'none' }} />
+                        <select value={item.material ?? ''} disabled={state === 'submitting'} onChange={(e) => updateItem(i, 'material', e.target.value === '' ? null : e.target.value)}
+                          style={{ background: 'transparent', border: '1px solid var(--afs-bg-overlay)', borderRadius: '4px', color: 'var(--afs-chrome-mid)', fontFamily: 'var(--font-inter)', fontSize: '13px', width: '100%', outline: 'none', padding: '4px' }}>
+                          {selectOptions(item.material, ALL_MATERIALS).map(opt => (
+                            <option key={opt} value={opt}>{opt === '' ? '— None —' : opt}</option>
+                          ))}
+                        </select>
                       </td>
                       <td style={{ padding: '12px 16px' }}>
-                        <input value={item.gauge ?? ''} disabled={state === 'submitting'} onChange={(e) => updateItem(i, 'gauge', e.target.value)}
-                          style={{ background: 'transparent', border: 'none', color: 'var(--afs-chrome-mid)', fontFamily: 'var(--font-jetbrains)', fontSize: '12px', width: '80px', outline: 'none' }} />
+                        <select value={item.gauge ?? ''} disabled={state === 'submitting' || !item.material} onChange={(e) => updateItem(i, 'gauge', e.target.value === '' ? null : e.target.value)}
+                          style={{ background: 'transparent', border: '1px solid var(--afs-bg-overlay)', borderRadius: '4px', color: 'var(--afs-chrome-mid)', fontFamily: 'var(--font-jetbrains)', fontSize: '12px', width: '90px', outline: 'none', padding: '4px' }}>
+                          {selectOptions(item.gauge, gaugeChoices).map(opt => (
+                            <option key={opt} value={opt}>{opt === '' ? '— None —' : opt}</option>
+                          ))}
+                        </select>
                       </td>
-                      <td style={{ padding: '12px 16px', fontFamily: 'var(--font-jetbrains)', fontSize: '12px', color: 'var(--afs-chrome-mid)' }}>
-                        {[item.width ? `W:${item.width}"` : null, item.height ? `H:${item.height}"` : null, item.legA ? `A:${item.legA}"` : null, item.legB ? `B:${item.legB}"` : null].filter(Boolean).join(' ')}
+                      <td style={{ padding: '12px 16px' }}>
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                          {DIMENSION_FIELDS.map(dim => (
+                            <label key={dim.key} style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                              <span style={{ fontFamily: 'var(--font-barlow)', fontSize: '10px', color: 'var(--afs-chrome-dim)' }}>{dim.label}</span>
+                              <input type="number" step="0.125" value={item[dim.key] ?? ''} disabled={state === 'submitting'}
+                                onChange={(e) => updateItem(i, dim.key, e.target.value === '' ? null : parseFloat(e.target.value))}
+                                style={{ background: 'transparent', border: '1px solid var(--afs-bg-overlay)', borderRadius: '3px', color: 'var(--afs-chrome-mid)', fontFamily: 'var(--font-jetbrains)', fontSize: '12px', width: '46px', outline: 'none', padding: '2px 4px' }} />
+                            </label>
+                          ))}
+                        </div>
                       </td>
                       <td style={{ padding: '12px 16px' }}>
                         <input type="number" value={item.lengthFt} disabled={state === 'submitting'} onChange={(e) => updateItem(i, 'lengthFt', parseFloat(e.target.value))}
@@ -504,7 +597,8 @@ export default function UploadPage() {
                         </button>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

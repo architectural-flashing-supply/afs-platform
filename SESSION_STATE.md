@@ -7,7 +7,81 @@
 
 ## CURRENT STATUS
 
-**Most recent session (takeoff-coverage-001, 2026-08-03): fixed a systematic
+**Most recent session (takeoff-results-editable-001, 2026-08-03): investigated
+and fixed 2 real gaps in the Blueprint Takeoff results screen
+(`app/upload/page.tsx`) — missing dimension inputs and a one-size-fits-all
+3D preview shape — plus confirmed a 3rd suspected gap was already fine.**
+
+Asked to investigate 3 things against SPEC_DRAWING_TOOL.md Section 3.1
+before changing anything:
+
+1. **Are profileType/material/gauge/W/H/A/B/length/quantity actually
+   editable, or just static text with a Remove button?** Read
+   `app/upload/page.tsx`'s results table in full first. Found: profileType,
+   material, gauge, lengthFt, and quantity were already wired to
+   `updateItem` via real `<input>`s — never static text. The dimensions
+   (W/H/A/B) were the actual gap: rendered as one read-only concatenated
+   string (`W:12" H:4"...`), no way to correct a misread dimension.
+2. **Does the "requires profile type, length, quantity" validation
+   (`app/api/quote-requests/route.ts`) have UI to satisfy it?** Yes — see
+   #1, all 3 required fields were already editable. Not broken.
+3. **Does the 3D preview (`ProfileViewer3D` via `buildBendsFromItem`) read
+   the row's actual profileType, or hardcode one model?** It always used the
+   row's own width/legA/legB (never hardcoded to one item's data), but the
+   *shape* — a fixed 2-bend hat-channel — never varied with `profileType`,
+   so every row rendered the same shape family regardless of whether it was
+   a Coping Cap, Drip Edge, or Base Flashing. Confirmed real.
+
+**Fixed (`app/upload/page.tsx`, full file replacement):**
+- Profile Type → `<select>` dropdown, options = the AI's own
+  TAKEOFF_SYSTEM_PROMPT profile-type list (`TAKEOFF_PROFILE_TYPES`).
+- Material → `<select>` dropdown, options = `ALL_MATERIALS` (imported from
+  `lib/data/catalog.ts`, not queried live from the `materials` table —
+  see below).
+- Gauge → `<select>` dropdown filtered by the row's selected material via
+  `GAUGES_BY_MATERIAL`, disabled until a material is chosen.
+- W/H/A/B → 4 numeric inputs (`type="number" step="0.125"`), replacing the
+  static concatenated string.
+- All 3 dropdowns use a new `selectOptions()` helper that always keeps a
+  blank option plus the row's current value (even if outside the canonical
+  list) as an actual `<option>` — so turning a free-text field into a
+  dropdown can never silently discard something the AI actually extracted,
+  including the spec's explicit "blank/null where the AI correctly found no
+  data" requirement.
+- `buildBendsFromItem` now calls a new `classifyProfileShape()` (simple
+  keyword match against `item.profileType`) to pick one of 3 bend
+  topologies instead of always building the same one: a single 90° L-bend
+  for Base/Counter/Step Flashing, Drip Edge, and Gravel Stop; a shallow
+  near-flat bend for Valley Flashing, Through-wall Flashing, and Reglet; and
+  the original 2-bend hat-channel — unchanged — for Coping Cap, Expansion
+  Joint Cover, and anything unrecognized/custom.
+
+**Design decision worth flagging:** the task's instruction said dropdowns
+should come "from product_profiles and materials tables." Those tables'
+RLS policies (`SCHEMA.md` Tables 3/6) require `auth.uid() IS NOT NULL`, but
+`/upload` is guest-accessible (there's a guest email-capture submit flow) —
+a live query would return an empty option list for every guest. Used the
+same static-constants pattern `app/quote/page.tsx` already established for
+its own guest-accessible manual quote builder (`ALL_MATERIALS`/
+`GAUGES_BY_MATERIAL` from `lib/data/catalog.ts`) instead of introducing a
+dropdown that silently breaks for guests. Flagging in case the intent was
+specifically to move toward the live DB tables regardless of the guest
+gap — that would need a public read policy or a service-role API route
+first.
+
+**Not touched:** `app/api/admin/command-center/approve-quote-request/
+route.ts` has its own separate `buildBendsFromItem` (drives real
+`machine_jobs` bend programs toward the Thalmann DS2801) using the old
+fixed-shape fallback — a different, independently-implemented copy, out of
+scope for a "Blueprint Takeoff results screen" request and too consequential
+to touch speculatively. Its comment referencing the upload page's prior
+single-shape behavior is now slightly stale.
+
+**Gates: `pnpm tsc --noEmit` run directly and passed with 0 errors.**
+
+---
+
+**Session before that (takeoff-coverage-001, 2026-08-03): fixed a systematic
 extraction-coverage gap in the Blueprint Takeoff AI — on a real 20-page
 combined architectural + structural PDF, Claude returned only 4 items total,
 mostly null fields aside from `profileType` and a citation note, despite
