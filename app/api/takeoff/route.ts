@@ -57,6 +57,15 @@ PROFILE TYPES TO IDENTIFY:
 - Expansion Joint Cover — note width
 - Reglet — note depth
 - Through-wall Flashing — note width, projection
+- Mechanically Double-Locked Panel — field-seamed standing seam roof panel, two-step mechanical lock, asymmetric male/female leg geometry sized to a seaming machine, requires a dedicated seamer on site — note coverage width if specified
+- Single-Lock Panel — field-seamed standing seam roof panel, single-fold lock, simpler leg geometry, more tolerant of minor variation, appropriate for 3:12+ slope with lower wind exposure — note coverage width if specified
+- Snap-Lock Panel — factory-formed standing seam roof panel, no seamer required, formed bulb/hook male leg hand-engaged into a matching female pocket, lower wind-uplift rating than mechanically seamed panels — note coverage width if specified
+
+ROOF PANEL IDENTIFICATION AND QUANTITY:
+When a roof plane shows a slope/pitch callout and plan-view dimensions but no explicit panel product is named, apply this instead of skipping the plane:
+1. Determine which of the three panel types above applies from an explicit basis on the drawing — a mechanical seam callout means Mechanically Double-Locked Panel; an explicit snap-lock/snap-seam callout or "no field seaming" note means Snap-Lock Panel; an explicit single-lock/single-fold seam callout means Single-Lock Panel. Slope or wind-exposure requirements alone are NOT sufficient to choose between Single-Lock and Snap-Lock. If the drawing gives no seam-type basis for the call, default to Mechanically Double-Locked Panel (the safest, most broadly applicable of the three), set confidence to "low", and use aiNote to flag it as an AFS default assumption pending fabricator confirmation, not a value read off the drawing.
+2. Calculate true (sloped) roof area from the plan-view dimensions and pitch: convert the pitch to a slope factor — for "rise:12" notation, slope_factor = sqrt(rise^2 + 12^2) / 12; for a stated roof angle in degrees, slope_factor = 1 / cos(angle). True sloped area (sq ft) = plan-view area (sq ft) x slope_factor.
+3. Set width to the panel coverage width: use the drawing's stated coverage width if given, otherwise the AFS-default 16 inches. Set quantity to the true sloped area (from step 2) divided by that coverage width in feet (16" = 1.333 ft), and set unit to "LF". This quantity is a CALCULATION derived from pitch and plan dimensions, not a count read off the drawing — state that explicitly in aiNote (e.g. "Calculated: true roof area (slope factor x plan area) / 16 in AFS-default coverage width — not a drawing-stated quantity"), consistent with how other AFS-default dimensions are flagged. Never present this calculated quantity as if it were extracted directly.
 
 FOR EACH ITEM EXTRACT:
 1. Profile type (from list above)

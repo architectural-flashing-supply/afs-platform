@@ -14,26 +14,19 @@ import MatchedProfile3DModal from '@/components/studio/MatchedProfile3DModal';
 import ProfileDetailsModal, { type ProfileDetailsFormValues } from '@/components/studio/ProfileDetailsModal';
 import Toast from '@/components/ui/Toast';
 import type { ProfileMatch, DiagramBend } from '@/app/api/studio/match-profile/route';
+import {
+  type HemType,
+  type Hem,
+  type LegHem,
+  HEM_FOLD_DEPTH_IN,
+  HEM_DEFAULT_GAP_IN,
+  hemAllowanceIn,
+  legHemAllowanceIn,
+  sumLegHemAllowanceIn,
+} from '@/lib/types/profile';
 
 type SubmitState = 'idle' | 'submitting' | 'submitted';
-type HemType = 'open' | 'smashed' | 'teardrop';
 type HemEndpoint = 'start' | 'end';
-
-interface Hem {
-  type: HemType;
-  gapIn: number;
-}
-
-// A hem created by click-dragging on any leg (as opposed to hemStart/
-// hemEnd, which are always anchored to the whole profile's two absolute
-// endpoints). legIndex i means the leg from points[i] to points[i+1].
-interface LegHem {
-  legIndex: number;
-  distanceFromStartIn: number;
-  lengthIn: number;
-  type: HemType;
-  gapIn: number;
-}
 
 interface Point {
   x: number;
@@ -141,8 +134,6 @@ const MIN_DRAG_SEGMENT_IN = 0.05;
 const ANGLE_ARC_RADIUS_PX = 20; // fixed, unscaled by zoom — a UI indicator, not to-scale geometry
 const ANGLE_ARC_HIT_PX = 16;
 
-const HEM_FOLD_DEPTH_IN = 0.375;
-const HEM_DEFAULT_GAP_IN = 0.1875; // 3/16"
 const HEM_HIT_RADIUS_PX = 14;
 
 const VERTEX_DRAG_THRESHOLD_PX = 3; // movement before a vertex click becomes a drag
@@ -270,29 +261,6 @@ function snapToGrid(p: Point): Point {
     x: Math.round(p.x / SNAP_DIMENSION_INCHES) * SNAP_DIMENSION_INCHES,
     y: Math.round(p.y / SNAP_DIMENSION_INCHES) * SNAP_DIMENSION_INCHES,
   };
-}
-
-// Approximate extra blank-width consumed by a hem fold at one endpoint — a
-// visual/quoting simplification (fold depth is a fixed visual constant, not
-// a real fabrication bend-deduction calculation), not fabrication-precise.
-function hemAllowanceIn(hem: Hem | null | undefined, thicknessIn: number): number {
-  if (!hem) return 0;
-  if (hem.type === 'smashed') return 2 * HEM_FOLD_DEPTH_IN;
-  if (hem.type === 'teardrop') return 2 * HEM_FOLD_DEPTH_IN + Math.PI * (thicknessIn / 2);
-  return 2 * HEM_FOLD_DEPTH_IN + hem.gapIn;
-}
-
-// Same idea as hemAllowanceIn, for a leg hem — its fold length is the
-// user's actual drag distance (lengthIn) rather than the fixed
-// HEM_FOLD_DEPTH_IN visual constant hemStart/hemEnd use.
-function legHemAllowanceIn(hem: LegHem, thicknessIn: number): number {
-  if (hem.type === 'smashed') return 2 * hem.lengthIn;
-  if (hem.type === 'teardrop') return 2 * hem.lengthIn + Math.PI * (thicknessIn / 2);
-  return 2 * hem.lengthIn + hem.gapIn;
-}
-
-function sumLegHemAllowanceIn(hems: LegHem[], thicknessIn: number): number {
-  return hems.reduce((sum, h) => sum + legHemAllowanceIn(h, thicknessIn), 0);
 }
 
 function distanceToSegment(p: Point, a: Point, b: Point): number {

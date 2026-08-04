@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { gaugeToThicknessMm } from '@/lib/utils/gauge-thickness';
 import ProfileViewer3D, { type ProfileBend } from '@/components/studio/ProfileViewer3D';
-import { ALL_MATERIALS, GAUGES_BY_MATERIAL } from '@/lib/data/catalog';
+import { ALL_MATERIALS, GAUGES_BY_MATERIAL, STANDARD_PROFILE_DEFAULTS } from '@/lib/data/catalog';
 import { UPLOAD_ACCEPTED_EXTENSIONS, UPLOAD_MAX_SIZE_BYTES } from '@/lib/utils/upload-limits';
 import type { ScopeOption, ScopeDirective } from '@/app/api/takeoff/route';
 import type { SignUploadResponse } from '@/app/api/upload/route';
@@ -13,12 +13,13 @@ const MM_PER_INCH = 25.4;
 const DEFAULT_DIMENSIONS_IN = { width: 12, legA: 2, legB: 2 };
 
 // The takeoff AI's PROFILE TYPES TO IDENTIFY list (see /api/takeoff's
-// TAKEOFF_SYSTEM_PROMPT) sorted into the 3 cross-section shapes the 3D
-// preview below can actually distinguish with the leg/angle "bend"
-// primitives ProfileViewer3D consumes. Coping Cap and Expansion Joint
-// Cover (both a flat span framed by two legs) fall through to the
-// default 'hat' branch in classifyProfileShape below, matching prior
-// behavior exactly for those two types.
+// TAKEOFF_SYSTEM_PROMPT) sorted into the 3 cross-section shapes the generic
+// fallback preview below can distinguish with the leg/angle "bend"
+// primitives ProfileViewer3D consumes. Only used for profile types with no
+// canonical_profiles match (see PROFILE_TYPE_TO_CANONICAL_SLUG) — Coping
+// Cap and Expansion Joint Cover (both a flat span framed by two legs) fall
+// through to the default 'hat' branch, matching prior behavior exactly for
+// those two types.
 const L_BEND_PROFILE_KEYWORDS = ['base flashing', 'counter flashing', 'step flashing', 'drip edge', 'gravel stop'];
 const FLAT_PROFILE_KEYWORDS = ['valley', 'through-wall', 'through wall', 'reglet'];
 
@@ -34,12 +35,12 @@ function classifyProfileShape(profileType: string): ProfileShape {
 // The AI takeoff extracts width/height/legA/legB per line item, not a
 // linked machine_profile record — there is no "matched profile" to look
 // up. This builds an illustrative cross-section from the item's own
-// extracted dimensions (falling back to generic defaults when a
-// dimension wasn't captured, the same 90°-corner assumption
-// lib/utils/profile-svg.ts already makes for these fields), shaped
-// according to the row's own profileType via classifyProfileShape
-// rather than a single fixed shape for every row.
-function buildBendsFromItem(item: TakeoffItem): { bends: ProfileBend[]; blankWidthMm: number } {
+// dimensions (falling back to generic defaults when a dimension wasn't
+// captured, the same 90°-corner assumption lib/utils/profile-svg.ts
+// already makes for these fields), shaped according to the row's own
+// profileType via classifyProfileShape. Used only as a fallback for
+// profile types with no canonical_profiles match — see buildBendsFromItem.
+function buildGenericBendsFromItem(item: TakeoffItem): { bends: ProfileBend[]; blankWidthMm: number } {
   const legAIn = item.legA ?? DEFAULT_DIMENSIONS_IN.legA;
   const legBIn = item.legB ?? DEFAULT_DIMENSIONS_IN.legB;
   const widthIn = item.width ?? item.height ?? DEFAULT_DIMENSIONS_IN.width;
@@ -73,6 +74,93 @@ function buildBendsFromItem(item: TakeoffItem): { bends: ProfileBend[]; blankWid
   };
 }
 
+interface CanonicalBend {
+  leftLegIn: number;
+  rightLegIn: number;
+  angleDegrees: number;
+  direction: 'up' | 'down';
+}
+
+interface CanonicalProfile {
+  slug: string;
+  blankWidthIn: number;
+  bends: CanonicalBend[];
+}
+
+// Maps the takeoff AI's profileType strings to the matching row in
+// canonical_profiles (the same 25-profile reference library FlashDraft's
+// "Load into FlashDraft" browser and the Custom Configurator draw from —
+// see scripts/seed-canonical-profiles.ts and
+// components/studio/CanonicalProfileBrowser.tsx) so the 3D preview below
+// renders that profile's real fabricated shape instead of a generic
+// approximation. Only profile types with an unambiguous "standard" match
+// are listed — Step Flashing and Reglet have no equivalent canonical
+// profile, so they (and any custom/unmatched profileType) fall back to
+// buildGenericBendsFromItem's 3-shape heuristic.
+const PROFILE_TYPE_TO_CANONICAL_SLUG: Record<string, string> = {
+  'Coping Cap': 'standard-coping-cap',
+  'Base Flashing': 'l-shape-base-flashing',
+  'Counter Flashing': 'counter-flashing',
+  'Drip Edge': 'standard-drip-edge',
+  'Gravel Stop': 'gravel-stop',
+  'Valley Flashing': 'open-valley-flashing',
+  'Expansion Joint Cover': 'expansion-joint-cover',
+  'Through-wall Flashing': 'scupper-opening',
+};
+
+// Reasonable scale bounds so a wildly wrong or missing extracted dimension
+// can't blow up the preview into an unreadable sliver or a giant slab —
+// the canonical shape itself (not this clamp) is what carries the real
+// fabrication-accurate topology.
+const CANONICAL_SCALE_MIN = 0.2;
+const CANONICAL_SCALE_MAX = 5;
+
+// canonical_profiles stores each bend as a turn magnitude + up/down
+// direction (see seed-canonical-profiles.ts's turtleBends), not the signed
+// "interior angle" ProfileViewer3D's reconstruction (lib/flashdraft/
+// geometry.ts computeProfilePoints) expects. Converting the direction into
+// the interior-angle convention (up: 180 - turn, down: 180 + turn) is what
+// lets a profile with alternating bend directions — nearly all of them —
+// reconstruct correctly; see CanonicalProfileBrowser's comment on why
+// FlashDraft's own "Load into Library" flow avoids this same reconstruction
+// entirely by handing off pre-computed points instead. A takeoff line item
+// has no pre-computed points to hand off (only a matched slug), so this
+// route recomputes them via the angle conversion instead.
+function canonicalBendsToProfileBends(bends: CanonicalBend[], scale: number): ProfileBend[] {
+  return bends.map((b) => ({
+    leftLeg: b.leftLegIn * scale * MM_PER_INCH,
+    rightLeg: b.rightLegIn * scale * MM_PER_INCH,
+    angle: b.direction === 'up' ? 180 - b.angleDegrees : 180 + b.angleDegrees,
+    radius: 0,
+  }));
+}
+
+function buildBendsFromItem(
+  item: TakeoffItem,
+  canonicalProfiles: Record<string, CanonicalProfile>
+): { bends: ProfileBend[]; blankWidthMm: number } {
+  const slug = PROFILE_TYPE_TO_CANONICAL_SLUG[item.profileType];
+  const canonical = slug ? canonicalProfiles[slug] : undefined;
+
+  if (canonical && canonical.bends.length > 0) {
+    // Scale the canonical shape to roughly match this item's own extracted
+    // (or AFS-standard-default) size, using whichever overall dimension it
+    // has — real shape, sized to this line item rather than a fixed stock
+    // dimension every time.
+    const targetIn =
+      item.width ?? item.height ?? (item.legA != null && item.legB != null ? item.legA + item.legB : null);
+    const rawScale = targetIn && targetIn > 0 ? targetIn / canonical.blankWidthIn : 1;
+    const scale = Math.min(CANONICAL_SCALE_MAX, Math.max(CANONICAL_SCALE_MIN, rawScale));
+
+    return {
+      bends: canonicalBendsToProfileBends(canonical.bends, scale),
+      blankWidthMm: canonical.blankWidthIn * scale * MM_PER_INCH,
+    };
+  }
+
+  return buildGenericBendsFromItem(item);
+}
+
 type UploadState = 'idle' | 'uploading' | 'processing' | 'results' | 'submitting' | 'submitted' | 'failed';
 type Confidence = 'high' | 'medium' | 'low';
 
@@ -98,6 +186,112 @@ interface TakeoffResult {
   overallConfidence: Confidence;
   status: 'success' | 'partial' | 'failed';
   scopeDirective: ScopeDirective | null;
+}
+
+type PrefillableField = 'width' | 'height' | 'legA' | 'legB' | 'material' | 'gauge';
+const PREFILLABLE_DIMENSION_FIELDS: readonly ('width' | 'height' | 'legA' | 'legB')[] = ['width', 'height', 'legA', 'legB'];
+
+// Applies STANDARD_PROFILE_DEFAULTS (lib/data/catalog.ts) to any field the
+// AI left null because the drawing itself didn't specify it — never
+// overwrites a field the AI actually read off the drawing. Returns, in
+// parallel with the (possibly updated) items, one Set per item recording
+// exactly which fields were filled this way, so the table can badge them as
+// "AFS standard default" rather than presenting them as if extracted.
+function applyStandardDefaults(rawItems: TakeoffItem[]): { items: TakeoffItem[]; prefilled: Set<PrefillableField>[] } {
+  const prefilled: Set<PrefillableField>[] = [];
+  const items = rawItems.map((item) => {
+    const defaults = STANDARD_PROFILE_DEFAULTS[item.profileType];
+    const filled = new Set<PrefillableField>();
+    if (!defaults) {
+      prefilled.push(filled);
+      return item;
+    }
+
+    const next = { ...item };
+    for (const key of PREFILLABLE_DIMENSION_FIELDS) {
+      if (next[key] == null && defaults[key] != null) {
+        next[key] = defaults[key];
+        filled.add(key);
+      }
+    }
+    if (next.material == null && defaults.material) {
+      next.material = defaults.material;
+      filled.add('material');
+    }
+    if (next.gauge == null && defaults.gauge) {
+      next.gauge = defaults.gauge;
+      filled.add('gauge');
+    }
+    prefilled.push(filled);
+    return next;
+  });
+  return { items, prefilled };
+}
+
+type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+
+// Local work-persistence draft for the results table below — see the
+// restore-on-mount, write-on-edit, and debounced-database-save effects in
+// UploadPage. Stored in localStorage (survives tab/browser close, unlike
+// sessionStorage) rather than React state alone so edits aren't lost to a
+// refresh, back-navigation, or browser/power loss before the debounced
+// database save (takeoff_uploads.confirmed_items) lands. Keyed by uploadId
+// via DRAFT_KEY_PREFIX, with a small pointer key recording which upload is
+// "active" so a fresh page load knows which draft to look for.
+interface TakeoffDraft {
+  uploadId: string;
+  filename: string | null;
+  result: TakeoffResult;
+  items: TakeoffItem[];
+  prefilledFields: PrefillableField[][];
+  savedAt: number;
+}
+
+const DRAFT_KEY_PREFIX = 'afs:takeoff-draft:';
+const ACTIVE_DRAFT_POINTER_KEY = 'afs:takeoff-active-upload-id';
+
+function readDraft(uploadId: string): TakeoffDraft | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(DRAFT_KEY_PREFIX + uploadId);
+    return raw ? (JSON.parse(raw) as TakeoffDraft) : null;
+  } catch {
+    return null;
+  }
+}
+
+function readActiveDraft(): TakeoffDraft | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const activeUploadId = window.localStorage.getItem(ACTIVE_DRAFT_POINTER_KEY);
+    return activeUploadId ? readDraft(activeUploadId) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeDraft(draft: TakeoffDraft): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(DRAFT_KEY_PREFIX + draft.uploadId, JSON.stringify(draft));
+    window.localStorage.setItem(ACTIVE_DRAFT_POINTER_KEY, draft.uploadId);
+  } catch {
+    // localStorage unavailable (private browsing, quota exceeded, disabled)
+    // — the debounced database save (confirmed_items PATCH, below) is the
+    // fallback persistence path for this case.
+  }
+}
+
+function clearDraft(uploadId: string | null): void {
+  if (typeof window === 'undefined' || !uploadId) return;
+  try {
+    window.localStorage.removeItem(DRAFT_KEY_PREFIX + uploadId);
+    if (window.localStorage.getItem(ACTIVE_DRAFT_POINTER_KEY) === uploadId) {
+      window.localStorage.removeItem(ACTIVE_DRAFT_POINTER_KEY);
+    }
+  } catch {
+    // best-effort cleanup only
+  }
 }
 
 const SCOPE_DIRECTIVE_OPTIONS: { value: ScopeOption; label: string }[] = [
@@ -130,6 +324,22 @@ const DIMENSION_FIELDS: { key: 'width' | 'height' | 'legA' | 'legB'; label: stri
   { key: 'legA', label: 'A' },
   { key: 'legB', label: 'B' },
 ];
+
+// Small indicator shown next to a field that was pre-filled from
+// STANDARD_PROFILE_DEFAULTS rather than read off the drawing — see
+// applyStandardDefaults. Uses the afs-accent-green Tailwind token (CLAUDE.md
+// rule 4) rather than an inline hex value.
+function DefaultBadge() {
+  return (
+    <span
+      className="text-afs-accent-green"
+      title="AFS standard default — not read from the drawing"
+      style={{ fontSize: '10px', lineHeight: 1, fontWeight: 700 }}
+    >
+      ●
+    </span>
+  );
+}
 
 // Always surfaces a blank option (AI found no data) plus the current value
 // even when the AI extracted something outside the canonical list, so an
@@ -192,10 +402,123 @@ export default function UploadPage() {
   const [viewingIndex, setViewingIndex] = useState<number | null>(null);
   const [scopeOption, setScopeOption] = useState<ScopeOption>('full');
   const [customScopeText, setCustomScopeText] = useState('');
+  const [prefilledFields, setPrefilledFields] = useState<Set<PrefillableField>[]>([]);
+  const [canonicalProfiles, setCanonicalProfiles] = useState<Record<string, CanonicalProfile>>({});
+  const [uploadId, setUploadId] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+  const [showGuestNudge, setShowGuestNudge] = useState(false);
+  const lastDraftLoadedAtRef = useRef(0);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingNavigationRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data }) => setIsAuthenticated(!!data.user));
+  }, []);
+
+  // Restore-on-mount: if a local draft exists (this device left off mid-edit
+  // — refresh, back-navigation, browser/power loss), load it straight into
+  // the results view instead of showing the empty dropzone. Compared against
+  // lastDraftLoadedAtRef rather than unconditionally so this same pattern
+  // extends cleanly to a future server-fetched initial load (e.g. resuming
+  // a takeoff by URL) — "restore only if newer than or equal to what's
+  // already loaded" — without this page needing to change; today nothing is
+  // loaded yet at mount, so any draft found here always qualifies.
+  useEffect(() => {
+    const draft = readActiveDraft();
+    if (!draft || draft.savedAt < lastDraftLoadedAtRef.current) return;
+    lastDraftLoadedAtRef.current = draft.savedAt;
+    setUploadId(draft.uploadId);
+    setFilename(draft.filename);
+    setResult(draft.result);
+    setItems(draft.items);
+    setPrefilledFields(draft.prefilledFields.map((fields) => new Set(fields)));
+    setState('results');
+  }, []);
+
+  // Local persistence: write the full current item state to localStorage on
+  // every edit (any change to `items`, plus the metadata needed to redraw
+  // the results view after a reload).
+  useEffect(() => {
+    if (!uploadId || !result || (state !== 'results' && state !== 'submitting')) return;
+    const savedAt = Date.now();
+    lastDraftLoadedAtRef.current = savedAt;
+    writeDraft({
+      uploadId,
+      filename,
+      result,
+      items,
+      prefilledFields: prefilledFields.map((fields) => Array.from(fields)),
+      savedAt,
+    });
+  }, [uploadId, filename, result, items, prefilledFields, state]);
+
+  // Debounced database save: persists edited items to
+  // takeoff_uploads.confirmed_items ~1.5-2s after the last edit, so work
+  // survives even if localStorage is unavailable or gets cleared.
+  useEffect(() => {
+    if (!uploadId || (state !== 'results' && state !== 'submitting')) return;
+    setSaveStatus('saving');
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/takeoff/${uploadId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items }),
+        });
+        setSaveStatus(res.ok ? 'saved' : 'error');
+      } catch {
+        setSaveStatus('error');
+      }
+    }, 1800);
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, [uploadId, items, state]);
+
+  // beforeunload warning: native "leave site?" dialog while edits haven't
+  // been confirmed saved to the database yet (the local draft above is
+  // written synchronously on every edit, so the remaining risk window is
+  // the debounced database save still pending or having failed).
+  useEffect(() => {
+    if (saveStatus !== 'saving' && saveStatus !== 'error') return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [saveStatus]);
+
+  // Guest account nudge: work that exists only as a local draft / unconfirmed
+  // takeoff_uploads row tied to no account is gone the moment this browser
+  // loses it. Rather than block navigation outright, intercept the in-page
+  // actions that would take a guest away from it and offer the choice.
+  const hasGuestOnlyWork = isAuthenticated === false && uploadId !== null && items.length > 0 && (state === 'results' || state === 'submitting');
+
+  const navigateAwayFromDraft = (action: () => void) => {
+    if (hasGuestOnlyWork) {
+      pendingNavigationRef.current = action;
+      setShowGuestNudge(true);
+    } else {
+      action();
+    }
+  };
+
+  useEffect(() => {
+    fetch('/api/studio/canonical-profiles')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { profiles?: CanonicalProfile[] } | null) => {
+        if (!data?.profiles) return;
+        const bySlug: Record<string, CanonicalProfile> = {};
+        for (const p of data.profiles) bySlug[p.slug] = p;
+        setCanonicalProfiles(bySlug);
+      })
+      .catch(() => {
+        // 3D preview falls back to buildGenericBendsFromItem's heuristic
+        // shapes if the canonical library can't be loaded.
+      });
   }, []);
 
   const handleFile = useCallback(async (file: File) => {
@@ -253,6 +576,8 @@ export default function UploadPage() {
         return;
       }
 
+      setUploadId(signData.uploadId);
+      setSaveStatus('idle');
       setState('processing');
       setStage(1);
 
@@ -279,7 +604,9 @@ export default function UploadPage() {
         return;
       }
       setResult(takeoffData);
-      setItems(takeoffData.items);
+      const { items: itemsWithDefaults, prefilled } = applyStandardDefaults(takeoffData.items ?? []);
+      setItems(itemsWithDefaults);
+      setPrefilledFields(prefilled);
       setState(takeoffData.items?.length === 0 ? 'failed' : 'results');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed.');
@@ -296,10 +623,21 @@ export default function UploadPage() {
 
   const updateItem = <K extends keyof TakeoffItem>(index: number, field: K, value: TakeoffItem[K]) => {
     setItems(prev => prev.map((item, i) => i === index ? { ...item, [field]: value } : item));
+    // A manual edit means this field (or, if the profile type itself
+    // changed, every default computed for the old profile type) is no
+    // longer "AFS standard default" — the estimator's number now, not ours.
+    setPrefilledFields(prev => prev.map((fields, i) => {
+      if (i !== index) return fields;
+      if (field === 'profileType') return new Set();
+      const next = new Set(fields);
+      next.delete(field as unknown as PrefillableField);
+      return next;
+    }));
   };
 
   const removeItem = (index: number) => {
     setItems(prev => prev.filter((_, i) => i !== index));
+    setPrefilledFields(prev => prev.filter((_, i) => i !== index));
   };
 
   const submitQuoteRequest = useCallback(async (email?: string) => {
@@ -321,11 +659,14 @@ export default function UploadPage() {
       setRequestNumber(success.requestNumber);
       setShowEmailCapture(false);
       setState('submitted');
+      // Submitted work now lives in quote_requests under the guest email (or
+      // account) regardless of this browser — the local draft's job is done.
+      clearDraft(uploadId);
     } catch {
       setSubmitError('Submission failed. Please try again.');
       setState('results');
     }
-  }, [items]);
+  }, [items, uploadId]);
 
   const handleSubmitClick = () => {
     if (items.length === 0) {
@@ -350,13 +691,17 @@ export default function UploadPage() {
   };
 
   const resetToIdle = () => {
+    clearDraft(uploadId);
     setState('idle');
     setResult(null);
     setItems([]);
+    setPrefilledFields([]);
     setSubmitError(null);
     setShowEmailCapture(false);
     setGuestEmail('');
     setRequestNumber(null);
+    setUploadId(null);
+    setSaveStatus('idle');
   };
 
   const stages = [
@@ -549,6 +894,18 @@ export default function UploadPage() {
                 <p style={{ fontFamily: 'var(--font-inter)', fontSize: '13px', color: 'var(--afs-chrome-base)' }}>
                   {items.length} items identified from {filename}
                 </p>
+                {saveStatus !== 'idle' && (
+                  <p style={{
+                    fontFamily: 'var(--font-inter)',
+                    fontSize: '11px',
+                    marginTop: '4px',
+                    color: saveStatus === 'saved' ? 'var(--afs-success)' : saveStatus === 'error' ? 'var(--afs-crimson)' : 'var(--afs-chrome-dim)',
+                  }}>
+                    {saveStatus === 'saving' && 'Saving...'}
+                    {saveStatus === 'saved' && 'Saved'}
+                    {saveStatus === 'error' && 'Save failed — your edits are still kept in this browser.'}
+                  </p>
+                )}
               </div>
               <span style={{
                 fontFamily: 'var(--font-barlow)',
@@ -568,6 +925,12 @@ export default function UploadPage() {
               <div style={{ backgroundColor: 'var(--afs-bg-raised)', border: '1px solid var(--afs-bg-overlay)', borderRadius: '6px', padding: '16px', marginBottom: '24px' }}>
                 <p style={{ fontFamily: 'var(--font-inter)', fontSize: '13px', color: 'var(--afs-chrome-mid)' }}>{result.processingNotes}</p>
               </div>
+            )}
+
+            {prefilledFields.some(f => f.size > 0) && (
+              <p style={{ fontFamily: 'var(--font-inter)', fontSize: '12px', color: 'var(--afs-chrome-dim)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <DefaultBadge /> AFS standard default — this drawing didn&apos;t specify that field, so it was pre-filled with AFS&apos;s standard value for this profile. Edit any value before submitting.
+              </p>
             )}
 
             <div style={{ backgroundColor: 'var(--afs-bg-raised)', border: '1px solid var(--afs-bg-overlay)', borderRadius: '8px', overflow: 'hidden', marginBottom: '24px' }}>
@@ -603,26 +966,35 @@ export default function UploadPage() {
                         {item.aiNote && <p style={{ fontFamily: 'var(--font-inter)', fontSize: '11px', color: 'var(--afs-chrome-dim)', marginTop: '2px' }}>{item.aiNote}</p>}
                       </td>
                       <td style={{ padding: '12px 16px' }}>
-                        <select value={item.material ?? ''} disabled={state === 'submitting'} onChange={(e) => updateItem(i, 'material', e.target.value === '' ? null : e.target.value)}
-                          style={{ background: 'transparent', border: '1px solid var(--afs-bg-overlay)', borderRadius: '4px', color: 'var(--afs-chrome-mid)', fontFamily: 'var(--font-inter)', fontSize: '13px', width: '100%', outline: 'none', padding: '4px' }}>
-                          {selectOptions(item.material, ALL_MATERIALS).map(opt => (
-                            <option key={opt} value={opt}>{opt === '' ? '— None —' : opt}</option>
-                          ))}
-                        </select>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <select value={item.material ?? ''} disabled={state === 'submitting'} onChange={(e) => updateItem(i, 'material', e.target.value === '' ? null : e.target.value)}
+                            style={{ background: 'transparent', border: '1px solid var(--afs-bg-overlay)', borderRadius: '4px', color: 'var(--afs-chrome-mid)', fontFamily: 'var(--font-inter)', fontSize: '13px', width: '100%', outline: 'none', padding: '4px' }}>
+                            {selectOptions(item.material, ALL_MATERIALS).map(opt => (
+                              <option key={opt} value={opt}>{opt === '' ? '— None —' : opt}</option>
+                            ))}
+                          </select>
+                          {prefilledFields[i]?.has('material') && <DefaultBadge />}
+                        </div>
                       </td>
                       <td style={{ padding: '12px 16px' }}>
-                        <select value={item.gauge ?? ''} disabled={state === 'submitting' || !item.material} onChange={(e) => updateItem(i, 'gauge', e.target.value === '' ? null : e.target.value)}
-                          style={{ background: 'transparent', border: '1px solid var(--afs-bg-overlay)', borderRadius: '4px', color: 'var(--afs-chrome-mid)', fontFamily: 'var(--font-jetbrains)', fontSize: '12px', width: '90px', outline: 'none', padding: '4px' }}>
-                          {selectOptions(item.gauge, gaugeChoices).map(opt => (
-                            <option key={opt} value={opt}>{opt === '' ? '— None —' : opt}</option>
-                          ))}
-                        </select>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <select value={item.gauge ?? ''} disabled={state === 'submitting' || !item.material} onChange={(e) => updateItem(i, 'gauge', e.target.value === '' ? null : e.target.value)}
+                            style={{ background: 'transparent', border: '1px solid var(--afs-bg-overlay)', borderRadius: '4px', color: 'var(--afs-chrome-mid)', fontFamily: 'var(--font-jetbrains)', fontSize: '12px', width: '90px', outline: 'none', padding: '4px' }}>
+                            {selectOptions(item.gauge, gaugeChoices).map(opt => (
+                              <option key={opt} value={opt}>{opt === '' ? '— None —' : opt}</option>
+                            ))}
+                          </select>
+                          {prefilledFields[i]?.has('gauge') && <DefaultBadge />}
+                        </div>
                       </td>
                       <td style={{ padding: '12px 16px' }}>
                         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                           {DIMENSION_FIELDS.map(dim => (
                             <label key={dim.key} style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                              <span style={{ fontFamily: 'var(--font-barlow)', fontSize: '10px', color: 'var(--afs-chrome-dim)' }}>{dim.label}</span>
+                              <span style={{ fontFamily: 'var(--font-barlow)', fontSize: '10px', color: 'var(--afs-chrome-dim)', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                {dim.label}
+                                {prefilledFields[i]?.has(dim.key) && <DefaultBadge />}
+                              </span>
                               <input type="number" step="0.125" value={item[dim.key] ?? ''} disabled={state === 'submitting'}
                                 onChange={(e) => updateItem(i, dim.key, e.target.value === '' ? null : parseFloat(e.target.value))}
                                 style={{ background: 'transparent', border: '1px solid var(--afs-bg-overlay)', borderRadius: '3px', color: 'var(--afs-chrome-mid)', fontFamily: 'var(--font-jetbrains)', fontSize: '12px', width: '46px', outline: 'none', padding: '2px 4px' }} />
@@ -700,11 +1072,16 @@ export default function UploadPage() {
                 style={{ backgroundColor: state === 'submitting' ? 'var(--afs-crimson-dim)' : 'var(--afs-crimson)', color: 'var(--afs-chrome-high)', fontFamily: 'var(--font-barlow)', fontWeight: 600, fontSize: '14px', padding: '14px 32px', borderRadius: '6px', border: 'none', cursor: state === 'submitting' ? 'default' : 'pointer', letterSpacing: '1px' }}>
                 {state === 'submitting' ? 'Submitting...' : 'Submit Quote Request'}
               </button>
-              <button onClick={resetToIdle} disabled={state === 'submitting'}
+              <button onClick={() => navigateAwayFromDraft(resetToIdle)} disabled={state === 'submitting'}
                 style={{ backgroundColor: 'var(--afs-bg-overlay)', color: 'var(--afs-chrome-high)', fontFamily: 'var(--font-barlow)', fontWeight: 600, fontSize: '14px', padding: '14px 24px', borderRadius: '6px', border: '1px solid var(--afs-chrome-dim)', cursor: 'pointer' }}>
                 Start Over
               </button>
               <a href="/quote"
+                onClick={(e) => {
+                  if (!hasGuestOnlyWork) return;
+                  e.preventDefault();
+                  navigateAwayFromDraft(() => { window.location.href = '/quote'; });
+                }}
                 style={{ backgroundColor: 'var(--afs-bg-overlay)', color: 'var(--afs-chrome-high)', fontFamily: 'var(--font-barlow)', fontWeight: 600, fontSize: '14px', padding: '14px 24px', borderRadius: '6px', border: '1px solid var(--afs-chrome-dim)', textDecoration: 'none', display: 'inline-block' }}>
                 Build Quote Manually
               </a>
@@ -782,7 +1159,7 @@ export default function UploadPage() {
             </div>
             {(() => {
               const item = items[viewingIndex];
-              const { bends, blankWidthMm } = buildBendsFromItem(item);
+              const { bends, blankWidthMm } = buildBendsFromItem(item, canonicalProfiles);
               return (
                 <ProfileViewer3D
                   bends={bends}
@@ -795,6 +1172,45 @@ export default function UploadPage() {
                 />
               );
             })()}
+          </div>
+        </div>
+      )}
+
+      {showGuestNudge && (
+        <div
+          onClick={() => setShowGuestNudge(false)}
+          style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ backgroundColor: 'var(--afs-bg-raised)', border: '1px solid var(--afs-bg-overlay)', borderRadius: '8px', padding: '28px', maxWidth: '440px', width: '100%' }}
+          >
+            <h3 style={{ fontFamily: 'var(--font-barlow-condensed)', fontSize: '22px', color: 'var(--afs-chrome-high)', marginBottom: '10px' }}>
+              Keep this takeoff?
+            </h3>
+            <p style={{ fontFamily: 'var(--font-inter)', fontSize: '13px', color: 'var(--afs-chrome-mid)', marginBottom: '20px' }}>
+              You&apos;re not signed in, so this in-progress takeoff only lives in this browser. Create a free account to keep access to it from anywhere.
+            </p>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <a href="/register"
+                style={{ backgroundColor: 'var(--afs-crimson)', color: 'var(--afs-chrome-high)', fontFamily: 'var(--font-barlow)', fontWeight: 600, fontSize: '13px', padding: '10px 18px', borderRadius: '6px', textDecoration: 'none', display: 'inline-block' }}>
+                Create Account
+              </a>
+              <button
+                onClick={() => {
+                  setShowGuestNudge(false);
+                  const action = pendingNavigationRef.current;
+                  pendingNavigationRef.current = null;
+                  action?.();
+                }}
+                style={{ backgroundColor: 'var(--afs-bg-overlay)', color: 'var(--afs-chrome-high)', fontFamily: 'var(--font-barlow)', fontWeight: 600, fontSize: '13px', padding: '10px 16px', borderRadius: '6px', border: '1px solid var(--afs-chrome-dim)', cursor: 'pointer' }}>
+                Continue Without Account
+              </button>
+              <button onClick={() => setShowGuestNudge(false)}
+                style={{ backgroundColor: 'transparent', color: 'var(--afs-chrome-base)', fontFamily: 'var(--font-barlow)', fontSize: '13px', padding: '10px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer' }}>
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}

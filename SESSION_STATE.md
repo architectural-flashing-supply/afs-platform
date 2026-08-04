@@ -7,9 +7,230 @@
 
 ## CURRENT STATUS
 
-**Most recent session (takeoff-files-api-001, 2026-08-03): root-caused and
+**Most recent session (photo-to-quote-hem-fixes-001, 2026-08-04): user
+requested 3 fixes to "the Photo-to-Quote flow" — remove a duplicated
+scope-directive selector and non-photo file types from its Photos tab,
+extract FlashDraft's `HemType` into a shared location so Photo-to-Quote
+could reuse it, and add per-leg-endpoint hem detection to its AI
+extraction plus 3D preview rendering. Investigated before touching
+anything, per the request's own instruction to confirm duplication before
+removing.**
+
+**Finding: Photo-to-Quote AI has zero implementation — confirmed again,
+consistent with every prior session's note on this (2026-08-02, 2026-08-03
+entries below).** `app/upload/page.tsx` (1219 lines) is, and has always
+been since its first commit (`a9f2656`), a single Blueprint-Takeoff-only
+flow — no tab switcher, no "Photos" branch, no `PhotoUploadZone`/
+`PhotoUploadDisclaimer`, no `PHOTO_SYSTEM_PROMPT` anywhere in the repo
+(`git log --grep=photo` across the whole history: zero hits). The
+`app/studio/page.tsx` "Photo to Quote" card links to plain `/upload` — the
+same Blueprint Takeoff screen, not a distinct photo flow. So there was no
+duplicated scope-directive selector or wrong file-type list to remove from
+a Photos tab (item 1), no photo-extraction AI prompt to add hem fields to
+(item 3), and no Photo-to-Quote 3D preview call site to update (item 4) —
+all three target a feature that is still only `specs/
+SPEC_PHOTO_TO_QUOTE_AI.md` prose. Per user decision this session, building
+that feature was explicitly scoped OUT as separate, larger work — not
+silently skipped.
+
+**Done this session — item 2 only, the one real/independent piece:**
+extracted `HemType`, `Hem`, `LegHem` (types), `HEM_FOLD_DEPTH_IN`/
+`HEM_DEFAULT_GAP_IN` (constants), and `hemAllowanceIn`/`legHemAllowanceIn`/
+`sumLegHemAllowanceIn` (functions) out of `app/studio/draft/page.tsx`
+(FlashDraft) into a new `lib/types/profile.ts`, since no `lib/types/`
+convention existed yet (checked — the closest precedent is `lib/flashdraft/
+geometry.ts`, which is geometry-only, no types file). FlashDraft now
+imports all of these from the shared module instead of defining them
+locally; left `HemEndpoint` (`'start' | 'end'`) and the canvas-only
+`HEM_HIT_RADIUS_PX`/`LEG_HEM_MIN_DRAG_IN` constants in place, since those
+are FlashDraft-editor UI concerns (which popup is open, pixel hit-testing),
+not domain data a future Photo-to-Quote flow would need. Pure move, no
+logic changed — verified via `pnpm tsc --noEmit` (0 errors) and by
+confirming every call site (2D canvas hem rendering, live blank-width
+calc, hem-type popups, save/submit payloads) still resolves against the
+same functions/types, now imported rather than local. This is the shared
+home item 3/4 would import from whenever Photo-to-Quote is actually built.
+
+Gates: `pnpm tsc --noEmit` run directly, 0 errors.
+
+---
+
+**Previous session (takeoff-work-persistence-001, 2026-08-04): added
+real-time work persistence to the Blueprint Takeoff results screen
+(`app/upload/page.tsx`), scoped to `/upload` only per the request.**
+
+Four pieces, all inside `app/upload/page.tsx` plus one new API route:
+
+1. **Local persistence** — a `TakeoffDraft` (uploadId, filename, result,
+   items, prefilledFields, savedAt) is written to `localStorage` on every
+   edit to the results table (any change while in the `results`/
+   `submitting` state), keyed by `uploadId` via `DRAFT_KEY_PREFIX`, with an
+   `ACTIVE_DRAFT_POINTER_KEY` recording which upload is "active." Chose
+   `localStorage` over `sessionStorage` specifically because the request
+   requires surviving browser/power loss, which `sessionStorage` does not.
+   A mount-time effect restores that draft straight into the results view
+   before the user ever sees the empty dropzone, gated on a
+   `lastDraftLoadedAtRef` timestamp comparison — a no-op today (nothing is
+   loaded before it runs) but written so a future server-fetched initial
+   load can reuse the same "restore only if newer than or equal to what's
+   already loaded" rule without this file changing again.
+2. **Debounced database save** — new `app/api/takeoff/[uploadId]/route.ts`
+   (PATCH) writes edited items to the already-existing
+   `takeoff_uploads.confirmed_items` column via the admin client, with no
+   ownership check — this matches the trust model `/api/takeoff`'s POST
+   handler already established (guest sessions have no auth token to check;
+   the never-guessable v4 UUID `uploadId` is the same bar POST already
+   accepts for writing this row). The page debounces the call 1.8s after
+   the last edit to `items`, and a `saveStatus` (`idle`/`saving`/`saved`/
+   `error`) renders as a small text indicator by the results-table header
+   so the save isn't silent.
+3. **beforeunload warning** — native "leave site?" dialog while
+   `saveStatus` is `saving` or `error`. The local draft (#1) is written
+   synchronously on every edit, so the actual risk window left open at
+   unload time is the debounced database save specifically.
+4. **Guest account nudge** — for a signed-out user with unsubmitted
+   results-table work, this page's own "Start Over" button and "Build Quote
+   Manually" link are intercepted to show a choice modal (create an
+   account, continue without one, or cancel) instead of silently dropping a
+   browser-only draft. This does NOT intercept the actual browser back
+   button or tab/window close — those can only trigger the native
+   `beforeunload` dialog from #3 (browsers don't allow custom UI on that
+   event); the nudge only covers in-page navigation this file itself
+   renders.
+
+**Explicit follow-up, not done this pass:** the same pattern (local draft +
+debounced `confirmed_items` save + beforeunload + guest nudge) should extend
+to `/studio/draft` and `/configure`, per the request's own scope note.
+Neither file was touched.
+
+Gates: `pnpm tsc --noEmit` run directly, 0 errors.
+
+---
+
+**Previous session (roof-panel-takeoff-001, 2026-08-03): added metal roof
+panel support to the product catalog and Blueprint Takeoff AI, per user
+request scoped to exactly two files — `lib/data/catalog.ts` and
+`app/api/takeoff/route.ts`.**
+
+**Catalog (`lib/data/catalog.ts`):** new `roof-panels` category — kept
+separate from the existing `roofing` category (ridge/valley/roof-to-wall
+trim, not full-coverage panels) since panels are a structurally different
+product type, per the request. New `GRADIENT_ROOF_PANEL` constant
+(`from-afs-info/25 to-afs-bg-dim/40`) uses afs-* tokens per CLAUDE.md rule
+#4 — a blue tint distinct from the 4 existing warm/neutral metal gradients —
+so `CategoryCard` and the products grid render it as visually distinct from
+trim/flashing, satisfying the "keep visually distinct" instruction without
+touching any browsing-UI component (`CATEGORIES`-driven pages/components are
+fully data-driven; confirmed via `app/(public)/products/[category]/page.tsx`
+and `CategoryCard.tsx`). Three new `PRODUCTS` entries (AFS-RP-701/702/703):
+Mechanically Double-Locked Panel, Single-Lock Panel, Snap-Lock Panel — each
+with a "Coverage Width" dimension range calling out the 16" AFS default,
+width/gauge left as configurator-level variables per the request (not
+separate SKUs), no cleat entries added (cleats route through FlashDraft as
+custom profiles, per existing convention and the explicit instruction). None
+of the three sets `profileType` — there's no matching cross-section shape in
+`lib/utils/profile-svg.ts`'s `ProfileType` union for a roof panel, and
+`ProductCard`/`ProductDetailView` already handle an unset `profileType`
+gracefully (fall back to the generic `/configure` link, no SVG diagram),
+matching several existing products. Added 3 `STANDARD_PROFILE_DEFAULTS` rows
+keyed by the exact profileType strings the takeoff prompt now uses (width:
+16 — the AFS-default coverage width; height/legA/legB null, since panels
+have no leg/height field in the takeoff schema; material/gauge default to
+Galvanized Steel / 24 ga, matching every other row's rationale).
+
+**Takeoff AI (`app/api/takeoff/route.ts`):** added the 3 panel types to
+`TAKEOFF_SYSTEM_PROMPT_RULES`'s "PROFILE TYPES TO IDENTIFY" list, then a new
+"ROOF PANEL IDENTIFICATION AND QUANTITY" instruction block covering the
+request's three sub-points: (a) assign one of the 3 panel types only on an
+explicit seam-type basis found on the drawing (mechanical/snap-lock/
+single-lock seam callout) — slope or wind-exposure requirements alone are
+explicitly called out as NOT sufficient to choose between Single-Lock and
+Snap-Lock; with no seam-type basis at all, default to Mechanically
+Double-Locked Panel (the safest, most broadly applicable of the three),
+flagged low-confidence with an aiNote stating it's an AFS-default
+assumption, not a drawing-read value; (b) calculate true (sloped) roof area
+from plan-view dimensions x a pitch-derived slope factor (rise:12 notation
+-> `sqrt(rise^2 + 144) / 12`; a stated angle -> `1 / cos(angle)`); (c) report
+quantity as that calculated area divided by the panel type's coverage width
+(drawing-stated if given, otherwise the 16" AFS default), unit "LF",
+explicitly flagged in aiNote as a calculation rather than a drawing-read
+quantity — the same AFS-default labeling convention
+`STANDARD_PROFILE_DEFAULTS` already established for dimensions, extended to
+a derived quantity. Confirmed the existing `SCOPE_CONSTRAINT_TEXT` (`roof`/
+`flashing`/`roof_flashing` scope directives) needed no changes — roof panels
+already read naturally as "roofing systems" under the existing `roof` scope
+language, and are already correctly excluded from the `flashing`-only scope
+(panels aren't a flashing/sheet-metal-trim component).
+
+**NOT touched (out of the two-file scope given):**
+`app/upload/page.tsx`'s `TAKEOFF_PROFILE_TYPES` dropdown list,
+`PROFILE_TYPE_TO_CANONICAL_SLUG`, and `classifyProfileShape` do not yet know
+about the 3 new panel profileType strings — that file already carries its
+own uncommitted in-progress changes from a prior session
+(takeoff-standard-defaults-001, immediately below) that this session did not
+disturb. Confirmed functionally safe today without those updates:
+`selectOptions()` (`app/upload/page.tsx`) already surfaces any profileType
+value outside its canonical list — including the current value — so a panel
+item the AI returns still displays correctly in the dropdown and stays fully
+editable; `classifyProfileShape` falls back to its default `'hat'` topology
+for any unrecognized profileType, so the 3D preview renders (not a crash),
+just not true panel geometry. The dropdown just can't yet be used to switch
+a row *between* the 3 panel types manually. Flagged as a follow-up for
+whoever next touches that screen.
+
+Gates: `pnpm tsc --noEmit` run directly, 0 errors.
+
+**Prior session (takeoff-standard-defaults-001, 2026-08-03): two
+upgrades to the Blueprint Takeoff results screen (`app/upload/page.tsx`) —
+AFS standard-default pre-fill for un-specified dimensions/material/gauge,
+and real per-profile-type 3D preview geometry sourced from the
+`canonical_profiles` library — both grounded in confirmed evidence that real
+CD sets correctly omit fabrication-level specs, not an AI extraction bug.**
+
+New `STANDARD_PROFILE_DEFAULTS` in `lib/data/catalog.ts` gives each of the
+10 takeoff "PROFILE TYPES TO IDENTIFY" a default {width, height, legA, legB,
+material, gauge} spec (Coping Cap / Valley Flashing from real `PRODUCTS`
+range midpoints; everything else from this app's existing generic
+`profile-svg.ts` defaults, restricted to only the fields that profile type's
+own AI-prompt description says are relevant). `app/upload/page.tsx`'s new
+`applyStandardDefaults()` fills only fields the AI left null (never
+overwrites an extracted value), and a new `prefilledFields` state + small
+green `DefaultBadge` (hover tooltip, `afs-accent-green` token) marks exactly
+which fields were pre-filled rather than extracted — clears automatically
+when the estimator edits that field (or changes Profile Type, which
+invalidates every default computed for the old type). Fields stay fully
+editable.
+
+Separately, `buildBendsFromItem`'s single generic-hat/L-bend/flat heuristic
+(added last session) is now only a fallback (`buildGenericBendsFromItem`).
+When a takeoff item's profileType matches one of 8 real profiles in
+`canonical_profiles` (the same 25-profile library FlashDraft's canonical
+browser and the Custom Configurator already use — Coping Cap, Base
+Flashing, Counter Flashing, Drip Edge, Gravel Stop, Valley Flashing,
+Expansion Joint Cover, Through-wall Flashing; Step Flashing and Reglet have
+no canonical match and correctly still fall back), the 3D preview now
+builds its bend sequence from that profile's real, seeded turtle-graphics
+geometry (fetched client-side from the existing, unmodified
+`/api/studio/canonical-profiles` route), scaled to the item's own
+dimensions. Found and handled a real correctness trap along the way:
+`canonical_profiles.bends` encodes direction (`up`/`down`) separately from
+turn magnitude, but `ProfileViewer3D`'s shared reconstruction
+(`lib/flashdraft/geometry.ts`) has no direction concept — feeding bends
+through unconverted would have silently mangled every profile with
+alternating bend directions (nearly all of them), exactly the gap
+`CanonicalProfileBrowser`'s own comment already documents. Converted
+direction into `ProfileViewer3D`'s signed interior-angle convention instead
+(verified by hand against the seeded Standard Coping Cap moves) rather than
+copying canonical `bends` straight through.
+
+`app/api/takeoff/route.ts` was NOT touched — neither upgrade needed a
+system-prompt or extraction-step change; both are entirely post-processing/
+rendering concerns inside `app/upload/page.tsx`. `pnpm tsc --noEmit` run
+directly: 0 errors.
+
+**Prior session (takeoff-files-api-001, 2026-08-03): root-caused and
 fixed a second, independent size ceiling on the same `/api/takeoff` path the
-prior session's 4.5MB fix already touched — Claude's Messages API 32MB
+session before it's 4.5MB fix already touched — Claude's Messages API 32MB
 total-request limit, hit via inline base64 inflation, well before this app's
 own 50MB business limit.**
 
