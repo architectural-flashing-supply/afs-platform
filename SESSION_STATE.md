@@ -7,7 +7,65 @@
 
 ## CURRENT STATUS
 
-**Most recent session (roof-panel-catalog-copy-001, 2026-08-04): fixed
+**Most recent session (3d-preview-topology-001, 2026-08-04): fixed the
+3D preview rendering visually identical topology for structurally
+distinct real-world profileType labels — "Outside Corner Trim", "Sill
+Flashing", "J-Closure Trim" (and "Z-spacer trim", "Head Flashing") all
+fell through to the same fixed 3-leg 'hat' shape regardless of their
+actual geometry.**
+
+**Why:** `PROFILE_TYPE_TO_CANONICAL_SLUG` (`app/upload/page.tsx`) is an
+8-entry exact-string dictionary keyed to the takeoff AI's closed
+"PROFILE TYPES TO IDENTIFY" list (`app/api/takeoff/route.ts`). Real
+drawings and hand sketches routinely produce `profileType` labels
+outside that closed list — informal terms like "Sill Flashing" or
+"Outside Corner Trim" — which miss the dictionary's exact-match lookup
+entirely. Those then fell to `classifyProfileShape`'s 3-bucket keyword
+fallback, whose keyword lists (`L_BEND_PROFILE_KEYWORDS`,
+`FLAT_PROFILE_KEYWORDS`) also don't cover these terms, so every one of
+them landed in the same default `'hat'` branch — a fixed 3-leg
+(legA–width–legB) topology — irrespective of whether the item actually
+had 2 legs, 3 legs, or a flat span. Visually distinct real-world
+profiles were rendering identically as a direct result.
+
+**Fixed, 1 file, full replacement — `app/upload/page.tsx`:**
+1. Added `resolveCanonicalSlug()`, checked in `buildBendsFromItem`
+   instead of the raw dictionary lookup: it tries the existing 8-key
+   exact match first (unchanged), then falls back to a new
+   `INFORMAL_PROFILE_LABEL_TO_CANONICAL_SLUG` keyword table. Mapped:
+   "Sill Flashing" → canonical `window-sill-pan`, "Head Flashing" →
+   canonical `head-flashing` (both real rows in the 25-profile
+   `canonical_profiles` library, `scripts/seed-canonical-profiles.ts`,
+   matching catalog.ts's own 'Sill Pan Flashing' / 'Head Flashing'
+   products). Deliberately left unmapped: "Outside Corner Trim",
+   "J-Closure Trim", "Z-spacer trim" — wall-panel trim/accessory shapes
+   with no equivalent row in the canonical library or catalog.ts;
+   forcing them onto the nearest canonical shape would misrepresent
+   their real fabricated geometry, so per the task's own instruction
+   these are reported rather than guessed and left to the improved
+   fallback below.
+2. `classifyProfileShape` now takes the full `TakeoffItem` (was just
+   `profileType`) and, when neither keyword bucket matches, classifies
+   by which dimension fields the item's own extraction populated: a leg
+   (`legA`/`legB`) present with no overall `width`/`height` → 2-leg
+   `l-bend` (fits an outside-corner trim or a Z-shaped spacer whose
+   flanges meet with no flat span between them); only a `width`/`height`
+   with no leg → `flat`; a leg AND a `width`/`height` both present → the
+   3-leg `hat` (fits a J-closure/J-channel's own top-flange/channel/
+   bottom-lip legs). Replaces the prior fixed default that ignored leg
+   count entirely.
+
+Verified against the 3 real items that surfaced the bug: Outside Corner
+Trim (legA/legB only, no span) → 2-leg `l-bend`; Sill Flashing → real
+canonical `window-sill-pan` geometry; J-Closure Trim (leg + width) →
+3-leg `hat`. All three now structurally distinct from each other and
+consistent with their own extracted leg dimensions.
+
+Gates: `pnpm tsc --noEmit` run directly, 0 errors.
+
+---
+
+**Previous session (roof-panel-catalog-copy-001, 2026-08-04): fixed
 the one remaining place the fabricated "16" AFS default" roof panel
 width claim survived — the 3 `PRODUCTS` catalog entries' public-facing
 `dimensions` display text (`lib/data/catalog.ts`, AFS-RP-701/702/703),

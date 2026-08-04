@@ -16,19 +16,36 @@ const DEFAULT_DIMENSIONS_IN = { width: 12, legA: 2, legB: 2 };
 // TAKEOFF_SYSTEM_PROMPT) sorted into the 3 cross-section shapes the generic
 // fallback preview below can distinguish with the leg/angle "bend"
 // primitives ProfileViewer3D consumes. Only used for profile types with no
-// canonical_profiles match (see PROFILE_TYPE_TO_CANONICAL_SLUG) — Coping
-// Cap and Expansion Joint Cover (both a flat span framed by two legs) fall
-// through to the default 'hat' branch, matching prior behavior exactly for
-// those two types.
+// canonical_profiles match (see PROFILE_TYPE_TO_CANONICAL_SLUG and
+// resolveCanonicalSlug below) — Coping Cap and Expansion Joint Cover (both
+// a flat span framed by two legs) fall through to the default 'hat' branch,
+// matching prior behavior exactly for those two types.
 const L_BEND_PROFILE_KEYWORDS = ['base flashing', 'counter flashing', 'step flashing', 'drip edge', 'gravel stop'];
 const FLAT_PROFILE_KEYWORDS = ['valley', 'through-wall', 'through wall', 'reglet'];
 
 type ProfileShape = 'hat' | 'l-bend' | 'flat';
 
-function classifyProfileShape(profileType: string): ProfileShape {
-  const t = profileType.toLowerCase();
+// Real-world/hand-sketch drawings routinely produce profileType labels
+// outside both the takeoff AI's closed list above and its two keyword
+// buckets — e.g. "Outside Corner Trim", "J-Closure Trim", "Z-spacer trim".
+// Rather than defaulting every one of them to the same fixed 3-leg 'hat'
+// shape regardless of actual geometry, infer topology from which dimension
+// fields this item's own extraction actually populated: a profile with a
+// leg dimension but no overall width/height is a 2-leg corner/bend (matches
+// an outside-corner trim or a Z-shaped spacer whose two flanges meet with no
+// flat span between them); one with only a width/height and no leg is a
+// flat span; only when a leg AND an overall width/height are both present
+// does the 3-leg channel shape ('hat') fit (e.g. a J-channel/closure trim's
+// own top-flange/channel/bottom-lip legs).
+function classifyProfileShape(item: TakeoffItem): ProfileShape {
+  const t = item.profileType.toLowerCase();
   if (FLAT_PROFILE_KEYWORDS.some((k) => t.includes(k))) return 'flat';
   if (L_BEND_PROFILE_KEYWORDS.some((k) => t.includes(k))) return 'l-bend';
+
+  const hasLeg = item.legA != null || item.legB != null;
+  const hasSpan = item.width != null || item.height != null;
+  if (hasLeg && !hasSpan) return 'l-bend';
+  if (!hasLeg && hasSpan) return 'flat';
   return 'hat';
 }
 
@@ -49,7 +66,7 @@ function buildGenericBendsFromItem(item: TakeoffItem): { bends: ProfileBend[]; b
   const legBMm = legBIn * MM_PER_INCH;
   const widthMm = widthIn * MM_PER_INCH;
 
-  const shape = classifyProfileShape(item.profileType);
+  const shape = classifyProfileShape(item);
 
   if (shape === 'l-bend') {
     return {
@@ -96,7 +113,8 @@ interface CanonicalProfile {
 // approximation. Only profile types with an unambiguous "standard" match
 // are listed — Step Flashing and Reglet have no equivalent canonical
 // profile, so they (and any custom/unmatched profileType) fall back to
-// buildGenericBendsFromItem's 3-shape heuristic.
+// buildGenericBendsFromItem's 3-shape heuristic. Exact-string keys only —
+// see resolveCanonicalSlug below for informal/hand-sketch label variants.
 const PROFILE_TYPE_TO_CANONICAL_SLUG: Record<string, string> = {
   'Coping Cap': 'standard-coping-cap',
   'Base Flashing': 'l-shape-base-flashing',
@@ -107,6 +125,37 @@ const PROFILE_TYPE_TO_CANONICAL_SLUG: Record<string, string> = {
   'Expansion Joint Cover': 'expansion-joint-cover',
   'Through-wall Flashing': 'scupper-opening',
 };
+
+// Real-world/hand-sketch drawings routinely produce profileType labels
+// outside the takeoff AI's closed "PROFILE TYPES TO IDENTIFY" list (see
+// app/api/takeoff/route.ts) and outside PROFILE_TYPE_TO_CANONICAL_SLUG's
+// exact keys above. "Sill Flashing" and "Head Flashing" are two observed in
+// the wild that DO have an unambiguous canonical_profiles match once read as
+// a keyword rather than an exact string — the same window/door sill-pan and
+// head-flashing shapes as canonical_profiles' own 'Window Sill Pan' and
+// 'Head Flashing' entries (scripts/seed-canonical-profiles.ts) and
+// catalog.ts's 'Sill Pan Flashing' / 'Head Flashing' products, just under a
+// different label than either list uses. Checked only when no exact key
+// above matches, so it can't change behavior for any of the 8 listed types.
+//
+// Deliberately NOT mapped here: "Outside Corner Trim", "J-Closure Trim", and
+// "Z-spacer trim" (also observed in the wild) are wall-panel trim/accessory
+// shapes with no equivalent row in the 25-profile canonical library or in
+// catalog.ts — forcing them onto the nearest canonical shape would
+// misrepresent their real fabricated geometry, so they're left to fall
+// through to classifyProfileShape's leg-count-aware fallback instead.
+const INFORMAL_PROFILE_LABEL_TO_CANONICAL_SLUG: Array<{ keywords: string[]; slug: string }> = [
+  { keywords: ['sill flashing', 'sill pan'], slug: 'window-sill-pan' },
+  { keywords: ['head flashing'], slug: 'head-flashing' },
+];
+
+function resolveCanonicalSlug(profileType: string): string | undefined {
+  if (PROFILE_TYPE_TO_CANONICAL_SLUG[profileType]) {
+    return PROFILE_TYPE_TO_CANONICAL_SLUG[profileType];
+  }
+  const t = profileType.toLowerCase();
+  return INFORMAL_PROFILE_LABEL_TO_CANONICAL_SLUG.find(({ keywords }) => keywords.some((k) => t.includes(k)))?.slug;
+}
 
 // Reasonable scale bounds so a wildly wrong or missing extracted dimension
 // can't blow up the preview into an unreadable sliver or a giant slab —
@@ -139,7 +188,7 @@ function buildBendsFromItem(
   item: TakeoffItem,
   canonicalProfiles: Record<string, CanonicalProfile>
 ): { bends: ProfileBend[]; blankWidthMm: number } {
-  const slug = PROFILE_TYPE_TO_CANONICAL_SLUG[item.profileType];
+  const slug = resolveCanonicalSlug(item.profileType);
   const canonical = slug ? canonicalProfiles[slug] : undefined;
 
   if (canonical && canonical.bends.length > 0) {

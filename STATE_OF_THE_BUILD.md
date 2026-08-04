@@ -7,6 +7,65 @@
 ## OVERALL STATUS
 
 ```
+3D preview topology     FIX (3d-preview-topology-001, 2026-08-04) — fixed
+fix for unmapped         the Blueprint Takeoff results screen's 3D preview
+profileType labels       (`app/upload/page.tsx`) rendering visually
+(3d-preview-             identical topology for structurally distinct
+topology-001)            real-world profileType labels. Root cause:
+                         `PROFILE_TYPE_TO_CANONICAL_SLUG` is an 8-entry
+                         exact-string dictionary keyed to the takeoff AI's
+                         closed "PROFILE TYPES TO IDENTIFY" list
+                         (`app/api/takeoff/route.ts`); labels outside that
+                         list — "Outside Corner Trim", "Sill Flashing",
+                         "J-Closure Trim", "Z-spacer trim", "Head
+                         Flashing" — miss the exact match, and
+                         `classifyProfileShape`'s 3-bucket keyword
+                         fallback (`L_BEND_PROFILE_KEYWORDS`,
+                         `FLAT_PROFILE_KEYWORDS`) doesn't cover them
+                         either, so all of them landed in the same
+                         default 3-leg 'hat' branch regardless of actual
+                         leg count or geometry.
+                         1. `app/upload/page.tsx`: added
+                            `resolveCanonicalSlug()` — tries the existing
+                            8-key exact dictionary first (unchanged
+                            behavior), then a new
+                            `INFORMAL_PROFILE_LABEL_TO_CANONICAL_SLUG`
+                            keyword table mapping "Sill Flashing" →
+                            canonical `window-sill-pan` and "Head
+                            Flashing" → canonical `head-flashing` (both
+                            real rows in the 25-profile
+                            `canonical_profiles` library, matching
+                            catalog.ts's own 'Sill Pan Flashing' / 'Head
+                            Flashing' products). "Outside Corner Trim",
+                            "J-Closure Trim", and "Z-spacer trim"
+                            deliberately left unmapped — no equivalent
+                            canonical_profiles row or catalog.ts product
+                            exists for them, so forcing a guess would
+                            misrepresent their real fabricated geometry;
+                            reported per the task's own instruction
+                            instead.
+                         2. `app/upload/page.tsx`: `classifyProfileShape`
+                            now takes the full `TakeoffItem` (was just
+                            `profileType`) and, for labels with no
+                            keyword or canonical match, classifies by
+                            which dimension fields the item's own
+                            extraction populated — a leg
+                            (`legA`/`legB`) with no `width`/`height` → a
+                            2-leg `l-bend` topology; only `width`/
+                            `height` with no leg → `flat`; a leg AND a
+                            `width`/`height` both present → the 3-leg
+                            `hat` topology. Replaces the prior fixed
+                            default that ignored leg count entirely.
+                         Verified against the 3 real items that surfaced
+                         the bug: Outside Corner Trim (legA/legB only) →
+                         2-leg `l-bend`; Sill Flashing → real canonical
+                         `window-sill-pan` geometry; J-Closure Trim (leg +
+                         width) → 3-leg `hat`. All three now structurally
+                         distinct and consistent with their own extracted
+                         leg dimensions.
+                         Gates: `pnpm tsc --noEmit` run directly, 0
+                         errors.
+
 Roof panel catalog      FIX (roof-panel-catalog-copy-001, 2026-08-04) —
 copy + takeoff           fixed the last surviving fabricated "16" AFS
 profile-type gap         default" roof panel width claim, left out of
