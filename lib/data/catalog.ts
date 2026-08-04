@@ -500,7 +500,7 @@ export const PRODUCTS: CatalogProduct[] = [
     leadTimeDays: 8,
     rushEligible: false,
     dimensions: [
-      { label: 'Coverage Width', value: '12" – 19" (16" AFS default)' },
+      { label: 'Coverage Width', value: '12" – 19" (common widths: 12", 16", 18")' },
       { label: 'Panel Height (Rib)', value: '1" – 2"' },
       { label: 'Max Length', value: 'Cut to roof run length, field-seamed' },
     ],
@@ -518,7 +518,7 @@ export const PRODUCTS: CatalogProduct[] = [
     leadTimeDays: 7,
     rushEligible: true,
     dimensions: [
-      { label: 'Coverage Width', value: '12" – 19" (16" AFS default)' },
+      { label: 'Coverage Width', value: '12" – 19" (common widths: 12", 16", 18")' },
       { label: 'Panel Height (Rib)', value: '1" – 2"' },
       { label: 'Minimum Slope', value: '3:12' },
       { label: 'Max Length', value: 'Cut to roof run length, field-seamed' },
@@ -537,7 +537,7 @@ export const PRODUCTS: CatalogProduct[] = [
     leadTimeDays: 6,
     rushEligible: true,
     dimensions: [
-      { label: 'Coverage Width', value: '12" – 19" (16" AFS default)' },
+      { label: 'Coverage Width', value: '12" – 19" (common widths: 12", 16", 18")' },
       { label: 'Panel Height (Rib)', value: '1" – 2.5"' },
       { label: 'Max Length', value: 'Cut to roof run length, factory-formed' },
     ],
@@ -553,6 +553,28 @@ export interface StandardProfileDefault {
   material: string;
   gauge: string;
 }
+
+export interface StandardPanelWidth {
+  widthIn: number;
+  commonality: 'common' | 'less-common';
+}
+
+// AFS's available roof panel coverage widths. AFS has no single "standard"
+// panel width — unlike every other profile type in STANDARD_PROFILE_DEFAULTS
+// below, a roof panel's width is a real per-project choice, not something
+// safe to silently default. Used by the Blueprint Takeoff results screen
+// (app/upload/page.tsx) to offer a width picker when a drawing doesn't
+// specify one (see app/api/takeoff/route.ts's ROOF PANEL IDENTIFICATION AND
+// QUANTITY rules — extract an explicit width when the drawing states one,
+// otherwise leave width/quantity null rather than assume), and available to
+// the Custom Configurator for the same panel-width choice.
+export const STANDARD_PANEL_WIDTHS: StandardPanelWidth[] = [
+  { widthIn: 12, commonality: 'common' },
+  { widthIn: 16, commonality: 'common' },
+  { widthIn: 18, commonality: 'common' },
+  { widthIn: 20, commonality: 'less-common' },
+  { widthIn: 24, commonality: 'less-common' },
+];
 
 // Standard/most-common default spec for each profile type the Blueprint
 // Takeoff AI can identify (see TAKEOFF_SYSTEM_PROMPT_RULES's "PROFILE TYPES
@@ -576,14 +598,16 @@ export interface StandardProfileDefault {
 // to Galvanized Steel / 24 ga — AFS's standard in-stock flashing material
 // (see MATERIAL_STOCK_STATUS above) and a real, valid gauge for it.
 //
-// The three roof panel types use their PRODUCTS entry's own published
-// "Coverage Width" default (16", same round-number convention as Coping
-// Cap's width default above) in the width field — for panels this is the
-// AFS default *coverage* width, the divisor the takeoff AI uses to turn a
-// calculated roof area into a panel-count quantity (see
-// TAKEOFF_SYSTEM_PROMPT_RULES in app/api/takeoff/route.ts). Panels have no
-// height/leg/A/B cross-section fields in the takeoff schema, so those stay
-// null.
+// The three roof panel types deliberately have NO width default here,
+// unlike every other profile type above — AFS has no single standard
+// panel coverage width (see STANDARD_PANEL_WIDTHS above), so applying one
+// automatically would silently fabricate the divisor behind a real quoting
+// quantity. app/api/takeoff/route.ts's takeoff AI extracts an explicit
+// width from the drawing when one is stated; when it isn't, width and
+// quantity stay null and the results screen prompts the estimator to pick
+// a real width from STANDARD_PANEL_WIDTHS before a quantity is calculated.
+// Panels have no height/leg/A/B cross-section fields in the takeoff schema
+// either way, so those stay null regardless.
 export const STANDARD_PROFILE_DEFAULTS: Record<string, StandardProfileDefault> = {
   'Coping Cap':            { width: 16,   height: 5.5, legA: 3,    legB: 3,    material: 'Galvanized Steel', gauge: '24 ga' },
   'Base Flashing':         { width: null, height: 4,   legA: 2,    legB: 2,    material: 'Galvanized Steel', gauge: '24 ga' },
@@ -595,9 +619,9 @@ export const STANDARD_PROFILE_DEFAULTS: Record<string, StandardProfileDefault> =
   'Expansion Joint Cover': { width: 12,   height: null, legA: null, legB: null, material: 'Galvanized Steel', gauge: '24 ga' },
   'Reglet':                { width: null, height: null, legA: 2,   legB: null, material: 'Galvanized Steel', gauge: '24 ga' },
   'Through-wall Flashing': { width: 12,   height: null, legA: 2,   legB: null, material: 'Galvanized Steel', gauge: '24 ga' },
-  'Mechanically Double-Locked Panel': { width: 16, height: null, legA: null, legB: null, material: 'Galvanized Steel', gauge: '24 ga' },
-  'Single-Lock Panel':                { width: 16, height: null, legA: null, legB: null, material: 'Galvanized Steel', gauge: '24 ga' },
-  'Snap-Lock Panel':                  { width: 16, height: null, legA: null, legB: null, material: 'Galvanized Steel', gauge: '24 ga' },
+  'Mechanically Double-Locked Panel': { width: null, height: null, legA: null, legB: null, material: 'Galvanized Steel', gauge: '24 ga' },
+  'Single-Lock Panel':                { width: null, height: null, legA: null, legB: null, material: 'Galvanized Steel', gauge: '24 ga' },
+  'Snap-Lock Panel':                  { width: null, height: null, legA: null, legB: null, material: 'Galvanized Steel', gauge: '24 ga' },
 };
 
 export function getCategory(slug: string): CatalogCategory | undefined {

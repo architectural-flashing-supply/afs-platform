@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { gaugeToThicknessMm } from '@/lib/utils/gauge-thickness';
 import ProfileViewer3D, { type ProfileBend } from '@/components/studio/ProfileViewer3D';
-import { ALL_MATERIALS, GAUGES_BY_MATERIAL, STANDARD_PROFILE_DEFAULTS } from '@/lib/data/catalog';
+import { ALL_MATERIALS, GAUGES_BY_MATERIAL, STANDARD_PROFILE_DEFAULTS, STANDARD_PANEL_WIDTHS } from '@/lib/data/catalog';
 import { UPLOAD_ACCEPTED_EXTENSIONS, UPLOAD_MAX_SIZE_BYTES } from '@/lib/utils/upload-limits';
 import type { ScopeOption, ScopeDirective } from '@/app/api/takeoff/route';
 import type { SignUploadResponse } from '@/app/api/upload/route';
@@ -174,10 +174,19 @@ interface TakeoffItem {
   legA: number | null;
   legB: number | null;
   lengthFt: number;
-  quantity: number;
+  // Null for a roof panel item whose width wasn't found on the drawing —
+  // AFS has no standard panel width to assume, so quantity stays
+  // uncalculated until the estimator picks one (see ROOF_PANEL_PROFILE_TYPES
+  // and the panel-width selector in the results table below).
+  quantity: number | null;
   unit: string;
   confidence: Confidence;
   aiNote: string | null;
+  // Roof panel items only — the true sloped roof area (sq ft) the takeoff AI
+  // calculated from plan geometry and pitch (see app/api/takeoff/route.ts's
+  // ROOF PANEL IDENTIFICATION AND QUANTITY rules). null for every other
+  // profile type. Used to derive quantity client-side once a width is known.
+  calculatedAreaSqFt: number | null;
 }
 
 interface TakeoffResult {
@@ -244,6 +253,12 @@ interface TakeoffDraft {
   result: TakeoffResult;
   items: TakeoffItem[];
   prefilledFields: PrefillableField[][];
+  // Parallel to items — true for a roof panel row whose quantity was
+  // computed from the estimator's own panel-width selection (see
+  // handlePanelWidthSelect), so the UserSelectedBadge survives a reload.
+  // Absent in drafts written before this field existed; restored as all-
+  // false in that case (see the mount-time restore effect below).
+  panelWidthUserSelected?: boolean[];
   savedAt: number;
 }
 
@@ -304,7 +319,10 @@ const SCOPE_DIRECTIVE_OPTIONS: { value: ScopeOption; label: string }[] = [
 
 const CUSTOM_SCOPE_MAX_LENGTH = 300;
 
-// Matches /api/takeoff's TAKEOFF_SYSTEM_PROMPT "PROFILE TYPES TO IDENTIFY" list.
+// Matches /api/takeoff's TAKEOFF_SYSTEM_PROMPT "PROFILE TYPES TO IDENTIFY" list —
+// including the 3 roof panel types (see ROOF_PANEL_PROFILE_TYPES below), so an
+// estimator can manually reassign a line item into or out of a panel type, not
+// just edit whatever profileType the AI happened to assign.
 const TAKEOFF_PROFILE_TYPES = [
   'Coping Cap',
   'Base Flashing',
@@ -316,6 +334,9 @@ const TAKEOFF_PROFILE_TYPES = [
   'Expansion Joint Cover',
   'Reglet',
   'Through-wall Flashing',
+  'Mechanically Double-Locked Panel',
+  'Single-Lock Panel',
+  'Snap-Lock Panel',
 ];
 
 const DIMENSION_FIELDS: { key: 'width' | 'height' | 'legA' | 'legB'; label: string }[] = [
@@ -324,6 +345,30 @@ const DIMENSION_FIELDS: { key: 'width' | 'height' | 'legA' | 'legB'; label: stri
   { key: 'legA', label: 'A' },
   { key: 'legB', label: 'B' },
 ];
+
+// The 3 roof panel profileType strings TAKEOFF_SYSTEM_PROMPT_RULES can
+// return (app/api/takeoff/route.ts). These never get an auto-filled width
+// (see STANDARD_PROFILE_DEFAULTS in lib/data/catalog.ts) — when the AI
+// didn't find an explicit width on the drawing, the results table below
+// shows a panel-width picker (STANDARD_PANEL_WIDTHS) instead of a plain
+// dimension input, since AFS has no single standard width to assume.
+const ROOF_PANEL_PROFILE_TYPES = new Set([
+  'Mechanically Double-Locked Panel',
+  'Single-Lock Panel',
+  'Snap-Lock Panel',
+]);
+
+function isRoofPanelItem(item: TakeoffItem): boolean {
+  return ROOF_PANEL_PROFILE_TYPES.has(item.profileType);
+}
+
+// Linear feet of panel run needed to cover calculatedAreaSqFt at the given
+// coverage width — rounded to 1 decimal, matching this table's existing
+// lengthFt display precision.
+function calculatePanelQuantity(areaSqFt: number, widthIn: number): number {
+  const widthFt = widthIn / 12;
+  return Math.round((areaSqFt / widthFt) * 10) / 10;
+}
 
 // Small indicator shown next to a field that was pre-filled from
 // STANDARD_PROFILE_DEFAULTS rather than read off the drawing — see
@@ -334,6 +379,23 @@ function DefaultBadge() {
     <span
       className="text-afs-accent-green"
       title="AFS standard default — not read from the drawing"
+      style={{ fontSize: '10px', lineHeight: 1, fontWeight: 700 }}
+    >
+      ●
+    </span>
+  );
+}
+
+// Marks a quantity computed from the estimator's own panel-width selection
+// (see handlePanelWidthSelect) rather than a drawing-read or AFS-default
+// value — distinct from DefaultBadge both in meaning (a real user choice,
+// not a fabricated fallback) and in token (afs-accent-purple, per CLAUDE.md
+// rule 4's sanctioned FlashDraft palette) so the two are never confused.
+function UserSelectedBadge() {
+  return (
+    <span
+      className="text-afs-accent-purple"
+      title="Calculated from the panel width you selected — not read from the drawing"
       style={{ fontSize: '10px', lineHeight: 1, fontWeight: 700 }}
     >
       ●
@@ -403,6 +465,7 @@ export default function UploadPage() {
   const [scopeOption, setScopeOption] = useState<ScopeOption>('full');
   const [customScopeText, setCustomScopeText] = useState('');
   const [prefilledFields, setPrefilledFields] = useState<Set<PrefillableField>[]>([]);
+  const [panelWidthUserSelected, setPanelWidthUserSelected] = useState<boolean[]>([]);
   const [canonicalProfiles, setCanonicalProfiles] = useState<Record<string, CanonicalProfile>>({});
   const [uploadId, setUploadId] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
@@ -433,6 +496,7 @@ export default function UploadPage() {
     setResult(draft.result);
     setItems(draft.items);
     setPrefilledFields(draft.prefilledFields.map((fields) => new Set(fields)));
+    setPanelWidthUserSelected(draft.panelWidthUserSelected ?? draft.items.map(() => false));
     setState('results');
   }, []);
 
@@ -449,9 +513,10 @@ export default function UploadPage() {
       result,
       items,
       prefilledFields: prefilledFields.map((fields) => Array.from(fields)),
+      panelWidthUserSelected,
       savedAt,
     });
-  }, [uploadId, filename, result, items, prefilledFields, state]);
+  }, [uploadId, filename, result, items, prefilledFields, panelWidthUserSelected, state]);
 
   // Debounced database save: persists edited items to
   // takeoff_uploads.confirmed_items ~1.5-2s after the last edit, so work
@@ -607,6 +672,7 @@ export default function UploadPage() {
       const { items: itemsWithDefaults, prefilled } = applyStandardDefaults(takeoffData.items ?? []);
       setItems(itemsWithDefaults);
       setPrefilledFields(prefilled);
+      setPanelWidthUserSelected(itemsWithDefaults.map(() => false));
       setState(takeoffData.items?.length === 0 ? 'failed' : 'results');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed.');
@@ -633,11 +699,28 @@ export default function UploadPage() {
       next.delete(field as unknown as PrefillableField);
       return next;
     }));
+    // Changing profile type away from a roof panel (or to a different one)
+    // invalidates any prior panel-width selection for this row.
+    if (field === 'profileType') {
+      setPanelWidthUserSelected(prev => prev.map((selected, i) => (i === index ? false : selected)));
+    }
+  };
+
+  // Sets a roof panel row's width from the estimator's own selection
+  // (STANDARD_PANEL_WIDTHS) and derives quantity from the AI's
+  // calculatedAreaSqFt — the only place a roof panel item's quantity gets
+  // filled in when the drawing itself didn't specify a width.
+  const handlePanelWidthSelect = (index: number, widthIn: number) => {
+    const item = items[index];
+    updateItem(index, 'width', widthIn);
+    updateItem(index, 'quantity', item.calculatedAreaSqFt != null ? calculatePanelQuantity(item.calculatedAreaSqFt, widthIn) : null);
+    setPanelWidthUserSelected(prev => prev.map((selected, i) => (i === index ? true : selected)));
   };
 
   const removeItem = (index: number) => {
     setItems(prev => prev.filter((_, i) => i !== index));
     setPrefilledFields(prev => prev.filter((_, i) => i !== index));
+    setPanelWidthUserSelected(prev => prev.filter((_, i) => i !== index));
   };
 
   const submitQuoteRequest = useCallback(async (email?: string) => {
@@ -673,6 +756,15 @@ export default function UploadPage() {
       setSubmitError('Add at least one item before submitting your request.');
       return;
     }
+    const missingQuantityCount = items.filter(item => item.quantity == null).length;
+    if (missingQuantityCount > 0) {
+      setSubmitError(
+        missingQuantityCount === 1
+          ? 'Select a panel width for the item missing a quantity before submitting.'
+          : `Select a panel width for all ${missingQuantityCount} items missing a quantity before submitting.`
+      );
+      return;
+    }
     if (isAuthenticated) {
       submitQuoteRequest();
     } else {
@@ -696,6 +788,7 @@ export default function UploadPage() {
     setResult(null);
     setItems([]);
     setPrefilledFields([]);
+    setPanelWidthUserSelected([]);
     setSubmitError(null);
     setShowEmailCapture(false);
     setGuestEmail('');
@@ -988,27 +1081,57 @@ export default function UploadPage() {
                         </div>
                       </td>
                       <td style={{ padding: '12px 16px' }}>
-                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                          {DIMENSION_FIELDS.map(dim => (
-                            <label key={dim.key} style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                              <span style={{ fontFamily: 'var(--font-barlow)', fontSize: '10px', color: 'var(--afs-chrome-dim)', display: 'flex', alignItems: 'center', gap: '2px' }}>
-                                {dim.label}
-                                {prefilledFields[i]?.has(dim.key) && <DefaultBadge />}
-                              </span>
-                              <input type="number" step="0.125" value={item[dim.key] ?? ''} disabled={state === 'submitting'}
-                                onChange={(e) => updateItem(i, dim.key, e.target.value === '' ? null : parseFloat(e.target.value))}
-                                style={{ background: 'transparent', border: '1px solid var(--afs-bg-overlay)', borderRadius: '3px', color: 'var(--afs-chrome-mid)', fontFamily: 'var(--font-jetbrains)', fontSize: '12px', width: '46px', outline: 'none', padding: '2px 4px' }} />
-                            </label>
-                          ))}
-                        </div>
+                        {isRoofPanelItem(item) && item.width == null ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '170px' }}>
+                            <span style={{ fontFamily: 'var(--font-inter)', fontSize: '11px', color: 'var(--afs-chrome-dim)' }}>
+                              Area: {item.calculatedAreaSqFt != null ? `${item.calculatedAreaSqFt.toLocaleString()} sq ft` : 'not calculated'}
+                            </span>
+                            <select
+                              value=""
+                              disabled={state === 'submitting' || item.calculatedAreaSqFt == null}
+                              onChange={(e) => { if (e.target.value) handlePanelWidthSelect(i, parseFloat(e.target.value)); }}
+                              style={{ background: 'transparent', border: '1px solid var(--afs-bg-overlay)', borderRadius: '4px', color: 'var(--afs-chrome-mid)', fontFamily: 'var(--font-inter)', fontSize: '12px', outline: 'none', padding: '4px' }}
+                            >
+                              <option value="">Select panel width…</option>
+                              <optgroup label="Common">
+                                {STANDARD_PANEL_WIDTHS.filter(w => w.commonality === 'common').map(w => (
+                                  <option key={w.widthIn} value={w.widthIn}>{w.widthIn}&quot;</option>
+                                ))}
+                              </optgroup>
+                              <optgroup label="Less Common">
+                                {STANDARD_PANEL_WIDTHS.filter(w => w.commonality === 'less-common').map(w => (
+                                  <option key={w.widthIn} value={w.widthIn}>{w.widthIn}&quot;</option>
+                                ))}
+                              </optgroup>
+                            </select>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                            {DIMENSION_FIELDS.map(dim => (
+                              <label key={dim.key} style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                <span style={{ fontFamily: 'var(--font-barlow)', fontSize: '10px', color: 'var(--afs-chrome-dim)', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                  {dim.label}
+                                  {prefilledFields[i]?.has(dim.key) && <DefaultBadge />}
+                                </span>
+                                <input type="number" step="0.125" value={item[dim.key] ?? ''} disabled={state === 'submitting'}
+                                  onChange={(e) => updateItem(i, dim.key, e.target.value === '' ? null : parseFloat(e.target.value))}
+                                  style={{ background: 'transparent', border: '1px solid var(--afs-bg-overlay)', borderRadius: '3px', color: 'var(--afs-chrome-mid)', fontFamily: 'var(--font-jetbrains)', fontSize: '12px', width: '46px', outline: 'none', padding: '2px 4px' }} />
+                              </label>
+                            ))}
+                          </div>
+                        )}
                       </td>
                       <td style={{ padding: '12px 16px' }}>
                         <input type="number" value={item.lengthFt} disabled={state === 'submitting'} onChange={(e) => updateItem(i, 'lengthFt', parseFloat(e.target.value))}
                           style={{ background: 'transparent', border: 'none', color: 'var(--afs-chrome-mid)', fontFamily: 'var(--font-jetbrains)', fontSize: '13px', width: '60px', outline: 'none' }} />
                       </td>
                       <td style={{ padding: '12px 16px' }}>
-                        <input type="number" value={item.quantity} disabled={state === 'submitting'} onChange={(e) => updateItem(i, 'quantity', parseInt(e.target.value))}
-                          style={{ background: 'transparent', border: 'none', color: 'var(--afs-chrome-mid)', fontFamily: 'var(--font-jetbrains)', fontSize: '13px', width: '50px', outline: 'none' }} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <input type="number" value={item.quantity ?? ''} disabled={state === 'submitting'}
+                            onChange={(e) => updateItem(i, 'quantity', e.target.value === '' ? null : parseInt(e.target.value))}
+                            style={{ background: 'transparent', border: 'none', color: 'var(--afs-chrome-mid)', fontFamily: 'var(--font-jetbrains)', fontSize: '13px', width: '50px', outline: 'none' }} />
+                          {panelWidthUserSelected[i] && <UserSelectedBadge />}
+                        </div>
                       </td>
                       <td style={{ padding: '12px 16px' }}>
                         <span style={{

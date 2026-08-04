@@ -64,8 +64,9 @@ PROFILE TYPES TO IDENTIFY:
 ROOF PANEL IDENTIFICATION AND QUANTITY:
 When a roof plane shows a slope/pitch callout and plan-view dimensions but no explicit panel product is named, apply this instead of skipping the plane:
 1. Determine which of the three panel types above applies from an explicit basis on the drawing — a mechanical seam callout means Mechanically Double-Locked Panel; an explicit snap-lock/snap-seam callout or "no field seaming" note means Snap-Lock Panel; an explicit single-lock/single-fold seam callout means Single-Lock Panel. Slope or wind-exposure requirements alone are NOT sufficient to choose between Single-Lock and Snap-Lock. If the drawing gives no seam-type basis for the call, default to Mechanically Double-Locked Panel (the safest, most broadly applicable of the three), set confidence to "low", and use aiNote to flag it as an AFS default assumption pending fabricator confirmation, not a value read off the drawing.
-2. Calculate true (sloped) roof area from the plan-view dimensions and pitch: convert the pitch to a slope factor — for "rise:12" notation, slope_factor = sqrt(rise^2 + 12^2) / 12; for a stated roof angle in degrees, slope_factor = 1 / cos(angle). True sloped area (sq ft) = plan-view area (sq ft) x slope_factor.
-3. Set width to the panel coverage width: use the drawing's stated coverage width if given, otherwise the AFS-default 16 inches. Set quantity to the true sloped area (from step 2) divided by that coverage width in feet (16" = 1.333 ft), and set unit to "LF". This quantity is a CALCULATION derived from pitch and plan dimensions, not a count read off the drawing — state that explicitly in aiNote (e.g. "Calculated: true roof area (slope factor x plan area) / 16 in AFS-default coverage width — not a drawing-stated quantity"), consistent with how other AFS-default dimensions are flagged. Never present this calculated quantity as if it were extracted directly.
+2. Calculate true (sloped) roof area from the plan-view dimensions and pitch: convert the pitch to a slope factor — for "rise:12" notation, slope_factor = sqrt(rise^2 + 12^2) / 12; for a stated roof angle in degrees, slope_factor = 1 / cos(angle). True sloped area (sq ft) = plan-view area (sq ft) x slope_factor. Always report this value in calculatedAreaSqFt, regardless of whether a panel width is found in step 3.
+3. Actively search the ENTIRE drawing — not just the roof plan's generic "standing seam" note — for an explicit panel coverage/width callout: a panel schedule, a spec note, or a dimension called out on a roof panel detail. If an explicit width is found anywhere: set width to that value (inches), set quantity to calculatedAreaSqFt (from step 2) divided by that width in feet, set unit to "LF", set confidence to whatever level the drawing evidence actually justifies (not automatically "low"), and cite the sheet/detail it came from in aiNote — treat this exactly like any other extracted dimension, not an assumption.
+4. If NO explicit panel width is found anywhere on the drawing: set width to null AND quantity to null. Do NOT assume, estimate, guess, or apply any default width — AFS has no single standard panel width, and a real quantity cannot be calculated until the estimator picks one. Add a note to processingNotes stating that panel width was not specified on the drawing and must be selected before quantity can be calculated (e.g. "Roof panel width not specified on drawing — select a panel width to calculate quantity.").
 
 FOR EACH ITEM EXTRACT:
 1. Profile type (from list above)
@@ -73,9 +74,10 @@ FOR EACH ITEM EXTRACT:
 3. Gauge or weight if specified
 4. Dimensions in INCHES: Width, Height, Leg A, Leg B
 5. Length in LINEAR FEET
-6. Quantity — count of pieces or sections
+6. Quantity — count of pieces or sections (for roof panel items, see ROOF PANEL IDENTIFICATION AND QUANTITY above — null when no width was found, never a guess)
 7. Confidence: high, medium, or low
 8. Note the drawing sheet and detail reference if visible
+9. calculatedAreaSqFt — roof panel items only (see step 2 above): the true sloped roof area in square feet. null for every non-panel profile type.
 
 Architectural CD sets often omit fabrication-level specs and leave them to the fabricator. When material, gauge, or a dimension genuinely is not specified on the drawing, set that field to null -- do not omit the item for lack of dimensional detail. Report the item's existence, its sheet/location, and profile type even when every other field is null.
 
@@ -95,10 +97,27 @@ RETURN ONLY valid JSON, no prose, no markdown, no code fences:
       "quantity": 1,
       "unit": "LF",
       "confidence": "high",
-      "aiNote": "North parapet, sheet A3.1 detail 5"
+      "aiNote": "North parapet, sheet A3.1 detail 5",
+      "calculatedAreaSqFt": null
+    },
+    {
+      "profileType": "Mechanically Double-Locked Panel",
+      "material": null,
+      "gauge": null,
+      "finish": null,
+      "width": null,
+      "height": null,
+      "legA": null,
+      "legB": null,
+      "lengthFt": 32,
+      "quantity": null,
+      "unit": "LF",
+      "confidence": "medium",
+      "aiNote": "North roof slope, sheet A2.1 — no panel width callout found on drawing",
+      "calculatedAreaSqFt": 512
     }
   ],
-  "processingNotes": "Brief note about what was processed",
+  "processingNotes": "Roof panel width not specified on drawing — select a panel width to calculate quantity.",
   "overallConfidence": "medium"
 }
 

@@ -7,6 +7,160 @@
 ## OVERALL STATUS
 
 ```
+Roof panel catalog      FIX (roof-panel-catalog-copy-001, 2026-08-04) —
+copy + takeoff           fixed the last surviving fabricated "16" AFS
+profile-type gap         default" roof panel width claim, left out of
+(roof-panel-catalog-     scope by roof-panel-real-width-001 below (which
+copy-001)                fixed the internal STANDARD_PROFILE_DEFAULTS/
+                         takeoff pipeline but explicitly left the public
+                         catalog copy and the takeoff dropdown gap
+                         untouched, flagging both for follow-up). Also
+                         checked, per explicit ask, whether an estimator
+                         can manually correct a misidentified roof panel
+                         item in the takeoff results table.
+                         1. `lib/data/catalog.ts`: the 3 roof panel
+                            `PRODUCTS` entries' (AFS-RP-701/702/703)
+                            Coverage Width dimension — customer-facing
+                            text on the public `/products/roof-panels/...`
+                            pages — changed from `'12" – 19" (16" AFS
+                            default)'` to `'12" – 19" (common widths: 12",
+                            16", 18")'`, referencing the real `'common'`
+                            entries in `STANDARD_PANEL_WIDTHS` as a menu
+                            instead of asserting a single default that
+                            doesn't exist.
+                         2. `app/upload/page.tsx`: confirmed the flagged
+                            gap was real and did block manual correction —
+                            `TAKEOFF_PROFILE_TYPES` (the results table's
+                            profile-type `<select>` options) only listed
+                            the 10 non-panel types, though `/api/
+                            takeoff`'s own `TAKEOFF_SYSTEM_PROMPT_RULES`
+                            "PROFILE TYPES TO IDENTIFY" list includes all
+                            13. `selectOptions()` only unshifts an item's
+                            *current* value into the option list when
+                            missing, so an AI-tagged panel row displayed
+                            fine but couldn't be manually switched *into*
+                            a panel type or *between* the 3 panel types —
+                            a real block on correcting a misidentified
+                            item, not cosmetic. Fixed: added the 3 panel
+                            type strings to `TAKEOFF_PROFILE_TYPES`.
+                            Verified no downstream consumer assumed a
+                            panel-free list: `STANDARD_PROFILE_DEFAULTS`
+                            already has null-default entries for all 3
+                            panel types, and `PROFILE_TYPE_TO_CANONICAL_
+                            SLUG` has no panel-type entry either way, so
+                            the 3D preview already fell back to
+                            `buildGenericBendsFromItem`'s generic shape
+                            before this change too — unaffected.
+                         Gates: `pnpm tsc --noEmit` run directly, 0 errors.
+Roof panel real width   FIX (roof-panel-real-width-001, 2026-08-04) —
+extraction (roof-        replaced the fabricated 16" "AFS default" roof
+panel-real-width-001)    panel coverage width (introduced last session,
+                         roof-panel-takeoff-001) with drawing-first
+                         extraction and real user selection as the ONLY
+                         fallback — no default width applied anywhere in
+                         this pipeline anymore.
+                         WHY: the removed code silently assumed 16"
+                         whenever a drawing didn't state a panel's
+                         coverage width, then used that assumed number as
+                         the divisor behind a real quoting quantity —
+                         presenting a made-up number as if it were a real
+                         AFS standard. `CLAUDE.md`'s own DATA BLOCKERS
+                         table lists "Product catalog — profiles,
+                         materials, gauges" as data NOT YET RECEIVED from
+                         the client; 16" was never part of that data.
+                         Unlike every other `STANDARD_PROFILE_DEFAULTS`
+                         entry (real catalog range midpoints, e.g. Coping
+                         Cap's 16" width), there is no real AFS standard
+                         panel width to fall back on — defaulting one was
+                         worse than leaving it blank, since it manufactured
+                         a specific, authoritative-looking number instead.
+                         1. `lib/data/catalog.ts`: the 3 roof panel rows in
+                            `STANDARD_PROFILE_DEFAULTS` now have `width:
+                            null` (was `16`, with a comment calling it "the
+                            divisor the takeoff AI uses" — comment and
+                            value both removed). New `STANDARD_PANEL_
+                            WIDTHS` export: `[12, 16, 18]` `'common'`,
+                            `[20, 24]` `'less-common'` — AFS's real
+                            available widths as a menu the estimator must
+                            deliberately choose from, not a silent
+                            fallback (16" still appears, but now as one
+                            of five real options, never automatic — the
+                            whole distinction this fix is about). The 3
+                            `PRODUCTS` catalog entries (Mechanically
+                            Double-Locked/Single-Lock/Snap-Lock Panel)
+                            left untouched, per explicit instruction to
+                            keep them as-is.
+                         2. `app/api/takeoff/route.ts`: rewrote the ROOF
+                            PANEL IDENTIFICATION AND QUANTITY block's
+                            steps 3-4 only (step 1's panel-type-selection
+                            logic and step 2's slope-area math were out of
+                            scope, untouched). AI now always reports true
+                            sloped area in a new `calculatedAreaSqFt`
+                            field regardless of whether a width is found;
+                            actively searches the WHOLE drawing (panel
+                            schedules, spec notes, roof detail dimensions
+                            — not just the generic "standing seam" plan
+                            note) for an explicit width and, if found,
+                            extracts it, calculates quantity normally, and
+                            reports it at whatever confidence the evidence
+                            justifies — same treatment as any other real
+                            extracted dimension; if none is found anywhere,
+                            sets both `width` and `quantity` to `null` and
+                            adds a `processingNotes` note that a width
+                            must be selected before quantity can be
+                            calculated. No assumption, no default, no
+                            silent number.
+                         3. `app/upload/page.tsx` (results table):
+                            `TakeoffItem.quantity` is now `number | null`,
+                            plus a new `calculatedAreaSqFt: number | null`
+                            field. A roof panel row with `width == null`
+                            shows the calculated area + a `STANDARD_PANEL_
+                            WIDTHS` picker (Common/Less Common
+                            `<optgroup>`s) instead of the normal blank
+                            dimension inputs — selecting a width
+                            (`handlePanelWidthSelect`) computes `quantity
+                            = area / width` client-side via the existing
+                            `updateItem` path. New `panelWidthUserSelected:
+                            boolean[]` (parallel to `items`, added to
+                            `TakeoffDraft` so it survives a reload) tracks
+                            which rows got their quantity this way,
+                            rendering a new `UserSelectedBadge`
+                            (afs-accent-purple dot, distinct from the
+                            existing green `DefaultBadge` — a real user
+                            choice, not a fabricated fallback) next to the
+                            quantity input. A roof panel row where the AI
+                            DID extract a width renders through the normal
+                            dimension-input path unchanged — editable, not
+                            blocked, same as any other extracted field.
+                            Added a submit-time guard
+                            (`handleSubmitClick`): a quote request can't
+                            be submitted while any item still has
+                            `quantity == null`, so a panel row can't reach
+                            `/api/quote-requests` without either an
+                            extracted or a user-selected width behind its
+                            quantity.
+                         NOT touched, out of scope as given: the 3
+                         `PRODUCTS` roof panel entries' own `dimensions`
+                         text still reads `'12" – 19" (16" AFS default)'`
+                         on the public catalog/product pages — customer-
+                         facing copy on `/products/roof-panels/...`,
+                         separate from the takeoff pipeline's quantity
+                         math; the instruction explicitly said to keep the
+                         3 product entries as-is. Flagging since it's the
+                         one place "16" AFS default" wording still appears
+                         in the repo after this fix, in case that was
+                         meant to go too. `STANDARD_PANEL_WIDTHS` was NOT
+                         wired into the Custom Configurator (`/configure`)
+                         — the request said it should be "available to"
+                         Configurator, which the shared `lib/data/
+                         catalog.ts` export satisfies; no Configurator UI
+                         work was requested or done. `app/upload/
+                         page.tsx`'s `TAKEOFF_PROFILE_TYPES` dropdown
+                         still doesn't include the 3 roof panel
+                         profileType strings (a pre-existing gap from
+                         roof-panel-takeoff-001, unrelated to this fix,
+                         still unresolved).
+                         Gates: `pnpm tsc --noEmit` run directly, 0 errors.
 Photo-to-Quote hem      NEW (photo-to-quote-hem-fixes-001, 2026-08-04) —
 fixes + FlashDraft       confirmed AGAIN (consistent with roof-panel-
 HemType extraction       takeoff-001 and takeoff-files-api-001, below)
