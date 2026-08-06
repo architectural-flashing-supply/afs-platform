@@ -149,6 +149,20 @@ const LEG_HEM_MIN_DRAG_IN = 0.125; // minimum drag-back distance to create a hem
 // disambiguation comments in handlePointerDown/handlePointerMove.
 const LEG_DRAG_BACKWARD_COS_THRESHOLD = 0.5;
 
+// Hard guard rail on vertex-drag and leg-reshape (they share the same
+// translation math — see clampDragAngle below): neither gesture may drag a
+// bend angle to or past a self-overlapping fold (0°) or a fully
+// straightened, no-bend-at-all joint (180°). This is prevention at the
+// interaction level, not an attempt to correctly represent reflex angles
+// through the rest of the angle math/quote-summary pipeline — bendAngleAt's
+// use of Math.acos() below is mathematically incapable of returning more
+// than 180° by definition, so a reflex bend that DID reach the committed
+// points would be silently misreported as its unsigned supplement in the
+// submitted quote text (e.g. a true 187° bend reads back as "173°",
+// indistinguishable from a real 173° bend) — see buildBendSummary.
+const MIN_BEND_ANGLE_DEG = 1;
+const MAX_BEND_ANGLE_DEG = 179;
+
 const ROTATE_STEP_DEG = 15;
 const ZOOM_STEP_RATIO = 0.1;
 
@@ -194,6 +208,73 @@ function signedAngleBetween(v1: Point, v2: Point): number {
   while (deg > 180) deg -= 360;
   while (deg <= -180) deg += 360;
   return deg;
+}
+
+// Wraps a degree value into (-180, 180] — same wrap rule as
+// signedAngleBetween, factored out so clampAngleAwayFromRef below can apply
+// it to a plain angle difference without round-tripping through vectors.
+function wrapDeg(deg: number): number {
+  let d = deg;
+  while (d > 180) d -= 360;
+  while (d <= -180) d += 360;
+  return d;
+}
+
+// If thetaDeg is within [MIN_BEND_ANGLE_DEG, MAX_BEND_ANGLE_DEG] of refDeg
+// (unsigned), returns it unchanged. Otherwise pulls it back to whichever
+// boundary it crossed — the one-dimensional primitive behind
+// clampDragAngle below.
+function clampAngleAwayFromRef(thetaDeg: number, refDeg: number): number {
+  const delta = wrapDeg(thetaDeg - refDeg);
+  const mag = Math.abs(delta);
+  if (mag >= MIN_BEND_ANGLE_DEG && mag <= MAX_BEND_ANGLE_DEG) return thetaDeg;
+  const sign = delta < 0 ? -1 : 1;
+  const clampedMag = mag < MIN_BEND_ANGLE_DEG ? MIN_BEND_ANGLE_DEG : MAX_BEND_ANGLE_DEG;
+  return refDeg + sign * clampedMag;
+}
+
+// Guards the shared vertex-drag/leg-reshape translation math (in
+// handlePointerMove) against producing a self-overlapping (angle -> 0°) or
+// fully-straightened (angle -> 180°) bend at either joint a single drag can
+// actually reshape: the vertex being dragged (`idx`), and — if idx-1 is
+// itself an interior bend point — the joint immediately before it. Moving
+// `idx` only ever changes the ONE leg between `original[idx-1]` (fixed) and
+// the candidate point; both joints' angles are therefore driven by the same
+// single degree of freedom (the direction from that fixed anchor to the
+// candidate), so both constraints clamp the same theta, applied in
+// sequence. Preserves the dragged LENGTH exactly — only the angle is ever
+// pulled back, and only as far as the nearest boundary it would cross.
+function clampDragAngle(candidate: Point, idx: number, original: Point[]): Point {
+  const anchor = original[idx - 1];
+  if (!anchor) return candidate;
+  const length = dist(anchor, candidate);
+  if (length < 1e-6) return candidate;
+  const theta0 = (Math.atan2(candidate.y - anchor.y, candidate.x - anchor.x) * 180) / Math.PI;
+  let theta = theta0;
+
+  // Joint at idx-1: the fixed leg coming INTO the anchor from
+  // original[idx-2], vs. the leg this drag is creating (anchor -> theta).
+  const prevNeighbor = original[idx - 2];
+  if (prevNeighbor) {
+    const phiBefore = (Math.atan2(prevNeighbor.y - anchor.y, prevNeighbor.x - anchor.x) * 180) / Math.PI;
+    theta = clampAngleAwayFromRef(theta, phiBefore);
+  }
+  // Joint at idx: the leg this drag is creating, vs. the fixed leg going
+  // OUT to original[idx+1] — translation-invariant regardless of where idx
+  // ends up, so measured from the ORIGINAL idx position. Viewed from idx
+  // rather than from the anchor, the dragged leg's direction is theta+180,
+  // so the reference is shifted by 180 to compare like-for-like.
+  const nextNeighbor = original[idx + 1];
+  if (nextNeighbor) {
+    const originalIdxPoint = original[idx];
+    const phiAfter =
+      (Math.atan2(nextNeighbor.y - originalIdxPoint.y, nextNeighbor.x - originalIdxPoint.x) * 180) / Math.PI;
+    theta = clampAngleAwayFromRef(theta, phiAfter + 180);
+  }
+
+  if (theta === theta0) return candidate;
+  const rad = (theta * Math.PI) / 180;
+  return { x: anchor.x + Math.cos(rad) * length, y: anchor.y + Math.sin(rad) * length };
 }
 
 // Rotates every point downstream of `vertexIndex` around that vertex by
@@ -718,6 +799,20 @@ export default function FlashDraftPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBendPoint, points]);
 
+  // Syncs the segment-length field to the selected leg's live length (same
+  // pattern as the two effects above) — without this, a leg reshaped by
+  // dragging its body left the field showing whatever length it had at the
+  // moment it was clicked, stale the instant the drag changed the leg's
+  // actual length.
+  useEffect(() => {
+    if (selectedSegment === null) return;
+    const a = points[selectedSegment];
+    const b = points[selectedSegment + 1];
+    if (!a || !b) return;
+    setSegmentLengthInput(`${dist(a, b).toFixed(3)}"`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSegment, points]);
+
   // --- Keyboard shortcuts: undo/redo, space-to-pan, escape closes hem popup,
   // delete/backspace removes the selected point or segment (skipped while
   // focus is in a text field, so typing in Notes/Profile Name still works) ---
@@ -944,11 +1039,23 @@ export default function FlashDraftPage() {
     // Fixed screen-pixel-size cross-section glyph, unscaled by zoom or
     // HEM_FOLD_DEPTH_IN — at typical zoom the true-scale fold geometry
     // below renders only a few pixels wide, so without this every hem type
-    // reads as the same small dot next to the vertex marker. Each glyph
-    // sketches that type's real fold profile: an open hook that doesn't
-    // close, a flattened doubled-over bar, or a rolled teardrop bulb.
+    // reads as the same small dot next to the vertex marker. `angleRad` is
+    // always this hem's own TRUE fold direction (the same direction its
+    // true-scale fold lines beside it actually run) — local -x is where the
+    // material comes FROM (back toward the leg attachment), local +x is
+    // where the fold's own tip points. Passing anything else here is what
+    // caused the mirroring bug fixed this session (see call sites below);
+    // every call site must derive angleRad from its own real fold vector,
+    // never reuse an outer-scope angle that may point the other way.
+    // Each shape is ONE continuous path, matching a real hem cross-section:
+    // Open = a hook curling away from the entry line with a clearly visible
+    // gap where the tip nearly meets the leg but doesn't close. Smashed = a
+    // tight hairpin double-back with almost no gap — reads flat, not open.
+    // Teardrop = a single curl that rolls almost all the way into a closed,
+    // filled loop (no separate detached dot).
     const HEM_GLYPH_R = 6;
     const drawHemGlyph = (tip: Point, angleRad: number, type: HemType) => {
+      const R = HEM_GLYPH_R;
       ctx.save();
       ctx.translate(tip.x, tip.y);
       ctx.rotate(angleRad);
@@ -956,26 +1063,41 @@ export default function FlashDraftPage() {
       ctx.fillStyle = CANVAS_COLORS.hemLine;
       ctx.lineWidth = 1.5;
       ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
       if (type === 'open') {
+        // Flat entry run, then a hook curling clockwise (right, then down)
+        // and stopping well short of closing — a wide, clearly visible gap
+        // between the hook's open tip and the entry line, reading as a
+        // shepherd's-crook fold rather than a near-closed spiral.
+        const hookR = R * 0.6;
         ctx.beginPath();
-        ctx.moveTo(-HEM_GLYPH_R, -HEM_GLYPH_R * 0.7);
-        ctx.lineTo(0, -HEM_GLYPH_R * 0.3);
-        ctx.arc(0, HEM_GLYPH_R * 0.3, HEM_GLYPH_R * 0.6, -Math.PI / 2, Math.PI * 0.5);
+        ctx.moveTo(-R, 0);
+        ctx.lineTo(0, 0);
+        ctx.arc(0, hookR, hookR, -Math.PI / 2, Math.PI * 0.4, false);
         ctx.stroke();
       } else if (type === 'smashed') {
+        // Two lines R*0.24 apart connected by a very tight U-turn — a
+        // crushed double-back fold, not an open bracket. Nothing about
+        // this shape extends past the entry line's own depth.
+        const turnR = R * 0.12;
         ctx.beginPath();
-        ctx.moveTo(-HEM_GLYPH_R, -HEM_GLYPH_R * 0.5);
-        ctx.lineTo(HEM_GLYPH_R * 0.2, -HEM_GLYPH_R * 0.5);
-        ctx.arc(HEM_GLYPH_R * 0.2, 0, HEM_GLYPH_R * 0.5, -Math.PI / 2, Math.PI / 2);
-        ctx.lineTo(-HEM_GLYPH_R, HEM_GLYPH_R * 0.5);
+        ctx.moveTo(-R, -R * 0.12);
+        ctx.lineTo(-R * 0.3, -R * 0.12);
+        ctx.arc(-R * 0.3, 0, turnR, -Math.PI / 2, Math.PI / 2, false);
+        ctx.lineTo(-R, R * 0.12);
         ctx.stroke();
       } else {
+        // Teardrop: a tail pinching into an almost-closed round loop —
+        // one filled path, no separate detached circle.
+        const bulbCx = R * 0.25;
+        const bulbR = R * 0.55;
+        const gapHalfAngle = Math.PI * 0.18;
+        const gapStart = { x: bulbCx + Math.cos(Math.PI - gapHalfAngle) * bulbR, y: Math.sin(Math.PI - gapHalfAngle) * bulbR };
         ctx.beginPath();
-        ctx.moveTo(-HEM_GLYPH_R, 0);
-        ctx.lineTo(-HEM_GLYPH_R * 0.2, 0);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(HEM_GLYPH_R * 0.5, 0, HEM_GLYPH_R * 0.55, 0, Math.PI * 2);
+        ctx.moveTo(-R, 0);
+        ctx.lineTo(gapStart.x, gapStart.y);
+        ctx.arc(bulbCx, 0, bulbR, Math.PI - gapHalfAngle, Math.PI + gapHalfAngle, true);
+        ctx.closePath();
         ctx.fill();
       }
       ctx.restore();
@@ -1037,7 +1159,11 @@ export default function FlashDraftPage() {
         ctx.lineTo(sOffsetTip.x, sOffsetTip.y);
         ctx.stroke();
 
-        drawHemGlyph(sOffsetTip, angleU, 'open');
+        // This fold's TRUE direction is foldDir (backward, -u), not the
+        // outward angleU teardrop/smashed below use — passing angleU here
+        // was the endpoint-open mirroring bug: the glyph pointed opposite
+        // the true-scale fold lines drawn right next to it.
+        drawHemGlyph(sOffsetTip, angleU + Math.PI, 'open');
         ctx.font = `10px ${jetbrainsFontRef.current}`;
         ctx.fillText(`OPEN ${formatInches(hem.gapIn)} gap`, sOffsetTip.x + HEM_GLYPH_R * 2 + 6, sOffsetTip.y - 6);
       } else if (hem.type === 'teardrop') {
@@ -1554,7 +1680,12 @@ export default function FlashDraftPage() {
       // the incoming leg's new direction, not just grid position.
       const anchor = original[idx - 1];
       const snapped = anchor && (snapAngle || snapDimension) ? applySnapping(anchor, raw, snapAngle, snapDimension) : raw;
-      const delta = { x: snapped.x - originalPos.x, y: snapped.y - originalPos.y };
+      // Guard rail: never let this drag reach or cross a self-overlapping
+      // (0°) or fully-straightened (180°) bend at either joint it can
+      // reshape — see clampDragAngle. A no-op (returns `snapped` itself,
+      // same object) whenever the candidate is already safe.
+      const clamped = clampDragAngle(snapped, idx, original);
+      const delta = { x: clamped.x - originalPos.x, y: clamped.y - originalPos.y };
       // The incoming leg's endpoint (this vertex) moves to the cursor;
       // everything downstream translates by the same delta so downstream
       // leg lengths/angles stay exactly as they were, relative to each
@@ -1562,7 +1693,7 @@ export default function FlashDraftPage() {
       setPoints((prev) =>
         prev.map((p, i) => {
           if (i < idx) return p;
-          if (i === idx) return { x: snapped.x, y: snapped.y, radius: p.radius };
+          if (i === idx) return { x: clamped.x, y: clamped.y, radius: p.radius };
           const op = original[i];
           return { x: op.x + delta.x, y: op.y + delta.y, radius: op.radius };
         })
@@ -2331,8 +2462,16 @@ export default function FlashDraftPage() {
   // Recomputed each render from the live canvas ref — cheap arithmetic, not
   // a hook, so no rules-of-hooks concern with calling it unconditionally.
   const canvas = canvasRef.current;
+  // Hidden while a reshape drag is actively in progress (draggingVertexIndex
+  // set alongside selectedSegment — see the leg-body candidate resolution in
+  // handlePointerMove): showing the length field mid-drag meant it sat next
+  // to the leg's blue "selected" highlight displaying a value the drag had
+  // already moved past, reading as stale/conflicting rather than as
+  // feedback. Reappears the instant the drag ends (draggingVertexIndex
+  // resets to null in handlePointerUp), by which point the sync effect
+  // above has already updated it to the leg's new, real length.
   const segmentInputPos =
-    selectedSegment !== null && canvas
+    selectedSegment !== null && canvas && draggingVertexIndex === null
       ? (() => {
           const a = worldToScreen(points[selectedSegment], canvas);
           const b = worldToScreen(points[selectedSegment + 1], canvas);

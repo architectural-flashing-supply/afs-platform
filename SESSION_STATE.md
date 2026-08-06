@@ -7,7 +7,143 @@
 
 ## CURRENT STATUS
 
-**Most recent session (flashdraft-leg-reshape-001, 2026-08-05): built the
+**Most recent session (flashdraft-angle-guard-001, 2026-08-06): three fixes
+to FlashDraft (`app/studio/draft/page.tsx`), all from a diagnostic pass run
+against the leg-reshape gesture (flashdraft-leg-reshape-001, below) —
+highest priority is #1, a real fabrication-accuracy/quoting-risk bug, not a
+cosmetic one.**
+
+**1. ANGLE GUARD RAIL — quoting-accuracy risk, not cosmetic.** The
+diagnostic confirmed neither vertex-drag nor leg-reshape constrained the
+resulting bend angle: a drag could push a bend to 172°+ (visually
+collinear/near-overlapping legs) with zero resistance and no warning. The
+real risk isn't the drawing looking odd — it's what happens downstream:
+`buildBendSummary()` (the text actually submitted in the quote request)
+computes each angle via `bendAngleAt()`, which uses `Math.acos()` —
+**mathematically incapable of returning more than 180°** by definition. A
+user who (even accidentally, e.g. via a fast/imprecise drag) pushed a bend
+past straight into a true reflex angle — say 187° — would have that
+silently reported to AFS as its unsigned supplement, "173°," with nothing
+in the submitted text distinguishing it from a real 173° bend. An estimator
+pricing and a shop fabricating from that quote would be working from wrong
+geometry with no indication anything was off. Fixed by constraining the
+*drag itself* — prevention at the interaction level, not an attempt to
+correctly represent reflex angles through the rest of the angle-math/quote
+pipeline (`bendAngleAt`, `buildBendSummary`, the canvas angle label, etc.
+are all untouched).
+Added `MIN_BEND_ANGLE_DEG = 1` / `MAX_BEND_ANGLE_DEG = 179` and a new
+`clampDragAngle(candidate, idx, original)` (module scope, near
+`signedAngleBetween`), applied inside the *shared* vertex-drag/leg-reshape
+translation block in `handlePointerMove` — the same block both gestures
+already run through (leg-reshape arms it exactly like a direct vertex-drag
+on the leg's far endpoint; see flashdraft-leg-reshape-001), so one clamp
+site covers both per the fix's explicit scope. A single drag of vertex
+`idx` only ever changes the ONE leg between the fixed `original[idx-1]`
+anchor and the candidate point — algebraically, this can only move the
+bend angle at TWO joints: the one at `idx` itself, and (if `idx-1` is
+itself an interior bend point) the one immediately before it — every other
+angle in the profile is provably invariant under the existing
+rigid-downstream-translation math (both joints turn out to be driven by the
+exact same single degree of freedom — direction from the anchor — so both
+constraints clamp the same `theta`, applied in sequence via the new
+`clampAngleAwayFromRef`/`wrapDeg` helpers). The clamp preserves the dragged
+LENGTH exactly; only the angle is ever pulled back, and only as far as the
+nearest boundary (1° or 179°) it would otherwise cross — the drag simply
+stops there rather than passing through, per instruction.
+Verified live (Playwright): reproduced the diagnostic's exact wide-arc drag
+that previously reached 172° with zero resistance — now clamps; a second
+drag mathematically targeted (solved for precisely, not guessed) at the
+exact peak where the unclamped result would be a fully-straightened 180°
+bend now holds at **179°** exactly, screenshot-confirmed, legs still
+visibly separate rather than collinear; a third drag targeted at the
+mirror-image 0° self-overlap peak holds at **1°** (displayed as "-1°")
+exactly. Bend Count stayed 1 throughout all three (no point loss/crash).
+Only vertex-drag and leg-reshape were touched, per instruction — the
+numeric "type an angle, Enter" field (`applyBendAngle` /
+`rotateChainAroundVertex`) is a separate, deliberate exact-value affordance
+and was left alone.
+
+**2. HEM GLYPH REDESIGN.** The diagnostic reported exact current geometry
+for all three `drawHemGlyph()` shapes and traced why each read wrong: Open's
+concave/mouth faced backward into the leg (a "backwards J") because its
+endpoint-hem call site passed `angleU` (outward) while the fold this glyph
+represents actually runs backward (`foldDir = -u`) — the glyph was rotated
+180° from its own accompanying true-scale fold lines. Smashed was
+topologically identical to Open (same "C-bracket open on one side" shape,
+just wider), reading as MORE open than Open itself instead of flat/crushed.
+Teardrop was two disconnected primitives (a stub line + a separately-filled
+circle, ~0.15R gap between them) rather than one continuous curl, reading
+as a toggle switch.
+Rewrote all three as single continuous paths in
+`app/studio/draft/page.tsx`'s `drawHemGlyph()`: **Open** — flat entry, then
+a hook curling clockwise (right, then down) through a 130° sweep and
+stopping well short of closing, leaving a wide, unambiguous gap (tuned
+through direct visual iteration — see below — after a first pass with a
+297°-sweep near-closed spiral still read wrong). **Smashed** — two lines
+`R*0.24` apart joined by a very tight (`R*0.12`) U-turn hairpin; nothing in
+the shape extends past the entry line's own depth, so it can no longer look
+"more open" than Open. **Teardrop** — one filled path: a thin tail pinching
+into an almost-closed round loop (a small ~65° notch left open, facing the
+tail) via a single `moveTo`/`lineTo`/`arc`/`closePath`/`fill()` — no
+detached circle.
+Fixed the mirroring/orientation bug the diagnostic flagged: normalized
+`drawHemGlyph`'s `angleRad` contract so every call site MUST pass this
+specific hem's own true fold-direction angle (local -x = toward the leg
+attachment the material comes from, local +x = the fold's own tip
+direction) — never an outer-scope angle that might point the other way.
+Endpoint-hem Teardrop/Smashed and all three leg-mid-hem types already did
+this correctly (their true fold direction matches the angle they were
+already passing); only endpoint-hem Open didn't (see above) — fixed to
+`angleU + Math.PI` (the true `foldDir`), with a comment explaining why. Left
+the endpoint-vs-leg-mid Teardrop/Smashed orientation difference exactly as
+it was: endpoint hems fold OUTWARD (continuing past the profile's tip, an
+intentional, pre-existing, documented design choice from an earlier
+session) while leg-mid hems fold BACKWARD (the only physically sensible
+direction there, since a leg-mid hem has no "tip" to extend past) — these
+are genuinely different true fold directions, not a bug, so forcing them to
+look identical would have been WRONG, not a fix.
+Verified live (Playwright), in two passes: (a) a standalone HTML harness
+rendering the exact ported glyph-drawing code at 10x scale (`HEM_GLYPH_R`
+60 instead of 6) to inspect and iterate on path geometry directly —
+confirmed Smashed and Teardrop read correctly on the first attempt; Open's
+first attempt (a 297° sweep) still looked like a near-closed spiral rather
+than a clear hook, iterated to a 130° sweep that reads as an unambiguous
+open hook, then ported that exact change back into the real file. (b) The
+real app with `HEM_GLYPH_R` temporarily bumped 6→30 (reverted immediately
+after, confirmed back at 6 via grep) to screenshot all 6 real
+type-×-mechanism combinations (Open/Smashed/Teardrop × endpoint/leg-mid) at
+their real call sites/angles — all 6 confirmed visually correct and
+correctly oriented; `pnpm tsc --noEmit` re-run clean after the revert.
+
+**3. RESHAPE SELECTION-STATE UX.** Confirmed via pixel-sampling
+(`rgba(37,99,235,255)` = `CANVAS_COLORS.profileSelected` exactly) that
+`setSelectedSegment()` in the leg-reshape arm (flashdraft-leg-reshape-001)
+turns the grabbed leg blue for the drag's duration, and — separately —
+that the (stale, pre-drag) numeric length input box stayed visible
+simultaneously, the two together reading as confusing/broken rather than
+intentional feedback. Fixed by suppressing the input specifically while a
+reshape drag is active: `segmentInputPos`'s render condition now also
+requires `draggingVertexIndex === null` (true vertex-drag never sets
+`selectedSegment`, so this only ever changes leg-reshape's behavior). The
+box reappears the instant `handlePointerUp` resets `draggingVertexIndex` to
+null. Also added a `segmentLengthInput` live-sync `useEffect` keyed on
+`[selectedSegment, points]` (same established pattern as the pre-existing
+`bendRadiusInput`/`angleInputDraft` sync effects) — without it, the
+reappearing box would still show the PRE-drag length rather than the leg's
+actual new one; this closes that gap too, not just the simultaneous-display
+collision.
+Verified live (Playwright): mid-drag, `input[inputmode="decimal"]` confirmed
+NOT visible while the leg still samples as blue (selection feedback
+preserved, only the conflicting input suppressed); on release, the input
+reappears showing the leg's correct new length (a 10.000" leg dragged to
+12.000" showed "12.000"", not stale "10.000"").
+
+**Touched, 1 file, full replacement — `app/studio/draft/page.tsx`.**
+Gates: `pnpm tsc --noEmit` run directly, 0 errors.
+
+---
+
+**Previous session (flashdraft-leg-reshape-001, 2026-08-05): built the
 leg-body reshape gesture in FlashDraft (`app/studio/draft/page.tsx`) —
 grabbing a leg's body and dragging forward along it or perpendicular/away
 from it now stretches that leg (adjusts length/angle by dragging its far
