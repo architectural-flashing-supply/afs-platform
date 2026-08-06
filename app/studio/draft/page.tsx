@@ -139,12 +139,15 @@ const HEM_HIT_RADIUS_PX = 22; // generous double-click target — was 14px, too 
 const VERTEX_DRAG_THRESHOLD_PX = 3; // movement before a vertex click becomes a drag
 const LEG_HEM_MIN_DRAG_IN = 0.125; // minimum drag-back distance to create a hem on a leg
 
-// How squarely a drag starting on a vertex or the last point must point
-// back along that endpoint's own leg (vs. sideways/forward) before it
-// re-arms as a leg-hem-drag instead of a vertex-drag/line-continuation —
-// a 60° cone centered on the exact backward direction. See the
+// How squarely a drag points back toward a leg's own start (vs.
+// sideways/forward along or away from it) before it's treated as
+// "backward" — a 60° cone centered on the exact backward direction. Three
+// sites share this cone: a drag starting on a vertex or the last point
+// re-arms as a leg-hem-drag when it falls inside the cone (instead of a
+// vertex-drag/line-continuation); a drag starting on a leg's body arms a
+// leg-hem-drag inside the cone or a leg-reshape drag outside it. See the
 // disambiguation comments in handlePointerDown/handlePointerMove.
-const HEM_REARM_DIRECTION_COS_THRESHOLD = 0.5;
+const LEG_DRAG_BACKWARD_COS_THRESHOLD = 0.5;
 
 const ROTATE_STEP_DEG = 15;
 const ZOOM_STEP_RATIO = 0.1;
@@ -505,6 +508,20 @@ export default function FlashDraftPage() {
   const hasVertexDraggedRef = useRef(false);
   const vertexDragDownScreenRef = useRef<Point | null>(null);
 
+  // Leg-body reshape (below) drives the SAME draggingVertexIndex machinery
+  // as a direct vertex grab, but the cursor doesn't start on the vertex —
+  // it starts wherever along the leg's body the user grabbed. Without
+  // correction, the vertex-drag math (which snaps the vertex directly TO
+  // the cursor's world position) would make the endpoint jump to the
+  // cursor the instant the drag resolves, instead of moving by however far
+  // the cursor has traveled. This offset — the vector from the grab point
+  // to the endpoint's original position — is subtracted from the raw
+  // cursor position before that same math runs, so the endpoint tracks the
+  // cursor's movement while preserving where it was grabbed. Null for a
+  // genuine vertex grab, where cursor ≈ vertex already and no correction
+  // is needed.
+  const legReshapeGrabOffsetRef = useRef<Point | null>(null);
+
   // --- Profile identity / save state (Part 2 / Part 5) ---
   const [profileName, setProfileName] = useState('Untitled Profile');
   const [editingName, setEditingName] = useState(false);
@@ -553,6 +570,22 @@ export default function FlashDraftPage() {
   const [legHemPreview, setLegHemPreview] = useState<{ legIndex: number; clickPoint: Point; lengthIn: number } | null>(null);
   const legHemDragRef = useRef<{ legIndex: number; clickPoint: Point; distanceFromStartIn: number } | null>(null);
   const [legHemPopup, setLegHemPopup] = useState<{ legHemIndex: number } | null>(null);
+
+  // A drag starting on a leg's BODY (not its endpoints) is ambiguous until
+  // the first real movement reveals its direction: backward toward the
+  // leg's start re-arms it as a leg-hem-drag (legHemDragRef, above);
+  // anything else — forward along the leg or sideways off it — reshapes
+  // the leg by dragging its far endpoint, via the existing vertex-drag
+  // machinery (draggingVertexIndex) rather than a separate code path. See
+  // the disambiguation block in handlePointerMove.
+  const legBodyDragCandidateRef = useRef<{
+    legIndex: number;
+    clickPoint: Point;
+    distanceFromStartIn: number;
+    downScreenPos: Point;
+    towardStart: Point;
+    hemEligible: boolean;
+  } | null>(null);
 
   // Endpoint-priority disambiguation: when a gesture arms as a vertex-drag
   // (hitTestVertex) or a line-continuation ("near last point"), that
@@ -1323,6 +1356,8 @@ export default function FlashDraftPage() {
     // legitimately re-arm as a leg-hem-drag (vertex-hit, near-last-point).
     // Prevents a stale candidate from a previous gesture leaking in.
     legHemRearmCandidateRef.current = null;
+    legBodyDragCandidateRef.current = null;
+    legReshapeGrabOffsetRef.current = null;
 
     const vertexHit = hitTestVertex(screenPos, canvas);
     if (vertexHit !== null) {
@@ -1407,26 +1442,38 @@ export default function FlashDraftPage() {
       setSelectedBendPoint(null);
       setSegmentLengthInput(`${dist(points[segmentHit], points[segmentHit + 1]).toFixed(3)}"`);
 
-      // Arm a possible hem-creation drag on this leg — only turns into
-      // anything if the user actually drags backward past
-      // LEG_HEM_MIN_DRAG_IN in handlePointerMove/Up below, so click-to-
-      // select above is unaffected. Excluded near the profile's absolute
-      // start point (the only endpoint this segment could touch that
-      // isn't already handled by the "near last point" check above),
-      // since that's reserved for the existing double-click hem gesture.
+      // Arm a candidate for BOTH possible drag gestures on this leg's
+      // body — which one it becomes is decided once, at the first sign of
+      // real movement, in handlePointerMove (same deferred-decision
+      // pattern as the vertex-hit/last-point re-arm candidates above). A
+      // plain click (no drag) never resolves this candidate, so
+      // click-to-select above is unaffected. hemEligible is false near the
+      // profile's absolute start point (the only endpoint this segment
+      // could touch that isn't already handled by the "near last point"
+      // check above), since that spot is reserved for the existing
+      // double-click hem gesture — a backward drag starting there does
+      // nothing (matches prior behavior), but forward/perpendicular still
+      // reshapes normally.
       const legA = points[segmentHit];
       const legB = points[segmentHit + 1];
       const legLenIn = dist(legA, legB);
       const sLegA = worldToScreen(legA, canvas);
       const nearAbsoluteStart = segmentHit === 0 && Math.hypot(screenPos.x - sLegA.x, screenPos.y - sLegA.y) <= HEM_HIT_RADIUS_PX;
-      if (legLenIn > 0 && !nearAbsoluteStart) {
+      if (legLenIn > 0) {
         const raw = screenToWorld(screenPos.x, screenPos.y, canvas);
         const t = Math.max(
           0,
           Math.min(1, ((raw.x - legA.x) * (legB.x - legA.x) + (raw.y - legA.y) * (legB.y - legA.y)) / (legLenIn * legLenIn))
         );
         const clickPoint = { x: legA.x + (legB.x - legA.x) * t, y: legA.y + (legB.y - legA.y) * t };
-        legHemDragRef.current = { legIndex: segmentHit, clickPoint, distanceFromStartIn: t * legLenIn };
+        legBodyDragCandidateRef.current = {
+          legIndex: segmentHit,
+          clickPoint,
+          distanceFromStartIn: t * legLenIn,
+          downScreenPos: screenPos,
+          towardStart: unitVector(legB, legA),
+          hemEligible: !nearAbsoluteStart,
+        };
       }
       return;
     }
@@ -1472,7 +1519,7 @@ export default function FlashDraftPage() {
           const moveLen = Math.hypot(moveVec.x, moveVec.y) || 1;
           const dot =
             (moveVec.x / moveLen) * rearmCandidate.towardStart.x + (moveVec.y / moveLen) * rearmCandidate.towardStart.y;
-          if (dot > HEM_REARM_DIRECTION_COS_THRESHOLD) {
+          if (dot > LEG_DRAG_BACKWARD_COS_THRESHOLD) {
             setDraggingVertexIndex(null);
             draggingVertexOriginalPoints.current = null;
             hasVertexDraggedRef.current = false;
@@ -1492,7 +1539,12 @@ export default function FlashDraftPage() {
         hasVertexDraggedRef.current = true;
         canvas.style.cursor = 'grabbing';
       }
-      const raw = screenToWorld(screenPos.x, screenPos.y, canvas);
+      const rawCursor = screenToWorld(screenPos.x, screenPos.y, canvas);
+      const grabOffset = legReshapeGrabOffsetRef.current;
+      // For a leg-body reshape, re-center the cursor by the grab offset
+      // (see legReshapeGrabOffsetRef above) before it's treated as "where
+      // the vertex should be" — a no-op for a genuine vertex grab.
+      const raw = grabOffset ? { x: rawCursor.x - grabOffset.x, y: rawCursor.y - grabOffset.y } : rawCursor;
       const idx = draggingVertexIndex;
       const original = draggingVertexOriginalPoints.current;
       if (!original) return;
@@ -1515,6 +1567,56 @@ export default function FlashDraftPage() {
           return { x: op.x + delta.x, y: op.y + delta.y, radius: op.radius };
         })
       );
+      return;
+    }
+
+    if (legBodyDragCandidateRef.current) {
+      // A drag that started on a leg's body is ambiguous until now: decide
+      // once, at the first sign of real movement, same as the vertex-hit
+      // and last-point candidates above. Backward toward the leg's own
+      // start (within LEG_DRAG_BACKWARD_COS_THRESHOLD's cone) re-arms as a
+      // leg-hem-drag, identical to the existing gesture. Anything else —
+      // forward along the leg, or sideways/perpendicular off it — reshapes
+      // the leg instead, by arming a vertex-drag on its far endpoint and
+      // falling through to the exact same downstream-point-translation
+      // logic the draggingVertexIndex branch above already implements, so
+      // reshaping a leg body behaves identically to dragging its endpoint
+      // directly.
+      const candidate = legBodyDragCandidateRef.current;
+      const movedPx = Math.hypot(screenPos.x - candidate.downScreenPos.x, screenPos.y - candidate.downScreenPos.y);
+      if (movedPx < VERTEX_DRAG_THRESHOLD_PX) return; // still just a click, not a drag yet
+
+      legBodyDragCandidateRef.current = null;
+      const moveVec = { x: screenPos.x - candidate.downScreenPos.x, y: screenPos.y - candidate.downScreenPos.y };
+      const moveLen = Math.hypot(moveVec.x, moveVec.y) || 1;
+      const dot = (moveVec.x / moveLen) * candidate.towardStart.x + (moveVec.y / moveLen) * candidate.towardStart.y;
+      const isBackward = dot > LEG_DRAG_BACKWARD_COS_THRESHOLD;
+
+      if (isBackward) {
+        if (candidate.hemEligible) {
+          legHemDragRef.current = {
+            legIndex: candidate.legIndex,
+            clickPoint: candidate.clickPoint,
+            distanceFromStartIn: candidate.distanceFromStartIn,
+          };
+          canvas.style.cursor = 'grabbing';
+        }
+        // Backward near the reserved absolute-start ring: no gesture arms,
+        // matching prior behavior (the segment stays selected from
+        // pointerdown, nothing else happens).
+        return;
+      }
+
+      const farVertex = candidate.legIndex + 1;
+      const farOriginal = points[farVertex];
+      legReshapeGrabOffsetRef.current = { x: candidate.clickPoint.x - farOriginal.x, y: candidate.clickPoint.y - farOriginal.y };
+      setSelectedBendPoint(null);
+      setSelectedSegment(candidate.legIndex);
+      setDraggingVertexIndex(farVertex);
+      draggingVertexOriginalPoints.current = points;
+      hasVertexDraggedRef.current = true;
+      vertexDragDownScreenRef.current = candidate.downScreenPos;
+      canvas.style.cursor = 'grabbing';
       return;
     }
 
@@ -1556,7 +1658,7 @@ export default function FlashDraftPage() {
         const moveLen = Math.hypot(moveVec.x, moveVec.y) || 1;
         const dot =
           (moveVec.x / moveLen) * rearmCandidate.towardStart.x + (moveVec.y / moveLen) * rearmCandidate.towardStart.y;
-        if (dot > HEM_REARM_DIRECTION_COS_THRESHOLD) {
+        if (dot > LEG_DRAG_BACKWARD_COS_THRESHOLD) {
           setIsDragDrawing(false);
           dragAnchorRef.current = null;
           setDragPreview(null);
@@ -1608,6 +1710,7 @@ export default function FlashDraftPage() {
         setPast((p) => [...p, original]);
         setFuture([]);
       }
+      legReshapeGrabOffsetRef.current = null;
       setDraggingVertexIndex(null);
       draggingVertexOriginalPoints.current = null;
       hasVertexDraggedRef.current = false;

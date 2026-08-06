@@ -7,6 +7,96 @@
 ## OVERALL STATUS
 
 ```
+FlashDraft leg-body      FEATURE (flashdraft-leg-reshape-001, 2026-08-05) —
+reshape gesture          built the leg-body reshape gesture: grabbing a
+(flashdraft-leg-         leg's body and dragging forward along it, or
+reshape-001)             perpendicular/away from it, now stretches that leg
+                         (adjusts length/angle by dragging its far endpoint
+                         in real time). Extends the direction-based
+                         disambiguation pattern from the immediately
+                         preceding session (flashdraft-leg-hem-rearm-001,
+                         below) rather than inventing a new mechanism, per
+                         instruction: the existing 60°-backward-cone
+                         constant (renamed `HEM_REARM_DIRECTION_COS_THRESHOLD`
+                         to `LEG_DRAG_BACKWARD_COS_THRESHOLD`, same 0.5
+                         value) now gates a third candidate armed on every
+                         leg-body pointerdown alongside the existing
+                         click-to-select and hem-drag-arm behavior — inside
+                         the cone (backward, toward the leg's own start)
+                         still arms the existing leg-hem-drag; outside it
+                         (forward or perpendicular/sideways — anything NOT
+                         backward) arms a reshape by setting
+                         `draggingVertexIndex` to the leg's far endpoint and
+                         reusing the vertex-drag branch's existing
+                         downstream-point-translation loop verbatim, rather
+                         than a duplicated implementation.
+                         Correction made after live-testing exposed it:
+                         naively reusing vertex-drag's cursor-to-vertex
+                         mapping snapped the endpoint to the cursor's
+                         absolute position, correct for a real vertex grab
+                         but wrong for a mid-leg grab — dragging forward
+                         from 3in along a 10in leg shrank it to 6in instead
+                         of extending it. Fixed with a new
+                         `legReshapeGrabOffsetRef`: a per-gesture offset
+                         (grab point minus the endpoint's original position)
+                         subtracted from the raw cursor position before the
+                         shared snapping/delta math runs — null (no-op) for
+                         a genuine vertex grab. Makes the endpoint track the
+                         cursor's movement rather than its absolute
+                         position, matching the delta-preserving convention
+                         the pre-existing leg-hem-drag gesture already uses.
+                         1. `app/studio/draft/page.tsx`: renamed the shared
+                         cos-threshold constant and expanded its doc
+                         comment; added `legBodyDragCandidateRef` and
+                         `legReshapeGrabOffsetRef` (both reset
+                         unconditionally at the top of every
+                         `handlePointerDown`, alongside the pre-existing
+                         `legHemRearmCandidateRef` reset); replaced the old
+                         immediate, unconditional `legHemDragRef` arm on a
+                         leg-body pointerdown with the new deferred
+                         candidate; added the resolution block in
+                         `handlePointerMove` (backward+eligible arms
+                         `legHemDragRef` unchanged, else arms
+                         `draggingVertexIndex` with the grab offset); the
+                         existing vertex-drag translation block now
+                         subtracts that offset from the raw cursor position
+                         before snapping — its downstream-translation loop
+                         is otherwise untouched; `handlePointerUp`'s
+                         existing `draggingVertexIndex` commit block (push
+                         to `past`, clear `future`) now also clears the
+                         grab-offset ref, so a leg reshape commits through
+                         the same undo-tracked path a direct vertex-drag
+                         already uses.
+                         Disambiguation: 60° cone centered on exactly
+                         backward (`LEG_DRAG_BACKWARD_COS_THRESHOLD` = 0.5)
+                         arms the hem-drag; the remaining 300° (forward +
+                         both perpendicular directions) arms the reshape;
+                         `VERTEX_DRAG_THRESHOLD_PX` (3px) gates the decision,
+                         made once per gesture.
+                         Verified live (Playwright, dev server): plain
+                         click causes no geometry mutation (click = select
+                         only, unaffected); backward drag still opens the
+                         leg-hem popup unaffected; forward drag on a 10in
+                         leg (grabbed 3in in, dragged 3in further) extended
+                         it to 13in (Blank Width 16" to 19") rather than
+                         shrinking it — confirms the grab-offset fix, not
+                         just the naive reuse; perpendicular drag reshaped
+                         via angle change (Blank Width 16" to 16⅝"); an
+                         untouched interior vertex still drags normally in
+                         a non-backward direction (separate code path,
+                         keyed off `hitTestSegmentAt` not `hitTestVertex`);
+                         reshape adds/removes no points (Bend Count
+                         unchanged). A plain-click "input appears" DOM
+                         check was found to fail in headless Playwright
+                         regardless of click position, traced to the
+                         numeric input's `autoFocus` immediately triggering
+                         its own `onBlur` in this harness — confirmed via
+                         source-level tracing that this reproduces
+                         identically on the pre-existing, unmodified commit
+                         (36579a0), i.e. a headless/CDP harness quirk, not a
+                         regression; click-to-select verified via
+                         geometry-non-mutation instead.
+                         Gates: `pnpm tsc --noEmit` run directly, 0 errors.
 FlashDraft leg           FIX (flashdraft-leg-hem-rearm-001, 2026-08-05) —
 mid-drag hem             fixed the mid-leg hem-drag gesture ("drag back on any
 endpoint-priority        leg for a hem there") reported non-functional from

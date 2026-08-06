@@ -7,7 +7,125 @@
 
 ## CURRENT STATUS
 
-**Most recent session (flashdraft-leg-hem-rearm-001, 2026-08-05): fixed
+**Most recent session (flashdraft-leg-reshape-001, 2026-08-05): built the
+leg-body reshape gesture in FlashDraft (`app/studio/draft/page.tsx`) —
+grabbing a leg's body and dragging forward along it or perpendicular/away
+from it now stretches that leg (adjusts length/angle by dragging its far
+endpoint), extending the direction-based disambiguation pattern from the
+immediately preceding session (flashdraft-leg-hem-rearm-001, below)
+rather than inventing a new mechanism, per instruction.**
+
+**Why:** a leg's body already had two gestures — click (no drag) selects
+it for the numeric length input, and drag backward past
+`LEG_HEM_MIN_DRAG_IN` arms a leg-hem-drag — but no gesture let a user
+reshape a leg by grabbing its body, the natural direct-manipulation
+counterpart to typing a new length into the numeric field.
+
+**Approach:** a third candidate ref (`legBodyDragCandidateRef`), armed
+alongside the existing hem-drag arm on every leg-body pointerdown and
+resolved once at the same `VERTEX_DRAG_THRESHOLD_PX` (3px) crossing the
+other two candidates already use. The direction check reuses the existing
+`LEG_DRAG_BACKWARD_COS_THRESHOLD` cone (renamed from
+`HEM_REARM_DIRECTION_COS_THRESHOLD` — same 0.5/60° value, now a shared
+constant across all three arm sites, updated in its declaration comment
+to describe all three): inside the cone (backward, toward the leg's own
+start) arms `legHemDragRef` exactly as before; outside it (forward along
+the leg, or perpendicular/sideways off it — anything NOT backward) arms
+a reshape by setting `draggingVertexIndex` to the leg's far endpoint and
+reusing the vertex-drag branch's existing downstream-point-translation
+loop verbatim, so a leg-body reshape ends up moving points identically to
+a direct vertex-drag on that same endpoint — deliberately not a
+duplicated implementation.
+
+One correction made after live-testing exposed it: naively reusing
+vertex-drag's cursor-to-vertex mapping snapped the endpoint to the raw
+cursor's absolute position, which is correct when the grab point IS the
+vertex (a real vertex-drag) but wrong when the grab point is partway
+along the leg's body — dragging forward from a point 3in along a 10in leg
+shrank the leg to the cursor's distance from the anchor (6in) instead of
+extending it. Fixed with `legReshapeGrabOffsetRef`: a per-gesture offset
+(grab point minus the endpoint's original position, in world units)
+subtracted from the raw cursor position before the shared snapping/delta
+math runs — null (no-op) for a genuine vertex grab, where cursor already
+≈ vertex. This makes the endpoint track the cursor's *movement* rather
+than its absolute position, preserving the offset between where the leg
+was grabbed and where its endpoint sits — the same delta-preserving
+convention the pre-existing `legHemDragRef` gesture already uses via its
+own `clickPoint`.
+
+**Fixed, 1 file, full replacement — `app/studio/draft/page.tsx`:**
+1. Renamed `HEM_REARM_DIRECTION_COS_THRESHOLD` →
+   `LEG_DRAG_BACKWARD_COS_THRESHOLD` (same 0.5 value); updated its
+   declaration comment to describe all three arm sites now sharing it.
+2. Added `legBodyDragCandidateRef` (legIndex, clickPoint,
+   distanceFromStartIn, downScreenPos, towardStart, hemEligible) and
+   `legReshapeGrabOffsetRef`, both reset unconditionally at the top of
+   `handlePointerDown` alongside the pre-existing `legHemRearmCandidateRef`
+   reset.
+3. `handlePointerDown`'s segment-hit branch: replaced the old immediate,
+   unconditional `legHemDragRef` arm with `legBodyDragCandidateRef` —
+   `hemEligible` is `false` inside the existing `nearAbsoluteStart` ring
+   (reserved for the double-click hem), matching prior behavior there
+   (no gesture arms on a backward drag in that ring); candidates now arm
+   regardless of `nearAbsoluteStart` since reshape isn't reserved by it.
+4. `handlePointerMove`: new block resolving `legBodyDragCandidateRef` at
+   the 3px threshold — backward-and-`hemEligible` arms `legHemDragRef`
+   unchanged; anything else computes `legReshapeGrabOffsetRef` and arms
+   `draggingVertexIndex` on the leg's far endpoint. The existing
+   vertex-drag translation block reads `legReshapeGrabOffsetRef` and
+   subtracts it from the raw cursor position before snapping — the only
+   change to that block; its downstream-translation loop is untouched.
+5. `handlePointerUp`'s existing `draggingVertexIndex !== null` commit
+   block (push original points to `past`, clear `future`) now also
+   clears `legReshapeGrabOffsetRef` — otherwise unchanged, so a leg
+   reshape commits through the exact same undo-tracked path a direct
+   vertex-drag already uses (not `commitPoints()` — that would push the
+   already-live-dragged `points` onto `past` a second time and corrupt
+   undo history; the vertex-drag mechanism's own past/future push is the
+   correct, pre-existing commit path for drag-based mutations).
+
+Disambiguation boundaries (documentation style matches the preceding
+session's entry): a 60° cone centered on exactly backward
+(`LEG_DRAG_BACKWARD_COS_THRESHOLD` = 0.5, i.e. `cos(60°)`) arms the
+hem-drag; the remaining 300° — forward along the leg, and both
+perpendicular directions off it — arms the reshape. Movement below
+`VERTEX_DRAG_THRESHOLD_PX` (3px) doesn't resolve the candidate yet (still
+just a click). Decided once per gesture at the threshold crossing, not
+re-checked continuously.
+
+Verified live (Playwright, `pnpm dev`):
+- Plain click (no drag) on a leg body: causes no geometry mutation
+  (Blank Width unchanged) — click = select-only, unaffected.
+- Backward drag (60px grab point, dragged 40px further back toward the
+  leg's start): leg-hem-drag popup opens — existing gesture unaffected.
+- Forward drag (60px along a 10in leg, dragged 60px further away from
+  the leg's start): Blank Width 16" → 19", i.e. the leg *extended* by
+  the drag distance (10in → 13in), not shrunk to the cursor's absolute
+  6in-from-anchor position — confirms the grab-offset fix, not just the
+  naive reuse. No hem popup.
+- Perpendicular drag (straight up off a horizontal leg): Blank Width
+  16" → 16⅝" — reshapes via angle change, no hem popup.
+- Vertex-drag on an untouched interior vertex, non-backward direction:
+  Blank Width still changes normally, no hem popup — direct vertex-drag
+  unaffected by the new leg-body candidate (a separate code path, keyed
+  off `hitTestSegmentAt`, not `hitTestVertex`).
+- Reshape adds/removes no points (Bend Count unchanged at 1 throughout).
+- One test-harness-only false lead, ruled out and documented rather than
+  worked around silently: a plain-click "does the numeric input appear"
+  check failed in headless Playwright because the input's `autoFocus`
+  immediately triggers its own `onBlur` handler in this harness,
+  regardless of click position — confirmed via source-level tracing (a
+  temporary logging wrapper) that this reproduces byte-identical on the
+  pre-existing, unmodified commit (36579a0) too, i.e. a headless/CDP
+  synthetic-event quirk, not a regression from this change. Verified
+  click-to-select via geometry-non-mutation instead; the
+  `setSelectedSegment(segmentHit)` call this change leaves untouched.
+
+Gates: `pnpm tsc --noEmit` run directly, 0 errors.
+
+---
+
+**Previous session (flashdraft-leg-hem-rearm-001, 2026-08-05): fixed
 the mid-leg "drag back on any leg for a hem there" gesture in FlashDraft
 (`app/studio/draft/page.tsx`), reported non-functional from natural
 clicks — not merely unreliable, like the endpoint double-click gesture
