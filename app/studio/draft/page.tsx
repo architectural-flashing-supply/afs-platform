@@ -136,6 +136,24 @@ const ANGLE_ARC_HIT_PX = 16;
 
 const HEM_HIT_RADIUS_PX = 22; // generous double-click target — was 14px, too tight to hit reliably in testing
 
+// Wider than HIT_RADIUS_PX on purpose: guards the "click empty space to
+// draw a new segment" fallback in handlePointerDown. A pointerdown that
+// misses every vertex/segment hit-test by just a few pixels — a failed
+// grab while attempting to reshape or hem an existing leg, not a genuine
+// click out in empty space — must never silently fall through to
+// line-continuation. That fallback anchors its dashed preview at the
+// profile's LAST point (not the cursor), so a near-miss produced a red
+// dashed line that appeared to come from nowhere relative to where the
+// user was actually dragging, and committed a surprise extra point on
+// release. See the guard in handlePointerDown.
+const NEW_SEGMENT_MISS_GUARD_PX = 24;
+
+// Fixed screen-pixel-size cross-section glyph radius, unscaled by zoom or
+// HEM_FOLD_DEPTH_IN — at typical zoom the true-scale fold geometry renders
+// only a few pixels wide, so without this every hem type reads as the same
+// small dot next to the vertex marker.
+const HEM_GLYPH_R = 6;
+
 const VERTEX_DRAG_THRESHOLD_PX = 3; // movement before a vertex click becomes a drag
 const LEG_HEM_MIN_DRAG_IN = 0.125; // minimum drag-back distance to create a hem on a leg
 
@@ -187,6 +205,76 @@ function unitVector(from: Point, to: Point): Point {
   const dy = to.y - from.y;
   const len = Math.hypot(dx, dy) || 1;
   return { x: dx / len, y: dy / len };
+}
+
+// Draws one of the three hem cross-section glyphs at `tip`, rotated so the
+// glyph's own local +x axis points along `angleRad`. Shared by the canvas
+// draw loop and the popup selector buttons (HemGlyphIcon) so the two can
+// never visually drift apart — this is the single source of truth for what
+// each hem type looks like.
+//
+// Local coordinate convention, which EVERY call site must normalize to
+// before calling this function: origin (0,0) = the true hem location (tip
+// point for endpoint hems, drag-back point for leg-mid hems). +x = outward
+// past the true end (hypothetical — no material there). -x = backward,
+// toward the vertex, where the leg's actual material exists. Every shape
+// below is built entirely in -x territory as a result. Endpoint hems reach
+// this convention by passing angleU (the leg's own outward direction);
+// leg-mid hems by passing the leg's outward direction, i.e. towardStart +
+// PI (towardStart itself points backward, toward the vertex, so it has to
+// be flipped to land on this function's +x-outward convention). Mixing
+// this up was a confirmed mirroring bug — the two mechanisms produced
+// inconsistent, sometimes-mirrored glyphs before this convention was fixed.
+//
+// Shapes are derived directly from a real PathfinderEdge reference
+// screenshot and hand-drawn sketches, as literal coordinates — not
+// reinterpreted from the type names:
+//   Open: a capsule/stadium parallel to the leg, offset a clearly visible
+//     0.3R off the centerline — never touches the leg line.
+//   Smashed: the same capsule construction pressed nearly flush (0.05R
+//     offset, shorter fold) — reads as a tight double line, never wider
+//     than Open.
+//   Teardrop: one continuous stroked path — a tail departing the leg's own
+//     line, curling into a tight closed loop, ending back near its own
+//     entry curve (a knot, not a stick-and-separate-ball lollipop).
+function drawHemGlyph(ctx: CanvasRenderingContext2D, tip: Point, angleRad: number, type: HemType, R: number = HEM_GLYPH_R): void {
+  ctx.save();
+  ctx.translate(tip.x, tip.y);
+  ctx.rotate(angleRad);
+  ctx.strokeStyle = CANVAS_COLORS.hemLine;
+  ctx.fillStyle = CANVAS_COLORS.hemLine;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+
+  if (type === 'open') {
+    ctx.lineWidth = R * 0.3; // 2x the 0.15R cap radius — a round-capped line IS a stadium/pill
+    ctx.beginPath();
+    ctx.moveTo(0, R * 0.3);
+    ctx.lineTo(-R * 1.1, R * 0.3);
+    ctx.stroke();
+  } else if (type === 'smashed') {
+    ctx.lineWidth = R * 0.3; // same cap radius as Open — only the offset and length shrink
+    ctx.beginPath();
+    ctx.moveTo(0, R * 0.05);
+    ctx.lineTo(-R * 0.8, R * 0.05);
+    ctx.stroke();
+  } else {
+    const loopR = R * 0.35;
+    const cx = -R * 0.35;
+    const cy = R * 0.35;
+    const entryX = cx - loopR; // point on the loop at angle PI
+    const entryY = cy;
+    ctx.lineWidth = R * 0.22;
+    ctx.beginPath();
+    ctx.moveTo(-R * 0.8, 0);
+    ctx.bezierCurveTo(-R * 0.55, -R * 0.05, cx - loopR * 1.05, cy - loopR * 0.6, entryX, entryY);
+    // Sweeps clockwise almost a full turn (2*PI - 0.6 rad) from the entry
+    // point, ending just short of it — the "closing back near its own
+    // starting curve" that reads as a rolled/curled knot.
+    ctx.arc(cx, cy, loopR, Math.PI, Math.PI + Math.PI * 2 - 0.6, false);
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 function bendAngleAt(prev: Point, curr: Point, next: Point): number {
@@ -523,35 +611,25 @@ function ToolbarButton({
   );
 }
 
-// Hem-type selector icons — sketch each fold's real cross-section (open
-// hook, flattened doubled-over bar, rolled teardrop bulb) so a user can see
-// what they're choosing before clicking, and so a placed hem reads as
-// visually distinct from the other two types rather than "a dot with a
-// label." Mirrors the fixed-size glyphs drawHemGlyph draws on the canvas
-// itself (in the main draw effect below) — same shapes, SVG here instead
-// of canvas 2D calls since this renders inside a popup button, not the
-// drawing surface.
-function HemTypeIcon({ type }: { type: HemType }) {
-  if (type === 'open') {
-    return (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-        <path d="M8 5v9a6 6 0 0 0 9.5 4.9" />
-      </svg>
-    );
-  }
-  if (type === 'smashed') {
-    return (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-        <path d="M6 9h9M6 15h9M15 9a3 3 0 0 1 0 6" />
-      </svg>
-    );
-  }
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
-      <path d="M5 12h6" />
-      <circle cx="15.5" cy="12" r="4" fill="currentColor" stroke="none" />
-    </svg>
-  );
+// Hem-type selector icon — renders the SAME drawHemGlyph function the main
+// canvas draws with, on its own tiny canvas, so the popup buttons and the
+// applied glyph can never drift apart the way the old hand-drawn SVG icon
+// set (a hook/bar/dot that didn't match the real shapes) did.
+const HEM_ICON_SIZE = 24;
+function HemGlyphIcon({ type }: { type: HemType }) {
+  const iconCanvasRef = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = iconCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, HEM_ICON_SIZE, HEM_ICON_SIZE);
+    // angleRad=0 (local +x = screen +x) with the glyph's own -x-only
+    // shapes anchored near the icon's right edge, so the material reads
+    // left-to-right within the small square.
+    drawHemGlyph(ctx, { x: HEM_ICON_SIZE * 0.68, y: HEM_ICON_SIZE * 0.5 }, 0, type, 7);
+  }, [type]);
+  return <canvas ref={iconCanvasRef} width={HEM_ICON_SIZE} height={HEM_ICON_SIZE} style={{ width: HEM_ICON_SIZE, height: HEM_ICON_SIZE }} />;
 }
 
 export default function FlashDraftPage() {
@@ -1036,72 +1114,11 @@ export default function FlashDraftPage() {
       }
     }
 
-    // Fixed screen-pixel-size cross-section glyph, unscaled by zoom or
-    // HEM_FOLD_DEPTH_IN — at typical zoom the true-scale fold geometry
-    // below renders only a few pixels wide, so without this every hem type
-    // reads as the same small dot next to the vertex marker. `angleRad` is
-    // always this hem's own TRUE fold direction (the same direction its
-    // true-scale fold lines beside it actually run) — local -x is where the
-    // material comes FROM (back toward the leg attachment), local +x is
-    // where the fold's own tip points. Passing anything else here is what
-    // caused the mirroring bug fixed this session (see call sites below);
-    // every call site must derive angleRad from its own real fold vector,
-    // never reuse an outer-scope angle that may point the other way.
-    // Each shape is ONE continuous path, matching a real hem cross-section:
-    // Open = a hook curling away from the entry line with a clearly visible
-    // gap where the tip nearly meets the leg but doesn't close. Smashed = a
-    // tight hairpin double-back with almost no gap — reads flat, not open.
-    // Teardrop = a single curl that rolls almost all the way into a closed,
-    // filled loop (no separate detached dot).
-    const HEM_GLYPH_R = 6;
-    const drawHemGlyph = (tip: Point, angleRad: number, type: HemType) => {
-      const R = HEM_GLYPH_R;
-      ctx.save();
-      ctx.translate(tip.x, tip.y);
-      ctx.rotate(angleRad);
-      ctx.strokeStyle = CANVAS_COLORS.hemLine;
-      ctx.fillStyle = CANVAS_COLORS.hemLine;
-      ctx.lineWidth = 1.5;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      if (type === 'open') {
-        // Flat entry run, then a hook curling clockwise (right, then down)
-        // and stopping well short of closing — a wide, clearly visible gap
-        // between the hook's open tip and the entry line, reading as a
-        // shepherd's-crook fold rather than a near-closed spiral.
-        const hookR = R * 0.6;
-        ctx.beginPath();
-        ctx.moveTo(-R, 0);
-        ctx.lineTo(0, 0);
-        ctx.arc(0, hookR, hookR, -Math.PI / 2, Math.PI * 0.4, false);
-        ctx.stroke();
-      } else if (type === 'smashed') {
-        // Two lines R*0.24 apart connected by a very tight U-turn — a
-        // crushed double-back fold, not an open bracket. Nothing about
-        // this shape extends past the entry line's own depth.
-        const turnR = R * 0.12;
-        ctx.beginPath();
-        ctx.moveTo(-R, -R * 0.12);
-        ctx.lineTo(-R * 0.3, -R * 0.12);
-        ctx.arc(-R * 0.3, 0, turnR, -Math.PI / 2, Math.PI / 2, false);
-        ctx.lineTo(-R, R * 0.12);
-        ctx.stroke();
-      } else {
-        // Teardrop: a tail pinching into an almost-closed round loop —
-        // one filled path, no separate detached circle.
-        const bulbCx = R * 0.25;
-        const bulbR = R * 0.55;
-        const gapHalfAngle = Math.PI * 0.18;
-        const gapStart = { x: bulbCx + Math.cos(Math.PI - gapHalfAngle) * bulbR, y: Math.sin(Math.PI - gapHalfAngle) * bulbR };
-        ctx.beginPath();
-        ctx.moveTo(-R, 0);
-        ctx.lineTo(gapStart.x, gapStart.y);
-        ctx.arc(bulbCx, 0, bulbR, Math.PI - gapHalfAngle, Math.PI + gapHalfAngle, true);
-        ctx.closePath();
-        ctx.fill();
-      }
-      ctx.restore();
-    };
+    // Local wrapper over the module-level drawHemGlyph — closes over this
+    // draw pass's `ctx` so call sites below don't have to thread it through.
+    // See drawHemGlyph's own doc comment for the local coordinate
+    // convention every call site must normalize `angleRad` to.
+    const drawHemGlyphHere = (tip: Point, angleRad: number, type: HemType) => drawHemGlyph(ctx, tip, angleRad, type);
 
     // Hem folds — drawn at whichever endpoint(s) have one. All hem lines
     // continue from the last leg's direction (u), then fold back 180° —
@@ -1159,11 +1176,13 @@ export default function FlashDraftPage() {
         ctx.lineTo(sOffsetTip.x, sOffsetTip.y);
         ctx.stroke();
 
-        // This fold's TRUE direction is foldDir (backward, -u), not the
-        // outward angleU teardrop/smashed below use — passing angleU here
-        // was the endpoint-open mirroring bug: the glyph pointed opposite
-        // the true-scale fold lines drawn right next to it.
-        drawHemGlyph(sOffsetTip, angleU + Math.PI, 'open');
+        // angleU is this leg's own outward direction (the local +x-outward
+        // convention drawHemGlyph expects) — same angle teardrop/smashed
+        // below pass, for the SAME endpoint mechanism. Passing angleU + PI
+        // here (an earlier version of this fix) was itself the mirroring
+        // bug: it pointed the glyph's material side outward instead of
+        // back toward the vertex.
+        drawHemGlyphHere(sOffsetTip, angleU, 'open');
         ctx.font = `10px ${jetbrainsFontRef.current}`;
         ctx.fillText(`OPEN ${formatInches(hem.gapIn)} gap`, sOffsetTip.x + HEM_GLYPH_R * 2 + 6, sOffsetTip.y - 6);
       } else if (hem.type === 'teardrop') {
@@ -1191,7 +1210,7 @@ export default function FlashDraftPage() {
         ctx.closePath();
         ctx.fill();
 
-        drawHemGlyph(sFoldTip, angleU, 'teardrop');
+        drawHemGlyphHere(sFoldTip, angleU, 'teardrop');
         ctx.font = `10px ${jetbrainsFontRef.current}`;
         ctx.fillText('TEARDROP', sFoldTip.x + radiusPx + HEM_GLYPH_R * 2 + 6, sFoldTip.y - 6);
       } else {
@@ -1213,7 +1232,7 @@ export default function FlashDraftPage() {
           ctx.stroke();
         }
 
-        drawHemGlyph(sFoldTip, angleU, 'smashed');
+        drawHemGlyphHere(sFoldTip, angleU, 'smashed');
         ctx.font = `10px ${jetbrainsFontRef.current}`;
         ctx.fillText('SMASHED', sFoldTip.x + HEM_GLYPH_R * 2 + 6, sFoldTip.y - 6);
       }
@@ -1265,7 +1284,14 @@ export default function FlashDraftPage() {
         ctx.lineTo(sOffsetTip.x, sOffsetTip.y);
         ctx.stroke();
 
-        drawHemGlyph(sOffsetTip, angleFold, 'open');
+        // angleFold is towardStart's own angle — the fold's backward
+        // (material) direction, i.e. the OPPOSITE of this leg's outward
+        // direction. drawHemGlyph's convention wants the outward angle
+        // (matching angleU at the endpoint call sites above), so this and
+        // every other leg-mid call site below add PI to flip it — the same
+        // normalization the endpoint mechanism gets for free from angleU
+        // already pointing outward.
+        drawHemGlyphHere(sOffsetTip, angleFold + Math.PI, 'open');
         ctx.font = `10px ${jetbrainsFontRef.current}`;
         ctx.fillText(`OPEN ${formatInches(hem.gapIn)} gap`, sOffsetTip.x + HEM_GLYPH_R * 2 + 6, sOffsetTip.y - 6);
       } else if (hem.type === 'teardrop') {
@@ -1286,7 +1312,7 @@ export default function FlashDraftPage() {
         ctx.closePath();
         ctx.fill();
 
-        drawHemGlyph(sFoldTip, angleFold, 'teardrop');
+        drawHemGlyphHere(sFoldTip, angleFold + Math.PI, 'teardrop');
         ctx.font = `10px ${jetbrainsFontRef.current}`;
         ctx.fillText('TEARDROP', sFoldTip.x + radiusPx + HEM_GLYPH_R * 2 + 6, sFoldTip.y - 6);
       } else {
@@ -1303,7 +1329,7 @@ export default function FlashDraftPage() {
           ctx.stroke();
         }
 
-        drawHemGlyph(sFoldTip, angleFold, 'smashed');
+        drawHemGlyphHere(sFoldTip, angleFold + Math.PI, 'smashed');
         ctx.font = `10px ${jetbrainsFontRef.current}`;
         ctx.fillText('SMASHED', sFoldTip.x + HEM_GLYPH_R * 2 + 6, sFoldTip.y - 6);
       }
@@ -1602,6 +1628,22 @@ export default function FlashDraftPage() {
         };
       }
       return;
+    }
+
+    // Guard against the near-miss artifact: a click that isn't quite close
+    // enough to register as a vertex/segment hit above, but is still close
+    // to the existing profile, is almost certainly a failed grab — not an
+    // intentional "click empty space to draw a new segment." See
+    // NEW_SEGMENT_MISS_GUARD_PX's own comment for why silently starting a
+    // new line here was a real bug, not just a cosmetic one.
+    for (let i = 0; i < points.length - 1; i++) {
+      const segA = worldToScreen(points[i], canvas);
+      const segB = worldToScreen(points[i + 1], canvas);
+      if (distanceToSegment(screenPos, segA, segB) < NEW_SEGMENT_MISS_GUARD_PX) {
+        setSelectedBendPoint(null);
+        setSelectedSegment(null);
+        return;
+      }
     }
 
     setSelectedBendPoint(null);
@@ -3049,8 +3091,8 @@ export default function FlashDraftPage() {
                               : 'bg-afs-bg-overlay text-white border-afs-border hover:bg-afs-bg-surface'
                           }`}
                         >
-                          <span className="block" style={{ width: 18, height: 18 }}>
-                            <HemTypeIcon type={t} />
+                          <span className="block" style={{ width: HEM_ICON_SIZE, height: HEM_ICON_SIZE }}>
+                            <HemGlyphIcon type={t} />
                           </span>
                           {t}
                         </button>
@@ -3111,8 +3153,8 @@ export default function FlashDraftPage() {
                               : 'bg-afs-bg-overlay text-white border-afs-border hover:bg-afs-bg-surface'
                           }`}
                         >
-                          <span className="block" style={{ width: 18, height: 18 }}>
-                            <HemTypeIcon type={t} />
+                          <span className="block" style={{ width: HEM_ICON_SIZE, height: HEM_ICON_SIZE }}>
+                            <HemGlyphIcon type={t} />
                           </span>
                           {t}
                         </button>

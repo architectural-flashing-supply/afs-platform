@@ -7,6 +7,77 @@
 ## OVERALL STATUS
 
 ```
+FlashDraft hem glyph     FIX (flashdraft-hem-glyph-literal-001, 2026-08-06) —
+literal-coord rewrite    rewrote `drawHemGlyph()` a second time this build
++ popup icon unify +     using LITERAL coordinates supplied directly from a
+drag-artifact fix        real PathfinderEdge reference screenshot and
+(flashdraft-hem-glyph-   hand-drawn sketches (Open/Smashed: a stroked
+literal-001)             round-capped capsule/stadium line; Teardrop: one
+                         continuous stroked tail-into-loop path) — superseding
+                         the descriptive-shape version from
+                         flashdraft-angle-guard-001 below, per explicit
+                         instruction not to reinterpret from the type names.
+                         Normalized `drawHemGlyph`'s local coordinate
+                         contract for BOTH call-site mechanisms: origin = the
+                         hem's own true location, +x = outward past the true
+                         end (hypothetical, no material), -x = backward
+                         toward the vertex (real material) — every shape
+                         lives entirely in -x. Endpoint hems reach this via
+                         plain `angleU` (already outward); leg-mid hems via
+                         `angleFold + Math.PI` (`towardStart`/`angleFold`
+                         point backward, so leg-mid needs the extra flip
+                         endpoint hems get for free) — previously leg-mid
+                         passed bare `angleFold` at all 3 call sites, 180°
+                         off this convention, a real mirroring bug distinct
+                         from the one fixed 2026-08-06 earlier today.
+                         `HEM_GLYPH_R` and the local `drawHemGlyph` closure
+                         promoted to module scope (`drawHemGlyph(ctx, tip,
+                         angleRad, type, R)`) so it has exactly one
+                         implementation. POPUP ICON FIX: the Open/Smashed/
+                         Teardrop selector buttons rendered a hand-drawn SVG
+                         icon set (`HemTypeIcon`) that looked nothing like
+                         the real glyphs (confirmed via screenshot — a hook/
+                         bar/dot, not a hem cross-section) and could drift
+                         from the canvas shapes independently. Replaced with
+                         `HemGlyphIcon`, a small `<canvas>` per button that
+                         calls the SAME `drawHemGlyph` — popup and canvas can
+                         no longer diverge by construction.
+                         DRAG ARTIFACT FIX: investigated the user-reported
+                         "unexplained dashed red line" during drag.
+                         Root-caused via Playwright repro: `handlePointerDown`'s
+                         final fallback (hits neither a vertex nor a segment)
+                         unconditionally started a NEW line-continuation drag
+                         anchored at the profile's LAST point — including for
+                         a near-miss just outside the ~10px hit radius while
+                         grabbing an EXISTING leg for reshape/hem. That
+                         fallback's dashed preview uses `CANVAS_COLORS.profile`,
+                         the identical crimson to the hem-preview's
+                         `CANVAS_COLORS.hemLine`, so it read as an
+                         inexplicable stray hem-colored line detached from
+                         the cursor's actual drag origin — and on release
+                         silently committed a real, unwanted extra point
+                         (repro: Bend Count 0→1 from a 15px near-miss).
+                         Fixed with a new `NEW_SEGMENT_MISS_GUARD_PX = 24`
+                         guard in `handlePointerDown`: a down-click within
+                         that radius of ANY existing segment now no-ops
+                         (deselects only) instead of falling through to
+                         line-continuation. Verified live (Playwright): the
+                         exact 15px near-miss no longer adds a point or shows
+                         any dashed line; normal reshape drag, leg-hem
+                         backward-drag, and a genuine far-away
+                         click-to-draw-new-segment all still work unchanged.
+                         Verified live (Playwright): all 6 type×mechanism
+                         glyph combinations screenshotted (magnified via an
+                         in-page nearest-neighbor debug-canvas crop, since
+                         `HEM_GLYPH_R`=6 is sub-pixel-legible at native
+                         screenshot resolution) — Open reads as a clearly
+                         separated capsule, Smashed as a tight near-flush
+                         capsule, Teardrop as one continuous loop with no
+                         detached circle; popup icons confirmed visually
+                         matching (pill / shorter pill / ring).
+                         Touched 1 file, full replacement —
+                         `app/studio/draft/page.tsx`.
+                         Gates: `pnpm tsc --noEmit` run directly, 0 errors.
 FlashDraft angle guard   FIX (flashdraft-angle-guard-001, 2026-08-06) — three
 rail + hem glyphs +      fixes from a diagnostic run against the leg-reshape
 reshape UX (flash-       gesture, in priority order.
