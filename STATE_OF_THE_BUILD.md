@@ -7,6 +7,153 @@
 ## OVERALL STATUS
 
 ```
+FlashDraft leg           FIX (flashdraft-leg-hem-rearm-001, 2026-08-05) —
+mid-drag hem             fixed the mid-leg hem-drag gesture ("drag back on any
+endpoint-priority        leg for a hem there") reported non-functional from
+fix (flashdraft-         natural clicks. A diagnostic-only pass earlier this
+leg-hem-rearm-           session (conversational — report requested, no
+001)                     code/doc changes made at that step) investigated and
+                         confirmed the report before this fix was built.
+                         Diagnosis: the mechanism itself worked correctly once
+                         armed — the bug was that `hitTestVertex` (16px) and
+                         the "near last point" line-continuation check (10px)
+                         both claim priority over the leg-hem-drag arm in
+                         `handlePointerDown`, and BOTH sit exactly at a leg's
+                         endpoints — the physically intuitive place to start
+                         "grab the tip, fold it back." A natural
+                         click-and-drag-back almost always lands inside one of
+                         those two zones and gets swallowed as a vertex-drag
+                         or a new line segment instead, before the
+                         leg-hem-drag code ever runs.
+                         Fix: direction-based re-arm, not a hit-radius change.
+                         When a pointerDown lands on an interior vertex or the
+                         profile's last point, it still arms the existing
+                         vertex-drag / line-continuation exactly as before —
+                         but now, at the same movement threshold each gesture
+                         already uses to tell a click from a drag
+                         (`VERTEX_DRAG_THRESHOLD_PX`, 3px), the movement's
+                         direction is checked once against the "toward leg
+                         start" vector of the one leg that ends at that point.
+                         Within a 60° cone of exactly backward
+                         (`HEM_REARM_DIRECTION_COS_THRESHOLD` = 0.5, new
+                         constant), the gesture aborts and re-arms
+                         `legHemDragRef` on that leg instead, anchored at the
+                         endpoint (full leg length back); any other direction
+                         falls through to today's behavior unchanged. Decided
+                         once per gesture, not re-checked continuously, so it
+                         can't flip-flop mid-drag. Chosen over a radius tweak
+                         because vertex-drag is omnidirectional (no direction
+                         it "expects," so intercepting only the
+                         exactly-backward direction can never collide with
+                         real vertex-repositioning intent) and
+                         line-continuation normally extends away from the last
+                         point in a new direction (dragging squarely back over
+                         the leg you just drew was always a degenerate case
+                         for "keep drawing," never a meaningful one).
+                         `points[0]`/`nearAbsoluteStart` deliberately left
+                         unchanged — confirmed rather than adjusted:
+                         `points[0]` is only ever a leg's START, never a leg's
+                         END, so there is no "fold this leg's tip back"
+                         gesture reachable from exactly `points[0]` for
+                         direction-based re-arm to intercept; this morning's
+                         `HEM_HIT_RADIUS_PX` widen (14px to 22px, reserved for
+                         the double-click hem) doesn't touch this code path.
+                         1. `app/studio/draft/page.tsx`: added `unitVector()`
+                         helper and `HEM_REARM_DIRECTION_COS_THRESHOLD`
+                         constant; added `dragDownScreenRef` (down-position
+                         for the near-last-point gesture, mirroring the
+                         existing `vertexDragDownScreenRef`) and
+                         `legHemRearmCandidateRef` (the one leg each gesture
+                         could re-arm onto, cleared unconditionally at the top
+                         of every `handlePointerDown` call to prevent stale
+                         leakage between gestures). `handlePointerDown`'s
+                         vertex-hit and near-last-point branches now compute
+                         and store that candidate leg. `handlePointerMove`'s
+                         vertex-drag and line-continuation branches check it
+                         once at their existing threshold crossing and
+                         redirect into `legHemDragRef` on a backward match —
+                         the pre-existing, already-verified `legHemDragRef`
+                         pointer-move/pointer-up finalization code is reused
+                         unchanged for the rest of the gesture.
+                         Verified live (Playwright, dev server): hem creation
+                         now succeeds from a natural click-and-drag-back
+                         starting exactly AT an interior vertex (Hem Count 0
+                         to 1, popup opened) and exactly AT the profile's last
+                         point (Hem Count 0 to 1, popup opened) — both were
+                         confirmed non-functional in this session's diagnostic
+                         pass. Regression-checked in the same pass: dragging
+                         the same interior vertex in a non-backward direction
+                         still pivots it normally (incoming leg
+                         re-angled/re-lengthened, no hem,
+                         screenshot-confirmed); dragging from the last point
+                         in a non-backward direction still extends the line
+                         normally (Bend Count 0 to 1, no hem). Also verified a
+                         drag-back starting just outside the widened 22px
+                         `nearAbsoluteStart` zone on leg 0 still creates a
+                         hem, and a double-click exactly at `points[0]` still
+                         opens the original `hemStart` popup, unaffected. Zero
+                         console errors across all 5 test pages.
+                         Gates: `pnpm tsc --noEmit` run directly, 0 errors.
+FlashDraft first-point   FIX (flashdraft-hem-glyph-001, 2026-08-05) — two
+drag + hem popup         targeted fixes to `app/studio/draft/page.tsx`, both
+reliability + type       confirmed via live testing this session.
+glyphs (flashdraft-      1. First-point drawing gesture: `handlePointerDown`'s
+hem-glyph-001)           `points.length === 0` branch committed a static point
+                         and returned immediately, unlike every subsequent
+                         point, which arms `isDragDrawing` for a continuous
+                         click-drag-release gesture. Fixed to match: the first
+                         click now arms the same drag state (`dragAnchorRef`,
+                         `isDragDrawing`, `dragPreview`) instead of committing
+                         immediately. `handlePointerUp`'s drag-commit branch
+                         now checks `points.length === 0` — a plain click
+                         still places just the one point (unchanged for a
+                         no-drag click), but a click-drag-release places both
+                         the anchor and the drag destination in one gesture,
+                         same as dragging from any later point. The live
+                         drag-preview line in the draw effect previously
+                         required `points.length > 0` to render at all,
+                         silently hiding the in-progress line for exactly this
+                         first gesture — now falls back to
+                         `dragAnchorRef.current` as the anchor when `points`
+                         is still empty.
+                         2. Hem popup reliability + type glyphs, per
+                         live-testing: (a) `HEM_HIT_RADIUS_PX` (double-click
+                         hit-test radius around each drawn endpoint) widened
+                         14px to 22px — the old radius made the popup fail
+                         to open unless the double-click landed almost exactly
+                         on the endpoint, requiring repeated attempts.
+                         Confirmed no competing custom double-click timing
+                         logic exists — `onDoubleClick` uses the browser's
+                         native `dblclick` event directly, nothing intercepts
+                         or races it. (b) Open/Smashed/Teardrop hems rendered
+                         via true-to-scale fold geometry (`HEM_FOLD_DEPTH_IN`
+                         = 0.375in), which at typical zoom draws only a few px
+                         wide — small enough that all three types read as
+                         the same dot next to the 4px vertex marker, with only
+                         the adjacent text label actually differing. Added a
+                         `drawHemGlyph()` helper (fixed screen-pixel size,
+                         unscaled by zoom) drawn at each placed hem's fold tip
+                         in both `renderHemAt` (start/end hems) and
+                         `renderLegHemAt` (leg hems): an open hook that
+                         doesn't close, a flattened doubled-over bar, and a
+                         filled teardrop bulb, matching each type's real
+                         cross-section. Added a matching `HemTypeIcon` SVG
+                         component (same three shapes) to both hem-type
+                         selector popups' buttons, so the user sees the shape
+                         before picking it, not just the type name.
+                         Verified live: started `pnpm dev` and drove
+                         `/studio/draft` with a throwaway Playwright script
+                         (deleted after the run, not part of `tests/e2e/`).
+                         Confirmed a single down-drag-up gesture on an empty
+                         canvas now produces 2 points in one motion (Bend
+                         Count 0, Blank Width 7 1/2", not a single static
+                         point); confirmed the hem popup opens on a
+                         21.6px-offset double-click (would have missed the old
+                         14px radius); confirmed Open/Smashed/Teardrop each
+                         render as a visually distinct glyph (hook / flat bar
+                         / bulb) at increased zoom, plus distinct popup icons.
+                         Zero console errors across all 3 test pages.
+                         Gates: `pnpm tsc --noEmit` run directly, 0 errors.
 3D preview topology     FIX (3d-preview-topology-001, 2026-08-04) — fixed
 fix for unmapped         the Blueprint Takeoff results screen's 3D preview
 profileType labels       (`app/upload/page.tsx`) rendering visually
