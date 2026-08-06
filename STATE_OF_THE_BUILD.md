@@ -7,6 +7,100 @@
 ## OVERALL STATUS
 
 ```
+FlashDraft stray-drag    FIX (flashdraft-drag-state-001, 2026-08-06) — three
+fix + undo/redo repair   items reported live against FlashDraft
++ Clear confirm          (`app/studio/draft/page.tsx`), highest priority
+(flashdraft-drag-        first.
+state-001)               (1) STRAY DRAG STATE ON MERE CURSOR MOVEMENT — a
+                         real, confirmed bug: `legBodyDragCandidateRef`
+                         (armed on pointerdown over a leg body, meant to be
+                         resolved into a real gesture by the FIRST
+                         subsequent pointermove) was only ever cleared by
+                         either that resolution or the START of the NEXT
+                         pointerdown — never by `handlePointerUp`. A plain
+                         click on a leg (down+up, no movement — the ordinary
+                         way to just select it) left it armed. Since
+                         `handlePointerMove` resolves that ref from cursor
+                         position alone with no check that a button is held,
+                         the next unrelated mousemove anywhere on the canvas
+                         silently armed a real vertex-reshape drag that then
+                         followed the cursor on every subsequent move
+                         indefinitely (nothing but a pointerup ever clears
+                         `draggingVertexIndex`, and a mousemove-only gesture
+                         never produces one) — exactly the reported "moving
+                         the cursor with no button pressed moves the
+                         profile." Fixed at 3 layers: `handlePointerUp` now
+                         unconditionally clears the "armed but unresolved"
+                         candidate refs (`legHemRearmCandidateRef`,
+                         `legBodyDragCandidateRef`, `legReshapeGrabOffsetRef`)
+                         regardless of which branch matches; wired as the
+                         shared release/cancel handler for
+                         `onLostPointerCapture` (a popup stealing focus, a
+                         context menu, capture loss) and a new `window`
+                         `blur` listener (alt-tab, a native dialog) in
+                         addition to the existing pointerup/pointercancel;
+                         and a defense-in-depth `e.buttons === 0` guard at
+                         the top of `handlePointerMove` that calls
+                         `handlePointerUp()` (finalizing/canceling exactly
+                         like a real release) whenever any drag/candidate
+                         state is armed with no button actually held, so any
+                         future bug in this class degrades to a no-op
+                         instead of a runaway drag. Verified live
+                         (Playwright): a plain click then mere movement, a
+                         drag released outside the canvas bounds then mere
+                         movement, and mere movement over an open hem popup
+                         all now cause zero profile change.
+                         (2) UNDO/REDO — found and fixed TWO separate real
+                         bugs, not one. Bug A: hem creation/type-change/
+                         removal (`setHemStart`/`setHemEnd`/`setLegHems`)
+                         never went through `commitPoints` or pushed any
+                         history at all — undo right after adding a hem
+                         silently did nothing or reverted an unrelated
+                         earlier points change while leaving the hem in
+                         place. Fixed by widening `past`/`future` from bare
+                         `Point[]` to a new `ProfileSnapshot` (points +
+                         hemStart + hemEnd + legHems) and adding a
+                         `pushHistorySnapshot()` call to every discrete hem
+                         action (not the Gap-in number inputs — those fire
+                         per keystroke, would flood undo). Bug B (found via
+                         live diagnostic logging, NOT guesswork): the
+                         segment-length input has `autoFocus`; a leg-body
+                         reshape/hem drag starting from an already-selected
+                         segment unmounts that input mid-gesture (its own
+                         render condition requires `draggingVertexIndex ===
+                         null`), and an unmount-while-focused fires a native
+                         blur → `applySegmentLength` (its `onBlur` handler)
+                         → `commitPoints` with the length UNCHANGED — a
+                         spurious, geometrically-identical history entry
+                         pushed on every reshape/hem-drag started from a
+                         selected leg, silently corrupting the stack (every
+                         OTHER Undo click became a no-op — confirmed via
+                         instrumented console logging live in the browser,
+                         narrowed from an initial red-herring hypothesis
+                         about React 18 StrictMode double-invoking updater
+                         functions, which turned out to be real but benign).
+                         Fixed with a no-op guard in `applySegmentLength`:
+                         skip the commit when the typed length doesn't
+                         differ from the segment's current length. Also
+                         refactored `undo`/`redo` to stop nesting
+                         side-effecting setState calls inside the updater
+                         passed to `setPast`/`setFuture` (a real anti-
+                         pattern independent of the actual bug, cleaned up
+                         for StrictMode-safety while in the area). Verified
+                         live (Playwright): Undo/Redo now correctly restores
+                         state in exactly one click each after a vertex
+                         drag, a leg-body reshape, and a hem creation.
+                         (3) CLEAR/RESET — already existed
+                         (`clearCanvas`/"Clear" button, resets points, hems,
+                         and match state via `commitPoints([])` +
+                         `setHemStart/End(null)`/`setLegHems([])`, no page
+                         reload) — confirmed via live Playwright test rather
+                         than re-added: Bend/Hem Count both correctly drop
+                         to 0, the canvas empties, drawing immediately
+                         afterward works cleanly with no residual state.
+                         Touched 1 file, full replacement —
+                         `app/studio/draft/page.tsx`.
+                         Gates: `pnpm tsc --noEmit` run directly, 0 errors.
 FlashDraft hem glyph     FIX (flashdraft-hem-glyph-literal-001, 2026-08-06) —
 literal-coord rewrite    rewrote `drawHemGlyph()` a second time this build
 + popup icon unify +     using LITERAL coordinates supplied directly from a

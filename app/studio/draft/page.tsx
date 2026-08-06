@@ -35,6 +35,22 @@ interface Point {
   radius?: number;
 }
 
+// Undo/redo history entry — the full editable profile state, not just
+// `points`. Previously `past`/`future` stored bare `Point[]`, so hem
+// creation/removal (setHemStart/setHemEnd/setLegHems, none of which ever
+// went through commitPoints) was invisible to undo entirely: pressing Undo
+// right after adding a hem silently did nothing (if no prior points-only
+// action existed to revert to) or reverted an unrelated earlier points
+// change while leaving the just-added hem in place — either way, reading
+// as "undo doesn't work." Every push site now snapshots all four fields
+// together so a hem action is exactly as undoable as a points action.
+interface ProfileSnapshot {
+  points: Point[];
+  hemStart: Hem | null;
+  hemEnd: Hem | null;
+  legHems: LegHem[];
+}
+
 const MM_PER_INCH = 25.4;
 const VIEWER_DEBOUNCE_MS = 300;
 
@@ -643,8 +659,8 @@ export default function FlashDraftPage() {
   }, []);
 
   const [points, setPoints] = useState<Point[]>([]);
-  const [past, setPast] = useState<Point[][]>([]);
-  const [future, setFuture] = useState<Point[][]>([]);
+  const [past, setPast] = useState<ProfileSnapshot[]>([]);
+  const [future, setFuture] = useState<ProfileSnapshot[]>([]);
 
   const [selectedSegment, setSelectedSegment] = useState<number | null>(null);
   const [segmentLengthInput, setSegmentLengthInput] = useState('');
@@ -816,35 +832,46 @@ export default function FlashDraftPage() {
 
   const commitPoints = useCallback(
     (newPoints: Point[]) => {
-      setPast((p) => [...p, points]);
+      setPast((p) => [...p, { points, hemStart, hemEnd, legHems }]);
       setFuture([]);
       setPoints(newPoints);
       setSelectedSegment(null);
     },
-    [points]
+    [points, hemStart, hemEnd, legHems]
   );
 
+  // Refactored from the previous version, which nested every side-effecting
+  // setState call (setPoints, setHemStart, ...) INSIDE the functional
+  // updater passed to setPast/setFuture — a real anti-pattern (updaters are
+  // supposed to be pure; React 18 StrictMode's dev-only double-invocation
+  // of updaters exists specifically to catch this) even though it wasn't
+  // the cause of the actual bug found live (see applySegmentLength's own
+  // comment for that). Now the updater passed to setPast/setFuture only
+  // ever computes the next array; every other setter is called once, at
+  // undo/redo's own top level.
   const undo = useCallback(() => {
-    setPast((p) => {
-      if (p.length === 0) return p;
-      const prevPoints = p[p.length - 1];
-      setFuture((f) => [points, ...f]);
-      setPoints(prevPoints);
-      setSelectedSegment(null);
-      return p.slice(0, -1);
-    });
-  }, [points]);
+    if (past.length === 0) return;
+    const prev = past[past.length - 1];
+    setFuture((f) => [{ points, hemStart, hemEnd, legHems }, ...f]);
+    setPast((p) => p.slice(0, -1));
+    setPoints(prev.points);
+    setHemStart(prev.hemStart);
+    setHemEnd(prev.hemEnd);
+    setLegHems(prev.legHems);
+    setSelectedSegment(null);
+  }, [past, points, hemStart, hemEnd, legHems]);
 
   const redo = useCallback(() => {
-    setFuture((f) => {
-      if (f.length === 0) return f;
-      const nextPoints = f[0];
-      setPast((p) => [...p, points]);
-      setPoints(nextPoints);
-      setSelectedSegment(null);
-      return f.slice(1);
-    });
-  }, [points]);
+    if (future.length === 0) return;
+    const next = future[0];
+    setPast((p) => [...p, { points, hemStart, hemEnd, legHems }]);
+    setFuture((f) => f.slice(1));
+    setPoints(next.points);
+    setHemStart(next.hemStart);
+    setHemEnd(next.hemEnd);
+    setLegHems(next.legHems);
+    setSelectedSegment(null);
+  }, [future, points, hemStart, hemEnd, legHems]);
 
   const getEffectiveRadius = useCallback(
     (i: number): number => points[i]?.radius ?? defaultBendRadiusIn(material),
@@ -1660,6 +1687,26 @@ export default function FlashDraftPage() {
     if (!canvas) return;
     const screenPos = getPointerPos(e);
 
+    // Defense in depth against any stray-armed-state bug in this class
+    // (see handlePointerUp's doc comment): every gesture below is driven
+    // purely by cursor position, with no check that a mouse button is
+    // actually held. If some future change (or an already-fixed one)
+    // leaves a candidate/drag ref armed with no button down, this makes
+    // that a no-op — mere cursor movement — instead of a live drag,
+    // regardless of root cause. Finalizes/cancels via the same shared path
+    // a real release would use, so nothing is left half-committed.
+    const dragStateArmed =
+      isPanning ||
+      draggingVertexIndex !== null ||
+      legHemDragRef.current !== null ||
+      legBodyDragCandidateRef.current !== null ||
+      legHemRearmCandidateRef.current !== null ||
+      isDragDrawing;
+    if (e.buttons === 0 && dragStateArmed) {
+      handlePointerUp();
+      return;
+    }
+
     if (isPanning && panOrigin.current) {
       setPan({
         x: panOrigin.current.pan.x + (screenPos.x - panOrigin.current.mouse.x),
@@ -1871,7 +1918,29 @@ export default function FlashDraftPage() {
     canvas.style.cursor = segmentHover !== null ? 'pointer' : 'crosshair';
   };
 
+  // Also the shared "release/cancel everything" handler — reused for
+  // pointercancel (already wired below), lost pointer capture (a popup
+  // stealing focus, a right-click context menu, an OS-level drag
+  // interruption — anything that makes a real pointerup unlikely to ever
+  // arrive), a window blur mid-drag, and a defensive e.buttons===0 check in
+  // handlePointerMove. Unconditionally clears the two "armed but not yet
+  // resolved into a real gesture" candidate refs FIRST, regardless of which
+  // branch below actually matches — previously they were only ever cleared
+  // by the next pointerdown, so a plain click on a leg (down+up with no
+  // real movement in between, the ordinary way to just select a leg) left
+  // legBodyDragCandidateRef armed. Since handlePointerMove resolves that
+  // ref from mere cursor position with NO check that a button is actually
+  // held, the next unrelated mousemove over the canvas — cursor movement
+  // alone, no button pressed — would silently arm a real vertex-reshape
+  // drag that then followed the cursor on every subsequent move forever
+  // (nothing but a pointerup ever clears draggingVertexIndex, and a plain
+  // mousemove-only gesture never produces one). This was the reported
+  // "moving the cursor with no button pressed moves the profile" bug.
   const handlePointerUp = () => {
+    legHemRearmCandidateRef.current = null;
+    legBodyDragCandidateRef.current = null;
+    legReshapeGrabOffsetRef.current = null;
+
     if (isPanning) {
       setIsPanning(false);
       panOrigin.current = null;
@@ -1880,7 +1949,7 @@ export default function FlashDraftPage() {
     if (draggingVertexIndex !== null) {
       if (hasVertexDraggedRef.current && draggingVertexOriginalPoints.current) {
         const original = draggingVertexOriginalPoints.current;
-        setPast((p) => [...p, original]);
+        setPast((p) => [...p, { points: original, hemStart, hemEnd, legHems }]);
         setFuture([]);
       }
       legReshapeGrabOffsetRef.current = null;
@@ -1895,6 +1964,8 @@ export default function FlashDraftPage() {
     if (legHemDragRef.current) {
       const { legIndex, distanceFromStartIn } = legHemDragRef.current;
       if (legHemPreview && legHemPreview.lengthIn >= LEG_HEM_MIN_DRAG_IN) {
+        setPast((p) => [...p, { points, hemStart, hemEnd, legHems }]);
+        setFuture([]);
         const newIndex = legHems.length;
         setLegHems((prev) => [
           ...prev,
@@ -1929,6 +2000,17 @@ export default function FlashDraftPage() {
       setDragScreenPos(null);
     }
   };
+
+  // Losing window focus mid-drag (alt-tab, a native file/print dialog, the
+  // OS taskbar) can mean the eventual mouseup/pointerup happens somewhere
+  // this tab never sees at all — pointer capture generally survives that,
+  // but "generally" isn't "always," and onLostPointerCapture above only
+  // fires if the browser actually released capture. This is the last line
+  // of defense: on blur, finalize/cancel exactly like a real release would.
+  useEffect(() => {
+    window.addEventListener('blur', handlePointerUp);
+    return () => window.removeEventListener('blur', handlePointerUp);
+  });
 
   const handlePointerLeave = () => {
     if (isDragDrawing || isPanning || draggingVertexIndex !== null || legHemDragRef.current) return;
@@ -1974,6 +2056,17 @@ export default function FlashDraftPage() {
     if (!Number.isFinite(newLength) || newLength <= 0) return;
     const a = points[selectedSegment];
     const b = points[selectedSegment + 1];
+    // No-op guard: this input has autoFocus, so a leg-body reshape drag
+    // starting while a segment is selected unmounts it mid-gesture (the
+    // input's own render condition hides it once draggingVertexIndex is
+    // set — see segmentInputPos below) — an unmount-while-focused fires a
+    // native blur, invoking this via onBlur with the length UNCHANGED. That
+    // silently pushed a spurious, geometrically-identical entry onto the
+    // undo stack on every reshape/hem drag that started from a selected
+    // segment, corrupting undo (confirmed live: every other Undo click
+    // became a no-op). Skip the commit entirely when the typed length
+    // doesn't actually differ from the segment's current length.
+    if (Math.abs(newLength - dist(a, b)) < 1e-6) return;
     const angleRad = Math.atan2(b.y - a.y, b.x - a.x);
     const newB = { x: a.x + Math.cos(angleRad) * newLength, y: a.y + Math.sin(angleRad) * newLength };
     const delta = { x: newB.x - b.x, y: newB.y - b.y };
@@ -2046,7 +2139,7 @@ export default function FlashDraftPage() {
       if (!confirmed) return;
     }
     const worldPoints = templatePointsToWorld(template.points);
-    setPast((p) => [...p, points]);
+    setPast((p) => [...p, { points, hemStart, hemEnd, legHems }]);
     setFuture([]);
     setPoints(worldPoints);
     setSelectedSegment(null);
@@ -2160,8 +2253,22 @@ export default function FlashDraftPage() {
     }
   };
 
+  // Snapshots the CURRENT state (before a hem mutation about to happen) onto
+  // the undo stack and clears redo — the same "push before you change"
+  // pattern commitPoints uses for points-only actions, applied here so hem
+  // creation/type-change/removal is undoable too. NOT called from the Gap
+  // (in) number inputs (setOpenHemGap/setLegHemOpenGap fire on every
+  // keystroke) — that would flood undo with one entry per digit typed,
+  // same reason bend-radius adjustment isn't undo-tracked either; only the
+  // discrete type-select/remove actions below push a history entry.
+  const pushHistorySnapshot = () => {
+    setPast((p) => [...p, { points, hemStart, hemEnd, legHems }]);
+    setFuture([]);
+  };
+
   const applyHem = (type: HemType) => {
     if (!hemPopup) return;
+    pushHistorySnapshot();
     const gapIn = type === 'open' ? Number(hemGapDraft) || HEM_DEFAULT_GAP_IN : type === 'teardrop' ? thicknessIn / 2 : 0;
     const hem: Hem = { type, gapIn };
     if (hemPopup.endpoint === 'start') setHemStart(hem);
@@ -2180,6 +2287,7 @@ export default function FlashDraftPage() {
 
   const removeHem = () => {
     if (!hemPopup) return;
+    pushHistorySnapshot();
     if (hemPopup.endpoint === 'start') setHemStart(null);
     else setHemEnd(null);
     setHemPopup(null);
@@ -2190,6 +2298,7 @@ export default function FlashDraftPage() {
   // legHems array instead of hemStart/hemEnd) ---
   const applyLegHemType = (type: HemType) => {
     if (!legHemPopup) return;
+    pushHistorySnapshot();
     const idx = legHemPopup.legHemIndex;
     const gapIn = type === 'open' ? Number(legHemGapDraft) || HEM_DEFAULT_GAP_IN : type === 'teardrop' ? thicknessIn / 2 : 0;
     setLegHems((prev) => prev.map((h, i) => (i === idx ? { ...h, type, gapIn } : h)));
@@ -2206,6 +2315,7 @@ export default function FlashDraftPage() {
 
   const removeLegHem = () => {
     if (!legHemPopup) return;
+    pushHistorySnapshot();
     const idx = legHemPopup.legHemIndex;
     setLegHems((prev) => prev.filter((_, i) => i !== idx));
     setLegHemPopup(null);
@@ -2279,7 +2389,7 @@ export default function FlashDraftPage() {
 
   const loadSavedProfile = (profile: SavedQuoteProfile) => {
     if (!profile.points) return;
-    setPast((p) => [...p, points]);
+    setPast((p) => [...p, { points, hemStart, hemEnd, legHems }]);
     setFuture([]);
     setPoints(profile.points);
     setSelectedSegment(null);
@@ -2322,7 +2432,7 @@ export default function FlashDraftPage() {
       }))
     );
 
-    setPast((p) => [...p, points]);
+    setPast((p) => [...p, { points, hemStart, hemEnd, legHems }]);
     setFuture([]);
     setPoints(reconstructed);
     setSelectedSegment(null);
@@ -2349,7 +2459,7 @@ export default function FlashDraftPage() {
       return;
     }
     if (!canonicalPoints) return;
-    setPast((p) => [...p, points]);
+    setPast((p) => [...p, { points, hemStart, hemEnd, legHems }]);
     setFuture([]);
     setPoints(canonicalPoints);
     setSelectedSegment(null);
@@ -2973,6 +3083,7 @@ export default function FlashDraftPage() {
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
                 onPointerCancel={handlePointerUp}
+                onLostPointerCapture={handlePointerUp}
                 onPointerLeave={handlePointerLeave}
                 onDoubleClick={handleDoubleClick}
                 onWheel={handleWheel}
