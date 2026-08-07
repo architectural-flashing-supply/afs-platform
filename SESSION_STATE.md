@@ -7,7 +7,66 @@
 
 ## CURRENT STATUS
 
-**Most recent session (flashdraft-drag-state-001, 2026-08-06): three items
+**Most recent session (flashdraft-hem-debug-001, 2026-08-06): built a
+standalone debug view for FlashDraft's hem cross-section glyphs, and
+separately fixed the hem-type-selector popup icons being too small to
+read.**
+
+**1. DEBUG VIEW.** `drawHemGlyph()` was a module-local function inside
+`app/studio/draft/page.tsx` — nothing outside that file could call it.
+Extracted it VERBATIM (no coordinate-logic changes) into a new shared
+module, `lib/flashdraft/hem-glyph.ts`, exporting `drawHemGlyph`,
+`HEM_GLYPH_R`, and a minimal `GlyphPoint` type; `page.tsx` now imports from
+there instead of defining its own copy (its `hemLine` color constant
+literal is duplicated locally in the new module rather than importing
+`CANVAS_COLORS` from `page.tsx`, so the shared module has zero dependency
+on the page component — same documented CANVAS_COLORS-literal-hex
+exception pattern, see DESIGN_TOKENS.md §10). Built a new minimal route,
+`app/studio/hem-debug/page.tsx`, which renders all three hem types (Open,
+Smashed, Teardrop) by calling that exact same shared `drawHemGlyph()` — not
+a reimplementation — each at 15x `HEM_GLYPH_R` (R=90px instead of the
+normal 6px), each on its own canvas labeled with its type name above it,
+side by side, on a plain white background.
+**Reach it at `/studio/hem-debug`.**
+
+**2. POPUP ICON LEGIBILITY — separate fix, independent of the debug
+view.** The hem-type-selector popup's `HemGlyphIcon` (the Open/Smashed/
+Teardrop buttons a user picks between) rendered the glyph at R=7 inside a
+24x24 canvas — the shape occupied well under a third of the icon's own
+footprint, exactly matching the report of "a few illegible pixels."
+`HEM_ICON_SIZE` raised 24->34 and the glyph scale passed to `drawHemGlyph`
+raised 7->13 together (a new `HEM_ICON_GLYPH_R` constant), so the shape
+now fills a meaningfully larger share of the icon. Also made the icon
+canvas DPR-aware — backing store sized at `HEM_ICON_SIZE *
+devicePixelRatio` physical pixels with a matching `ctx.setTransform` before
+drawing — so it renders crisp on HiDPI displays instead of a low-resolution
+24x24 bitmap stretched to fill the CSS box (a real contributor to
+"illegible," not just raw size). No changes to `drawHemGlyph`'s own
+coordinate logic in either fix, per explicit instruction — this pass only
+changes what scale and resolution it's called at.
+
+Verified live (Playwright): the debug view screenshotted at
+`/studio/hem-debug` — all three shapes render correctly labeled, correctly
+shaped (Open a clearly separated capsule, Smashed a tighter near-flush
+capsule, Teardrop one continuous loop), and comfortably fit inside their
+280x180 canvases at 15x scale on white, no clipping. The hem-type popup
+screenshotted before applying a hem — Open/Smashed/Teardrop are now each
+individually legible (capsule / shorter capsule / ring) at actual button
+scale, popup layout unaffected (it grows slightly past its 190px min-width
+to fit the larger icons, as expected from its shrink-to-fit sizing). Also
+re-verified the main canvas's own hem rendering (applied a Teardrop hem,
+confirmed "TEARDROP" label and glyph still render correctly on the
+production canvas) to confirm the `drawHemGlyph` extraction into the new
+shared module didn't regress the existing production path.
+
+**Touched 3 files, full replacement — `app/studio/draft/page.tsx`,
+`lib/flashdraft/hem-glyph.ts` (new), `app/studio/hem-debug/page.tsx`
+(new).**
+Gates: `pnpm tsc --noEmit` run directly, 0 errors.
+
+---
+
+**Previous session (flashdraft-drag-state-001, 2026-08-06): three items
 reported live against FlashDraft (`app/studio/draft/page.tsx`) — a stray
 drag-state bug (mere cursor movement mutating the profile), undo/redo
 verification, and a Clear/Reset button check.**

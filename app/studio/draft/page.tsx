@@ -8,6 +8,7 @@ import { gaugeToThicknessMm } from '@/lib/utils/gauge-thickness';
 import { formatInches } from '@/lib/utils/format-inches';
 import ProfileViewer3D, { type ProfileBend } from '@/components/studio/ProfileViewer3D';
 import { computeProfilePoints } from '@/lib/flashdraft/geometry';
+import { drawHemGlyph, HEM_GLYPH_R } from '@/lib/flashdraft/hem-glyph';
 import BendSequenceDiagram from '@/components/studio/BendSequenceDiagram';
 import SubmitConfirmation3DModal, { type PaintFace } from '@/components/studio/SubmitConfirmation3DModal';
 import MatchedProfile3DModal from '@/components/studio/MatchedProfile3DModal';
@@ -164,11 +165,10 @@ const HEM_HIT_RADIUS_PX = 22; // generous double-click target — was 14px, too 
 // release. See the guard in handlePointerDown.
 const NEW_SEGMENT_MISS_GUARD_PX = 24;
 
-// Fixed screen-pixel-size cross-section glyph radius, unscaled by zoom or
-// HEM_FOLD_DEPTH_IN — at typical zoom the true-scale fold geometry renders
-// only a few pixels wide, so without this every hem type reads as the same
-// small dot next to the vertex marker.
-const HEM_GLYPH_R = 6;
+// HEM_GLYPH_R and drawHemGlyph itself now live in lib/flashdraft/hem-glyph.ts
+// (imported above) — shared with the standalone debug view at
+// app/studio/hem-debug/page.tsx, which calls the exact same function at a
+// larger scale rather than reimplementing it.
 
 const VERTEX_DRAG_THRESHOLD_PX = 3; // movement before a vertex click becomes a drag
 const LEG_HEM_MIN_DRAG_IN = 0.125; // minimum drag-back distance to create a hem on a leg
@@ -221,76 +221,6 @@ function unitVector(from: Point, to: Point): Point {
   const dy = to.y - from.y;
   const len = Math.hypot(dx, dy) || 1;
   return { x: dx / len, y: dy / len };
-}
-
-// Draws one of the three hem cross-section glyphs at `tip`, rotated so the
-// glyph's own local +x axis points along `angleRad`. Shared by the canvas
-// draw loop and the popup selector buttons (HemGlyphIcon) so the two can
-// never visually drift apart — this is the single source of truth for what
-// each hem type looks like.
-//
-// Local coordinate convention, which EVERY call site must normalize to
-// before calling this function: origin (0,0) = the true hem location (tip
-// point for endpoint hems, drag-back point for leg-mid hems). +x = outward
-// past the true end (hypothetical — no material there). -x = backward,
-// toward the vertex, where the leg's actual material exists. Every shape
-// below is built entirely in -x territory as a result. Endpoint hems reach
-// this convention by passing angleU (the leg's own outward direction);
-// leg-mid hems by passing the leg's outward direction, i.e. towardStart +
-// PI (towardStart itself points backward, toward the vertex, so it has to
-// be flipped to land on this function's +x-outward convention). Mixing
-// this up was a confirmed mirroring bug — the two mechanisms produced
-// inconsistent, sometimes-mirrored glyphs before this convention was fixed.
-//
-// Shapes are derived directly from a real PathfinderEdge reference
-// screenshot and hand-drawn sketches, as literal coordinates — not
-// reinterpreted from the type names:
-//   Open: a capsule/stadium parallel to the leg, offset a clearly visible
-//     0.3R off the centerline — never touches the leg line.
-//   Smashed: the same capsule construction pressed nearly flush (0.05R
-//     offset, shorter fold) — reads as a tight double line, never wider
-//     than Open.
-//   Teardrop: one continuous stroked path — a tail departing the leg's own
-//     line, curling into a tight closed loop, ending back near its own
-//     entry curve (a knot, not a stick-and-separate-ball lollipop).
-function drawHemGlyph(ctx: CanvasRenderingContext2D, tip: Point, angleRad: number, type: HemType, R: number = HEM_GLYPH_R): void {
-  ctx.save();
-  ctx.translate(tip.x, tip.y);
-  ctx.rotate(angleRad);
-  ctx.strokeStyle = CANVAS_COLORS.hemLine;
-  ctx.fillStyle = CANVAS_COLORS.hemLine;
-  ctx.lineJoin = 'round';
-  ctx.lineCap = 'round';
-
-  if (type === 'open') {
-    ctx.lineWidth = R * 0.3; // 2x the 0.15R cap radius — a round-capped line IS a stadium/pill
-    ctx.beginPath();
-    ctx.moveTo(0, R * 0.3);
-    ctx.lineTo(-R * 1.1, R * 0.3);
-    ctx.stroke();
-  } else if (type === 'smashed') {
-    ctx.lineWidth = R * 0.3; // same cap radius as Open — only the offset and length shrink
-    ctx.beginPath();
-    ctx.moveTo(0, R * 0.05);
-    ctx.lineTo(-R * 0.8, R * 0.05);
-    ctx.stroke();
-  } else {
-    const loopR = R * 0.35;
-    const cx = -R * 0.35;
-    const cy = R * 0.35;
-    const entryX = cx - loopR; // point on the loop at angle PI
-    const entryY = cy;
-    ctx.lineWidth = R * 0.22;
-    ctx.beginPath();
-    ctx.moveTo(-R * 0.8, 0);
-    ctx.bezierCurveTo(-R * 0.55, -R * 0.05, cx - loopR * 1.05, cy - loopR * 0.6, entryX, entryY);
-    // Sweeps clockwise almost a full turn (2*PI - 0.6 rad) from the entry
-    // point, ending just short of it — the "closing back near its own
-    // starting curve" that reads as a rolled/curled knot.
-    ctx.arc(cx, cy, loopR, Math.PI, Math.PI + Math.PI * 2 - 0.6, false);
-    ctx.stroke();
-  }
-  ctx.restore();
 }
 
 function bendAngleAt(prev: Point, curr: Point, next: Point): number {
@@ -631,7 +561,16 @@ function ToolbarButton({
 // canvas draws with, on its own tiny canvas, so the popup buttons and the
 // applied glyph can never drift apart the way the old hand-drawn SVG icon
 // set (a hook/bar/dot that didn't match the real shapes) did.
-const HEM_ICON_SIZE = 24;
+//
+// HEM_ICON_SIZE (24->34) and the R passed to drawHemGlyph (7->13) were both
+// bumped up together — previously the glyph occupied under a third of the
+// icon's own footprint, reading as "a few illegible pixels" at actual
+// button scale. Also now DPR-aware: the canvas backing store is sized at
+// HEM_ICON_SIZE * devicePixelRatio physical pixels with a matching
+// ctx.scale, so the glyph stays crisp on HiDPI displays instead of a
+// low-res bitmap stretched up to fill the CSS box.
+const HEM_ICON_SIZE = 34;
+const HEM_ICON_GLYPH_R = 13;
 function HemGlyphIcon({ type }: { type: HemType }) {
   const iconCanvasRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
@@ -639,11 +578,15 @@ function HemGlyphIcon({ type }: { type: HemType }) {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = HEM_ICON_SIZE * dpr;
+    canvas.height = HEM_ICON_SIZE * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, HEM_ICON_SIZE, HEM_ICON_SIZE);
     // angleRad=0 (local +x = screen +x) with the glyph's own -x-only
     // shapes anchored near the icon's right edge, so the material reads
-    // left-to-right within the small square.
-    drawHemGlyph(ctx, { x: HEM_ICON_SIZE * 0.68, y: HEM_ICON_SIZE * 0.5 }, 0, type, 7);
+    // left-to-right within the square.
+    drawHemGlyph(ctx, { x: HEM_ICON_SIZE * 0.68, y: HEM_ICON_SIZE * 0.5 }, 0, type, HEM_ICON_GLYPH_R);
   }, [type]);
   return <canvas ref={iconCanvasRef} width={HEM_ICON_SIZE} height={HEM_ICON_SIZE} style={{ width: HEM_ICON_SIZE, height: HEM_ICON_SIZE }} />;
 }
