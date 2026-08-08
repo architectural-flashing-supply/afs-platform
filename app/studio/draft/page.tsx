@@ -562,15 +562,23 @@ function ToolbarButton({
 // applied glyph can never drift apart the way the old hand-drawn SVG icon
 // set (a hook/bar/dot that didn't match the real shapes) did.
 //
-// HEM_ICON_SIZE (24->34) and the R passed to drawHemGlyph (7->13) were both
-// bumped up together — previously the glyph occupied under a third of the
-// icon's own footprint, reading as "a few illegible pixels" at actual
-// button scale. Also now DPR-aware: the canvas backing store is sized at
+// HEM_ICON_SIZE (24->34) and the R passed to drawHemGlyph were both bumped
+// up together — previously the glyph occupied under a third of the icon's
+// own footprint, reading as "a few illegible pixels" at actual button
+// scale. Also now DPR-aware: the canvas backing store is sized at
 // HEM_ICON_SIZE * devicePixelRatio physical pixels with a matching
-// ctx.scale, so the glyph stays crisp on HiDPI displays instead of a
+// ctx.setTransform, so the glyph stays crisp on HiDPI displays instead of a
 // low-res bitmap stretched up to fill the CSS box.
+//
+// HEM_ICON_GLYPH_R is an explicit multiple of the canonical HEM_GLYPH_R
+// (imported from lib/flashdraft/hem-glyph.ts) rather than its own
+// disconnected literal — same reasoning as app/studio/hem-debug/page.tsx's
+// DEBUG_R below, and previously the two constants (13 here, HEM_GLYPH_R=6
+// there) had no relationship at all, so an edit to one could silently
+// drift from the other with nothing catching it.
 const HEM_ICON_SIZE = 34;
-const HEM_ICON_GLYPH_R = 13;
+const HEM_ICON_GLYPH_SCALE = 2;
+const HEM_ICON_GLYPH_R = HEM_GLYPH_R * HEM_ICON_GLYPH_SCALE;
 function HemGlyphIcon({ type }: { type: HemType }) {
   const iconCanvasRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
@@ -903,19 +911,32 @@ export default function FlashDraftPage() {
   }, [undo, redo, points, selectedBendPoint, selectedSegment, commitPoints]);
 
   // --- Coordinate conversion ---
+  // Reads canvas size via getBoundingClientRect() (always CSS/logical
+  // pixels, regardless of devicePixelRatio) rather than canvas.width/height
+  // — now that the draw effect below sizes the backing store at
+  // devicePixelRatio physical pixels per CSS pixel, canvas.width/height
+  // report the PHYSICAL size, which would silently put every world<->screen
+  // conversion (and therefore every hit-test, drag, and render position) off
+  // by a factor of the display's DPR.
   const worldToScreen = useCallback(
-    (p: Point, canvas: HTMLCanvasElement): Point => ({
-      x: p.x * PIXELS_PER_INCH * zoom + pan.x + canvas.width / 2,
-      y: p.y * PIXELS_PER_INCH * zoom + pan.y + canvas.height / 2,
-    }),
+    (p: Point, canvas: HTMLCanvasElement): Point => {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: p.x * PIXELS_PER_INCH * zoom + pan.x + rect.width / 2,
+        y: p.y * PIXELS_PER_INCH * zoom + pan.y + rect.height / 2,
+      };
+    },
     [zoom, pan]
   );
 
   const screenToWorld = useCallback(
-    (sx: number, sy: number, canvas: HTMLCanvasElement): Point => ({
-      x: (sx - canvas.width / 2 - pan.x) / (PIXELS_PER_INCH * zoom),
-      y: (sy - canvas.height / 2 - pan.y) / (PIXELS_PER_INCH * zoom),
-    }),
+    (sx: number, sy: number, canvas: HTMLCanvasElement): Point => {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: (sx - rect.width / 2 - pan.x) / (PIXELS_PER_INCH * zoom),
+        y: (sy - rect.height / 2 - pan.y) / (PIXELS_PER_INCH * zoom),
+      };
+    },
     [zoom, pan]
   );
 
@@ -926,26 +947,54 @@ export default function FlashDraftPage() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // DPR-aware backing store — same pattern already used by HemGlyphIcon
+    // and app/studio/hem-debug/page.tsx's canvases. Without this the
+    // backing store has exactly 1 physical pixel per CSS pixel regardless
+    // of screen density, so on any devicePixelRatio > 1 display (virtually
+    // every modern screen) the ENTIRE canvas — not just hem glyphs — is a
+    // low-res bitmap stretched to fill its CSS box, softer than it needs
+    // to be. Only resizes the backing store when the target physical size
+    // actually changed — this effect re-runs on every points/zoom/pan
+    // change (many times during a single drag), and resizing a canvas's
+    // width/height always clears its bitmap, so doing that unconditionally
+    // would be wasted work and a visible flash on every frame.
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    const cssWidth = rect.width;
+    const cssHeight = rect.height;
+    const targetWidth = Math.round(cssWidth * dpr);
+    const targetHeight = Math.round(cssHeight * dpr);
+    if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // Every drawing call below is now in CSS-pixel-equivalent space (the
+    // setTransform above scales it up to match the physical backing
+    // store), so bounds/positions use cssWidth/cssHeight — the logical
+    // size — never canvas.width/canvas.height, which are now the physical
+    // (DPR-multiplied) backing-store dimensions.
+    ctx.clearRect(0, 0, cssWidth, cssHeight);
     ctx.fillStyle = CANVAS_COLORS.background;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, cssWidth, cssHeight);
 
     // Grid
     const step = GRID_INCHES * PIXELS_PER_INCH * zoom;
     ctx.strokeStyle = CANVAS_COLORS.grid;
     ctx.lineWidth = 1;
-    const offsetX = (pan.x + canvas.width / 2) % step;
-    const offsetY = (pan.y + canvas.height / 2) % step;
-    for (let x = offsetX; x < canvas.width; x += step) {
+    const offsetX = (pan.x + cssWidth / 2) % step;
+    const offsetY = (pan.y + cssHeight / 2) % step;
+    for (let x = offsetX; x < cssWidth; x += step) {
       ctx.beginPath();
       ctx.moveTo(x, 0);
-      ctx.lineTo(x, canvas.height);
+      ctx.lineTo(x, cssHeight);
       ctx.stroke();
     }
-    for (let y = offsetY; y < canvas.height; y += step) {
+    for (let y = offsetY; y < cssHeight; y += step) {
       ctx.beginPath();
       ctx.moveTo(0, y);
-      ctx.lineTo(canvas.width, y);
+      ctx.lineTo(cssWidth, y);
       ctx.stroke();
     }
 
@@ -2069,7 +2118,11 @@ export default function FlashDraftPage() {
   const fitToScreen = () => {
     const canvas = canvasRef.current;
     if (!canvas || points.length === 0) return;
-    const { zoom: nextZoom, pan: nextPan } = computeFitView(points, canvas.width, canvas.height);
+    // getBoundingClientRect (CSS/logical pixels), not canvas.width/height —
+    // those are now the DPR-multiplied physical backing-store size. See
+    // the draw effect's own comment for why.
+    const rect = canvas.getBoundingClientRect();
+    const { zoom: nextZoom, pan: nextPan } = computeFitView(points, rect.width, rect.height);
     setZoom(nextZoom);
     setPan(nextPan);
   };
@@ -2090,7 +2143,8 @@ export default function FlashDraftPage() {
 
     const canvas = canvasRef.current;
     if (canvas) {
-      const { zoom: nextZoom, pan: nextPan } = computeFitView(worldPoints, canvas.width, canvas.height);
+      const rect = canvas.getBoundingClientRect();
+      const { zoom: nextZoom, pan: nextPan } = computeFitView(worldPoints, rect.width, rect.height);
       setZoom(nextZoom);
       setPan(nextPan);
     }

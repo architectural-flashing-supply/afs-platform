@@ -7,7 +7,103 @@
 
 ## CURRENT STATUS
 
-**Most recent session (flashdraft-hem-debug-001, 2026-08-06): built a
+**Most recent session (flashdraft-hem-audit-fixes-001, 2026-08-07): three
+targeted fixes in `app/studio/draft/page.tsx` and
+`lib/flashdraft/hem-glyph.ts`, based on findings from the immediately
+prior session's comprehensive hem-rendering audit (a no-code-changes
+diagnostic turn — it left no governance entry of its own, only 5
+`hem-audit-*.png` evidence screenshots at repo root). `drawHemGlyph()`'s
+overall shapes (capsule/capsule/loop), confirmed correct by that audit,
+were left untouched — only the three specific gaps it surfaced were
+addressed.**
+
+**1. DPR AWARENESS ON THE LIVE PRODUCTION CANVAS.** The audit's item 6
+(scaling/DPR/transform check) found the main canvas had NO
+devicePixelRatio handling at all — its backing store was set directly
+from `ResizeObserver`'s CSS-pixel `contentRect`, no DPR multiplication, no
+`ctx.setTransform`/`ctx.scale` anywhere — while the debug view
+(`app/studio/hem-debug/page.tsx`) and the popup icon (`HemGlyphIcon`) both
+already did this correctly. Applied the identical
+backing-store-at-`devicePixelRatio` + `ctx.setTransform(dpr,0,0,dpr,0,0)`
+pattern to the main canvas, guarded to only resize the backing store when
+the target physical size actually changed — this draw effect re-runs on
+every points/zoom/pan change (many times during a single drag), and
+setting a canvas's `width`/`height` always clears its bitmap regardless of
+whether the value changed, so resizing unconditionally would mean wasted
+work and a visible flash on every frame.
+This is a much bigger change than it sounds: `canvas.width`/`canvas.height`
+were read directly for coordinate math in 18 places across the file —
+`worldToScreen`, `screenToWorld` (used for every hit-test, drag, and
+render position), the grid/clear/fill bounds inside the draw effect, and
+two `computeFitView` call sites (`fitToScreen`, `loadTemplate`). Once the
+backing store is DPR-scaled, `canvas.width`/`canvas.height` report the
+PHYSICAL pixel count, not the CSS/logical size these functions need — left
+as-is, every one of those 18 sites would have silently computed screen
+positions off by a factor of the display's `devicePixelRatio`. Every site
+now reads `canvas.getBoundingClientRect().width`/`.height` instead, which
+is always CSS/logical pixels regardless of DPR (matching how mouse
+`clientX`/`clientY` — and therefore `getPointerPos`, already using
+`getBoundingClientRect()` — are reported).
+Verified live (Playwright, `deviceScaleFactor: 2` to actually exercise the
+DPR path on a 1x dev machine): `window.devicePixelRatio` read as 2 inside
+the page; the canvas backing store measured exactly 2x the CSS size
+(2060x1672 physical vs. 1030x836 CSS); a leg drawn via a 400px mouse drag
+measured exactly 20.000" (400px / 20px-per-inch / zoom 1 — confirms
+`worldToScreen`/`screenToWorld`'s fix is numerically correct, not just
+type-checking); a vertex dragged to a specific target landed exactly
+there, confirmed by screenshot; and double-clicking an endpoint still
+opened the hem popup (hit-test correctness at DPR 2).
+
+**2. UNIFIED GLYPH SCALE CONSTANTS.** `HEM_GLYPH_R` (6, the live canvas'
+default), the popup's `HEM_ICON_GLYPH_R` (a disconnected literal, 13), and
+the debug view's `DEBUG_R` (already `HEM_GLYPH_R * DEBUG_SCALE`, `DEBUG_SCALE
+= 15`) had no relationship enforced between them — an edit to any one could
+silently drift from the other two with nothing catching it, per the
+audit's item 5 call-site trace. `HEM_ICON_GLYPH_R` is now `HEM_GLYPH_R *
+HEM_ICON_GLYPH_SCALE` with `HEM_ICON_GLYPH_SCALE = 2` (12, close to the
+prior 13 — the icon's own 34px box size, already tuned for legibility, is
+unchanged) — an explicit multiple of the one canonical base constant,
+matching the pattern the debug view already used. Both call sites now
+derive from `HEM_GLYPH_R`; only that one constant needs to change to
+rescale everything consistently.
+
+**3. OPEN/SMASHED VISUAL DIFFERENTIATION.** The audit's own screenshot
+evidence (`hem-audit-popup.png`, both the original and a magnified crop)
+showed Open and Smashed rendering as near-identical short red dashes at
+real popup button scale — confirmed by direct visual inspection, not
+assumed. Root cause: the geometric parameter that's SUPPOSED to
+distinguish them — perpendicular offset from the leg's centerline (0.3R
+Open vs. 0.05R Smashed) — has no visible referent when there's no leg line
+drawn next to an isolated icon (the popup buttons, the 20x debug view); it
+only reads correctly on the real canvas, where the true fold lines ARE
+drawn alongside the glyph. Fixed by giving Smashed two independent visual
+cues that stay visible with zero reference geometry: shorter (0.6R vs.
+Open's 1.1R — also widened from the original 0.8R) AND noticeably
+thinner-stroked (0.16R vs. Open's 0.3R, down from an identical 0.3R
+before). Open and Teardrop are completely unchanged.
+Verified live (Playwright): a tight crop of the real popup shows Open as a
+visibly longer, thicker red dash and Smashed as a visibly shorter, thinner
+one — confidently distinguishable at actual button scale, not just at
+audit-tool magnification.
+
+**Regenerated all 5 of the prior audit's screenshots** for direct
+before/after comparison (`hem-audit-open.png`, `-smashed.png`,
+`-teardrop.png`, `-popup.png`, `-applied.png`, repo root) using the exact
+same methodology — the 3 isolated renders came from literally calling the
+real (fixed) `drawHemGlyph()` via a recording proxy, replayed on a real
+Chromium canvas, not a reimplementation. `hem-audit-open.png` and
+`hem-audit-teardrop.png` are byte-identical to the prior audit's versions
+(git shows no diff) — expected and a good sign, since neither type's
+geometry changed. `hem-audit-smashed.png`, `-popup.png`, and `-applied.png`
+all visibly changed, showing the new shorter/thinner Smashed capsule.
+
+**Touched 3 files, full replacement — `app/studio/draft/page.tsx`,
+`lib/flashdraft/hem-glyph.ts`, `app/studio/hem-debug/page.tsx`.**
+Gates: `pnpm tsc --noEmit` run directly, 0 errors.
+
+---
+
+**Previous session (flashdraft-hem-debug-001, 2026-08-06): built a
 standalone debug view for FlashDraft's hem cross-section glyphs, and
 separately fixed the hem-type-selector popup icons being too small to
 read.**

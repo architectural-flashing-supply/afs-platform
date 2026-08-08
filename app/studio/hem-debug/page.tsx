@@ -12,6 +12,10 @@ import { drawHemGlyph, HEM_GLYPH_R } from '@/lib/flashdraft/hem-glyph';
 //
 // Reach this at /studio/hem-debug.
 
+// An explicit multiple of the canonical HEM_GLYPH_R, same pattern
+// HEM_ICON_GLYPH_R uses in app/studio/draft/page.tsx's HemGlyphIcon — every
+// call-site scale derives from the one base constant so none of them can
+// silently drift apart from each other in a future edit.
 const DEBUG_SCALE = 15;
 const DEBUG_R = HEM_GLYPH_R * DEBUG_SCALE;
 

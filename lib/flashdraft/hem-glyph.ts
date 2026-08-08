@@ -43,8 +43,18 @@ export const HEM_GLYPH_R = 6;
 //   Open: a capsule/stadium parallel to the leg, offset a clearly visible
 //     0.3R off the centerline — never touches the leg line.
 //   Smashed: the same capsule construction pressed nearly flush (0.05R
-//     offset, shorter fold) — reads as a tight double line, never wider
-//     than Open.
+//     offset — unchanged, it's what makes this read correctly as
+//     "nearly flush against the leg" in the real canvas rendering, where
+//     the true fold lines are drawn right next to it), but shorter
+//     (0.6R vs Open's 1.1R, widened from the original 0.8R) AND
+//     noticeably thinner-stroked (0.16R vs Open's 0.3R) than Open. That
+//     offset difference alone isn't visible where there's no reference
+//     leg line drawn next to the icon in isolation (the popup buttons,
+//     the 20x debug view) — confirmed via audit screenshot that Open and
+//     Smashed read as near-identical short red dashes at real popup
+//     button scale. Length and line-weight are both cues that stay
+//     visible with no reference line at all, so they're what carries the
+//     distinction in every rendering context, not just the real canvas.
 //   Teardrop: one continuous stroked path — a tail departing the leg's own
 //     line, curling into a tight closed loop, ending back near its own
 //     entry curve (a knot, not a stick-and-separate-ball lollipop).
@@ -70,10 +80,13 @@ export function drawHemGlyph(
     ctx.lineTo(-R * 1.1, R * 0.3);
     ctx.stroke();
   } else if (type === 'smashed') {
-    ctx.lineWidth = R * 0.3; // same cap radius as Open — only the offset and length shrink
+    // Thinner (0.16R vs Open's 0.3R) AND shorter (0.6R vs Open's 1.1R) —
+    // two independent cues that read even with no reference leg line next
+    // to the icon (offset alone doesn't, see this function's doc comment).
+    ctx.lineWidth = R * 0.16;
     ctx.beginPath();
     ctx.moveTo(0, R * 0.05);
-    ctx.lineTo(-R * 0.8, R * 0.05);
+    ctx.lineTo(-R * 0.6, R * 0.05);
     ctx.stroke();
   } else {
     const loopR = R * 0.35;
