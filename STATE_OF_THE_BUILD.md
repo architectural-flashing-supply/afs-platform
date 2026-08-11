@@ -49,6 +49,31 @@ pnpm tsc --noEmit                  0 errors. Exit code 0.
 
 ---
 
+## FLASHDRAFT — LEG-BODY GRAB CURSOR: FIXED, UNCONFIRMED
+
+**Status: IMPLEMENTED, UNCONFIRMED. Do not mark this complete.**
+
+`a551366` (2026-08-11) — one-line fix in `handlePointerMove`
+(`app/studio/draft/page.tsx`): leg-body segment hover was setting
+`canvas.style.cursor = 'pointer'` instead of `'grab'`, while vertex hover
+already correctly set `'grab'`. Reported symptom: "I have to click multiple
+times before the grab hand shows up" — the grab cursor was never wired to
+leg hover at all, only to vertex hover and to an in-progress drag past the
+movement threshold. Changed the segment-hover branch to `'grab'` so it now
+matches vertex-hover behavior and appears on hover, before any click. The
+`'grabbing'` cursor set elsewhere (drag-candidate resolution, leg-hem drag
+branch) was left untouched — that is the correct active-drag state, distinct
+from this hover fix.
+
+`pnpm tsc --noEmit` (0 errors) and `pnpm run build` (succeeded) both passed
+in the session that made this change, and the commit is pushed to
+`origin/main`. Per the verification standard above, this is a canvas
+hover/cursor behavior — visual and interactive — so it stays
+**IMPLEMENTED, UNCONFIRMED** until Reid independently confirms the grab
+cursor appears on leg-body hover on the live canvas.
+
+---
+
 ## FLASHDRAFT — HEM GEOMETRY: UNRESOLVED
 
 **Status: IMPLEMENTED, UNCONFIRMED. Do not mark this complete.**
@@ -300,6 +325,8 @@ Machine Bridge + Command Center:       afs-machine-bridge (separate repo)
 ## RECENT COMMITS (verified via `git log`, most recent first)
 
 ```
+a551366  fix: leg-body hover shows grab cursor immediately, not just on drag
+75aa55f  docs: rewrite governance docs to reflect verified current state
 abb5da8  fix: DPR-aware live canvas, unified glyph scale constants, Open/Smashed differentiation
 3786ff0  audit: add hem glyph rendering audit evidence images
 0a117eb  feat: add hem glyph debug view, fix illegible popup icon size

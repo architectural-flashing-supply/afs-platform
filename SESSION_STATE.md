@@ -26,7 +26,22 @@ let self-reported verification read as equivalent to user confirmation.
 
 ## CURRENT STATUS
 
-**Most recent session (2026-08-11): documentation-accuracy pass.** No
+**Most recent session (2026-08-11): FlashDraft leg-body grab cursor fix.**
+Single one-line change in `handlePointerMove` (`app/studio/draft/page.tsx`):
+leg-body segment hover now sets `canvas.style.cursor = 'grab'` instead of
+`'pointer'`, matching the vertex-hover behavior that was already correct.
+Reported symptom was "I have to click multiple times before the grab hand
+shows up" — the grab cursor had never been wired to leg hover at all, only
+to vertex hover and to an in-progress drag past the movement threshold. The
+`'grabbing'` active-drag cursor set elsewhere was untouched. `pnpm tsc
+--noEmit` (0 errors) and `pnpm run build` (succeeded) both passed in this
+session; commit `a551366` is pushed to `origin/main`. Per the verification
+standard above, this is canvas hover/cursor behavior — it stays
+**IMPLEMENTED, UNCONFIRMED** until Reid independently confirms the grab
+cursor appears on leg-body hover on the live canvas. See STATE_OF_THE_BUILD.md
+for the full writeup.
+
+**Prior session (2026-08-11): documentation-accuracy pass.** No
 application code was changed. Scope: rewrite STATE_OF_THE_BUILD.md and this
 file to reflect actually-verified current state, after this project's
 history of status claims not matching reality.
@@ -59,6 +74,8 @@ own section there rather than duplicated here.
 ## RECENT COMMITS (verified via `git log --oneline -20`, most recent first)
 
 ```
+a551366  fix: leg-body hover shows grab cursor immediately, not just on drag
+75aa55f  docs: rewrite governance docs to reflect verified current state
 abb5da8  fix: DPR-aware live canvas, unified glyph scale constants, Open/Smashed differentiation
 3786ff0  audit: add hem glyph rendering audit evidence images
 0a117eb  feat: add hem glyph debug view, fix illegible popup icon size
@@ -85,16 +102,19 @@ e76ddd9  fix: strengthen takeoff extraction prompt for page-by-page coverage, ra
 
 ## OPEN ITEMS FOR THE NEXT SESSION
 
-1. **FlashDraft hem geometry** — unconfirmed by the user. Do not do another
+1. **FlashDraft leg-body grab cursor** — unconfirmed by the user. Fix is
+   pushed (`a551366`); needs Reid to hover a leg body on the live canvas and
+   confirm the grab hand now appears immediately on hover.
+2. **FlashDraft hem geometry** — unconfirmed by the user. Do not do another
    silent rewrite pass; get the user to look at the live canvas against real
    PathfinderEdge reference evidence and say explicitly whether it's right.
-2. **Mid-leg hem removal** — not started. Remove the leg-mid drag-back hem
+3. **Mid-leg hem removal** — not started. Remove the leg-mid drag-back hem
    gesture from `app/studio/draft/page.tsx` entirely; keep only endpoint
    double-click hems, since a mid-leg fold is not fabricable.
-3. **FlashDraft template rebuild (Pass 1–4)** — not started. 20-item
+4. **FlashDraft template rebuild (Pass 1–4)** — not started. 20-item
    template list + Coping Cap/Valley variant pickers + PAC-CLAD "Painted
    Color" picker, all locked with the user, zero implementation.
-4. **Canvas/sidebar UI** — not started. Lighter gray canvas background,
+5. **Canvas/sidebar UI** — not started. Lighter gray canvas background,
    compact sidebar redesign.
 5. **PathfinderEdge** — blocked on AMS Controls (Seth Oliver) providing
    server-side logs to root-cause the 401s on the freshly rotated API key.
