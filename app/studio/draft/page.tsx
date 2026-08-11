@@ -2066,6 +2066,14 @@ export default function FlashDraftPage() {
     // profile keeps its shape relative to the resized segment.
     const newPoints = points.map((p, i) => (i > selectedSegment ? { ...p, x: p.x + delta.x, y: p.y + delta.y } : p));
     commitPoints(newPoints);
+
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const rect = canvas.getBoundingClientRect();
+      const { zoom: nextZoom, pan: nextPan } = computeFitView(newPoints, rect.width, rect.height);
+      setZoom(nextZoom);
+      setPan(nextPan);
+    }
   };
 
   // Part 8 — typing a new signed angle and pressing Enter rotates everything
