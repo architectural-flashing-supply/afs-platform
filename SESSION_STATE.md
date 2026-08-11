@@ -26,7 +26,23 @@ let self-reported verification read as equivalent to user confirmation.
 
 ## CURRENT STATUS
 
-**Most recent session (2026-08-11): FlashDraft leg-body grab cursor fix.**
+**Most recent session (2026-08-11): FlashDraft auto-fit view after manual
+length entry.** Single addition at the end of `applySegmentLength`
+(`app/studio/draft/page.tsx`): after `commitPoints(newPoints)`, the view is
+now re-fit via the same `computeFitView` mechanism already used by
+`fitToScreen` and `loadTemplate` (reused exactly, not reimplemented).
+Reported symptom: typing a new length into the manual segment-length box
+(e.g. resizing a leg to 96") could leave the resized geometry off-screen at
+the previously-set zoom/pan. `commitPoints`, `computeFitView`, `fitToScreen`,
+and `loadTemplate` were left untouched; no new UI element was added. `pnpm
+tsc --noEmit` (0 errors) and `pnpm run build` (succeeded) both passed in
+this session; commit `b9a8d54` is pushed to `origin/main`. Per the
+verification standard above, this is canvas view/zoom/pan behavior — it
+stays **IMPLEMENTED, UNCONFIRMED** until Reid independently confirms a
+resized leg is visible on screen after typing a new length, on the live
+canvas. See STATE_OF_THE_BUILD.md for the full writeup.
+
+**Prior session (2026-08-11): FlashDraft leg-body grab cursor fix.**
 Single one-line change in `handlePointerMove` (`app/studio/draft/page.tsx`):
 leg-body segment hover now sets `canvas.style.cursor = 'grab'` instead of
 `'pointer'`, matching the vertex-hover behavior that was already correct.
@@ -74,6 +90,7 @@ own section there rather than duplicated here.
 ## RECENT COMMITS (verified via `git log --oneline -20`, most recent first)
 
 ```
+b9a8d54  fix: auto-fit view after manual segment length entry
 a551366  fix: leg-body hover shows grab cursor immediately, not just on drag
 75aa55f  docs: rewrite governance docs to reflect verified current state
 abb5da8  fix: DPR-aware live canvas, unified glyph scale constants, Open/Smashed differentiation

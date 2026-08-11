@@ -49,6 +49,31 @@ pnpm tsc --noEmit                  0 errors. Exit code 0.
 
 ---
 
+## FLASHDRAFT — AUTO-FIT VIEW AFTER MANUAL LENGTH ENTRY: IMPLEMENTED, UNCONFIRMED
+
+**Status: IMPLEMENTED, UNCONFIRMED. Do not mark this complete.**
+
+`b9a8d54` (2026-08-11) — one-block addition at the end of `applySegmentLength`
+(`app/studio/draft/page.tsx`): after `commitPoints(newPoints)`, the view is
+now re-fit using the same `computeFitView` mechanism already used by
+`fitToScreen` and `loadTemplate` (reused exactly, no second fit-to-view
+implementation was written). Reported symptom: typing a new length into the
+manual segment-length box (e.g. resizing a leg to 96") could move the
+geometry off-screen at the previously-set zoom/pan, with no re-center or
+re-scale to bring it back into view. `commitPoints`, `computeFitView` itself,
+`fitToScreen`, and `loadTemplate` were left untouched; no new UI element was
+added — the existing `segmentInputPos` / `segmentLengthInput` input box is
+unchanged.
+
+`pnpm tsc --noEmit` (0 errors) and `pnpm run build` (succeeded) both passed
+in the session that made this change, and the commit is pushed to
+`origin/main`. Per the verification standard above, this is canvas
+view/zoom/pan behavior — visual and interactive — so it stays
+**IMPLEMENTED, UNCONFIRMED** until Reid independently confirms a resized leg
+is actually visible on screen after typing a new length, on the live canvas.
+
+---
+
 ## FLASHDRAFT — LEG-BODY GRAB CURSOR: FIXED, UNCONFIRMED
 
 **Status: IMPLEMENTED, UNCONFIRMED. Do not mark this complete.**
