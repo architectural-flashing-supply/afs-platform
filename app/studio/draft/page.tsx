@@ -1907,7 +1907,7 @@ export default function FlashDraftPage() {
     const segmentHover = hitTestSegmentAt(screenPos, canvas);
     setHoveredSegment(segmentHover);
     canvas.title = '';
-    canvas.style.cursor = segmentHover !== null ? 'pointer' : 'crosshair';
+    canvas.style.cursor = segmentHover !== null ? 'grab' : 'crosshair';
   };
 
   // Also the shared "release/cancel everything" handler — reused for
