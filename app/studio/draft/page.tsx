@@ -152,6 +152,7 @@ const ANGLE_ARC_RADIUS_PX = 20; // fixed, unscaled by zoom — a UI indicator, n
 const ANGLE_ARC_HIT_PX = 16;
 
 const HEM_HIT_RADIUS_PX = 22; // generous double-click target — was 14px, too tight to hit reliably in testing
+const HEM_TRIGGER_OFFSET_IN = 0.5;
 
 // Wider than HIT_RADIUS_PX on purpose: guards the "click empty space to
 // draw a new segment" fallback in handlePointerDown. A pointerdown that
@@ -2029,8 +2030,30 @@ export default function FlashDraftPage() {
     const screenPos = { x: e.clientX - rect.left, y: e.clientY - rect.top };
     const startScreen = worldToScreen(points[0], canvas);
     const endScreen = worldToScreen(points[points.length - 1], canvas);
-    const dStart = Math.hypot(screenPos.x - startScreen.x, screenPos.y - startScreen.y);
-    const dEnd = Math.hypot(screenPos.x - endScreen.x, screenPos.y - endScreen.y);
+
+    // Hit-test against a point extrapolated past the true vertex, along the
+    // leg's own direction, instead of the true vertex itself — colliding
+    // directly with the true vertex collided with vertex-drag and made
+    // double-clicking near a leg's end unreliable. The popup itself still
+    // anchors at the true vertex (startScreen/endScreen above).
+    let startHitTarget = points[0];
+    let endHitTarget = points[points.length - 1];
+    if (points.length >= 2) {
+      const startDir = unitVector(points[1], points[0]);
+      startHitTarget = {
+        x: points[0].x + startDir.x * HEM_TRIGGER_OFFSET_IN,
+        y: points[0].y + startDir.y * HEM_TRIGGER_OFFSET_IN,
+      };
+      const endDir = unitVector(points[points.length - 2], points[points.length - 1]);
+      endHitTarget = {
+        x: points[points.length - 1].x + endDir.x * HEM_TRIGGER_OFFSET_IN,
+        y: points[points.length - 1].y + endDir.y * HEM_TRIGGER_OFFSET_IN,
+      };
+    }
+    const startHitScreen = worldToScreen(startHitTarget, canvas);
+    const endHitScreen = worldToScreen(endHitTarget, canvas);
+    const dStart = Math.hypot(screenPos.x - startHitScreen.x, screenPos.y - startHitScreen.y);
+    const dEnd = Math.hypot(screenPos.x - endHitScreen.x, screenPos.y - endHitScreen.y);
     if (dStart <= HEM_HIT_RADIUS_PX && dStart <= dEnd) {
       setLegHemPopup(null);
       setHemPopup({ endpoint: 'start', screenPos: startScreen });
