@@ -74,6 +74,36 @@ is actually visible on screen after typing a new length, on the live canvas.
 
 ---
 
+## FLASHDRAFT — HEM-MENU TRIGGER OFFSET FROM TRUE ENDPOINT: IMPLEMENTED, UNCONFIRMED
+
+**Status: IMPLEMENTED, UNCONFIRMED. Do not mark this complete.**
+
+`e5eb3a7` (2026-08-11) — in `handleDoubleClick` (`app/studio/draft/page.tsx`),
+added `HEM_TRIGGER_OFFSET_IN = 0.5` and changed the hem double-click
+hit-test targets from the true vertex positions (`points[0]` /
+`points[points.length - 1]`) to points extrapolated 0.5in past each true
+endpoint, along that end's own leg direction, computed in world space
+before conversion to screen space via `worldToScreen`. Reported symptom:
+hit-testing directly against the true vertex collided with vertex-drag,
+making double-click near a leg's end unreliable. The single-point case
+(`points.length === 1`, no leg direction exists yet) still hit-tests
+directly against `points[0]`, unchanged. `HEM_HIT_RADIUS_PX` and the
+`dStart <= dEnd` tie-break are unchanged, now measured against the new
+offset targets. The hem popup's on-screen anchor position
+(`startScreen` / `endScreen`, used for `setHemPopup`) still anchors at the
+true vertex — only the hit-test target changed. `drawHemGlyph` and
+`HEM_GLYPH_R` were not touched.
+
+`pnpm tsc --noEmit` (0 errors) and `pnpm run build` (succeeded) both passed
+in the session that made this change, and the commit is pushed to
+`origin/main`. Per the verification standard above, this is canvas
+double-click/hit-test behavior — visual and interactive — so it stays
+**IMPLEMENTED, UNCONFIRMED** until Reid independently confirms
+double-clicking near a leg's end reliably opens the hem popup on the live
+canvas.
+
+---
+
 ## FLASHDRAFT — LEG-BODY GRAB CURSOR: FIXED, UNCONFIRMED
 
 **Status: IMPLEMENTED, UNCONFIRMED. Do not mark this complete.**

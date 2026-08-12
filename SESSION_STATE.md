@@ -26,7 +26,28 @@ let self-reported verification read as equivalent to user confirmation.
 
 ## CURRENT STATUS
 
-**Most recent session (2026-08-11): FlashDraft auto-fit view after manual
+**Most recent session (2026-08-11): FlashDraft hem-menu trigger offset from
+true endpoint.** In `handleDoubleClick` (`app/studio/draft/page.tsx`), added
+`HEM_TRIGGER_OFFSET_IN = 0.5` and changed the hem double-click hit-test
+targets from the true vertex positions to points extrapolated 0.5in past
+each true endpoint, along that end's own leg direction, computed in world
+space before conversion to screen space. Reported symptom: hit-testing
+directly against the true vertex collided with vertex-drag, making
+double-click near a leg's end unreliable. The single-point case
+(`points.length === 1`) still hit-tests directly against `points[0]`,
+unchanged, since no leg direction exists yet. `HEM_HIT_RADIUS_PX` and the
+`dStart <= dEnd` tie-break logic are unchanged, now measured against the new
+offset targets. The hem popup's on-screen anchor position still anchors at
+the true vertex — only the hit-test target changed; `drawHemGlyph` and
+`HEM_GLYPH_R` were not touched. `pnpm tsc --noEmit` (0 errors) and `pnpm run
+build` (succeeded) both passed in this session; commit `e5eb3a7` is pushed
+to `origin/main`. Per the verification standard above, this is canvas
+double-click/hit-test behavior — it stays **IMPLEMENTED, UNCONFIRMED** until
+Reid independently confirms double-clicking near a leg's end reliably opens
+the hem popup on the live canvas. See STATE_OF_THE_BUILD.md for the full
+writeup.
+
+**Prior session (2026-08-11): FlashDraft auto-fit view after manual
 length entry.** Single addition at the end of `applySegmentLength`
 (`app/studio/draft/page.tsx`): after `commitPoints(newPoints)`, the view is
 now re-fit via the same `computeFitView` mechanism already used by
