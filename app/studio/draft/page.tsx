@@ -171,6 +171,12 @@ const NEW_SEGMENT_MISS_GUARD_PX = 24;
 // app/studio/hem-debug/page.tsx, which calls the exact same function at a
 // larger scale rather than reimplementing it.
 
+// Floor for the live-canvas hem glyph's real-scale radius (gapIn or
+// material thickness * PIXELS_PER_INCH * zoom) — without it, a smashed
+// hem (gapIn always 0) or a tiny gap at low zoom would collapse the glyph
+// to an unreadable point instead of just reading as "very small."
+const MIN_HEM_GLYPH_R = HEM_GLYPH_R;
+
 const VERTEX_DRAG_THRESHOLD_PX = 3; // movement before a vertex click becomes a drag
 const LEG_HEM_MIN_DRAG_IN = 0.125; // minimum drag-back distance to create a hem on a leg
 
@@ -1138,7 +1144,8 @@ export default function FlashDraftPage() {
     // draw pass's `ctx` so call sites below don't have to thread it through.
     // See drawHemGlyph's own doc comment for the local coordinate
     // convention every call site must normalize `angleRad` to.
-    const drawHemGlyphHere = (tip: Point, angleRad: number, type: HemType) => drawHemGlyph(ctx, tip, angleRad, type);
+    const drawHemGlyphHere = (tip: Point, angleRad: number, type: HemType, R: number) =>
+      drawHemGlyph(ctx, tip, angleRad, type, R);
 
     // Hem folds — drawn at whichever endpoint(s) have one. All hem lines
     // continue from the last leg's direction (u), then fold back 180° —
@@ -1158,14 +1165,6 @@ export default function FlashDraftPage() {
       ctx.font = `10px ${jetbrainsFontRef.current}`;
 
       if (hem.type === 'open') {
-        // Fold-back line runs the gap distance back along the leg (toward
-        // its neighbor point, i.e. back over the leg body) from the
-        // endpoint — NOT continuing outward past the tip, which is what
-        // `u` points (shared with teardrop/smashed below, untouched here).
-        // A parallel line offset by that same gap shows the open air
-        // space, and a perpendicular cap at the far end (the fold's tip,
-        // not its attachment point) closes it — that's where the open
-        // gap actually reads as "open."
         // Fold-back LENGTH (how far the return leg runs) is a fixed visual
         // depth — same constant teardrop/smashed use below — independent of
         // gapIn, which is the perpendicular air-gap width the user actually
@@ -1174,27 +1173,9 @@ export default function FlashDraftPage() {
         // (3/16") and disappear entirely under the endpoint's dot.
         const foldDir = { x: -u.x, y: -u.y };
         const foldTip = { x: p.x + foldDir.x * HEM_FOLD_DEPTH_IN, y: p.y + foldDir.y * HEM_FOLD_DEPTH_IN };
-        const offsetBase = { x: p.x + perp.x * hem.gapIn, y: p.y + perp.y * hem.gapIn };
         const offsetTip = { x: foldTip.x + perp.x * hem.gapIn, y: foldTip.y + perp.y * hem.gapIn };
-
-        const sP = worldToScreen(p, canvas);
-        const sFoldTip = worldToScreen(foldTip, canvas);
-        const sOffsetBase = worldToScreen(offsetBase, canvas);
         const sOffsetTip = worldToScreen(offsetTip, canvas);
-
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(sP.x, sP.y);
-        ctx.lineTo(sFoldTip.x, sFoldTip.y);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(sOffsetBase.x, sOffsetBase.y);
-        ctx.lineTo(sOffsetTip.x, sOffsetTip.y);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(sFoldTip.x, sFoldTip.y);
-        ctx.lineTo(sOffsetTip.x, sOffsetTip.y);
-        ctx.stroke();
+        const R = Math.max(MIN_HEM_GLYPH_R, hem.gapIn * PIXELS_PER_INCH * zoom);
 
         // angleU is this leg's own outward direction (the local +x-outward
         // convention drawHemGlyph expects) — same angle teardrop/smashed
@@ -1202,59 +1183,30 @@ export default function FlashDraftPage() {
         // here (an earlier version of this fix) was itself the mirroring
         // bug: it pointed the glyph's material side outward instead of
         // back toward the vertex.
-        drawHemGlyphHere(sOffsetTip, angleU, 'open');
+        drawHemGlyphHere(sOffsetTip, angleU, 'open', R);
         ctx.font = `10px ${jetbrainsFontRef.current}`;
-        ctx.fillText(`OPEN ${formatInches(hem.gapIn)} gap`, sOffsetTip.x + HEM_GLYPH_R * 2 + 6, sOffsetTip.y - 6);
+        ctx.fillText(`OPEN ${formatInches(hem.gapIn)} gap`, sOffsetTip.x + R * 2 + 6, sOffsetTip.y - 6);
       } else if (hem.type === 'teardrop') {
         const foldTip = { x: p.x + u.x * HEM_FOLD_DEPTH_IN, y: p.y + u.y * HEM_FOLD_DEPTH_IN };
-        const sP = worldToScreen(p, canvas);
         const sFoldTip = worldToScreen(foldTip, canvas);
 
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(sP.x, sP.y);
-        ctx.lineTo(sFoldTip.x, sFoldTip.y);
-        ctx.stroke();
-
-        // Arc diameter = material thickness (0.0625" default when no gauge
-        // is selected yet), floored at 8px screen radius so it always reads
-        // as a distinct teardrop shape regardless of zoom.
+        // Real-scale radius = material thickness (0.0625" default when no
+        // gauge is selected yet), floored so it always reads as a distinct
+        // teardrop shape regardless of zoom.
         const effectiveThicknessIn = gauge ? thicknessIn : 0.0625;
-        const radiusPx = Math.max(8, (effectiveThicknessIn / 2) * PIXELS_PER_INCH * zoom);
-        ctx.beginPath();
-        ctx.moveTo(
-          sFoldTip.x + Math.cos(angleU - Math.PI / 2) * radiusPx,
-          sFoldTip.y + Math.sin(angleU - Math.PI / 2) * radiusPx
-        );
-        ctx.arc(sFoldTip.x, sFoldTip.y, radiusPx, angleU - Math.PI / 2, angleU + Math.PI / 2);
-        ctx.closePath();
-        ctx.fill();
+        const R = Math.max(MIN_HEM_GLYPH_R, effectiveThicknessIn * PIXELS_PER_INCH * zoom);
 
-        drawHemGlyphHere(sFoldTip, angleU, 'teardrop');
+        drawHemGlyphHere(sFoldTip, angleU, 'teardrop', R);
         ctx.font = `10px ${jetbrainsFontRef.current}`;
-        ctx.fillText('TEARDROP', sFoldTip.x + radiusPx + HEM_GLYPH_R * 2 + 6, sFoldTip.y - 6);
+        ctx.fillText('TEARDROP', sFoldTip.x + R * 2 + 6, sFoldTip.y - 6);
       } else {
-        // Smashed — two lines 2px apart on screen, doubled up to read as a
-        // flattened-over hem rather than a single open leg.
         const foldTip = { x: p.x + u.x * HEM_FOLD_DEPTH_IN, y: p.y + u.y * HEM_FOLD_DEPTH_IN };
-        const sP = worldToScreen(p, canvas);
         const sFoldTip = worldToScreen(foldTip, canvas);
-        const screenLen = Math.hypot(sFoldTip.x - sP.x, sFoldTip.y - sP.y) || 1;
-        const screenPerp = { x: -(sFoldTip.y - sP.y) / screenLen, y: (sFoldTip.x - sP.x) / screenLen };
+        const R = Math.max(MIN_HEM_GLYPH_R, hem.gapIn * PIXELS_PER_INCH * zoom);
 
-        ctx.lineWidth = 2;
-        for (const side of [-1, 1]) {
-          const ox = screenPerp.x * side;
-          const oy = screenPerp.y * side;
-          ctx.beginPath();
-          ctx.moveTo(sP.x + ox, sP.y + oy);
-          ctx.lineTo(sFoldTip.x + ox, sFoldTip.y + oy);
-          ctx.stroke();
-        }
-
-        drawHemGlyphHere(sFoldTip, angleU, 'smashed');
+        drawHemGlyphHere(sFoldTip, angleU, 'smashed', R);
         ctx.font = `10px ${jetbrainsFontRef.current}`;
-        ctx.fillText('SMASHED', sFoldTip.x + HEM_GLYPH_R * 2 + 6, sFoldTip.y - 6);
+        ctx.fillText('SMASHED', sFoldTip.x + R * 2 + 6, sFoldTip.y - 6);
       }
     };
 
@@ -1277,7 +1229,6 @@ export default function FlashDraftPage() {
       const perp = { x: -towardStart.y, y: towardStart.x };
       const angleFold = Math.atan2(towardStart.y, towardStart.x);
       const foldTip = { x: p.x + towardStart.x * hem.lengthIn, y: p.y + towardStart.y * hem.lengthIn };
-      const sP = worldToScreen(p, canvas);
       const sFoldTip = worldToScreen(foldTip, canvas);
 
       ctx.strokeStyle = CANVAS_COLORS.hemLine;
@@ -1285,24 +1236,9 @@ export default function FlashDraftPage() {
       ctx.font = `10px ${jetbrainsFontRef.current}`;
 
       if (hem.type === 'open') {
-        const offsetBase = { x: p.x + perp.x * hem.gapIn, y: p.y + perp.y * hem.gapIn };
         const offsetTip = { x: foldTip.x + perp.x * hem.gapIn, y: foldTip.y + perp.y * hem.gapIn };
-        const sOffsetBase = worldToScreen(offsetBase, canvas);
         const sOffsetTip = worldToScreen(offsetTip, canvas);
-
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(sP.x, sP.y);
-        ctx.lineTo(sFoldTip.x, sFoldTip.y);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(sOffsetBase.x, sOffsetBase.y);
-        ctx.lineTo(sOffsetTip.x, sOffsetTip.y);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(sFoldTip.x, sFoldTip.y);
-        ctx.lineTo(sOffsetTip.x, sOffsetTip.y);
-        ctx.stroke();
+        const R = Math.max(MIN_HEM_GLYPH_R, hem.gapIn * PIXELS_PER_INCH * zoom);
 
         // angleFold is towardStart's own angle — the fold's backward
         // (material) direction, i.e. the OPPOSITE of this leg's outward
@@ -1311,47 +1247,22 @@ export default function FlashDraftPage() {
         // every other leg-mid call site below add PI to flip it — the same
         // normalization the endpoint mechanism gets for free from angleU
         // already pointing outward.
-        drawHemGlyphHere(sOffsetTip, angleFold + Math.PI, 'open');
+        drawHemGlyphHere(sOffsetTip, angleFold + Math.PI, 'open', R);
         ctx.font = `10px ${jetbrainsFontRef.current}`;
-        ctx.fillText(`OPEN ${formatInches(hem.gapIn)} gap`, sOffsetTip.x + HEM_GLYPH_R * 2 + 6, sOffsetTip.y - 6);
+        ctx.fillText(`OPEN ${formatInches(hem.gapIn)} gap`, sOffsetTip.x + R * 2 + 6, sOffsetTip.y - 6);
       } else if (hem.type === 'teardrop') {
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(sP.x, sP.y);
-        ctx.lineTo(sFoldTip.x, sFoldTip.y);
-        ctx.stroke();
-
         const effectiveThicknessIn = gauge ? thicknessIn : 0.0625;
-        const radiusPx = Math.max(8, (effectiveThicknessIn / 2) * PIXELS_PER_INCH * zoom);
-        ctx.beginPath();
-        ctx.moveTo(
-          sFoldTip.x + Math.cos(angleFold - Math.PI / 2) * radiusPx,
-          sFoldTip.y + Math.sin(angleFold - Math.PI / 2) * radiusPx
-        );
-        ctx.arc(sFoldTip.x, sFoldTip.y, radiusPx, angleFold - Math.PI / 2, angleFold + Math.PI / 2);
-        ctx.closePath();
-        ctx.fill();
+        const R = Math.max(MIN_HEM_GLYPH_R, effectiveThicknessIn * PIXELS_PER_INCH * zoom);
 
-        drawHemGlyphHere(sFoldTip, angleFold + Math.PI, 'teardrop');
+        drawHemGlyphHere(sFoldTip, angleFold + Math.PI, 'teardrop', R);
         ctx.font = `10px ${jetbrainsFontRef.current}`;
-        ctx.fillText('TEARDROP', sFoldTip.x + radiusPx + HEM_GLYPH_R * 2 + 6, sFoldTip.y - 6);
+        ctx.fillText('TEARDROP', sFoldTip.x + R * 2 + 6, sFoldTip.y - 6);
       } else {
-        const screenLen = Math.hypot(sFoldTip.x - sP.x, sFoldTip.y - sP.y) || 1;
-        const screenPerp = { x: -(sFoldTip.y - sP.y) / screenLen, y: (sFoldTip.x - sP.x) / screenLen };
+        const R = Math.max(MIN_HEM_GLYPH_R, hem.gapIn * PIXELS_PER_INCH * zoom);
 
-        ctx.lineWidth = 2;
-        for (const side of [-1, 1]) {
-          const ox = screenPerp.x * side;
-          const oy = screenPerp.y * side;
-          ctx.beginPath();
-          ctx.moveTo(sP.x + ox, sP.y + oy);
-          ctx.lineTo(sFoldTip.x + ox, sFoldTip.y + oy);
-          ctx.stroke();
-        }
-
-        drawHemGlyphHere(sFoldTip, angleFold + Math.PI, 'smashed');
+        drawHemGlyphHere(sFoldTip, angleFold + Math.PI, 'smashed', R);
         ctx.font = `10px ${jetbrainsFontRef.current}`;
-        ctx.fillText('SMASHED', sFoldTip.x + HEM_GLYPH_R * 2 + 6, sFoldTip.y - 6);
+        ctx.fillText('SMASHED', sFoldTip.x + R * 2 + 6, sFoldTip.y - 6);
       }
     };
 
