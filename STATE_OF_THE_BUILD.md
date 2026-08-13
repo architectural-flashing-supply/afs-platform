@@ -210,7 +210,31 @@ called from both the live canvas and the popup selector icons in
   not a bug). Screenshots saved to the local scratchpad, not checked into
   the repo.
 
-`440d047` is the most recent commit touching hem rendering. What it is
+- `171f88c` (2026-08-13) — `440d047` above over-deleted: cleaning out the
+  duplicate hand-coded geometry also removed the stroke connecting each
+  leg's true vertex to its fold tip (real material, independent of hem
+  type), and left every `R` computation scaling with the hem's real
+  `gapIn`/thickness × `PIXELS_PER_INCH * zoom` — directly contradicting
+  `hem-glyph.ts`'s own header comment that the glyph radius is meant to be
+  a fixed screen-pixel size, unscaled by zoom or real-world fold depth.
+  Scope: `renderHemAt`/`renderLegHemAt` in `app/studio/draft/page.tsx`
+  only. Restored the connecting line (`sP` to `sFoldTip`) once per branch,
+  all three hem types, both functions — some `open` branches were also
+  missing `sFoldTip` itself, only ever having computed the offset tip.
+  Replaced every `R` computation with one fixed constant,
+  `HEM_GLYPH_DISPLAY_R = 22`, used directly with no scaling; removed the
+  now-fully-unused `MIN_HEM_GLYPH_R` it replaced. `pnpm tsc --noEmit`
+  (0 errors) and `pnpm run build` (succeeded) both passed, and the commit
+  is pushed to `origin/main`. Verified on the live `/studio/draft` canvas
+  (not the debug page) with a manually-drawn profile carrying all three
+  hem types — connecting lines visible and glyph size now constant
+  regardless of each leg's real gap/thickness. Screenshot checked in at
+  repo root: `hem-audit-2026-08-13-live-canvas-connecting-lines.jpg`. Per
+  this prompt's own instruction, `HEM_GLYPH_DISPLAY_R = 22` was used as
+  specified rather than second-guessed — needs Reid's confirmation on
+  whether 22px is the right size from the screenshot.
+
+`171f88c` is the most recent commit touching hem rendering. What it is
 **not** is user-confirmed: every one of the passes above — including this
 one — was reported "verified live" by the session that made it (via
 Playwright screenshots, DPR-simulated browser checks, live-canvas

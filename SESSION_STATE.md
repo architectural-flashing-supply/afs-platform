@@ -26,7 +26,60 @@ let self-reported verification read as equivalent to user confirmation.
 
 ## CURRENT STATUS
 
-**Most recent session (2026-08-13): FlashDraft live canvas — deleted
+**Most recent session (2026-08-13): FlashDraft live canvas — restored the
+leg-to-fold connecting line, fixed hem glyph size to a constant on-screen
+radius.** Scope: `renderHemAt` and `renderLegHemAt` in
+`app/studio/draft/page.tsx` only, per this prompt — `lib/flashdraft/hem-glyph.ts`
+untouched. Two bugs from the prior (`440d047`) pass, which deleted the
+duplicate hand-coded geometry but over-deleted alongside it:
+
+1. **Missing connecting line.** The stroke from the leg's true vertex (`p`)
+   to `foldTip`/`sFoldTip` — real material, present regardless of hem type —
+   had been removed along with the duplicate geometry it was cleaned up
+   with. Added back once per branch (all three hem types, both functions),
+   immediately before each `drawHemGlyphHere` call, computing `sP =
+   worldToScreen(p, canvas)` in every branch that was missing it (the
+   `open` branches in both functions were also missing `sFoldTip` itself,
+   since `foldTip` was previously only used for the offset math, never
+   converted to screen space).
+
+2. **Glyph size tracking real-world dimensions.** Every `R` computation was
+   `Math.max(MIN_HEM_GLYPH_R, hem.gapIn * PIXELS_PER_INCH * zoom)` or the
+   `effectiveThicknessIn` equivalent — scaling with the hem's real gap/
+   thickness and with zoom. This directly contradicts `hem-glyph.ts`'s own
+   header comment: "Fixed screen-pixel-size cross-section glyph radius,
+   unscaled by zoom or real-world fold depth." Replaced all six call sites
+   (three hem types × two functions) with a single fixed constant,
+   `HEM_GLYPH_DISPLAY_R = 22` (px), used directly as `R` — independent of
+   `zoom` or any real-world dimension. Removed the now-unused
+   `MIN_HEM_GLYPH_R` constant (a `HEM_GLYPH_R` alias) it replaced, since
+   every call site that referenced it is gone. Text labels showing the true
+   `gapIn`/thickness value are unchanged.
+
+Verified on the live `/studio/draft` canvas (not the debug page) with a
+manually-drawn 5-point profile (not a template — the "Coping Cap" template
+button did not visibly load geometry when clicked during this session;
+drawing was done via direct click/drag instead): an Open hem at the start
+endpoint, a Teardrop hem at the end endpoint, and a Smashed hem via
+leg-mid drag-back on an interior leg. Screenshot shows all three hem types
+with their connecting line visible and the glyph a consistent, generous
+size regardless of each leg's real gap/thickness — matching this prompt's
+intent. Screenshot checked in at repo root:
+`hem-audit-2026-08-13-live-canvas-connecting-lines.jpg`. Per this prompt's
+instructions, `HEM_GLYPH_DISPLAY_R = 22` was used as specified and not
+second-guessed — Reid should confirm from the screenshot whether 22px reads
+as the right size before this is considered final.
+
+`pnpm tsc --noEmit` (0 errors) and `pnpm run build` (succeeded) both
+passed. Commit `171f88c` is pushed to `origin/main`. Per the verification
+standard above, this stays **IMPLEMENTED, UNCONFIRMED** — the screenshot
+proves the connecting line is back and the glyph size no longer tracks real
+dimensions, but does not by itself confirm Reid agrees the result
+(including the `R = 22` size choice) is correct to his eye. Do not mark
+this complete until Reid confirms against the screenshot and the live
+canvas.
+
+**Prior session (2026-08-13): FlashDraft live canvas — deleted
 duplicate hand-coded hem geometry, canvas now draws only the validated
 glyph.** Root cause of the hem geometry still looking wrong on the live
 `/studio/draft` canvas after the `7de79db` `hem-glyph.ts` rebuild (below):
