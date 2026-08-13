@@ -21,11 +21,14 @@ const DEBUG_R = HEM_GLYPH_R * DEBUG_SCALE;
 
 const CANVAS_WIDTH = 280;
 const CANVAS_HEIGHT = 180;
-// Every glyph lives entirely in local -x/+y (see drawHemGlyph's own doc
-// comment) when drawn at angleRad=0 — the anchor sits toward the right and
-// upper area of the canvas so the shape, which only ever extends left and
-// down from it, stays comfortably inside the frame at this scale.
-const ANCHOR = { x: 200, y: 50 };
+// Every glyph lives entirely in local +x (see drawHemGlyph's own doc
+// comment) when drawn at angleRad=0, spanning up to Lh = DEBUG_R*1.8 = 162px
+// rightward (Open/Smashed) or cx+r = DEBUG_R*1.65 = 148.5px rightward
+// (Teardrop's far circle edge), and roughly ±DEBUG_R*0.7 = 63px above/below
+// the tip — so the anchor sits toward the left and vertical center of the
+// canvas, leaving enough room on all three sides for the shape to render
+// uncropped at this scale.
+const ANCHOR = { x: 30, y: 85 };
 
 const HEM_TYPES: { type: HemType; label: string }[] = [
   { type: 'open', label: 'Open' },

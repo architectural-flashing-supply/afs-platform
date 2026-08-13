@@ -33,31 +33,36 @@ export const HEM_GLYPH_R = 6;
 // Local coordinate convention, which EVERY call site must normalize to
 // before calling this function: origin (0,0) = the true hem location (tip
 // point for endpoint hems, drag-back point for leg-mid hems). +x = outward
-// past the true end (hypothetical — no material there). -x = backward,
-// toward the vertex, where the leg's actual material exists. Every shape
-// below is built entirely in -x territory as a result.
+// past the true end. -x = backward, toward the vertex, into the leg's own
+// material.
 //
-// Shapes are derived directly from a real PathfinderEdge reference
-// screenshot and hand-drawn sketches, as literal coordinates — not
-// reinterpreted from the type names:
-//   Open: a capsule/stadium parallel to the leg, offset a clearly visible
-//     0.3R off the centerline — never touches the leg line.
-//   Smashed: the same capsule construction pressed nearly flush (0.05R
-//     offset — unchanged, it's what makes this read correctly as
-//     "nearly flush against the leg" in the real canvas rendering, where
-//     the true fold lines are drawn right next to it), but shorter
-//     (0.6R vs Open's 1.1R, widened from the original 0.8R) AND
-//     noticeably thinner-stroked (0.16R vs Open's 0.3R) than Open. That
-//     offset difference alone isn't visible where there's no reference
-//     leg line drawn next to the icon in isolation (the popup buttons,
-//     the 20x debug view) — confirmed via audit screenshot that Open and
-//     Smashed read as near-identical short red dashes at real popup
-//     button scale. Length and line-weight are both cues that stay
-//     visible with no reference line at all, so they're what carries the
-//     distinction in every rendering context, not just the real canvas.
-//   Teardrop: one continuous stroked path — a tail departing the leg's own
-//     line, curling into a tight closed loop, ending back near its own
-//     entry curve (a knot, not a stick-and-separate-ball lollipop).
+// Shapes are built spanning FROM the tip OUTWARD into +x territory — the
+// hem's own fold material, real material added specifically for the hem
+// (see this file's own hemAllowanceIn/sumLegHemAllowanceIn usage elsewhere
+// in the codebase, which already accounts for exactly this extra
+// material) — not backward over the leg. Construction follows SMACNA/
+// press-brake hem definitions:
+//   Open: a 180-degree bend, U cross-section, with a visible air gap
+//     between the two flanges.
+//   Smashed: the same topology as Open, with the gap collapsed toward
+//     zero (crushed flush).
+//   Teardrop: the flange bent PAST 180 degrees into a closed loop —
+//     an apex at the tip with two tangent lines running to a circle,
+//     forming a single unbroken knot rather than two disconnected
+//     primitives.
+function drawHookGlyph(ctx: CanvasRenderingContext2D, R: number, gapFraction: number): void {
+  const Lh = R * 1.8; // flat/outward length — long enough to read as "a long piece", not a stub
+  const gap = R * gapFraction;
+  const r = gap / 2; // cap arc radius
+  ctx.lineWidth = R * 0.22;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(Lh - r, 0);
+  ctx.arc(Lh - r, r, r, -Math.PI / 2, Math.PI / 2, false);
+  ctx.lineTo(0, gap);
+  ctx.stroke();
+}
+
 export function drawHemGlyph(
   ctx: CanvasRenderingContext2D,
   tip: GlyphPoint,
@@ -74,34 +79,32 @@ export function drawHemGlyph(
   ctx.lineCap = 'round';
 
   if (type === 'open') {
-    ctx.lineWidth = R * 0.3; // 2x the 0.15R cap radius — a round-capped line IS a stadium/pill
-    ctx.beginPath();
-    ctx.moveTo(0, R * 0.3);
-    ctx.lineTo(-R * 1.1, R * 0.3);
-    ctx.stroke();
+    drawHookGlyph(ctx, R, 0.7); // clearly visible gap
   } else if (type === 'smashed') {
-    // Thinner (0.16R vs Open's 0.3R) AND shorter (0.6R vs Open's 1.1R) —
-    // two independent cues that read even with no reference leg line next
-    // to the icon (offset alone doesn't, see this function's doc comment).
-    ctx.lineWidth = R * 0.16;
-    ctx.beginPath();
-    ctx.moveTo(0, R * 0.05);
-    ctx.lineTo(-R * 0.6, R * 0.05);
-    ctx.stroke();
+    drawHookGlyph(ctx, R, 0.12); // near-zero gap, reads as flush/crushed
   } else {
-    const loopR = R * 0.35;
-    const cx = -R * 0.35;
-    const cy = R * 0.35;
-    const entryX = cx - loopR; // point on the loop at angle PI
-    const entryY = cy;
+    // Teardrop — exact tangent-line-to-circle construction. Apex at the
+    // tip (0,0), circle at distance d along +x with radius r. d > r
+    // guarantees the two tangent lines and the arc between them cannot
+    // self-intersect.
+    const d = R * 1.2;
+    const r = R * 0.5;
+    const angleC = Math.acos(r / d);
+    const angUpper = Math.PI - angleC;
+    const angLower = Math.PI + angleC;
+    const cx = d;
+    const cy = 0;
+    const tux = cx + r * Math.cos(angUpper);
+    const tuy = cy + r * Math.sin(angUpper);
+    const tlx = cx + r * Math.cos(angLower);
+    const tly = cy + r * Math.sin(angLower);
     ctx.lineWidth = R * 0.22;
     ctx.beginPath();
-    ctx.moveTo(-R * 0.8, 0);
-    ctx.bezierCurveTo(-R * 0.55, -R * 0.05, cx - loopR * 1.05, cy - loopR * 0.6, entryX, entryY);
-    // Sweeps clockwise almost a full turn (2*PI - 0.6 rad) from the entry
-    // point, ending just short of it — the "closing back near its own
-    // starting curve" that reads as a rolled/curled knot.
-    ctx.arc(cx, cy, loopR, Math.PI, Math.PI + Math.PI * 2 - 0.6, false);
+    ctx.moveTo(0, 0);
+    ctx.lineTo(tux, tuy);
+    ctx.arc(cx, cy, r, angUpper, angLower - 2 * Math.PI, true);
+    ctx.lineTo(0, 0);
+    ctx.closePath();
     ctx.stroke();
   }
   ctx.restore();
