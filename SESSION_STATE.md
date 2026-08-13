@@ -26,7 +26,54 @@ let self-reported verification read as equivalent to user confirmation.
 
 ## CURRENT STATUS
 
-**Most recent session (2026-08-13): FlashDraft hem glyph geometry rebuilt
+**Most recent session (2026-08-13): FlashDraft live canvas — deleted
+duplicate hand-coded hem geometry, canvas now draws only the validated
+glyph.** Root cause of the hem geometry still looking wrong on the live
+`/studio/draft` canvas after the `7de79db` `hem-glyph.ts` rebuild (below):
+`renderHemAt` and `renderLegHemAt` (`app/studio/draft/page.tsx`) each
+contained TWO hem-rendering systems — a manually hand-coded
+`ctx.moveTo`/`lineTo`/`arc`/`fill` construction (an offset-line cap for
+open, a filled semicircle for teardrop, two parallel lines for smashed)
+predating the `hem-glyph.ts` fix and never touched by it, followed by a
+`drawHemGlyphHere` call drawing the correct shape on top as a small
+fixed-size icon. The debug view at `/studio/hem-debug` calls `drawHemGlyph`
+directly and so never exercised the first (buggy) system, which is why
+prior passes' debug-view screenshots looked correct while the live canvas
+did not.
+
+Deleted the manual construction entirely in both functions, for all three
+hem types — `drawHemGlyphHere` (and by extension `drawHemGlyph` in
+`lib/flashdraft/hem-glyph.ts`, itself untouched) is now the only hem
+renderer on the canvas. Added a real-scale radius argument: `R` is derived
+from the hem's `gapIn` (open/smashed) or effective material thickness
+(teardrop, same `effectiveThicknessIn` calculation already present),
+multiplied by `PIXELS_PER_INCH * zoom`, floored at `MIN_HEM_GLYPH_R`
+(`= HEM_GLYPH_R`, the same constant the popup icons use) so a near-zero
+smashed gap or a small gap at low zoom never collapses the glyph to an
+unreadable point. The `drawHemGlyphHere` wrapper (`app/studio/draft/page.tsx`)
+now takes and passes through this `R`.
+
+Verified on the live `/studio/draft` canvas (not the debug page, per this
+prompt's explicit requirement) using the "Coping Cap" template: applied an
+Open hem at the start endpoint, a Teardrop hem at the end endpoint, and a
+Smashed hem via leg-mid drag-back on the bottom leg. Open and Teardrop both
+render as a single clean glyph matching the debug view's validated shapes,
+with no second shape underneath. Smashed renders correctly but is very
+small on screen, because its real `gapIn` is architecturally always `0`
+(SMACNA definition: gap crushed flush) — `R` floors to `MIN_HEM_GLYPH_R` in
+that case, same as the popup icon size; this is expected, not a rendering
+bug. Screenshots saved to the local scratchpad (not checked into the repo):
+`live-canvas-all-three-hems-final.jpg`.
+
+`pnpm tsc --noEmit` (0 errors) and `pnpm run build` (succeeded) both
+passed. Commit `440d047` is pushed to `origin/main`. Per the verification
+standard above, this stays **IMPLEMENTED, UNCONFIRMED** — the live-canvas
+screenshots prove the duplicate geometry is gone and Open/Teardrop render
+as a single correct shape, but do not by themselves confirm Reid agrees the
+geometry is correct to his eye. Do not mark this complete until Reid
+confirms against the live canvas himself.
+
+**Prior session (2026-08-13): FlashDraft hem glyph geometry rebuilt
 from validated SMACNA construction.** Replaced the shape logic inside
 `drawHemGlyph()` (`lib/flashdraft/hem-glyph.ts`) entirely — the only file
 this prompt was scoped to. Prior passes built every shape backward over the

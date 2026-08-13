@@ -184,15 +184,41 @@ called from both the live canvas and the popup selector icons in
   `pnpm tsc --noEmit` (0 errors) and `pnpm run build` (succeeded) both
   passed, and the commit is pushed to `origin/main`.
 
-`7de79db` is the most recent commit touching hem rendering. What it is
+- `440d047` (2026-08-13) — deleted a SECOND, older hem-rendering system that
+  the `7de79db` pass above never touched. `renderHemAt` and `renderLegHemAt`
+  (`app/studio/draft/page.tsx`) each hand-built an approximate hem shape
+  with raw `ctx.moveTo`/`lineTo`/`arc`/`fill` calls (an offset-line cap for
+  open, a filled semicircle for teardrop, two parallel lines for smashed),
+  then drew the correct `drawHemGlyph` shape ON TOP of it as a small
+  fixed-size icon — this is why the live canvas still looked wrong after
+  `7de79db` even though that pass's `hem-glyph.ts` rewrite was itself
+  correct; `/studio/hem-debug` calls `drawHemGlyph` directly and so never
+  exercised the buggy manual construction. Deleted the manual construction
+  entirely, for all three hem types, in both functions — `drawHemGlyph` is
+  now the only hem renderer on the canvas. Added a real-scale radius
+  argument (`R`, derived from `gapIn` or effective material thickness ×
+  `PIXELS_PER_INCH * zoom`, floored at `MIN_HEM_GLYPH_R = HEM_GLYPH_R`) so
+  the glyph reflects the hem's actual dimensions instead of always
+  rendering at popup-icon size. `lib/flashdraft/hem-glyph.ts` itself was
+  not touched. `pnpm tsc --noEmit` (0 errors) and `pnpm run build`
+  (succeeded) both passed, and the commit is pushed to `origin/main`.
+  Verified on the live `/studio/draft` canvas (not the debug page) with a
+  real "Coping Cap" template profile carrying all three hem types — Open
+  and Teardrop render as a single clean glyph with no second shape
+  underneath; Smashed is correctly small (its `gapIn` is architecturally
+  always `0`, so `R` floors to the same size as the popup icon — expected,
+  not a bug). Screenshots saved to the local scratchpad, not checked into
+  the repo.
+
+`440d047` is the most recent commit touching hem rendering. What it is
 **not** is user-confirmed: every one of the passes above — including this
 one — was reported "verified live" by the session that made it (via
-Playwright screenshots, DPR-simulated browser checks, or
-byte-identical-screenshot comparisons), and every one of those self-reports
-has so far been insufficient — the actual PathfinderEdge hem shapes
-(Open/Smashed/Teardrop) have not yet been confirmed correct by the user
-looking at the real rendered canvas against real reference evidence. Treat
-hem geometry as **open** until that confirmation happens.
+Playwright screenshots, DPR-simulated browser checks, live-canvas
+screenshots, or byte-identical-screenshot comparisons), and every one of
+those self-reports has so far been insufficient — the actual PathfinderEdge
+hem shapes (Open/Smashed/Teardrop) have not yet been confirmed correct by
+the user looking at the real rendered canvas against real reference
+evidence. Treat hem geometry as **open** until that confirmation happens.
 
 ---
 
