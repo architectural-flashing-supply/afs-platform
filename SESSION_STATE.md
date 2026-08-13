@@ -26,7 +26,48 @@ let self-reported verification read as equivalent to user confirmation.
 
 ## CURRENT STATUS
 
-**Most recent session (2026-08-11): FlashDraft hem-menu trigger offset from
+**Most recent session (2026-08-13): FlashDraft hem glyph geometry rebuilt
+from validated SMACNA construction.** Replaced the shape logic inside
+`drawHemGlyph()` (`lib/flashdraft/hem-glyph.ts`) entirely — the only file
+this prompt was scoped to. Prior passes built every shape backward over the
+leg's own material (-x territory), which is why Open rendered as a short
+stub and Teardrop as two disconnected primitives. Rebuilt per SMACNA/
+press-brake hem definitions, spanning outward from the tip into the hem's
+own fold material (+x territory): Open and Smashed now share one
+`drawHookGlyph()` hairpin construction (180-degree bend, U cross-section,
+gap fraction 0.7 vs. 0.12), and Teardrop is an exact tangent-line-to-circle
+construction (`d = R*1.2 > r = R*0.5` algebraically guarantees no
+self-intersection) forming one closed loop. Angle/tip-point computation and
+all call sites in `app/studio/draft/page.tsx` were left untouched, per
+scope.
+
+While verifying via the existing `/studio/hem-debug` debug view (as
+instructed, rather than building a new one), the first screenshot showed
+the new shapes clipped off-canvas — Open as two disconnected bars, Teardrop
+as an open "<" with no closed loop. Root cause: the debug page's `ANCHOR`
+constant (`app/studio/hem-debug/page.tsx`) was calibrated for the old
+leftward/downward-extending geometry and didn't leave room for the new
+rightward-extending shapes. Flagged this to Reid before proceeding, since
+fixing it meant touching a second file outside the prompt's stated
+one-file scope; Reid approved expanding scope to fix it. Moved `ANCHOR`
+from `{x:200,y:50}` to `{x:30,y:85}` so all three shapes render fully
+within the existing 280x180 canvas. Re-screenshotted after the fix — all
+three shapes now render complete and unclipped. Screenshots checked in at
+repo root: `hem-audit-2026-08-13-open.png`, `-smashed.png`, `-teardrop.png`,
+`-full-page.png`.
+
+`pnpm tsc --noEmit` (0 errors) and `pnpm run build` (succeeded, after
+stopping a separately-running `next dev` server whose `.next` cache was
+lock-contending with the build) both passed. Commit `7de79db` is pushed to
+`origin/main`. Per the verification standard above, this stays
+**IMPLEMENTED, UNCONFIRMED** — the screenshots prove the shapes are no
+longer clipped and no longer visibly broken, but do not by themselves
+confirm the geometry matches real PathfinderEdge/SMACNA reference hems to
+Reid's eye. Do not mark this complete until Reid confirms against the
+screenshots and the live canvas. See STATE_OF_THE_BUILD.md for the full
+writeup.
+
+**Prior session (2026-08-11): FlashDraft hem-menu trigger offset from
 true endpoint.** In `handleDoubleClick` (`app/studio/draft/page.tsx`), added
 `HEM_TRIGGER_OFFSET_IN = 0.5` and changed the hem double-click hit-test
 targets from the true vertex positions to points extrapolated 0.5in past

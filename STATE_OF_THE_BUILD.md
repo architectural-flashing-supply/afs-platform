@@ -160,16 +160,39 @@ called from both the live canvas and the popup selector icons in
   differentiator — offset from the leg centerline — isn't visible without a
   reference leg line next to an isolated icon.
 
-`abb5da8` is the most recent commit touching hem rendering and is the
-"literal, exact canvas-path-command fix" referenced in this project's
-history — it exists and is pushed to `origin/main`. What it is **not** is
-user-confirmed: every one of the passes above was reported "verified live"
-by the session that made it (via Playwright screenshots, DPR-simulated
-browser checks, or byte-identical-screenshot comparisons), and every one of
-those self-reports has so far been insufficient — the actual PathfinderEdge
-hem shapes (Open/Smashed/Teardrop) have not yet been confirmed correct by
-the user looking at the real rendered canvas against real reference
-evidence. Treat hem geometry as **open** until that confirmation happens.
+- `7de79db` (2026-08-13) — replaced the shape logic in
+  `lib/flashdraft/hem-glyph.ts` entirely. Prior passes built every shape
+  backward over the leg's own material (-x territory), which is why Open
+  rendered as a short stub and Teardrop as two disconnected primitives
+  (a curved tail + a separate near-circle). Rebuilt from SMACNA/press-brake
+  hem definitions, spanning outward from the tip into the hem's own fold
+  material (+x territory) instead: Open and Smashed now share one
+  `drawHookGlyph()` hairpin construction (180-degree bend, U cross-section)
+  differing only by gap fraction (0.7 vs. 0.12), and Teardrop is an exact
+  tangent-line-to-circle construction (apex at the tip, `d = R*1.2 > r =
+  R*0.5` algebraically guarantees the two tangent lines and connecting arc
+  cannot self-intersect) forming one closed loop instead of two
+  primitives. Also fixed `app/studio/hem-debug/page.tsx`'s `ANCHOR`
+  constant, which was calibrated for the old leftward/downward-extending
+  shapes and clipped the new rightward-extending ones off the 280x180
+  debug canvas — caught by screenshotting the debug view before fixing
+  `ANCHOR` (Open showed as two disconnected clipped bars, Teardrop as an
+  open "&lt;" with no closed loop) and again after (both fully rendered).
+  The post-fix screenshots are checked in at
+  `hem-audit-2026-08-13-open.png`, `-smashed.png`, `-teardrop.png`, and
+  `-full-page.png` — all three shapes render complete and unclipped.
+  `pnpm tsc --noEmit` (0 errors) and `pnpm run build` (succeeded) both
+  passed, and the commit is pushed to `origin/main`.
+
+`7de79db` is the most recent commit touching hem rendering. What it is
+**not** is user-confirmed: every one of the passes above — including this
+one — was reported "verified live" by the session that made it (via
+Playwright screenshots, DPR-simulated browser checks, or
+byte-identical-screenshot comparisons), and every one of those self-reports
+has so far been insufficient — the actual PathfinderEdge hem shapes
+(Open/Smashed/Teardrop) have not yet been confirmed correct by the user
+looking at the real rendered canvas against real reference evidence. Treat
+hem geometry as **open** until that confirmation happens.
 
 ---
 
