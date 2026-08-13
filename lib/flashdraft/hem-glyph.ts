@@ -30,6 +30,8 @@ export interface GlyphPoint {
 // the same small dot next to the vertex marker.
 export const HEM_GLYPH_R = 6;
 
+const HEM_LINE_WIDTH = 2; // px, matches the leg stroke weight in page.tsx
+
 // Local coordinate convention, which EVERY call site must normalize to
 // before calling this function: origin (0,0) = the true hem location (tip
 // point for endpoint hems, drag-back point for leg-mid hems). +x = outward
@@ -54,7 +56,7 @@ function drawHookGlyph(ctx: CanvasRenderingContext2D, R: number, gapFraction: nu
   const Lh = R * 1.8; // flat/outward length — long enough to read as "a long piece", not a stub
   const gap = R * gapFraction;
   const r = gap / 2; // cap arc radius
-  ctx.lineWidth = R * 0.22;
+  ctx.lineWidth = HEM_LINE_WIDTH;
   ctx.beginPath();
   ctx.moveTo(0, 0);
   ctx.lineTo(Lh - r, 0);
@@ -87,8 +89,8 @@ export function drawHemGlyph(
     // tip (0,0), circle at distance d along +x with radius r. d > r
     // guarantees the two tangent lines and the arc between them cannot
     // self-intersect.
-    const d = R * 1.2;
-    const r = R * 0.5;
+    const d = R * 0.42;
+    const r = R * 0.36;
     const angleC = Math.acos(r / d);
     const angUpper = Math.PI - angleC;
     const angLower = Math.PI + angleC;
@@ -98,7 +100,7 @@ export function drawHemGlyph(
     const tuy = cy + r * Math.sin(angUpper);
     const tlx = cx + r * Math.cos(angLower);
     const tly = cy + r * Math.sin(angLower);
-    ctx.lineWidth = R * 0.22;
+    ctx.lineWidth = HEM_LINE_WIDTH;
     ctx.beginPath();
     ctx.moveTo(0, 0);
     ctx.lineTo(tux, tuy);
