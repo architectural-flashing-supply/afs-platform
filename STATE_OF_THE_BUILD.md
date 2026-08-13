@@ -234,7 +234,32 @@ called from both the live canvas and the popup selector icons in
   specified rather than second-guessed — needs Reid's confirmation on
   whether 22px is the right size from the screenshot.
 
-`171f88c` is the most recent commit touching hem rendering. What it is
+- `e9b5060` (2026-08-13) — matched the hem glyph's line weight to the leg's
+  own stroke, and tightened the teardrop loop. Scope:
+  `lib/flashdraft/hem-glyph.ts` only, `page.tsx` untouched. Every
+  `ctx.lineWidth` in `drawHemGlyph`/`drawHookGlyph` was `R * 0.22`, scaling
+  the hem stroke with glyph size instead of matching the leg's fixed 2px
+  stroke — replaced all of them with one new `HEM_LINE_WIDTH = 2` constant.
+  Also tightened the teardrop's tangent-circle construction from
+  `d = R * 1.2, r = R * 0.5` (a wide, open-looking loop) to
+  `d = R * 0.42, r = R * 0.36` — `d` stays strictly greater than `r`, so the
+  construction is still guaranteed non-self-intersecting; `angleC`, the
+  tangent-point math, and arc sweep direction were left untouched, only the
+  two input values changed. The open/smashed hook construction
+  (`drawHookGlyph`) itself was not touched — already confirmed correct in
+  shape, only its line weight needed fixing. `pnpm tsc --noEmit`
+  (0 errors) and `pnpm run build` (succeeded) both passed, and the commit
+  is pushed to `origin/main`. Verified on the live `/studio/draft` canvas
+  (not the debug page) with a manually-drawn profile carrying all three
+  hem types, zoomed to compare leg and hem line weights directly.
+  Screenshots checked in at repo root:
+  `hem-audit-2026-08-13-line-weight-full.jpg` and
+  `hem-audit-2026-08-13-line-weight-closeup.png`. The teardrop tightness
+  (`d = 0.42R`, `r = 0.36R`) is a first pass at the proportion Reid
+  described, not yet confirmed against what he had in mind — flag it as
+  likely needing one more adjustment once seen live, not as final.
+
+`e9b5060` is the most recent commit touching hem rendering. What it is
 **not** is user-confirmed: every one of the passes above — including this
 one — was reported "verified live" by the session that made it (via
 Playwright screenshots, DPR-simulated browser checks, live-canvas

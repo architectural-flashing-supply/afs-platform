@@ -26,7 +26,49 @@ let self-reported verification read as equivalent to user confirmation.
 
 ## CURRENT STATUS
 
-**Most recent session (2026-08-13): FlashDraft live canvas — restored the
+**Most recent session (2026-08-13): FlashDraft hem glyph — matched line
+weight to the leg stroke, tightened the teardrop loop.** Scope:
+`lib/flashdraft/hem-glyph.ts` only, per this prompt — `page.tsx` untouched.
+Two fixes inside `drawHemGlyph`/`drawHookGlyph`:
+
+1. **Line weight.** Every `ctx.lineWidth` assignment was `R * 0.22` —
+   scaling the hem's stroke weight with glyph size instead of matching the
+   leg's own fixed 2px stroke in `page.tsx`. Replaced all of them (both
+   `drawHookGlyph`, used for open/smashed, and the teardrop branch) with a
+   single new `HEM_LINE_WIDTH = 2` constant, used directly with no
+   R-derived scaling.
+
+2. **Teardrop loop proportions.** The tangent-circle construction used
+   `d = R * 1.2` (distance from tip to circle center) and `r = R * 0.5`
+   (circle radius), producing a wide, open-looking loop. Tightened to
+   `d = R * 0.42`, `r = R * 0.36` — `d` still strictly greater than `r`, so
+   the construction remains non-self-intersecting, just proportioned so the
+   loop reads as a tight curl-back-and-close. `angleC`, the tangent-point
+   math, and the arc sweep direction were left exactly as-is, per this
+   prompt's scope — only the two input values changed. The open/smashed
+   hook construction (`drawHookGlyph`) itself was not touched, since its
+   shape was already confirmed correct.
+
+Verified on the live `/studio/draft` canvas (not the debug page) with a
+manually-drawn profile carrying all three hem types — Open at the start
+endpoint, Teardrop at the end endpoint, Smashed via leg-mid drag-back.
+Screenshots checked in at repo root:
+`hem-audit-2026-08-13-line-weight-full.jpg` (full canvas, all three hems)
+and `hem-audit-2026-08-13-line-weight-closeup.png` (a leg and the teardrop
+glyph zoomed together for a direct line-weight comparison). Visually, hem
+stroke weight now reads the same as the leg stroke, and the teardrop loop
+is noticeably tighter than the prior wide-circle version.
+
+`pnpm tsc --noEmit` (0 errors) and `pnpm run build` (succeeded) both
+passed. Commit `e9b5060` is pushed to `origin/main`. Per the verification
+standard above, this stays **IMPLEMENTED, UNCONFIRMED** pending Reid's own
+visual check. Flagging specifically: the teardrop's tightness
+(`d = 0.42R`, `r = 0.36R`) is a first pass at the proportion Reid
+described from memory, not a value confirmed against a real reference —
+it may need one more adjustment once Reid sees it live. Do not treat this
+as the final teardrop proportion until he confirms.
+
+**Prior session (2026-08-13): FlashDraft live canvas — restored the
 leg-to-fold connecting line, fixed hem glyph size to a constant on-screen
 radius.** Scope: `renderHemAt` and `renderLegHemAt` in
 `app/studio/draft/page.tsx` only, per this prompt — `lib/flashdraft/hem-glyph.ts`
