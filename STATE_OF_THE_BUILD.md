@@ -133,7 +133,7 @@ cursor appears on leg-body hover on the live canvas.
 
 **Status: IMPLEMENTED, UNCONFIRMED. Do not mark this complete.**
 
-`c-pending` (2026-08-14, later the same day as the "HEM LENGTH NOW
+`3fa8c70` (2026-08-14, later the same day as the "HEM LENGTH NOW
 SCALES..." pass immediately below, which this pass supersedes on kick
 mechanism and gap wiring specifically) — coordinated pass across
 `lib/flashdraft/hem-glyph.ts`, `lib/types/profile.ts`, and
@@ -802,7 +802,7 @@ Machine Bridge + Command Center:       afs-machine-bridge (separate repo)
 ## RECENT COMMITS (verified via `git log --oneline -15`, most recent first)
 
 ```
-c-pending  fix: correct Open hem fold direction, rebuild kick as a true mirror, wire real gap through to the glyph
+3fa8c70  fix: correct Open hem fold direction, rebuild kick as a true mirror, wire real gap through to the glyph
 2471830  fix: hem length now scales the glyph itself, Gap returns as editable, add inward/outward kick
 2a47bdd  fix: FlashDraft hem system overhaul — Gap replaced by Hem Length, mid-leg hems deleted, teardrop retightened, leg-shrink bug resolved
 a9d729b  docs: record hem line-weight/teardrop tightening fix in governance docs, mark UNCONFIRMED
