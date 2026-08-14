@@ -129,6 +129,111 @@ cursor appears on leg-body hover on the live canvas.
 
 ---
 
+## FLASHDRAFT — OPEN FOLD-DIRECTION BUG FIXED, KICK REBUILT AS A TRUE MIRROR, GAP WIRED THROUGH TO THE GLYPH: IMPLEMENTED, UNCONFIRMED
+
+**Status: IMPLEMENTED, UNCONFIRMED. Do not mark this complete.**
+
+`c-pending` (2026-08-14, later the same day as the "HEM LENGTH NOW
+SCALES..." pass immediately below, which this pass supersedes on kick
+mechanism and gap wiring specifically) — coordinated pass across
+`lib/flashdraft/hem-glyph.ts`, `lib/types/profile.ts`, and
+`app/studio/draft/page.tsx`.
+
+**Root cause fix: Open's fold direction was inverted relative to
+Teardrop/Smashed.** `renderHemAt`'s `open` branch computed `foldTip` from
+a separate `foldDir = { x: -u.x * kickSign, y: -u.y * kickSign }`
+(negated `u`), while the `teardrop`/`smashed` branches both used
+`u` directly (un-negated) — the two branches disagreed on which
+direction was "outward" for the exact same endpoint mechanism. Deleted
+`foldDir` entirely; the `open` branch now computes `foldTip` with the
+identical formula the other two branches already used —
+`{ x: p.x + u.x * hem.lengthIn, y: p.y + u.y * hem.lengthIn }` — so all
+three hem types are now geometrically consistent.
+
+**Kick rebuilt as a true perpendicular mirror, not a 180° angle
+rotation.** The prior `kickSign`/`glyphAngle` mechanism (`kickSign = -1`
+multiplier on the fold-direction vector, plus `angleU + Math.PI` on the
+angle passed to the glyph) is deleted entirely — it rotated the glyph's
+local frame rather than mirroring it, which is a different
+transformation (it does not reliably flip which side of the leg line
+the hook/loop curls toward). `drawHemGlyph` (`lib/flashdraft/hem-glyph.ts`)
+gained a real `mirror: boolean = false` parameter: when true, `ctx.scale(1,
+-1)` is inserted into the existing `save`/`translate`/`rotate` sequence,
+after `rotate` — this flips local +y vs -y (which side of the leg's own
+line the construction occupies) while leaving local +x (direction along
+the line) untouched, applied identically to `drawHookGlyph`
+(open/smashed) and the teardrop tangent-circle construction since both
+run inside the same transformed context. In `page.tsx`, `glyphAngle` is
+deleted — every `drawHemGlyphHere` call now passes `angleU` directly —
+and `mirrorGlyph = hem.kick === 'inside'` is the sole thing kick now
+drives.
+
+**Kick terminology renamed `'inward' | 'outward'` → `'inside' |
+'outside'`** (`HemKick` in `lib/types/profile.ts`, the type itself, not
+just UI labels — default renamed `'outward'` → `'outside'`, same
+underlying behavior, no change for existing/default hems). The popup's
+Kick toggle buttons now read Outside/Inside.
+
+**Gap now actually drives the glyph — real bug, not cosmetic.**
+`drawHookGlyph` previously hardcoded `gapFraction` per type (`0.7` open,
+`0.12` smashed) and computed `gap = R * gapFraction` — `Hem.gapIn` was
+never read at all, which is why editing the Gap field in the popup had
+no visible effect. `drawHookGlyph` now takes a real `gapPx` parameter
+(absolute screen pixels) and uses it directly as the gap distance;
+`drawHemGlyph` gained a matching `gapPx: number = R * 0.7` parameter
+threaded through to it. `page.tsx` computes
+`gapPx = hem.gapIn * PIXELS_PER_INCH * zoom` once in `renderHemAt` and
+passes it to `drawHemGlyphHere` for both `open` and `smashed` (Teardrop
+has no gap concept, unchanged). `R` continues to control the hook's
+overall length, independent of `gapPx` — confirmed visually: at fixed
+Hem Length, changing Gap from 1/16" to 3/4" visibly widens the hook
+opening with no change to its overall length.
+
+**This is a first-pass mapping of `kick` to the mirror boolean —
+`'inside'` was chosen to mean `mirror: true` (and `'outside'` to mean
+`mirror: false`) as a guess, not a confirmed physical mapping.** Verified
+in this session (see screenshots below) that toggling kick at a FIXED
+endpoint does correctly flip the hook to the opposite side of the leg
+line with no change to gap or length — the mirror mechanism itself
+works. What is **not** yet confirmed is whether `'inside'` is the
+physically-correct label for the side it produces on Reid's own
+reference sketch — that mapping is one `===` comparison
+(`hem.kick === 'inside'`) away from being flipped if he says it's
+backwards.
+
+`pnpm tsc --noEmit` — 0 errors. `pnpm run build` — succeeded (full route
+table generated, `/studio/draft` included). Screenshots checked in at
+`studio-hem-fix-screenshots/` (repo root): `A_full_outside_vs_inside_same_gap.png`
+(full canvas, one leg, Open hem at each end — start=Outside kick,
+end=Inside kick, same 3/4" gap on both, per this prompt's literal
+request); `B_both_hooks_same_gap_zoom.png` (tight crop of the same pair);
+`E_start_kick_OUTSIDE.png` / `F_start_kick_INSIDE.png` (the SAME
+start-endpoint hem, same gap/length, before/after toggling only Kick —
+direct proof the mirror flips the hook to the opposite side of the leg
+line, isolated from the base angle difference between endpoints);
+`G_end_kick_OUTSIDE.png` / `H_end_kick_INSIDE.png` (same isolation test
+at the end endpoint); `C_gap_small_0.0625in.png` / `D_gap_large_0.75in.png`
+(same start hem, same Outside kick, same Hem Length — Gap changed from
+1/16" to 3/4", showing the visual gap change independently of hook
+length). Driven via a Playwright script against a real `pnpm dev` server
+(not the debug page) — `page.mouse` drag gestures to draw the leg,
+`page.getByRole('button', ...)` clicks for the popup's type/kick
+buttons, `page.locator(...).fill(...)` for the Gap field — chosen over
+the Chrome DevTools extension per this project's own prior-session
+notes that its coordinate-space mapping is unreliable for multi-step
+canvas interaction.
+
+Per the verification standard, this stays **IMPLEMENTED, UNCONFIRMED**
+pending Reid's own check against his reference sketch — do not mark
+DONE. Specifically flagged as first-pass and likely needing a one-line
+flip if wrong: whether `hem.kick === 'inside'` is the correct condition
+for `mirror: true`, per the note above.
+
+---
+
+<details>
+<summary>Superseded pass (2026-08-14, earlier the same day) — kick mechanism and gap wiring below are no longer current; kept for archaeology</summary>
+
 ## FLASHDRAFT — HEM LENGTH NOW SCALES THE GLYPH, GAP RETURNS AS EDITABLE, KICK DIRECTION ADDED: IMPLEMENTED, UNCONFIRMED
 
 **Status: IMPLEMENTED, UNCONFIRMED. Do not mark this complete.**
@@ -217,6 +322,17 @@ pending Reid's own check — do not mark DONE. Two things flagged
 specifically as first-pass and likely needing adjustment once seen live:
 the inward-kick mirror direction, and `HEM_GLYPH_LENGTH_SCALE`'s default
 value of `1.0`.
+
+**Update from the pass above this one:** the "inward-kick mirror
+direction" concern was well-founded — the `kickSign`/`glyphAngle`
+rotation approach described here did not actually mirror the glyph
+(rotation ≠ mirror), and Open's fold direction was separately found to
+disagree with Teardrop/Smashed. Both are fixed in the
+"OPEN FOLD-DIRECTION BUG FIXED..." entry above this `<details>` block.
+`HEM_GLYPH_LENGTH_SCALE`'s default of `1.0` was out of scope for that
+pass and remains an open first-pass value.
+
+</details>
 
 ---
 
@@ -686,6 +802,7 @@ Machine Bridge + Command Center:       afs-machine-bridge (separate repo)
 ## RECENT COMMITS (verified via `git log --oneline -15`, most recent first)
 
 ```
+c-pending  fix: correct Open hem fold direction, rebuild kick as a true mirror, wire real gap through to the glyph
 2471830  fix: hem length now scales the glyph itself, Gap returns as editable, add inward/outward kick
 2a47bdd  fix: FlashDraft hem system overhaul — Gap replaced by Hem Length, mid-leg hems deleted, teardrop retightened, leg-shrink bug resolved
 a9d729b  docs: record hem line-weight/teardrop tightening fix in governance docs, mark UNCONFIRMED
@@ -729,12 +846,15 @@ When migrating DNS to the live domain, these must be updated BEFORE go-live:
 ## NEXT ACTION
 
 1. Get the user's own confirmation on the FlashDraft hem system (geometry,
-   Hem Length glyph scaling, Gap re-added, inward/outward Kick, mid-leg
-   removal, leg-shrink fix) against real PathfinderEdge reference
-   evidence — do not mark it complete until that happens, regardless of
-   how many rendering passes have been made. Two specific first-pass
-   values need his judgment: the inward-kick mirror direction, and
-   `HEM_GLYPH_LENGTH_SCALE`'s default of `1.0`.
+   Hem Length glyph scaling, Gap re-added and now actually wired to the
+   glyph, Outside/Inside Kick rebuilt as a true mirror, mid-leg removal,
+   leg-shrink fix) against his reference sketch — do not mark it complete
+   until that happens, regardless of how many rendering passes have been
+   made. Two specific first-pass values still need his judgment: whether
+   `hem.kick === 'inside'` is the correct condition for `mirror: true`
+   (one line to flip if backwards — see the "OPEN FOLD-DIRECTION BUG
+   FIXED..." entry above), and `HEM_GLYPH_LENGTH_SCALE`'s default of
+   `1.0`.
 2. ~~Mid-leg hem removal~~ — done 2026-08-14, see the consolidated
    FlashDraft hem-system entry above.
 3. FlashDraft 3D view does not render hems — newly identified this

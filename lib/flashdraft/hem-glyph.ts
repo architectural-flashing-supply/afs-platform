@@ -51,9 +51,9 @@ const HEM_LINE_WIDTH = 2; // px, matches the leg stroke weight in page.tsx
 //     an apex at the tip with two tangent lines running to a circle,
 //     forming a single unbroken knot rather than two disconnected
 //     primitives.
-function drawHookGlyph(ctx: CanvasRenderingContext2D, R: number, gapFraction: number): void {
+function drawHookGlyph(ctx: CanvasRenderingContext2D, R: number, gapPx: number): void {
   const Lh = R * 1.8; // flat/outward length — long enough to read as "a long piece", not a stub
-  const gap = R * gapFraction;
+  const gap = gapPx; // absolute screen px, driven by the real Hem.gapIn — independent of R
   const r = gap / 2; // cap arc radius
   ctx.lineWidth = HEM_LINE_WIDTH;
   ctx.beginPath();
@@ -69,20 +69,27 @@ export function drawHemGlyph(
   tip: GlyphPoint,
   angleRad: number,
   type: HemType,
-  R: number = HEM_GLYPH_R
+  R: number = HEM_GLYPH_R,
+  mirror: boolean = false,
+  gapPx: number = R * 0.7
 ): void {
   ctx.save();
   ctx.translate(tip.x, tip.y);
   ctx.rotate(angleRad);
+  // Mirrors the ENTIRE construction across its own local x-axis (the axis
+  // angleRad already points along) — flips which SIDE of the leg line the
+  // hook/loop curls toward (local +y vs -y) without touching local +x, so
+  // it never reverses direction along the line itself. Applied once here,
+  // before any drawing below, so it covers drawHookGlyph (open/smashed)
+  // and the teardrop tangent-circle construction identically.
+  if (mirror) ctx.scale(1, -1);
   ctx.strokeStyle = HEM_LINE_COLOR;
   ctx.fillStyle = HEM_LINE_COLOR;
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
 
-  if (type === 'open') {
-    drawHookGlyph(ctx, R, 0.7); // clearly visible gap
-  } else if (type === 'smashed') {
-    drawHookGlyph(ctx, R, 0.12); // near-zero gap, reads as flush/crushed
+  if (type === 'open' || type === 'smashed') {
+    drawHookGlyph(ctx, R, gapPx);
   } else {
     // Teardrop — exact tangent-line-to-circle construction. Apex at the
     // tip (0,0), circle at distance d along +x with radius r. d > r

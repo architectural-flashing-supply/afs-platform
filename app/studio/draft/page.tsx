@@ -1097,8 +1097,8 @@ export default function FlashDraftPage() {
     // draw pass's `ctx` so call sites below don't have to thread it through.
     // See drawHemGlyph's own doc comment for the local coordinate
     // convention every call site must normalize `angleRad` to.
-    const drawHemGlyphHere = (tip: Point, angleRad: number, type: HemType, R: number) =>
-      drawHemGlyph(ctx, tip, angleRad, type, R);
+    const drawHemGlyphHere = (tip: Point, angleRad: number, type: HemType, R: number, mirror: boolean, gapPx: number) =>
+      drawHemGlyph(ctx, tip, angleRad, type, R, mirror, gapPx);
 
     // Hem folds — drawn at whichever endpoint(s) have one. All hem lines
     // continue from the last leg's direction (u), then fold back 180° —
@@ -1112,16 +1112,17 @@ export default function FlashDraftPage() {
       const u = { x: dx / len, y: dy / len };
       const angleU = Math.atan2(u.y, u.x);
 
-      // 'inward' mirrors the fold to the opposite side of the leg's own
-      // line — flips both the direction vector driving foldTip AND the
-      // glyph's own rotation together so the two stay visually consistent.
-      // First pass (a π rotation of the glyph's local frame, since
-      // drawHemGlyph only takes an angle — no true perpendicular-mirror
-      // param exists without touching hem-glyph.ts's internals); needs
-      // Reid's live visual check to confirm it reads as "folds to the
-      // physically opposite side," not just tsc/build passing.
-      const kickSign = hem.kick === 'inward' ? -1 : 1;
-      const glyphAngle = kickSign === -1 ? angleU + Math.PI : angleU;
+      // kick no longer touches the fold-direction vector at all — every hem
+      // type folds straight back along the leg's own line (angleU), exactly
+      // like Teardrop/Smashed always did. kick now drives ONLY whether the
+      // glyph construction is mirrored across that line (see hem-glyph.ts's
+      // `mirror` param) — a true perpendicular mirror, not a π rotation, so
+      // it flips which side of the leg the hook/loop curls toward without
+      // touching its direction along the line. First pass: needs Reid's
+      // live visual check against his reference sketch to confirm 'inside'
+      // is the value that should map to mirror=true.
+      const mirrorGlyph = hem.kick === 'inside';
+      const gapPx = hem.gapIn * PIXELS_PER_INCH * zoom;
 
       ctx.strokeStyle = CANVAS_COLORS.hemLine;
       ctx.fillStyle = CANVAS_COLORS.hemLine;
@@ -1129,11 +1130,10 @@ export default function FlashDraftPage() {
 
       if (hem.type === 'open') {
         // Fold-back LENGTH (how far the return leg runs) is this hem's own
-        // lengthIn — independent of gapIn, which is the fixed real-world air
-        // gap the glyph itself renders internally (hem-glyph.ts), not a
-        // separate positional offset computed here.
-        const foldDir = { x: -u.x * kickSign, y: -u.y * kickSign };
-        const foldTip = { x: p.x + foldDir.x * hem.lengthIn, y: p.y + foldDir.y * hem.lengthIn };
+        // lengthIn — independent of gapIn, which is the real-world air gap
+        // the glyph itself renders internally (hem-glyph.ts) via gapPx, not
+        // a separate positional offset computed here.
+        const foldTip = { x: p.x + u.x * hem.lengthIn, y: p.y + u.y * hem.lengthIn };
         const sP = worldToScreen(p, canvas);
         const sFoldTip = worldToScreen(foldTip, canvas);
         const R = Math.max(MIN_READABLE_R, hem.lengthIn * PIXELS_PER_INCH * zoom * HEM_GLYPH_LENGTH_SCALE);
@@ -1147,18 +1147,11 @@ export default function FlashDraftPage() {
         ctx.lineTo(sFoldTip.x, sFoldTip.y);
         ctx.stroke();
 
-        // angleU is this leg's own outward direction (the local +x-outward
-        // convention drawHemGlyph expects) — same angle teardrop/smashed
-        // below pass, for the SAME endpoint mechanism. Passing angleU + PI
-        // here (an earlier version of this fix) was itself the mirroring
-        // bug: it pointed the glyph's material side outward instead of
-        // back toward the vertex. glyphAngle only adds the extra +PI when
-        // hem.kick is 'inward', on top of that.
-        drawHemGlyphHere(sFoldTip, glyphAngle, 'open', R);
+        drawHemGlyphHere(sFoldTip, angleU, 'open', R, mirrorGlyph, gapPx);
         ctx.font = `10px ${jetbrainsFontRef.current}`;
         ctx.fillText(`OPEN ${formatInches(hem.gapIn)} gap`, sFoldTip.x + R * 2 + 6, sFoldTip.y - 6);
       } else if (hem.type === 'teardrop') {
-        const foldTip = { x: p.x + u.x * hem.lengthIn * kickSign, y: p.y + u.y * hem.lengthIn * kickSign };
+        const foldTip = { x: p.x + u.x * hem.lengthIn, y: p.y + u.y * hem.lengthIn };
         const sP = worldToScreen(p, canvas);
         const sFoldTip = worldToScreen(foldTip, canvas);
         const R = Math.max(MIN_READABLE_R, hem.lengthIn * PIXELS_PER_INCH * zoom * HEM_GLYPH_LENGTH_SCALE);
@@ -1170,11 +1163,11 @@ export default function FlashDraftPage() {
         ctx.lineTo(sFoldTip.x, sFoldTip.y);
         ctx.stroke();
 
-        drawHemGlyphHere(sFoldTip, glyphAngle, 'teardrop', R);
+        drawHemGlyphHere(sFoldTip, angleU, 'teardrop', R, mirrorGlyph, gapPx);
         ctx.font = `10px ${jetbrainsFontRef.current}`;
         ctx.fillText('TEARDROP', sFoldTip.x + R * 2 + 6, sFoldTip.y - 6);
       } else {
-        const foldTip = { x: p.x + u.x * hem.lengthIn * kickSign, y: p.y + u.y * hem.lengthIn * kickSign };
+        const foldTip = { x: p.x + u.x * hem.lengthIn, y: p.y + u.y * hem.lengthIn };
         const sP = worldToScreen(p, canvas);
         const sFoldTip = worldToScreen(foldTip, canvas);
         const R = Math.max(MIN_READABLE_R, hem.lengthIn * PIXELS_PER_INCH * zoom * HEM_GLYPH_LENGTH_SCALE);
@@ -1186,7 +1179,7 @@ export default function FlashDraftPage() {
         ctx.lineTo(sFoldTip.x, sFoldTip.y);
         ctx.stroke();
 
-        drawHemGlyphHere(sFoldTip, glyphAngle, 'smashed', R);
+        drawHemGlyphHere(sFoldTip, angleU, 'smashed', R, mirrorGlyph, gapPx);
         ctx.font = `10px ${jetbrainsFontRef.current}`;
         ctx.fillText('SMASHED', sFoldTip.x + R * 2 + 6, sFoldTip.y - 6);
       }
@@ -2912,7 +2905,7 @@ export default function FlashDraftPage() {
                     <div className="flex flex-col gap-1 pt-1 border-t border-afs-chrome-dim/40">
                       <label className="font-label text-[10px] text-afs-chrome-mid">Kick</label>
                       <div className="grid grid-cols-2 gap-1">
-                        {(['outward', 'inward'] as HemKick[]).map((k) => {
+                        {(['outside', 'inside'] as HemKick[]).map((k) => {
                           const current = hemPopup.endpoint === 'start' ? hemStart : hemEnd;
                           const active = current?.kick === k;
                           return (

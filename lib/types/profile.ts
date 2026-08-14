@@ -10,11 +10,12 @@
 
 export type HemType = 'open' | 'smashed' | 'teardrop';
 
-// 'outward' folds toward the profile's outside/convex face (existing visual
-// behavior, unchanged); 'inward' mirrors the fold to the opposite side of
-// the leg. See app/studio/draft/page.tsx's renderHemAt for how this flips
-// both the fold-direction vector and the glyph's own rotation together.
-export type HemKick = 'inward' | 'outward';
+// 'outside' folds toward the profile's outside/convex face (existing visual
+// behavior, unchanged); 'inside' mirrors the fold to the opposite side of
+// the leg's own line. See app/studio/draft/page.tsx's renderHemAt and
+// lib/flashdraft/hem-glyph.ts's drawHemGlyph `mirror` param for how this is
+// applied as a true perpendicular mirror of the glyph construction.
+export type HemKick = 'inside' | 'outside';
 
 export interface Hem {
   type: HemType;
@@ -31,8 +32,8 @@ export const HEM_DEFAULT_LENGTH_IN = 0.5;
 // constant" decision) — each Hem instance carries its own gapIn, and this
 // is only the starting default for a newly created hem.
 export const HEM_DEFAULT_GAP_IN = 0.0625; // 1/16"
-// Matches current/prior visual behavior — new hems fold outward by default.
-export const HEM_DEFAULT_KICK: HemKick = 'outward';
+// Matches current/prior visual behavior — new hems fold to the outside by default.
+export const HEM_DEFAULT_KICK: HemKick = 'outside';
 
 // Approximate extra blank-width consumed by a hem fold at one endpoint,
 // using the hem's own fold-back length — a visual/quoting simplification,
