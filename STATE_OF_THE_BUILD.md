@@ -133,10 +133,10 @@ cursor appears on leg-body hover on the live canvas.
 
 **Status: IMPLEMENTED, UNCONFIRMED. Do not mark this complete.**
 
-`c-pending` (2026-08-14, uncommitted at time of writing this entry, same
-day as the "GAP REMOVED..." pass immediately below and later in the
-session — Reid reversed the "Gap is a fixed constant" decision from that
-same earlier pass) — single coordinated pass across
+`2471830` (2026-08-14, same day as the "GAP REMOVED..." pass immediately
+below and later in the session — Reid reversed the "Gap is a fixed
+constant" decision from that same earlier pass) — single coordinated
+pass across
 `lib/types/profile.ts` and `app/studio/draft/page.tsx`.
 `lib/flashdraft/hem-glyph.ts`'s internal shape math
 (`drawHookGlyph`/teardrop tangent-circle construction) was explicitly
@@ -686,7 +686,7 @@ Machine Bridge + Command Center:       afs-machine-bridge (separate repo)
 ## RECENT COMMITS (verified via `git log --oneline -15`, most recent first)
 
 ```
-c-pending  fix: hem length now scales the glyph itself, Gap returns as editable, add inward/outward kick
+2471830  fix: hem length now scales the glyph itself, Gap returns as editable, add inward/outward kick
 2a47bdd  fix: FlashDraft hem system overhaul — Gap replaced by Hem Length, mid-leg hems deleted, teardrop retightened, leg-shrink bug resolved
 a9d729b  docs: record hem line-weight/teardrop tightening fix in governance docs, mark UNCONFIRMED
 e9b5060  fix: match hem glyph line weight to leg stroke, tighten teardrop loop proportions

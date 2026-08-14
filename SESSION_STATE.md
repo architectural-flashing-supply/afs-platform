@@ -412,7 +412,7 @@ own section there rather than duplicated here.
 ## RECENT COMMITS (verified via `git log --oneline -20`, most recent first)
 
 ```
-c-pending  fix: hem length now scales the glyph itself, Gap returns as editable, add inward/outward kick
+2471830  fix: hem length now scales the glyph itself, Gap returns as editable, add inward/outward kick
 2a47bdd  fix: FlashDraft hem system overhaul — Gap replaced by Hem Length, mid-leg hems deleted, teardrop retightened, leg-shrink bug resolved
 a9d729b  docs: record hem line-weight/teardrop tightening fix in governance docs, mark UNCONFIRMED
 e9b5060  fix: match hem glyph line weight to leg stroke, tighten teardrop loop proportions
