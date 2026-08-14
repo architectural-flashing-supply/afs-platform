@@ -40,10 +40,9 @@ const HEM_LINE_WIDTH = 2; // px, matches the leg stroke weight in page.tsx
 //
 // Shapes are built spanning FROM the tip OUTWARD into +x territory — the
 // hem's own fold material, real material added specifically for the hem
-// (see this file's own hemAllowanceIn/sumLegHemAllowanceIn usage elsewhere
-// in the codebase, which already accounts for exactly this extra
-// material) — not backward over the leg. Construction follows SMACNA/
-// press-brake hem definitions:
+// (see lib/types/profile.ts's own hemAllowanceIn, which already accounts
+// for exactly this extra material) — not backward over the leg.
+// Construction follows SMACNA/press-brake hem definitions:
 //   Open: a 180-degree bend, U cross-section, with a visible air gap
 //     between the two flanges.
 //   Smashed: the same topology as Open, with the gap collapsed toward
@@ -89,8 +88,8 @@ export function drawHemGlyph(
     // tip (0,0), circle at distance d along +x with radius r. d > r
     // guarantees the two tangent lines and the arc between them cannot
     // self-intersect.
-    const d = R * 0.42;
-    const r = R * 0.36;
+    const d = R * 0.3;
+    const r = R * 0.22;
     const angleC = Math.acos(r / d);
     const angUpper = Math.PI - angleC;
     const angLower = Math.PI + angleC;

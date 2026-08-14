@@ -18,12 +18,9 @@ import type { ProfileMatch, DiagramBend } from '@/app/api/studio/match-profile/r
 import {
   type HemType,
   type Hem,
-  type LegHem,
-  HEM_FOLD_DEPTH_IN,
+  HEM_DEFAULT_LENGTH_IN,
   HEM_DEFAULT_GAP_IN,
   hemAllowanceIn,
-  legHemAllowanceIn,
-  sumLegHemAllowanceIn,
 } from '@/lib/types/profile';
 
 type SubmitState = 'idle' | 'submitting' | 'submitted';
@@ -38,18 +35,17 @@ interface Point {
 
 // Undo/redo history entry — the full editable profile state, not just
 // `points`. Previously `past`/`future` stored bare `Point[]`, so hem
-// creation/removal (setHemStart/setHemEnd/setLegHems, none of which ever
-// went through commitPoints) was invisible to undo entirely: pressing Undo
+// creation/removal (setHemStart/setHemEnd, neither of which ever went
+// through commitPoints) was invisible to undo entirely: pressing Undo
 // right after adding a hem silently did nothing (if no prior points-only
 // action existed to revert to) or reverted an unrelated earlier points
 // change while leaving the just-added hem in place — either way, reading
-// as "undo doesn't work." Every push site now snapshots all four fields
+// as "undo doesn't work." Every push site now snapshots all three fields
 // together so a hem action is exactly as undoable as a points action.
 interface ProfileSnapshot {
   points: Point[];
   hemStart: Hem | null;
   hemEnd: Hem | null;
-  legHems: LegHem[];
 }
 
 const MM_PER_INCH = 25.4;
@@ -74,7 +70,7 @@ interface LibraryProfile {
 // request (quote_requests.line_items), as opposed to LibraryProfile above
 // (the shop's public/machine-history library). `points` is only present for
 // requests submitted after this feature shipped — line_items previously
-// stored only the reconstruction-lossy bendRadiiIn/hemStart/hemEnd/legHems
+// stored only the reconstruction-lossy bendRadiiIn/hemStart/hemEnd
 // fields, not the raw drawn geometry, so older submissions can't be loaded
 // back exactly and their Load button is disabled instead of guessing.
 interface SavedQuoteProfile {
@@ -176,20 +172,9 @@ const NEW_SEGMENT_MISS_GUARD_PX = 24;
 // real-world gapIn/thickness so the glyph never collapses to a point (a
 // smashed hem's gapIn is always 0) or balloons at high zoom. The text
 // labels next to each glyph still show the true dimension.
-const HEM_GLYPH_DISPLAY_R = 22; // px, independent of zoom/real dimensions
+const HEM_GLYPH_DISPLAY_R = 12; // px, independent of zoom/real dimensions
 
 const VERTEX_DRAG_THRESHOLD_PX = 3; // movement before a vertex click becomes a drag
-const LEG_HEM_MIN_DRAG_IN = 0.125; // minimum drag-back distance to create a hem on a leg
-
-// How squarely a drag points back toward a leg's own start (vs.
-// sideways/forward along or away from it) before it's treated as
-// "backward" — a 60° cone centered on the exact backward direction. Three
-// sites share this cone: a drag starting on a vertex or the last point
-// re-arms as a leg-hem-drag when it falls inside the cone (instead of a
-// vertex-drag/line-continuation); a drag starting on a leg's body arms a
-// leg-hem-drag inside the cone or a leg-reshape drag outside it. See the
-// disambiguation comments in handlePointerDown/handlePointerMove.
-const LEG_DRAG_BACKWARD_COS_THRESHOLD = 0.5;
 
 // Hard guard rail on vertex-drag and leg-reshape (they share the same
 // translation math — see clampDragAngle below): neither gesture may drag a
@@ -696,39 +681,19 @@ export default function FlashDraftPage() {
   const [hemStart, setHemStart] = useState<Hem | null>(null);
   const [hemEnd, setHemEnd] = useState<Hem | null>(null);
   const [hemPopup, setHemPopup] = useState<{ endpoint: HemEndpoint; screenPos: Point } | null>(null);
-  const [hemGapDraft, setHemGapDraft] = useState(String(HEM_DEFAULT_GAP_IN));
+  const [hemLengthDraft, setHemLengthDraft] = useState(String(HEM_DEFAULT_LENGTH_IN));
 
-  // --- Hem-by-click-drag-on-a-leg state (separate from hemStart/hemEnd,
-  // which stay exactly as they were) ---
-  const [legHems, setLegHems] = useState<LegHem[]>([]);
-  const [legHemPreview, setLegHemPreview] = useState<{ legIndex: number; clickPoint: Point; lengthIn: number } | null>(null);
-  const legHemDragRef = useRef<{ legIndex: number; clickPoint: Point; distanceFromStartIn: number } | null>(null);
-  const [legHemPopup, setLegHemPopup] = useState<{ legHemIndex: number } | null>(null);
-
-  // A drag starting on a leg's BODY (not its endpoints) is ambiguous until
-  // the first real movement reveals its direction: backward toward the
-  // leg's start re-arms it as a leg-hem-drag (legHemDragRef, above);
-  // anything else — forward along the leg or sideways off it — reshapes
-  // the leg by dragging its far endpoint, via the existing vertex-drag
-  // machinery (draggingVertexIndex) rather than a separate code path. See
-  // the disambiguation block in handlePointerMove.
+  // A drag starting on a leg's BODY (not its endpoints) reshapes the leg by
+  // dragging its far endpoint, via the existing vertex-drag machinery
+  // (draggingVertexIndex) rather than a separate code path. See the
+  // disambiguation block in handlePointerMove.
   const legBodyDragCandidateRef = useRef<{
     legIndex: number;
     clickPoint: Point;
     distanceFromStartIn: number;
     downScreenPos: Point;
     towardStart: Point;
-    hemEligible: boolean;
   } | null>(null);
-
-  // Endpoint-priority disambiguation: when a gesture arms as a vertex-drag
-  // (hitTestVertex) or a line-continuation ("near last point"), that
-  // endpoint is also the END of one specific leg. This candidate records
-  // that leg so handlePointerMove can re-arm the gesture as a leg-hem-drag
-  // if the user's first real movement drags backward along it instead —
-  // see the disambiguation comments at each of the 3 sites that touch it.
-  const legHemRearmCandidateRef = useRef<{ legIndex: number; towardStart: Point; legLenIn: number } | null>(null);
-  const [legHemGapDraft, setLegHemGapDraft] = useState(String(HEM_DEFAULT_GAP_IN));
 
   const [material, setMaterial] = useState('');
   const [gauge, setGauge] = useState('');
@@ -791,12 +756,12 @@ export default function FlashDraftPage() {
 
   const commitPoints = useCallback(
     (newPoints: Point[]) => {
-      setPast((p) => [...p, { points, hemStart, hemEnd, legHems }]);
+      setPast((p) => [...p, { points, hemStart, hemEnd }]);
       setFuture([]);
       setPoints(newPoints);
       setSelectedSegment(null);
     },
-    [points, hemStart, hemEnd, legHems]
+    [points, hemStart, hemEnd]
   );
 
   // Refactored from the previous version, which nested every side-effecting
@@ -811,26 +776,24 @@ export default function FlashDraftPage() {
   const undo = useCallback(() => {
     if (past.length === 0) return;
     const prev = past[past.length - 1];
-    setFuture((f) => [{ points, hemStart, hemEnd, legHems }, ...f]);
+    setFuture((f) => [{ points, hemStart, hemEnd }, ...f]);
     setPast((p) => p.slice(0, -1));
     setPoints(prev.points);
     setHemStart(prev.hemStart);
     setHemEnd(prev.hemEnd);
-    setLegHems(prev.legHems);
     setSelectedSegment(null);
-  }, [past, points, hemStart, hemEnd, legHems]);
+  }, [past, points, hemStart, hemEnd]);
 
   const redo = useCallback(() => {
     if (future.length === 0) return;
     const next = future[0];
-    setPast((p) => [...p, { points, hemStart, hemEnd, legHems }]);
+    setPast((p) => [...p, { points, hemStart, hemEnd }]);
     setFuture((f) => f.slice(1));
     setPoints(next.points);
     setHemStart(next.hemStart);
     setHemEnd(next.hemEnd);
-    setLegHems(next.legHems);
     setSelectedSegment(null);
-  }, [future, points, hemStart, hemEnd, legHems]);
+  }, [future, points, hemStart, hemEnd]);
 
   const getEffectiveRadius = useCallback(
     (i: number): number => points[i]?.radius ?? defaultBendRadiusIn(material),
@@ -1052,35 +1015,14 @@ export default function FlashDraftPage() {
       ctx.fill();
     }
 
-    // Live hem-creation drag on a leg — dashed preview of the fold,
-    // always running back toward that leg's start point.
-    if (legHemPreview) {
-      const legA = points[legHemPreview.legIndex];
-      const legB = points[legHemPreview.legIndex + 1];
-      if (legA && legB) {
-        const legLenIn = dist(legA, legB) || 1;
-        const towardStart = { x: (legA.x - legB.x) / legLenIn, y: (legA.y - legB.y) / legLenIn };
-        const foldEnd = {
-          x: legHemPreview.clickPoint.x + towardStart.x * legHemPreview.lengthIn,
-          y: legHemPreview.clickPoint.y + towardStart.y * legHemPreview.lengthIn,
-        };
-        const sClick = worldToScreen(legHemPreview.clickPoint, canvas);
-        const sFoldEnd = worldToScreen(foldEnd, canvas);
-        ctx.save();
-        ctx.setLineDash([5, 4]);
-        ctx.strokeStyle = CANVAS_COLORS.hemLine;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(sClick.x, sClick.y);
-        ctx.lineTo(sFoldEnd.x, sFoldEnd.y);
-        ctx.stroke();
-        ctx.restore();
-      }
-    }
 
     // Points (small dot at every vertex, including the two hem-able endpoints).
     // The vertex currently being leg-dragged renders larger as feedback.
+    // Suppressed at an endpoint that carries a hem — the hem glyph itself
+    // is the visual marker there, and the plain vertex dot just clutters it.
     points.forEach((p, i) => {
+      const isHemmedEndpoint = (i === 0 && hemStart) || (i === points.length - 1 && hemEnd);
+      if (isHemmedEndpoint) return;
       const s = worldToScreen(p, canvas);
       ctx.fillStyle = CANVAS_COLORS.point;
       ctx.beginPath();
@@ -1158,7 +1100,6 @@ export default function FlashDraftPage() {
       const dy = p.y - q.y;
       const len = Math.hypot(dx, dy) || 1;
       const u = { x: dx / len, y: dy / len };
-      const perp = { x: -u.y, y: u.x };
       const angleU = Math.atan2(u.y, u.x);
 
       ctx.strokeStyle = CANVAS_COLORS.hemLine;
@@ -1166,18 +1107,14 @@ export default function FlashDraftPage() {
       ctx.font = `10px ${jetbrainsFontRef.current}`;
 
       if (hem.type === 'open') {
-        // Fold-back LENGTH (how far the return leg runs) is a fixed visual
-        // depth — same constant teardrop/smashed use below — independent of
-        // gapIn, which is the perpendicular air-gap width the user actually
-        // controls via the popup's "Gap (in)" field. Reusing gapIn for both
-        // previously made the fold shrink to the gap's own tiny default
-        // (3/16") and disappear entirely under the endpoint's dot.
+        // Fold-back LENGTH (how far the return leg runs) is this hem's own
+        // lengthIn — independent of gapIn, which is the fixed real-world air
+        // gap the glyph itself renders internally (hem-glyph.ts), not a
+        // separate positional offset computed here.
         const foldDir = { x: -u.x, y: -u.y };
-        const foldTip = { x: p.x + foldDir.x * HEM_FOLD_DEPTH_IN, y: p.y + foldDir.y * HEM_FOLD_DEPTH_IN };
-        const offsetTip = { x: foldTip.x + perp.x * hem.gapIn, y: foldTip.y + perp.y * hem.gapIn };
+        const foldTip = { x: p.x + foldDir.x * hem.lengthIn, y: p.y + foldDir.y * hem.lengthIn };
         const sP = worldToScreen(p, canvas);
         const sFoldTip = worldToScreen(foldTip, canvas);
-        const sOffsetTip = worldToScreen(offsetTip, canvas);
         const R = HEM_GLYPH_DISPLAY_R;
 
         // The leg's true vertex to the fold tip is real material — draw it
@@ -1195,11 +1132,11 @@ export default function FlashDraftPage() {
         // here (an earlier version of this fix) was itself the mirroring
         // bug: it pointed the glyph's material side outward instead of
         // back toward the vertex.
-        drawHemGlyphHere(sOffsetTip, angleU, 'open', R);
+        drawHemGlyphHere(sFoldTip, angleU, 'open', R);
         ctx.font = `10px ${jetbrainsFontRef.current}`;
-        ctx.fillText(`OPEN ${formatInches(hem.gapIn)} gap`, sOffsetTip.x + R * 2 + 6, sOffsetTip.y - 6);
+        ctx.fillText(`OPEN ${formatInches(hem.gapIn)} gap`, sFoldTip.x + R * 2 + 6, sFoldTip.y - 6);
       } else if (hem.type === 'teardrop') {
-        const foldTip = { x: p.x + u.x * HEM_FOLD_DEPTH_IN, y: p.y + u.y * HEM_FOLD_DEPTH_IN };
+        const foldTip = { x: p.x + u.x * hem.lengthIn, y: p.y + u.y * hem.lengthIn };
         const sP = worldToScreen(p, canvas);
         const sFoldTip = worldToScreen(foldTip, canvas);
         const R = HEM_GLYPH_DISPLAY_R;
@@ -1215,7 +1152,7 @@ export default function FlashDraftPage() {
         ctx.font = `10px ${jetbrainsFontRef.current}`;
         ctx.fillText('TEARDROP', sFoldTip.x + R * 2 + 6, sFoldTip.y - 6);
       } else {
-        const foldTip = { x: p.x + u.x * HEM_FOLD_DEPTH_IN, y: p.y + u.y * HEM_FOLD_DEPTH_IN };
+        const foldTip = { x: p.x + u.x * hem.lengthIn, y: p.y + u.y * hem.lengthIn };
         const sP = worldToScreen(p, canvas);
         const sFoldTip = worldToScreen(foldTip, canvas);
         const R = HEM_GLYPH_DISPLAY_R;
@@ -1238,81 +1175,6 @@ export default function FlashDraftPage() {
       if (hemEnd) renderHemAt(hemEnd, points.length - 1, points.length - 2);
     }
 
-    // Hems created by click-dragging on any leg (Addition 2) — always
-    // folds back toward that leg's own start point, same convention as
-    // the fixed open-hem direction above.
-    const renderLegHemAt = (hem: LegHem) => {
-      const legA = points[hem.legIndex];
-      const legB = points[hem.legIndex + 1];
-      if (!legA || !legB) return;
-      const legLenIn = dist(legA, legB) || 1;
-      const t = hem.distanceFromStartIn / legLenIn;
-      const p = { x: legA.x + (legB.x - legA.x) * t, y: legA.y + (legB.y - legA.y) * t };
-      const towardStart = { x: (legA.x - legB.x) / legLenIn, y: (legA.y - legB.y) / legLenIn };
-      const perp = { x: -towardStart.y, y: towardStart.x };
-      const angleFold = Math.atan2(towardStart.y, towardStart.x);
-      const foldTip = { x: p.x + towardStart.x * hem.lengthIn, y: p.y + towardStart.y * hem.lengthIn };
-      const sP = worldToScreen(p, canvas);
-      const sFoldTip = worldToScreen(foldTip, canvas);
-
-      ctx.strokeStyle = CANVAS_COLORS.hemLine;
-      ctx.fillStyle = CANVAS_COLORS.hemLine;
-      ctx.font = `10px ${jetbrainsFontRef.current}`;
-
-      if (hem.type === 'open') {
-        const offsetTip = { x: foldTip.x + perp.x * hem.gapIn, y: foldTip.y + perp.y * hem.gapIn };
-        const sOffsetTip = worldToScreen(offsetTip, canvas);
-        const R = HEM_GLYPH_DISPLAY_R;
-
-        // The leg's true vertex to the fold tip is real material — draw it
-        // regardless of hem type before the glyph itself.
-        ctx.strokeStyle = CANVAS_COLORS.hemLine;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(sP.x, sP.y);
-        ctx.lineTo(sFoldTip.x, sFoldTip.y);
-        ctx.stroke();
-
-        // angleFold is towardStart's own angle — the fold's backward
-        // (material) direction, i.e. the OPPOSITE of this leg's outward
-        // direction. drawHemGlyph's convention wants the outward angle
-        // (matching angleU at the endpoint call sites above), so this and
-        // every other leg-mid call site below add PI to flip it — the same
-        // normalization the endpoint mechanism gets for free from angleU
-        // already pointing outward.
-        drawHemGlyphHere(sOffsetTip, angleFold + Math.PI, 'open', R);
-        ctx.font = `10px ${jetbrainsFontRef.current}`;
-        ctx.fillText(`OPEN ${formatInches(hem.gapIn)} gap`, sOffsetTip.x + R * 2 + 6, sOffsetTip.y - 6);
-      } else if (hem.type === 'teardrop') {
-        const R = HEM_GLYPH_DISPLAY_R;
-
-        ctx.strokeStyle = CANVAS_COLORS.hemLine;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(sP.x, sP.y);
-        ctx.lineTo(sFoldTip.x, sFoldTip.y);
-        ctx.stroke();
-
-        drawHemGlyphHere(sFoldTip, angleFold + Math.PI, 'teardrop', R);
-        ctx.font = `10px ${jetbrainsFontRef.current}`;
-        ctx.fillText('TEARDROP', sFoldTip.x + R * 2 + 6, sFoldTip.y - 6);
-      } else {
-        const R = HEM_GLYPH_DISPLAY_R;
-
-        ctx.strokeStyle = CANVAS_COLORS.hemLine;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(sP.x, sP.y);
-        ctx.lineTo(sFoldTip.x, sFoldTip.y);
-        ctx.stroke();
-
-        drawHemGlyphHere(sFoldTip, angleFold + Math.PI, 'smashed', R);
-        ctx.font = `10px ${jetbrainsFontRef.current}`;
-        ctx.fillText('SMASHED', sFoldTip.x + R * 2 + 6, sFoldTip.y - 6);
-      }
-    };
-
-    legHems.forEach((h) => renderLegHemAt(h));
   }, [
     points,
     selectedSegment,
@@ -1331,8 +1193,6 @@ export default function FlashDraftPage() {
     hemEnd,
     draggingVertexIndex,
     viewMode,
-    legHems,
-    legHemPreview,
   ]);
 
   // --- Debounced profile matching ---
@@ -1357,8 +1217,7 @@ export default function FlashDraftPage() {
         for (let i = 0; i < points.length - 1; i++) {
           blankWidth += dist(points[i], points[i + 1]);
         }
-        blankWidth +=
-          hemAllowanceIn(hemStart, thicknessIn) + hemAllowanceIn(hemEnd, thicknessIn) + sumLegHemAllowanceIn(legHems, thicknessIn);
+        blankWidth += hemAllowanceIn(hemStart, thicknessIn) + hemAllowanceIn(hemEnd, thicknessIn);
         const res = await fetch('/api/studio/match-profile', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1382,7 +1241,7 @@ export default function FlashDraftPage() {
       }
     }, MATCH_DEBOUNCE_MS);
     return () => clearTimeout(handle);
-  }, [points, hemStart, hemEnd, legHems, thicknessIn]);
+  }, [points, hemStart, hemEnd, thicknessIn]);
 
   // --- Debounced 3D-confirmation-modal sync (mirrors the profile-match bend shape, in mm) ---
   useEffect(() => {
@@ -1407,9 +1266,7 @@ export default function FlashDraftPage() {
       for (let i = 0; i < points.length - 1; i++) {
         blankWidth += dist(points[i], points[i + 1]) * MM_PER_INCH;
       }
-      blankWidth +=
-        (hemAllowanceIn(hemStart, thicknessIn) + hemAllowanceIn(hemEnd, thicknessIn) + sumLegHemAllowanceIn(legHems, thicknessIn)) *
-        MM_PER_INCH;
+      blankWidth += (hemAllowanceIn(hemStart, thicknessIn) + hemAllowanceIn(hemEnd, thicknessIn)) * MM_PER_INCH;
       // A single segment (no interior bend point yet) still has a real
       // blank width — represent it as one "bend" with a straight 180° angle
       // so the extrusion renders a flat strip instead of staying empty.
@@ -1420,7 +1277,7 @@ export default function FlashDraftPage() {
       setViewerBlankWidthMm(blankWidth);
     }, VIEWER_DEBOUNCE_MS);
     return () => clearTimeout(handle);
-  }, [points, material, hemStart, hemEnd, legHems, thicknessIn]);
+  }, [points, material, hemStart, hemEnd, thicknessIn]);
 
   // --- Pointer handlers (mouse + touch via the Pointer Events API) ---
   const getPointerPos = (e: React.PointerEvent<HTMLCanvasElement>): Point => {
@@ -1481,10 +1338,8 @@ export default function FlashDraftPage() {
     }
     if (e.button !== 0) return;
 
-    // Reset every time — set below only by the two branches that can
-    // legitimately re-arm as a leg-hem-drag (vertex-hit, near-last-point).
-    // Prevents a stale candidate from a previous gesture leaking in.
-    legHemRearmCandidateRef.current = null;
+    // Reset every time — prevents a stale candidate from a previous
+    // gesture leaking in.
     legBodyDragCandidateRef.current = null;
     legReshapeGrabOffsetRef.current = null;
 
@@ -1496,20 +1351,6 @@ export default function FlashDraftPage() {
       draggingVertexOriginalPoints.current = points;
       hasVertexDraggedRef.current = false;
       vertexDragDownScreenRef.current = screenPos;
-
-      // This vertex is also the END of the preceding leg — if the first
-      // real movement drags backward along THAT leg instead of
-      // repositioning the vertex, handlePointerMove re-arms this gesture
-      // as a leg-hem-drag on it instead. A vertex-drag itself is
-      // omnidirectional (no direction it "expects"), so this only ever
-      // intercepts the one direction — backward along the incoming leg —
-      // that a vertex-drag was never going to mean anyway.
-      const legA = points[vertexHit - 1];
-      const legB = points[vertexHit];
-      const legLenIn = dist(legA, legB);
-      if (legLenIn > 0) {
-        legHemRearmCandidateRef.current = { legIndex: vertexHit - 1, towardStart: unitVector(legB, legA), legLenIn };
-      }
       return;
     }
 
@@ -1545,23 +1386,6 @@ export default function FlashDraftPage() {
       setIsDragDrawing(true);
       setDragPreview({ point: anchor, length: 0, angleDeg: 0 });
       setDragScreenPos(screenPos);
-
-      // The last point is also the END of the final leg (if one exists
-      // yet) — same disambiguation as the vertex-hit branch above: a
-      // first movement dragging backward along that leg re-arms this as
-      // a leg-hem-drag instead of continuing the line. Line-continuation
-      // normally extends AWAY from the last point in a new direction, so
-      // this only intercepts the degenerate "draw backward directly over
-      // the leg you just drew" case, which was never a meaningful way to
-      // continue the profile anyway.
-      if (points.length >= 2) {
-        const legA = points[points.length - 2];
-        const legB = points[points.length - 1];
-        const legLenIn = dist(legA, legB);
-        if (legLenIn > 0) {
-          legHemRearmCandidateRef.current = { legIndex: points.length - 2, towardStart: unitVector(legB, legA), legLenIn };
-        }
-      }
       return;
     }
 
@@ -1571,23 +1395,14 @@ export default function FlashDraftPage() {
       setSelectedBendPoint(null);
       setSegmentLengthInput(`${dist(points[segmentHit], points[segmentHit + 1]).toFixed(3)}"`);
 
-      // Arm a candidate for BOTH possible drag gestures on this leg's
-      // body — which one it becomes is decided once, at the first sign of
-      // real movement, in handlePointerMove (same deferred-decision
-      // pattern as the vertex-hit/last-point re-arm candidates above). A
-      // plain click (no drag) never resolves this candidate, so
-      // click-to-select above is unaffected. hemEligible is false near the
-      // profile's absolute start point (the only endpoint this segment
-      // could touch that isn't already handled by the "near last point"
-      // check above), since that spot is reserved for the existing
-      // double-click hem gesture — a backward drag starting there does
-      // nothing (matches prior behavior), but forward/perpendicular still
-      // reshapes normally.
+      // Arm a candidate for the leg-body reshape drag — resolved once, at
+      // the first sign of real movement, in handlePointerMove (same
+      // deferred-decision pattern the vertex-hit branch uses for its own
+      // drag). A plain click (no drag) never resolves this candidate, so
+      // click-to-select above is unaffected.
       const legA = points[segmentHit];
       const legB = points[segmentHit + 1];
       const legLenIn = dist(legA, legB);
-      const sLegA = worldToScreen(legA, canvas);
-      const nearAbsoluteStart = segmentHit === 0 && Math.hypot(screenPos.x - sLegA.x, screenPos.y - sLegA.y) <= HEM_HIT_RADIUS_PX;
       if (legLenIn > 0) {
         const raw = screenToWorld(screenPos.x, screenPos.y, canvas);
         const t = Math.max(
@@ -1601,7 +1416,6 @@ export default function FlashDraftPage() {
           distanceFromStartIn: t * legLenIn,
           downScreenPos: screenPos,
           towardStart: unitVector(legB, legA),
-          hemEligible: !nearAbsoluteStart,
         };
       }
       return;
@@ -1646,12 +1460,7 @@ export default function FlashDraftPage() {
     // regardless of root cause. Finalizes/cancels via the same shared path
     // a real release would use, so nothing is left half-committed.
     const dragStateArmed =
-      isPanning ||
-      draggingVertexIndex !== null ||
-      legHemDragRef.current !== null ||
-      legBodyDragCandidateRef.current !== null ||
-      legHemRearmCandidateRef.current !== null ||
-      isDragDrawing;
+      isPanning || draggingVertexIndex !== null || legBodyDragCandidateRef.current !== null || isDragDrawing;
     if (e.buttons === 0 && dragStateArmed) {
       handlePointerUp();
       return;
@@ -1670,36 +1479,6 @@ export default function FlashDraftPage() {
         const downPos = vertexDragDownScreenRef.current;
         const movedPx = downPos ? Math.hypot(screenPos.x - downPos.x, screenPos.y - downPos.y) : Infinity;
         if (movedPx < VERTEX_DRAG_THRESHOLD_PX) return; // still just a click, not a drag yet
-
-        // Disambiguate once, right here at the first sign of real
-        // movement: if it points backward along the leg that ends at
-        // this vertex (rather than some other direction), re-arm as a
-        // leg-hem-drag on that leg instead of committing to a
-        // vertex-pivot. Cleared unconditionally so this only ever runs
-        // once per gesture, regardless of which way it resolves.
-        const rearmCandidate = legHemRearmCandidateRef.current;
-        legHemRearmCandidateRef.current = null;
-        if (rearmCandidate && downPos) {
-          const moveVec = { x: screenPos.x - downPos.x, y: screenPos.y - downPos.y };
-          const moveLen = Math.hypot(moveVec.x, moveVec.y) || 1;
-          const dot =
-            (moveVec.x / moveLen) * rearmCandidate.towardStart.x + (moveVec.y / moveLen) * rearmCandidate.towardStart.y;
-          if (dot > LEG_DRAG_BACKWARD_COS_THRESHOLD) {
-            setDraggingVertexIndex(null);
-            draggingVertexOriginalPoints.current = null;
-            hasVertexDraggedRef.current = false;
-            vertexDragDownScreenRef.current = null;
-            setSelectedBendPoint(null);
-            setSelectedSegment(rearmCandidate.legIndex);
-            legHemDragRef.current = {
-              legIndex: rearmCandidate.legIndex,
-              clickPoint: points[rearmCandidate.legIndex + 1],
-              distanceFromStartIn: rearmCandidate.legLenIn,
-            };
-            canvas.style.cursor = 'grabbing';
-            return;
-          }
-        }
 
         hasVertexDraggedRef.current = true;
         canvas.style.cursor = 'grabbing';
@@ -1743,39 +1522,17 @@ export default function FlashDraftPage() {
     if (legBodyDragCandidateRef.current) {
       // A drag that started on a leg's body is ambiguous until now: decide
       // once, at the first sign of real movement, same as the vertex-hit
-      // and last-point candidates above. Backward toward the leg's own
-      // start (within LEG_DRAG_BACKWARD_COS_THRESHOLD's cone) re-arms as a
-      // leg-hem-drag, identical to the existing gesture. Anything else —
-      // forward along the leg, or sideways/perpendicular off it — reshapes
-      // the leg instead, by arming a vertex-drag on its far endpoint and
-      // falling through to the exact same downstream-point-translation
-      // logic the draggingVertexIndex branch above already implements, so
-      // reshaping a leg body behaves identically to dragging its endpoint
-      // directly.
+      // and last-point candidates above. Reshapes the leg by arming a
+      // vertex-drag on its far endpoint and falling through to the exact
+      // same downstream-point-translation logic the draggingVertexIndex
+      // branch above already implements, so reshaping a leg body behaves
+      // identically to dragging its endpoint directly, regardless of drag
+      // direction.
       const candidate = legBodyDragCandidateRef.current;
       const movedPx = Math.hypot(screenPos.x - candidate.downScreenPos.x, screenPos.y - candidate.downScreenPos.y);
       if (movedPx < VERTEX_DRAG_THRESHOLD_PX) return; // still just a click, not a drag yet
 
       legBodyDragCandidateRef.current = null;
-      const moveVec = { x: screenPos.x - candidate.downScreenPos.x, y: screenPos.y - candidate.downScreenPos.y };
-      const moveLen = Math.hypot(moveVec.x, moveVec.y) || 1;
-      const dot = (moveVec.x / moveLen) * candidate.towardStart.x + (moveVec.y / moveLen) * candidate.towardStart.y;
-      const isBackward = dot > LEG_DRAG_BACKWARD_COS_THRESHOLD;
-
-      if (isBackward) {
-        if (candidate.hemEligible) {
-          legHemDragRef.current = {
-            legIndex: candidate.legIndex,
-            clickPoint: candidate.clickPoint,
-            distanceFromStartIn: candidate.distanceFromStartIn,
-          };
-          canvas.style.cursor = 'grabbing';
-        }
-        // Backward near the reserved absolute-start ring: no gesture arms,
-        // matching prior behavior (the segment stays selected from
-        // pointerdown, nothing else happens).
-        return;
-      }
 
       const farVertex = candidate.legIndex + 1;
       const farOriginal = points[farVertex];
@@ -1790,60 +1547,7 @@ export default function FlashDraftPage() {
       return;
     }
 
-    if (legHemDragRef.current) {
-      const { legIndex, clickPoint } = legHemDragRef.current;
-      const legA = points[legIndex];
-      const legB = points[legIndex + 1];
-      const legLenIn = dist(legA, legB) || 1;
-      // Fold direction is always back toward the leg's start point —
-      // never forward past the click, and never past the leg's own
-      // start regardless of how far the cursor is dragged.
-      const towardStart = { x: (legA.x - legB.x) / legLenIn, y: (legA.y - legB.y) / legLenIn };
-      const raw = screenToWorld(screenPos.x, screenPos.y, canvas);
-      const vec = { x: raw.x - clickPoint.x, y: raw.y - clickPoint.y };
-      const projected = vec.x * towardStart.x + vec.y * towardStart.y;
-      const lengthIn = Math.max(0, Math.min(projected, legLenIn));
-      setLegHemPreview({ legIndex, clickPoint, lengthIn });
-      canvas.style.cursor = 'grabbing';
-      return;
-    }
-
     if (isDragDrawing && dragAnchorRef.current) {
-      // Same disambiguation as the vertex-drag branch above: this gesture
-      // may have started near the profile's last point, which is also the
-      // END of the final leg. Decide once, at the first sign of real
-      // movement, whether it's backward-along-that-leg (re-arm as a
-      // leg-hem-drag) or anything else (continue as line-drawing, same as
-      // today). No candidate means this didn't start near a hemmable
-      // endpoint (e.g. the very-first-point gesture) — proceeds exactly
-      // as before, immediately.
-      const rearmCandidate = legHemRearmCandidateRef.current;
-      const rearmDownPos = dragDownScreenRef.current;
-      if (rearmCandidate && rearmDownPos) {
-        const movedPx = Math.hypot(screenPos.x - rearmDownPos.x, screenPos.y - rearmDownPos.y);
-        if (movedPx < VERTEX_DRAG_THRESHOLD_PX) return; // not enough movement yet to know direction
-
-        legHemRearmCandidateRef.current = null;
-        const moveVec = { x: screenPos.x - rearmDownPos.x, y: screenPos.y - rearmDownPos.y };
-        const moveLen = Math.hypot(moveVec.x, moveVec.y) || 1;
-        const dot =
-          (moveVec.x / moveLen) * rearmCandidate.towardStart.x + (moveVec.y / moveLen) * rearmCandidate.towardStart.y;
-        if (dot > LEG_DRAG_BACKWARD_COS_THRESHOLD) {
-          setIsDragDrawing(false);
-          dragAnchorRef.current = null;
-          setDragPreview(null);
-          setDragScreenPos(null);
-          setSelectedSegment(rearmCandidate.legIndex);
-          legHemDragRef.current = {
-            legIndex: rearmCandidate.legIndex,
-            clickPoint: points[rearmCandidate.legIndex + 1],
-            distanceFromStartIn: rearmCandidate.legLenIn,
-          };
-          canvas.style.cursor = 'grabbing';
-          return;
-        }
-      }
-
       const raw = screenToWorld(screenPos.x, screenPos.y, canvas);
       const snapped = applySnapping(dragAnchorRef.current, raw, snapAngle, snapDimension);
       const length = dist(dragAnchorRef.current, snapped);
@@ -1887,7 +1591,6 @@ export default function FlashDraftPage() {
   // mousemove-only gesture never produces one). This was the reported
   // "moving the cursor with no button pressed moves the profile" bug.
   const handlePointerUp = () => {
-    legHemRearmCandidateRef.current = null;
     legBodyDragCandidateRef.current = null;
     legReshapeGrabOffsetRef.current = null;
 
@@ -1899,7 +1602,7 @@ export default function FlashDraftPage() {
     if (draggingVertexIndex !== null) {
       if (hasVertexDraggedRef.current && draggingVertexOriginalPoints.current) {
         const original = draggingVertexOriginalPoints.current;
-        setPast((p) => [...p, { points: original, hemStart, hemEnd, legHems }]);
+        setPast((p) => [...p, { points: original, hemStart, hemEnd }]);
         setFuture([]);
       }
       legReshapeGrabOffsetRef.current = null;
@@ -1907,26 +1610,6 @@ export default function FlashDraftPage() {
       draggingVertexOriginalPoints.current = null;
       hasVertexDraggedRef.current = false;
       vertexDragDownScreenRef.current = null;
-      const canvas = canvasRef.current;
-      if (canvas) canvas.style.cursor = 'crosshair';
-      return;
-    }
-    if (legHemDragRef.current) {
-      const { legIndex, distanceFromStartIn } = legHemDragRef.current;
-      if (legHemPreview && legHemPreview.lengthIn >= LEG_HEM_MIN_DRAG_IN) {
-        setPast((p) => [...p, { points, hemStart, hemEnd, legHems }]);
-        setFuture([]);
-        const newIndex = legHems.length;
-        setLegHems((prev) => [
-          ...prev,
-          { legIndex, distanceFromStartIn, lengthIn: legHemPreview.lengthIn, type: 'open', gapIn: HEM_DEFAULT_GAP_IN },
-        ]);
-        setLegHemGapDraft(String(HEM_DEFAULT_GAP_IN));
-        setHemPopup(null);
-        setLegHemPopup({ legHemIndex: newIndex });
-      }
-      legHemDragRef.current = null;
-      setLegHemPreview(null);
       const canvas = canvasRef.current;
       if (canvas) canvas.style.cursor = 'crosshair';
       return;
@@ -1963,7 +1646,7 @@ export default function FlashDraftPage() {
   });
 
   const handlePointerLeave = () => {
-    if (isDragDrawing || isPanning || draggingVertexIndex !== null || legHemDragRef.current) return;
+    if (isDragDrawing || isPanning || draggingVertexIndex !== null) return;
     setHoveredVertex(null);
     setHoveredSegment(null);
     const canvas = canvasRef.current;
@@ -2012,13 +1695,11 @@ export default function FlashDraftPage() {
     const dStart = Math.hypot(screenPos.x - startHitScreen.x, screenPos.y - startHitScreen.y);
     const dEnd = Math.hypot(screenPos.x - endHitScreen.x, screenPos.y - endHitScreen.y);
     if (dStart <= HEM_HIT_RADIUS_PX && dStart <= dEnd) {
-      setLegHemPopup(null);
       setHemPopup({ endpoint: 'start', screenPos: startScreen });
-      setHemGapDraft(String(hemStart?.gapIn ?? HEM_DEFAULT_GAP_IN));
+      setHemLengthDraft(String(hemStart?.lengthIn ?? HEM_DEFAULT_LENGTH_IN));
     } else if (dEnd <= HEM_HIT_RADIUS_PX) {
-      setLegHemPopup(null);
       setHemPopup({ endpoint: 'end', screenPos: endScreen });
-      setHemGapDraft(String(hemEnd?.gapIn ?? HEM_DEFAULT_GAP_IN));
+      setHemLengthDraft(String(hemEnd?.lengthIn ?? HEM_DEFAULT_LENGTH_IN));
     }
   };
 
@@ -2123,7 +1804,7 @@ export default function FlashDraftPage() {
       if (!confirmed) return;
     }
     const worldPoints = templatePointsToWorld(template.points);
-    setPast((p) => [...p, { points, hemStart, hemEnd, legHems }]);
+    setPast((p) => [...p, { points, hemStart, hemEnd }]);
     setFuture([]);
     setPoints(worldPoints);
     setSelectedSegment(null);
@@ -2153,8 +1834,6 @@ export default function FlashDraftPage() {
     setTopMatchDiagramBends(null);
     setHemStart(null);
     setHemEnd(null);
-    setLegHems([]);
-    setLegHemPopup(null);
     setProfileName('Untitled Profile');
     setRevision(1);
     setSavedProfileId(null);
@@ -2208,7 +1887,6 @@ export default function FlashDraftPage() {
           points,
           hemStart,
           hemEnd,
-          legHems,
           categoryId: values.categoryId,
           subcategory: values.subcategory,
           revision: nextRevision,
@@ -2241,31 +1919,35 @@ export default function FlashDraftPage() {
   // Snapshots the CURRENT state (before a hem mutation about to happen) onto
   // the undo stack and clears redo — the same "push before you change"
   // pattern commitPoints uses for points-only actions, applied here so hem
-  // creation/type-change/removal is undoable too. NOT called from the Gap
-  // (in) number inputs (setOpenHemGap/setLegHemOpenGap fire on every
-  // keystroke) — that would flood undo with one entry per digit typed,
+  // creation/type-change/removal is undoable too. NOT called from the Hem
+  // Length (in) number input (setHemLength fires on every keystroke) —
+  // that would flood undo with one entry per digit typed,
   // same reason bend-radius adjustment isn't undo-tracked either; only the
   // discrete type-select/remove actions below push a history entry.
   const pushHistorySnapshot = () => {
-    setPast((p) => [...p, { points, hemStart, hemEnd, legHems }]);
+    setPast((p) => [...p, { points, hemStart, hemEnd }]);
     setFuture([]);
   };
 
   const applyHem = (type: HemType) => {
     if (!hemPopup) return;
     pushHistorySnapshot();
-    const gapIn = type === 'open' ? Number(hemGapDraft) || HEM_DEFAULT_GAP_IN : type === 'teardrop' ? thicknessIn / 2 : 0;
-    const hem: Hem = { type, gapIn };
+    const current = hemPopup.endpoint === 'start' ? hemStart : hemEnd;
+    const gapIn = type === 'open' ? HEM_DEFAULT_GAP_IN : type === 'teardrop' ? thicknessIn / 2 : 0;
+    const lengthIn = current?.lengthIn ?? (Number(hemLengthDraft) || HEM_DEFAULT_LENGTH_IN);
+    const hem: Hem = { type, gapIn, lengthIn };
     if (hemPopup.endpoint === 'start') setHemStart(hem);
     else setHemEnd(hem);
     if (type !== 'open') setHemPopup(null);
   };
 
-  const setOpenHemGap = (val: string) => {
-    setHemGapDraft(val);
+  const setHemLength = (val: string) => {
+    setHemLengthDraft(val);
     const n = Number(val);
     if (!Number.isFinite(n) || n < 0 || !hemPopup) return;
-    const hem: Hem = { type: 'open', gapIn: n };
+    const current = hemPopup.endpoint === 'start' ? hemStart : hemEnd;
+    if (!current) return;
+    const hem: Hem = { ...current, lengthIn: n };
     if (hemPopup.endpoint === 'start') setHemStart(hem);
     else setHemEnd(hem);
   };
@@ -2278,42 +1960,12 @@ export default function FlashDraftPage() {
     setHemPopup(null);
   };
 
-  // --- Popup handlers for hems created by click-dragging on a leg
-  // (mirror applyHem/setOpenHemGap/removeHem above, operating on the
-  // legHems array instead of hemStart/hemEnd) ---
-  const applyLegHemType = (type: HemType) => {
-    if (!legHemPopup) return;
-    pushHistorySnapshot();
-    const idx = legHemPopup.legHemIndex;
-    const gapIn = type === 'open' ? Number(legHemGapDraft) || HEM_DEFAULT_GAP_IN : type === 'teardrop' ? thicknessIn / 2 : 0;
-    setLegHems((prev) => prev.map((h, i) => (i === idx ? { ...h, type, gapIn } : h)));
-    if (type !== 'open') setLegHemPopup(null);
-  };
-
-  const setLegHemOpenGap = (val: string) => {
-    setLegHemGapDraft(val);
-    const n = Number(val);
-    if (!Number.isFinite(n) || n < 0 || !legHemPopup) return;
-    const idx = legHemPopup.legHemIndex;
-    setLegHems((prev) => prev.map((h, i) => (i === idx ? { ...h, type: 'open', gapIn: n } : h)));
-  };
-
-  const removeLegHem = () => {
-    if (!legHemPopup) return;
-    pushHistorySnapshot();
-    const idx = legHemPopup.legHemIndex;
-    setLegHems((prev) => prev.filter((_, i) => i !== idx));
-    setLegHemPopup(null);
-  };
-
   const clearCanvas = () => {
     commitPoints([]);
     setMatches([]);
     setTopMatchDiagramBends(null);
     setHemStart(null);
     setHemEnd(null);
-    setLegHems([]);
-    setLegHemPopup(null);
   };
 
   const openLibrary = async () => {
@@ -2374,7 +2026,7 @@ export default function FlashDraftPage() {
 
   const loadSavedProfile = (profile: SavedQuoteProfile) => {
     if (!profile.points) return;
-    setPast((p) => [...p, { points, hemStart, hemEnd, legHems }]);
+    setPast((p) => [...p, { points, hemStart, hemEnd }]);
     setFuture([]);
     setPoints(profile.points);
     setSelectedSegment(null);
@@ -2417,7 +2069,7 @@ export default function FlashDraftPage() {
       }))
     );
 
-    setPast((p) => [...p, { points, hemStart, hemEnd, legHems }]);
+    setPast((p) => [...p, { points, hemStart, hemEnd }]);
     setFuture([]);
     setPoints(reconstructed);
     setSelectedSegment(null);
@@ -2444,7 +2096,7 @@ export default function FlashDraftPage() {
       return;
     }
     if (!canonicalPoints) return;
-    setPast((p) => [...p, { points, hemStart, hemEnd, legHems }]);
+    setPast((p) => [...p, { points, hemStart, hemEnd }]);
     setFuture([]);
     setPoints(canonicalPoints);
     setSelectedSegment(null);
@@ -2470,7 +2122,7 @@ export default function FlashDraftPage() {
     try {
       window.localStorage.setItem(
         'afs-flashdraft-draft',
-        JSON.stringify({ points, material, gauge, lengthFeet, lengthInches, quantity, notes, hemStart, hemEnd, legHems })
+        JSON.stringify({ points, material, gauge, lengthFeet, lengthInches, quantity, notes, hemStart, hemEnd })
       );
       setDraftSavedNotice(true);
       setTimeout(() => setDraftSavedNotice(false), 2500);
@@ -2492,13 +2144,8 @@ export default function FlashDraftPage() {
       radii.push(`${getEffectiveRadius(i).toFixed(4).replace(/0+$/, '').replace(/\.$/, '')}"`);
     }
     const hemParts: string[] = [];
-    if (hemStart) hemParts.push(`start ${hemStart.type} (${hemStart.gapIn.toFixed(3)}" gap)`);
-    if (hemEnd) hemParts.push(`end ${hemEnd.type} (${hemEnd.gapIn.toFixed(3)}" gap)`);
-    legHems.forEach((h) => {
-      hemParts.push(
-        `leg ${h.legIndex + 1} at ${h.distanceFromStartIn.toFixed(3)}" ${h.type} (${h.lengthIn.toFixed(3)}" fold, ${h.gapIn.toFixed(3)}" gap)`
-      );
-    });
+    if (hemStart) hemParts.push(`start ${hemStart.type} (${hemStart.lengthIn.toFixed(3)}" fold, ${hemStart.gapIn.toFixed(3)}" gap)`);
+    if (hemEnd) hemParts.push(`end ${hemEnd.type} (${hemEnd.lengthIn.toFixed(3)}" fold, ${hemEnd.gapIn.toFixed(3)}" gap)`);
     return `FlashDraft profile — legs: ${segments.join(' / ')}${angles.length ? `; bend angles: ${angles.join(' / ')}` : ''}${radii.length ? `; bend radii: ${radii.join(' / ')}` : ''}${hemParts.length ? `; hems: ${hemParts.join(', ')}` : ''}`;
   };
 
@@ -2537,17 +2184,8 @@ export default function FlashDraftPage() {
                 unit: 'LF',
                 points,
                 bendRadiiIn,
-                hemStart: hemStart ? { type: hemStart.type, gapIn: hemStart.gapIn } : undefined,
-                hemEnd: hemEnd ? { type: hemEnd.type, gapIn: hemEnd.gapIn } : undefined,
-                legHems: legHems.length
-                  ? legHems.map((h) => ({
-                      legIndex: h.legIndex,
-                      distanceFromStartIn: h.distanceFromStartIn,
-                      lengthIn: h.lengthIn,
-                      type: h.type,
-                      gapIn: h.gapIn,
-                    }))
-                  : undefined,
+                hemStart: hemStart ? { type: hemStart.type, gapIn: hemStart.gapIn, lengthIn: hemStart.lengthIn } : undefined,
+                hemEnd: hemEnd ? { type: hemEnd.type, gapIn: hemEnd.gapIn, lengthIn: hemEnd.lengthIn } : undefined,
                 paint_face: paintFace ?? undefined,
               },
             ],
@@ -2570,7 +2208,7 @@ export default function FlashDraftPage() {
         setSubmitState('idle');
       }
     },
-    [points, material, gauge, lengthFtDecimal, quantity, notes, rush, getEffectiveRadius, hemStart, hemEnd, legHems]
+    [points, material, gauge, lengthFtDecimal, quantity, notes, rush, getEffectiveRadius, hemStart, hemEnd]
   );
 
   const openSubmitFlow = () => {
@@ -2620,9 +2258,9 @@ export default function FlashDraftPage() {
   // the debounced match/viewer effects) so they read as genuinely "live".
   let blankWidthInLive = 0;
   for (let i = 0; i < points.length - 1; i++) blankWidthInLive += dist(points[i], points[i + 1]);
-  blankWidthInLive += hemAllowanceIn(hemStart, thicknessIn) + hemAllowanceIn(hemEnd, thicknessIn) + sumLegHemAllowanceIn(legHems, thicknessIn);
+  blankWidthInLive += hemAllowanceIn(hemStart, thicknessIn) + hemAllowanceIn(hemEnd, thicknessIn);
   const bendCountLive = Math.max(0, points.length - 2);
-  const hemCountLive = (hemStart ? 1 : 0) + (hemEnd ? 1 : 0) + legHems.length;
+  const hemCountLive = (hemStart ? 1 : 0) + (hemEnd ? 1 : 0);
 
   // Part 6 — split-screen match panel + its "View in 3D" target geometry.
   const showSplit = !splitDismissed && matches.length > 0 && matches[0].score >= MATCH_SPLIT_THRESHOLD;
@@ -2710,8 +2348,8 @@ export default function FlashDraftPage() {
             ))}
           </div>
         </div>
-        <p className="font-body text-[10px] text-afs-chrome-dim mt-1 hidden md:block" title="Click empty space to draw · click a segment or bend to select it · double-click an endpoint for a hem · drag back on any leg for a hem there">
-          Click empty space to draw · click a segment or bend to select it · double-click an endpoint for a hem · drag back on any leg for a hem there
+        <p className="font-body text-[10px] text-afs-chrome-dim mt-1 hidden md:block" title="Click empty space to draw · click a segment or bend to select it · double-click an endpoint for a hem">
+          Click empty space to draw · click a segment or bend to select it · double-click an endpoint for a hem
         </p>
       </div>
 
@@ -3195,15 +2833,15 @@ export default function FlashDraftPage() {
                       );
                     })}
                   </div>
-                  {(hemPopup.endpoint === 'start' ? hemStart : hemEnd)?.type === 'open' && (
+                  {(hemPopup.endpoint === 'start' ? hemStart : hemEnd) && (
                     <div className="flex items-center gap-2">
-                      <label className="font-label text-[10px] text-afs-chrome-mid">Gap (in)</label>
+                      <label className="font-label text-[10px] text-afs-chrome-mid">Hem Length (in)</label>
                       <input
                         type="number"
                         step="0.0625"
                         min="0"
-                        value={hemGapDraft}
-                        onChange={(e) => setOpenHemGap(e.target.value)}
+                        value={hemLengthDraft}
+                        onChange={(e) => setHemLength(e.target.value)}
                         className="w-16 bg-afs-bg-overlay border border-afs-border rounded px-1.5 py-1 font-data text-xs text-afs-chrome-high"
                       />
                     </div>
@@ -3226,65 +2864,6 @@ export default function FlashDraftPage() {
               </>
             )}
 
-            {legHemPopup && legHems[legHemPopup.legHemIndex] && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setLegHemPopup(null)} />
-                <div
-                  className="absolute z-50 bg-afs-bg-raised border border-afs-chrome-dim rounded shadow-raised p-3 flex flex-col gap-2"
-                  style={{ top: 16, right: 16, minWidth: 190 }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <p className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid">Hem Type</p>
-                  <div className="grid grid-cols-3 gap-1">
-                    {(['open', 'smashed', 'teardrop'] as HemType[]).map((t) => {
-                      const active = legHems[legHemPopup.legHemIndex]?.type === t;
-                      return (
-                        <button
-                          key={t}
-                          type="button"
-                          onClick={() => applyLegHemType(t)}
-                          className={`font-label text-[10px] px-1.5 py-1.5 rounded border capitalize transition-colors flex flex-col items-center gap-1 ${
-                            active
-                              ? 'bg-afs-crimson text-white border-afs-crimson'
-                              : 'bg-afs-bg-overlay text-white border-afs-border hover:bg-afs-bg-surface'
-                          }`}
-                        >
-                          <span className="block" style={{ width: HEM_ICON_SIZE, height: HEM_ICON_SIZE }}>
-                            <HemGlyphIcon type={t} />
-                          </span>
-                          {t}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {legHems[legHemPopup.legHemIndex]?.type === 'open' && (
-                    <div className="flex items-center gap-2">
-                      <label className="font-label text-[10px] text-afs-chrome-mid">Gap (in)</label>
-                      <input
-                        type="number"
-                        step="0.0625"
-                        min="0"
-                        value={legHemGapDraft}
-                        onChange={(e) => setLegHemOpenGap(e.target.value)}
-                        className="w-16 bg-afs-bg-overlay border border-afs-border rounded px-1.5 py-1 font-data text-xs text-afs-chrome-high"
-                      />
-                    </div>
-                  )}
-                  <div className="flex items-center gap-3 pt-1">
-                    <button type="button" onClick={removeLegHem} className="font-label text-[10px] text-afs-crimson hover:underline">
-                      Remove
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setLegHemPopup(null)}
-                      className="font-label text-[10px] text-afs-chrome-mid hover:text-white ml-auto"
-                    >
-                      Close
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
                 </>
               )}
 

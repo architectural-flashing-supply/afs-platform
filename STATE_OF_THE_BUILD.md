@@ -129,9 +129,131 @@ cursor appears on leg-body hover on the live canvas.
 
 ---
 
-## FLASHDRAFT — HEM GEOMETRY: UNRESOLVED
+## FLASHDRAFT — HEM SYSTEM: GAP REMOVED, MID-LEG HEMS DELETED, TEARDROP RETIGHTENED: IMPLEMENTED, UNCONFIRMED
 
 **Status: IMPLEMENTED, UNCONFIRMED. Do not mark this complete.**
+
+`c-pending` (2026-08-14, uncommitted at time of writing this entry) —
+single coordinated pass across `lib/types/profile.ts`,
+`app/studio/draft/page.tsx`, and `lib/flashdraft/hem-glyph.ts`. Rewritten
+here rather than appended to, per this prompt's own instruction — the
+change is large enough that the prior incremental history below (the
+`7de79db` → `e9b5060` chain) is kept for archaeology but no longer
+describes current behavior in several places (gap value, glyph size,
+teardrop proportions, and the entire mid-leg hem feature it references
+are all superseded).
+
+**Gap is no longer user-editable.** `HEM_DEFAULT_GAP_IN` (real-world
+constant, confirmed by Reid from shop practice) changed `0.1875` (3/16")
+→ `0.125` (1/8"). The popup's "Gap (in)" field is gone entirely — for
+both `hemPopup` (Hem, profile endpoints) and the now-deleted
+`legHemPopup` (see below). `Hem` gained its own `lengthIn: number` field
+(default `0.5"`, `HEM_DEFAULT_LENGTH_IN` in `lib/types/profile.ts`) —
+each hem's fold-back length is independently editable via a new "Hem
+Length (in)" field occupying the same popup slot the Gap field used to.
+`hemAllowanceIn` now reads each hem's own `lengthIn` instead of the
+single global `HEM_FOLD_DEPTH_IN` constant (deleted).
+
+**Positioning fix.** `renderHemAt`'s `foldTip` now computes from the
+hem's own `lengthIn` instead of the deleted global constant. The
+perpendicular gap-offset positioning (`offsetTip`/`sOffsetTip`, plus the
+`perp` vector that fed it) is gone — `drawHemGlyphHere` is called
+directly at `sFoldTip`, matching how teardrop/smashed already worked;
+the glyph's own internal air-gap rendering (already correct, inside
+`hem-glyph.ts`) is what shows the gap now, not a separate positional
+offset in `page.tsx`.
+
+**Vertex dot suppressed at hemmed endpoints.** The `points.forEach`
+vertex-dot draw loop skips the fill when `i === 0 && hemStart` or
+`i === points.length - 1 && hemEnd` — the hem glyph itself is the visual
+marker there now, so the plain dot no longer duplicates/clutters it.
+
+**Mid-leg hems: DELETED entirely** (supersedes the "NOT DONE" entry that
+used to follow this one — confirmed geometrically impossible to
+fabricate, per Reid). Removed from `lib/types/profile.ts`: the `LegHem`
+interface, `legHemAllowanceIn`, `sumLegHemAllowanceIn`. Removed from
+`app/studio/draft/page.tsx`: `legHems` state and every setter,
+`legHemPreview`, `legHemDragRef`, `legHemPopup` and its full popup UI
+block, `legHemRearmCandidateRef`, `renderLegHemAt`, the
+`LEG_DRAG_BACKWARD_COS_THRESHOLD`/`LEG_HEM_MIN_DRAG_IN` constants, the
+"drag back on any leg for a hem there" UI hint text, and the entire
+backward-drag disambiguation system in `handlePointerDown`/
+`handlePointerMove`/`handlePointerUp` that decided whether a drag on a
+leg's body or a vertex became a hem-creation gesture or a reshape.
+Ordinary leg-body reshape (drag a leg's body to move its far endpoint)
+and direct vertex-drag continue to work — verified below — now applying
+uniformly regardless of drag direction, since there's no more hem
+gesture for "backward" to mean. Grep-confirmed zero remaining
+`LegHem`/`legHem`/`renderLegHemAt` references anywhere in `app/`, `lib/`,
+`components/` (one explanatory comment in `profile.ts` describes the
+removal without using the type name).
+
+**Teardrop tightened further.** `e9b5060`'s `d = R*0.42, r = R*0.36`
+(still described there as "a first pass ... not yet confirmed") changed
+to `d = R*0.3, r = R*0.22` — same non-self-intersecting tangent-circle
+construction (`d > r` still holds), only the two ratios changed, per
+Reid's real reference photos showing a tight rolled curl rather than a
+circle.
+
+**Glyph display size.** `HEM_GLYPH_DISPLAY_R` (`app/studio/draft/page.tsx`)
+`22` → `12`.
+
+**Leg-shrink bug ("leg 1 lengthens but won't shorten") — investigated,
+root cause found, already fixed as a side effect of the mid-leg-hem
+deletion above, no separate code change needed.** Reid reported the
+first leg could lengthen but not shorten via drag, while every
+subsequent leg worked normally. Root-caused by tracing the pre-existing
+`legHemRearmCandidateRef` mechanism (now deleted, see above): in the old
+`handlePointerDown`'s `vertexHit !== null` branch, dragging ANY interior
+bend point armed a rearm-candidate unconditionally — no exception for
+distance from the profile start — so a first real movement pointing
+"backward" along the incoming leg (Math.cos check against
+`LEG_DRAG_BACKWARD_COS_THRESHOLD`) redirected the gesture into
+hem-creation instead of the vertex-reshape the user intended, which is
+exactly what "won't shorten" looks like from the outside (dragging
+backward — the natural shrink direction — silently did something else).
+The leg-body-drag variant of the same mechanism had a narrow exception
+(`hemEligible = !nearAbsoluteStart`, only within ~22px of the profile's
+absolute start point) that doesn't fully explain the reported
+leg-index-specific asymmetry, but is moot now regardless: the entire
+interception system is gone. Verified via a Playwright script (the
+Chrome DevTools extension used earlier in this session proved
+unreliable for this precise a multi-step interaction — screenshot/click
+coordinate-space mismatches and page-scroll drift repeatedly caused
+false negatives, documented in the session transcript, not in code) —
+drew a 3-leg profile (20"/15"/20"), shrank leg 0 via leg-body drag
+(55"→50"), shrank leg 1 via leg-body drag on a fresh profile (55"→50"),
+shrank leg 0 via direct vertex-drag (55"→50"), shrank leg 1 via direct
+vertex-drag (55"→50", separate profile), and repeated the leg-0
+lengthen-then-shrink sequence with the default Snap-to-15°/Snap-to-1/8"
+settings ON (55"→60"→50"). All five reproduced correctly and
+symmetrically — no leg-index asymmetry found in the current code.
+
+Required gates for this pass: `pnpm tsc --noEmit` — 0 errors. `pnpm run
+build` — succeeded (full route table, `/studio/draft` included,
+`.next/BUILD_ID` confirmed present after the run — an earlier attempt in
+this same session reported success with a truncated log and no
+`BUILD_ID`, traced to a stray duplicate build process killed mid-run;
+the run reported here was isolated and verified for real). Screenshots
+checked in at repo root: `hem-audit-2026-08-14-open-popup.png` (Hem
+Length field visible, no Gap field), `hem-audit-2026-08-14-endpoint-zoom.png`
+(no vertex dot at the hemmed start endpoint), `hem-audit-2026-08-14-teardrop.png`
+and `-teardrop-closeup.png` (tightened curl), `hem-audit-2026-08-14-full-canvas.png`.
+Captured via the same Playwright approach as the leg-shrink verification
+above, against a real `pnpm dev` server — not the debug page.
+
+---
+
+<details>
+<summary>Prior incremental history (2026-08-06 through 2026-08-13) — superseded in several particulars by the pass above, kept for archaeology</summary>
+
+`e9b5060` is the most recent commit (prior to the pass above) touching
+hem rendering, and is now itself superseded on gap value, glyph size,
+and teardrop proportions. What none of the passes below ever achieved is
+user-confirmation — every one was reported "verified live" by the
+session that made it, and every one of those self-reports has so far
+been insufficient. Treat hem geometry as **open** until Reid confirms
+against the real rendered canvas.
 
 Multiple passes have gone into `drawHemGlyph()` (now `lib/flashdraft/hem-glyph.ts`,
 called from both the live canvas and the popup selector icons in
@@ -259,38 +381,13 @@ called from both the live canvas and the popup selector icons in
   described, not yet confirmed against what he had in mind — flag it as
   likely needing one more adjustment once seen live, not as final.
 
-`e9b5060` is the most recent commit touching hem rendering. What it is
-**not** is user-confirmed: every one of the passes above — including this
-one — was reported "verified live" by the session that made it (via
-Playwright screenshots, DPR-simulated browser checks, live-canvas
-screenshots, or byte-identical-screenshot comparisons), and every one of
-those self-reports has so far been insufficient — the actual PathfinderEdge
-hem shapes (Open/Smashed/Teardrop) have not yet been confirmed correct by
-the user looking at the real rendered canvas against real reference
-evidence. Treat hem geometry as **open** until that confirmation happens.
+The teardrop tightness (`d = 0.42R`, `r = 0.36R`) noted above was itself
+superseded by the 2026-08-14 pass at the top of this section
+(`d = 0.3R`, `r = 0.22R`), and mid-leg hems (referenced throughout this
+history as "leg-mid hems") were deleted entirely by that same pass — see
+above, not "not started."
 
----
-
-## FLASHDRAFT — MID-LEG HEM REMOVAL: NOT DONE
-
-**Status: NOT STARTED.**
-
-The fabrication-impossibility fix — removing the leg-mid drag-back hem
-gesture entirely and keeping only endpoint double-click hems, because a
-hem folded mid-leg (not at an endpoint) cannot actually be fabricated — has
-**not** been implemented. Searched `git log --all` for any commit matching
-this change; none exists. Directly confirmed in the current
-`app/studio/draft/page.tsx` (as of `abb5da8`, the tip of `main`):
-
-- `LEG_HEM_MIN_DRAG_IN` (line 174) — minimum drag-back distance to create a
-  hem on a leg — still defined and still used.
-- `legHemPreview` (referenced at line 1958 and elsewhere) — the drag-back
-  preview state — still present.
-- `angleFold` (lines 1277+) — the leg-mid hem-fold angle calculation — still
-  present, still called at multiple `drawHemGlyphHere` sites.
-
-The leg-mid gesture is fully intact in the shipped code. This is still
-pending, not partially done.
+</details>
 
 ---
 
@@ -516,11 +613,12 @@ When migrating DNS to the live domain, these must be updated BEFORE go-live:
 
 ## NEXT ACTION
 
-1. Get the user's own confirmation on FlashDraft hem geometry against real
+1. Get the user's own confirmation on the FlashDraft hem system (geometry,
+   Gap→Hem Length, mid-leg removal, leg-shrink fix) against real
    PathfinderEdge reference evidence — do not mark it complete until that
    happens, regardless of how many rendering passes have been made.
-2. Mid-leg hem removal — implement removing the leg-mid drag-back gesture,
-   keeping only endpoint double-click hems.
+2. ~~Mid-leg hem removal~~ — done 2026-08-14, see the consolidated
+   FlashDraft hem-system entry above.
 3. FlashDraft template rebuild (Pass 1–4) — not started, needs scoping into
    actual FORGE prompts against the locked 20-item list + PAC-CLAD picker.
 4. Canvas/sidebar UI changes — not started.
