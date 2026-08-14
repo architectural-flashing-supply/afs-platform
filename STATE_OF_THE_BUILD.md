@@ -129,6 +129,114 @@ cursor appears on leg-body hover on the live canvas.
 
 ---
 
+## FLASHDRAFT — HEM LENGTH NOW SCALES THE GLYPH, GAP RETURNS AS EDITABLE, KICK DIRECTION ADDED: IMPLEMENTED, UNCONFIRMED
+
+**Status: IMPLEMENTED, UNCONFIRMED. Do not mark this complete.**
+
+`c-pending` (2026-08-14, uncommitted at time of writing this entry, same
+day as the "GAP REMOVED..." pass immediately below and later in the
+session — Reid reversed the "Gap is a fixed constant" decision from that
+same earlier pass) — single coordinated pass across
+`lib/types/profile.ts` and `app/studio/draft/page.tsx`.
+`lib/flashdraft/hem-glyph.ts`'s internal shape math
+(`drawHookGlyph`/teardrop tangent-circle construction) was explicitly
+out of scope and was not touched.
+
+**Root cause fix: Hem Length now scales the glyph itself, not just its
+position.** `foldTip` was already correctly computed from `hem.lengthIn`
+in all three `renderHemAt` branches — the straight leg-to-fold connecting
+line always grew correctly. The bug was downstream: `drawHemGlyphHere`
+was called with a FIXED screen-pixel radius
+(`HEM_GLYPH_DISPLAY_R = 12`, unrelated to `lengthIn`) at that `foldTip`
+point, so increasing Hem Length only pushed the fixed-size icon further
+away along a longer line — the fold shape itself never grew, reading as
+"extending the leg" rather than a bigger hem. `HEM_GLYPH_DISPLAY_R` is
+deleted; every `renderHemAt` call site now computes
+`R = Math.max(MIN_READABLE_R, hem.lengthIn * PIXELS_PER_INCH * zoom * HEM_GLYPH_LENGTH_SCALE)` —
+a real screen-pixel radius derived from the hem's actual inch length,
+zoom-aware. `MIN_READABLE_R = 10` (px floor, so a very short hem never
+collapses to an illegible dot) and `HEM_GLYPH_LENGTH_SCALE = 1.0` (a
+tuning multiplier on top of the literal inch-to-pixel mapping) are both
+new constants, both first-pass values — **not yet confirmed as the right
+tuning by Reid.** Note this floor means the size difference between a
+short and a long hem reads as subtle at low canvas zoom (both can sit
+near the 10px floor) but is unambiguous once zoomed in — see the
+screenshots below, captured at zoom levels where the growth is clearly
+visible. The popup icon glyphs (`HEM_ICON_GLYPH_R`, a fixed-size UI
+element showing hem TYPE, not real dimension) were explicitly excluded
+from this change, per this prompt's scope.
+
+**Gap returns as a real per-hem editable field** (Reid reversed the
+"Gap is a fixed shop constant" decision from earlier the same session —
+see the pass immediately below). `HEM_DEFAULT_GAP_IN` `0.125` (1/8") →
+`0.0625` (1/16") — still only a default for a newly-created hem; each
+hem's own `gapIn` remains independently editable. The popup's "Gap (in)"
+field is back, in the same slot/pattern as "Hem Length (in)", reusing
+the pre-removal `hemGapDraft`/`setHemGapDraft` state naming (found via
+`git show` on the removal commit) with a generalized `setHemGap` handler
+(the old `setOpenHemGap` was gated to the `open` type only; the field is
+now shown — and gapIn preserved across type switches, matching how
+`lengthIn` already behaved — for all three hem types, per this prompt's
+explicit instruction to place it in the same always-visible block as
+Hem Length).
+
+**New `kick: 'inward' | 'outward'` field on `Hem`** (`lib/types/profile.ts`,
+default `'outward'`, matching prior visual behavior so existing/default
+hems are unaffected). A new Kick toggle (Outward/Inward) sits in the hem
+popup below Gap. `'inward'` flips both the direction vector driving
+`foldTip` and the glyph's own rotation angle together (a `kickSign =
+-1` multiplier on the fold direction, plus `+ Math.PI` on the angle
+passed to `drawHemGlyphHere`) — a first-pass mirror implementation, since
+`drawHemGlyph` only accepts a rotation angle, not a true
+perpendicular-mirror parameter, and hem-glyph.ts's internals were out of
+scope to change. **This specifically needs Reid's live visual
+confirmation that the mirror reads as "folds to the physically opposite
+side" — not just that it visibly changes.**
+
+`pnpm tsc --noEmit` — 0 errors. `pnpm run build` — succeeded. Screenshots
+checked in at repo root: `hem-audit-2026-08-14-length-scale-small.png`
+(0.5" default length, zoomed in) and `-length-scale-large.png` (same
+hem, length changed to 2" — visibly larger fold shape, not just a longer
+connector line) demonstrate the root-cause fix;
+`-popup-length-gap-kick.png` shows Hem Length, Gap, and the Kick toggle
+together in the popup; `-kick-outward.png` and `-kick-inward.png` are the
+same start-endpoint hem before/after toggling Kick, for Reid to judge the
+mirror direction; `-both-hems-full-canvas.jpg` shows a full profile with
+one endpoint kicked inward and the other outward. Captured via direct
+`PointerEvent`/`MouseEvent` dispatch against a real `pnpm dev` server (not
+the debug page) — the Chrome DevTools extension's click/screenshot
+coordinate-space mapping proved unreliable for multi-step canvas
+interaction in this session (consistent with the same tooling caveat
+noted in the 2026-08-14 entry below and in SESSION_STATE.md), so this
+session drove the canvas via `element.dispatchEvent(new PointerEvent(...))`
+in the page's own JS context instead, using the canvas's own
+`getBoundingClientRect()` for coordinates.
+
+Per the verification standard, this stays **IMPLEMENTED, UNCONFIRMED**
+pending Reid's own check — do not mark DONE. Two things flagged
+specifically as first-pass and likely needing adjustment once seen live:
+the inward-kick mirror direction, and `HEM_GLYPH_LENGTH_SCALE`'s default
+value of `1.0`.
+
+---
+
+## FLASHDRAFT — 3D VIEW DOES NOT RENDER HEMS: NOT STARTED
+
+**Status: NOT STARTED. Newly identified, not a regression from this
+session's work.**
+
+`ProfileViewer3D` (`components/studio/ProfileViewer3D.tsx`) has no
+hem-related props at all — confirmed by direct inspection of its prop
+interface. The 3D view renders the extruded profile body but never
+draws hem folds, so a profile with hems set in the 2D draft canvas shows
+no hems at all when switched to 3D. This needs real scoping as its own
+task (prop plumbing from `hemStart`/`hemEnd` through to a 3D
+representation of the fold, decisions about how to represent `kick` and
+`lengthIn` in three dimensions) — not a quick prop pass-through, and out
+of scope for this pass per its own instructions.
+
+---
+
 ## FLASHDRAFT — HEM SYSTEM: GAP REMOVED, MID-LEG HEMS DELETED, TEARDROP RETIGHTENED: IMPLEMENTED, UNCONFIRMED
 
 **Status: IMPLEMENTED, UNCONFIRMED. Do not mark this complete.**
@@ -545,11 +653,14 @@ Design Studio (beyond the original 9-phase queue):
   PathfinderEdge integration:          BLOCKED — see PATHFINDEREDGE
                                         MACHINE INTEGRATION above.
   FlashDraft + Design Studio UI:       Core two-panel canvas tool BUILT.
-                                        Hem geometry UNRESOLVED, mid-leg
-                                        removal NOT STARTED, template
-                                        rebuild NOT STARTED, canvas/sidebar
-                                        UI changes NOT STARTED — see the
-                                        dedicated FlashDraft sections above.
+                                        Hem geometry UNRESOLVED (2D canvas
+                                        implemented, UNCONFIRMED by Reid;
+                                        3D view renders no hems at all —
+                                        NOT STARTED), mid-leg hems DELETED,
+                                        template rebuild NOT STARTED,
+                                        canvas/sidebar UI changes NOT
+                                        STARTED — see the dedicated
+                                        FlashDraft sections above.
 
 Machine Bridge + Command Center:       afs-machine-bridge (separate repo)
                                         last audited 2026-07-13: running on
@@ -572,21 +683,25 @@ Machine Bridge + Command Center:       afs-machine-bridge (separate repo)
 
 ---
 
-## RECENT COMMITS (verified via `git log`, most recent first)
+## RECENT COMMITS (verified via `git log --oneline -15`, most recent first)
 
 ```
+c-pending  fix: hem length now scales the glyph itself, Gap returns as editable, add inward/outward kick
+2a47bdd  fix: FlashDraft hem system overhaul — Gap replaced by Hem Length, mid-leg hems deleted, teardrop retightened, leg-shrink bug resolved
+a9d729b  docs: record hem line-weight/teardrop tightening fix in governance docs, mark UNCONFIRMED
+e9b5060  fix: match hem glyph line weight to leg stroke, tighten teardrop loop proportions
+27e3cbd  docs: record connecting-line/glyph-size hem fix in governance docs, mark UNCONFIRMED
+171f88c  fix: restore leg-to-fold hem connecting line, fix glyph size to fixed on-screen radius
+f6f5889  docs: record duplicate hem geometry deletion in governance docs, mark UNCONFIRMED
+440d047  fix: delete duplicate hand-coded hem geometry, canvas now draws only the validated glyph
+a9c299d  docs: record hem glyph geometry rebuild in governance docs, mark UNCONFIRMED
+7de79db  fix: replace hem glyph geometry with validated SMACNA hem construction
+7bc1841  docs: record hem-menu trigger offset fix in governance docs
+e5eb3a7  fix: offset hem-menu double-click hit-test past true leg endpoint
+18cc3d9  docs: record auto-fit-view-after-length-entry fix in governance docs
+b9a8d54  fix: auto-fit view after manual segment length entry
+11c20ea  docs: record leg-body grab cursor fix in governance docs
 a551366  fix: leg-body hover shows grab cursor immediately, not just on drag
-75aa55f  docs: rewrite governance docs to reflect verified current state
-abb5da8  fix: DPR-aware live canvas, unified glyph scale constants, Open/Smashed differentiation
-3786ff0  audit: add hem glyph rendering audit evidence images
-0a117eb  feat: add hem glyph debug view, fix illegible popup icon size
-4866dea  fix: stray drag state on mere cursor movement, undo/redo history gaps
-912f0b9  fix: rewrite drawHemGlyph with literal capsule/loop coords, unify popup icons, fix drag-artifact bug
-875c51e  fix: clamp bend angle to prevent reflex/collinear states, redesign hem glyphs, fix reshape UX conflict with length input
-1292e0f  feat: leg-body reshape gesture via direction-based disambiguation, extending the hem-drag pattern
-36579a0  fix: direction-based disambiguation lets leg-hem-drag arm correctly from interior vertices and the last point
-4cec386  fix: resolve informal profile labels to canonical geometry, infer topology from extracted dimension shape for unmapped types
-88c98a5  fix: replace fabricated 16in roof panel default with drawing-first extraction + user width selection; fix catalog copy and profile-type dropdown gap
 ```
 
 Local `main` is in sync with `origin/main` (0 ahead / 0 behind) as of this
@@ -614,15 +729,21 @@ When migrating DNS to the live domain, these must be updated BEFORE go-live:
 ## NEXT ACTION
 
 1. Get the user's own confirmation on the FlashDraft hem system (geometry,
-   Gap→Hem Length, mid-leg removal, leg-shrink fix) against real
-   PathfinderEdge reference evidence — do not mark it complete until that
-   happens, regardless of how many rendering passes have been made.
+   Hem Length glyph scaling, Gap re-added, inward/outward Kick, mid-leg
+   removal, leg-shrink fix) against real PathfinderEdge reference
+   evidence — do not mark it complete until that happens, regardless of
+   how many rendering passes have been made. Two specific first-pass
+   values need his judgment: the inward-kick mirror direction, and
+   `HEM_GLYPH_LENGTH_SCALE`'s default of `1.0`.
 2. ~~Mid-leg hem removal~~ — done 2026-08-14, see the consolidated
    FlashDraft hem-system entry above.
-3. FlashDraft template rebuild (Pass 1–4) — not started, needs scoping into
+3. FlashDraft 3D view does not render hems — newly identified this
+   session, needs real scoping (not a quick prop pass-through), see the
+   dedicated NOT STARTED entry above.
+4. FlashDraft template rebuild (Pass 1–4) — not started, needs scoping into
    actual FORGE prompts against the locked 20-item list + PAC-CLAD picker.
-4. Canvas/sidebar UI changes — not started.
-5. PathfinderEdge — blocked on AMS Controls (Seth Oliver) providing
+5. Canvas/sidebar UI changes — not started.
+6. PathfinderEdge — blocked on AMS Controls (Seth Oliver) providing
    server-side logs for the 401 root cause; no code work possible until a
    real, documented API surface is confirmed.
 

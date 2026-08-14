@@ -18,8 +18,10 @@ import type { ProfileMatch, DiagramBend } from '@/app/api/studio/match-profile/r
 import {
   type HemType,
   type Hem,
+  type HemKick,
   HEM_DEFAULT_LENGTH_IN,
   HEM_DEFAULT_GAP_IN,
+  HEM_DEFAULT_KICK,
   hemAllowanceIn,
 } from '@/lib/types/profile';
 
@@ -167,12 +169,19 @@ const NEW_SEGMENT_MISS_GUARD_PX = 24;
 // app/studio/hem-debug/page.tsx, which calls the exact same function at a
 // larger scale rather than reimplementing it.
 
-// Fixed screen-pixel-size cross-section glyph radius for the live canvas,
-// matching hem-glyph.ts's own design intent — unscaled by zoom or
-// real-world gapIn/thickness so the glyph never collapses to a point (a
-// smashed hem's gapIn is always 0) or balloons at high zoom. The text
-// labels next to each glyph still show the true dimension.
-const HEM_GLYPH_DISPLAY_R = 12; // px, independent of zoom/real dimensions
+// The fold glyph's screen radius is derived from the hem's own real-world
+// lengthIn (converted to screen px via PIXELS_PER_INCH * zoom) rather than a
+// fixed constant — a fixed-size glyph made increasing Hem Length only push
+// the icon further away along a longer straight connecting line, never grow
+// the fold shape itself, which read as "extending the leg" instead of
+// growing the hem. HEM_GLYPH_LENGTH_SCALE is a tuning knob on top of the
+// real 1:1 inch-to-glyph-size mapping (hem-glyph.ts's own internal
+// proportions are already relative to R, so one scale factor grows/shrinks
+// the whole shape) — starting at 1.0, a first pass Reid may want to adjust
+// once seen live. MIN_READABLE_R is a floor so a very short hem length
+// never becomes an illegibly tiny glyph.
+const HEM_GLYPH_LENGTH_SCALE = 1.0;
+const MIN_READABLE_R = 10; // px floor
 
 const VERTEX_DRAG_THRESHOLD_PX = 3; // movement before a vertex click becomes a drag
 
@@ -682,6 +691,7 @@ export default function FlashDraftPage() {
   const [hemEnd, setHemEnd] = useState<Hem | null>(null);
   const [hemPopup, setHemPopup] = useState<{ endpoint: HemEndpoint; screenPos: Point } | null>(null);
   const [hemLengthDraft, setHemLengthDraft] = useState(String(HEM_DEFAULT_LENGTH_IN));
+  const [hemGapDraft, setHemGapDraft] = useState(String(HEM_DEFAULT_GAP_IN));
 
   // A drag starting on a leg's BODY (not its endpoints) reshapes the leg by
   // dragging its far endpoint, via the existing vertex-drag machinery
@@ -1102,6 +1112,17 @@ export default function FlashDraftPage() {
       const u = { x: dx / len, y: dy / len };
       const angleU = Math.atan2(u.y, u.x);
 
+      // 'inward' mirrors the fold to the opposite side of the leg's own
+      // line — flips both the direction vector driving foldTip AND the
+      // glyph's own rotation together so the two stay visually consistent.
+      // First pass (a π rotation of the glyph's local frame, since
+      // drawHemGlyph only takes an angle — no true perpendicular-mirror
+      // param exists without touching hem-glyph.ts's internals); needs
+      // Reid's live visual check to confirm it reads as "folds to the
+      // physically opposite side," not just tsc/build passing.
+      const kickSign = hem.kick === 'inward' ? -1 : 1;
+      const glyphAngle = kickSign === -1 ? angleU + Math.PI : angleU;
+
       ctx.strokeStyle = CANVAS_COLORS.hemLine;
       ctx.fillStyle = CANVAS_COLORS.hemLine;
       ctx.font = `10px ${jetbrainsFontRef.current}`;
@@ -1111,11 +1132,11 @@ export default function FlashDraftPage() {
         // lengthIn — independent of gapIn, which is the fixed real-world air
         // gap the glyph itself renders internally (hem-glyph.ts), not a
         // separate positional offset computed here.
-        const foldDir = { x: -u.x, y: -u.y };
+        const foldDir = { x: -u.x * kickSign, y: -u.y * kickSign };
         const foldTip = { x: p.x + foldDir.x * hem.lengthIn, y: p.y + foldDir.y * hem.lengthIn };
         const sP = worldToScreen(p, canvas);
         const sFoldTip = worldToScreen(foldTip, canvas);
-        const R = HEM_GLYPH_DISPLAY_R;
+        const R = Math.max(MIN_READABLE_R, hem.lengthIn * PIXELS_PER_INCH * zoom * HEM_GLYPH_LENGTH_SCALE);
 
         // The leg's true vertex to the fold tip is real material — draw it
         // regardless of hem type before the glyph itself.
@@ -1131,15 +1152,16 @@ export default function FlashDraftPage() {
         // below pass, for the SAME endpoint mechanism. Passing angleU + PI
         // here (an earlier version of this fix) was itself the mirroring
         // bug: it pointed the glyph's material side outward instead of
-        // back toward the vertex.
-        drawHemGlyphHere(sFoldTip, angleU, 'open', R);
+        // back toward the vertex. glyphAngle only adds the extra +PI when
+        // hem.kick is 'inward', on top of that.
+        drawHemGlyphHere(sFoldTip, glyphAngle, 'open', R);
         ctx.font = `10px ${jetbrainsFontRef.current}`;
         ctx.fillText(`OPEN ${formatInches(hem.gapIn)} gap`, sFoldTip.x + R * 2 + 6, sFoldTip.y - 6);
       } else if (hem.type === 'teardrop') {
-        const foldTip = { x: p.x + u.x * hem.lengthIn, y: p.y + u.y * hem.lengthIn };
+        const foldTip = { x: p.x + u.x * hem.lengthIn * kickSign, y: p.y + u.y * hem.lengthIn * kickSign };
         const sP = worldToScreen(p, canvas);
         const sFoldTip = worldToScreen(foldTip, canvas);
-        const R = HEM_GLYPH_DISPLAY_R;
+        const R = Math.max(MIN_READABLE_R, hem.lengthIn * PIXELS_PER_INCH * zoom * HEM_GLYPH_LENGTH_SCALE);
 
         ctx.strokeStyle = CANVAS_COLORS.hemLine;
         ctx.lineWidth = 2;
@@ -1148,14 +1170,14 @@ export default function FlashDraftPage() {
         ctx.lineTo(sFoldTip.x, sFoldTip.y);
         ctx.stroke();
 
-        drawHemGlyphHere(sFoldTip, angleU, 'teardrop', R);
+        drawHemGlyphHere(sFoldTip, glyphAngle, 'teardrop', R);
         ctx.font = `10px ${jetbrainsFontRef.current}`;
         ctx.fillText('TEARDROP', sFoldTip.x + R * 2 + 6, sFoldTip.y - 6);
       } else {
-        const foldTip = { x: p.x + u.x * hem.lengthIn, y: p.y + u.y * hem.lengthIn };
+        const foldTip = { x: p.x + u.x * hem.lengthIn * kickSign, y: p.y + u.y * hem.lengthIn * kickSign };
         const sP = worldToScreen(p, canvas);
         const sFoldTip = worldToScreen(foldTip, canvas);
-        const R = HEM_GLYPH_DISPLAY_R;
+        const R = Math.max(MIN_READABLE_R, hem.lengthIn * PIXELS_PER_INCH * zoom * HEM_GLYPH_LENGTH_SCALE);
 
         ctx.strokeStyle = CANVAS_COLORS.hemLine;
         ctx.lineWidth = 2;
@@ -1164,7 +1186,7 @@ export default function FlashDraftPage() {
         ctx.lineTo(sFoldTip.x, sFoldTip.y);
         ctx.stroke();
 
-        drawHemGlyphHere(sFoldTip, angleU, 'smashed', R);
+        drawHemGlyphHere(sFoldTip, glyphAngle, 'smashed', R);
         ctx.font = `10px ${jetbrainsFontRef.current}`;
         ctx.fillText('SMASHED', sFoldTip.x + R * 2 + 6, sFoldTip.y - 6);
       }
@@ -1697,9 +1719,11 @@ export default function FlashDraftPage() {
     if (dStart <= HEM_HIT_RADIUS_PX && dStart <= dEnd) {
       setHemPopup({ endpoint: 'start', screenPos: startScreen });
       setHemLengthDraft(String(hemStart?.lengthIn ?? HEM_DEFAULT_LENGTH_IN));
+      setHemGapDraft(String(hemStart?.gapIn ?? HEM_DEFAULT_GAP_IN));
     } else if (dEnd <= HEM_HIT_RADIUS_PX) {
       setHemPopup({ endpoint: 'end', screenPos: endScreen });
       setHemLengthDraft(String(hemEnd?.lengthIn ?? HEM_DEFAULT_LENGTH_IN));
+      setHemGapDraft(String(hemEnd?.gapIn ?? HEM_DEFAULT_GAP_IN));
     }
   };
 
@@ -1933,9 +1957,14 @@ export default function FlashDraftPage() {
     if (!hemPopup) return;
     pushHistorySnapshot();
     const current = hemPopup.endpoint === 'start' ? hemStart : hemEnd;
-    const gapIn = type === 'open' ? HEM_DEFAULT_GAP_IN : type === 'teardrop' ? thicknessIn / 2 : 0;
+    // gapIn is a real per-hem editable value (see the Gap (in) field below)
+    // — preserved across a type switch same as lengthIn, rather than reset
+    // to a type-derived constant, so re-clicking a type button (or picking
+    // a different one) never silently wipes a value the user already typed.
+    const gapIn = current?.gapIn ?? (Number(hemGapDraft) || HEM_DEFAULT_GAP_IN);
     const lengthIn = current?.lengthIn ?? (Number(hemLengthDraft) || HEM_DEFAULT_LENGTH_IN);
-    const hem: Hem = { type, gapIn, lengthIn };
+    const kick = current?.kick ?? HEM_DEFAULT_KICK;
+    const hem: Hem = { type, gapIn, lengthIn, kick };
     if (hemPopup.endpoint === 'start') setHemStart(hem);
     else setHemEnd(hem);
     if (type !== 'open') setHemPopup(null);
@@ -1948,6 +1977,26 @@ export default function FlashDraftPage() {
     const current = hemPopup.endpoint === 'start' ? hemStart : hemEnd;
     if (!current) return;
     const hem: Hem = { ...current, lengthIn: n };
+    if (hemPopup.endpoint === 'start') setHemStart(hem);
+    else setHemEnd(hem);
+  };
+
+  const setHemGap = (val: string) => {
+    setHemGapDraft(val);
+    const n = Number(val);
+    if (!Number.isFinite(n) || n < 0 || !hemPopup) return;
+    const current = hemPopup.endpoint === 'start' ? hemStart : hemEnd;
+    if (!current) return;
+    const hem: Hem = { ...current, gapIn: n };
+    if (hemPopup.endpoint === 'start') setHemStart(hem);
+    else setHemEnd(hem);
+  };
+
+  const setHemKick = (kick: HemKick) => {
+    if (!hemPopup) return;
+    const current = hemPopup.endpoint === 'start' ? hemStart : hemEnd;
+    if (!current) return;
+    const hem: Hem = { ...current, kick };
     if (hemPopup.endpoint === 'start') setHemStart(hem);
     else setHemEnd(hem);
   };
@@ -2844,6 +2893,44 @@ export default function FlashDraftPage() {
                         onChange={(e) => setHemLength(e.target.value)}
                         className="w-16 bg-afs-bg-overlay border border-afs-border rounded px-1.5 py-1 font-data text-xs text-afs-chrome-high"
                       />
+                    </div>
+                  )}
+                  {(hemPopup.endpoint === 'start' ? hemStart : hemEnd) && (
+                    <div className="flex items-center gap-2">
+                      <label className="font-label text-[10px] text-afs-chrome-mid">Gap (in)</label>
+                      <input
+                        type="number"
+                        step="0.0625"
+                        min="0"
+                        value={hemGapDraft}
+                        onChange={(e) => setHemGap(e.target.value)}
+                        className="w-16 bg-afs-bg-overlay border border-afs-border rounded px-1.5 py-1 font-data text-xs text-afs-chrome-high"
+                      />
+                    </div>
+                  )}
+                  {(hemPopup.endpoint === 'start' ? hemStart : hemEnd) && (
+                    <div className="flex flex-col gap-1 pt-1 border-t border-afs-chrome-dim/40">
+                      <label className="font-label text-[10px] text-afs-chrome-mid">Kick</label>
+                      <div className="grid grid-cols-2 gap-1">
+                        {(['outward', 'inward'] as HemKick[]).map((k) => {
+                          const current = hemPopup.endpoint === 'start' ? hemStart : hemEnd;
+                          const active = current?.kick === k;
+                          return (
+                            <button
+                              key={k}
+                              type="button"
+                              onClick={() => setHemKick(k)}
+                              className={`font-label text-[10px] px-1.5 py-1.5 rounded border capitalize transition-colors ${
+                                active
+                                  ? 'bg-afs-crimson text-white border-afs-crimson'
+                                  : 'bg-afs-bg-overlay text-white border-afs-border hover:bg-afs-bg-surface'
+                              }`}
+                            >
+                              {k}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                   <div className="flex items-center gap-3 pt-1">

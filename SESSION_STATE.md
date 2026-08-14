@@ -26,7 +26,70 @@ let self-reported verification read as equivalent to user confirmation.
 
 ## CURRENT STATUS
 
-**Most recent session (2026-08-14): FlashDraft comprehensive hem-system
+**Most recent session (2026-08-14): FlashDraft hem length now scales the
+glyph itself (root-cause fix), Gap returns as a per-hem editable field
+(reversing the prior pass's decision), inward/outward Kick direction
+added.** Single coordinated pass across `lib/types/profile.ts` and
+`app/studio/draft/page.tsx` (`lib/flashdraft/hem-glyph.ts`'s internal
+shape math explicitly out of scope, not touched) — see
+STATE_OF_THE_BUILD.md's new consolidated FlashDraft entry for the full
+technical writeup.
+
+Summary of what changed:
+- **Root cause fix — Hem Length actually scales the fold glyph.**
+  Previously `drawHemGlyphHere` always used a fixed screen-pixel radius
+  (`HEM_GLYPH_DISPLAY_R = 12`) regardless of `hem.lengthIn`, so increasing
+  Hem Length only pushed the same-size icon further away along a longer
+  connecting line — never grew the fold shape, reading as "extending the
+  leg." `HEM_GLYPH_DISPLAY_R` deleted; every call site now computes `R =
+  Math.max(MIN_READABLE_R, hem.lengthIn * PIXELS_PER_INCH * zoom *
+  HEM_GLYPH_LENGTH_SCALE)` — a real, zoom-aware radius derived from the
+  hem's actual inch length. `MIN_READABLE_R = 10` and
+  `HEM_GLYPH_LENGTH_SCALE = 1.0` are both new, both first-pass values not
+  yet confirmed by Reid.
+- **Gap is editable again** (Reid reversed the prior pass's "fixed shop
+  constant" decision same-day). `HEM_DEFAULT_GAP_IN` 0.125"→0.0625"
+  (still just a new-hem default). The popup's "Gap (in)" field is back,
+  reusing the pre-removal `hemGapDraft` state naming pulled from `git
+  show` on the removal commit, generalized to show for all three hem
+  types (not just `open`) and to preserve the value across type switches,
+  matching how Hem Length already behaved.
+- **New `kick: 'inward' | 'outward'` field on `Hem`**, default `'outward'`
+  (matches prior behavior — no change for existing/default hems). A new
+  Kick toggle in the popup flips both the fold-direction vector and the
+  glyph's own rotation angle together. First-pass mirror implementation
+  (a 180° rotation of the glyph's local frame — `drawHemGlyph` only takes
+  a rotation angle, no true perpendicular-mirror parameter, and
+  hem-glyph.ts was out of scope) — **specifically needs Reid's live
+  visual confirmation that it reads as "the physically opposite side,"**
+  not just that something visibly changes.
+
+`pnpm tsc --noEmit` — 0 errors. `pnpm run build` — succeeded. Screenshots
+checked in at repo root: `hem-audit-2026-08-14-length-scale-small.png` /
+`-length-scale-large.png` (same hem, 0.5" vs. 2" length, showing the fold
+shape itself grow), `-popup-length-gap-kick.png` (Hem Length, Gap, and
+Kick together in the popup), `-kick-outward.png` / `-kick-inward.png`
+(same endpoint, before/after toggling Kick), `-both-hems-full-canvas.jpg`
+(one endpoint kicked inward, the other outward, in one profile). Driven
+via direct `PointerEvent`/`MouseEvent` dispatch in the page's own JS
+context against a real `pnpm dev` server — the Chrome DevTools
+extension's click/screenshot coordinate mapping was unreliable for this
+multi-step canvas interaction in this session (same caveat as several
+prior sessions below), so canvas events were dispatched directly via
+`element.dispatchEvent(...)` using `canvas.getBoundingClientRect()` for
+coordinates instead of relying on the extension's own click targeting.
+
+Per the verification standard above, this stays **IMPLEMENTED,
+UNCONFIRMED** pending Reid's own check — do not mark DONE. Also newly
+identified this session, tracked as its own NOT STARTED item in
+STATE_OF_THE_BUILD.md: `ProfileViewer3D` has no hem-related props at
+all, confirmed by direct inspection — the 3D view renders no hems
+regardless of what's set in the 2D draft canvas. Not attempted this
+session, needs real scoping.
+
+---
+
+**Prior session (2026-08-14): FlashDraft comprehensive hem-system
 fix — Gap removed in favor of per-hem Hem Length, mid-leg hems deleted
 entirely, teardrop retightened, glyph size shrunk, leg-shrink bug
 investigated and resolved.** One coordinated pass across
@@ -349,29 +412,27 @@ own section there rather than duplicated here.
 ## RECENT COMMITS (verified via `git log --oneline -20`, most recent first)
 
 ```
+c-pending  fix: hem length now scales the glyph itself, Gap returns as editable, add inward/outward kick
+2a47bdd  fix: FlashDraft hem system overhaul — Gap replaced by Hem Length, mid-leg hems deleted, teardrop retightened, leg-shrink bug resolved
+a9d729b  docs: record hem line-weight/teardrop tightening fix in governance docs, mark UNCONFIRMED
+e9b5060  fix: match hem glyph line weight to leg stroke, tighten teardrop loop proportions
+27e3cbd  docs: record connecting-line/glyph-size hem fix in governance docs, mark UNCONFIRMED
+171f88c  fix: restore leg-to-fold hem connecting line, fix glyph size to fixed on-screen radius
+f6f5889  docs: record duplicate hem geometry deletion in governance docs, mark UNCONFIRMED
+440d047  fix: delete duplicate hand-coded hem geometry, canvas now draws only the validated glyph
+a9c299d  docs: record hem glyph geometry rebuild in governance docs, mark UNCONFIRMED
+7de79db  fix: replace hem glyph geometry with validated SMACNA hem construction
+7bc1841  docs: record hem-menu trigger offset fix in governance docs
+e5eb3a7  fix: offset hem-menu double-click hit-test past true leg endpoint
+18cc3d9  docs: record auto-fit-view-after-length-entry fix in governance docs
 b9a8d54  fix: auto-fit view after manual segment length entry
+11c20ea  docs: record leg-body grab cursor fix in governance docs
 a551366  fix: leg-body hover shows grab cursor immediately, not just on drag
 75aa55f  docs: rewrite governance docs to reflect verified current state
 abb5da8  fix: DPR-aware live canvas, unified glyph scale constants, Open/Smashed differentiation
 3786ff0  audit: add hem glyph rendering audit evidence images
 0a117eb  feat: add hem glyph debug view, fix illegible popup icon size
 4866dea  fix: stray drag state on mere cursor movement, undo/redo history gaps
-912f0b9  fix: rewrite drawHemGlyph with literal capsule/loop coords, unify popup icons, fix drag-artifact bug
-875c51e  fix: clamp bend angle to prevent reflex/collinear states, redesign hem glyphs, fix reshape UX conflict with length input
-1292e0f  feat: leg-body reshape gesture via direction-based disambiguation, extending the hem-drag pattern
-36579a0  fix: direction-based disambiguation lets leg-hem-drag arm correctly from interior vertices and the last point
-4cec386  fix: resolve informal profile labels to canonical geometry, infer topology from extracted dimension shape for unmapped types
-88c98a5  fix: replace fabricated 16in roof panel default with drawing-first extraction + user width selection; fix catalog copy and profile-type dropdown gap
-518ccc2  refactor: extract HemType/Hem to shared lib/types/profile.ts for reuse across FlashDraft and future Photo-to-Quote
-c9c2da8  fix: use Anthropic Files API for takeoff PDFs instead of inline base64, avoiding 32MB request-size limit
-9c2a2ff  fix: upload bytes go directly browser to Supabase Storage, bypassing Vercel's 4.5MB function body limit
-202ec8c  fix: add editable dropdowns and dimension inputs to takeoff results, vary 3D preview by profile type
-e76ddd9  fix: strengthen takeoff extraction prompt for page-by-page coverage, raise max_tokens to 8000
-3f4f26d  diag: log actual takeoff PDF processing (no pdfjs/rasterization pipeline exists yet)
-1dedc56  fix: raise page limit to 100 with real enforcement, add scope-directive control to Blueprint Takeoff, fix takeoff request body contract mismatch
-471629f  fix: correct type predicate for Supabase materials joined relation array shape
-640f9c2  docs: comprehensive session record - migrations, logo correction, credit app, bid documents, po-gaps status, FORGE fixes
-37e920d  feat: credit application aligned to real AFS form + bid document generator with claim-lock collaboration (migration 013)
 ```
 
 ---
@@ -381,26 +442,34 @@ e76ddd9  fix: strengthen takeoff extraction prompt for page-by-page coverage, ra
 1. **FlashDraft leg-body grab cursor** — unconfirmed by the user. Fix is
    pushed (`a551366`); needs Reid to hover a leg body on the live canvas and
    confirm the grab hand now appears immediately on hover.
-2. **FlashDraft hem system (Gap→Hem Length, mid-leg removal, teardrop
-   retighten, leg-shrink bug)** — unconfirmed by the user. Do not do another
-   silent rewrite pass; get Reid to look at the live canvas and confirm:
-   the popup shows "Hem Length (in)" not "Gap (in)"; no vertex dot at a
-   hemmed endpoint; the teardrop curl reads as tight, not round; dragging
-   mid-leg does nothing (no hem-creation gesture left); and that leg 1
-   shrinks the same as any other leg now.
+2. **FlashDraft hem system (glyph-scales-with-length, Gap re-added, Kick
+   direction, mid-leg removal, teardrop retighten, leg-shrink bug)** —
+   unconfirmed by the user. Do not do another silent rewrite pass; get
+   Reid to look at the live canvas and confirm: increasing Hem Length
+   visibly grows the fold shape (not just the connecting line); the popup
+   shows Hem Length, Gap, AND a Kick toggle together; toggling Kick
+   mirrors the fold to the physically opposite side (not just "changes
+   something"); no vertex dot at a hemmed endpoint; the teardrop curl
+   reads as tight, not round; dragging mid-leg does nothing (no
+   hem-creation gesture left); and that leg 1 shrinks the same as any
+   other leg now.
 3. ~~Mid-leg hem removal~~ — **DONE** as of the 2026-08-14 session above.
    No longer an open item.
-4. **FlashDraft template rebuild (Pass 1–4)** — not started. 20-item
+4. **FlashDraft 3D view renders no hems** — newly identified this session.
+   `ProfileViewer3D` has no hem-related props at all. Needs real scoping
+   as its own task (prop plumbing plus a design decision on how to
+   represent `kick`/`lengthIn` in 3D) — not a quick prop pass-through.
+5. **FlashDraft template rebuild (Pass 1–4)** — not started. 20-item
    template list + Coping Cap/Valley variant pickers + PAC-CLAD "Painted
    Color" picker, all locked with the user, zero implementation.
-5. **Canvas/sidebar UI** — not started. Lighter gray canvas background,
+6. **Canvas/sidebar UI** — not started. Lighter gray canvas background,
    compact sidebar redesign.
-5. **PathfinderEdge** — blocked on AMS Controls (Seth Oliver) providing
+7. **PathfinderEdge** — blocked on AMS Controls (Seth Oliver) providing
    server-side logs to root-cause the 401s on the freshly rotated API key.
    Do not guess at request/response shapes in `lib/integrations/pathfinder-edge.ts`
    without a real documented API surface — it drives a physical bending
    machine.
-6. **Credential rotation** — deliberately deferred to one pass immediately
+8. **Credential rotation** — deliberately deferred to one pass immediately
    before DNS cutover, per standing user instruction. Not an open action
    item for the current build phase; do not re-raise it as a gap.
 
