@@ -183,6 +183,23 @@ const NEW_SEGMENT_MISS_GUARD_PX = 24;
 const HEM_GLYPH_LENGTH_SCALE = 1.0;
 const MIN_READABLE_R = 10; // px floor
 
+// Teardrop is the one hem type this length-driven R formula is wrong for.
+// Reid's reference photos of real formed material show the strip running
+// flat and straight (that part IS hem.lengthIn, and stays so — see the
+// connecting-line math below, unchanged) then rolling into a small, TIGHT,
+// closed curl only at the very tip. The curl's own size reads as
+// proportional to material thickness, not to how far the straight run
+// extends — so growing Hem Length must not balloon the curl. TEARDROP_R
+// derives R from effective thickness instead: hem-glyph.ts's teardrop
+// construction uses a circle radius of R * 0.22 for the loop itself, and
+// TEARDROP_THICKNESS_TO_R (= 1 / 0.22) is chosen so that circle's real-world
+// radius works out to ~1x material thickness — a tight coil, not a hook.
+// Floors at HEM_GLYPH_R (the same "never collapse to invisible" constant
+// the popup icons use) rather than MIN_READABLE_R (10px) — that larger
+// floor is sized for Open's hook and would make the curl read as an
+// oversized loop again at everyday zoom/gauge combinations.
+const TEARDROP_THICKNESS_TO_R = 1 / 0.22;
+
 const VERTEX_DRAG_THRESHOLD_PX = 3; // movement before a vertex click becomes a drag
 
 // Hard guard rail on vertex-drag and leg-reshape (they share the same
@@ -1151,10 +1168,14 @@ export default function FlashDraftPage() {
         ctx.font = `10px ${jetbrainsFontRef.current}`;
         ctx.fillText(`OPEN ${formatInches(hem.gapIn)} gap`, sFoldTip.x + R * 2 + 6, sFoldTip.y - 6);
       } else if (hem.type === 'teardrop') {
+        // Straight connecting run to the curl is still real material driven
+        // by hem.lengthIn, unchanged — only the curl's own size (R below)
+        // is decoupled from it. See TEARDROP_THICKNESS_TO_R's comment.
         const foldTip = { x: p.x + u.x * hem.lengthIn, y: p.y + u.y * hem.lengthIn };
         const sP = worldToScreen(p, canvas);
         const sFoldTip = worldToScreen(foldTip, canvas);
-        const R = Math.max(MIN_READABLE_R, hem.lengthIn * PIXELS_PER_INCH * zoom * HEM_GLYPH_LENGTH_SCALE);
+        const effectiveThicknessIn = gauge ? thicknessIn : 0.0625;
+        const R = Math.max(HEM_GLYPH_R, effectiveThicknessIn * PIXELS_PER_INCH * zoom * TEARDROP_THICKNESS_TO_R);
 
         ctx.strokeStyle = CANVAS_COLORS.hemLine;
         ctx.lineWidth = 2;

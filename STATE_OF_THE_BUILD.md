@@ -129,6 +129,63 @@ cursor appears on leg-body hover on the live canvas.
 
 ---
 
+## FLASHDRAFT — TEARDROP SIZED FROM MATERIAL THICKNESS (NOT HEM LENGTH), KICK MIRROR CONFIRMED ALREADY WORKING: IMPLEMENTED, UNCONFIRMED
+
+**Status: IMPLEMENTED, UNCONFIRMED. Do not mark this complete.**
+
+(2026-08-17) — scope: `lib/flashdraft/hem-glyph.ts`, `app/studio/draft/page.tsx`.
+
+**Part 1 — Teardrop's curl was sized like Open's hook, which is wrong for
+Teardrop specifically.** `renderHemAt`'s teardrop branch used the exact
+same length-driven `R` formula as Open — `Math.max(MIN_READABLE_R,
+hem.lengthIn * PIXELS_PER_INCH * zoom * HEM_GLYPH_LENGTH_SCALE)` — so
+raising Hem Length ballooned the curl itself into an oversized loop.
+Reid's own reference photos of real formed material show a SMALL, TIGHT,
+closed curl only at the very tip — the strip runs flat and straight
+almost its full length first. The curl's real-world size reads as
+proportional to material thickness, not fold-back length. Fixed for
+teardrop only (Open/Smashed untouched, per this prompt's explicit
+instruction): new `TEARDROP_THICKNESS_TO_R` constant (`1 / 0.22`, derived
+from `hem-glyph.ts`'s own teardrop construction where the loop's circle
+radius is `R * 0.22` — this factor makes that circle's real-world radius
+work out to ~1x material thickness) drives `R` from `effectiveThicknessIn`
+(`gauge ? thicknessIn : 0.0625`) instead of `hem.lengthIn`. Floors at
+`HEM_GLYPH_R` (6px) rather than `MIN_READABLE_R` (10px) — the larger floor
+is sized for Open's hook and reproduced the same oversized-loop symptom.
+The straight connecting line to the curl is still `hem.lengthIn`-driven,
+unchanged (matches the photos — the strip does stay flat/straight until
+the tip).
+
+**Part 2 — investigated the "Kick shows no visible difference" report;
+found no bug in the current code.** Reproduced Reid's exact E/F test setup
+(start endpoint, Open, 3/4" gap, only Kick toggled) and confirmed via raw
+canvas pixel sampling (`ctx.getImageData`, not just eyeballing a
+screenshot) that Outside and Inside render on opposite sides of the leg
+line — the mirror already works. `git diff` confirms zero changes to
+`lib/flashdraft/hem-glyph.ts` this session. Most likely explanation: the
+E/F screenshots predate the prior session's `3fa8c704` fix (which rebuilt
+Kick as a real `ctx.scale(1,-1)` mirror). This session's own first
+screenshot attempt also produced a misleadingly-cropped comparison that
+looked identical at a glance before pixel sampling caught the actual
+(correct) behavior — see SESSION_STATE.md's fuller writeup for the
+debugging trail, useful if this report recurs.
+
+`pnpm tsc --noEmit` — 0 errors. `pnpm run build` — succeeded, 132/132
+static pages generated. Screenshots checked in at repo root:
+`proof-teardrop-thickness-sized.png` / `proof-teardrop-thickness-sized-full.png`
+(small tight curl at Hem Length 1.5", proving decoupling from length);
+`proof-kick-start-outside-full.png` / `proof-kick-start-inside-full.png`
+(same E/F setup, hook visibly mirrored). Full technical detail and the
+exact pixel-sampling methodology in SESSION_STATE.md's matching entry.
+
+Per the verification standard, this stays **IMPLEMENTED, UNCONFIRMED**
+pending Reid's own visual check of the teardrop against his actual
+reference photos (not present in this repo — this session compared
+against the photos' description as given in the prompt, not the photo
+files themselves).
+
+---
+
 ## FLASHDRAFT — OPEN FOLD-DIRECTION BUG FIXED, KICK REBUILT AS A TRUE MIRROR, GAP WIRED THROUGH TO THE GLYPH: IMPLEMENTED, UNCONFIRMED
 
 **Status: IMPLEMENTED, UNCONFIRMED. Do not mark this complete.**
@@ -848,13 +905,17 @@ When migrating DNS to the live domain, these must be updated BEFORE go-live:
 1. Get the user's own confirmation on the FlashDraft hem system (geometry,
    Hem Length glyph scaling, Gap re-added and now actually wired to the
    glyph, Outside/Inside Kick rebuilt as a true mirror, mid-leg removal,
-   leg-shrink fix) against his reference sketch — do not mark it complete
-   until that happens, regardless of how many rendering passes have been
-   made. Two specific first-pass values still need his judgment: whether
-   `hem.kick === 'inside'` is the correct condition for `mirror: true`
-   (one line to flip if backwards — see the "OPEN FOLD-DIRECTION BUG
-   FIXED..." entry above), and `HEM_GLYPH_LENGTH_SCALE`'s default of
-   `1.0`.
+   leg-shrink fix, Teardrop now sized from material thickness) against his
+   reference sketch/photos — do not mark it complete until that happens,
+   regardless of how many rendering passes have been made. Specific items
+   still needing his judgment: whether `hem.kick === 'inside'` is the
+   correct condition for `mirror: true` (one line to flip if backwards —
+   see the "OPEN FOLD-DIRECTION BUG FIXED..." entry above — this session
+   re-confirmed the mirror itself renders correctly either way, just not
+   which label is physically correct), `HEM_GLYPH_LENGTH_SCALE`'s default
+   of `1.0`, and whether Teardrop's new `TEARDROP_THICKNESS_TO_R` proportion
+   (see the newest FlashDraft entry above) actually matches his reference
+   photos' tightness once seen live.
 2. ~~Mid-leg hem removal~~ — done 2026-08-14, see the consolidated
    FlashDraft hem-system entry above.
 3. FlashDraft 3D view does not render hems — newly identified this

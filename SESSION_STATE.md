@@ -26,7 +26,122 @@ let self-reported verification read as equivalent to user confirmation.
 
 ## CURRENT STATUS
 
-**Most recent session (2026-08-14): fixed Open hem's inverted fold
+**Most recent session (2026-08-17): FlashDraft teardrop curl now sized
+from material thickness (not Hem Length) — root cause confirmed against
+Reid's own reference photos of real formed material; investigated the
+Inside/Outside kick "no visible difference" report and found the mirror
+already renders correctly on the current code.** Scope:
+`lib/flashdraft/hem-glyph.ts`, `app/studio/draft/page.tsx`, per this
+prompt.
+
+**Part 1 — Teardrop sizing.** `renderHemAt`'s teardrop branch computed its
+glyph radius `R` with the exact same length-driven formula as Open —
+`Math.max(MIN_READABLE_R, hem.lengthIn * PIXELS_PER_INCH * zoom *
+HEM_GLYPH_LENGTH_SCALE)` — so raising Hem Length (meant to control the
+visible straight fold-back run) ballooned the curl itself, contradicting
+Reid's reference photos: a small, tight, closed loop only at the very
+tip, with the strip running flat and straight almost its full length. Root
+cause: the curl's real-world size should track material thickness, not
+fold-back length. Fixed for the teardrop branch only (Open/Smashed's
+length-driven `R` is unchanged, per this prompt's explicit instruction):
+new `TEARDROP_THICKNESS_TO_R` constant (`= 1 / 0.22`, derived from
+`hem-glyph.ts`'s own teardrop construction, where the loop's circle radius
+is `R * 0.22` — this scale makes that circle's real-world radius work out
+to ~1x material thickness) drives `R` from `effectiveThicknessIn` (`gauge
+? thicknessIn : 0.0625`, the existing per-hem `thicknessIn` already
+computed in this component) instead of `hem.lengthIn`. Floors at
+`HEM_GLYPH_R` (6px, the same "never collapse to invisible" constant the
+popup icons already use) rather than the 10px `MIN_READABLE_R` — that
+larger floor is sized for Open's hook and reproduced the same "oversized
+loop" symptom at typical zoom/gauge combinations. The straight connecting
+line from the true vertex to the curl is unchanged — still driven by
+`hem.lengthIn`, which matches the reference photos (the strip does stay
+flat and straight until the tip).
+
+Verified live at `/studio/draft` via a Playwright script (no Chrome
+extension available in this environment — see below): with Hem Length set
+to a deliberately generous 1.5", the curl renders as a small, tight,
+closed loop right at the tip, with the long straight run clearly visible
+before it — matching the reference photos' proportions described in this
+prompt (the old formula would have rendered a ~30px oversized loop at
+that length; the new one floors at 6px regardless of length). Screenshots
+checked in at repo root: `proof-teardrop-thickness-sized.png` (tight crop)
+and `proof-teardrop-thickness-sized-full.png` (full canvas, showing Hem
+Length = 1.5" alongside the small curl).
+
+**Part 2 — Kick mirror investigation.** Reproduced Reid's exact E/F test
+setup (start endpoint, Open type, 3/4" gap, only Kick toggled) against the
+current code and found the mirror **already works correctly** — Outside
+renders the hook on one side of the leg line, Inside renders it flipped to
+the other side, both via raw canvas pixel sampling (`getImageData`, not
+just a visual screenshot read) and via a from-scratch standalone
+reproduction of `drawHemGlyph`'s exact math outside the app. No code
+change was needed or made to `lib/flashdraft/hem-glyph.ts` or the
+kick/mirror logic in `page.tsx` — confirmed via `git diff` that
+`hem-glyph.ts` has zero changes this session. The most likely explanation
+for Reid's original "no visible difference" report: it was observed before
+the prior session's `3fa8c704` fix (which rebuilt Kick as a true
+`ctx.scale(1,-1)` mirror, replacing an earlier 180°-rotation approach that
+was never actually a mirror), and the E/F screenshots simply predate that
+fix. This session's own first attempt to reproduce the bug also produced
+misleadingly-cropped screenshots that looked identical at a glance — worth
+noting for future sessions debugging this: crop tightly and precisely
+around the glyph's actual tip coordinates (read from the real
+`worldToScreen` output, not guessed from the page layout), or better,
+sample raw pixel color data directly, before concluding a visual diff is
+absent.
+
+Screenshots proving the mirror, same setup as the original E/F pair:
+`proof-kick-start-outside-full.png` / `proof-kick-start-inside-full.png`
+(repo root, full canvas — Outside/Inside buttons visibly toggled in the
+popup, hook visibly flipped to the opposite side of the leg line, gap
+label unchanged at "OPEN 3/4\" gap").
+
+`pnpm tsc --noEmit` — 0 errors (exit code 0, no output). `pnpm run build`
+— succeeded:
+
+```
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+ ✓ Generating static pages (132/132)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                                        Size     First Load JS
+┌ ○ /                                                              192 B          99.1 kB
+...
+├ ○ /studio/draft                                                  18.4 kB         337 kB
+├ ○ /studio/hem-debug                                              1.37 kB        88.5 kB
+...
++ First Load JS shared by all                                      87.1 kB
+ƒ Middleware                                                       84.3 kB
+```
+
+(full 132-route table omitted here for length — every route built with no
+errors; the two warnings present, a Supabase Edge Runtime notice and a
+`@supabase/supabase-js` Node-version deprecation notice, are pre-existing
+and unrelated to this session's changes.) Note the build required
+temporarily pausing OneDrive.Sync.Service.exe (restarted immediately after
+the build completed, confirmed with Reid before pausing it) — this
+environment's `.next/trace` file was being locked by OneDrive syncing the
+project's `Documents`-folder location during repeated build attempts, an
+environment issue unrelated to this prompt's code changes.
+
+No Chrome DevTools extension was connected in this environment
+(`tabs_context_mcp` reported "Browser extension is not connected"), so
+verification used a standalone Playwright script driving a real `pnpm dev`
+server instead — same approach prior sessions have used for this reason.
+
+Per the verification standard above, this stays **IMPLEMENTED,
+UNCONFIRMED** pending Reid's own visual check against his own reference
+photos, specifically for the teardrop's proportions — this session
+compared against the photos' description as given in the prompt, not
+against the photo files themselves (not present in the repo).
+
+---
+
+**Prior session (2026-08-14): fixed Open hem's inverted fold
 direction, rebuilt Kick as a true perpendicular mirror (was a 180°
 rotation, not a mirror), wired the real per-hem Gap value through to
 the glyph (it was being silently ignored), renamed Kick's values
