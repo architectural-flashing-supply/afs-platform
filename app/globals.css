@@ -99,6 +99,36 @@ body {
   text-shadow: 0 0 20px rgba(200,210,230,0.4), 0 1px 3px rgba(0,0,0,0.8);
 }
 
+/* Shared crimson "eyebrow label" treatment — small uppercase tracking-wide
+   text-afs-crimson labels (e.g. ResourcesBrowser's category tag, section
+   kickers above headings). Reid confirmed via DevTools computed style that
+   these read as the correct afs-crimson value (rgb(192 0 26)) but visibly
+   less saturated/vibrant than solid crimson shapes at the same monitor/
+   page — a small-text antialiasing legibility issue, not a wrong color, so
+   --afs-crimson itself is untouched. text-shadow reuses the ALREADY
+   DEFINED --afs-crimson-glow token (adds perceived brightness without
+   changing the base color); font-weight 600 is Barlow's next weight step
+   up from these labels' previous unstyled default of 400 (see the
+   `barlow` next/font config in app/layout.tsx, weights 400/500/600) —
+   heavier strokes at small sizes reduce the antialiasing-driven
+   desaturation Reid observed. Deliberately does NOT set font-size or
+   letter-spacing: the 9 call sites this is applied to vary those
+   intentionally (a hero kicker at text-lg vs. a dense table badge at
+   text-[10px], tracking-wide vs. tracking-widest) and this file's plain
+   CSS rules are emitted after Tailwind's own generated utilities in the
+   compiled stylesheet — at equal (single-class) specificity, a font-size
+   set here would always win over an element's own text-xs/text-lg/etc.
+   utility class regardless of className order, silently overriding those
+   per-instance choices. Callers keep their own text-size and tracking
+   utilities alongside this class. */
+.eyebrow-label {
+  font-family: var(--font-barlow), sans-serif;
+  text-transform: uppercase;
+  color: var(--afs-crimson);
+  text-shadow: var(--afs-crimson-glow);
+  font-weight: 600;
+}
+
 /* Delivery tracking map (app/track/[orderId], components/track/
    DeliveryTrackingMap.tsx) — pulsating marker dots. Blue (#3B82F6) is a
    literal hex per explicit d-002 instruction, not an afs-* token — same

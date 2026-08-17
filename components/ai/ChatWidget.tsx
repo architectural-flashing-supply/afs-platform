@@ -319,7 +319,7 @@ export default function ChatWidget() {
             <img src="/chat_bubble_icon.png" alt="FlashChat" style={{ width: '20px', height: '20px', objectFit: 'contain' }} />
             <p className="font-heading font-bold text-white text-lg leading-tight">FlashChat</p>
           </div>
-          <p className="font-label text-xs text-afs-crimson uppercase tracking-widest mt-0.5">
+          <p className="eyebrow-label text-xs tracking-widest mt-0.5">
             Industry Intelligence
           </p>
           <p className="font-body text-xs text-afs-chrome-mid leading-relaxed mt-1 max-w-[280px]">

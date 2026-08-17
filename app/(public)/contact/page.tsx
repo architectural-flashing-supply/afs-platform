@@ -79,7 +79,7 @@ export default function ContactPage() {
               href={card.href}
               className="metal-edge bg-afs-bg-raised border border-afs-border rounded p-6 text-center hover:bg-afs-bg-surface transition-colors"
             >
-              <p className="font-label text-xs uppercase tracking-widest text-afs-crimson mb-2">{card.label}</p>
+              <p className="eyebrow-label text-xs tracking-widest mb-2">{card.label}</p>
               <p className="font-body text-sm text-afs-chrome-high break-all mb-1">{card.value}</p>
               {card.note && <p className="font-body text-xs text-afs-chrome-dim">{card.note}</p>}
             </a>

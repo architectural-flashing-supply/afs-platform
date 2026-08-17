@@ -26,7 +26,101 @@ let self-reported verification read as equivalent to user confirmation.
 
 ## CURRENT STATUS
 
-**Most recent session (2026-08-17): FlashDraft teardrop curl now sized
+**Most recent session (2026-08-17): site-wide legibility fix for small
+uppercase crimson "eyebrow label" text on dark backgrounds — one new
+shared `.eyebrow-label` CSS class applied across 9 files (10 call
+sites).** Scope: `app/globals.css` plus the 9 files listed in this
+prompt — `app/(public)/about/page.tsx`, `app/(public)/contact/page.tsx`,
+`app/(public)/flashchat/page.tsx`, `components/account/
+ProductionTimeline.tsx`, `components/admin/BidMonitorProjectsTable.tsx`,
+`components/admin/CommandCenterJobCard.tsx`, `components/admin/
+PendingQuoteRequestCard.tsx`, `components/ai/ChatWidget.tsx`,
+`components/resources/ResourcesBrowser.tsx`.
+
+**Root cause (per Reid, confirmed via DevTools computed style, not
+guessed):** small `font-label uppercase tracking-wide text-xs
+text-afs-crimson`-style text computes to the correct `--afs-crimson`
+value (`rgb(192 0 26)`) but reads visibly less saturated than solid
+crimson shapes at the same value — an antialiasing/small-text legibility
+effect, not a wrong color. `--afs-crimson` itself was intentionally left
+untouched.
+
+**Fix — one shared class, not a token change.** `.eyebrow-label` added to
+`app/globals.css`: sets font-family (Barlow, = `font-label`),
+`text-transform: uppercase`, `color: var(--afs-crimson)`, `text-shadow:
+var(--afs-crimson-glow)` (reused the already-defined glow token, adds
+perceived brightness without changing the base color), and
+`font-weight: 600` (Barlow's next loaded weight step above these labels'
+previous unstyled 400 default — heavier strokes at small sizes reduce
+the antialiasing-driven desaturation).
+
+**Deliberately did NOT bake in font-size or letter-spacing**, despite the
+prompt's literal wording describing the pattern as including
+`tracking-wider text-xs` — a judgment call worth flagging. The 9 files'
+10 call sites use genuinely different sizes/tracking on purpose (a hero
+kicker at `text-lg`, a dense admin-table badge at `text-[10px]`,
+`tracking-wide` vs `tracking-widest` elsewhere), and `globals.css`'s
+plain (non-`@layer`) CSS rules are emitted in the compiled stylesheet
+*after* Tailwind's own generated utility classes — at equal (single-
+class) specificity, a `font-size` set inside `.eyebrow-label` would
+always win over an element's own `text-xs`/`text-lg`/etc. utility
+regardless of className order in the JSX, silently shrinking/growing
+every instance to match `.eyebrow-label`'s own value. Baking in
+`tracking-wider` would have the same problem for the several instances
+that use `tracking-wide` or `tracking-widest` on purpose. Kept those two
+properties out of the shared class entirely so every instance keeps its
+own existing `text-*`/`tracking-*` utility class untouched — only
+`font-label`, `uppercase`, and `text-afs-crimson` were replaced with the
+single `eyebrow-label` class at each of the 10 call sites, per this
+prompt's own "do not remove non-color-related classes" instruction. If
+Reid actually wants full normalization to one size/tracking value
+site-wide, that's a one-line follow-up (add `font-size`/`letter-spacing`
+to `.eyebrow-label` and drop the per-instance `text-*`/`tracking-*`
+classes) rather than a redesign.
+
+**Real bug caught by the build gate, not code review.** The first draft
+of the explanatory CSS comment above `.eyebrow-label` used the literal
+phrase `text-*/tracking-*` — its `*/` substring is a valid CSS
+comment-close token, so it silently terminated the comment early inside
+`globals.css`. `pnpm tsc --noEmit` doesn't parse CSS so it stayed green,
+but `pnpm run build`'s CSS minification step (`cssnano`, via webpack)
+failed with `Unexpected '/'. Escaping special characters with \ may
+help.` at the generated stylesheet's exact broken position. Fixed by
+rewording the comment to avoid any literal `*/` sequence, confirmed via
+`grep '\*/'` against the whole comment block before rebuilding. Worth
+remembering for future CSS comments in this file: never use a
+glob-style `word-*/word-*` shorthand inside a `/* ... */` block.
+
+`pnpm tsc --noEmit` — 0 errors. `pnpm run build` — succeeded on the
+second attempt (first attempt failed on the `*/` bug above, real error,
+not environmental — full CSS minifier stack trace pasted in
+STATE_OF_THE_BUILD.md's matching entry), 132/132 static pages generated.
+No repeat of the prior session's OneDrive `.next/trace` lock — `.next`
+already existed from that session's last successful build and stayed
+writable throughout this one, no pause needed.
+
+Verified live on a real `pnpm dev` server (this environment has no
+Chrome DevTools extension connected, same limitation as last session) via
+a throwaway Playwright script — screenshots of 4 distinct locations
+across 3 of the 9 files, saved at repo root: `proof-eyebrow-
+resources.png` (`/resources` — the exact "INDUSTRY STANDARDS & MANUALS"
+card Reid referenced as his reference case), `proof-eyebrow-about-
+hero.png` (`/about` hero "ABOUT AFS" kicker), `proof-eyebrow-about-
+equipment.png` (`/about`'s three bordered equipment badges), `proof-
+eyebrow-contact.png` (`/contact`'s PHONE/GENERAL/OWNER card labels — a
+different visual treatment, plain text inside a card rather than a
+kicker above a heading or a bordered chip, confirming the class works
+across all three JSX shapes it was applied to).
+
+Per the verification standard above, this stays **IMPLEMENTED,
+UNCONFIRMED** pending Reid's own check against the live site on his own
+screen — this is fundamentally a perceptual call (does the text actually
+read as more vibrant now) that no automated gate or session screenshot
+can confirm on his behalf.
+
+---
+
+**Prior session (2026-08-17): FlashDraft teardrop curl now sized
 from material thickness (not Hem Length) — root cause confirmed against
 Reid's own reference photos of real formed material; investigated the
 Inside/Outside kick "no visible difference" report and found the mirror

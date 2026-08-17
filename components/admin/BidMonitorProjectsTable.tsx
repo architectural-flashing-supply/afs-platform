@@ -263,7 +263,7 @@ export default function BidMonitorProjectsTable({ projects }: { projects: BidPro
                         {truncate(project.title, 60)}
                       </p>
                       {project.division7Relevant && (
-                        <span className="inline-block mt-1 font-label text-[10px] uppercase tracking-wide text-afs-crimson">
+                        <span className="inline-block mt-1 eyebrow-label text-[10px] tracking-wide">
                           Division 7 Match
                         </span>
                       )}

@@ -102,7 +102,7 @@ export default function CommandCenterJobCard({ job }: { job: MachineJobRow }) {
 
       {job.usedFallbackGeometry && (
         <div className="bg-afs-bg-surface border border-afs-crimson rounded p-3 mb-4">
-          <p className="font-label text-xs uppercase tracking-wide text-afs-crimson mb-1">Placeholder Geometry</p>
+          <p className="eyebrow-label text-xs tracking-wide mb-1">Placeholder Geometry</p>
           <p className="font-body text-xs text-afs-chrome-high">
             This job&apos;s bend program is a fabricated 12&quot;/2&quot;/2&quot; placeholder shape, not a real
             measurement — the source request didn&apos;t capture real dimensions or a FlashDraft drawing. Do not

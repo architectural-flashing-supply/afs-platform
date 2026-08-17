@@ -35,7 +35,7 @@ export default function AboutPage() {
     <main className="min-h-screen bg-afs-bg-base">
       {/* Hero */}
       <section className="metal-edge metal-edge-red px-6 pt-20 pb-16 text-center border-b border-afs-border">
-        <p className="font-label text-afs-crimson text-sm tracking-widest uppercase mb-3">About AFS</p>
+        <p className="eyebrow-label text-sm tracking-widest mb-3">About AFS</p>
         <h1 className="font-display text-6xl md:text-[6rem] text-afs-chrome-high leading-none mb-6">
           BUILT BY ARTISANS
         </h1>
@@ -85,7 +85,7 @@ export default function AboutPage() {
                 key={item.name}
                 className="metal-edge metal-edge-red bg-afs-bg-base border border-afs-border rounded p-8"
               >
-                <span className="inline-block font-label text-xs text-afs-crimson uppercase tracking-widest border border-afs-crimson rounded px-2 py-1 mb-4">
+                <span className="inline-block eyebrow-label text-xs tracking-widest border border-afs-crimson rounded px-2 py-1 mb-4">
                   {item.detail}
                 </span>
                 <h3 className="font-heading text-xl text-afs-chrome-high mb-3">{item.name}</h3>

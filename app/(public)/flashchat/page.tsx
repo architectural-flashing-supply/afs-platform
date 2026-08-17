@@ -154,7 +154,7 @@ export default function FlashChatPage() {
         </svg>
 
         <h1 className="font-heading text-5xl font-bold text-white mb-3">FlashChat</h1>
-        <p className="font-label text-afs-crimson uppercase tracking-widest text-lg mb-6">
+        <p className="eyebrow-label text-lg tracking-widest mb-6">
           Industry Intelligence
         </p>
         <p className="font-body text-afs-chrome-mid text-lg max-w-2xl mx-auto mb-8">

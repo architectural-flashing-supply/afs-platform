@@ -82,7 +82,7 @@ export default function PendingQuoteRequestCard({ request }: { request: PendingQ
 
       {request.willUseFallbackGeometry && (
         <div className="bg-afs-bg-surface border border-afs-crimson rounded p-3 mb-4">
-          <p className="font-label text-xs uppercase tracking-wide text-afs-crimson mb-1">Placeholder Geometry</p>
+          <p className="eyebrow-label text-xs tracking-wide mb-1">Placeholder Geometry</p>
           <p className="font-body text-xs text-afs-chrome-high">
             This request didn&apos;t capture real width/leg dimensions or a FlashDraft drawing. Approving will
             create a machine job with a fabricated 12&quot;/2&quot;/2&quot; placeholder shape, not a real

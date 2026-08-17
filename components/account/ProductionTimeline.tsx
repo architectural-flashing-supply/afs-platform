@@ -205,7 +205,7 @@ export default function ProductionTimeline({
                   <p className="font-body text-sm text-afs-chrome-mid mt-1">{stage.description}</p>
                 )}
                 {state === 'active' && !isPostProduction && (
-                  <p className="font-label text-xs text-afs-crimson uppercase tracking-wide mt-1">In progress</p>
+                  <p className="eyebrow-label text-xs tracking-wide mt-1">In progress</p>
                 )}
                 {stage.key === 'shipped' && showTrackingBlock && (
                   <div className="mt-2">

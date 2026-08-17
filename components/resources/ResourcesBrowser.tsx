@@ -521,7 +521,7 @@ function ResourceCard({ resource }: { resource: Resource }) {
   return (
     <div className="bg-afs-bg-raised border border-afs-border rounded p-5 hover:border-afs-crimson transition-colors flex flex-col">
       <div className="mb-2">
-        <span className="text-xs font-label uppercase tracking-wider text-afs-crimson">
+        <span className="eyebrow-label text-xs tracking-wider">
           {resource.category}
         </span>
       </div>

@@ -49,6 +49,71 @@ pnpm tsc --noEmit                  0 errors. Exit code 0.
 
 ---
 
+## SITE-WIDE — CRIMSON EYEBROW LABEL LEGIBILITY FIX: IMPLEMENTED, UNCONFIRMED
+
+**Status: IMPLEMENTED, UNCONFIRMED. Do not mark this complete.**
+
+(2026-08-17) — Reid confirmed via side-by-side DevTools comparison (crimson
+hard-hat icon vs. the "INDUSTRY STANDARDS & MANUALS" label on
+`/resources`, same page, same monitor) that both compute to the identical
+correct `--afs-crimson` value (`rgb(192 0 26)`) but the small uppercase
+tracking-wide text reads visibly less saturated than solid crimson shapes
+— a small-text antialiasing/weight legibility issue, not a wrong color.
+`--afs-crimson` itself is unchanged.
+
+Added one shared class, `.eyebrow-label`, to `app/globals.css` (next to
+the existing `--afs-crimson-glow` token / `.hero-glow-red` block):
+`font-family: var(--font-barlow)` (= `font-label`), `text-transform:
+uppercase`, `color: var(--afs-crimson)`, `text-shadow: var(--afs-crimson-
+glow)` (reuses the already-defined token, adds perceived brightness
+without changing the base color), `font-weight: 600` (Barlow's next
+loaded weight step up from these labels' previous unstyled 400 default —
+heavier strokes at small sizes reduce the antialiasing-driven
+desaturation). Deliberately does **not** set `font-size` or
+`letter-spacing`: the 9 files' call sites vary those intentionally (a
+hero kicker at `text-lg` vs. a dense table badge at `text-[10px]`,
+`tracking-wide` vs. `tracking-widest`), and this file's plain CSS rules
+are emitted after Tailwind's generated utilities in the compiled
+stylesheet — at equal specificity a font-size baked into the shared class
+would always win over an element's own `text-*` utility regardless of
+className order, silently overriding those per-instance choices. Each of
+the 10 call sites (9 files, `about/page.tsx` has 2) had its `font-label`,
+`uppercase`, and `text-afs-crimson` classes replaced with `eyebrow-label`;
+existing `text-*` size, `tracking-*`, and all margin/border/padding
+classes were left untouched, per this prompt's "do not remove
+non-color-related classes" instruction. Confirmed via grep that no
+matching pattern was missed and no unrelated `text-afs-crimson` usage
+(hover-state links, solid-fill icons, buttons on light backgrounds) was
+touched.
+
+One real bug caught by the build gate, not by review: the first draft of
+the CSS comment above `.eyebrow-label` used the literal phrase
+`text-*/tracking-*`, whose `*/` substring is a valid CSS comment-close
+token — it silently terminated the comment early, and `pnpm run build`'s
+CSS minification step (`cssnano`) failed with `Unexpected '/'. Escaping
+special characters with \ may help.` Fixed by rewording the comment to
+avoid a literal `*/` sequence; rebuilt clean afterward.
+
+`pnpm tsc --noEmit` — 0 errors. `pnpm run build` — succeeded, 132/132
+static pages generated, no errors. Screenshots of 4 of the 9 files' fixed
+labels on a live `pnpm dev` server (not localhost is not achievable in
+this environment — see the verification standard note below), saved at
+repo root: `proof-eyebrow-resources.png` (`/resources`, the exact
+"INDUSTRY STANDARDS & MANUALS" card Reid referenced), `proof-eyebrow-
+about-hero.png` (`/about`, "ABOUT AFS" hero kicker), `proof-eyebrow-
+about-equipment.png` (`/about`, the three bordered equipment badges —
+`UNLIMITED PROFILES` / `HIGH-VOLUME ROLL FORMING` / `ON-SITE
+CAPABILITY`), `proof-eyebrow-contact.png` (`/contact`, the `PHONE` /
+`GENERAL` / `OWNER` card labels).
+
+Per the verification standard above, this stays **IMPLEMENTED,
+UNCONFIRMED** pending Reid's own check against the live site on his own
+screen (not a phone photo of a monitor, not this session's localhost
+screenshots) — the whole premise of this fix is a perceptual/legibility
+judgment call only he can make.
+
+---
+
 ## FLASHDRAFT — AUTO-FIT VIEW AFTER MANUAL LENGTH ENTRY: IMPLEMENTED, UNCONFIRMED
 
 **Status: IMPLEMENTED, UNCONFIRMED. Do not mark this complete.**
