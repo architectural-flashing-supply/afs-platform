@@ -26,7 +26,70 @@ let self-reported verification read as equivalent to user confirmation.
 
 ## CURRENT STATUS
 
-**Most recent session (2026-08-17): site-wide legibility fix for small
+**Most recent session (2026-08-17): FlashDraft teardrop — restored the
+validated tangent-circle proportions and enforced a real minimum visible
+size, fixing a regression from the immediately-prior teardrop-sizing
+session.** Scope: `lib/flashdraft/hem-glyph.ts`, `app/studio/draft/page.tsx`.
+Root cause was given directly in the prompt (not re-diagnosed this
+session) — two distinct problems, both introduced by the earlier
+"decouple teardrop size from Hem Length, derive from material thickness"
+pass:
+
+1. **Proportions had drifted.** `hem-glyph.ts`'s `d = R * 0.3, r = R *
+   0.22` were tighter than the earlier Reid-confirmed `d = R * 0.42, r =
+   R * 0.36`. Restored those two literals exactly as given.
+2. **The floor was too small to read as a closed loop.** With no gauge
+   selected, `effectiveThicknessIn` falls back to 0.0625", and the prior
+   session's `Math.max(HEM_GLYPH_R, ...)` (6px floor) meant `R` always
+   collapsed to exactly 6px in that case — at the tangent-circle ratios
+   above, under 4px across, reading as a dot rather than a loop. This is
+   Reid's own reported failing case (his live test had no gauge
+   selected). Added a new `MIN_TEARDROP_R = 14` constant and switched the
+   floor to `Math.max(MIN_TEARDROP_R, ...)`, deliberately separate from
+   `HEM_GLYPH_R`/`MIN_READABLE_R` (Open/Smashed's own floor) since
+   Teardrop is supposed to look tighter than Open's hook, not the same
+   size.
+
+`TEARDROP_THICKNESS_TO_R` itself, the straight connecting-line logic, and
+the Open/Smashed branches were explicitly out of scope and untouched —
+confirmed via `git diff` that only the two lines above changed in each
+file. The popup icon (`HemGlyphIcon`/`HEM_ICON_GLYPH_R`) was also
+explicitly out of scope this prompt (tracked separately) and not touched.
+
+`pnpm tsc --noEmit` — 0 errors. `pnpm run build` — succeeded on the first
+attempt this session (no repeat of the OneDrive `.next/trace` lock from
+two sessions ago — `.next` was already writable throughout), 132/132
+static pages generated.
+
+Verified on a live `pnpm dev` server (no Chrome DevTools extension
+connected in this environment, same limitation as recent sessions) via a
+throwaway Playwright script that explicitly reproduced Reid's exact
+failing case — drew a leg, applied Teardrop, left `#material`/`#gauge`
+unset, and read both fields back as empty strings before screenshotting
+to confirm the no-gauge fallback path was actually exercised, not
+assumed. Zoomed the canvas to 177% via the toolbar's own zoom-in control
+(not just a tight image crop) before capturing. Two screenshots saved at
+repo root: `proof-teardrop-no-gauge-full.png` (1400×900px, 134KB, full
+canvas with sidebar/toolbar for context) and `proof-teardrop-no-gauge-
+closeup.png` (160×120px — small file size is expected for a mostly-flat-
+background PNG, not a sign of a broken/near-empty capture; visually
+confirmed before reporting — a tight crop centered by scanning the
+canvas's own pixel data for the crimson glyph, rather than a guessed
+screen offset, on the loop location). Both clearly show a small closed
+circle at the tip, distinct from a dot, with the long straight run
+visible leading into it.
+
+Per the verification standard above, this stays **IMPLEMENTED,
+UNCONFIRMED** pending Reid's own visual check — the two numeric constants
+(`0.42`/`0.36` ratios, `MIN_TEARDROP_R = 14`) were specified exactly in
+the prompt rather than derived or tuned by this session, so what remains
+unconfirmed is specifically whether they combine to produce the loop
+tightness/size he actually wants, not whether the code correctly
+implements the numbers given.
+
+---
+
+**Prior session (2026-08-17): site-wide legibility fix for small
 uppercase crimson "eyebrow label" text on dark backgrounds — one new
 shared `.eyebrow-label` CSS class applied across 9 files (10 call
 sites).** Scope: `app/globals.css` plus the 9 files listed in this

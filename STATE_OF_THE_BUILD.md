@@ -49,6 +49,60 @@ pnpm tsc --noEmit                  0 errors. Exit code 0.
 
 ---
 
+## FLASHDRAFT — TEARDROP PROPORTIONS RESTORED, REAL MINIMUM VISIBLE SIZE ENFORCED: IMPLEMENTED, UNCONFIRMED
+
+**Status: IMPLEMENTED, UNCONFIRMED. Do not mark this complete.**
+
+(2026-08-17) — scope: `lib/flashdraft/hem-glyph.ts`, `app/studio/draft/page.tsx`.
+Root cause was given directly in this prompt (not re-diagnosed): two
+separate regressions from the previous "sized from material thickness"
+pass.
+
+**1. Tangent-circle proportions had drifted from the validated values.**
+`hem-glyph.ts`'s teardrop branch used `d = R * 0.3, r = R * 0.22` —
+tighter than the earlier Reid-confirmed `d = R * 0.42, r = R * 0.36`.
+Restored exactly those two literals; nothing else in the tangent-circle
+construction touched.
+
+**2. The thickness-driven floor was too small to read as a loop at all.**
+`page.tsx`'s teardrop `R` computation floored at `HEM_GLYPH_R` (6px) —
+with no gauge selected (the `effectiveThicknessIn` fallback of 0.0625"),
+`R` collapsed to exactly that floor, which at the (now-restored) tangent-
+circle ratios renders a loop under 4px across — indistinguishable from a
+dot at normal zoom. Confirmed by Reid's own live no-gauge test. Added a
+new, separate constant `MIN_TEARDROP_R = 14` (px) and switched the floor
+from `Math.max(HEM_GLYPH_R, ...)` to `Math.max(MIN_TEARDROP_R, ...)` —
+same "guarantee legibility over strict proportionality" principle
+Open/Smashed's own `MIN_READABLE_R` already applies, just a smaller floor
+value since Teardrop's curl is supposed to read as tight, not like Open's
+hook. `TEARDROP_THICKNESS_TO_R` itself, the straight connecting-line
+logic, and the Open/Smashed branches are all unchanged, per this prompt's
+explicit scope. The popup icon (`HemGlyphIcon`/`HEM_ICON_GLYPH_R`) was
+also explicitly out of scope this pass and was not touched.
+
+`pnpm tsc --noEmit` — 0 errors. `pnpm run build` — succeeded, 132/132
+static pages generated, no errors. Screenshot reproduces Reid's exact
+failing case (Teardrop hem, no material/gauge selected — confirmed via
+`#material`/`#gauge` field values read directly from the page, both
+empty strings) on the live `/studio/draft` canvas, zoomed to 177% via the
+toolbar's zoom-in control: `proof-teardrop-no-gauge-full.png` (1400×900px,
+134KB, full canvas context) and `proof-teardrop-no-gauge-closeup.png`
+(160×120px, a tight crop located by scanning the canvas's own pixel data
+for the crimson glyph rather than a guessed offset, showing the loop
+unambiguously as a small closed circle, not a dot). Not near-empty files
+like a prior session's 1.9KB screenshot — both were visually confirmed
+before being reported here.
+
+Per the verification standard above, this stays **IMPLEMENTED,
+UNCONFIRMED** pending Reid's own visual check against the live canvas —
+specifically whether `MIN_TEARDROP_R = 14` and the restored `0.42`/`0.36`
+ratios together produce the exact loop tightness/size he expects; both
+were given as exact values in this prompt, not derived independently
+this session, so confirming they combine correctly (rather than each
+being independently correct) is the open question.
+
+---
+
 ## SITE-WIDE — CRIMSON EYEBROW LABEL LEGIBILITY FIX: IMPLEMENTED, UNCONFIRMED
 
 **Status: IMPLEMENTED, UNCONFIRMED. Do not mark this complete.**

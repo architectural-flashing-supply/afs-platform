@@ -95,8 +95,8 @@ export function drawHemGlyph(
     // tip (0,0), circle at distance d along +x with radius r. d > r
     // guarantees the two tangent lines and the arc between them cannot
     // self-intersect.
-    const d = R * 0.3;
-    const r = R * 0.22;
+    const d = R * 0.42;
+    const r = R * 0.36;
     const angleC = Math.acos(r / d);
     const angUpper = Math.PI - angleC;
     const angLower = Math.PI + angleC;

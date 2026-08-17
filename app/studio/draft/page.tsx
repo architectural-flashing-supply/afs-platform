@@ -190,15 +190,24 @@ const MIN_READABLE_R = 10; // px floor
 // closed curl only at the very tip. The curl's own size reads as
 // proportional to material thickness, not to how far the straight run
 // extends — so growing Hem Length must not balloon the curl. TEARDROP_R
-// derives R from effective thickness instead: hem-glyph.ts's teardrop
-// construction uses a circle radius of R * 0.22 for the loop itself, and
-// TEARDROP_THICKNESS_TO_R (= 1 / 0.22) is chosen so that circle's real-world
-// radius works out to ~1x material thickness — a tight coil, not a hook.
-// Floors at HEM_GLYPH_R (the same "never collapse to invisible" constant
-// the popup icons use) rather than MIN_READABLE_R (10px) — that larger
-// floor is sized for Open's hook and would make the curl read as an
-// oversized loop again at everyday zoom/gauge combinations.
+// derives R from effective thickness instead. TEARDROP_THICKNESS_TO_R is
+// left as its own tuning constant, independent of hem-glyph.ts's tangent-
+// circle radius ratio (currently R * 0.36, restored to Reid-confirmed
+// proportions — see that file) — not re-derived from it, per explicit
+// instruction not to change this constant.
+//
+// MIN_TEARDROP_R is a SEPARATE floor from MIN_READABLE_R/HEM_GLYPH_R:
+// with no gauge selected (effectiveThicknessIn's 0.0625" fallback), the
+// thickness-driven R collapsed to HEM_GLYPH_R (6px), which at the tangent-
+// circle construction's proportions renders under 4px across — reads as a
+// dot, not a closed loop, confirmed by Reid's live no-gauge test. Raised
+// to a value empirically large enough for the loop to still read as a
+// loop regardless of material thickness — same "guarantee legibility over
+// strict proportionality" principle Open/Smashed's own MIN_READABLE_R
+// already applies, just a different (smaller) floor value because
+// Teardrop's curl is supposed to look tight, not like Open's hook.
 const TEARDROP_THICKNESS_TO_R = 1 / 0.22;
+const MIN_TEARDROP_R = 14; // px, empirically the smallest size the tangent-circle construction reads as a closed loop rather than a dot
 
 const VERTEX_DRAG_THRESHOLD_PX = 3; // movement before a vertex click becomes a drag
 
@@ -1175,7 +1184,7 @@ export default function FlashDraftPage() {
         const sP = worldToScreen(p, canvas);
         const sFoldTip = worldToScreen(foldTip, canvas);
         const effectiveThicknessIn = gauge ? thicknessIn : 0.0625;
-        const R = Math.max(HEM_GLYPH_R, effectiveThicknessIn * PIXELS_PER_INCH * zoom * TEARDROP_THICKNESS_TO_R);
+        const R = Math.max(MIN_TEARDROP_R, effectiveThicknessIn * PIXELS_PER_INCH * zoom * TEARDROP_THICKNESS_TO_R);
 
         ctx.strokeStyle = CANVAS_COLORS.hemLine;
         ctx.lineWidth = 2;
