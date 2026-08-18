@@ -35,3 +35,6 @@ machine-data/
 /playwright/.cache/
 
 .vercel
+
+AFS CREDENTIALS.txt
+.env.local.backup
