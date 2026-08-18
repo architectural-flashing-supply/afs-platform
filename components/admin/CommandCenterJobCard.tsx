@@ -6,9 +6,13 @@ import Badge from '@/components/ui/Badge';
 import BendSequenceDiagram from '@/components/studio/BendSequenceDiagram';
 import type { MachineJobRow } from '@/lib/data/machine-jobs';
 
+// approved_for_machine has no single fixed label — it now means one of
+// two real, different things depending on delivery_method (machine_jobs
+// row it was overloaded onto before migration 015 added that column:
+// queued for the Machine Bridge's own .ds1/human-review poll, or already
+// pushed to PathfinderEdge's catalog). See statusLabel() below.
 const STATUS_LABEL: Record<string, string> = {
   pending_approval: 'Pending Approval',
-  approved_for_machine: 'Approved — Queued for Bridge',
   staged_for_review: 'Staged for Human Review',
   sent_to_machine: 'Sent to Machine',
   machine_error: 'Machine Error',
@@ -16,6 +20,16 @@ const STATUS_LABEL: Record<string, string> = {
   rejected: 'Rejected',
   changes_requested: 'Changes Requested',
 };
+
+const DELIVERY_METHOD_LABEL: Record<MachineJobRow['deliveryMethod'], string> = {
+  machine_bridge: 'Approved — Queued for Bridge',
+  pathfinder_edge: 'Approved — Sent to PathfinderEdge',
+};
+
+function statusLabel(job: MachineJobRow): string {
+  if (job.status === 'approved_for_machine') return DELIVERY_METHOD_LABEL[job.deliveryMethod];
+  return STATUS_LABEL[job.status] ?? job.status;
+}
 
 function formatDateTime(iso: string | null): string {
   if (!iso) return '—';
@@ -73,7 +87,7 @@ export default function CommandCenterJobCard({ job }: { job: MachineJobRow }) {
         </div>
         <div className="flex flex-col items-end gap-1">
           <Badge variant={job.status === 'machine_error' || job.status === 'rejected' ? 'error' : 'chrome'}>
-            {STATUS_LABEL[job.status] ?? job.status}
+            {statusLabel(job)}
           </Badge>
           {job.isRush && <Badge variant="warning">RUSH</Badge>}
           {job.usedFallbackGeometry && <Badge variant="error">Placeholder Geometry</Badge>}

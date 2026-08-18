@@ -50,7 +50,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     .select(
       'id, order_id, quote_request_id, machine_profile_id, custom_bends, profile_name, material, gauge, quantity, blank_width_mm, notes'
     )
-    .eq('status', 'approved_for_machine');
+    // delivery_method = 'machine_bridge' as well as the status check — a
+    // job explicitly routed to PathfinderEdge (delivery_method =
+    // 'pathfinder_edge') must never be picked up here too, or the same
+    // job could reach the physical machine via both paths independently.
+    // See migration 015_machine_jobs_delivery_method.sql.
+    .eq('status', 'approved_for_machine')
+    .eq('delivery_method', 'machine_bridge');
   if (jobsError) {
     return NextResponse.json({ error: 'Could not load pending jobs.' }, { status: 500 });
   }

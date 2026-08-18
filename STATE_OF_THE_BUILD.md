@@ -49,6 +49,98 @@ pnpm tsc --noEmit                  0 errors. Exit code 0.
 
 ---
 
+## COMMAND CENTER — DELIVERY_METHOD COLUMN, SEPARATES PATHFINDEREDGE FROM MACHINE BRIDGE ROUTING: IMPLEMENTED, UNCONFIRMED
+
+**Status: IMPLEMENTED, UNCONFIRMED. Do not mark this complete.**
+
+(2026-08-18) — scope: new migration `015_machine_jobs_delivery_method.sql`,
+`app/api/admin/command-center/approve-quote-request/route.ts`,
+`app/api/admin/command-center/approve/route.ts`,
+`app/api/machine-bridge/pending-jobs/route.ts`, `lib/data/machine-jobs.ts`,
+`components/admin/CommandCenterJobCard.tsx`.
+
+**The risk this closes.** Two independent systems both keyed off
+`machine_jobs.status = 'approved_for_machine'`: the Machine Bridge's own
+poll (`pending-jobs/route.ts`) and, as of last session, PathfinderEdge's
+push (`approve/route.ts`). A job could reach the physical Thalmann via
+both paths independently, with no human decision made about which one
+should actually be used for that job. Fixed with a new column,
+`delivery_method: 'pathfinder_edge' | 'machine_bridge'`, orthogonal to
+`status` (not overloaded onto it — `status` stays purely an approval-state
+field).
+
+**A live but currently-unreachable finding, worth knowing about
+regardless of urgency.** Confirmed directly from code (not assumed):
+`approve-quote-request/route.ts` is the ONLY place that has ever created a
+`machine_jobs` row, and it always sets `status: 'approved_for_machine'`
+at insert time — meaning no job created through the app today has ever
+reached `pending_approval`, and the "Approve & Send to Machine" button
+(gated on that status, in `CommandCenterJobCard.tsx`) has never actually
+fired against a real job. This means the double-send risk above is real
+and structural but has not caused an actual double-send yet in
+production — closing it now is prevention, not a fix for something that
+already happened. Confirmed with Reid live before choosing a migration
+default (see below) rather than assumed.
+
+**Default chosen: `machine_bridge`, confirmed directly with Reid, not
+assumed.** The migration's column default and `approve-quote-request/
+route.ts`'s explicit insert value both use `'machine_bridge'` because
+that is exactly what already happens for every quote-request-originated
+job today — this default changes zero real behavior, it only makes the
+existing behavior explicit and queryable. `'pathfinder_edge'` is only
+ever reached by a job that goes through `pending_approval` first and gets
+approved via the Command Center button — which, per the finding above,
+does not happen anywhere in the app today.
+
+**Every write site to `machine_jobs.status` grepped and confirmed —
+full list, not spot-checked:**
+1. `approve-quote-request/route.ts` (INSERT) — sets `status:
+   'approved_for_machine'` AND now `delivery_method: 'machine_bridge'`
+   explicitly in the same insert, not left to the column default alone.
+2. `approve/route.ts` (UPDATE) — now checks `delivery_method ===
+   'pathfinder_edge'` and returns a 409 refusal before doing anything else
+   if it isn't, so a `machine_bridge`-routed job can never be pushed to
+   PathfinderEdge through this route even if it somehow reached
+   `pending_approval`.
+3. `request-changes/route.ts`, `mark-delivered/route.ts`,
+   `reject/route.ts`, `machine-bridge/job-delivered/route.ts` — each
+   grepped directly; none ever sets `status = 'approved_for_machine'`
+   (they set `changes_requested`, `sent_to_machine`, `rejected`,
+   `staged_for_review`/`sent_to_machine`/`machine_error` respectively) —
+   confirmed safe, not touched.
+
+**`pending-jobs/route.ts` now filters on both `status = 'approved_for_
+machine'` AND `delivery_method = 'machine_bridge'`** — a
+`pathfinder_edge`-routed job can never be picked up by the Bridge's poll
+even if a future bug re-adds a shared status value.
+
+**`CommandCenterJobCard.tsx`'s stale hardcoded label fixed.** "Approved —
+Queued for Bridge" was shown for every `approved_for_machine` job
+regardless of which system actually has it — now `statusLabel()` reads
+`job.deliveryMethod` and shows "Approved — Queued for Bridge" or
+"Approved — Sent to PathfinderEdge" correctly. `CommandCenterDashboard.tsx`
+has a separate, already-generic "Approved — Queued" label (no "for
+Bridge" claim) — out of this prompt's explicit scope, not touched.
+
+**Migration NOT yet applied to the live Supabase project** — written and
+committed as a file only, matching this project's existing convention
+(see the Thalmann machine-profile-import migration's same "not yet
+applied" note above). Confirm applied before assuming
+`machine_jobs.delivery_method` exists on the live schema.
+
+`pnpm tsc --noEmit` — 0 errors. `pnpm run build` — succeeded, 132/132
+static pages generated, no errors.
+
+Per the verification standard above, this stays **IMPLEMENTED,
+UNCONFIRMED** pending Reid's own check — specifically that the migration
+gets applied to the live project, and that a real end-to-end test (a job
+explicitly set to `pathfinder_edge` reaching `pending_approval` and
+getting approved) behaves as designed. This session did not run that
+end-to-end test — no job exists at `pending_approval` in the live
+database to test against.
+
+---
+
 ## PATHFINDEREDGE — REAL API INTEGRATION, LIVE, WIRED TO THE APPROVE BUTTON: DONE (with explicitly flagged open gaps)
 
 (2026-08-18) — scope: `lib/integrations/pathfinder-edge.ts`,

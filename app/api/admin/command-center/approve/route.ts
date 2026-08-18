@@ -17,6 +17,7 @@ interface MachineJobRow {
   machine_profile_id: string | null;
   custom_bends: MachineProfileBend[] | null;
   blank_width_mm: number | null;
+  delivery_method: 'pathfinder_edge' | 'machine_bridge';
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const { data: job, error: jobError } = await supabase
       .from('machine_jobs')
-      .select('id, status, profile_name, machine_profile_id, custom_bends, blank_width_mm')
+      .select('id, status, profile_name, machine_profile_id, custom_bends, blank_width_mm, delivery_method')
       .eq('id', jobId)
       .maybeSingle();
     if (jobError || !job) {
@@ -51,6 +52,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const jobRow = job as MachineJobRow;
     if (jobRow.status !== 'pending_approval') {
       return NextResponse.json({ error: 'Job is not pending approval.' }, { status: 409 });
+    }
+    // This route pushes to PathfinderEdge specifically — a job explicitly
+    // routed to the Machine Bridge must never come through here, or it
+    // could reach the physical machine via both paths independently. See
+    // migration 015_machine_jobs_delivery_method.sql.
+    if (jobRow.delivery_method !== 'pathfinder_edge') {
+      return NextResponse.json(
+        {
+          error: `This job is routed to delivery_method "${jobRow.delivery_method}", not "pathfinder_edge" — refusing to push it to PathfinderEdge.`,
+        },
+        { status: 409 }
+      );
     }
 
     // machine_profile_id set -> a real library match, bends live in

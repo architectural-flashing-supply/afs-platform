@@ -228,6 +228,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         is_rush: qr.is_rush,
         notes: qr.notes,
         status: 'approved_for_machine',
+        // Explicit, not left to the column default alone — confirmed with
+        // Reid (2026-08-18): every job created here goes to the Machine
+        // Bridge's .ds1/human-review path, matching current real behavior
+        // exactly. See migration 015_machine_jobs_delivery_method.sql.
+        delivery_method: 'machine_bridge',
         requested_by: qr.user_id,
         approved_by: user.id,
         approved_at: now,
