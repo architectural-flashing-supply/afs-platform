@@ -4,6 +4,14 @@ import { logAdminAction } from '@/lib/admin/audit';
 import { sendEmail } from '@/lib/resend/send';
 import { baseEmailTemplate } from '@/lib/resend/templates/base';
 import { usesFallbackGeometry } from '@/lib/machine-jobs/fallback-geometry';
+import { gaugeToThicknessMm } from '@/lib/utils/gauge-thickness';
+import {
+  pushProfileToPathfinder,
+  AFS_MACHINE_CATALOG_ID,
+  type MachineProfile,
+  type PathfinderProfile,
+} from '@/lib/integrations/pathfinder-edge';
+import { flashDraftToMachineProfile, type FlashDraftHemInput } from '@/lib/integrations/flashdraft-to-pathfinder';
 
 interface FlashDraftPoint {
   x: number;
@@ -26,6 +34,12 @@ interface QuoteRequestLineItem {
   // expects.
   points?: FlashDraftPoint[] | null;
   bendRadiiIn?: number[] | null;
+  // Also present on FlashDraft-submitted items (page.tsx's
+  // submitQuoteRequest) — was captured in quote_requests.line_items all
+  // along but never read by this route until now, which is exactly why
+  // hems never reached PathfinderEdge as real features.
+  hemStart?: FlashDraftHemInput | null;
+  hemEnd?: FlashDraftHemInput | null;
 }
 
 interface CustomBend {
@@ -141,6 +155,55 @@ function buildBendsFromItem(
   return { bends, blankWidthMm: legAMm + widthMm + legBMm, usedFallbackGeometry: usesFallbackGeometry(item) };
 }
 
+// Builds the MachineProfile pushProfileToPathfinder expects for one line
+// item. Real FlashDraft-drawn items (real points) go through the exact
+// same adapter FlashDraft's own "Send to PathfinderEdge" button uses —
+// including hemStart/hemEnd, so a hem drawn in FlashDraft and submitted
+// through a quote request now reaches PathfinderEdge as a real feature,
+// not just a blank-width number. Fallback-geometry items (legA/legB/width,
+// no real points) have no hem concept — hems can only be created via
+// FlashDraft's own canvas hem popup, which requires real drawn points to
+// exist first — so they're built directly from the same bends/blankWidthMm
+// already computed for the machine_jobs row, just reshaped into
+// MachineProfileBend's stepNumber-indexed rows. Either way, this does not
+// re-derive bend math — buildBendsFromItem (real points path indirectly,
+// via the adapter's own identical formulas) or the already-computed
+// bends/blankWidthMm (fallback path) are the single source of truth.
+function buildMachineProfileForItem(
+  item: QuoteRequestLineItem,
+  profileName: string,
+  bends: CustomBend[],
+  blankWidthMm: number
+): MachineProfile {
+  if (item.points && item.points.length >= 2) {
+    const thicknessIn = gaugeToThicknessMm(item.gauge) / MM_PER_INCH;
+    return flashDraftToMachineProfile({
+      profileName,
+      points: item.points,
+      material: item.material ?? null,
+      thicknessIn,
+      hemStart: item.hemStart ?? null,
+      hemEnd: item.hemEnd ?? null,
+    });
+  }
+
+  return {
+    id: 'quote-request-item',
+    nameEn: profileName,
+    profileNumber: `QR-${Date.now().toString(36).toUpperCase()}`,
+    blankWidthMm,
+    bends: bends.map((b, i) => ({
+      stepNumber: i + 1,
+      leftLegMm: b.leftLegMm,
+      rightLegMm: b.rightLegMm,
+      bendAngleDegrees: b.bendAngleDegrees,
+      radiusMm: b.radiusMm,
+    })),
+    hemStart: null,
+    hemEnd: null,
+  };
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const supabase = await createClient();
@@ -188,63 +251,117 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Quote request has no line items.' }, { status: 400 });
     }
 
-    // This route only ever maps a single item's geometry into a bend
-    // program (see buildBendsFromItem below) — it has no way to create more
-    // than one machine_jobs row per click. Silently mapping only item 0 and
-    // dropping the rest into a text note (the prior behavior) let an admin
-    // one-click "approve" a job that was actually missing most of the
-    // request's real parts. Block instead: a multi-item request must be
-    // built per-item in Design Studio/FlashDraft, not approved from this
-    // card. See STATE_OF_THE_BUILD.md's afs-mj-001/afs-mj-002 entries.
-    if (items.length > 1) {
-      return NextResponse.json(
-        {
-          error: `This request has ${items.length} line items. "Approve & Send to Machine" can only map a single item's geometry — build a bend program for each item individually in Design Studio / FlashDraft (/studio/draft) instead of approving here.`,
-        },
-        { status: 422 }
-      );
+    // One machine_jobs row PER LINE ITEM, each pushed to PathfinderEdge for
+    // real as part of approval — replaces the prior hard block on
+    // multi-item requests (this route used to flatly reject with a 422;
+    // see git history). Build every item's profile data and push every one
+    // to PathfinderEdge BEFORE writing anything to the database: if any
+    // item's push fails, return immediately with nothing inserted and
+    // quote_requests.status untouched, so the admin can retry the same
+    // click rather than being left with a job that looks approved but
+    // never actually reached PathfinderEdge.
+    const itemBuilds = items.map((item, i) => {
+      const profileName =
+        items.length > 1 ? `${describeItem(item)} (item ${i + 1} of ${items.length})` : describeItem(item);
+      const { bends, blankWidthMm, usedFallbackGeometry } = buildBendsFromItem(item);
+      const machineProfile = buildMachineProfileForItem(item, profileName, bends, blankWidthMm);
+      return {
+        item,
+        profileName,
+        quantity: Math.max(1, Math.round(item.quantity || 0)),
+        bends,
+        blankWidthMm,
+        usedFallbackGeometry,
+        machineProfile,
+      };
+    });
+
+    const pathfinderResults: PathfinderProfile[] = [];
+    for (const build of itemBuilds) {
+      const result = await pushProfileToPathfinder(build.machineProfile, AFS_MACHINE_CATALOG_ID);
+      if (result.status !== 'connected') {
+        await logAdminAction({
+          adminId: user.id,
+          action: 'approve_quote_request_pathfinder_failed',
+          resourceType: 'quote_request',
+          resourceId: quoteRequestId,
+          afterValue: {
+            profileName: build.profileName,
+            pathfinderStatus: result.status,
+            pathfinderMessage: result.message,
+          },
+        });
+        return NextResponse.json(
+          { error: `Could not push "${build.profileName}" to PathfinderEdge: ${result.message}` },
+          { status: 502 }
+        );
+      }
+      pathfinderResults.push(result);
     }
-
-    const profileName = describeItem(items[0]);
-    const quantity = Math.max(1, Math.round(items.reduce((sum, item) => sum + (item.quantity || 0), 0)));
-    const material = items[0]?.material ?? null;
-    const gauge = items[0]?.gauge ?? null;
-
-    const { bends, blankWidthMm, usedFallbackGeometry } = buildBendsFromItem(items[0]);
 
     const now = new Date().toISOString();
+    const machineJobIds: string[] = [];
+    for (let i = 0; i < itemBuilds.length; i++) {
+      const build = itemBuilds[i];
+      const { data: insertedJob, error: insertError } = await supabase
+        .from('machine_jobs')
+        .insert({
+          quote_request_id: quoteRequestId,
+          profile_name: build.profileName,
+          material: build.item.material ?? null,
+          gauge: build.item.gauge ?? null,
+          quantity: build.quantity,
+          blank_width_mm: build.blankWidthMm,
+          custom_bends: build.bends,
+          used_fallback_geometry: build.usedFallbackGeometry,
+          is_rush: qr.is_rush,
+          notes: qr.notes,
+          status: 'approved_for_machine',
+          // The real, intended behavior change this prompt exists for —
+          // confirmed explicitly with Reid (2026-08-18): every job
+          // created here now reaches PathfinderEdge for real as part of
+          // approval (pushed above, before this insert), not the Machine
+          // Bridge's .ds1/human-review path. See migration
+          // 015_machine_jobs_delivery_method.sql for the column and its
+          // prior 'machine_bridge' default, which this intentionally
+          // changes.
+          delivery_method: 'pathfinder_edge',
+          requested_by: qr.user_id,
+          approved_by: user.id,
+          approved_at: now,
+          updated_at: now,
+        })
+        .select('id')
+        .single();
+      if (insertError || !insertedJob) {
+        console.error('[Command Center Approve Quote Request Error]', insertError);
+        return NextResponse.json(
+          {
+            error:
+              machineJobIds.length > 0
+                ? `${machineJobIds.length} of ${itemBuilds.length} machine_jobs rows were created (and all ${itemBuilds.length} profiles already pushed to PathfinderEdge) before this insert failed. Check machine_jobs and PathfinderEdge catalog ${AFS_MACHINE_CATALOG_ID} manually before retrying — do not re-approve blindly.`
+                : 'Could not create machine job.',
+          },
+          { status: 500 }
+        );
+      }
+      const machineJobId = (insertedJob as { id: string }).id;
+      machineJobIds.push(machineJobId);
 
-    const { data: insertedJob, error: insertError } = await supabase
-      .from('machine_jobs')
-      .insert({
-        quote_request_id: quoteRequestId,
-        profile_name: profileName,
-        material,
-        gauge,
-        quantity,
-        blank_width_mm: blankWidthMm,
-        custom_bends: bends,
-        used_fallback_geometry: usedFallbackGeometry,
-        is_rush: qr.is_rush,
-        notes: qr.notes,
-        status: 'approved_for_machine',
-        // Explicit, not left to the column default alone — confirmed with
-        // Reid (2026-08-18): every job created here goes to the Machine
-        // Bridge's .ds1/human-review path, matching current real behavior
-        // exactly. See migration 015_machine_jobs_delivery_method.sql.
-        delivery_method: 'machine_bridge',
-        requested_by: qr.user_id,
-        approved_by: user.id,
-        approved_at: now,
-        updated_at: now,
-      })
-      .select('id')
-      .single();
-    if (insertError || !insertedJob) {
-      console.error('[Command Center Approve Quote Request Error]', insertError);
-      return NextResponse.json({ error: 'Could not create machine job.' }, { status: 500 });
+      await logAdminAction({
+        adminId: user.id,
+        action: 'approve_quote_request_to_machine',
+        resourceType: 'machine_job',
+        resourceId: machineJobId,
+        afterValue: {
+          status: 'approved_for_machine',
+          deliveryMethod: 'pathfinder_edge',
+          pathfinderCatalogId: AFS_MACHINE_CATALOG_ID,
+          pathfinderProfileId: pathfinderResults[i].profileId,
+          pathfinderMessage: pathfinderResults[i].message,
+        },
+      });
     }
-    const machineJobId = (insertedJob as { id: string }).id;
 
     const { error: updateError } = await supabase
       .from('quote_requests')
@@ -252,7 +369,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       .eq('id', quoteRequestId);
     if (updateError) {
       return NextResponse.json(
-        { error: 'Machine job created, but could not update the quote request status.' },
+        {
+          error:
+            'Machine job(s) created and pushed to PathfinderEdge, but could not update the quote request status.',
+        },
         { status: 500 }
       );
     }
@@ -295,13 +415,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     await logAdminAction({
       adminId: user.id,
-      action: 'approve_quote_request_to_machine',
+      action: 'approve_quote_request_to_machine_summary',
       resourceType: 'quote_request',
       resourceId: quoteRequestId,
-      afterValue: { status: 'reviewing', machineJobId },
+      afterValue: { status: 'reviewing', machineJobIds },
     });
 
-    return NextResponse.json({ ok: true, machineJobId });
+    return NextResponse.json({ ok: true, machineJobIds });
   } catch (error) {
     console.error('[Command Center Approve Quote Request Error]', error);
     return NextResponse.json({ error: 'Could not approve request. Please try again.' }, { status: 500 });

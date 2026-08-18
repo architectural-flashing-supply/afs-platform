@@ -37,6 +37,16 @@
  * own header comment for the actual confirmed result.
  */
 
+import type { HemType, HemKick } from '@/lib/types/profile';
+
+// Catalog 20115 ("afs") is the only PathfinderEdge catalog the Thalmann
+// DS2801 subscribes to — confirmed directly by Seth Oliver (2026-08-18),
+// not derived. Every real push in this codebase (Command Center approval,
+// FlashDraft's direct "Send to PathfinderEdge" button) targets this one
+// catalog — a single exported constant here instead of each call site
+// redeclaring its own copy.
+export const AFS_MACHINE_CATALOG_ID = '20115';
+
 export type PathfinderStatus = 'not_configured' | 'connected' | 'error';
 
 export interface PathfinderResult {
@@ -61,12 +71,27 @@ export interface MachineProfileBend {
   radiusMm: number | null;
 }
 
+// A hem at one profile endpoint, carried in mm like the rest of
+// MachineProfile — buildFeatures converts to inches at the same point it
+// converts everything else. `type`/`kick` reuse lib/types/profile.ts's
+// FlashDraft convention directly rather than re-declaring an equivalent
+// enum — that module is already the shared, FlashDraft-neutral home for
+// this vocabulary (see its own header comment).
+export interface MachineProfileHem {
+  type: HemType;
+  lengthMm: number;
+  gapMm: number;
+  kick: HemKick;
+}
+
 export interface MachineProfile {
   id: string;
   nameEn: string;
   profileNumber: string;
   blankWidthMm: number | null;
   bends: MachineProfileBend[];
+  hemStart?: MachineProfileHem | null;
+  hemEnd?: MachineProfileHem | null;
 }
 
 export interface PathfinderProfile extends PathfinderResult {
@@ -180,69 +205,121 @@ interface PathfinderFeature {
   hemClampOffset?: number;
 }
 
+// UNCONFIRMED mapping — unlike the mm/inches units question (empirically
+// round-trip-tested), this codebase's HemKick ('inside'/'outside') has no
+// empirical basis for which PathfinderEdge hemDirection it corresponds
+// to. 'outside' -> 'Positive' chosen arbitrarily but applied
+// consistently; flagged in STATE_OF_THE_BUILD.md pending a real pushed
+// hem checked against PathfinderEdge's own profile thumbnail/render.
+function hemDirection(kick: HemKick): 'Positive' | 'Negative' {
+  return kick === 'outside' ? 'Positive' : 'Negative';
+}
+
+// The hem itself, as a PathfinderEdge feature — does NOT include the
+// leader Straight that must sit next to it (buildFeatures below adds
+// that separately, since its length comes from the same hem.lengthMm but
+// is a distinct array element per the doc's own alternating-feature
+// rule). 'open'/'smashed'/'teardrop' map to OpenHem/ClosedHem/TearDropHem
+// — ClosedHem has no hemHeight field at all (matches 'smashed': the gap
+// is collapsed to ~0, there's nothing to report). hemClampOffset has no
+// source data anywhere in this codebase (TearDropHem only) — 0 is a
+// placeholder default, not a measured value, same precedent as
+// radiusQuality below.
+function hemFeature(hem: MachineProfileHem): PathfinderFeature {
+  const direction = hemDirection(hem.kick);
+  if (hem.type === 'open') {
+    return { type: 'OpenHem', hemHeight: mmToIn(hem.gapMm), hemDirection: direction };
+  }
+  if (hem.type === 'smashed') {
+    return { type: 'ClosedHem', hemDirection: direction };
+  }
+  return { type: 'TearDropHem', hemDirection: direction, hemClampOffset: 0 };
+}
+
 // Maps MachineProfile.bends (mm, one row per bend: leftLegMm = leg walked
 // BEFORE this bend, rightLegMm = trailing leg — same leftLeg/rightLeg
 // convention lib/flashdraft/geometry.ts's computeProfilePoints already
 // relies on, i.e. only the LAST bend's rightLegMm is a real distinct leg;
 // every other bend's own rightLegMm is redundant with the next bend's
-// leftLegMm) into the alternating Straight/Angle|Radius feature list the
-// real API requires.
+// leftLegMm) plus MachineProfile.hemStart/hemEnd into the alternating
+// Straight/non-Straight feature list the real API requires.
 //
-// No hem data flows through MachineProfile anywhere in this codebase yet
-// (see SCHEMA.md — no hem columns exist on machine_profile_bends or
-// machine_jobs.custom_bends) — real fixes belong in that data model, not
-// invented here. This is a known, explicitly-flagged gap, not a silent
-// omission: profiles pushed today have no OpenHem/TearDropHem features
-// even if the source job actually has hems.
+// Hem placement follows the profile-object doc's own worked example
+// verbatim: `[Straight(0.5), OpenHem, Straight(10), Angle(90),
+// Straight(10), TearDropHem, Straight(0.5)]` — a hem sits between a
+// short "leader" Straight (the hem's OWN fold-back leg — 0.5" in that
+// example, the exact same value this codebase already defaults
+// HEM_DEFAULT_LENGTH_IN to) and the profile's real leg material. A hem
+// can never be the first/last feature outright (the doc requires the
+// array to start AND end with Straight), so the leader Straight is what
+// satisfies that at a hemmed end.
 //
-// radiusQuality has no source data anywhere either — 'Medium' below is a
+// radiusQuality has no source data anywhere — 'Medium' below is a
 // placeholder default, not a measured value.
 function buildFeatures(profile: MachineProfile): PathfinderFeature[] {
   const bends = profile.bends ?? [];
+  const features: PathfinderFeature[] = [];
+
+  if (profile.hemStart) {
+    const leaderIn = mmToIn(profile.hemStart.lengthMm);
+    if (leaderIn <= 0) {
+      throw new Error("Start hem's lengthMm resolves to 0 or less — cannot build a valid Straight feature.");
+    }
+    features.push({ type: 'Straight', length: leaderIn });
+    features.push(hemFeature(profile.hemStart));
+  }
 
   if (bends.length === 0) {
     const lengthIn = mmToIn(profile.blankWidthMm ?? 0);
     if (lengthIn <= 0) {
       throw new Error('Profile has no bends and no positive blankWidthMm — nothing to push.');
     }
-    return [{ type: 'Straight', length: lengthIn }];
+    features.push({ type: 'Straight', length: lengthIn });
+  } else {
+    const firstLegIn = mmToIn(bends[0].leftLegMm ?? 0);
+    if (firstLegIn <= 0) {
+      throw new Error("First leg's length resolves to 0 or less — cannot build a valid Straight feature.");
+    }
+    features.push({ type: 'Straight', length: firstLegIn });
+
+    for (let i = 0; i < bends.length; i++) {
+      const bend = bends[i];
+      const radiusMm = bend.radiusMm ?? 0;
+      // bendAngleDegrees is this codebase's INTERIOR/included angle (see
+      // geometry.ts's own doc comment) — passed straight through as the
+      // PathfinderEdge "angle" feature, which the doc describes only as
+      // "bend angle in degrees, -180 to 180" with no turtle-turn framing.
+      // This mapping is a best-effort interpretation, NOT confirmed by
+      // the round-trip test below (that test only covers a bendless
+      // profile, to isolate the units question) — flagged as open in
+      // STATE_OF_THE_BUILD.md pending a real bend push+visual check.
+      if (radiusMm > 0) {
+        features.push({
+          type: 'Radius',
+          radius: mmToIn(radiusMm),
+          radiusQuality: 'Medium',
+          angle: bend.bendAngleDegrees ?? 180,
+        });
+      } else {
+        features.push({ type: 'Angle', angle: bend.bendAngleDegrees ?? 180 });
+      }
+
+      const nextLegMm = i < bends.length - 1 ? (bends[i + 1].leftLegMm ?? 0) : (bend.rightLegMm ?? 0);
+      const nextLegIn = mmToIn(nextLegMm);
+      if (nextLegIn <= 0) {
+        throw new Error(`Bend ${i + 1}'s trailing leg resolves to 0 or less — cannot build a valid Straight feature.`);
+      }
+      features.push({ type: 'Straight', length: nextLegIn });
+    }
   }
 
-  const features: PathfinderFeature[] = [];
-  const firstLegIn = mmToIn(bends[0].leftLegMm ?? 0);
-  if (firstLegIn <= 0) {
-    throw new Error("First leg's length resolves to 0 or less — cannot build a valid Straight feature.");
-  }
-  features.push({ type: 'Straight', length: firstLegIn });
-
-  for (let i = 0; i < bends.length; i++) {
-    const bend = bends[i];
-    const radiusMm = bend.radiusMm ?? 0;
-    // bendAngleDegrees is this codebase's INTERIOR/included angle (see
-    // geometry.ts's own doc comment) — passed straight through as the
-    // PathfinderEdge "angle" feature, which the doc describes only as
-    // "bend angle in degrees, -180 to 180" with no turtle-turn framing.
-    // This mapping is a best-effort interpretation, NOT confirmed by the
-    // round-trip test below (that test only covers a bendless profile,
-    // to isolate the units question) — flagged as open in
-    // STATE_OF_THE_BUILD.md pending a real bend push+visual check.
-    if (radiusMm > 0) {
-      features.push({
-        type: 'Radius',
-        radius: mmToIn(radiusMm),
-        radiusQuality: 'Medium',
-        angle: bend.bendAngleDegrees ?? 180,
-      });
-    } else {
-      features.push({ type: 'Angle', angle: bend.bendAngleDegrees ?? 180 });
+  if (profile.hemEnd) {
+    const leaderIn = mmToIn(profile.hemEnd.lengthMm);
+    if (leaderIn <= 0) {
+      throw new Error("End hem's lengthMm resolves to 0 or less — cannot build a valid Straight feature.");
     }
-
-    const nextLegMm = i < bends.length - 1 ? (bends[i + 1].leftLegMm ?? 0) : (bend.rightLegMm ?? 0);
-    const nextLegIn = mmToIn(nextLegMm);
-    if (nextLegIn <= 0) {
-      throw new Error(`Bend ${i + 1}'s trailing leg resolves to 0 or less — cannot build a valid Straight feature.`);
-    }
-    features.push({ type: 'Straight', length: nextLegIn });
+    features.push(hemFeature(profile.hemEnd));
+    features.push({ type: 'Straight', length: leaderIn });
   }
 
   return features;

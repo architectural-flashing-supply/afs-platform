@@ -26,7 +26,88 @@ let self-reported verification read as equivalent to user confirmation.
 
 ## CURRENT STATUS
 
-**Most recent session (2026-08-18): FlashDraft — added a direct "Send to
+**Most recent session (2026-08-18): Command Center — the full approval
+pipeline now reaches PathfinderEdge automatically, with hems included as
+real features, not just blank-width numbers.** Scope: `approve-quote-
+request/route.ts`, `pathfinder-edge.ts`, `flashdraft-to-pathfinder.ts`,
+`app/studio/draft/page.tsx`, `PendingQuoteRequestCard.tsx`, `lib/data/
+pending-quote-requests.ts`. Direct answer to what this prompt asked:
+approving a quote request in the Command Center now pushes every line
+item to PathfinderEdge for real, as part of that one click — confirmed
+via a real end-to-end test through the actual UI, not assumed.
+
+**`delivery_method` default flipped from `machine_bridge` to
+`pathfinder_edge`** — the real, intended change, confirmed explicitly
+with Reid in this conversation (separate from migration 015's earlier,
+deliberately-zero-behavior-change default).
+
+**Every line item now gets pushed, not just item 0** — this route used
+to hard-reject multi-item quote requests (a 422). Removed; now creates
+one `machine_jobs` row per item, each pushed to PathfinderEdge
+individually. `PendingQuoteRequestCard.tsx`'s Approve button is no longer
+disabled for multi-item requests (was permanently disabled before) — now
+shows an informational note instead. **Flagged for Reid, not decided
+here:** N items now show as N separate cards sharing one request number
+in the Sent tab — whether that should visually group into one card is a
+real product decision.
+
+**Fails loud on any PathfinderEdge push failure** — every item pushes
+before any DB write; one failure aborts the whole approval with nothing
+inserted and the quote request left `submitted`, so nothing looks
+approved when it wasn't.
+
+**Hems now convert to real OpenHem/ClosedHem/TearDropHem features — the
+gap flagged at the end of last session, fixed as explicitly instructed,
+not left partial.** `MachineProfile` gained `hemStart`/`hemEnd`;
+`buildFeatures` constructs real hem features placed exactly per the
+profile-object doc's own worked example (a short "leader" Straight using
+the hem's own length, between the hem feature and the real leg
+material). `page.tsx`'s two hem-sending call sites now also send `kick`
+(needed for hem direction — was never sent before, a gap this session
+found and closed while fixing the bigger one). Two mappings stay
+explicitly UNCONFIRMED — `hemDirection` (kick → Positive/Negative has no
+empirical basis yet) and `hemClampOffset` (defaulted to 0, no source
+data anywhere).
+
+**Diagnostic finding worth recording:** PathfinderEdge's `bendCount`
+field only counts `Angle`-type features, not `Radius`-type ones —
+confirmed with two isolated test profiles (posted and deleted). Not a
+bug; the real end-to-end test below shows `bendCount: 0` for a profile
+with one real bend because that bend used a material-default `Radius`,
+not a bare `Angle`.
+
+`pnpm tsc --noEmit` — 0 errors. `pnpm run build` — succeeded, 133/133
+static pages.
+
+**Real end-to-end test, through the actual Command Center UI:** posted a
+real quote request (guest, via the real `/api/quote-requests` route) — a
+2-leg/1-bend Copper profile with a real `open` hem at the start. Logged
+in as a throwaway admin via Playwright, clicked "Approve & Send to
+Machine" on the live page, watched it move to the Sent tab showing
+"Approved — Sent to PathfinderEdge". Resolved the real PathfinderEdge
+profileId via the audit log and called `GET /api/v1/profiles/{id}`
+directly: **`"hemCount":1`** — confirmed by PathfinderEdge itself, not
+inferred. `blankWidth: 19.25` reconciles exactly (0.5 hem leader + 10 +
+0.75 radius allowance + 8 = 19.25). Screenshots: `proof-hem-e2e-before-
+approve.png`, `proof-hem-e2e-approved-card.png`.
+
+**Cleanup — mostly complete, one thing flagged rather than forced:** the
+test PathfinderEdge profile, `machine_jobs` row, and `quote_requests` row
+were all deleted. The throwaway admin account
+(`hem-e2e-admin@afs-internal.test`) could NOT be deleted — real
+`admin_audit_log` rows this test created foreign-key to it, and forcing
+that deletion by removing audit trail data seemed like the wrong call to
+make alone. It has `role: 'admin'` and is still in the system — Reid
+should decide whether to remove it.
+
+Stays **IMPLEMENTED, UNCONFIRMED** — mechanism proven end-to-end with a
+real hem confirmed by PathfinderEdge itself, but `hemDirection`'s
+correctness, the multi-item Command Center UI question, and the leftover
+test admin account all need Reid's review.
+
+---
+
+**Prior session (2026-08-18): FlashDraft — added a direct "Send to
 PathfinderEdge" button, entirely separate from the quote-request/
 job-approval pipeline.** Scope: new `lib/integrations/flashdraft-to-
 pathfinder.ts`, new `app/api/studio/send-to-pathfinder/route.ts`,

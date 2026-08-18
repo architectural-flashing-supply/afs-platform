@@ -29,15 +29,19 @@ export interface PendingQuoteRequestRow {
   isRush: boolean;
   notes: string | null;
   submittedAt: string;
-  // True when approving this request would map item 0 through
+  // True when approving this request would map ANY item through
   // buildBendsFromItem's hardcoded 12"/2"/2" fallback (no real dimensions
   // or drawn points captured) — surfaced so an admin sees the warning
   // before clicking Approve, not after. See approve-quote-request/route.ts.
+  // Checks every item, not just item 0 — approving now creates one
+  // machine_jobs row per item, so a fallback-geometry item anywhere in the
+  // request is worth flagging, not just the first one.
   willUseFallbackGeometry: boolean;
-  // True when this request has more than one line item — Approve & Send to
-  // Machine is blocked server-side for these (only item 0 can ever be
-  // mapped), so the UI disables the action up front instead of surfacing
-  // the block only after a failed request.
+  // True when this request has more than one line item. No longer blocks
+  // approval (approve-quote-request/route.ts now creates one machine_jobs
+  // row per item and pushes each to PathfinderEdge individually) — purely
+  // informational, surfaced so an admin knows N separate jobs will be
+  // created from one click.
   hasMultipleLineItems: boolean;
 }
 
@@ -97,7 +101,7 @@ export async function getPendingQuoteRequests(supabase: SupabaseClient): Promise
       isRush: r.is_rush,
       notes: r.notes,
       submittedAt: r.submitted_at,
-      willUseFallbackGeometry: items.length > 0 ? usesFallbackGeometry(items[0]) : false,
+      willUseFallbackGeometry: items.some(usesFallbackGeometry),
       hasMultipleLineItems: items.length > 1,
     };
   });

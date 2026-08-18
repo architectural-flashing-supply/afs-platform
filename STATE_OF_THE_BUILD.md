@@ -49,6 +49,165 @@ pnpm tsc --noEmit                  0 errors. Exit code 0.
 
 ---
 
+## COMMAND CENTER — FULL APPROVAL PIPELINE CONNECTED TO PATHFINDEREDGE, HEMS INCLUDED AS REAL FEATURES: IMPLEMENTED, UNCONFIRMED
+
+**Status: IMPLEMENTED, UNCONFIRMED. Do not mark this complete — pending
+Reid's own review.**
+
+(2026-08-18) — scope: `app/api/admin/command-center/approve-quote-
+request/route.ts`, `lib/integrations/pathfinder-edge.ts`,
+`lib/integrations/flashdraft-to-pathfinder.ts`, `app/studio/draft/
+page.tsx`, `components/admin/PendingQuoteRequestCard.tsx`, `lib/data/
+pending-quote-requests.ts`. **Direct answer to this prompt's own
+framing: yes — a customer's quote request, once approved in the Command
+Center, now reaches PathfinderEdge automatically as part of that one
+click, with hems included as real features, not just reflected in
+blank width.** Confirmed via a real end-to-end test (below), not
+assumed.
+
+**1. `delivery_method` default changed from `machine_bridge` to
+`pathfinder_edge`** in `approve-quote-request/route.ts`'s insert — the
+real, intended behavior change this prompt exists for, explicitly
+confirmed with Reid in this conversation (not the technical-default
+question migration 015 asked and answered separately).
+
+**2. Every line item now gets pushed, not just item 0.** This route used
+to hard-reject any quote request with more than one line item (a 422,
+"can only map a single item's geometry"). Removed — the route now loops
+over every item, builds each one's `MachineProfile`, and pushes each to
+PathfinderEdge individually, creating one `machine_jobs` row per item
+(previously always exactly one row per quote request). Both
+`PendingQuoteRequestCard.tsx` (which used to disable the Approve button
+entirely for multi-item requests) and `lib/data/pending-quote-
+requests.ts`'s `hasMultipleLineItems` were updated to match — the button
+is no longer disabled; a multi-item request instead shows an
+informational note ("approving creates N separate machine jobs").
+**Flagged for Reid, not resolved unilaterally, per this prompt's own
+instruction:** N machine_jobs rows from one quote request now show as N
+separate cards in the Command Center's Sent tab, all sharing the same
+request number — whether Reid wants these visually grouped into one card
+is a real product/UI decision this session did not make.
+
+**3. Fail loud, not silent, on any push failure.** Every item's
+PathfinderEdge push happens BEFORE any database write — if any single
+item fails, the route returns immediately with a clear error and
+`quote_requests.status` stays `submitted`, nothing is inserted, and the
+admin can retry the same click. One narrower, lower-probability edge
+case not fully closed: if all pushes succeed but a `machine_jobs` INSERT
+itself fails partway through a multi-item loop (a DB-layer failure, not
+a PathfinderEdge failure), the route returns a clear error naming exactly
+how many rows exist vs. how many profiles were pushed, but does not
+automatically roll back the already-created PathfinderEdge profiles —
+flagged, not silently left ambiguous.
+
+**4. Hems now convert to real PathfinderEdge features — the gap flagged
+at the end of the previous prompt, fixed as explicitly instructed.**
+Confirmed directly before starting: `flashdraft-to-pathfinder.ts`'s
+adapter only fed `hemStart`/`hemEnd` into `hemAllowanceIn`'s blank-width
+number, and `pathfinder-edge.ts`'s `buildFeatures` had no hem support at
+all — a hem pushed to PathfinderEdge rendered as a plain straight/bent
+bar with the right total length but no hem shape. Fixed at the root, not
+worked around:
+- `MachineProfile` gained optional `hemStart`/`hemEnd` fields
+  (`MachineProfileHem`: `type`/`lengthMm`/`gapMm`/`kick`, mm like the
+  rest of the interface).
+- `buildFeatures` now constructs real `OpenHem`/`ClosedHem`/`TearDropHem`
+  features, placed per the profile-object doc's own worked example
+  verbatim (`Straight(0.5) -> OpenHem -> Straight(10) -> ...`) — a short
+  "leader" Straight using the hem's own `lengthMm` sits between the hem
+  feature and the profile's real leg material, satisfying the doc's
+  "features must start and end with Straight" rule at a hemmed end.
+  `'open'`→`OpenHem`, `'smashed'`→`ClosedHem` (no `hemHeight` field at
+  all — matches "gap collapsed to ~0, nothing to report"),
+  `'teardrop'`→`TearDropHem`.
+- The adapter's blank-width calculation no longer adds `hemAllowanceIn`
+  on top (that would now double-count the hem's material, since the hem
+  is a real feature with its own leader-Straight length) — it's now
+  plain leg-length only.
+- `app/studio/draft/page.tsx`'s two hem-sending call sites (`Submit for
+  Quote` and last session's `Send to PathfinderEdge` button) both now
+  include `kick`, which was never sent before — needed for
+  `hemDirection`, and the real, already-captured per-hem value, not a
+  hardcoded placeholder.
+
+**Two placeholder mappings remain explicitly UNCONFIRMED (not part of
+this session's empirical test, which only checked that a hem feature
+exists at all, not its exact rendered direction):**
+- `hemDirection`: this codebase's `HemKick` (`'inside'`/`'outside'`) has
+  no empirical basis for which PathfinderEdge `hemDirection`
+  (`'Positive'`/`'Negative'`) it maps to — `'outside'` → `'Positive'`
+  chosen arbitrarily but applied consistently. Needs a real pushed hem
+  checked against PathfinderEdge's own profile thumbnail/render to
+  confirm or correct.
+- `hemClampOffset` (TearDropHem only): no source data anywhere in this
+  codebase — defaulted to `0`, same placeholder-default precedent as
+  `radiusQuality: 'Medium'`.
+
+**Diagnostic finding, not a bug — worth recording so a future session
+doesn't re-investigate it:** PathfinderEdge's own `bendCount` field on a
+profile response only counts `Angle`-type features, NOT `Radius`-type
+ones — confirmed by posting two isolated test profiles (one `Angle`, one
+`Radius`, both deleted after) and comparing: `Angle` → `bendCount: 1`;
+`Radius` → `bendCount: 0`, but `blankWidth` still correctly included the
+radius value, confirming `Radius` features ARE accepted and processed,
+just not tallied under that particular counter. The real end-to-end
+test below shows `bendCount: 0` for a profile with one real 90° bend —
+expected, not a defect, since that bend used a material-default `Radius`
+(0.75" for copper, no explicit per-point radius given), not a bare
+`Angle`.
+
+`pnpm tsc --noEmit` — 0 errors. `pnpm run build` — succeeded, 133/133
+static pages, no errors.
+
+**Real end-to-end test performed this session, through the actual
+Command Center UI, not a script:**
+1. Posted a real quote request via the real, unmodified `/api/quote-
+   requests` route (guest submission) — one line item, a 2-leg/1-bend
+   Copper/16oz profile with a real `open` hem at the start (`gapIn:
+   0.1875, lengthIn: 0.5, kick: 'outside'`).
+2. Created a throwaway admin account (no standing test credentials exist
+   in this repo yet — see `tests/e2e/README.md`), logged in via
+   Playwright against a live `pnpm dev` server, navigated to
+   `/admin/command-center?tab=pending`, and clicked the real "Approve &
+   Send to Machine" button — screenshot:
+   `proof-hem-e2e-before-approve.png`.
+3. The job moved to the Sent tab showing **"Approved — Sent to
+   PathfinderEdge"** — screenshot: `proof-hem-e2e-approved-card.png`.
+4. Resolved the real PathfinderEdge profileId (32910142, since deleted)
+   via `admin_audit_log`'s `approve_quote_request_to_machine` entry, then
+   called `GET /api/v1/profiles/32910142` directly:
+   ```
+   {"profileId":32910142,"profileName":"Custom FlashDraft Profile — Copper — 16 oz",
+   "description":"AFS profile FD-MSZ8TZLY","owningCatalogId":20115,"category":null,
+   "subCategory":null,"blankWidth":19.25,"bendCount":0,"hemCount":1}
+   ```
+   **`hemCount: 1`** — PathfinderEdge itself confirms a real hem feature
+   was received, not just a blank-width number (`bendCount: 0` explained
+   above, not a defect). `blankWidth: 19.25` reconciles exactly: `0.5`
+   (hem leader) + `10` (leg 1) + `0.75` (the Radius bend's own material
+   allowance, copper's material-default radius) + `8` (leg 2) = `19.25`.
+5. Cleanup: the PathfinderEdge test profile (`DELETE` → 200), the
+   `machine_jobs` row, and the `quote_requests` row were all deleted.
+   **One thing NOT fully cleaned up, flagged rather than forced:** the
+   throwaway admin account (`hem-e2e-admin@afs-internal.test`) could not
+   be deleted — `admin_audit_log` rows this test legitimately created
+   (`approve_quote_request_to_machine`,
+   `approve_quote_request_to_machine_summary`) foreign-key to its
+   `profiles` row, and deleting audit trail data to force a cleanup felt
+   like the wrong call to make unilaterally. This account has `role:
+   'admin'` and remains in the system — Reid should decide whether to
+   remove it (and whether that means also removing the audit rows) or
+   leave it.
+
+Per the verification standard above, this stays **IMPLEMENTED,
+UNCONFIRMED** — the mechanism is now proven end-to-end with a real hem
+reaching PathfinderEdge as a real feature, but the `hemDirection`
+mapping's correctness, the multi-item Command Center UI question, and
+the leftover test admin account all need Reid's own review before this
+is "done."
+
+---
+
 ## FLASHDRAFT — DIRECT "SEND TO PATHFINDEREDGE" BUTTON: IMPLEMENTED, UNCONFIRMED
 
 **Status: IMPLEMENTED, UNCONFIRMED. Do not mark this complete — pending

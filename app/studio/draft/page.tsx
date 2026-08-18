@@ -2271,8 +2271,12 @@ export default function FlashDraftPage() {
           points,
           material: material || null,
           thicknessIn,
-          hemStart: hemStart ? { type: hemStart.type, gapIn: hemStart.gapIn, lengthIn: hemStart.lengthIn } : null,
-          hemEnd: hemEnd ? { type: hemEnd.type, gapIn: hemEnd.gapIn, lengthIn: hemEnd.lengthIn } : null,
+          hemStart: hemStart
+            ? { type: hemStart.type, gapIn: hemStart.gapIn, lengthIn: hemStart.lengthIn, kick: hemStart.kick }
+            : null,
+          hemEnd: hemEnd
+            ? { type: hemEnd.type, gapIn: hemEnd.gapIn, lengthIn: hemEnd.lengthIn, kick: hemEnd.kick }
+            : null,
         }),
       });
       const data = (await res.json()) as { profileId?: string | null; message?: string; error?: string };
@@ -2342,8 +2346,12 @@ export default function FlashDraftPage() {
                 unit: 'LF',
                 points,
                 bendRadiiIn,
-                hemStart: hemStart ? { type: hemStart.type, gapIn: hemStart.gapIn, lengthIn: hemStart.lengthIn } : undefined,
-                hemEnd: hemEnd ? { type: hemEnd.type, gapIn: hemEnd.gapIn, lengthIn: hemEnd.lengthIn } : undefined,
+                hemStart: hemStart
+                  ? { type: hemStart.type, gapIn: hemStart.gapIn, lengthIn: hemStart.lengthIn, kick: hemStart.kick }
+                  : undefined,
+                hemEnd: hemEnd
+                  ? { type: hemEnd.type, gapIn: hemEnd.gapIn, lengthIn: hemEnd.lengthIn, kick: hemEnd.kick }
+                  : undefined,
                 paint_face: paintFace ?? undefined,
               },
             ],

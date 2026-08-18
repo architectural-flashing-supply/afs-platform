@@ -1,20 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { pushProfileToPathfinder } from '@/lib/integrations/pathfinder-edge';
+import { pushProfileToPathfinder, AFS_MACHINE_CATALOG_ID } from '@/lib/integrations/pathfinder-edge';
 import {
   flashDraftToMachineProfile,
   type FlashDraftPointInput,
   type FlashDraftHemInput,
 } from '@/lib/integrations/flashdraft-to-pathfinder';
 
-// Catalog 20115 ("afs") — the only PathfinderEdge catalog the Thalmann
-// DS2801 subscribes to, confirmed by Seth Oliver. Hardcoded, not
-// configurable in the UI — matches app/api/admin/command-center/
-// approve/route.ts's own AFS_MACHINE_CATALOG_ID. This route is entirely
-// separate from that one and from machine_jobs/delivery_method — it
-// sends whatever is currently drawn on the canvas directly, independent
-// of the quote-request/job-approval pipeline.
-const AFS_MACHINE_CATALOG_ID = '20115';
+// This route is entirely separate from app/api/admin/command-center/
+// approve/route.ts and from machine_jobs/delivery_method — it sends
+// whatever is currently drawn on the canvas directly, independent of the
+// quote-request/job-approval pipeline.
 
 interface RequestBody {
   profileName?: string;

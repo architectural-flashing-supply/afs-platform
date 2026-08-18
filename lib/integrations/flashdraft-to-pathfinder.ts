@@ -6,19 +6,12 @@
  * lib/integrations/pathfinder-edge.ts's pushProfileToPathfinder() already
  * accepts. Converts geometry only — never touches PathfinderEdge's own
  * request/response handling, auth, or feature-array construction
- * (buildFeatures in pathfinder-edge.ts is untouched).
- *
- * Known gap, inherited from pathfinder-edge.ts's own buildFeatures (not
- * fixed here — out of this adapter's scope): hemStart/hemEnd are only
- * used for their blank-width MATERIAL ALLOWANCE (hemAllowanceIn), not as
- * real OpenHem/TearDropHem features — buildFeatures has no hem support
- * yet (see its own comment). A profile with a real hem pushed through
- * this adapter will have the correct total length but render on
- * PathfinderEdge as a plain straight/bent bar with no hem shape.
+ * (buildFeatures in pathfinder-edge.ts owns that, including turning
+ * hemStart/hemEnd into real OpenHem/ClosedHem/TearDropHem features).
  */
 
-import { hemAllowanceIn, type Hem, type HemType } from '@/lib/types/profile';
-import type { MachineProfile, MachineProfileBend } from '@/lib/integrations/pathfinder-edge';
+import type { HemType, HemKick } from '@/lib/types/profile';
+import type { MachineProfile, MachineProfileBend, MachineProfileHem } from '@/lib/integrations/pathfinder-edge';
 
 const MM_PER_INCH = 25.4;
 
@@ -32,6 +25,7 @@ export interface FlashDraftHemInput {
   type: HemType;
   gapIn: number;
   lengthIn: number;
+  kick: HemKick;
 }
 
 export interface FlashDraftProfileInput {
@@ -73,26 +67,29 @@ function bendAngleAt(prev: FlashDraftPointInput, curr: FlashDraftPointInput, nex
   return (Math.acos(cos) * 180) / Math.PI;
 }
 
-// `kick` doesn't affect hemAllowanceIn's math — a placeholder value here
-// is fine. This Hem is only ever used for that one calculation below, it
-// never reaches PathfinderEdge as a real feature (see this file's header).
-function toHem(input: FlashDraftHemInput | null | undefined): Hem | null {
+function toMachineProfileHem(input: FlashDraftHemInput | null | undefined): MachineProfileHem | null {
   if (!input) return null;
-  return { type: input.type, gapIn: input.gapIn, lengthIn: input.lengthIn, kick: 'outside' };
+  return {
+    type: input.type,
+    lengthMm: input.lengthIn * MM_PER_INCH,
+    gapMm: input.gapIn * MM_PER_INCH,
+    kick: input.kick,
+  };
 }
 
 export function flashDraftToMachineProfile(input: FlashDraftProfileInput): MachineProfile {
-  const { points, material, thicknessIn } = input;
-  const hemStart = toHem(input.hemStart);
-  const hemEnd = toHem(input.hemEnd);
+  const { points, material } = input;
+  const hemStart = toMachineProfileHem(input.hemStart);
+  const hemEnd = toMachineProfileHem(input.hemEnd);
 
-  // Same math as page.tsx's blankWidthInLive / viewerBlankWidthMm — leg
-  // lengths plus each end's real hem material allowance.
+  // Plain leg-length total — no hem allowance baked in here. Once a hem
+  // is present it becomes a real feature (see buildFeatures), carrying
+  // its own leader-Straight length from hem.lengthMm; adding an allowance
+  // on top of that here would double-count the hem's material.
   let blankWidthIn = 0;
   for (let i = 0; i < points.length - 1; i++) {
     blankWidthIn += dist(points[i], points[i + 1]);
   }
-  blankWidthIn += hemAllowanceIn(hemStart, thicknessIn) + hemAllowanceIn(hemEnd, thicknessIn);
 
   // Same leftLeg/rightLeg-per-interior-point convention as approve-quote-
   // request/route.ts's buildBendsFromPoints and page.tsx's own viewerBends
@@ -115,5 +112,7 @@ export function flashDraftToMachineProfile(input: FlashDraftProfileInput): Machi
     profileNumber: `FD-${Date.now().toString(36).toUpperCase()}`,
     blankWidthMm: blankWidthIn * MM_PER_INCH,
     bends,
+    hemStart,
+    hemEnd,
   };
 }

@@ -93,28 +93,23 @@ export default function PendingQuoteRequestCard({ request }: { request: PendingQ
 
       {error && <p className="font-body text-xs text-afs-crimson mb-3">{error}</p>}
 
-      {request.hasMultipleLineItems ? (
-        <div className="bg-afs-bg-surface border border-afs-chrome-dim rounded p-3">
+      {request.hasMultipleLineItems && (
+        <div className="bg-afs-bg-surface border border-afs-chrome-dim rounded p-3 mb-3">
           <p className="font-body text-xs text-afs-chrome-high">
-            This request has {request.lineItemDescriptions.length} line items. &quot;Approve &amp; Send to
-            Machine&quot; can only map a single item&apos;s geometry, so it&apos;s disabled here — build a bend
-            program for each item individually in{' '}
-            <a href="/studio/draft" className="text-afs-crimson underline">
-              Design Studio / FlashDraft
-            </a>{' '}
-            instead.
+            This request has {request.lineItemDescriptions.length} line items — approving creates{' '}
+            {request.lineItemDescriptions.length} separate machine jobs, each pushed to PathfinderEdge
+            individually.
           </p>
         </div>
-      ) : (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={handleApprove}
-          className="bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label font-semibold text-sm px-4 py-2 rounded transition-colors disabled:opacity-50"
-        >
-          {busy ? 'Sending…' : 'Approve & Send to Machine'}
-        </button>
       )}
+      <button
+        type="button"
+        disabled={busy}
+        onClick={handleApprove}
+        className="bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label font-semibold text-sm px-4 py-2 rounded transition-colors disabled:opacity-50"
+      >
+        {busy ? 'Sending…' : 'Approve & Send to Machine'}
+      </button>
     </div>
   );
 }

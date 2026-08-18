@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { logAdminAction } from '@/lib/admin/audit';
-import { pushProfileToPathfinder, type MachineProfile, type MachineProfileBend } from '@/lib/integrations/pathfinder-edge';
-
-// Catalog 20115 ("afs") is the only PathfinderEdge catalog the Thalmann
-// DS2801 subscribes to — confirmed directly by Seth Oliver (2026-08-18),
-// not derived. Per https://docs.amscontrols.com/pathfinderEdge/machine-sync,
-// a profile POSTed to this catalog is picked up by the machine automatically
-// on its own polling schedule — there is no separate "send to machine" call.
-const AFS_MACHINE_CATALOG_ID = '20115';
+import {
+  pushProfileToPathfinder,
+  AFS_MACHINE_CATALOG_ID,
+  type MachineProfile,
+  type MachineProfileBend,
+} from '@/lib/integrations/pathfinder-edge';
 
 interface MachineJobRow {
   id: string;
