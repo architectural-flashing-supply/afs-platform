@@ -49,6 +49,84 @@ pnpm tsc --noEmit                  0 errors. Exit code 0.
 
 ---
 
+## FLASHDRAFT — DIRECT "SEND TO PATHFINDEREDGE" BUTTON: IMPLEMENTED, UNCONFIRMED
+
+**Status: IMPLEMENTED, UNCONFIRMED. Do not mark this complete — pending
+Reid's own click-test on the live site.**
+
+(2026-08-18) — scope: new `lib/integrations/flashdraft-to-pathfinder.ts`
+(adapter), new `app/api/studio/send-to-pathfinder/route.ts`, `app/studio/
+draft/page.tsx` (new admin-only button + state). Entirely separate from
+tonight's earlier `machine_jobs`/`delivery_method` routing work — this
+button sends whatever is CURRENTLY DRAWN on the canvas directly to
+PathfinderEdge, with no `machine_jobs` row, no quote request, no approval
+pipeline involved at all.
+
+**`pushProfileToPathfinder` reused exactly as-is, not rewritten** — per
+this prompt's explicit instruction. The new adapter
+(`flashDraftToMachineProfile`) only converts FlashDraft's own `points`/
+`hemStart`/`hemEnd`/`material`/`thicknessIn` state — the same inputs
+already driving the Profile Info Panel's Blank Width/Bend Count/Hem
+Count — into the `MachineProfile` shape `pushProfileToPathfinder` already
+accepts. Leg-length/bend-angle math (`dist`, `bendAngleAt`,
+`defaultBendRadiusIn`) is duplicated from `page.tsx`/`approve-quote-
+request/route.ts` rather than imported, matching this codebase's already-
+established precedent for small pure functions crossing the client-page/
+server-route boundary (see `approve-quote-request/route.ts`'s own
+`bendAngleFromPoints` comment for the same reasoning) — `buildFeatures`
+and every other real PathfinderEdge-client internal in `pathfinder-
+edge.ts` were not touched.
+
+**New route is admin-gated**, same pattern as `approve/route.ts` and
+`admin/pathfinder/push-profile/route.ts` (session auth + `profiles.role
+=== 'admin'`, checked directly from an existing route rather than
+invented). FlashDraft (`/studio/draft`) is otherwise a public,
+no-login-required page — the button itself only renders client-side for
+a signed-in admin (`isAdmin`, fetched alongside the existing
+`isAuthenticated` check), and the route independently re-checks the same
+role server-side regardless of what the client sends.
+
+**Known, inherited gap — not fixed here, out of scope:** the adapter
+only feeds `hemStart`/`hemEnd` into the blank-width material-allowance
+calculation (`hemAllowanceIn`), not as real `OpenHem`/`TearDropHem`
+features — `pathfinder-edge.ts`'s own `buildFeatures` has no hem support
+yet (already flagged in that file). A profile with a real hem, sent
+through this new button, will have the correct total blank width on
+PathfinderEdge but render there as a plain straight/bent bar with no hem
+shape. `owningCatalogId` is hardcoded to `20115` ("afs"), not
+configurable in the UI, per this prompt's explicit instruction.
+
+`pnpm tsc --noEmit` — 0 errors. `pnpm run build` — succeeded, 133/133
+static pages generated (up from 132 — the new route), no errors.
+
+**Real click-test performed this session** (not just tsc/build): no
+`E2E_TEST_EMAIL`/`PASSWORD` exist in this repo (see `tests/e2e/README.md`)
+and this route needed a real signed-in admin, so a throwaway admin
+account was created via the Supabase service-role client
+(`auth.admin.createUser` + a matching `profiles` insert with
+`role: 'admin'`), used once via Playwright against a live `pnpm dev`
+server — logged in, drew a single 11" segment on the real canvas, clicked
+"Send to PathfinderEdge," and the button showed **"PathfinderEdge
+profileId: 32910125"** in the live UI. Independently confirmed via a
+direct `GET /api/v1/profiles/32910125` — `200`,
+`{"blankWidth":11.0,"owningCatalogId":20115,...}`, exactly matching the
+drawn segment and the hardcoded catalog. Both the test PathfinderEdge
+profile (`DELETE /api/v1/profiles/32910125` → 200) and the throwaway
+admin account (Supabase Auth user + profiles row) were deleted
+immediately after — nothing test-related was left in either system.
+Screenshot: `proof-flashdraft-send-to-pathfinderedge.png` (repo root) —
+shows the live canvas, the ADMIN section, the button, and the green
+success line with the real profileId.
+
+Per the verification standard above, this stays **IMPLEMENTED,
+UNCONFIRMED** pending Reid's own click-test on the live site — this
+session's test used a temporary throwaway admin account (since none of
+the standing test credentials this project expects exist yet), not
+Reid's own login, and confirms the mechanism works end-to-end, not that
+the UI/UX or button placement is what Reid actually wants.
+
+---
+
 ## COMMAND CENTER — DELIVERY_METHOD COLUMN, SEPARATES PATHFINDEREDGE FROM MACHINE BRIDGE ROUTING: IMPLEMENTED, UNCONFIRMED
 
 **Status: IMPLEMENTED, UNCONFIRMED. Do not mark this complete.**

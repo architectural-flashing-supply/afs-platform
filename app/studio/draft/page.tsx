@@ -757,6 +757,9 @@ export default function FlashDraftPage() {
   const [viewerBlankWidthMm, setViewerBlankWidthMm] = useState(PLACEHOLDER_BLANK_WIDTH_MM);
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [pathfinderState, setPathfinderState] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
+  const [pathfinderMessage, setPathfinderMessage] = useState<string | null>(null);
   const [submitState, setSubmitState] = useState<SubmitState>('idle');
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [requestNumber, setRequestNumber] = useState<string | null>(null);
@@ -780,7 +783,20 @@ export default function FlashDraftPage() {
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data }) => setIsAuthenticated(!!data.user));
+    supabase.auth.getUser().then(({ data }) => {
+      setIsAuthenticated(!!data.user);
+      // Gates the "Send to PathfinderEdge" button — this page is
+      // otherwise public (no login required to draw/match a profile), so
+      // the button itself must not even render for a non-admin; the
+      // route re-checks the same role server-side regardless.
+      if (!data.user) return;
+      supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', data.user.id)
+        .single()
+        .then(({ data: profile }) => setIsAdmin(profile?.role === 'admin'));
+    });
   }, []);
 
   // --- Canvas fills all remaining space in its wrapper (Part 2A) ---
@@ -2235,6 +2251,44 @@ export default function FlashDraftPage() {
     }
   };
 
+  // Sends the CURRENTLY DRAWN profile straight to PathfinderEdge —
+  // entirely separate from Submit for Quote / the quote-request pipeline.
+  // Does not touch machine_jobs or delivery_method at all.
+  const sendToPathfinder = async () => {
+    if (points.length < 2) {
+      setPathfinderState('error');
+      setPathfinderMessage('Draw at least one segment before sending.');
+      return;
+    }
+    setPathfinderState('sending');
+    setPathfinderMessage(null);
+    try {
+      const res = await fetch('/api/studio/send-to-pathfinder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profileName: `FlashDraft ${material || 'Profile'}${gauge ? ` ${gauge}` : ''} ${new Date().toLocaleString('en-US')}`,
+          points,
+          material: material || null,
+          thicknessIn,
+          hemStart: hemStart ? { type: hemStart.type, gapIn: hemStart.gapIn, lengthIn: hemStart.lengthIn } : null,
+          hemEnd: hemEnd ? { type: hemEnd.type, gapIn: hemEnd.gapIn, lengthIn: hemEnd.lengthIn } : null,
+        }),
+      });
+      const data = (await res.json()) as { profileId?: string | null; message?: string; error?: string };
+      if (!res.ok) {
+        setPathfinderState('error');
+        setPathfinderMessage(data.error ?? 'Could not send profile to PathfinderEdge.');
+        return;
+      }
+      setPathfinderState('success');
+      setPathfinderMessage(data.profileId ? `PathfinderEdge profileId: ${data.profileId}` : (data.message ?? 'Sent.'));
+    } catch {
+      setPathfinderState('error');
+      setPathfinderMessage('Network error. Please try again.');
+    }
+  };
+
   const buildBendSummary = (): string => {
     if (points.length < 2) return 'No profile drawn.';
     const segments: string[] = [];
@@ -2775,6 +2829,26 @@ export default function FlashDraftPage() {
                 Load
               </button>
             </div>
+
+            {isAdmin && (
+              <div className="border-t border-afs-chrome-dim/40 pt-2 mt-1 flex flex-col gap-1.5">
+                <p className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid">Admin</p>
+                <button
+                  type="button"
+                  onClick={sendToPathfinder}
+                  disabled={pathfinderState === 'sending'}
+                  className="border border-afs-accent-purple bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label text-xs font-semibold px-3 py-2.5 rounded transition-colors disabled:opacity-50"
+                >
+                  {pathfinderState === 'sending' ? 'Sending…' : 'Send to PathfinderEdge'}
+                </button>
+                {pathfinderState === 'success' && (
+                  <p className="font-body text-xs text-afs-success">{pathfinderMessage}</p>
+                )}
+                {pathfinderState === 'error' && (
+                  <p className="font-body text-xs text-afs-crimson">{pathfinderMessage}</p>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

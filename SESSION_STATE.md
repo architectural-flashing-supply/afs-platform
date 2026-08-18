@@ -26,7 +26,53 @@ let self-reported verification read as equivalent to user confirmation.
 
 ## CURRENT STATUS
 
-**Most recent session (2026-08-18): Command Center — added
+**Most recent session (2026-08-18): FlashDraft — added a direct "Send to
+PathfinderEdge" button, entirely separate from the quote-request/
+job-approval pipeline.** Scope: new `lib/integrations/flashdraft-to-
+pathfinder.ts`, new `app/api/studio/send-to-pathfinder/route.ts`,
+`app/studio/draft/page.tsx`. Does not touch `machine_jobs`,
+`delivery_method`, `approve-quote-request`, or any of the routing work
+from earlier tonight — a user can now push the CURRENTLY DRAWN canvas
+profile straight to PathfinderEdge with one click, independent of
+everything else.
+
+`pushProfileToPathfinder` reused exactly as-is (not rewritten, per this
+prompt's explicit instruction) — a new adapter converts FlashDraft's own
+`points`/`hemStart`/`hemEnd`/`material`/`thicknessIn` state (the same
+data already driving the Profile Info Panel) into the `MachineProfile`
+shape that function already accepts. The route is admin-gated the same
+way `approve/route.ts` already is (checked that existing pattern rather
+than inventing one) — the button itself only renders for a signed-in
+admin, and the route independently re-checks server-side. Catalog is
+hardcoded to `20115`, not configurable in the UI, per instruction.
+
+**Known, inherited, not-fixed-here gap:** hems only feed into the
+blank-width calculation, not as real PathfinderEdge hem features — same
+gap already flagged in `pathfinder-edge.ts` from last session, now also
+reachable through this direct button.
+
+`pnpm tsc --noEmit` — 0 errors. `pnpm run build` — succeeded, 133/133
+static pages (new route added one).
+
+**Real click-test performed, not just tsc/build.** No standing E2E test
+credentials exist in this repo, so a throwaway admin account was created
+via the Supabase service-role client, used once through a live Playwright
+session against the real `pnpm dev` server (logged in, drew an 11"
+segment, clicked the button), and confirmed the live UI showed
+"PathfinderEdge profileId: 32910125" — independently verified via a
+direct `GET /api/v1/profiles/32910125` (200, `blankWidth: 11.0`,
+`owningCatalogId: 20115`, exactly matching). Both the test PathfinderEdge
+profile and the throwaway admin account were deleted immediately after —
+nothing left behind in either system. Screenshot saved at repo root:
+`proof-flashdraft-send-to-pathfinderedge.png`.
+
+Stays **IMPLEMENTED, UNCONFIRMED** — this session's test used a temporary
+account, not Reid's own login, and proves the mechanism works, not that
+the button placement/UX is what Reid actually wants.
+
+---
+
+**Prior session (2026-08-18): Command Center — added
 `machine_jobs.delivery_method` to eliminate a genuine double-send risk
 between PathfinderEdge and the Machine Bridge.** Scope: new migration
 `015_machine_jobs_delivery_method.sql`, `approve-quote-request/route.ts`,
