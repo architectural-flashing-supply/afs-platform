@@ -49,6 +49,117 @@ pnpm tsc --noEmit                  0 errors. Exit code 0.
 
 ---
 
+## PATHFINDEREDGE — REAL API INTEGRATION, LIVE, WIRED TO THE APPROVE BUTTON: DONE (with explicitly flagged open gaps)
+
+(2026-08-18) — scope: `lib/integrations/pathfinder-edge.ts`,
+`app/api/admin/command-center/approve/route.ts`, `.env.example`,
+`ARCHITECTURE.md`, plus `scripts/pathfinder-roundtrip-test.ts` (new,
+manual-run only). This is a genuine status upgrade from stub to real,
+not a rewrite that stays unconfirmed — see the two DONE-standard gates
+plus the actual live round-trip evidence below, both met this session.
+
+**The prior stub's core claim was wrong.** `lib/integrations/pathfinder-
+edge.ts`'s header claimed "no REST API was discoverable" — that discovery
+pass tried `Bearer <key>` auth; PathfinderEdge's real API
+(https://docs.amscontrols.com/pathfinderEdge/publicapi, fetched and read
+in full this session, not guessed) requires the key raw/unprefixed in the
+`Authorization` header. `GET https://afs.pathfinderedge.com/api/v1/catalogs`
+returns 200 with real data once auth is correct.
+
+**A second, separate credential problem was found and fixed mid-session.**
+The `PATHFINDER_EDGE_API_KEY` value already sitting in `.env.local` was
+stale — NOT the key Reid had just confirmed live. Every request using it
+returned a clean 401 from the real server (ruled out: key corruption/
+whitespace — verified byte-for-byte via hex dump; network/proxy issues —
+same sandbox, same request shape, the correct key worked immediately).
+Reid supplied the correct current key; `.env.local` (gitignored, never
+committed) now has it. Flagging this because it's exactly the kind of
+silent staleness this file's own verification standard exists to catch —
+if this session hadn't been required to actually run the round-trip test
+live rather than assume the stub-era key was still good, this would not
+have been caught.
+
+**`lib/integrations/pathfinder-edge.ts` rewritten for real:**
+`getPathfinderCatalogs()` and `pushProfileToPathfinder()` now make real
+network calls. `discoverApiEndpoints()` repurposed from blind endpoint-
+guessing into a real single-endpoint connectivity check.
+`submitJobToMachine()`/`getJobStatus()` deliberately still return
+`not_configured` — not a gap, PathfinderEdge's public API has no job-
+submission/status endpoint at all (confirmed via
+https://docs.amscontrols.com/pathfinderEdge/machine-sync): a profile
+POSTed to the machine's subscribed catalog is picked up automatically on
+the machine's own polling schedule, there is no "push to machine" or
+"submit job" call to make. `PathfinderProfile`/`Catalog`/`MachineProfile`
+etc. kept their exact prior shapes — every existing call site (`app/api/
+admin/pathfinder/{route,push-profile,submit-job}.ts`) was grepped first
+and needed zero changes.
+
+**Units confirmed empirically, not assumed — genuinely, not just a
+self-referential echo.** The profile-object doc says feature `length` is
+"in your tenant's units" without naming one. `scripts/pathfinder-
+roundtrip-test.ts` (kept as a documented manual test, not deleted) ran
+two independent checks: (1) listed 10 real pre-existing profiles already
+in catalog 20115 — blankWidth values 2.375 to 23.5, e.g. "PJC Austin" = 6,
+"Standing Seam Drip Edge" = 8 — plausible only as inches for real
+architectural flashing (as mm those would be sub-1cm parts); (2) posted a
+known 6" bendless/hemless Straight, resolved its server-assigned
+profileId (the POST response never echoes it — confirmed via the
+publicapi doc; resolved with a follow-up catalog-scoped list call matched
+by profile name), read it back, got `blankWidth: 6` exactly, then deleted
+the test profile. Both signals agree: **units are inches**, confirmed by
+Reid live in this session before Part 3 proceeded (see the mid-task
+confirmation exchange). `mmToIn()` (25.4, rounded to 4 decimals, matching
+`scripts/import-machine-profiles.ts`'s own existing convention) is
+correct as written.
+
+**`approve/route.ts` now makes a real call — confirmed by reading the
+file first, not assumed.** It previously only flipped `machine_jobs.status`
+to `approved_for_machine` with zero PathfinderEdge/machine contact. It now
+fetches the job's real bend data (`machine_profile_bends` if
+`machine_profile_id` is set, else `custom_bends`), builds a `MachineProfile`,
+and calls `pushProfileToPathfinder` against catalog `20115` (hardcoded as
+`AFS_MACHINE_CATALOG_ID`, confirmed by Seth Oliver as the only catalog the
+Thalmann subscribes to) BEFORE flipping the status flag. If the push
+fails, the job stays `pending_approval` and the admin sees the real
+PathfinderEdge error (502, existing `CommandCenterJobCard.tsx` error UI
+surfaces it unchanged) — approving no longer means "looks approved" when
+nothing real happened.
+
+**Answering this task's actual question directly: yes, the live "Approve
+& Send to Machine" button now makes a real PathfinderEdge API call** (not
+just a DB status flip) — confirmed by reading the route before and after,
+not assumed.
+
+**Explicitly open, not resolved this pass (see ARCHITECTURE.md §12 for
+full detail on each):**
+1. **No hem data reaches PathfinderEdge at all.** Neither
+   `machine_profile_bends` nor `machine_jobs.custom_bends` stores hem
+   information anywhere in this schema — `buildFeatures()` only ever
+   emits `Straight`/`Angle`/`Radius`, never `OpenHem`/`TearDropHem`, even
+   for a job with real hems. A data-model gap, not a client bug.
+2. **Bend-angle sign convention and `radiusQuality: 'Medium'` are
+   best-effort, not empirically confirmed.** The round-trip test
+   deliberately used a bendless profile to isolate the units question —
+   a real bend has not been pushed and visually checked against
+   PathfinderEdge/the machine's own rendering yet.
+3. **Possible dual-delivery path to the physical machine — a real open
+   question, not resolved here.** The separate `afs-machine-bridge`
+   project still polls `approved_for_machine` jobs and generates `.ds1`
+   files for human-reviewed manual copy to the machine's live folder
+   (ARCHITECTURE.md §11). Approving a job now ALSO pushes it into
+   PathfinderEdge's catalog 20115, which the machine polls automatically.
+   Both paths can now independently reach the same physical machine for
+   the same approved job. Whether one should be disabled — and which —
+   was out of scope for this prompt (which only asked to wire the approve
+   button) and needs an explicit decision, not a default.
+
+`pnpm tsc --noEmit` — 0 errors. `pnpm run build` — succeeded, 132/132
+static pages generated, no errors. Live round-trip test output captured
+in full in this session's transcript (create -> resolve id 32909938 ->
+read back `blankWidth: 6` -> delete, status 200 throughout).
+
+---
+
 ## FLASHDRAFT — KICK DIRECTION FLIPPED, TYPE-SPECIFIC GAP DEFAULTS, EXISTING-HEM RE-OPEN RADIUS: IMPLEMENTED, UNCONFIRMED
 
 **Status: IMPLEMENTED, UNCONFIRMED. Do not mark this complete.**

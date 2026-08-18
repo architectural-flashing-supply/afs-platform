@@ -26,7 +26,74 @@ let self-reported verification read as equivalent to user confirmation.
 
 ## CURRENT STATUS
 
-**Most recent session (2026-08-18): FlashDraft — flipped the inverted Kick
+**Most recent session (2026-08-18): PathfinderEdge — the stub is now a
+real, live integration, and the "Approve & Send to Machine" button makes
+a genuine API call instead of only flipping a DB status flag.** Scope:
+`lib/integrations/pathfinder-edge.ts`, `app/api/admin/command-center/
+approve/route.ts`, `.env.example`, `ARCHITECTURE.md`, new
+`scripts/pathfinder-roundtrip-test.ts` (manual-run only, not wired to
+CI/build).
+
+**Direct answer to the question this task existed to settle: yes — the
+live approve button now makes a real PathfinderEdge API call** (confirmed
+by reading `approve/route.ts` both before and after the change, not
+assumed).
+
+The prior stub's premise — "no REST API discoverable" — was wrong. The
+real API (https://docs.amscontrols.com/pathfinderEdge/publicapi,
+https://docs.amscontrols.com/pathfinderEdge/profile-object, both fetched
+and read in full this session before writing any code) needs the key raw
+in the `Authorization` header, no `Bearer`/`X-API-Key` prefix — the
+earlier discovery pass tried the wrong auth format and concluded nothing
+existed. `GET /api/v1/catalogs` now returns real data.
+
+**A separate, unrelated blocker surfaced mid-session and was root-caused,
+not worked around:** `.env.local`'s stored `PATHFINDER_EDGE_API_KEY` was
+stale, not the key Reid had just confirmed live minutes earlier — every
+request with it returned a clean 401. Ruled out key corruption (verified
+byte-for-byte via hex dump — clean) and network/proxy issues (same
+sandbox, same request shape; the correct key worked on the very next
+call) before concluding it was simply the wrong stored value. Reid
+supplied the current key; `.env.local` (gitignored) now holds it.
+
+**Units — the open question this task called out three times — are
+confirmed empirically as inches**, via two independent signals in
+`scripts/pathfinder-roundtrip-test.ts`: (1) 10 real pre-existing profiles
+already in catalog 20115 have blankWidth values (2.375-23.5) that are
+only plausible as inches for real flashing parts — e.g. "PJC Austin" = 6,
+"Standing Seam Drip Edge" = 8; (2) a known 6" bendless/hemless profile
+posted, its server-assigned profileId resolved (POST's response never
+echoes it — confirmed via the doc, worked around with a follow-up
+catalog-scoped list-by-name call), read back as `blankWidth: 6` exactly,
+then deleted. Reid confirmed this result live before Part 3 (wiring the
+approve button) proceeded, per this prompt's explicit gate.
+
+**Three things intentionally NOT resolved this session, flagged rather
+than silently shipped:**
+1. No hem data flows through `machine_jobs`/`machine_profile_bends`
+   anywhere in the schema yet, so profiles pushed to PathfinderEdge today
+   never include `OpenHem`/`TearDropHem` features even when the real job
+   has hems — a data-model gap, not a client-code bug.
+2. The bend-angle sign convention and the `radiusQuality: 'Medium'`
+   placeholder default are best-effort mappings, not empirically
+   confirmed — the round-trip test deliberately used a bendless profile
+   to isolate the units question alone.
+3. **Possibly the most important open item:** the separate
+   `afs-machine-bridge` project still polls `approved_for_machine` jobs
+   and generates `.ds1` files for a human to manually review and copy to
+   the machine. Approving a job now ALSO pushes it into PathfinderEdge's
+   catalog 20115, which the machine polls automatically. Both paths can
+   now reach the same physical machine for the same job independently —
+   whether one should be disabled, and which, was out of scope for this
+   prompt and needs an explicit decision from Reid, not a default choice
+   made silently by a future session.
+
+`pnpm tsc --noEmit` — 0 errors. `pnpm run build` — succeeded, 132/132
+static pages, no errors.
+
+---
+
+**Prior session (2026-08-18): FlashDraft — flipped the inverted Kick
 mapping, split the shared Open/Smashed gap default into type-specific
 values, and widened the double-click re-open radius for an existing
 hem.** Scope: `app/studio/draft/page.tsx`, `lib/types/profile.ts`. Three

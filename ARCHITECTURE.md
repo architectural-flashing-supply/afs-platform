@@ -611,27 +611,85 @@ environment and in the bridge's own `.env` — a mismatch produces an HTTP
 
 ---
 
-## 12. PATHFINDEREDGE INTEGRATION (STUB)
+## 12. PATHFINDEREDGE INTEGRATION (LIVE)
 
-PathfinderEdge was investigated as a paid ($350/month) machine-integration
-product before the Machine Bridge was built. A live discovery pass (with
-client authorization) against `https://afs.pathfinderedge.com` found a
-real, login-gated ASP.NET Core web application with no discoverable REST
-API at any conventional path (`/api`, `/api/v1`, `/api/profiles`,
-`/api/catalogs`, `/api/jobs`, `/api/machines`, Swagger/OpenAPI discovery —
-all 404, `/` redirects to session-based `/login`).
+**Real as of 2026-08-18.** An earlier discovery pass found no REST API at
+conventional paths against `https://afs.pathfinderedge.com` (all 404,
+`/` redirects to session-based `/login`) and concluded no API existed.
+That conclusion was wrong — the probe tried `Bearer`-prefixed auth; the
+real API (documented at
+https://docs.amscontrols.com/pathfinderEdge/publicapi and
+https://docs.amscontrols.com/pathfinderEdge/profile-object) requires the
+key raw, unprefixed, in the `Authorization` header. Confirmed live both
+via `GET /api/v1/catalogs` (200, real catalog data) and a full
+create → resolve-id → read-back → delete round-trip
+(`scripts/pathfinder-roundtrip-test.ts`).
 
-`lib/integrations/pathfinder-edge.ts` is a stub matching the same pattern
-as `lib/integrations/quickbooks.ts`: every exported function
-(`discoverApiEndpoints`, `getPathfinderCatalogs`,
-`pushProfileToPathfinder`, `submitJobToMachine`, `getJobStatus`) returns a
-`{ status: 'not_configured' }` result and makes zero network calls. This
-matters because `submitJobToMachine` would otherwise drive a real physical
-bending machine from a fabricated, undocumented request format.
-`PATHFINDER_EDGE_API_KEY` / `PATHFINDER_EDGE_BASE_URL` /
-`PATHFINDER_EDGE_MACHINE_SERIAL` are wired in `.env.example` but unused.
-Do not build this out for real unless PathfinderEdge publishes actual API
-documentation.
+```
+lib/integrations/pathfinder-edge.ts
+  getPathfinderCatalogs()               real GET /api/v1/catalogs
+  pushProfileToPathfinder(profile, id)   real POST /api/v1/profiles, then a
+                                         follow-up GET /api/v1/profiles?catalog=
+                                         to resolve the created profileId (the
+                                         POST response never echoes it — see
+                                         the file's own comment)
+  discoverApiEndpoints()                 real connectivity check (GET /api/v1/catalogs)
+  submitJobToMachine() / getJobStatus()  still not_configured — PathfinderEdge's
+                                         API has no job-submission/status
+                                         endpoint at all (confirmed via
+                                         https://docs.amscontrols.com/pathfinderEdge/machine-sync),
+                                         not a gap in this client
+```
+
+**Machine sync model:** `POST /api/v1/profiles` writes to the tenant's
+profile LIBRARY only. There is no "push to machine" call. Catalog 20115
+("afs") is the only catalog the Thalmann DS2801 subscribes to (confirmed
+by Seth Oliver) — a profile POSTed there is picked up by the machine
+automatically on its own polling schedule.
+
+**Units:** confirmed empirically as inches (not documented explicitly by
+AMS) — `scripts/pathfinder-roundtrip-test.ts`'s "unit plausibility check"
+against 10 real existing catalog-20115 profiles (blankWidth 2.375-23.5,
+plausible only as inches for real flashing parts) plus a known 6"
+create/read-back both agree. `mmToIn()` in pathfinder-edge.ts implements
+this.
+
+**Wired to the live approve flow:**
+`app/api/admin/command-center/approve/route.ts` now calls
+`pushProfileToPathfinder` with the job's real bend data before
+transitioning `machine_jobs.status` to `approved_for_machine` — if the
+push fails, the job stays `pending_approval` and the admin sees the real
+PathfinderEdge error, rather than the status flag silently flipping with
+no real API call (its prior behavior).
+
+**Known gap — no hem data.** Neither `machine_profile_bends` nor
+`machine_jobs.custom_bends` stores any hem information (see SCHEMA.md) —
+`buildFeatures()` in pathfinder-edge.ts only ever emits `Straight`/
+`Angle`/`Radius` features, never `OpenHem`/`TearDropHem`, even for a job
+that has real hems. Fixing this needs a data-model change (a new column
+or table), not a client-side fix — flagged, not silently dropped.
+
+**Open, not empirically confirmed:** the bend-angle sign/interior-angle
+convention passed to PathfinderEdge's `Angle`/`Radius` features
+(`bendAngleDegrees` passed straight through — see pathfinder-edge.ts's own
+comment) and the `radiusQuality: 'Medium'` placeholder default (no real
+per-bend quality data exists anywhere in this schema). The round-trip
+test only exercised a bendless profile, deliberately, to isolate the
+units question — a real bend push has not yet been visually confirmed
+against the machine/PathfinderEdge's own rendering.
+
+**Relationship to the Machine Bridge (§11) — flagged, not resolved this
+pass.** The separate `afs-machine-bridge` project still polls
+`approved_for_machine` jobs and generates `.ds1` files for a human to
+manually review and copy to the machine's live folder. Approving a job
+now ALSO pushes it to PathfinderEdge's catalog 20115, which the machine
+polls automatically per the machine-sync model above. That means an
+approved job may now reach the machine via two independent paths — the
+Machine Bridge's human-reviewed `.ds1` copy AND PathfinderEdge's
+automatic catalog poll. Whether one of these should be disabled, and
+which, is a real open question this pass did not resolve — it was out of
+scope for the prompt that wired the approve button, and needs a decision,
+not a default.
 
 ---
 

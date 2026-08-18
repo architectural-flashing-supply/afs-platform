@@ -1,22 +1,40 @@
 /**
- * PathfinderEdge machine-integration stub.
+ * PathfinderEdge machine-integration client.
  *
- * A live discovery pass was run against https://afs.pathfinderedge.com using
- * the configured API key (Bearer auth against /api, /api/v1, /api/profiles,
- * /api/catalogs, /api/jobs, /api/machines, plus Swagger/OpenAPI discovery
- * paths). Findings: the host is real (Azure-hosted ASP.NET Core/Kestrel), but
- * every one of those paths returned 404, `/` redirects to `/login` (session
- * auth, not bearer-token REST), and there is no discoverable API documentation
- * anywhere on the host. There is no confirmed real endpoint to integrate
- * against yet.
+ * The public REST API IS real and documented — confirmed live tonight
+ * (2026-08-18) via `GET https://afs.pathfinderedge.com/api/v1/catalogs`
+ * returning 200 with real catalog data, and full docs read at
+ * https://docs.amscontrols.com/pathfinderEdge/publicapi and
+ * https://docs.amscontrols.com/pathfinderEdge/profile-object. The prior
+ * version of this file's header claimed no REST API was discoverable at
+ * this host — that claim was wrong (a Bearer/X-API-Key/session-login probe
+ * was tried, not the actual auth format below) and is corrected here.
  *
- * Every export here returns a stable "not_configured" result and makes zero
- * network calls, so callers (admin UI, future job-submission triggers) have a
- * real interface to build against without sending guessed requests — with no
- * real API docs, any request body/response shape would be fabricated, and
- * submitJobToMachine ultimately drives a physical bending machine (serial
- * P0700707), so guessing here is not an acceptable substitute for real
- * documentation.
+ * Auth: the API key goes in the `Authorization` header RAW, with no
+ * scheme prefix — not `Bearer <key>`, not `X-API-Key: <key>`. Confirmed
+ * both by the live 200 above and by the publicapi doc's own explicit
+ * "invalid formats" list.
+ *
+ * Base URL is per-tenant: `https://<tenant>.pathfinderedge.com/api/v1/...`
+ * — `afs` is this tenant, so `PATHFINDER_EDGE_BASE_URL` is already the
+ * full tenant root (`https://afs.pathfinderedge.com`).
+ *
+ * Machine sync model (per https://docs.amscontrols.com/pathfinderEdge/machine-sync):
+ * `POST /api/v1/profiles` writes to the tenant's profile LIBRARY only.
+ * There is no separate "push to machine" or "submit job" call. If a
+ * profile's `owningCatalogId` is a catalog the machine subscribes to, the
+ * machine picks it up automatically on its own polling schedule. Per Seth
+ * Oliver, catalog 20115 ("afs") is the only catalog the Thalmann DS2801
+ * subscribes to. `submitJobToMachine`/`getJobStatus` below reflect this —
+ * there is no real endpoint for either concept, so they stay
+ * `not_configured` (not guessed), with a corrected message explaining why.
+ *
+ * UNITS: the profile-object doc says feature `length` is "in your
+ * tenant's units" without stating what that is. The doc's own worked
+ * example (0.5"/10"/0.25" hem heights) reads like inches, but this is
+ * exactly what scripts/pathfinder-roundtrip-test.ts exists to confirm
+ * empirically rather than assume — see mmToIn() below and that script's
+ * own header comment for the actual confirmed result.
  */
 
 export type PathfinderStatus = 'not_configured' | 'connected' | 'error';
@@ -64,26 +82,250 @@ export interface JobStatus extends PathfinderResult {
   state: 'unknown';
 }
 
-const NOT_CONFIGURED_MESSAGE =
-  'PathfinderEdge integration pending real API documentation — no REST API was discoverable at afs.pathfinderedge.com (only /health and /status respond; the app redirects to session login, not a bearer-token API)';
+// mm -> inches, matching scripts/import-machine-profiles.ts's own mmToIn
+// convention (round to 4 decimal places rather than leaving raw floating-
+// point noise in an outbound request body).
+const MM_PER_INCH = 25.4;
+function mmToIn(mm: number): number {
+  return Math.round((mm / MM_PER_INCH) * 10000) / 10000;
+}
 
-function notConfigured(): PathfinderResult {
-  return { status: 'not_configured', message: NOT_CONFIGURED_MESSAGE };
+const NOT_CONFIGURED_MESSAGE =
+  'PathfinderEdge integration not configured — PATHFINDER_EDGE_API_KEY / PATHFINDER_EDGE_BASE_URL are not set.';
+
+const NO_JOB_API_MESSAGE =
+  "PathfinderEdge's public API (confirmed via https://docs.amscontrols.com/pathfinderEdge/publicapi and " +
+  'https://docs.amscontrols.com/pathfinderEdge/machine-sync) has no job-submission or job-status endpoint. ' +
+  'A profile POSTed to the machine-subscribed catalog (see pushProfileToPathfinder) is picked up automatically ' +
+  "on the machine's own polling schedule — there is nothing for this function to call.";
+
+function notConfigured(message: string = NOT_CONFIGURED_MESSAGE): PathfinderResult {
+  return { status: 'not_configured', message };
+}
+
+interface PathfinderConfig {
+  baseUrl: string;
+  apiKey: string;
+}
+
+function getConfig(): PathfinderConfig | null {
+  const baseUrl = process.env.PATHFINDER_EDGE_BASE_URL;
+  const apiKey = process.env.PATHFINDER_EDGE_API_KEY;
+  if (!baseUrl || !apiKey) return null;
+  return { baseUrl: baseUrl.replace(/\/+$/, ''), apiKey };
+}
+
+// Raw-key Authorization header — see this file's header comment. Every
+// real call goes through this one helper so the auth format only lives in
+// one place.
+async function pathfinderFetch(config: PathfinderConfig, path: string, init?: RequestInit): Promise<Response> {
+  return fetch(`${config.baseUrl}${path}`, {
+    ...init,
+    headers: {
+      Authorization: config.apiKey,
+      'Content-Type': 'application/json',
+      ...(init?.headers ?? {}),
+    },
+  });
 }
 
 export async function discoverApiEndpoints(): Promise<PathfinderEndpoints> {
-  return { ...notConfigured(), endpoints: {} };
+  const config = getConfig();
+  if (!config) return { ...notConfigured(), endpoints: {} };
+
+  try {
+    const res = await pathfinderFetch(config, '/api/v1/catalogs', { method: 'GET' });
+    return {
+      status: res.ok ? 'connected' : 'error',
+      message: res.ok
+        ? `Connected — GET /api/v1/catalogs returned ${res.status}.`
+        : `GET /api/v1/catalogs returned ${res.status}.`,
+      endpoints: { '/api/v1/catalogs': res.status },
+    };
+  } catch (err) {
+    return {
+      status: 'error',
+      message: err instanceof Error ? err.message : 'Network error calling PathfinderEdge.',
+      endpoints: {},
+    };
+  }
 }
 
 export async function getPathfinderCatalogs(): Promise<Catalog[]> {
-  return [];
+  const config = getConfig();
+  if (!config) return [];
+
+  try {
+    const res = await pathfinderFetch(config, '/api/v1/catalogs', { method: 'GET' });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { catalogId: number; catalogName: string }[];
+    return data.map((c) => ({ id: String(c.catalogId), name: c.catalogName }));
+  } catch {
+    return [];
+  }
 }
 
-export async function pushProfileToPathfinder(
-  _profile: MachineProfile,
-  _catalogId: string
-): Promise<PathfinderProfile> {
-  return { ...notConfigured(), profileId: null };
+// The exact shape confirmed at https://docs.amscontrols.com/pathfinderEdge/profile-object.
+// `features` must alternate Straight / non-Straight and start+end with
+// Straight — enforced by construction in buildFeatures below, not
+// validated after the fact.
+interface PathfinderFeature {
+  type: 'Straight' | 'Angle' | 'Radius' | 'OpenHem' | 'ClosedHem' | 'TearDropHem';
+  length?: number;
+  angle?: number;
+  radius?: number;
+  radiusQuality?: 'Coarse' | 'Medium' | 'Fine';
+  hemHeight?: number;
+  hemDirection?: 'Positive' | 'Negative';
+  hemClampOffset?: number;
+}
+
+// Maps MachineProfile.bends (mm, one row per bend: leftLegMm = leg walked
+// BEFORE this bend, rightLegMm = trailing leg — same leftLeg/rightLeg
+// convention lib/flashdraft/geometry.ts's computeProfilePoints already
+// relies on, i.e. only the LAST bend's rightLegMm is a real distinct leg;
+// every other bend's own rightLegMm is redundant with the next bend's
+// leftLegMm) into the alternating Straight/Angle|Radius feature list the
+// real API requires.
+//
+// No hem data flows through MachineProfile anywhere in this codebase yet
+// (see SCHEMA.md — no hem columns exist on machine_profile_bends or
+// machine_jobs.custom_bends) — real fixes belong in that data model, not
+// invented here. This is a known, explicitly-flagged gap, not a silent
+// omission: profiles pushed today have no OpenHem/TearDropHem features
+// even if the source job actually has hems.
+//
+// radiusQuality has no source data anywhere either — 'Medium' below is a
+// placeholder default, not a measured value.
+function buildFeatures(profile: MachineProfile): PathfinderFeature[] {
+  const bends = profile.bends ?? [];
+
+  if (bends.length === 0) {
+    const lengthIn = mmToIn(profile.blankWidthMm ?? 0);
+    if (lengthIn <= 0) {
+      throw new Error('Profile has no bends and no positive blankWidthMm — nothing to push.');
+    }
+    return [{ type: 'Straight', length: lengthIn }];
+  }
+
+  const features: PathfinderFeature[] = [];
+  const firstLegIn = mmToIn(bends[0].leftLegMm ?? 0);
+  if (firstLegIn <= 0) {
+    throw new Error("First leg's length resolves to 0 or less — cannot build a valid Straight feature.");
+  }
+  features.push({ type: 'Straight', length: firstLegIn });
+
+  for (let i = 0; i < bends.length; i++) {
+    const bend = bends[i];
+    const radiusMm = bend.radiusMm ?? 0;
+    // bendAngleDegrees is this codebase's INTERIOR/included angle (see
+    // geometry.ts's own doc comment) — passed straight through as the
+    // PathfinderEdge "angle" feature, which the doc describes only as
+    // "bend angle in degrees, -180 to 180" with no turtle-turn framing.
+    // This mapping is a best-effort interpretation, NOT confirmed by the
+    // round-trip test below (that test only covers a bendless profile,
+    // to isolate the units question) — flagged as open in
+    // STATE_OF_THE_BUILD.md pending a real bend push+visual check.
+    if (radiusMm > 0) {
+      features.push({
+        type: 'Radius',
+        radius: mmToIn(radiusMm),
+        radiusQuality: 'Medium',
+        angle: bend.bendAngleDegrees ?? 180,
+      });
+    } else {
+      features.push({ type: 'Angle', angle: bend.bendAngleDegrees ?? 180 });
+    }
+
+    const nextLegMm = i < bends.length - 1 ? (bends[i + 1].leftLegMm ?? 0) : (bend.rightLegMm ?? 0);
+    const nextLegIn = mmToIn(nextLegMm);
+    if (nextLegIn <= 0) {
+      throw new Error(`Bend ${i + 1}'s trailing leg resolves to 0 or less — cannot build a valid Straight feature.`);
+    }
+    features.push({ type: 'Straight', length: nextLegIn });
+  }
+
+  return features;
+}
+
+export async function pushProfileToPathfinder(profile: MachineProfile, catalogId: string): Promise<PathfinderProfile> {
+  const config = getConfig();
+  if (!config) return { ...notConfigured(), profileId: null };
+
+  const owningCatalogId = Number(catalogId);
+  if (!Number.isFinite(owningCatalogId)) {
+    return { status: 'error', message: `catalogId "${catalogId}" is not a valid number.`, profileId: null };
+  }
+
+  let features: PathfinderFeature[];
+  try {
+    features = buildFeatures(profile);
+  } catch (err) {
+    return {
+      status: 'error',
+      message: err instanceof Error ? err.message : 'Could not build features from profile.',
+      profileId: null,
+    };
+  }
+
+  const profileName = profile.nameEn;
+  const body = {
+    profileName,
+    description: profile.profileNumber ? `AFS profile ${profile.profileNumber}` : '',
+    owningCatalogId,
+    features,
+  };
+
+  try {
+    const postRes = await pathfinderFetch(config, '/api/v1/profiles', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    if (!postRes.ok) {
+      const text = await postRes.text().catch(() => '');
+      return {
+        status: 'error',
+        message: `PathfinderEdge POST /api/v1/profiles failed: ${postRes.status}${text ? ` — ${text}` : ''}`,
+        profileId: null,
+      };
+    }
+
+    // Confirmed via the publicapi doc: the POST response echoes profile
+    // fields but never the server-assigned profileId. Resolving it needs a
+    // follow-up catalog-scoped list call, matched by profileName — if two
+    // profiles in the same catalog share the exact name, this picks the
+    // highest profileId (most-recently-created) as a best-effort
+    // disambiguation; the real API gives no stronger guarantee than that.
+    const listRes = await pathfinderFetch(
+      config,
+      `/api/v1/profiles?catalog=${owningCatalogId}&skip=0&take=100`,
+      { method: 'GET' }
+    );
+    if (!listRes.ok) {
+      return {
+        status: 'connected',
+        message: `Profile "${profileName}" created, but could not resolve its assigned profileId (GET /api/v1/profiles returned ${listRes.status}).`,
+        profileId: null,
+      };
+    }
+    const list = (await listRes.json()) as { profileId: number; profileName: string }[];
+    const matches = list.filter((p) => p.profileName === profileName);
+    const resolved = matches.length ? matches.reduce((a, b) => (b.profileId > a.profileId ? b : a)) : null;
+
+    return {
+      status: 'connected',
+      message: resolved
+        ? `Profile "${profileName}" created in catalog ${owningCatalogId} as profileId ${resolved.profileId}.`
+        : `Profile "${profileName}" created in catalog ${owningCatalogId}, but its assigned profileId could not be resolved (not found among the first 100 profiles listed for that catalog).`,
+      profileId: resolved ? String(resolved.profileId) : null,
+    };
+  } catch (err) {
+    return {
+      status: 'error',
+      message: err instanceof Error ? err.message : 'Network error calling PathfinderEdge.',
+      profileId: null,
+    };
+  }
 }
 
 export async function submitJobToMachine(
@@ -92,9 +334,9 @@ export async function submitJobToMachine(
   _material: string,
   _notes: string
 ): Promise<Job> {
-  return { ...notConfigured(), jobId: null };
+  return { status: 'not_configured', message: NO_JOB_API_MESSAGE, jobId: null };
 }
 
 export async function getJobStatus(jobId: string): Promise<JobStatus> {
-  return { ...notConfigured(), jobId, state: 'unknown' };
+  return { status: 'not_configured', message: NO_JOB_API_MESSAGE, jobId, state: 'unknown' };
 }
