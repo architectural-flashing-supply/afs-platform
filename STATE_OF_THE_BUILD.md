@@ -49,6 +49,79 @@ pnpm tsc --noEmit                  0 errors. Exit code 0.
 
 ---
 
+## FLASHDRAFT — KICK DIRECTION FLIPPED, TYPE-SPECIFIC GAP DEFAULTS, EXISTING-HEM RE-OPEN RADIUS: IMPLEMENTED, UNCONFIRMED
+
+**Status: IMPLEMENTED, UNCONFIRMED. Do not mark this complete.**
+
+(2026-08-18) — scope: `app/studio/draft/page.tsx`, `lib/types/profile.ts`.
+Three independent fixes, all confirmed live by Reid before this prompt (root
+causes given directly, not re-diagnosed this session).
+
+**1. Kick direction was inverted.** `mirrorGlyph = hem.kick === 'inside'`
+rendered backwards — Reid confirmed live that selecting "Outside" visually
+produced the inside result and vice versa. Flipped the single comparison to
+`mirrorGlyph = hem.kick === 'outside'`; nothing else in the mirror
+construction (`hem-glyph.ts`'s `ctx.scale(1,-1)`) touched.
+
+**2. Open and Smashed shared one default gap, reading as visually
+identical.** `HEM_DEFAULT_GAP_IN` (0.0625"/1/16") replaced with two
+type-specific constants in `lib/types/profile.ts`:
+`HEM_DEFAULT_GAP_IN_OPEN = 0.1875` (3/16") and
+`HEM_DEFAULT_GAP_IN_SMASHED = 0.03125` (1/32", nearly flush). `gapIn`
+remains fully per-hem editable — this only changes what a newly created
+hem starts at. `applyHem` (`page.tsx`) now resolves the type-specific
+default directly from the type button clicked, rather than filtering
+through the `hemGapDraft` text field as the prior single-constant version
+did — that filtering was silently equivalent to always using the one old
+constant, since the Gap input can't have been user-edited before a type
+exists yet (it only renders once a hem exists). `applyHem` now also
+explicitly re-syncs `hemGapDraft` to the resolved value after creation, so
+the displayed field never lags behind the real `hem.gapIn`. Teardrop has
+no gap concept (`hem-glyph.ts`'s teardrop branch never reads `gapPx`,
+confirmed by re-reading it this pass) — it inherits Open's default only
+because `gapIn` is a required field on `Hem`, not because either constant
+means anything for its rendering.
+
+**3. Re-opening an existing hem's popup was too easy to miss.** The only
+way to reopen a hem was double-clicking the exact
+`HEM_TRIGGER_OFFSET_IN`-offset point `handleDoubleClick` computes, with no
+feedback on a near-miss and no way to distinguish it from the neighboring
+bend-radius control. Added `HEM_HIT_RADIUS_EXISTING_PX = 38` (~1.75x the
+existing `HEM_HIT_RADIUS_PX = 22`, within Reid's requested 1.5x-2x range),
+applied only at an endpoint where `hemStart`/`hemEnd` is already set — a
+fresh double-click where no hem exists yet still uses the original tighter
+`HEM_HIT_RADIUS_PX`, unchanged.
+
+`pnpm tsc --noEmit` — 0 errors. `pnpm run build` — succeeded, 132/132
+static pages generated, no errors. Screenshots taken against a live
+`pnpm dev` server on the real `/studio/draft` canvas via a standalone
+Playwright script (the Claude-in-Chrome extension was not connected this
+session, so browser automation went through Playwright directly instead —
+same live app, same real canvas, not a mock): `proof-hem-kick-direction-
+full.png` (both endpoints of one profile, Outside default at the start
+and Inside explicitly picked at the end) with tight closeups
+`proof-hem-kick-start-outside-closeup.png` / `proof-hem-kick-end-inside-
+closeup.png` (Hem Length/Gap temporarily bumped to 3"/1" via the popup's
+own editable fields, not a code default change, purely so the mirrored
+U-shape reads clearly at 1x app zoom); `proof-hem-gap-defaults-full.png`
+(one profile, Open at the start reading "OPEN 3/16" gap", Smashed at the
+end — the popup's own Gap field read back 0.1875 and 0.03125 respectively
+before closing, confirming the internal value matches the label);
+`proof-hem-reopen-reliability.png` (an existing Open hem re-opened 3/3
+times via double-clicks offset 18-22px from the true vertex — inside the
+new 38px existing-hem radius, outside the old 22px one — screenshot is the
+3rd successful re-open, popup fields visible).
+
+Per the verification standard above, this stays **IMPLEMENTED,
+UNCONFIRMED** pending Reid's own visual check — specifically whether the
+flipped kick mapping now matches his reference sketch (this session had no
+access to that sketch, only his description that the old mapping was
+backwards) and whether 3/16"/1/32" read as sufficiently distinct at
+default zoom in normal use, not just in the length/gap-exaggerated
+closeups used here for clarity.
+
+---
+
 ## FLASHDRAFT — TEARDROP PROPORTIONS RESTORED, REAL MINIMUM VISIBLE SIZE ENFORCED: IMPLEMENTED, UNCONFIRMED
 
 **Status: IMPLEMENTED, UNCONFIRMED. Do not mark this complete.**

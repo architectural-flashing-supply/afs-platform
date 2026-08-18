@@ -29,9 +29,12 @@ export interface Hem {
 // this one fixed depth.
 export const HEM_DEFAULT_LENGTH_IN = 0.5;
 // Gap is a per-hem editable value (reversed from an earlier "fixed shop
-// constant" decision) — each Hem instance carries its own gapIn, and this
-// is only the starting default for a newly created hem.
-export const HEM_DEFAULT_GAP_IN = 0.0625; // 1/16"
+// constant" decision) — each Hem instance carries its own gapIn, and these
+// are only the starting defaults for a newly created hem, picked per
+// hem.type since Open and Smashed read as visually identical at a shared
+// default (confirmed live by Reid).
+export const HEM_DEFAULT_GAP_IN_OPEN = 0.1875; // 3/16"
+export const HEM_DEFAULT_GAP_IN_SMASHED = 0.03125; // 1/32", nearly flush
 // Matches current/prior visual behavior — new hems fold to the outside by default.
 export const HEM_DEFAULT_KICK: HemKick = 'outside';
 

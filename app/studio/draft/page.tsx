@@ -20,7 +20,8 @@ import {
   type Hem,
   type HemKick,
   HEM_DEFAULT_LENGTH_IN,
-  HEM_DEFAULT_GAP_IN,
+  HEM_DEFAULT_GAP_IN_OPEN,
+  HEM_DEFAULT_GAP_IN_SMASHED,
   HEM_DEFAULT_KICK,
   hemAllowanceIn,
 } from '@/lib/types/profile';
@@ -149,7 +150,15 @@ const MIN_DRAG_SEGMENT_IN = 0.05;
 const ANGLE_ARC_RADIUS_PX = 20; // fixed, unscaled by zoom — a UI indicator, not to-scale geometry
 const ANGLE_ARC_HIT_PX = 16;
 
-const HEM_HIT_RADIUS_PX = 22; // generous double-click target — was 14px, too tight to hit reliably in testing
+const HEM_HIT_RADIUS_PX = 22; // generous double-click target for creating a NEW hem — was 14px, too tight to hit reliably in testing
+// Re-opening an EXISTING hem's popup is a far more common action than the
+// initial creation click, and the exact HEM_TRIGGER_OFFSET_IN point was too
+// easy to miss — a slightly-off double-click just silently hit whatever's
+// actually under the cursor (e.g. the neighboring bend-radius control) with
+// no feedback, confirmed by Reid live. ~1.75x HEM_HIT_RADIUS_PX, within his
+// requested 1.5x-2x range. Only applies at an endpoint that already has a
+// hem — new-hem creation keeps the tighter HEM_HIT_RADIUS_PX.
+const HEM_HIT_RADIUS_EXISTING_PX = 38;
 const HEM_TRIGGER_OFFSET_IN = 0.5;
 
 // Wider than HIT_RADIUS_PX on purpose: guards the "click empty space to
@@ -717,7 +726,7 @@ export default function FlashDraftPage() {
   const [hemEnd, setHemEnd] = useState<Hem | null>(null);
   const [hemPopup, setHemPopup] = useState<{ endpoint: HemEndpoint; screenPos: Point } | null>(null);
   const [hemLengthDraft, setHemLengthDraft] = useState(String(HEM_DEFAULT_LENGTH_IN));
-  const [hemGapDraft, setHemGapDraft] = useState(String(HEM_DEFAULT_GAP_IN));
+  const [hemGapDraft, setHemGapDraft] = useState(String(HEM_DEFAULT_GAP_IN_OPEN));
 
   // A drag starting on a leg's BODY (not its endpoints) reshapes the leg by
   // dragging its far endpoint, via the existing vertex-drag machinery
@@ -1144,10 +1153,11 @@ export default function FlashDraftPage() {
       // glyph construction is mirrored across that line (see hem-glyph.ts's
       // `mirror` param) — a true perpendicular mirror, not a π rotation, so
       // it flips which side of the leg the hook/loop curls toward without
-      // touching its direction along the line. First pass: needs Reid's
-      // live visual check against his reference sketch to confirm 'inside'
-      // is the value that should map to mirror=true.
-      const mirrorGlyph = hem.kick === 'inside';
+      // touching its direction along the line. Reid confirmed live that the
+      // prior 'inside' -> mirror=true mapping rendered backwards ("Outside"
+      // visually produced the inside result and vice versa) — flipped to
+      // 'outside' -> mirror=true.
+      const mirrorGlyph = hem.kick === 'outside';
       const gapPx = hem.gapIn * PIXELS_PER_INCH * zoom;
 
       ctx.strokeStyle = CANVAS_COLORS.hemLine;
@@ -1739,14 +1749,25 @@ export default function FlashDraftPage() {
     const endHitScreen = worldToScreen(endHitTarget, canvas);
     const dStart = Math.hypot(screenPos.x - startHitScreen.x, screenPos.y - startHitScreen.y);
     const dEnd = Math.hypot(screenPos.x - endHitScreen.x, screenPos.y - endHitScreen.y);
-    if (dStart <= HEM_HIT_RADIUS_PX && dStart <= dEnd) {
+    // A hem already exists at this endpoint -> use the more generous
+    // re-open radius; otherwise this is a fresh creation click and keeps
+    // the tighter radius (see HEM_HIT_RADIUS_EXISTING_PX above).
+    const startHitRadius = hemStart ? HEM_HIT_RADIUS_EXISTING_PX : HEM_HIT_RADIUS_PX;
+    const endHitRadius = hemEnd ? HEM_HIT_RADIUS_EXISTING_PX : HEM_HIT_RADIUS_PX;
+    const startInRange = dStart <= startHitRadius;
+    const endInRange = dEnd <= endHitRadius;
+    if (startInRange && (!endInRange || dStart <= dEnd)) {
       setHemPopup({ endpoint: 'start', screenPos: startScreen });
       setHemLengthDraft(String(hemStart?.lengthIn ?? HEM_DEFAULT_LENGTH_IN));
-      setHemGapDraft(String(hemStart?.gapIn ?? HEM_DEFAULT_GAP_IN));
-    } else if (dEnd <= HEM_HIT_RADIUS_PX) {
+      // No type is chosen yet for a brand-new hem at this point (the Gap
+      // field itself doesn't render until a type button creates the hem in
+      // applyHem, which re-syncs this draft to the real type-specific
+      // default) — this fallback only ever shows transiently.
+      setHemGapDraft(String(hemStart?.gapIn ?? HEM_DEFAULT_GAP_IN_OPEN));
+    } else if (endInRange) {
       setHemPopup({ endpoint: 'end', screenPos: endScreen });
       setHemLengthDraft(String(hemEnd?.lengthIn ?? HEM_DEFAULT_LENGTH_IN));
-      setHemGapDraft(String(hemEnd?.gapIn ?? HEM_DEFAULT_GAP_IN));
+      setHemGapDraft(String(hemEnd?.gapIn ?? HEM_DEFAULT_GAP_IN_OPEN));
     }
   };
 
@@ -1984,12 +2005,23 @@ export default function FlashDraftPage() {
     // — preserved across a type switch same as lengthIn, rather than reset
     // to a type-derived constant, so re-clicking a type button (or picking
     // a different one) never silently wipes a value the user already typed.
-    const gapIn = current?.gapIn ?? (Number(hemGapDraft) || HEM_DEFAULT_GAP_IN);
+    // For a brand-new hem (no `current` yet) the starting default is
+    // type-specific — Open and Smashed read as nearly identical at a
+    // shared default (confirmed live by Reid). Teardrop has no gap concept
+    // (hem-glyph.ts's teardrop branch never reads gapPx) so it just
+    // inherits Open's default, which is cosmetically inert for it.
+    const gapDefault = type === 'smashed' ? HEM_DEFAULT_GAP_IN_SMASHED : HEM_DEFAULT_GAP_IN_OPEN;
+    const gapIn = current?.gapIn ?? gapDefault;
     const lengthIn = current?.lengthIn ?? (Number(hemLengthDraft) || HEM_DEFAULT_LENGTH_IN);
     const kick = current?.kick ?? HEM_DEFAULT_KICK;
     const hem: Hem = { type, gapIn, lengthIn, kick };
     if (hemPopup.endpoint === 'start') setHemStart(hem);
     else setHemEnd(hem);
+    // Keep the draft text in sync with the resolved value — the field
+    // itself only starts rendering once `current` exists (right after this
+    // call), so without this it would show the stale pre-type-pick text
+    // even though the underlying hem.gapIn is already the real default.
+    setHemGapDraft(String(gapIn));
     if (type !== 'open') setHemPopup(null);
   };
 

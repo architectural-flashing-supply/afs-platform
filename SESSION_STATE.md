@@ -26,7 +26,71 @@ let self-reported verification read as equivalent to user confirmation.
 
 ## CURRENT STATUS
 
-**Most recent session (2026-08-17): FlashDraft teardrop — restored the
+**Most recent session (2026-08-18): FlashDraft — flipped the inverted Kick
+mapping, split the shared Open/Smashed gap default into type-specific
+values, and widened the double-click re-open radius for an existing
+hem.** Scope: `app/studio/draft/page.tsx`, `lib/types/profile.ts`. Three
+independent fixes, all root-caused and confirmed live by Reid before this
+prompt (not re-diagnosed this session):
+
+1. **Kick direction was inverted.** `mirrorGlyph = hem.kick === 'inside'`
+   rendered backwards — Reid confirmed live that selecting "Outside"
+   visually produced the inside result and vice versa. Flipped the single
+   comparison to `mirrorGlyph = hem.kick === 'outside'`.
+2. **Open and Smashed shared one default gap** (`HEM_DEFAULT_GAP_IN` =
+   0.0625"/1/16"), reading as visually identical — confirmed by Reid live.
+   Replaced with `HEM_DEFAULT_GAP_IN_OPEN = 0.1875` (3/16") and
+   `HEM_DEFAULT_GAP_IN_SMASHED = 0.03125` (1/32") in `lib/types/profile.ts`.
+   `gapIn` stays fully per-hem editable; this only changes a newly created
+   hem's starting value. `applyHem` now resolves the type-specific default
+   directly from the type button clicked (rather than filtering through
+   the `hemGapDraft` text field, which the old single-constant version did
+   but which the Gap input can't actually have been user-edited through
+   before a hem exists) and re-syncs `hemGapDraft` to the resolved value
+   so the displayed field never lags the real `hem.gapIn`. Teardrop has no
+   gap concept (confirmed `hem-glyph.ts`'s teardrop branch never reads
+   `gapPx`) — it inherits Open's default only because `gapIn` is a
+   required field on `Hem`, not because either constant matters for it.
+3. **Re-opening an existing hem's popup was too easy to miss** — the only
+   trigger was double-clicking the exact `HEM_TRIGGER_OFFSET_IN`-offset
+   point, with no feedback on a near-miss and no way to distinguish it
+   from the neighboring bend-radius control. Added
+   `HEM_HIT_RADIUS_EXISTING_PX = 38` (~1.75x the existing
+   `HEM_HIT_RADIUS_PX = 22`, within Reid's requested 1.5x-2x range),
+   applied only when `hemStart`/`hemEnd` is already set at that endpoint —
+   new-hem creation keeps the original tighter radius.
+
+`pnpm tsc --noEmit` — 0 errors. `pnpm run build` — succeeded, 132/132
+static pages generated, no errors.
+
+Verified on a live `pnpm dev` server via a standalone Playwright script
+(the Claude-in-Chrome extension was not connected this session, so this
+went through Playwright directly against the same real dev server and
+canvas rather than the usual extension-driven flow). Five screenshots
+saved at repo root: `proof-hem-kick-direction-full.png` (one profile, both
+endpoints — Outside default at the start, Inside explicitly picked at the
+end) with tight closeups `proof-hem-kick-start-outside-closeup.png` /
+`proof-hem-kick-end-inside-closeup.png` (Hem Length/Gap temporarily bumped
+to 3"/1" via the popup's own editable fields, purely so the mirrored
+U-shape reads clearly at 1x app zoom, not a code default change);
+`proof-hem-gap-defaults-full.png` (Open at the start reading "OPEN 3/16"
+gap", Smashed at the end, with the popup's own Gap field read back as
+0.1875 and 0.03125 respectively before closing); `proof-hem-reopen-
+reliability.png` (an existing Open hem re-opened 3/3 times via
+double-clicks offset 18-22px from the true vertex — inside the new 38px
+radius, outside the old 22px one).
+
+Per the verification standard above, this stays **IMPLEMENTED,
+UNCONFIRMED** pending Reid's own visual check — specifically whether the
+flipped kick mapping now matches his reference sketch (this session had
+no access to that sketch, only his description that the old mapping was
+backwards) and whether 3/16"/1/32" read as sufficiently distinct at
+default zoom in normal use, not just in the length/gap-exaggerated
+closeups used here for clarity.
+
+---
+
+**Prior session (2026-08-17): FlashDraft teardrop — restored the
 validated tangent-circle proportions and enforced a real minimum visible
 size, fixing a regression from the immediately-prior teardrop-sizing
 session.** Scope: `lib/flashdraft/hem-glyph.ts`, `app/studio/draft/page.tsx`.
