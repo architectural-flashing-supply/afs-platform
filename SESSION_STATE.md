@@ -26,7 +26,87 @@ let self-reported verification read as equivalent to user confirmation.
 
 ## CURRENT STATUS
 
-**Most recent session (2026-08-18): Command Center — the full approval
+**Most recent session (2026-08-19): CRITICAL fix — PathfinderEdge bend
+angle was unsigned, then found to be the wrong angle model entirely, not
+just missing a sign.** Scope: `lib/integrations/flashdraft-to-
+pathfinder.ts`'s `bendAngleAt()`, `approve-quote-request/route.ts`'s
+duplicated `bendAngleFromPoints()` — the single source of the `angle`
+value PathfinderEdge receives for every real, drawn-geometry profile
+pushed to the machine, via both the direct "Send to PathfinderEdge"
+button and Command Center approval.
+
+**Starting point (given, not re-diagnosed):** both functions used
+`Math.acos`, which can only return 0–180 — incapable of a negative
+number. PathfinderEdge's profile-object doc requires a signed angle
+("the sign sets the bend direction"). Sending every bend unsigned
+collapsed a real zigzag (signed 68°/-45°/75°/-45° on FlashDraft's own
+canvas) into a closed triangular loop when pushed.
+
+**First fix attempt — signed but still wrong, caught by a real push:**
+made the angle signed by reusing `page.tsx`'s `signedAngleBetween`
+exactly (same v1/v2 vectors, same atan2 formula the canvas already uses
+to draw its own signed bend labels). Pushed a plain 4-leg right-angle
+staircase through the real, unmodified `flashDraftToMachineProfile` +
+`pushProfileToPathfinder` (profileId `32911526`, catalog 20115). **Reid's
+own visual check: self-intersecting / geometrically impossible, not a
+mirrored staircase** — ruled out a simple backwards-sign explanation,
+since a mirror would still be a valid, buildable shape.
+
+**Root cause, found via a captured POST body (intercepted `fetch`, not
+hand-transcribed) compared side-by-side against the source points:**
+`signedAngleBetween` returns the *interior* angle between the two legs
+(180° = straight through) — but PathfinderEdge's `[Straight, Angle,
+Straight, Angle, Straight...]` feature list expects a turtle-graphics
+*turn-from-heading* angle (0° = straight through). These are different
+quantities (`turn = interior + 180°`, wrapped), not sign-flip-equivalent
+in general — they only happen to coincide (as a pure negation) when every
+bend is exactly 90°, which is all the first test profile had. This exact
+ambiguity was already flagged, unconfirmed, in `pathfinder-edge.ts`'s own
+`buildFeatures` comment before this session.
+
+**Final fix:** both functions now compute the signed interior angle as an
+explicit intermediate step, then convert to the turn angle
+(`turn = interiorSigned + 180°`, wrapped to `(-180, 180]`).
+
+`pnpm tsc --noEmit` — 0 errors. `pnpm run build` — succeeded, 133/133
+static pages.
+
+**Second real push, deliberately non-90°** (a 90°-only test cannot tell
+sign-flip apart from the turn-vs-interior-angle-model bug — they coincide
+at exactly 90°, per Reid's own instruction to test something like
+"60°/120°, not just right angles"): `+60°`/`-120°` turtle turns, profileId
+`32911527`, catalog 20115. **Reid's own direct visual check, confirmed
+explicitly as a genuine pass:** clean three-segment shape, correct 10"
+leg lengths on all three segments, two distinct non-overlapping vertices,
+no self-intersection.
+
+**Not independently tested this session:** Command Center approval
+(`approve-quote-request/route.ts`) was not pushed end-to-end through a
+real quote request + admin click. Its real PathfinderEdge payload for
+drawn-geometry items is provably identical to the direct-button path
+already tested live (`buildMachineProfileForItem` calls the same
+`flashDraftToMachineProfile` for that case) — a reasoned inference, not a
+separately observed result. `route.ts`'s own `bendAngleFromPoints` was
+fixed identically for consistency, even though its only real consumer is
+`machine_jobs.custom_bends` (a human-review display column), never the
+actual PathfinderEdge payload for that code path. Also untested: a bend
+with an explicit `radius: 0` (a bare `Angle` feature rather than the
+`Radius`-type feature both live tests exercised) — no evidence it behaves
+differently, but not confirmed.
+
+**Cleanup not done:** both test profiles (`32911526`, `32911527`) are
+still live in PathfinderEdge catalog 20115 — flagged, not deleted, since
+Reid may still want to look at them.
+
+Stays **IMPLEMENTED, UNCONFIRMED** — a real visual check happened twice
+this session and both passed, but per Reid's own standing instruction
+mid-session ("do not conclude anything from your own screenshot alone"),
+a session's own observation doesn't substitute for his independent
+sign-off on this document.
+
+---
+
+**Prior session (2026-08-18): Command Center — the full approval
 pipeline now reaches PathfinderEdge automatically, with hems included as
 real features, not just blank-width numbers.** Scope: `approve-quote-
 request/route.ts`, `pathfinder-edge.ts`, `flashdraft-to-pathfinder.ts`,

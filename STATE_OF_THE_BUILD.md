@@ -49,6 +49,109 @@ pnpm tsc --noEmit                  0 errors. Exit code 0.
 
 ---
 
+## CRITICAL FIX — PATHFINDEREDGE BEND ANGLE WAS UNSIGNED, THEN WRONG TURN-VS-INTERIOR MODEL: IMPLEMENTED, UNCONFIRMED
+
+**Status: IMPLEMENTED, UNCONFIRMED. Do not mark this complete — pending
+Reid's own review of this session's transcript/diff, even though a real
+visual check already happened live (see below).**
+
+(2026-08-19) — scope: `lib/integrations/flashdraft-to-pathfinder.ts`'s
+`bendAngleAt()`, `app/api/admin/command-center/approve-quote-request/
+route.ts`'s duplicated `bendAngleFromPoints()`. Both are the single source
+of the `bendAngleDegrees` value that ends up as PathfinderEdge's `angle`
+feature field for every real, drawn-geometry profile pushed to the
+machine — via FlashDraft's direct "Send to PathfinderEdge" button
+(`flashDraftToMachineProfile` directly) AND via Command Center approval
+of a quote request with real FlashDraft points (`buildMachineProfileForItem`
+calls the same `flashDraftToMachineProfile` for that case — `route.ts`'s
+own `bendAngleFromPoints` only ever fed `machine_jobs.custom_bends`, a
+human-review display column, never the actual PathfinderEdge payload for
+that path; fixed anyway for consistency, since it carried the identical
+bug).
+
+**Bug 1 (root cause as originally diagnosed): unsigned angle.** Both
+functions computed the interior bend angle via `Math.acos`, which can only
+return 0–180 — mathematically incapable of encoding turn direction.
+Sending every bend as unsigned/positive meant every turn looked like the
+same direction to PathfinderEdge, collapsing a real zigzag (signed 68°,
+-45°, 75°, -45° on FlashDraft's own canvas) into a closed triangular loop
+when pushed.
+
+**Bug 2 (found only after fixing Bug 1, via a real push): wrong angle
+model, not just missing sign.** The first fix made the angle signed by
+reusing `app/studio/draft/page.tsx`'s `signedAngleBetween` formula exactly
+— but that function returns the *interior* angle between the two legs
+(180° = straight through), while PathfinderEdge's `[Straight, Angle,
+Straight, Angle, Straight...]` feature list expects a turtle-graphics
+*turn-from-heading* angle (0° = straight through) — a different quantity,
+not a sign flip, related by `turn = interior + 180°` (wrapped), which only
+coincidentally reduces to a pure sign flip when every bend is exactly 90°.
+This was caught live: a real push of a plain 4-leg right-angle staircase
+(all 90° bends, so the sign-only fix and the correct turn-angle fix
+predict the same numbers) rendered as a **self-intersecting/geometrically
+impossible shape** in PathfinderEdge, not a mirrored staircase — the
+failure signature that revealed the deeper interior-vs-turn-angle
+confusion, not just a backwards sign. (This exact ambiguity was already
+flagged, unconfirmed, in `pathfinder-edge.ts`'s own `buildFeatures`
+comment before this session — this session resolves it.)
+
+**Final fix:** both functions now compute the signed interior angle
+(unchanged formula, matches `signedAngleBetween`) as an explicit
+intermediate step, then convert it to the turn angle PathfinderEdge
+actually needs (`turn = interiorSigned + 180°`, wrapped to `(-180, 180]`).
+
+`pnpm tsc --noEmit` — 0 errors. `pnpm run build` — succeeded, 133/133
+static pages generated, no errors.
+
+**Real end-to-end verification performed this session, against the live
+PathfinderEdge API, not a script assertion:**
+1. Pushed a real 4-leg right-angle staircase (`(0,0)→(10,0)→(10,10)→
+   (20,10)→(20,0)`) through the real `flashDraftToMachineProfile` +
+   `pushProfileToPathfinder` — the unmodified functions the real button
+   uses — with the first (signed-but-interior) fix. Result: profileId
+   `32911526`, catalog 20115. **Reid's own visual check: self-intersecting
+   / geometrically impossible, not a simple mirror** — this is what
+   surfaced Bug 2 above.
+2. Diagnosed the interior-vs-turn-angle mismatch (see Bug 2), captured the
+   exact POST body via an intercepted `fetch` (not hand-transcribed) to
+   confirm the diagnosis against the real request payload, side by side
+   with the source points.
+3. Implemented the turn-angle fix, re-ran `tsc`/`build` clean.
+4. Pushed a profile with two genuinely non-90° bends (`+60°`/`-120°`
+   turtle turns — a 90°-only test cannot distinguish sign-flip from
+   turn-angle-model, since they coincide at exactly 90°) through the same
+   real path. Result: profileId `32911527`, catalog 20115. **Reid's own
+   direct visual check, confirmed explicitly as a genuine pass (not "looks
+   roughly okay"): clean three-segment shape, correct 10" leg lengths on
+   all three segments, two distinct non-overlapping vertices, no
+   self-intersection.**
+5. Both test profiles (`32911526`, `32911527`) were left live in catalog
+   20115 for the visual checks above and have **not** been deleted as of
+   this write-up — cleanup still needed, flagged rather than forced.
+
+**What this session's live check does NOT cover:** the Command Center
+approval path (`approve-quote-request/route.ts`) was not independently
+pushed end-to-end through a real quote request + admin approval click —
+its real PathfinderEdge payload for drawn-geometry items is provably
+identical to the direct-button path already tested (both call the same
+`flashDraftToMachineProfile`), so this is a reasoned inference, not a
+separately observed result for that specific route. The Radius-vs-Angle
+feature-type distinction (`buildFeatures` sends `angle` on both `Radius`-
+and `Angle`-type features) was exercised only via `Radius`-type features
+in both live tests (every bend in both test profiles used a nonzero
+material-default radius) — a bend with an explicit `radius: 0`, forcing a
+bare `Angle` feature, was not separately tested; no evidence suggests it
+behaves differently, but it is not confirmed.
+
+Per the verification standard above, this stays **IMPLEMENTED,
+UNCONFIRMED** — a real visual check already happened twice this session
+and both passed, but per this project's standing rule (repeated explicitly
+by Reid mid-session: "do not conclude anything from your own screenshot
+alone"), a session's own observation of the check is not the same as
+Reid independently marking this done himself.
+
+---
+
 ## COMMAND CENTER — FULL APPROVAL PIPELINE CONNECTED TO PATHFINDEREDGE, HEMS INCLUDED AS REAL FEATURES: IMPLEMENTED, UNCONFIRMED
 
 **Status: IMPLEMENTED, UNCONFIRMED. Do not mark this complete — pending
