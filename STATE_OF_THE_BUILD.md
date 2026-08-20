@@ -648,22 +648,29 @@ regardless of which system actually has it — now `statusLabel()` reads
 has a separate, already-generic "Approved — Queued" label (no "for
 Bridge" claim) — out of this prompt's explicit scope, not touched.
 
-**Migration NOT yet applied to the live Supabase project** — written and
-committed as a file only, matching this project's existing convention
-(see the Thalmann machine-profile-import migration's same "not yet
-applied" note above). Confirm applied before assuming
-`machine_jobs.delivery_method` exists on the live schema.
+**CORRECTED 2026-08-20 — Migration 015 CONFIRMED applied to the live
+Supabase project.** The note directly above this one, claiming the
+migration was file-only and not yet applied, was wrong. Verified
+2026-08-20 via a direct `information_schema` query: `machine_jobs.
+delivery_method` exists on the live schema. This project's live Supabase
+database has **no migration ledger** — there is no `schema_migrations`
+table; migrations are applied manually via the Dashboard SQL Editor, with
+no automated record of what has and hasn't run. Because of that, a
+migration's live-apply status must never be assumed from its presence in
+`supabase/migrations/`, from git history, or from a prior note in this
+doc — it must be verified directly via `information_schema` (or
+`pg_proc` for functions) each time it actually matters.
 
 `pnpm tsc --noEmit` — 0 errors. `pnpm run build` — succeeded, 132/132
 static pages generated, no errors.
 
 Per the verification standard above, this stays **IMPLEMENTED,
-UNCONFIRMED** pending Reid's own check — specifically that the migration
-gets applied to the live project, and that a real end-to-end test (a job
-explicitly set to `pathfinder_edge` reaching `pending_approval` and
-getting approved) behaves as designed. This session did not run that
-end-to-end test — no job exists at `pending_approval` in the live
-database to test against.
+UNCONFIRMED** pending Reid's own check — specifically a real end-to-end
+test (a job explicitly set to `pathfinder_edge` reaching
+`pending_approval` and getting approved) behaving as designed. This
+session did not run that end-to-end test — no job exists at
+`pending_approval` in the live database to test against. (The migration
+itself is no longer the open question — see the correction above.)
 
 ---
 

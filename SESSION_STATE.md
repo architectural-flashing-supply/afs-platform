@@ -404,10 +404,18 @@ be picked up by the Bridge's poll. `CommandCenterJobCard.tsx`'s stale
 regardless of which system actually had it) now reads `deliveryMethod`
 and shows the correct one of two real labels.
 
-**Migration NOT yet applied to the live Supabase project** — written and
-committed as a file only, per this project's existing convention for
-migrations pending a manual apply step. Confirm applied before assuming
-the column exists live.
+**CORRECTED 2026-08-20 — Migration 015 CONFIRMED applied to the live
+Supabase project.** The note directly above this one, claiming the
+migration was file-only and not yet applied, was wrong. Verified
+2026-08-20 via a direct `information_schema` query: `machine_jobs.
+delivery_method` exists on the live schema. This project's live Supabase
+database has **no migration ledger** — there is no `schema_migrations`
+table; migrations are applied manually via the Dashboard SQL Editor, with
+no automated record of what has and hasn't run. Because of that, a
+migration's live-apply status must never be assumed from its presence in
+`supabase/migrations/`, from git history, or from a prior note in this
+doc — it must be verified directly via `information_schema` (or
+`pg_proc` for functions) each time it actually matters.
 
 `pnpm tsc --noEmit` — 0 errors. `pnpm run build` — succeeded, 132/132
 static pages, no errors.
