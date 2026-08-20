@@ -68,20 +68,32 @@ function distanceIn(a: FlashDraftPoint, b: FlashDraftPoint): number {
   return Math.hypot(b.x - a.x, b.y - a.y);
 }
 
-// Interior bend angle at `curr`, in degrees (0-180) — the same dot-product
-// formula as app/studio/draft/page.tsx's bendAngleAt and afs-machine-
-// bridge's ds1-generator.js bendAngleFromPoints, duplicated (not imported)
-// since the first lives in a 'use client' page component and the second in
-// a separate standalone repo — same reasoning ds1-generator.js's own
-// version documents for not importing across that repo boundary.
+function wrapDeg(deg: number): number {
+  let d = deg;
+  while (d > 180) d -= 360;
+  while (d <= -180) d += 360;
+  return d;
+}
+
+// SIGNED TURN-FROM-HEADING angle at `curr`, in degrees, range (-180, 180]
+// — same fix and same reasoning as lib/integrations/flashdraft-to-
+// pathfinder.ts's bendAngleAt (see that file's comment for the full
+// derivation and the live push+visual check that found the interior-angle
+// version rendered a self-intersecting shape): PathfinderEdge's [Straight,
+// Angle, Straight...] feature list expects a turtle-graphics turn angle
+// (0° = straight through), not the interior angle between the two legs
+// (180° = straight through) app/studio/draft/page.tsx's signedAngleBetween
+// computes. `interiorSigned` is that same interior-angle value, kept as an
+// explicit step; `turn = interiorSigned + 180°` wrapped converts it.
+// Duplicated (not imported) since this lives in a server route module —
+// same reasoning as the rest of this codebase's client-page/server-route
+// duplication precedent.
 function bendAngleFromPoints(prev: FlashDraftPoint, curr: FlashDraftPoint, next: FlashDraftPoint): number {
   const v1 = { x: prev.x - curr.x, y: prev.y - curr.y };
   const v2 = { x: next.x - curr.x, y: next.y - curr.y };
-  const dot = v1.x * v2.x + v1.y * v2.y;
-  const mag = Math.hypot(v1.x, v1.y) * Math.hypot(v2.x, v2.y);
-  if (mag === 0) return 0;
-  const cos = Math.max(-1, Math.min(1, dot / mag));
-  return (Math.acos(cos) * 180) / Math.PI;
+  if ((v1.x === 0 && v1.y === 0) || (v2.x === 0 && v2.y === 0)) return 0;
+  const interiorSigned = wrapDeg(((Math.atan2(v2.y, v2.x) - Math.atan2(v1.y, v1.x)) * 180) / Math.PI);
+  return wrapDeg(interiorSigned + 180);
 }
 
 // Real per-bend geometry from FlashDraft's drawn points, converted from

@@ -54,17 +54,41 @@ function dist(a: FlashDraftPointInput, b: FlashDraftPointInput): number {
   return Math.hypot(b.x - a.x, b.y - a.y);
 }
 
-// Interior bend angle at `curr`, in degrees — identical formula to
-// app/studio/draft/page.tsx's bendAngleAt / approve-quote-request/
-// route.ts's bendAngleFromPoints (kept duplicated for the same reason).
+function wrapDeg(deg: number): number {
+  let d = deg;
+  while (d > 180) d -= 360;
+  while (d <= -180) d += 360;
+  return d;
+}
+
+// SIGNED TURN-FROM-HEADING angle at `curr`, in degrees, range (-180, 180]
+// — 0° means the path keeps going straight through `curr`, matching the
+// turtle-graphics semantics of PathfinderEdge's own [Straight, Angle,
+// Straight, Angle, Straight...] feature-list convention (confirmed live,
+// 2026-08-19: pushing this file's prior version — which sent the INTERIOR
+// angle instead, 180° = straight through, same formula as app/studio/
+// draft/page.tsx's signedAngleBetween — rendered a simple 4-leg
+// right-angle staircase as a self-intersecting/impossible shape in
+// PathfinderEdge, not just a mirrored one, which is what distinguishes
+// "wrong turn-vs-interior angle model" from "right model, wrong sign").
+// `interiorSigned` below is kept as an explicit intermediate step (it's
+// exactly signedAngleBetween's own value, for traceability) rather than
+// collapsing the two formulas into one; `turn = interiorSigned + 180°`
+// wrapped is the conversion from interior-angle to turn-angle.
+// CONFIRMED live, 2026-08-19, with a real push + Reid's own visual check
+// of a non-90° profile (turns +60°/-120°, profileId 32911527, catalog
+// 20115): rendered as a clean three-segment shape, correct 10" leg
+// lengths, two distinct non-overlapping vertices, no self-intersection —
+// the all-90° test that found the interior-vs-turn-angle bug couldn't by
+// itself confirm sign polarity for a non-90° bend (90° coincidentally
+// makes interior-angle and turn-angle differ by sign only); this test
+// could and did.
 function bendAngleAt(prev: FlashDraftPointInput, curr: FlashDraftPointInput, next: FlashDraftPointInput): number {
   const v1 = { x: prev.x - curr.x, y: prev.y - curr.y };
   const v2 = { x: next.x - curr.x, y: next.y - curr.y };
-  const dot = v1.x * v2.x + v1.y * v2.y;
-  const mag = Math.hypot(v1.x, v1.y) * Math.hypot(v2.x, v2.y);
-  if (mag === 0) return 0;
-  const cos = Math.max(-1, Math.min(1, dot / mag));
-  return (Math.acos(cos) * 180) / Math.PI;
+  if ((v1.x === 0 && v1.y === 0) || (v2.x === 0 && v2.y === 0)) return 0;
+  const interiorSigned = wrapDeg(((Math.atan2(v2.y, v2.x) - Math.atan2(v1.y, v1.x)) * 180) / Math.PI);
+  return wrapDeg(interiorSigned + 180);
 }
 
 function toMachineProfileHem(input: FlashDraftHemInput | null | undefined): MachineProfileHem | null {
