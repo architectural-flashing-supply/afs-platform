@@ -75,16 +75,21 @@ function wrapDeg(deg: number): number {
   return d;
 }
 
-// SIGNED TURN-FROM-HEADING angle at `curr`, in degrees, range (-180, 180]
-// — same fix and same reasoning as lib/integrations/flashdraft-to-
+// SIGNED INTERIOR angle at `curr`, in degrees, range (-180, 180] — same
+// fix, same formula, same evidence as lib/integrations/flashdraft-to-
 // pathfinder.ts's bendAngleAt (see that file's comment for the full
-// derivation and the live push+visual check that found the interior-angle
-// version rendered a self-intersecting shape): PathfinderEdge's [Straight,
-// Angle, Straight...] feature list expects a turtle-graphics turn angle
-// (0° = straight through), not the interior angle between the two legs
-// (180° = straight through) app/studio/draft/page.tsx's signedAngleBetween
-// computes. `interiorSigned` is that same interior-angle value, kept as an
-// explicit step; `turn = interiorSigned + 180°` wrapped converts it.
+// derivation, the supplement-swap evidence from profileId 32912069, why
+// the prior turn-angle revision's confirmation via profileId 32911527
+// didn't actually discriminate the two models, and why the staircase
+// test (32911526) stays UNEVALUATED, not re-explained by this revision).
+// `interiorSigned` is the raw signed interior angle (cross-product-
+// equivalent atan2-difference sign logic, unchanged); `turn` is the now-
+// superseded second revision's output, kept as an explicit intermediate
+// step for traceability; final formula is `sign(turn) * (180 -
+// abs(turn))`, with `turn === 0` (dead-straight, no bend) special-cased
+// to return 180 directly since `Math.sign(0) === 0` would otherwise
+// wrongly collapse it to 0 (the opposite degenerate case, a hairpin
+// fold — which is the correct, intentional output at `abs(turn) = 180`).
 // Duplicated (not imported) since this lives in a server route module —
 // same reasoning as the rest of this codebase's client-page/server-route
 // duplication precedent.
@@ -93,7 +98,9 @@ function bendAngleFromPoints(prev: FlashDraftPoint, curr: FlashDraftPoint, next:
   const v2 = { x: next.x - curr.x, y: next.y - curr.y };
   if ((v1.x === 0 && v1.y === 0) || (v2.x === 0 && v2.y === 0)) return 0;
   const interiorSigned = wrapDeg(((Math.atan2(v2.y, v2.x) - Math.atan2(v1.y, v1.x)) * 180) / Math.PI);
-  return wrapDeg(interiorSigned + 180);
+  const turn = wrapDeg(interiorSigned + 180);
+  if (turn === 0) return 180;
+  return Math.sign(turn) * (180 - Math.abs(turn));
 }
 
 // Real per-bend geometry from FlashDraft's drawn points, converted from

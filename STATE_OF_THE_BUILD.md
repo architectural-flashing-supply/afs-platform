@@ -49,7 +49,95 @@ pnpm tsc --noEmit                  0 errors. Exit code 0.
 
 ---
 
-## CRITICAL FIX — PATHFINDEREDGE BEND ANGLE WAS UNSIGNED, THEN WRONG TURN-VS-INTERIOR MODEL: IMPLEMENTED, UNCONFIRMED
+## CRITICAL — PATHFINDEREDGE BEND ANGLE, FOURTH REVISION: SIGNED INTERIOR ANGLE, NOT TURN-ANGLE: IMPLEMENTED, PENDING VERIFICATION
+
+**Status: IMPLEMENTED, PENDING Reid's own visual verification matrix
+below. Not confirmed. Supersedes the turn-angle revision documented
+immediately below this entry — read this one first.**
+
+(2026-08-20) — scope: `lib/integrations/flashdraft-to-pathfinder.ts`'s
+`bendAngleAt()`, `approve-quote-request/route.ts`'s duplicated
+`bendAngleFromPoints()`, plus `lib/integrations/pathfinder-edge.ts` (a
+diagnostic-only change, see below).
+
+**Why the turn-angle revision's own confirmation didn't actually count
+as evidence for it.** That revision's live test (profileId 32911527, a
+60°/-120° three-segment chevron, "clean, correct leg lengths, no
+self-intersection") only checked criteria that are invariant under a
+supplement swap — leg lengths, vertex count, and self-intersection don't
+change whether the true interior split at each vertex is 60/120 or
+120/60. It could not have discriminated turn-angle from interior-angle
+semantics either way; it wasn't real counter-evidence to the new
+diagnosis, just a test that happened not to be precise enough to catch
+the problem.
+
+**Decisive evidence:** profileId 32912069, a single-bend FlashDraft "V"
+drawn with a real interior angle of 45° (confirmed on FlashDraft's own
+canvas), pushed under the turn-angle formula (which sent 135°, the
+supplement of 45°) — rendered in PathfinderEdge as ~135°, not the
+intended 45°. A single, isolated, angle-explicit bend is a direct,
+one-variable confirmation that PathfinderEdge wants the signed interior
+angle itself, not a turtle-turn conversion of it.
+
+**Formula:** `sign(turn) × (180 − |turn|)`, algebraically equal to
+`-interiorSigned` everywhere except at `turn === 0`. The
+cross-product-equivalent sign-determination logic (signed atan2
+difference) is unchanged from the prior revision — only the final
+transform changed. Two boundaries handled explicitly and commented in
+both files:
+- `|turn| = 180` (interiorSigned = 0, a hairpin/flat fold, legs pointing
+  in exactly opposite directions): formula naturally emits `0` — correct,
+  since a perfectly flat fold has no meaningful handedness to sign in 2D.
+- `turn === 0` (interiorSigned = 180, prev/curr/next exactly collinear,
+  no bend at all): the literal formula breaks here because JS's
+  `Math.sign(0) === 0` would collapse the whole product to `0` — wrong,
+  since `0` means "hairpin fold" (the opposite degenerate case). Special-
+  cased to return `180` directly.
+
+`pnpm tsc --noEmit` — 0 errors.
+
+**What stays explicitly UNEVALUATED, not resolved by this revision:**
+the staircase self-intersection verdict (profileId 32911526) that
+originally motivated the (now superseded) turn-angle revision. That
+verdict rests entirely on two of Reid's own chat messages — no session
+has ever had visual/browser access to PathfinderEdge's own web UI to
+independently confirm it. It has not been re-checked. If a fresh look
+contradicts this revision, this revision needs to be revisited too — it
+is deprioritized behind the more decisive V-test evidence per explicit
+instruction, not dismissed.
+
+**Also still untested:** whether a bare `radius: 0` (`Angle`-type
+feature) behaves differently from the `Radius`-type feature every real
+test so far has used — `bendCount: 0` on 32911526, 32911527, and
+32912069 all indicate material-default nonzero radii were used in every
+case.
+
+**Diagnostic logging made permanent.** The ad-hoc `console.log` added
+mid-session to capture live POST bodies (used to capture the real
+32912069-equivalent geometry and confirm the profile-name/timestamp
+provenance of several live pushes) is replaced with an opt-in, env-gated
+file capture in `pushProfileToPathfinder()`: set
+`PATHFINDER_DEBUG_CAPTURE=1` to write each outgoing POST body to
+`diagnostics/pathfinder-capture-<timestamp>.json` (new, gitignored
+directory) — silent, zero filesystem writes, when unset (the default;
+not set in `.env.local` or Vercel). A write failure there is logged, not
+thrown — cannot block or fail a real push.
+
+**VERIFICATION MATRIX — PENDING, none completed as of this write-up:**
+
+| # | Test | Expected if this revision is correct |
+|---|---|---|
+| 1 | Single-bend V, sharp (~45°) | Renders as ~45°, not ~135° |
+| 2 | 4-leg "W" profile, turns 45°/-60°/45°/-60° | Renders as the correct W shape, not distorted |
+| 3 | Near-90° bend(s), regression check | Still correct — this revision and the superseded turn-angle revision coincide exactly at 90°, so nothing here should have changed |
+| 4 | A near-straight (turn≈0°) or near-hairpin (turn≈±180°) bend, and/or a bend adjacent to a hem | Renders correctly at the two explicit boundary cases this revision added handling for |
+
+No push was made by Claude for this revision — per explicit instruction,
+Reid runs the matrix above himself. Do not mark this DONE until he has.
+
+---
+
+## CRITICAL FIX — PATHFINDEREDGE BEND ANGLE WAS UNSIGNED, THEN WRONG TURN-VS-INTERIOR MODEL (SUPERSEDED BY THE REVISION ABOVE): IMPLEMENTED, UNCONFIRMED
 
 **Status: IMPLEMENTED, UNCONFIRMED. Do not mark this complete — pending
 Reid's own review of this session's transcript/diff, even though a real
@@ -149,6 +237,104 @@ and both passed, but per this project's standing rule (repeated explicitly
 by Reid mid-session: "do not conclude anything from your own screenshot
 alone"), a session's own observation of the check is not the same as
 Reid independently marking this done himself.
+
+**Follow-up read-only diagnostic pass (2026-08-19, later same day):**
+requested by Reid to independently re-audit both files rather than trust
+the prior session's own account. No source files touched this pass.
+
+Confirmed by direct file read that `lib/integrations/flashdraft-to-
+pathfinder.ts`'s `bendAngleAt()` and `approve-quote-request/route.ts`'s
+`bendAngleFromPoints()` are **byte-for-byte identical logic** (only the
+function/type names differ) and **both currently contain the turn-angle
+fix** (`interiorSigned` computed via signed atan2, then
+`turn = interiorSigned + 180°` wrapped) — neither has regressed to the
+original unsigned `Math.acos` version. `git status` on both files was
+clean against the last commit at the time of this check.
+
+Computed, via a throwaway script duplicating each formula (not importing
+or modifying the source files), the `bendAngleDegrees` values both the
+current fix and the original pre-fix code would emit for a constructed
+5-leg, same-handed profile with turtle turns of exactly 45°/45°/38°/45°
+at its 4 interior points (10" legs, points listed below):
+
+```
+P0 = (0.000000, 0.000000)
+P1 = (10.000000, 0.000000)
+P2 = (17.071068, 7.071068)
+P3 = (17.071068, 17.071068)
+P4 = (10.914453, 24.951175)
+P5 = (0.988992, 26.169869)
+
+CURRENT (turn-angle fix):              45.0000, 45.0000, 38.0000, 45.0000
+ORIGINAL (unsigned Math.acos interior): 135.0000, 135.0000, 142.0000, 135.0000
+```
+
+The current fix reproduces the intended turn angles exactly (as it must
+by construction — `turn = interiorSigned + 180` is the algebraic inverse
+of how these points were built from turn angles in the first place). The
+original version's `135/135/142/135` numbers are `180 − turn` for each
+vertex — always positive, and for anything other than a 90° bend, a
+*different magnitude* than the correct turn angle, not merely a
+sign-flipped version of it — concrete numeric confirmation of what this
+session's live PathfinderEdge pushes had already shown visually (a
+zigzag collapsing into a loop, then a self-intersecting shape) before the
+turn-angle fix was applied.
+
+This pass changed no code and ran no new live PathfinderEdge push — it is
+a static confirmation that the fix committed and documented above is
+actually present in both files, not a new behavioral test.
+
+**Second follow-up read-only pass (2026-08-19, same day): live API
+inspection of profiles `32911527` and `32911528`.** No source files
+touched.
+
+**Hard API limitation discovered:** `GET /api/v1/profiles/{id}` does
+**not** expose per-feature geometry — confirmed via `404` on both
+`/api/v1/profiles/{id}/features` and `/api/v1/profiles/{id}/geometry`
+for both IDs. The only fields available for an existing profile are
+`profileName`, `description`, `owningCatalogId`, `category`,
+`subCategory`, `blankWidth`, `bendCount`, `hemCount` — no bend angle
+value (signed or otherwise), no hem parameters, no leg/flat lengths.
+**There is currently no way, via this API, to confirm what sign or
+magnitude PathfinderEdge actually stored for any profile's bends** —
+only what was submitted (capturable locally via an intercepted `fetch`
+on a fresh push, as done earlier this session) or what a human sees in
+PathfinderEdge's own web UI (still no login access in this environment).
+
+**Profile `32911528` is not one of this session's test pushes.** Its
+`profileName` (`FlashDraft Stainless Steel 18 ga 8/19/2026, 9:42:31 PM`)
+matches the live "Send to PathfinderEdge" button's own naming pattern
+exactly (`page.tsx:2270`) — this looks like a real push made directly
+through the live button, most likely Reid testing the fix himself.
+`hemCount: 2`, `blankWidth: 34.375` (34 3/8").
+
+**Blank-width discrepancy flagged, not resolved:** FlashDraft's own
+displayed Blank Width (`page.tsx:2425-2427`, raw leg distances +
+`hemAllowanceIn` per hem — that function's own comment in
+`lib/types/profile.ts` calls it *"a visual/quoting simplification, not a
+real fabrication bend-deduction calculation"*) and PathfinderEdge's own
+recomputed `blankWidth` (from the submitted `Straight`/`Radius`/hem
+features, using PathfinderEdge's own undocumented internal formula — one
+prior data point in this doc suggests it adds each bend's radius on top
+of the Straight-length sum) are **two independent calculations that were
+never designed to agree.** For `32911528` specifically: FlashDraft showed
+33 1/4", PathfinderEdge returned 34 3/8" (+1 1/8"). Plausible
+explanation (bend-radius contributions FlashDraft's display never
+includes), not a confirmed reconciliation — the original drawn
+points/hem settings for this specific push aren't available via the API
+or this session. **Flagged as a real, separate, open question — unrelated
+to this session's bend-angle fix (blank-width code untouched), but
+worth its own investigation** if quoting accuracy depends on FlashDraft's
+displayed width matching what PathfinderEdge/the machine will actually
+use.
+
+**Also noted, not fixed (read-only pass, out of scope):**
+`pathfinder-edge.ts`'s `buildFeatures` still has a stale comment
+(lines ~288-295) saying the interior-vs-turn-angle mapping is
+"NOT confirmed... flagged as open... pending a real bend push+visual
+check" — that check has since happened and resolved the question (see
+the CRITICAL FIX entry above). Comment cleanup left for a future pass
+since this one was read-only.
 
 ---
 

@@ -37,6 +37,8 @@
  * own header comment for the actual confirmed result.
  */
 
+import { mkdir, writeFile } from 'fs/promises';
+import path from 'path';
 import type { HemType, HemKick } from '@/lib/types/profile';
 
 // Catalog 20115 ("afs") is the only PathfinderEdge catalog the Thalmann
@@ -352,6 +354,24 @@ export async function pushProfileToPathfinder(profile: MachineProfile, catalogId
     owningCatalogId,
     features,
   };
+
+  // Permanent, opt-in diagnostic capture — replaces an ad-hoc console.log
+  // used for a one-off manual capture. Silent/zero-overhead unless
+  // PATHFINDER_DEBUG_CAPTURE=1 is set (not set by default in .env.local
+  // or Vercel) — writes the real outgoing POST body to a file instead of
+  // stdout, so it survives past whatever terminal/log buffer happened to
+  // be open at push time. A write failure here is logged, never thrown —
+  // this must not be able to block or fail a real PathfinderEdge push.
+  if (process.env.PATHFINDER_DEBUG_CAPTURE === '1') {
+    try {
+      const dir = path.join(process.cwd(), 'diagnostics');
+      await mkdir(dir, { recursive: true });
+      const file = path.join(dir, `pathfinder-capture-${Date.now()}.json`);
+      await writeFile(file, JSON.stringify(body, null, 2), 'utf-8');
+    } catch (err) {
+      console.error('[PATHFINDER_DEBUG_CAPTURE] Failed to write capture file:', err);
+    }
+  }
 
   try {
     const postRes = await pathfinderFetch(config, '/api/v1/profiles', {

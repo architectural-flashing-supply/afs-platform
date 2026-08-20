@@ -38,3 +38,7 @@ machine-data/
 
 AFS CREDENTIALS.txt
 .env.local.backup
+
+# PATHFINDER_DEBUG_CAPTURE=1 output — real outgoing PathfinderEdge POST
+# bodies (real profile geometry), diagnostic-only, never committed.
+diagnostics/

@@ -61,34 +61,67 @@ function wrapDeg(deg: number): number {
   return d;
 }
 
-// SIGNED TURN-FROM-HEADING angle at `curr`, in degrees, range (-180, 180]
-// — 0° means the path keeps going straight through `curr`, matching the
-// turtle-graphics semantics of PathfinderEdge's own [Straight, Angle,
-// Straight, Angle, Straight...] feature-list convention (confirmed live,
-// 2026-08-19: pushing this file's prior version — which sent the INTERIOR
-// angle instead, 180° = straight through, same formula as app/studio/
-// draft/page.tsx's signedAngleBetween — rendered a simple 4-leg
-// right-angle staircase as a self-intersecting/impossible shape in
-// PathfinderEdge, not just a mirrored one, which is what distinguishes
-// "wrong turn-vs-interior angle model" from "right model, wrong sign").
-// `interiorSigned` below is kept as an explicit intermediate step (it's
-// exactly signedAngleBetween's own value, for traceability) rather than
-// collapsing the two formulas into one; `turn = interiorSigned + 180°`
-// wrapped is the conversion from interior-angle to turn-angle.
-// CONFIRMED live, 2026-08-19, with a real push + Reid's own visual check
-// of a non-90° profile (turns +60°/-120°, profileId 32911527, catalog
-// 20115): rendered as a clean three-segment shape, correct 10" leg
-// lengths, two distinct non-overlapping vertices, no self-intersection —
-// the all-90° test that found the interior-vs-turn-angle bug couldn't by
-// itself confirm sign polarity for a non-90° bend (90° coincidentally
-// makes interior-angle and turn-angle differ by sign only); this test
-// could and did.
+// SIGNED INTERIOR angle at `curr`, in degrees, range (-180, 180] — 180°
+// (or its canonical wrap, since wrapDeg never returns -180) means the
+// path keeps going straight through `curr` (no bend); the sign follows
+// which side the bend opens toward, same cross-product-equivalent
+// atan2-difference logic this codebase has used throughout (unchanged
+// here — only the post-processing of that raw value changed).
+//
+// THIRD revision of this function's semantics, replacing the SECOND
+// (turtle turn-from-heading, `turn = interiorSigned + 180°` wrapped).
+// Evidence for the second revision (profileId 32911527, a 60°/-120°
+// three-segment chevron, Reid confirmed "clean, correct leg lengths, no
+// self-intersection") turned out NOT to discriminate between the turn
+// and interior models: leg lengths, vertex count, and self-intersection
+// are all invariant under a supplement swap (60/120 or 120/60 both
+// produce *some* clean chevron), so that test couldn't tell the two
+// models apart. The decisive evidence is a single-bend, angle-explicit
+// test: profileId 32912069, a FlashDraft "V" drawn with a real interior
+// angle of 45° (confirmed on FlashDraft's own canvas), pushed under the
+// turn-angle formula (which sent |135|, the supplement of 45) — and
+// rendered in PathfinderEdge as ~135°, the supplement of the intended
+// 45°, not 45° itself. That is a direct, single-variable confirmation
+// that PathfinderEdge wants the signed INTERIOR angle, not a turn-angle
+// conversion of it.
+//
+// NOTE: the staircase test that originally motivated the second revision
+// (profileId 32911526, sent raw un-converted `interiorSigned`, reported
+// as "self-intersecting/impossible") stays UNEVALUATED as of this
+// revision — that report was never independently visually confirmed by
+// a session, only relayed from a chat message, and it has not been
+// re-checked. It is NOT re-explained by this revision and is flagged,
+// not swept aside, in STATE_OF_THE_BUILD.md / SESSION_STATE.md.
+//
+// Formula: `sign(turn) * (180 - abs(turn))`, where `turn` is this same
+// function's second-revision output (`interiorSigned + 180°`, wrapped) —
+// algebraically equal to `-interiorSigned` everywhere except the turn=0
+// boundary (see below). Computed via `turn` rather than collapsed to
+// `-interiorSigned` directly so the relationship to the prior (now
+// superseded) turn-angle revision stays traceable in the diff/history.
+//
+// BOUNDARY at abs(turn) = 180 (interiorSigned = 0 — a hairpin, the two
+// legs pointing in exactly opposite directions, folded flat onto each
+// other): `sign(turn) * (180 - 180) = 0` regardless of whether turn is
+// +180 or -180 (wrapDeg's own convention means it never actually returns
+// -180, only +180, but the formula is 0 either way). 0 is the correct,
+// intentional output here — a perfectly flat hairpin fold has no
+// meaningful handedness to sign in 2D.
+//
+// BOUNDARY at turn = 0 (interiorSigned = 180 — prev/curr/next exactly
+// collinear, no bend at all): the literal formula breaks here, since
+// JS's `Math.sign(0) === 0` collapses the whole product to 0 — which
+// would be WRONG (0 means "hairpin fold," the opposite degenerate case;
+// a dead-straight point must emit 180, "no bend"). Handled as an
+// explicit special case below rather than shipped as a silent zero.
 function bendAngleAt(prev: FlashDraftPointInput, curr: FlashDraftPointInput, next: FlashDraftPointInput): number {
   const v1 = { x: prev.x - curr.x, y: prev.y - curr.y };
   const v2 = { x: next.x - curr.x, y: next.y - curr.y };
   if ((v1.x === 0 && v1.y === 0) || (v2.x === 0 && v2.y === 0)) return 0;
   const interiorSigned = wrapDeg(((Math.atan2(v2.y, v2.x) - Math.atan2(v1.y, v1.x)) * 180) / Math.PI);
-  return wrapDeg(interiorSigned + 180);
+  const turn = wrapDeg(interiorSigned + 180);
+  if (turn === 0) return 180;
+  return Math.sign(turn) * (180 - Math.abs(turn));
 }
 
 function toMachineProfileHem(input: FlashDraftHemInput | null | undefined): MachineProfileHem | null {
