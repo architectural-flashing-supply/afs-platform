@@ -115,6 +115,60 @@ verification was run by Reid directly in the Dashboard, not by a session.
 
 ---
 
+## COLOR + QUEUE_POSITION + COMPLETED_AT COLUMNS MIGRATION WRITTEN (afs-cv-000) — 2026-08-21
+
+Read every file in `supabase/migrations/` (001 through 016) in full and
+this file's own live-apply status notes before choosing a migration
+number, per the task's instruction. Confirmed
+`016_source_tool_and_shop_profile_library.sql` is still in fact the
+highest-numbered file on disk (001–016, no gaps) — so this migration is
+correctly numbered 017. No discrepancy to note.
+
+New `supabase/migrations/017_color_and_queue_position.sql`:
+1. `quote_requests.color TEXT` — nullable, additive
+   (`ADD COLUMN IF NOT EXISTS`), no default.
+2. `shop_profile_library.color TEXT` — nullable, additive.
+3. `shop_profile_library.queue_position INTEGER` — nullable, additive.
+4. `shop_profile_library.completed_at TIMESTAMPTZ` — nullable, additive.
+
+**No indexes, constraints, or defaults added beyond the four bare
+columns above.** Checked migration 016's actual `shop_profile_library`
+table before deciding, per the task's instruction not to invent a
+convention: only 5 of its ~20 columns are indexed (`customer_name`,
+`profile_name`, `status`, `due_date`, `created_at`); plain nullable text
+columns like `material`, `gauge`, `order_number`, `hem_instructions`
+carry no index. There is no "every nullable column gets a matching
+index" pattern to extend here, so `color`/`queue_position` were left
+unindexed like the unindexed majority.
+
+`SCHEMA.md` updated: header counts (17 migration files, table count
+unchanged at 54 since no new table is added), the `MIGRATION FILE
+LOCATION` list, a new note on TABLE 15 (`quote_requests`) documenting
+`color`, and a new note in the SHOP PROFILE LIBRARY TABLE section
+documenting `color`/`queue_position`/`completed_at` — matching this
+project's existing documentation depth/style for migration 016's own
+additions in both places.
+
+**This is a FILE-ONLY prompt, explicitly per its own instructions —
+migration 017 has NOT been applied to the live Supabase project.**
+Following the same "pending manual apply" convention already used for
+migrations 015 and 016: do not assume any of these four columns exist
+live until Reid runs this migration in the Supabase Dashboard SQL Editor
+and independently confirms via a direct `information_schema` query, the
+same standard of evidence 013/015/016 already carry.
+
+`pnpm tsc --noEmit`: 0 errors, run directly this session. This prompt
+adds no UI, no API route, and no data-fetching code — there is no
+browser surface to verify yet. Per this file's own verification
+standard (see top of file), this is **IMPLEMENTED, UNCONFIRMED** — not
+because any behavior needs browser confirmation, but because the
+migration itself is still pending Reid's manual Dashboard application
+and independent live-schema verification. Committed as `feat: add
+color, queue_position, completed_at columns migration, file only
+(afs-cv-000)`.
+
+---
+
 ## FLASHDRAFT SNAP TOGGLES REMOVED (afs-sv-001) — 2026-08-20
 
 Read `app/studio/draft/page.tsx` in full before touching anything (3,356

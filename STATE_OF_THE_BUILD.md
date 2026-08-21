@@ -167,6 +167,56 @@ through is a future task, not part of afs-sv-010.
 
 ---
 
+## COLOR + QUEUE_POSITION + COMPLETED_AT COLUMNS MIGRATION WRITTEN (afs-cv-000): FILE ONLY, NOT YET APPLIED LIVE
+
+**Status: migration `017_color_and_queue_position.sql` written and
+committed to `supabase/migrations/` — a FILE-ONLY change, per the task's
+own instruction, NOT applied to the live Supabase project. `pnpm tsc
+--noEmit` passes with 0 errors. This prompt has no browser surface to
+verify (it adds no UI, no API route, no data-fetching code) — it is
+marked IMPLEMENTED/UNCONFIRMED pending Reid's own manual application of
+the migration in the Supabase Dashboard and, separately, his independent
+`information_schema` confirmation that all four columns exist live,
+following the same standard already applied to migrations 013/015/016.**
+
+Confirmed before choosing the migration number: read every file in
+`supabase/migrations/` (001 through 016) in full and cross-checked
+SESSION_STATE.md's live-apply status notes; `016_source_tool_and_shop_
+profile_library.sql` was in fact still the highest-numbered file on disk
+(001–016, no gaps), so this migration is correctly numbered 017 — no
+discrepancy to note.
+
+**What it does:**
+1. `ALTER TABLE quote_requests ADD COLUMN IF NOT EXISTS color TEXT` —
+   nullable, additive, no default, no backfill needed.
+2. `ALTER TABLE shop_profile_library ADD COLUMN IF NOT EXISTS color TEXT,
+   ADD COLUMN IF NOT EXISTS queue_position INTEGER, ADD COLUMN IF NOT
+   EXISTS completed_at TIMESTAMPTZ` — all three nullable, additive.
+
+**No indexes added.** Checked the real pattern in migration 016 first,
+per the task's own instruction not to invent a new convention: only 5 of
+`shop_profile_library`'s ~20 columns got an index (`customer_name`,
+`profile_name`, `status`, `due_date`, `created_at`) — plain nullable text
+columns like `material`, `gauge`, `order_number`, `hem_instructions`, and
+`pathfinder_profile_id` all got none. There is no "every nullable text
+column gets a matching index" convention on this table to extend, so
+`color` and `queue_position` were left unindexed, matching the
+unindexed majority. No constraints or defaults were added either, per
+the task's explicit instruction to add only what was listed.
+
+`SCHEMA.md` updated: header table/migration-file counts (17 migration
+files; table count unchanged at 54 since this migration adds no new
+tables), the `MIGRATION FILE LOCATION` list, a new note on TABLE 15
+(`quote_requests`) documenting `color`, and a new note in the SHOP
+PROFILE LIBRARY TABLE section documenting `color`/`queue_position`/
+`completed_at`, matching the depth and style of the existing 016 notes
+in both places.
+
+Committed as `feat: add color, queue_position, completed_at columns
+migration, file only (afs-cv-000)`.
+
+---
+
 ## FLASHDRAFT — "SNAP TO 15° ANGLE" / "SNAP TO 1/8" DIMENSION" TOGGLES REMOVED (afs-sv-001): IMPLEMENTED, UNCONFIRMED
 
 **Status: code removed, `pnpm tsc --noEmit` passes with 0 errors. Not yet

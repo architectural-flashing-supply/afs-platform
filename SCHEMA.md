@@ -1,6 +1,6 @@
 # SCHEMA.md
 ## AFS — Supabase Database Schema
-**54 tables across 16 migration files. RLS on every table. Indexes on every
+**54 tables across 17 migration files. RLS on every table. Indexes on every
 foreign key and filter column.** (This document's "TABLE N" numbering below
 covers the original 25 sections designed in migration 001 — several of
 those sections define more than one physical table, e.g. TABLE 8 =
@@ -19,14 +19,17 @@ CHECK-constraint-only (widens `takeoff_uploads.status` — no new tables,
 no new columns). Migration 015 is column-only (adds `machine_jobs.
 delivery_method` — see MACHINE BRIDGE TABLES). The SHOP PROFILE LIBRARY
 section adds 1 more table via migration 016, which also adds
-`quote_requests.source_tool` (see TABLE 15). 54 is the table count
-`supabase/README.md` should verify against the live database once all 16
-migrations are applied — **as of this writing, migration 016 is written
-and committed as a file only; it has NOT been applied to the live
-Supabase project, so the live table count remains whatever the last
-actually-applied migration produced. See SESSION_STATE.md for each
-migration's individually verified live-apply status — it is never safe
-to assume from a file's presence on disk alone.**)
+`quote_requests.source_tool` (see TABLE 15). Migration 017 is column-only
+(adds `quote_requests.color` — see TABLE 15 — and `shop_profile_library.
+color` / `queue_position` / `completed_at` — see SHOP PROFILE LIBRARY
+TABLE; no new tables). 54 is the table count `supabase/README.md` should
+verify against the live database once all 17 migrations are applied —
+**as of this writing, migrations 016 and 017 are written and committed
+as files only; neither has been applied to the live Supabase project,
+so the live table count remains whatever the last actually-applied
+migration produced. See SESSION_STATE.md for each migration's
+individually verified live-apply status — it is never safe to assume
+from a file's presence on disk alone.**)
 
 ---
 
@@ -50,6 +53,7 @@ supabase/migrations/
   014_takeoff_uploads_pending_status.sql  Widens takeoff_uploads.status CHECK to add 'pending', new default — no new tables/columns
   015_machine_jobs_delivery_method.sql    Adds machine_jobs.delivery_method — no new tables (see MACHINE BRIDGE TABLES)
   016_source_tool_and_shop_profile_library.sql  Adds quote_requests.source_tool (see TABLE 15), creates shop_profile_library (see SHOP PROFILE LIBRARY TABLE) — FILE ONLY, not yet applied live
+  017_color_and_queue_position.sql        Adds quote_requests.color (see TABLE 15) and shop_profile_library.color/queue_position/completed_at (see SHOP PROFILE LIBRARY TABLE) — no new tables — FILE ONLY, not yet applied live
 ```
 
 Run in numeric order — see `supabase/README.md` for the exact procedure.
@@ -526,6 +530,16 @@ pass. Not shown in the `CREATE TABLE` below since it was added after this
 table was originally designed — it is a real column on the live schema
 once 016 is applied. **FILE ONLY as of this writing — 016 has not been
 applied to the live Supabase project; see SESSION_STATE.md.**
+
+**Migration 017 (`017_color_and_queue_position.sql`) adds `color TEXT`**
+(nullable, additive `ADD COLUMN IF NOT EXISTS` — no default, no backfill
+needed) — the metal/finish color called out at intake (e.g. off a Metal
+Color Chart), captured alongside material/gauge/finish rather than only
+living inside the request's `line_items` JSONB. Not shown in the `CREATE
+TABLE` below since it was added after this table was originally designed
+— it is a real column on the live schema once 017 is applied. **FILE ONLY
+as of this writing — 017 has not been applied to the live Supabase
+project; see SESSION_STATE.md.**
 
 ```sql
 CREATE TABLE quote_requests (
@@ -1708,6 +1722,22 @@ separate ephemeral Presence-channel API (grepping this repo for
 to the live Supabase project. Do not assume this table exists live; see
 SESSION_STATE.md for the current, individually-verified apply status of
 every migration.**
+
+**Migration 017 (`017_color_and_queue_position.sql`) adds three columns —
+also FILE ONLY, not yet applied live:**
+- `color TEXT` (nullable) — the metal/finish color called out at intake,
+  matching the new `quote_requests.color` (TABLE 15) this same migration
+  adds.
+- `queue_position INTEGER` (nullable) — manual shop-floor ordering of a
+  row within the queue (e.g. for Shop View's card display), independent
+  of `status` and `due_date`.
+- `completed_at TIMESTAMPTZ` (nullable) — timestamp of the row's
+  transition to a completed status, distinct from `created_at` (when the
+  row was first entered).
+
+Not shown in the `CREATE TABLE` below since all three were added after
+this table was originally designed — they are real columns on the live
+schema once 017 is applied.
 
 An admin-only, internal shop record of a profile job's full intake
 context — customer/account info, material/geometry, hem/paint
