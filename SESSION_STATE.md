@@ -102,12 +102,16 @@ browser by anyone this session — it is code-reviewed only, not
 live-verified.** The user still needs to open `/admin/shop-view` themselves
 (ideally on the actual shop-floor laptop) to confirm legibility at a glance
 and that the status-advance button actually persists, before this can move
-from IMPLEMENTED to DONE in STATE_OF_THE_BUILD.md. Also still open: whether
-migration 016 (`shop_profile_library`) is applied to the live Supabase
-project — carried over unresolved from afs-sv-007/008/009, not re-checked
-this session (a Supabase MCP connection was available but pointed at
-projects named "tarritrix"/"tarritrix-audit", not obviously this project's
-instance, so it was not used to make a live-status claim).
+from IMPLEMENTED to DONE in STATE_OF_THE_BUILD.md. Migration 016
+(`shop_profile_library`) is now CONFIRMED APPLIED LIVE to the live Supabase
+project — Reid ran it in the Dashboard SQL Editor on 2026-08-20, then
+independently verified `shop_profile_library` and `quote_requests.source_tool`
+both exist via a direct `information_schema` query in the Dashboard,
+closing the dependency carried over unresolved from afs-sv-007/008/009. No
+session has had a working Supabase MCP connection to this project's actual
+instance (the only connection available pointed at projects named
+"tarritrix"/"tarritrix-audit", not this project) — the `information_schema`
+verification was run by Reid directly in the Dashboard, not by a session.
 
 ---
 
@@ -543,15 +547,16 @@ Command Center header nav bar in `app/admin/command-center/page.tsx`,
 styled with the exact non-active-link className the existing CRM tab links
 already use.
 
-**Depends on migration 016 actually being live** (still FILE ONLY per the
-afs-sv-007 entry below, unless re-verified since) — until
-`shop_profile_library` exists and `quote_requests.source_tool` is real,
-these inserts fail at the database level. By design this never blocks the
-underlying PathfinderEdge send (see the fails-soft note above).
+**Migration 016 is now CONFIRMED APPLIED LIVE** (see the updated afs-sv-007
+entry below — Reid ran it in the Dashboard SQL Editor on 2026-08-20, then
+independently verified via `information_schema` in the Dashboard) —
+`shop_profile_library` exists and `quote_requests.source_tool` is real, so
+these inserts should no longer fail at the database level.
 `pnpm tsc --noEmit`: 0 errors, run directly this session. Per this file's
 verification standard: **IMPLEMENTED, UNCONFIRMED** — no browser check has
-been done, and neither the live migration status nor the actual rendered
-thumbnails/table behavior has been confirmed by the user. Committed as
+been done, so the actual rendered thumbnails/table behavior has not been
+confirmed by the user (the migration's live-apply status is no longer the
+open question here; the UI/insert behavior itself still is). Committed as
 `feat: populate shop_profile_library on PathfinderEdge send, add Profile
 Library admin page (afs-sv-009)`.
 
@@ -608,20 +613,35 @@ elsewhere on these same cards for non-status tags:
 `lib/data/pending-quote-requests.ts` and `lib/data/command-center-dashboard.ts`
 both now select `source_tool` and pass it through their row types.
 
-**This depends on migration 016 actually being live** (see the afs-sv-007
-entry immediately below — as of this session, still FILE ONLY, unverified
-against the live Supabase project). Until it's applied, any `select`/
-`insert` touching `quote_requests.source_tool` will fail at the database
-level even though `pnpm tsc --noEmit` passes (0 errors, run directly this
-session). Per this file's verification standard (see top of file): this is
-**IMPLEMENTED, UNCONFIRMED** — no browser check has been done, and the
-column's live-apply status has not been re-verified by this session.
-Committed as `feat: tag quote_requests inserts with source_tool, show
+**Migration 016 is now CONFIRMED APPLIED LIVE** (see the updated afs-sv-007
+entry immediately below — Reid ran it in the Dashboard SQL Editor on
+2026-08-20, then independently verified via `information_schema` in the
+Dashboard). `select`/`insert` statements touching
+`quote_requests.source_tool` should no longer fail at the database level.
+`pnpm tsc --noEmit` passes (0 errors, run directly this session). Per this
+file's verification standard (see top of file): this is **IMPLEMENTED,
+UNCONFIRMED** — no browser check has been done, so the badge's actual
+rendered behavior has not been confirmed by the user (the column's
+live-apply status is no longer the open question here). Committed as
+`feat: tag quote_requests inserts with source_tool, show
 source badge in Command Center (afs-sv-008)`.
 
 ---
 
-## SOURCE_TOOL COLUMN + SHOP_PROFILE_LIBRARY TABLE MIGRATION WRITTEN (afs-sv-007) — 2026-08-20
+## SOURCE_TOOL COLUMN + SHOP_PROFILE_LIBRARY TABLE MIGRATION WRITTEN, THEN CONFIRMED APPLIED LIVE (afs-sv-007) — 2026-08-20
+
+**UPDATE 2026-08-20:** Reid ran migration 016 in the Supabase Dashboard SQL
+Editor and confirmed it completed with no errors, then independently
+verified both `shop_profile_library` (table) and `quote_requests.source_tool`
+(column) exist via a direct `information_schema` query in the Dashboard —
+this closes the FILE-ONLY status this entry originally recorded (see below
+for the original write-up, left intact for history) with the same standard
+of evidence migrations 013/015 already carry. No session has had a working
+Supabase MCP connection to this project's actual instance
+(`lxfiziwsqezjjybeguqq` per `.env.local`) to run that check itself — the
+only connection available this pass pointed at unrelated projects named
+"tarritrix"/"tarritrix-audit" — the `information_schema` verification above
+was run by Reid directly in the Dashboard.
 
 Read every file in `supabase/migrations/` in full (001 through 015)
 before choosing a migration number, per the task's instruction, and
@@ -655,12 +675,14 @@ rather than trusted from memory or from the prompt's own framing, and
 both findings are relevant discrepancies a future session should not
 re-litigate from scratch.
 
-**New migration `016_source_tool_and_shop_profile_library.sql` — FILE
-ONLY, NOT applied to the live Supabase project.** Per this project's
-standing migration-verification standard (no schema_migrations ledger
-exists on this project — see the CORRECTED note referenced above), this
-must be verified live via `information_schema` before anything depends
-on it, the same way 013 and 015 eventually were.
+**New migration `016_source_tool_and_shop_profile_library.sql` — written
+FILE ONLY at the time this paragraph was first recorded; now CONFIRMED
+APPLIED LIVE per the UPDATE note at the top of this entry.** Per this
+project's standing migration-verification standard (no schema_migrations
+ledger exists on this project), 016 now carries the same
+`information_schema`-based confirmation migrations 013 and 015 already
+have — see the UPDATE note above for exactly what evidence this status
+rests on.
 
 What it does:
 1. `quote_requests.source_tool TEXT NOT NULL DEFAULT 'unknown'` — additive

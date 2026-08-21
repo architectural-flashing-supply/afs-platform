@@ -94,17 +94,16 @@ the actual laptop that will sit beside the PathfinderEdge/Thalmann screen)
 and confirms both the layout is legible at a glance and the status-advance
 control actually persists.**
 
-**Depends on migration 016 (`shop_profile_library`, afs-sv-007) being
-applied live — same open dependency afs-sv-008/009 already carry. This
-session did not independently re-verify that migration's live-apply status:
-a Supabase MCP connection was available, but the only two projects visible
-through it ("tarritrix", "tarritrix-audit") do not obviously correspond to
-this project's configured Supabase instance, so querying them and reporting
-the result as this project's live-database state would have been a guess
-dressed up as verification — exactly what this file's standard exists to
-prevent. Treat migration 016's live-apply status as still whatever it was
-last confirmed as in the afs-sv-007/008/009 entries below, not as checked
-this session.**
+**Depended on migration 016 (`shop_profile_library`, afs-sv-007) being
+applied live — same dependency afs-sv-008/009 carried. That dependency is
+now resolved and CONFIRMED via `information_schema`: Reid ran migration 016
+in the Supabase Dashboard SQL Editor on 2026-08-20, then independently
+verified both `shop_profile_library` and `quote_requests.source_tool` exist
+via a direct `information_schema` query in the Dashboard (see the
+afs-sv-007 entry below). No session yet has had a working Supabase MCP
+connection to this project's actual instance to run that check itself,
+only to unrelated "tarritrix"/"tarritrix-audit" projects — this
+confirmation is Reid's own, done directly in the Dashboard.**
 
 Built exactly what the task asked for:
 - `app/admin/shop-view/page.tsx` — server component, admin-gated via
@@ -552,13 +551,14 @@ Saved-Profiles/library code paths are unchanged.
 
 ## SHOP_PROFILE_LIBRARY POPULATED ON PATHFINDEREDGE SEND, PROFILE LIBRARY ADMIN PAGE ADDED (afs-sv-009): IMPLEMENTED, UNCONFIRMED
 
-**Status: `pnpm tsc --noEmit` passes with 0 errors. Depends on migration 016
-(afs-sv-007 below) actually being applied live — until `shop_profile_library`
-exists and `quote_requests.source_tool` is a real column in the live
-Supabase project, the inserts this entry describes will fail at the
-database level even though the code compiles (by design — see "fails soft"
-below, this does not block the underlying PathfinderEdge send). Not yet
-independently confirmed by the user in the browser.**
+**Status: `pnpm tsc --noEmit` passes with 0 errors. Migration 016 (afs-sv-007
+below) is CONFIRMED APPLIED LIVE (Reid, verified via `information_schema`
+in the Dashboard, 2026-08-20 — see that entry), so `shop_profile_library`
+and `quote_requests.source_tool` are real in the live Supabase project and
+the inserts this entry describes should no longer fail at the database
+level. Not yet independently confirmed by the user in the browser — that
+confirmation covers the UI/insert behavior itself, not the migration's
+live-apply status, which is now resolved above.**
 
 **Confirmed directly from the code (not assumed) that exactly two real,
 distinct code paths send a profile to PathfinderEdge** — read both in full
@@ -693,12 +693,12 @@ shop_profile_library on PathfinderEdge send, add Profile Library admin page
 
 ## QUOTE_REQUESTS INSERTS TAGGED WITH SOURCE_TOOL, COMMAND CENTER SOURCE BADGE ADDED (afs-sv-008): IMPLEMENTED, UNCONFIRMED
 
-**Status: `pnpm tsc --noEmit` passes with 0 errors. Depends on migration
-016 (afs-sv-007, immediately below) actually being applied live — until
-`quote_requests.source_tool` exists in the live Supabase project, every
-`select`/`insert` that references it will fail at the database level even
-though the code compiles. Not yet independently confirmed by the user in
-the browser.**
+**Status: `pnpm tsc --noEmit` passes with 0 errors. Migration 016
+(afs-sv-007, below) is CONFIRMED APPLIED LIVE (Reid, verified via
+`information_schema` in the Dashboard, 2026-08-20 — see that entry), so
+`quote_requests.source_tool` is a real column and the `select`/`insert`
+statements this entry describes should no longer fail at the database
+level. Not yet independently confirmed by the user in the browser.**
 
 **Every real insert path into `quote_requests` was found by grepping the
 codebase directly, not assumed from spec docs** — `SPEC_PHOTO_TO_QUOTE_AI.md`
@@ -761,18 +761,22 @@ Center (afs-sv-008)`.
 
 ---
 
-## SOURCE_TOOL COLUMN + SHOP_PROFILE_LIBRARY TABLE ADDED (afs-sv-007): FILE ONLY, NOT APPLIED LIVE
+## SOURCE_TOOL COLUMN + SHOP_PROFILE_LIBRARY TABLE ADDED (afs-sv-007): APPLIED LIVE
 
-**Status: new migration `016_source_tool_and_shop_profile_library.sql`
-written and committed to `supabase/migrations/`. `pnpm tsc --noEmit`
-passes with 0 errors. Per this project's standing migration-verification
-standard, a migration's live-apply status is never assumed from its
-presence on disk — this migration has NOT been run against the live
-Supabase project. It must be applied manually via the Dashboard SQL
-Editor (same pending-manual-apply state migration 015 was in before its
-own later live confirmation — see SESSION_STATE.md) before anything can
-depend on `shop_profile_library` existing or on `quote_requests` having a
-real `source_tool` column.**
+**Status: migration `016_source_tool_and_shop_profile_library.sql` written,
+committed to `supabase/migrations/`, run by Reid in the Supabase Dashboard
+SQL Editor on 2026-08-20, and CONFIRMED APPLIED LIVE — Reid independently
+verified both `shop_profile_library` (the table) and
+`quote_requests.source_tool` (the column) exist via a direct
+`information_schema` query in the Dashboard, 2026-08-20. Same standard of
+evidence migrations 013 and 015 already carry (see below). `pnpm tsc
+--noEmit` passes with 0 errors.**
+
+No Claude Code session this pass has had a working Supabase MCP connection
+to this project's actual instance (the only two projects visible through
+the available connection, "tarritrix"/"tarritrix-audit", don't correspond
+to it) — the `information_schema` verification above was run by Reid
+directly in the Dashboard, not by a session.
 
 Confirmed before choosing the migration number: `015_machine_jobs_
 delivery_method.sql` was the highest-numbered file in
