@@ -83,6 +83,91 @@ and not restart from scratch.**
 
 ---
 
+## SHOP VIEW — SHOP-FLOOR OPERATOR DISPLAY ADDED (afs-sv-010): IMPLEMENTED, CODE-REVIEWED ONLY — NOT LIVE-VERIFIED
+
+**Status: `pnpm tsc --noEmit` passes with 0 errors (verified this session).
+`pnpm run build` completes successfully (verified this session). This
+session had no browser/Playwright access and the user has not yet seen the
+page — per this file's verification standard, Shop View is UNCONFIRMED, not
+DONE, until the user opens `/admin/shop-view` in a real browser (ideally on
+the actual laptop that will sit beside the PathfinderEdge/Thalmann screen)
+and confirms both the layout is legible at a glance and the status-advance
+control actually persists.**
+
+**Depends on migration 016 (`shop_profile_library`, afs-sv-007) being
+applied live — same open dependency afs-sv-008/009 already carry. This
+session did not independently re-verify that migration's live-apply status:
+a Supabase MCP connection was available, but the only two projects visible
+through it ("tarritrix", "tarritrix-audit") do not obviously correspond to
+this project's configured Supabase instance, so querying them and reporting
+the result as this project's live-database state would have been a guess
+dressed up as verification — exactly what this file's standard exists to
+prevent. Treat migration 016's live-apply status as still whatever it was
+last confirmed as in the afs-sv-007/008/009 entries below, not as checked
+this session.**
+
+Built exactly what the task asked for:
+- `app/admin/shop-view/page.tsx` — server component, admin-gated via
+  `requireAdminUser`, initial data from a new `getShopProfileLibraryFull`
+  query (`lib/data/shop-profile-library.ts`) added alongside the existing
+  `getShopProfileLibrary` (afs-sv-009) — same table, same
+  `deleted_at IS NULL` filter, same admin-only RLS, wider column selection
+  (order number, contact info, account notes, length, hem/paint/special
+  instructions, PathfinderEdge profile id) since Profile Library's own
+  query doesn't need those columns and Shop View does.
+- `components/admin/ShopViewBoard.tsx` — client component. Filters by
+  customer, profile, material, status, and due date (overdue / due today /
+  due this week / no due date); sorts by customer, profile, material,
+  status, or due date, either direction. Each card renders `geometry_svg`
+  large (up to `h-96`) for a direct side-by-side against the physical
+  machine screen, plus order number, customer name/company, contact info,
+  account notes, material/gauge, quantity/length, a visually prominent
+  color-coded due-date banner (crimson if overdue/due today, amber if due
+  within 3 days), hem instructions, a painted-edge badge that always shows
+  YES or NO (never silently omitted), a highlighted special-instructions
+  box when present, the source-tool badge (afs-sv-008's `Badge` component,
+  reused — not reinvented), and the PathfinderEdge profile id.
+- One-click status advance (`queued -> in_progress -> complete`) — new
+  `PATCH` handler added to the existing
+  `app/api/admin/profile-library/[id]/route.ts` (same file DELETE already
+  lives in, same admin-gate/audit-log pattern, since both operate on the
+  same `shop_profile_library` row by id). Optimistic UI update, reverts and
+  shows an error banner if the request fails. Status validity and the
+  `queued -> in_progress -> complete -> (none)` sequence live in one place
+  (`isShopProfileLibraryStatus` / `nextShopProfileLibraryStatus` /
+  `shopProfileLibraryStatusLabel`, all in `lib/data/shop-profile-library.ts`)
+  so the API route's validation and the client's button logic can't drift
+  apart.
+- 30-second polling via a new `GET /api/admin/shop-profile-library` route
+  (admin-gated, calls the same `getShopProfileLibraryFull`) — explicitly
+  polling, not Realtime, per the task's own instruction to prefer the
+  simpler mechanism here.
+- "Shop View" added to the Command Center header nav in both of its render
+  branches (dashboard view and tab view), reusing the exact same
+  `PROFILE_LIBRARY_NAV_LINK_CLASSNAME` constant Profile Library's own link
+  uses, so the two links cannot visually drift apart.
+- Colors: afs-* tokens only (`afs-crimson`, `afs-warning`, `afs-amber-dim`,
+  `afs-success`, `afs-info`, `afs-chrome-*`) — no new literal hex values,
+  no canvas involved so the CANVAS_COLORS exception doesn't apply here.
+
+**Known data gap, found while building this (not something this task asked
+to fix, noting it so the next session doesn't have to rediscover it):**
+`shop_profile_library.hem_instructions`, `.painted_edge`, `.special_instructions`,
+and `.order_number` are real columns (migration 016) that Shop View reads
+and renders correctly, but **no current write path populates them.**
+Grepped both real insert call sites —
+`app/api/admin/command-center/approve-quote-request/route.ts` and
+`app/api/studio/send-to-pathfinder/route.ts` — and `insertShopProfileLibraryRecord`'s
+own parameter list (`lib/data/shop-profile-library.ts`): neither passes
+`hemInstructions`, `paintedEdge`, `specialInstructions`, or `orderNumber`
+through, even though `hemStart`/`hemEnd` data is already available at both
+call sites for the PathfinderEdge push itself. Every row inserted so far
+will show "—" / "Painted Edge: No" for these fields on Shop View regardless
+of the job's real hem/paint/special-instruction content. Wiring that
+through is a future task, not part of afs-sv-010.
+
+---
+
 ## FLASHDRAFT — "SNAP TO 15° ANGLE" / "SNAP TO 1/8" DIMENSION" TOGGLES REMOVED (afs-sv-001): IMPLEMENTED, UNCONFIRMED
 
 **Status: code removed, `pnpm tsc --noEmit` passes with 0 errors. Not yet

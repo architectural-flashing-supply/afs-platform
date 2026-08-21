@@ -58,6 +58,59 @@ and not restart from scratch.**
 
 ---
 
+## SHOP VIEW ADDED (afs-sv-010) — 2026-08-20
+
+Read `app/admin/profile-library/page.tsx`, `lib/data/shop-profile-library.ts`,
+and migration `016_source_tool_and_shop_profile_library.sql` first, per the
+task's own instruction to reuse Profile Library's (afs-sv-009) data-fetching
+pattern rather than invent a second one.
+
+New: `app/admin/shop-view/page.tsx` + `components/admin/ShopViewBoard.tsx` —
+a large-format, high-contrast, filterable/sortable card display for the
+laptop that will sit beside the physical PathfinderEdge/Thalmann screen.
+Each card shows `geometry_svg` large, plus order number, customer/company/
+contact info, account notes, material/gauge, quantity/length, a prominent
+color-coded due date, hem instructions, an always-visible painted-edge
+YES/NO badge, a highlighted special-instructions box, the source badge, and
+the PathfinderEdge profile id. One-click status advance
+(queued → in_progress → complete) via a new `PATCH` on the existing
+`app/api/admin/profile-library/[id]/route.ts`. Polls a new
+`GET /api/admin/shop-profile-library` every 30s (polling, not Realtime, per
+the task). "Shop View" added next to "Profile Library" in the Command
+Center header nav, reusing its exact nav-link classname.
+
+Added `getShopProfileLibraryFull` (wider column set than afs-sv-009's
+`getShopProfileLibrary`) and the shared status-lifecycle helpers
+(`isShopProfileLibraryStatus`, `nextShopProfileLibraryStatus`,
+`shopProfileLibraryStatusLabel`) to `lib/data/shop-profile-library.ts`.
+
+**Found, not fixed (out of scope for this task):** `hem_instructions`,
+`painted_edge`, `special_instructions`, and `order_number` are real columns
+on `shop_profile_library` that Shop View correctly reads and renders, but
+neither real insert path (`approve-quote-request/route.ts`,
+`send-to-pathfinder/route.ts`) nor `insertShopProfileLibraryRecord` itself
+currently writes them — confirmed by reading all three. Every row today
+will show blank/No for these fields regardless of the job's actual content.
+A future session should wire this through (both call sites already have
+`hemStart`/`hemEnd` in scope; painted-edge/special-instructions/order-number
+would need new inputs threaded from wherever they're captured upstream).
+
+**Gates run this session:** `pnpm tsc --noEmit` → 0 errors. `pnpm run build`
+→ succeeded. **Not run this session:** Playwright / any browser check — no
+browser tooling was available. **Shop View has NOT been opened in a real
+browser by anyone this session — it is code-reviewed only, not
+live-verified.** The user still needs to open `/admin/shop-view` themselves
+(ideally on the actual shop-floor laptop) to confirm legibility at a glance
+and that the status-advance button actually persists, before this can move
+from IMPLEMENTED to DONE in STATE_OF_THE_BUILD.md. Also still open: whether
+migration 016 (`shop_profile_library`) is applied to the live Supabase
+project — carried over unresolved from afs-sv-007/008/009, not re-checked
+this session (a Supabase MCP connection was available but pointed at
+projects named "tarritrix"/"tarritrix-audit", not obviously this project's
+instance, so it was not used to make a live-status claim).
+
+---
+
 ## FLASHDRAFT SNAP TOGGLES REMOVED (afs-sv-001) — 2026-08-20
 
 Read `app/studio/draft/page.tsx` in full before touching anything (3,356
