@@ -109,3 +109,17 @@ export const pacclad: MetalColor[] = [
   { name: 'Hartford Green', hex: '#1D574D' },
   { name: 'Galvalume Plus', hex: '#B6B6B6' },
 ];
+
+/**
+ * Looks up a MetalColor by its printed name across both palettes, for
+ * rendering a swatch given only the name stored on quote_requests.color /
+ * shop_profile_library.color — neither column records which chart the name
+ * came from. McElroy is checked first, then PAC-CLAD; a few names exist in
+ * both palettes with different hex values (e.g. "Charcoal", "Hartford
+ * Green", "Galvalume Plus"), so this returns the first match rather than
+ * guessing which chart was intended. The stored NAME is still fabrication
+ * truth either way per the module comment above — this is display-only.
+ */
+export function findMetalColorByName(name: string): MetalColor | null {
+  return mcelroy.find((c) => c.name === name) ?? pacclad.find((c) => c.name === name) ?? null;
+}

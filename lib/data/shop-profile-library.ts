@@ -22,6 +22,10 @@ export interface ShopProfileLibraryInsert {
   accountNotes?: string | null;
   material?: string | null;
   gauge?: string | null;
+  // McElroy/PAC-CLAD color name (afs-cv-000's migration 017, afs-cv-002's
+  // selection UI) — populated from the same source the caller already draws
+  // material/gauge from, per call site (afs-cv-003).
+  color?: string | null;
   quantity?: number | null;
   lengthFt?: number | null;
   dueDate?: string | null;
@@ -57,6 +61,7 @@ export async function insertShopProfileLibraryRecord(
       account_notes: input.accountNotes ?? null,
       material: input.material ?? null,
       gauge: input.gauge ?? null,
+      color: input.color ?? null,
       quantity: input.quantity ?? null,
       length_ft: input.lengthFt ?? null,
       due_date: input.dueDate ?? null,

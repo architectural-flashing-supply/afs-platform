@@ -24,6 +24,11 @@ interface RequestBody {
   notes?: string | null;
   hemStart?: FlashDraftHemInput | null;
   hemEnd?: FlashDraftHemInput | null;
+  // McElroy/PAC-CLAD color name (afs-cv-002) — this route has no source
+  // quote_request to read a color from (see the file header comment above),
+  // so it's threaded through the same way material/gauge already are: the
+  // FlashDraft draft session's own ColorField state, sent as-is.
+  color?: string | null;
   // Data-URI PNG snapshot of the FlashDraft canvas at the moment of send —
   // captured client-side via canvasRef.current.toDataURL('image/png') in
   // app/studio/draft/page.tsx's sendToPathfinder(). This IS FlashDraft's own
@@ -90,6 +95,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       profileName: body.profileName,
       material: body.material ?? null,
       gauge: body.gauge ?? null,
+      color: body.color ?? null,
       quantity: typeof body.quantity === 'number' ? body.quantity : null,
       lengthFt: typeof body.lengthFt === 'number' ? body.lengthFt : null,
       accountNotes: body.notes ?? null,

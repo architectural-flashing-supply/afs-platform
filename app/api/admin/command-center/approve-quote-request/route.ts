@@ -295,7 +295,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const { data: quoteRequest, error: qrError } = await supabase
       .from('quote_requests')
-      .select('id, user_id, guest_email, line_items, is_rush, notes, status, requested_delivery, source_tool')
+      .select('id, user_id, guest_email, line_items, is_rush, notes, status, requested_delivery, source_tool, color')
       .eq('id', quoteRequestId)
       .maybeSingle();
     if (qrError || !quoteRequest) {
@@ -311,6 +311,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       status: string;
       requested_delivery: string | null;
       source_tool: string | null;
+      // McElroy/PAC-CLAD color name selected at intake (afs-cv-002) —
+      // carried onto every shop_profile_library row this route writes
+      // below (afs-cv-003).
+      color: string | null;
     };
     if (qr.status !== 'submitted') {
       return NextResponse.json({ error: 'Quote request is not pending approval.' }, { status: 409 });
@@ -467,6 +471,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         accountNotes: qr.notes,
         material: build.item.material ?? null,
         gauge: build.item.gauge ?? null,
+        color: qr.color,
         quantity: build.quantity,
         lengthFt: build.item.lengthFt ?? null,
         dueDate: qr.requested_delivery,

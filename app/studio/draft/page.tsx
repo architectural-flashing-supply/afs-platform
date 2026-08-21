@@ -2634,6 +2634,7 @@ export default function FlashDraftPage() {
           points,
           material: material || null,
           gauge: gauge || null,
+          color: color.trim() || null,
           thicknessIn,
           quantity: Number(quantity) || null,
           lengthFt: lengthFtDecimal || null,

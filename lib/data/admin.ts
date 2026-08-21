@@ -119,6 +119,10 @@ export interface QuoteRequestListRow {
   submittedAt: string;
   isRush: boolean;
   status: string;
+  // McElroy/PAC-CLAD color name selected by the customer (afs-cv-002). Null
+  // for bare/mill-finish materials and requests submitted before this
+  // column existed.
+  color: string | null;
 }
 
 interface QuoteRequestListSource {
@@ -129,6 +133,7 @@ interface QuoteRequestListSource {
   submitted_at: string;
   status: string;
   line_items: unknown;
+  color: string | null;
   profiles: { full_name: string; company: string | null } | null;
 }
 
@@ -143,7 +148,9 @@ export async function getQuoteRequestsQueue(
 ): Promise<QuoteRequestListRow[]> {
   let query = supabase
     .from('quote_requests')
-    .select('id, request_number, guest_email, is_rush, submitted_at, status, line_items, profiles(full_name, company)')
+    .select(
+      'id, request_number, guest_email, is_rush, submitted_at, status, line_items, color, profiles(full_name, company)'
+    )
     .order('is_rush', { ascending: false })
     .order('submitted_at', { ascending: true });
 
@@ -161,6 +168,7 @@ export async function getQuoteRequestsQueue(
     submittedAt: row.submitted_at,
     isRush: row.is_rush,
     status: row.status,
+    color: row.color,
   }));
 }
 

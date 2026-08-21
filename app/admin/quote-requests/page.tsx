@@ -4,6 +4,7 @@ import { requireAdminUser } from '@/lib/admin/auth';
 import { getQuoteRequestsQueue, type QuoteRequestStatusFilter } from '@/lib/data/admin';
 import Badge, { type BadgeVariant } from '@/components/ui/Badge';
 import EmptyState from '@/components/ui/EmptyState';
+import ColorSwatchChip from '@/components/quote/ColorSwatchChip';
 
 const TABS: { value: QuoteRequestStatusFilter; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -128,7 +129,12 @@ export default async function AdminQuoteRequestsPage({
                     </Link>
                   </td>
                   <td className="font-body text-sm text-afs-chrome-high px-4 py-3">{row.customerName}</td>
-                  <td className="font-body text-sm text-afs-chrome-mid px-4 py-3">{row.profileSummary}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <span className="font-body text-sm text-afs-chrome-mid">{row.profileSummary}</span>
+                      {row.color && <ColorSwatchChip color={row.color} />}
+                    </div>
+                  </td>
                   <td className="font-data text-xs text-afs-chrome-dim px-4 py-3">{formatTimeAgo(row.submittedAt)}</td>
                   <td className="px-4 py-3">
                     {row.isRush && (

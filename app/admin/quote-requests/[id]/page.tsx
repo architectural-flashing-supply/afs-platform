@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { requireAdminUser } from '@/lib/admin/auth';
 import Badge from '@/components/ui/Badge';
+import ColorSwatchChip from '@/components/quote/ColorSwatchChip';
 import QuoteEstimatorForm, { type EstimatorLineItem } from '@/components/admin/QuoteEstimatorForm';
 import { estimateShipmentWeight, type WeightReferenceGauge } from '@/lib/admin/pricing';
 import { sourceToolLabel } from '@/lib/data/quote-request-source-tool';
@@ -154,9 +155,11 @@ export default async function AdminQuoteRequestDetailPage({ params }: { params: 
               <dd className="text-afs-chrome-high">{request.po_number ?? '—'}</dd>
             </div>
             {request.color && (
-              <div className="flex justify-between">
+              <div className="flex justify-between items-center">
                 <dt className="text-afs-chrome-mid">Color</dt>
-                <dd className="text-afs-chrome-high text-right">{request.color}</dd>
+                <dd className="text-afs-chrome-high text-right">
+                  <ColorSwatchChip color={request.color} />
+                </dd>
               </div>
             )}
             {request.notes && (
@@ -199,8 +202,13 @@ export default async function AdminQuoteRequestDetailPage({ params }: { params: 
             {items.map((item, idx) => (
               <tr key={idx} className="border-b border-afs-border last:border-b-0">
                 <td className="font-body text-sm text-afs-chrome-high px-4 py-3">{item.profileType}</td>
-                <td className="font-body text-sm text-afs-chrome-high px-4 py-3">
-                  {[item.material, item.gauge].filter(Boolean).join(', ') || '—'}
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <span className="font-body text-sm text-afs-chrome-high">
+                      {[item.material, item.gauge].filter(Boolean).join(', ') || '—'}
+                    </span>
+                    {request.color && <ColorSwatchChip color={request.color} />}
+                  </div>
                 </td>
                 <td className="font-data text-xs text-afs-chrome-mid px-4 py-3">{formatDimensions(item)}</td>
                 <td className="font-data text-sm text-afs-chrome-high px-4 py-3">{item.lengthFt} ft</td>
