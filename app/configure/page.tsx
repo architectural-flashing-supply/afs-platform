@@ -35,6 +35,12 @@ interface ConfiguratorForm {
   lengthFt: string;
   quantity: string;
   notes: string;
+  // Job-identity intake fields (migration 018, afs-jf-000) — all optional,
+  // never block submit (afs-jf-003).
+  clientBusinessName: string;
+  clientName: string;
+  poNumber: string;
+  requestedBy: string;
 }
 
 interface QueuedItem {
@@ -84,6 +90,10 @@ const EMPTY_FORM: ConfiguratorForm = {
   lengthFt: '',
   quantity: '1',
   notes: '',
+  clientBusinessName: '',
+  clientName: '',
+  poNumber: '',
+  requestedBy: '',
 };
 
 const PROFILE_OPTIONS: { value: ProfileType; label: string }[] = [
@@ -363,6 +373,10 @@ export default function ConfiguratorPage() {
           isRush: rush,
           color: form.color.trim() || null,
           finish: isAluminum ? (form.finish || null) : null,
+          clientBusinessName: form.clientBusinessName.trim() || null,
+          clientName: form.clientName.trim() || null,
+          poNumber: form.poNumber.trim() || null,
+          requestedBy: form.requestedBy.trim() || null,
           guestEmail: email,
           sourceTool: 'afs-configurator',
         }),
@@ -381,7 +395,20 @@ export default function ConfiguratorPage() {
       setSubmitError('Submission failed. Please try again.');
       setSubmitState('idle');
     }
-  }, [allItemsForSubmit, form.notes, form.color, form.finish, form.material, rush, colorSatisfied, isAluminum]);
+  }, [
+    allItemsForSubmit,
+    form.notes,
+    form.color,
+    form.finish,
+    form.material,
+    form.clientBusinessName,
+    form.clientName,
+    form.poNumber,
+    form.requestedBy,
+    rush,
+    colorSatisfied,
+    isAluminum,
+  ]);
 
   const handleSubmit = () => {
     if (allItemsForSubmit().length === 0) {
@@ -616,6 +643,35 @@ export default function ConfiguratorPage() {
             quantity={isPositiveNumber(form.quantity) ? Number(form.quantity) : 0}
             stockLengthFt={profileType ? resolveStockLengthBySlug(profileStockLengths, profileType) : null}
           />
+
+          {/* Job-identity intake fields (migration 018, afs-jf-000) — all
+              optional, never block submit (afs-jf-003). */}
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <div>
+              <label className={labelClass} htmlFor="clientBusinessName">Business Name (optional)</label>
+              <input id="clientBusinessName" type="text" className={inputClass}
+                value={form.clientBusinessName} onChange={(e) => updateField('clientBusinessName', e.target.value)}
+                placeholder="Company name" />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="clientName">Client Name (optional)</label>
+              <input id="clientName" type="text" className={inputClass}
+                value={form.clientName} onChange={(e) => updateField('clientName', e.target.value)}
+                placeholder="Contact name" />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="poNumber">PO Number (optional)</label>
+              <input id="poNumber" type="text" className={inputClass}
+                value={form.poNumber} onChange={(e) => updateField('poNumber', e.target.value)}
+                placeholder="e.g. PO-10234" />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="requestedBy">Requested By (optional)</label>
+              <input id="requestedBy" type="text" className={inputClass}
+                value={form.requestedBy} onChange={(e) => updateField('requestedBy', e.target.value)}
+                placeholder="Who is requesting this?" />
+            </div>
+          </div>
 
           <div className="mb-3 mt-3">
             <label className={labelClass} htmlFor="notes">Notes (optional)</label>

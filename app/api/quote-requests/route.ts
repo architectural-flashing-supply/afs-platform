@@ -115,6 +115,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // path never had a finish concept before this and still doesn't. Written
     // into quote_requests.finish (migration 018).
     const finish = typeof body.finish === 'string' && body.finish.trim() ? body.finish.trim() : null;
+    // Job-identity intake fields (migration 018, afs-jf-000) — optional on
+    // every submission surface (afs-jf-003). Written into
+    // quote_requests.client_business_name / .client_name / .po_number /
+    // .requested_by. `poNumber` was already collected by the Quote Builder
+    // (app/quote/page.tsx's "PO Number" field, sent as `poNumber` in this
+    // same body) but silently dropped here — this is also the fix for that
+    // pre-existing gap, not just new plumbing for the other three fields.
+    const clientBusinessName =
+      typeof body.clientBusinessName === 'string' && body.clientBusinessName.trim() ? body.clientBusinessName.trim() : null;
+    const clientName = typeof body.clientName === 'string' && body.clientName.trim() ? body.clientName.trim() : null;
+    const poNumber = typeof body.poNumber === 'string' && body.poNumber.trim() ? body.poNumber.trim() : null;
+    const requestedBy = typeof body.requestedBy === 'string' && body.requestedBy.trim() ? body.requestedBy.trim() : null;
     // Every real front-end submission path (FlashDraft, the Configurator,
     // the Quote Builder, the Blueprint Takeoff AI upload flow) sends its own
     // token here — see lib/data/quote-request-source-tool.ts for the full
@@ -138,6 +150,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       notes,
       color,
       finish,
+      client_business_name: clientBusinessName,
+      client_name: clientName,
+      po_number: poNumber,
+      requested_by: requestedBy,
       status: 'submitted',
       source_tool: sourceTool,
     });

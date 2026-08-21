@@ -26,6 +26,18 @@ export interface ShopProfileLibraryInsert {
   // selection UI) — populated from the same source the caller already draws
   // material/gauge from, per call site (afs-cv-003).
   color?: string | null;
+  // Job-identity intake fields + finish (migration 018, afs-jf-000/afs-jf-003)
+  // — copied through from quote_requests on the Command Center approval path,
+  // or threaded from FlashDraft's own live draw-session state on the direct
+  // send path, the same way color already is (afs-cv-003). All optional/
+  // nullable; also composed into the PathfinderEdge `description` field by
+  // pushProfileToPathfinder (lib/integrations/pathfinder-edge.ts) — this is
+  // the separate, permanent shop-record write-through, not that composition.
+  clientBusinessName?: string | null;
+  clientName?: string | null;
+  poNumber?: string | null;
+  requestedBy?: string | null;
+  finish?: string | null;
   quantity?: number | null;
   lengthFt?: number | null;
   dueDate?: string | null;
@@ -117,6 +129,11 @@ export async function insertShopProfileLibraryRecord(
       material: input.material ?? null,
       gauge: input.gauge ?? null,
       color: input.color ?? null,
+      client_business_name: input.clientBusinessName ?? null,
+      client_name: input.clientName ?? null,
+      po_number: input.poNumber ?? null,
+      requested_by: input.requestedBy ?? null,
+      finish: input.finish ?? null,
       quantity: input.quantity ?? null,
       length_ft: input.lengthFt ?? null,
       due_date: input.dueDate ?? null,
@@ -144,6 +161,13 @@ export interface ShopProfileLibraryRow {
   customerPhone: string | null;
   material: string | null;
   gauge: string | null;
+  // Job-identity intake fields + finish (migration 018, afs-jf-003) — see
+  // ShopProfileLibraryInsert above for the full write-through story.
+  clientBusinessName: string | null;
+  clientName: string | null;
+  poNumber: string | null;
+  requestedBy: string | null;
+  finish: string | null;
   quantity: number | null;
   dueDate: string | null;
   sourceTool: string | null;
@@ -166,7 +190,7 @@ export async function getShopProfileLibrary(supabase: SupabaseClient): Promise<S
   const { data, error } = await supabase
     .from('shop_profile_library')
     .select(
-      'id, profile_name, customer_name, company, customer_email, customer_phone, material, gauge, quantity, due_date, source_tool, status, geometry_svg, queue_position, created_at'
+      'id, profile_name, customer_name, company, customer_email, customer_phone, material, gauge, client_business_name, client_name, po_number, requested_by, finish, quantity, due_date, source_tool, status, geometry_svg, queue_position, created_at'
     )
     .is('deleted_at', null)
     .order('created_at', { ascending: false });
@@ -182,6 +206,11 @@ export async function getShopProfileLibrary(supabase: SupabaseClient): Promise<S
       customer_phone: string | null;
       material: string | null;
       gauge: string | null;
+      client_business_name: string | null;
+      client_name: string | null;
+      po_number: string | null;
+      requested_by: string | null;
+      finish: string | null;
       quantity: number | null;
       due_date: string | null;
       source_tool: string | null;
@@ -199,6 +228,11 @@ export async function getShopProfileLibrary(supabase: SupabaseClient): Promise<S
     customerPhone: r.customer_phone,
     material: r.material,
     gauge: r.gauge,
+    clientBusinessName: r.client_business_name,
+    clientName: r.client_name,
+    poNumber: r.po_number,
+    requestedBy: r.requested_by,
+    finish: r.finish,
     quantity: r.quantity,
     dueDate: r.due_date,
     sourceTool: r.source_tool,
@@ -273,6 +307,13 @@ export interface ShopProfileLibraryFullRow {
   // write-through) — see ColorSwatchChip.tsx for the established swatch
   // rendering pattern this reuses.
   color: string | null;
+  // Job-identity intake fields + finish (migration 018, afs-jf-003) — see
+  // ShopProfileLibraryInsert above for the full write-through story.
+  clientBusinessName: string | null;
+  clientName: string | null;
+  poNumber: string | null;
+  requestedBy: string | null;
+  finish: string | null;
   quantity: number | null;
   lengthFt: number | null;
   dueDate: string | null;
@@ -301,7 +342,7 @@ export async function getShopProfileLibraryFull(supabase: SupabaseClient): Promi
   const { data, error } = await supabase
     .from('shop_profile_library')
     .select(
-      'id, order_number, profile_name, customer_name, company, customer_email, customer_phone, account_notes, material, gauge, color, quantity, length_ft, due_date, hem_instructions, painted_edge, special_instructions, geometry_svg, source_tool, pathfinder_profile_id, status, queue_position, completed_at, created_at'
+      'id, order_number, profile_name, customer_name, company, customer_email, customer_phone, account_notes, material, gauge, color, client_business_name, client_name, po_number, requested_by, finish, quantity, length_ft, due_date, hem_instructions, painted_edge, special_instructions, geometry_svg, source_tool, pathfinder_profile_id, status, queue_position, completed_at, created_at'
     )
     .is('deleted_at', null)
     .order('created_at', { ascending: false });
@@ -320,6 +361,11 @@ export async function getShopProfileLibraryFull(supabase: SupabaseClient): Promi
       material: string | null;
       gauge: string | null;
       color: string | null;
+      client_business_name: string | null;
+      client_name: string | null;
+      po_number: string | null;
+      requested_by: string | null;
+      finish: string | null;
       quantity: number | null;
       length_ft: number | null;
       due_date: string | null;
@@ -346,6 +392,11 @@ export async function getShopProfileLibraryFull(supabase: SupabaseClient): Promi
     material: r.material,
     gauge: r.gauge,
     color: r.color,
+    clientBusinessName: r.client_business_name,
+    clientName: r.client_name,
+    poNumber: r.po_number,
+    requestedBy: r.requested_by,
+    finish: r.finish,
     quantity: r.quantity,
     lengthFt: r.length_ft,
     dueDate: r.due_date,

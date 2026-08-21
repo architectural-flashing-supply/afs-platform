@@ -49,6 +49,13 @@ interface QuoteRequestLineItem {
   // FlashDraft-submitted items; older rows submitted before afs-sv-009
   // simply have no snapshot to reuse.
   geometryImage?: string | null;
+  // The user-set FlashDraft canvas profile name (app/studio/draft/page.tsx's
+  // `profileName` state), only present when the user actually renamed it
+  // away from the "Untitled Profile" default (afs-jf-003) — see
+  // page.tsx's submitQuoteRequest, which omits this field entirely
+  // otherwise. When absent/blank, this route falls back to describeItem()
+  // exactly as it did before this field existed.
+  profileName?: string | null;
 }
 
 interface CustomBend {
@@ -71,6 +78,16 @@ function describeItem(item: QuoteRequestLineItem): string {
   if (item.material) parts.push(item.material);
   if (item.gauge) parts.push(item.gauge);
   return parts.join(' — ');
+}
+
+// The user-set FlashDraft name if present and non-blank, otherwise the same
+// generated describeItem() fallback used before this field existed
+// (afs-jf-003) — the two send paths do not share an identical concept of
+// "user-set name," so this route's own real data (item.profileName, only
+// ever populated for FlashDraft-submitted line items) drives this, not any
+// assumption borrowed from send-to-pathfinder's client-side state.
+function resolveItemProfileName(item: QuoteRequestLineItem): string {
+  return item.profileName?.trim() || describeItem(item);
 }
 
 function distanceIn(a: FlashDraftPoint, b: FlashDraftPoint): number {
@@ -183,6 +200,17 @@ function buildBendsFromItem(
   return { bends, blankWidthMm: legAMm + widthMm + legBMm, usedFallbackGeometry: usesFallbackGeometry(item) };
 }
 
+// Job-identity intake fields + finish (migration 018, afs-jf-003) — carried
+// on the parent quote_requests row (one set per request, not per line
+// item), so every line item's MachineProfile gets the same values.
+interface JobIdentityFields {
+  clientBusinessName: string | null;
+  clientName: string | null;
+  poNumber: string | null;
+  requestedBy: string | null;
+  finish: string | null;
+}
+
 // Builds the MachineProfile pushProfileToPathfinder expects for one line
 // item. Real FlashDraft-drawn items (real points) go through the exact
 // same adapter FlashDraft's own "Send to PathfinderEdge" button uses —
@@ -201,7 +229,8 @@ function buildMachineProfileForItem(
   item: QuoteRequestLineItem,
   profileName: string,
   bends: CustomBend[],
-  blankWidthMm: number
+  blankWidthMm: number,
+  identity: JobIdentityFields
 ): MachineProfile {
   if (item.points && item.points.length >= 2) {
     const thicknessIn = gaugeToThicknessMm(item.gauge) / MM_PER_INCH;
@@ -212,6 +241,11 @@ function buildMachineProfileForItem(
       thicknessIn,
       hemStart: item.hemStart ?? null,
       hemEnd: item.hemEnd ?? null,
+      clientBusinessName: identity.clientBusinessName,
+      clientName: identity.clientName,
+      poNumber: identity.poNumber,
+      requestedBy: identity.requestedBy,
+      finish: identity.finish,
     });
   }
 
@@ -229,6 +263,11 @@ function buildMachineProfileForItem(
     })),
     hemStart: null,
     hemEnd: null,
+    clientBusinessName: identity.clientBusinessName,
+    clientName: identity.clientName,
+    poNumber: identity.poNumber,
+    requestedBy: identity.requestedBy,
+    finish: identity.finish,
   };
 }
 
@@ -295,7 +334,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const { data: quoteRequest, error: qrError } = await supabase
       .from('quote_requests')
-      .select('id, user_id, guest_email, line_items, is_rush, notes, status, requested_delivery, source_tool, color')
+      .select(
+        'id, user_id, guest_email, line_items, is_rush, notes, status, requested_delivery, source_tool, color, client_business_name, client_name, po_number, requested_by, finish'
+      )
       .eq('id', quoteRequestId)
       .maybeSingle();
     if (qrError || !quoteRequest) {
@@ -315,6 +356,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // carried onto every shop_profile_library row this route writes
       // below (afs-cv-003).
       color: string | null;
+      // Job-identity intake fields (migration 018, afs-jf-000) + the
+      // required Anodized/Painted finish choice (afs-jf-002) — carried onto
+      // every machine_jobs push (PathfinderEdge description) and every
+      // shop_profile_library row this route writes below (afs-jf-003).
+      client_business_name: string | null;
+      client_name: string | null;
+      po_number: string | null;
+      requested_by: string | null;
+      finish: string | null;
     };
     if (qr.status !== 'submitted') {
       return NextResponse.json({ error: 'Quote request is not pending approval.' }, { status: 409 });
@@ -324,6 +374,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (items.length === 0) {
       return NextResponse.json({ error: 'Quote request has no line items.' }, { status: 400 });
     }
+
+    const identity: JobIdentityFields = {
+      clientBusinessName: qr.client_business_name,
+      clientName: qr.client_name,
+      poNumber: qr.po_number,
+      requestedBy: qr.requested_by,
+      finish: qr.finish,
+    };
 
     // Resolved once, reused both for the shop_profile_library rows written
     // per line item below and for the customer notification sent at the
@@ -357,10 +415,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // click rather than being left with a job that looks approved but
     // never actually reached PathfinderEdge.
     const itemBuilds = items.map((item, i) => {
-      const profileName =
-        items.length > 1 ? `${describeItem(item)} (item ${i + 1} of ${items.length})` : describeItem(item);
+      const baseName = resolveItemProfileName(item);
+      const profileName = items.length > 1 ? `${baseName} (item ${i + 1} of ${items.length})` : baseName;
       const { bends, blankWidthMm, usedFallbackGeometry } = buildBendsFromItem(item);
-      const machineProfile = buildMachineProfileForItem(item, profileName, bends, blankWidthMm);
+      const machineProfile = buildMachineProfileForItem(item, profileName, bends, blankWidthMm, identity);
       return {
         item,
         profileName,
@@ -472,6 +530,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         material: build.item.material ?? null,
         gauge: build.item.gauge ?? null,
         color: qr.color,
+        clientBusinessName: identity.clientBusinessName,
+        clientName: identity.clientName,
+        poNumber: identity.poNumber,
+        requestedBy: identity.requestedBy,
+        finish: identity.finish,
         quantity: build.quantity,
         lengthFt: build.item.lengthFt ?? null,
         dueDate: qr.requested_delivery,

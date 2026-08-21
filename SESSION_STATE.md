@@ -58,6 +58,100 @@ and not restart from scratch.**
 
 ---
 
+## JOB-IDENTITY FIELDS END TO END (afs-jf-003) — 2026-08-21
+
+Read all four submission surfaces (`app/studio/draft/page.tsx`,
+`app/configure/page.tsx`, `app/quote/page.tsx`, `app/upload/page.tsx`),
+`app/admin/quote-requests/[id]/page.tsx`, both PathfinderEdge send paths,
+`lib/integrations/pathfinder-edge.ts`, `app/admin/shop-view/page.tsx`, and
+`app/admin/profile-library/page.tsx` in full before changing anything, per
+the task's instruction. All prior claims about these files (afs-cv-002
+through afs-sv-009) re-verified accurate.
+
+**New finding:** `app/quote/page.tsx` already collected a PO Number and
+already sent it to `/api/quote-requests` as `poNumber` in the body — but
+that route never read `body.poNumber`, so it was silently dropped on every
+submission. Real pre-existing bug, fixed as part of this prompt (not
+"already working").
+
+**Added four optional fields (Business Name, Client Name, PO Number,
+Requested By) to all four submission surfaces**, none block submit. Wired
+into `app/api/quote-requests/route.ts`, which now writes
+`client_business_name`/`client_name`/`po_number`/`requested_by` on
+`quote_requests` (mirroring the existing `color`/`finish` handling).
+`app/studio/draft/page.tsx` was edited via precise `Edit` calls, not
+`Write` — same oversized-file exception afs-cv-003 already used, flagged
+explicitly rather than silently deviating.
+
+**Command Center `app/admin/quote-requests/[id]/page.tsx` was entirely
+read-only before this prompt** — confirmed by reading it in full. New
+`components/admin/JobIdentityEditorForm.tsx` (client component, following
+`CustomerAccountSettingsForm.tsx`'s existing dirty-tracking/PATCH-on-save
+convention, not a new pattern) plus new `PATCH
+/api/admin/quote-requests/[id]` route (following the CRM route's
+single-PATCH-per-resource pattern) let Steve view and edit all four
+fields before approval.
+
+**Both PathfinderEdge send paths now copy all five fields (four identity +
+`finish`) into `shop_profile_library`** on write — `finish` was NOT
+previously copied there by afs-cv-003/afs-jf-002, confirmed by reading
+`lib/data/shop-profile-library.ts` before touching it; this prompt is the
+first to wire it through. `lib/integrations/pathfinder-edge.ts`'s
+`pushProfileToPathfinder` now composes the outgoing `description` as
+`"Business | Client | PO <po> | Req: <name> | <finish>"` (blank segments
+dropped, never an empty ` | `) prepended to the existing `AFS profile
+<profileNumber>` reference text.
+
+**Length-limit check: no live over-length test run.** Diagnostics only
+capture outgoing request bodies (no evidence either way); PathfinderEdge's
+public docs state no length limit for `description`; a live test was
+deliberately skipped because it would write a real profile into the
+production catalog (20115) the physical Thalmann DS2801 polls
+automatically — not safe to trigger unattended. No truncation applied;
+the priority order to use if a real limit is ever found is documented in
+a code comment at the composition site.
+
+**Profile-name fallback — verified independently per send path, not
+assumed symmetric:** FlashDraft's direct send
+(`send-to-pathfinder/route.ts`) previously always used a generated name,
+ignoring the canvas's own editable `profileName` state entirely — now uses
+that real name when the user set one (renamed away from "Untitled
+Profile"), generated fallback otherwise. Command Center approval
+(`approve-quote-request/route.ts`) had NO "user-set name" concept
+reaching it at all before this prompt (no line item ever carried one) —
+fixed by having FlashDraft's own quote-request submission include its
+`profileName` only when real, with the route's new
+`resolveItemProfileName()` falling back to the exact prior
+`describeItem()` format otherwise.
+
+Shop View's focus card and the Profile Library table now display all five
+fields; Profile Library gained dedicated Business Name and PO Number
+filter inputs, in addition to its existing search/source/status filters.
+Both keep excluding soft-deleted rows via the same existing
+`getShopProfileLibrary`/`getShopProfileLibraryFull` queries, extended not
+replaced.
+
+**PRODUCTION-BLOCKING SEQUENCING RISK, still open from afs-jf-002, now
+worse:** migration 018 is still recorded NOT applied live. Attempted to
+re-check this session via the connected Supabase MCP account — it points
+at an unrelated project (`tarritrix`, no `quote_requests` or
+`shop_profile_library` table at all), so it could not be used to verify
+the real AFS project. `app/api/quote-requests/route.ts`'s insert now
+always includes four more columns beyond `finish` — apply and confirm
+migration 018 live before or immediately upon deploying this commit, or
+every quote-request submission through all four surfaces will fail.
+
+`pnpm tsc --noEmit`: 0 errors. `pnpm run build`: succeeds. Both run
+directly this session. Marked **IMPLEMENTED, UNCONFIRMED** per this file's
+verification standard — no browser/Playwright access this session; pending
+Reid's confirmation across all four submission surfaces, Command Center
+editing, a real PathfinderEdge send from both paths, and both display
+surfaces. Committed as `feat: job-identity fields end to end — submission
+surfaces, Command Center edit, PathfinderEdge description, Shop
+View/Profile Library display (afs-jf-003)`.
+
+---
+
 ## ALUMINUM FINISH CHOICE (ANODIZED/PAINTED) — SUPERSEDES AFS-CV-002 (afs-jf-002) — 2026-08-21
 
 Read `lib/data/material-color-requirement.ts`, `components/quote/

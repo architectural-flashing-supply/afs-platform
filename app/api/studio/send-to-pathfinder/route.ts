@@ -29,6 +29,15 @@ interface RequestBody {
   // so it's threaded through the same way material/gauge already are: the
   // FlashDraft draft session's own ColorField state, sent as-is.
   color?: string | null;
+  // Job-identity intake fields + finish (migration 018, afs-jf-003) — same
+  // reasoning as color above: no source quote_request exists on this route,
+  // so these come straight from FlashDraft's own live draw-session state
+  // (app/studio/draft/page.tsx), sent as-is. All optional.
+  clientBusinessName?: string | null;
+  clientName?: string | null;
+  poNumber?: string | null;
+  requestedBy?: string | null;
+  finish?: string | null;
   // Data-URI PNG snapshot of the FlashDraft canvas at the moment of send —
   // captured client-side via canvasRef.current.toDataURL('image/png') in
   // app/studio/draft/page.tsx's sendToPathfinder(). This IS FlashDraft's own
@@ -80,6 +89,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       thicknessIn: typeof body.thicknessIn === 'number' ? body.thicknessIn : 0,
       hemStart: body.hemStart ?? null,
       hemEnd: body.hemEnd ?? null,
+      clientBusinessName: body.clientBusinessName ?? null,
+      clientName: body.clientName ?? null,
+      poNumber: body.poNumber ?? null,
+      requestedBy: body.requestedBy ?? null,
+      finish: body.finish ?? null,
     });
 
     const result = await pushProfileToPathfinder(machineProfile, AFS_MACHINE_CATALOG_ID);
@@ -96,6 +110,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       material: body.material ?? null,
       gauge: body.gauge ?? null,
       color: body.color ?? null,
+      clientBusinessName: body.clientBusinessName ?? null,
+      clientName: body.clientName ?? null,
+      poNumber: body.poNumber ?? null,
+      requestedBy: body.requestedBy ?? null,
+      finish: body.finish ?? null,
       quantity: typeof body.quantity === 'number' ? body.quantity : null,
       lengthFt: typeof body.lengthFt === 'number' ? body.lengthFt : null,
       accountNotes: body.notes ?? null,

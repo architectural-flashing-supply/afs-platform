@@ -327,6 +327,35 @@ function FocusPanel({ row, advancing, onAdvance }: FocusPanelProps) {
             </div>
           )}
 
+          {(row.clientBusinessName || row.clientName || row.poNumber || row.requestedBy) && (
+            <div className="grid grid-cols-2 gap-4">
+              {row.clientBusinessName && (
+                <div>
+                  <p className="font-label text-xs uppercase tracking-widest text-afs-chrome-dim mb-1">Business Name</p>
+                  <p className="font-body text-sm text-afs-chrome-high">{row.clientBusinessName}</p>
+                </div>
+              )}
+              {row.clientName && (
+                <div>
+                  <p className="font-label text-xs uppercase tracking-widest text-afs-chrome-dim mb-1">Client Name</p>
+                  <p className="font-body text-sm text-afs-chrome-high">{row.clientName}</p>
+                </div>
+              )}
+              {row.poNumber && (
+                <div>
+                  <p className="font-label text-xs uppercase tracking-widest text-afs-chrome-dim mb-1">PO Number</p>
+                  <p className="font-data text-sm text-afs-chrome-high">{row.poNumber}</p>
+                </div>
+              )}
+              {row.requestedBy && (
+                <div>
+                  <p className="font-label text-xs uppercase tracking-widest text-afs-chrome-dim mb-1">Requested By</p>
+                  <p className="font-body text-sm text-afs-chrome-high">{row.requestedBy}</p>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="font-label text-xs uppercase tracking-widest text-afs-chrome-dim mb-1">Material / Gauge</p>
@@ -341,6 +370,13 @@ function FocusPanel({ row, advancing, onAdvance }: FocusPanelProps) {
               </p>
             </div>
           </div>
+
+          {row.finish && (
+            <div>
+              <p className="font-label text-xs uppercase tracking-widest text-afs-chrome-dim mb-1">Finish</p>
+              <p className="font-heading text-lg text-afs-chrome-high">{row.finish}</p>
+            </div>
+          )}
 
           {row.color && (
             <div>

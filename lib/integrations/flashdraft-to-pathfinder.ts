@@ -35,6 +35,14 @@ export interface FlashDraftProfileInput {
   thicknessIn: number;
   hemStart?: FlashDraftHemInput | null;
   hemEnd?: FlashDraftHemInput | null;
+  // Job-identity intake fields + finish (migration 018, afs-jf-003) — passed
+  // straight through to the returned MachineProfile, which is where
+  // pushProfileToPathfinder composes them into the outgoing `description`.
+  clientBusinessName?: string | null;
+  clientName?: string | null;
+  poNumber?: string | null;
+  requestedBy?: string | null;
+  finish?: string | null;
 }
 
 // Same fallback radius-by-material rule as app/studio/draft/page.tsx's
@@ -171,5 +179,10 @@ export function flashDraftToMachineProfile(input: FlashDraftProfileInput): Machi
     bends,
     hemStart,
     hemEnd,
+    clientBusinessName: input.clientBusinessName ?? null,
+    clientName: input.clientName ?? null,
+    poNumber: input.poNumber ?? null,
+    requestedBy: input.requestedBy ?? null,
+    finish: input.finish ?? null,
   };
 }

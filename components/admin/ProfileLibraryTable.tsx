@@ -9,7 +9,21 @@ interface ProfileLibraryTableProps {
   rows: ShopProfileLibraryRow[];
 }
 
-type SortKey = 'customerName' | 'company' | 'profileName' | 'material' | 'quantity' | 'dueDate' | 'sourceTool' | 'status' | 'createdAt';
+type SortKey =
+  | 'customerName'
+  | 'company'
+  | 'profileName'
+  | 'material'
+  | 'quantity'
+  | 'dueDate'
+  | 'sourceTool'
+  | 'status'
+  | 'createdAt'
+  | 'clientBusinessName'
+  | 'clientName'
+  | 'poNumber'
+  | 'requestedBy'
+  | 'finish';
 type SortDir = 'asc' | 'desc';
 
 function formatDate(iso: string | null): string {
@@ -38,6 +52,11 @@ const COLUMNS: { key: SortKey; label: string }[] = [
   { key: 'material', label: 'Material' },
   { key: 'quantity', label: 'Qty' },
   { key: 'dueDate', label: 'Due' },
+  { key: 'clientBusinessName', label: 'Business Name' },
+  { key: 'clientName', label: 'Client Name' },
+  { key: 'poNumber', label: 'PO Number' },
+  { key: 'requestedBy', label: 'Requested By' },
+  { key: 'finish', label: 'Finish' },
   { key: 'sourceTool', label: 'Source' },
   { key: 'status', label: 'Status' },
   { key: 'createdAt', label: 'Created' },
@@ -47,6 +66,8 @@ export default function ProfileLibraryTable({ rows: initialRows }: ProfileLibrar
   const router = useRouter();
   const [rows, setRows] = useState(initialRows);
   const [search, setSearch] = useState('');
+  const [businessNameFilter, setBusinessNameFilter] = useState('');
+  const [poNumberFilter, setPoNumberFilter] = useState('');
   const [sourceFilter, setSourceFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortKey, setSortKey] = useState<SortKey>('createdAt');
@@ -65,6 +86,8 @@ export default function ProfileLibraryTable({ rows: initialRows }: ProfileLibrar
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
+    const businessTerm = businessNameFilter.trim().toLowerCase();
+    const poTerm = poNumberFilter.trim().toLowerCase();
     return rows
       .filter((r) => (sourceFilter === 'all' ? true : r.sourceTool === sourceFilter))
       .filter((r) => (statusFilter === 'all' ? true : r.status === statusFilter))
@@ -77,8 +100,10 @@ export default function ProfileLibraryTable({ rows: initialRows }: ProfileLibrar
           (r.material ?? '').toLowerCase().includes(term)
         );
       })
+      .filter((r) => !businessTerm || (r.clientBusinessName ?? '').toLowerCase().includes(businessTerm))
+      .filter((r) => !poTerm || (r.poNumber ?? '').toLowerCase().includes(poTerm))
       .sort((a, b) => (sortDir === 'asc' ? compare(a, b, sortKey) : compare(b, a, sortKey)));
-  }, [rows, search, sourceFilter, statusFilter, sortKey, sortDir]);
+  }, [rows, search, businessNameFilter, poNumberFilter, sourceFilter, statusFilter, sortKey, sortDir]);
 
   const toggleSort = (key: SortKey) => {
     if (key === sortKey) {
@@ -174,6 +199,20 @@ export default function ProfileLibraryTable({ rows: initialRows }: ProfileLibrar
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search customer, company, profile, or material…"
           className="flex-1 min-w-[240px] bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body"
+        />
+        <input
+          type="text"
+          value={businessNameFilter}
+          onChange={(e) => setBusinessNameFilter(e.target.value)}
+          placeholder="Filter by business name…"
+          className="min-w-[180px] bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body"
+        />
+        <input
+          type="text"
+          value={poNumberFilter}
+          onChange={(e) => setPoNumberFilter(e.target.value)}
+          placeholder="Filter by PO number…"
+          className="min-w-[160px] bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-data"
         />
         <select
           value={sourceFilter}
@@ -291,6 +330,11 @@ export default function ProfileLibraryTable({ rows: initialRows }: ProfileLibrar
                     <td className="font-body text-sm text-afs-chrome-mid px-4 py-3">{row.material ?? '—'}</td>
                     <td className="font-data text-sm text-afs-chrome-high px-4 py-3">{row.quantity ?? '—'}</td>
                     <td className="font-data text-xs text-afs-chrome-mid px-4 py-3 whitespace-nowrap">{formatDate(row.dueDate)}</td>
+                    <td className="font-body text-sm text-afs-chrome-mid px-4 py-3 whitespace-nowrap">{row.clientBusinessName ?? '—'}</td>
+                    <td className="font-body text-sm text-afs-chrome-mid px-4 py-3 whitespace-nowrap">{row.clientName ?? '—'}</td>
+                    <td className="font-data text-xs text-afs-chrome-mid px-4 py-3 whitespace-nowrap">{row.poNumber ?? '—'}</td>
+                    <td className="font-body text-sm text-afs-chrome-mid px-4 py-3 whitespace-nowrap">{row.requestedBy ?? '—'}</td>
+                    <td className="font-label text-xs text-afs-chrome-mid px-4 py-3 whitespace-nowrap">{row.finish ?? '—'}</td>
                     <td className="font-label text-xs text-afs-chrome-mid px-4 py-3 whitespace-nowrap">
                       {sourceToolLabel(row.sourceTool)}
                     </td>

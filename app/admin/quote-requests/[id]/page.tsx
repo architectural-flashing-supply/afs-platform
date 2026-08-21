@@ -5,6 +5,7 @@ import { requireAdminUser } from '@/lib/admin/auth';
 import Badge from '@/components/ui/Badge';
 import ColorSwatchChip from '@/components/quote/ColorSwatchChip';
 import QuoteEstimatorForm, { type EstimatorLineItem } from '@/components/admin/QuoteEstimatorForm';
+import JobIdentityEditorForm from '@/components/admin/JobIdentityEditorForm';
 import { estimateShipmentWeight, type WeightReferenceGauge } from '@/lib/admin/pricing';
 import { sourceToolLabel } from '@/lib/data/quote-request-source-tool';
 
@@ -27,6 +28,12 @@ interface QuoteRequestDetailRow {
   // ruling). Null for every other material category and for requests
   // submitted before this column existed.
   finish: string | null;
+  // Job-identity intake fields (migration 018, afs-jf-000) — optional on
+  // every submission surface (afs-jf-003), editable here before approval
+  // via JobIdentityEditorForm below.
+  client_business_name: string | null;
+  client_name: string | null;
+  requested_by: string | null;
   user_id: string | null;
   guest_email: string | null;
   quote_id: string | null;
@@ -54,7 +61,7 @@ export default async function AdminQuoteRequestDetailPage({ params }: { params: 
   const { data: requestRaw } = await supabase
     .from('quote_requests')
     .select(
-      'id, request_number, status, submitted_at, line_items, jobsite_address, po_number, is_rush, notes, color, finish, user_id, guest_email, quote_id, source_tool, profiles(full_name, company, phone, email)'
+      'id, request_number, status, submitted_at, line_items, jobsite_address, po_number, is_rush, notes, color, finish, client_business_name, client_name, requested_by, user_id, guest_email, quote_id, source_tool, profiles(full_name, company, phone, email)'
     )
     .eq('id', params.id)
     .maybeSingle();
@@ -155,10 +162,6 @@ export default async function AdminQuoteRequestDetailPage({ params }: { params: 
               <dt className="text-afs-chrome-mid">Jobsite Address</dt>
               <dd className="text-afs-chrome-high text-right">{jobsiteAddress ?? '—'}</dd>
             </div>
-            <div className="flex justify-between">
-              <dt className="text-afs-chrome-mid">PO Number</dt>
-              <dd className="text-afs-chrome-high">{request.po_number ?? '—'}</dd>
-            </div>
             {request.finish && (
               <div className="flex justify-between items-center">
                 <dt className="text-afs-chrome-mid">Finish</dt>
@@ -183,6 +186,22 @@ export default async function AdminQuoteRequestDetailPage({ params }: { params: 
             )}
           </dl>
         </div>
+      </div>
+
+      {/* Job-identity intake fields (migration 018, afs-jf-000) — view and
+          edit before approval (afs-jf-003). Replaces the prior static
+          read-only "PO Number" row in the Project Details panel above,
+          which this editable form now owns instead. */}
+      <div className="mb-6">
+        <JobIdentityEditorForm
+          requestId={request.id}
+          initial={{
+            clientBusinessName: request.client_business_name,
+            clientName: request.client_name,
+            poNumber: request.po_number,
+            requestedBy: request.requested_by,
+          }}
+        />
       </div>
 
       <div className="bg-afs-bg-raised border border-afs-border rounded overflow-hidden mb-8">

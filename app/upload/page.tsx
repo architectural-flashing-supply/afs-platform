@@ -332,6 +332,14 @@ interface TakeoffDraft {
   // Absent in drafts written before this field existed; restored as all-
   // false in that case (see the mount-time restore effect below).
   panelWidthUserSelected?: boolean[];
+  // Job-identity intake fields (migration 018, afs-jf-000) — all optional,
+  // never block submit (afs-jf-003). Absent in drafts written before these
+  // fields existed; restored as empty strings in that case (see the
+  // mount-time restore effect below).
+  clientBusinessName?: string;
+  clientName?: string;
+  poNumber?: string;
+  requestedBy?: string;
   savedAt: number;
 }
 
@@ -539,6 +547,12 @@ export default function UploadPage() {
   const [customScopeText, setCustomScopeText] = useState('');
   const [prefilledFields, setPrefilledFields] = useState<Set<PrefillableField>[]>([]);
   const [panelWidthUserSelected, setPanelWidthUserSelected] = useState<boolean[]>([]);
+  // Job-identity intake fields (migration 018, afs-jf-000) — all optional,
+  // never block submit (afs-jf-003).
+  const [clientBusinessName, setClientBusinessName] = useState('');
+  const [clientName, setClientName] = useState('');
+  const [poNumber, setPoNumber] = useState('');
+  const [requestedBy, setRequestedBy] = useState('');
   const [canonicalProfiles, setCanonicalProfiles] = useState<Record<string, CanonicalProfile>>({});
   const [uploadId, setUploadId] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
@@ -570,6 +584,10 @@ export default function UploadPage() {
     setItems(draft.items);
     setPrefilledFields(draft.prefilledFields.map((fields) => new Set(fields)));
     setPanelWidthUserSelected(draft.panelWidthUserSelected ?? draft.items.map(() => false));
+    setClientBusinessName(draft.clientBusinessName ?? '');
+    setClientName(draft.clientName ?? '');
+    setPoNumber(draft.poNumber ?? '');
+    setRequestedBy(draft.requestedBy ?? '');
     setState('results');
   }, []);
 
@@ -587,9 +605,25 @@ export default function UploadPage() {
       items,
       prefilledFields: prefilledFields.map((fields) => Array.from(fields)),
       panelWidthUserSelected,
+      clientBusinessName,
+      clientName,
+      poNumber,
+      requestedBy,
       savedAt,
     });
-  }, [uploadId, filename, result, items, prefilledFields, panelWidthUserSelected, state]);
+  }, [
+    uploadId,
+    filename,
+    result,
+    items,
+    prefilledFields,
+    panelWidthUserSelected,
+    clientBusinessName,
+    clientName,
+    poNumber,
+    requestedBy,
+    state,
+  ]);
 
   // Debounced database save: persists edited items to
   // takeoff_uploads.confirmed_items ~1.5-2s after the last edit, so work
@@ -833,6 +867,10 @@ export default function UploadPage() {
           isRush: false,
           color: buildRequestColor(),
           finish: buildRequestFinish(),
+          clientBusinessName: clientBusinessName.trim() || null,
+          clientName: clientName.trim() || null,
+          poNumber: poNumber.trim() || null,
+          requestedBy: requestedBy.trim() || null,
           guestEmail: email,
           sourceTool: 'afs-takeoff',
         }),
@@ -854,7 +892,7 @@ export default function UploadPage() {
       setSubmitError('Submission failed. Please try again.');
       setState('results');
     }
-  }, [items, uploadId, buildRequestColor, buildRequestFinish]);
+  }, [items, uploadId, buildRequestColor, buildRequestFinish, clientBusinessName, clientName, poNumber, requestedBy]);
 
   const handleSubmitClick = () => {
     if (items.length === 0) {
@@ -916,6 +954,10 @@ export default function UploadPage() {
     setItems([]);
     setPrefilledFields([]);
     setPanelWidthUserSelected([]);
+    setClientBusinessName('');
+    setClientName('');
+    setPoNumber('');
+    setRequestedBy('');
     setSubmitError(null);
     setShowEmailCapture(false);
     setGuestEmail('');
@@ -1308,6 +1350,48 @@ export default function UploadPage() {
                   })}
                 </tbody>
               </table>
+            </div>
+
+            {/* Job-identity intake fields (migration 018, afs-jf-000) — all
+                optional, never block submit (afs-jf-003). */}
+            <div style={{ backgroundColor: 'var(--afs-bg-raised)', border: '1px solid var(--afs-bg-overlay)', borderRadius: '8px', padding: '20px', marginBottom: '16px' }}>
+              <p style={{ fontFamily: 'var(--font-barlow)', fontSize: '11px', letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--afs-chrome-mid)', marginBottom: '14px' }}>
+                Job Details (optional)
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+                <div>
+                  <label htmlFor="clientBusinessName" style={{ fontFamily: 'var(--font-inter)', fontSize: '12px', color: 'var(--afs-chrome-dim)', display: 'block', marginBottom: '4px' }}>
+                    Business Name
+                  </label>
+                  <input id="clientBusinessName" type="text" value={clientBusinessName} onChange={(e) => setClientBusinessName(e.target.value)}
+                    placeholder="Company name"
+                    style={{ width: '100%', backgroundColor: 'var(--afs-bg-base)', border: '1px solid var(--afs-chrome-dim)', borderRadius: '6px', padding: '8px 10px', color: 'var(--afs-chrome-high)', fontFamily: 'var(--font-inter)', fontSize: '13px', outline: 'none' }} />
+                </div>
+                <div>
+                  <label htmlFor="clientName" style={{ fontFamily: 'var(--font-inter)', fontSize: '12px', color: 'var(--afs-chrome-dim)', display: 'block', marginBottom: '4px' }}>
+                    Client Name
+                  </label>
+                  <input id="clientName" type="text" value={clientName} onChange={(e) => setClientName(e.target.value)}
+                    placeholder="Contact name"
+                    style={{ width: '100%', backgroundColor: 'var(--afs-bg-base)', border: '1px solid var(--afs-chrome-dim)', borderRadius: '6px', padding: '8px 10px', color: 'var(--afs-chrome-high)', fontFamily: 'var(--font-inter)', fontSize: '13px', outline: 'none' }} />
+                </div>
+                <div>
+                  <label htmlFor="poNumber" style={{ fontFamily: 'var(--font-inter)', fontSize: '12px', color: 'var(--afs-chrome-dim)', display: 'block', marginBottom: '4px' }}>
+                    PO Number
+                  </label>
+                  <input id="poNumber" type="text" value={poNumber} onChange={(e) => setPoNumber(e.target.value)}
+                    placeholder="e.g. PO-10234"
+                    style={{ width: '100%', backgroundColor: 'var(--afs-bg-base)', border: '1px solid var(--afs-chrome-dim)', borderRadius: '6px', padding: '8px 10px', color: 'var(--afs-chrome-high)', fontFamily: 'var(--font-inter)', fontSize: '13px', outline: 'none' }} />
+                </div>
+                <div>
+                  <label htmlFor="requestedBy" style={{ fontFamily: 'var(--font-inter)', fontSize: '12px', color: 'var(--afs-chrome-dim)', display: 'block', marginBottom: '4px' }}>
+                    Requested By
+                  </label>
+                  <input id="requestedBy" type="text" value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)}
+                    placeholder="Who is requesting this?"
+                    style={{ width: '100%', backgroundColor: 'var(--afs-bg-base)', border: '1px solid var(--afs-chrome-dim)', borderRadius: '6px', padding: '8px 10px', color: 'var(--afs-chrome-high)', fontFamily: 'var(--font-inter)', fontSize: '13px', outline: 'none' }} />
+                </div>
+              </div>
             </div>
 
             {submitError && (

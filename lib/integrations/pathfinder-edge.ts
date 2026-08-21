@@ -94,6 +94,18 @@ export interface MachineProfile {
   bends: MachineProfileBend[];
   hemStart?: MachineProfileHem | null;
   hemEnd?: MachineProfileHem | null;
+  // Job-identity intake fields + finish (migration 018, afs-jf-000/afs-jf-002,
+  // threaded through by afs-jf-003) — composed into the outgoing PathfinderEdge
+  // `description` (see composeDescription below), alongside the existing
+  // `AFS profile <profileNumber>` reference text. All optional/nullable; a
+  // caller with no source value for one (e.g. send-to-pathfinder's FlashDraft
+  // live-draw session has no quote_request to read finish/business/client/PO
+  // from unless the operator typed them) simply omits it.
+  clientBusinessName?: string | null;
+  clientName?: string | null;
+  poNumber?: string | null;
+  requestedBy?: string | null;
+  finish?: string | null;
 }
 
 export interface PathfinderProfile extends PathfinderResult {
@@ -327,6 +339,46 @@ function buildFeatures(profile: MachineProfile): PathfinderFeature[] {
   return features;
 }
 
+// Composes the job-identity portion of the outgoing `description`:
+// "Business | Client | PO <po> | Req: <name> | <finish>", with any blank/
+// missing segment dropped entirely (never rendered as an empty " | "),
+// prepended to the pre-existing `AFS profile <profileNumber>` reference-code
+// text — the composed identity string never REPLACES that reference text,
+// only precedes it (afs-jf-003).
+//
+// LENGTH LIMIT CHECK (afs-jf-003, done before writing this function):
+// searched diagnostics/*.json (7 capture files present) — these record only
+// the outgoing POST body (see PATHFINDER_DEBUG_CAPTURE below), never the
+// API's response, so they carry no evidence of a server-side limit either
+// way. Read PathfinderEdge's own public docs (https://docs.amscontrols.com/
+// pathfinderEdge/profile-object and .../publicapi) — `description` is
+// documented only as "Free text. This travels to the machine," with no
+// length constraint stated anywhere in either doc. A live over-length test
+// against the real API was deliberately NOT performed: POST
+// /api/v1/profiles writes directly into catalog 20115 — the one real
+// catalog the physical Thalmann DS2801 polls and picks up automatically
+// (see this file's own header comment and AFS_MACHINE_CATALOG_ID) — an
+// irreversible, shop-floor-visible production side effect, not something
+// safe to trigger from an unattended session without Reid's explicit
+// go-ahead. No truncation is applied as a result. If a real limit is ever
+// found, truncate the identity string only (never the "AFS profile
+// <profileNumber>" reference text) in this exact priority order: po_number
+// first, then clientBusinessName, then requestedBy, then clientName, then
+// finish.
+function composeDescription(profile: MachineProfile): string {
+  const segments = [
+    profile.clientBusinessName?.trim() || null,
+    profile.clientName?.trim() || null,
+    profile.poNumber?.trim() ? `PO ${profile.poNumber.trim()}` : null,
+    profile.requestedBy?.trim() ? `Req: ${profile.requestedBy.trim()}` : null,
+    profile.finish?.trim() || null,
+  ].filter((s): s is string => !!s);
+  const identity = segments.join(' | ');
+  const reference = profile.profileNumber ? `AFS profile ${profile.profileNumber}` : '';
+  if (identity && reference) return `${identity} | ${reference}`;
+  return identity || reference;
+}
+
 export async function pushProfileToPathfinder(profile: MachineProfile, catalogId: string): Promise<PathfinderProfile> {
   const config = getConfig();
   if (!config) return { ...notConfigured(), profileId: null };
@@ -350,7 +402,7 @@ export async function pushProfileToPathfinder(profile: MachineProfile, catalogId
   const profileName = profile.nameEn;
   const body = {
     profileName,
-    description: profile.profileNumber ? `AFS profile ${profile.profileNumber}` : '',
+    description: composeDescription(profile),
     owningCatalogId,
     features,
   };

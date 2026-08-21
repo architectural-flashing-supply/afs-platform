@@ -42,6 +42,12 @@ interface QuoteFormData {
   poNumber:        string;
   rush:            boolean;
   notes:           string;
+  // Job-identity intake fields (migration 018, afs-jf-000) — all optional,
+  // never block submit (afs-jf-003). clientBusinessName/clientName/
+  // requestedBy are new here; poNumber above already existed.
+  clientBusinessName: string;
+  clientName:         string;
+  requestedBy:        string;
 }
 
 const EMPTY_FORM: QuoteFormData = {
@@ -61,6 +67,9 @@ const EMPTY_FORM: QuoteFormData = {
   poNumber:       '',
   rush:           false,
   notes:          '',
+  clientBusinessName: '',
+  clientName:         '',
+  requestedBy:        '',
 };
 
 const PROFILE_TYPES = [
@@ -270,6 +279,9 @@ export default function QuotePage() {
           items,
           jobsiteAddress: form.jobsiteAddress.trim() || null,
           poNumber: form.poNumber.trim() || null,
+          clientBusinessName: form.clientBusinessName.trim() || null,
+          clientName: form.clientName.trim() || null,
+          requestedBy: form.requestedBy.trim() || null,
           isRush: form.rush,
           notes,
           color: form.color.trim() || null,
@@ -593,6 +605,24 @@ export default function QuotePage() {
                     value={form.poNumber} onChange={(e) => updateField('poNumber', e.target.value)}
                     placeholder="e.g. PO-10234" />
                 </div>
+                <div>
+                  <label className={labelClass} htmlFor="clientBusinessName">Business Name (optional)</label>
+                  <input id="clientBusinessName" type="text" className={inputClass}
+                    value={form.clientBusinessName} onChange={(e) => updateField('clientBusinessName', e.target.value)}
+                    placeholder="Company name" />
+                </div>
+                <div>
+                  <label className={labelClass} htmlFor="clientName">Client Name (optional)</label>
+                  <input id="clientName" type="text" className={inputClass}
+                    value={form.clientName} onChange={(e) => updateField('clientName', e.target.value)}
+                    placeholder="Contact name" />
+                </div>
+                <div>
+                  <label className={labelClass} htmlFor="requestedBy">Requested By (optional)</label>
+                  <input id="requestedBy" type="text" className={inputClass}
+                    value={form.requestedBy} onChange={(e) => updateField('requestedBy', e.target.value)}
+                    placeholder="Who is requesting this?" />
+                </div>
               </div>
 
               <div className="mb-6">
@@ -735,6 +765,18 @@ export default function QuotePage() {
                     <tr className="border-b border-afs-chrome-dim">
                       <td className="font-label text-xs uppercase text-afs-chrome-mid px-4 py-3">PO Number</td>
                       <td className="font-body text-afs-chrome-high px-4 py-3">{form.poNumber || '—'}</td>
+                    </tr>
+                    <tr className="border-b border-afs-chrome-dim">
+                      <td className="font-label text-xs uppercase text-afs-chrome-mid px-4 py-3">Business Name</td>
+                      <td className="font-body text-afs-chrome-high px-4 py-3">{form.clientBusinessName || '—'}</td>
+                    </tr>
+                    <tr className="border-b border-afs-chrome-dim">
+                      <td className="font-label text-xs uppercase text-afs-chrome-mid px-4 py-3">Client Name</td>
+                      <td className="font-body text-afs-chrome-high px-4 py-3">{form.clientName || '—'}</td>
+                    </tr>
+                    <tr className="border-b border-afs-chrome-dim">
+                      <td className="font-label text-xs uppercase text-afs-chrome-mid px-4 py-3">Requested By</td>
+                      <td className="font-body text-afs-chrome-high px-4 py-3">{form.requestedBy || '—'}</td>
                     </tr>
                     <tr className="border-b border-afs-chrome-dim">
                       <td className="font-label text-xs uppercase text-afs-chrome-mid px-4 py-3">Rush</td>

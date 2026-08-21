@@ -79,6 +79,12 @@ interface AutosaveState {
   quantity: string;
   notes: string;
   rush: boolean;
+  // Job-identity intake fields (migration 018, afs-jf-000) — all optional,
+  // never block submit (afs-jf-003).
+  clientBusinessName: string;
+  clientName: string;
+  poNumber: string;
+  requestedBy: string;
 }
 
 const MM_PER_INCH = 25.4;
@@ -845,6 +851,12 @@ export default function FlashDraftPage() {
   const [quantity, setQuantity] = useState('1');
   const [notes, setNotes] = useState('');
   const [rush, setRush] = useState(false);
+  // Job-identity intake fields (migration 018, afs-jf-000) — all optional,
+  // never block submit (afs-jf-003).
+  const [clientBusinessName, setClientBusinessName] = useState('');
+  const [clientName, setClientName] = useState('');
+  const [poNumber, setPoNumber] = useState('');
+  const [requestedBy, setRequestedBy] = useState('');
 
   const [matches, setMatches] = useState<ProfileMatch[]>([]);
   const [matchLoading, setMatchLoading] = useState(false);
@@ -909,6 +921,10 @@ export default function FlashDraftPage() {
           if (typeof saved.quantity === 'string') setQuantity(saved.quantity);
           if (typeof saved.notes === 'string') setNotes(saved.notes);
           if (typeof saved.rush === 'boolean') setRush(saved.rush);
+          if (typeof saved.clientBusinessName === 'string') setClientBusinessName(saved.clientBusinessName);
+          if (typeof saved.clientName === 'string') setClientName(saved.clientName);
+          if (typeof saved.poNumber === 'string') setPoNumber(saved.poNumber);
+          if (typeof saved.requestedBy === 'string') setRequestedBy(saved.requestedBy);
         }
       }
     } catch {
@@ -944,6 +960,10 @@ export default function FlashDraftPage() {
           quantity,
           notes,
           rush,
+          clientBusinessName,
+          clientName,
+          poNumber,
+          requestedBy,
         };
         window.localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(state));
       } catch {
@@ -951,7 +971,24 @@ export default function FlashDraftPage() {
       }
     }, AUTOSAVE_DEBOUNCE_MS);
     return () => window.clearTimeout(timeout);
-  }, [points, hemStart, hemEnd, material, gauge, color, finish, lengthFeet, lengthInches, quantity, notes, rush]);
+  }, [
+    points,
+    hemStart,
+    hemEnd,
+    material,
+    gauge,
+    color,
+    finish,
+    lengthFeet,
+    lengthInches,
+    quantity,
+    notes,
+    rush,
+    clientBusinessName,
+    clientName,
+    poNumber,
+    requestedBy,
+  ]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -2647,15 +2684,32 @@ export default function FlashDraftPage() {
       // shop_profile_library.geometry_svg (afs-sv-009) so the shop record's
       // thumbnail is the real rendered profile, not a re-derived redraw.
       const geometryImage = canvasRef.current?.toDataURL('image/png') ?? null;
+      // Use the user's own canvas profile name when they've actually set
+      // one (i.e. renamed it away from the "Untitled Profile" default via
+      // the name editor or by loading a library/saved profile) — falls
+      // back to the same generated format as before this existed
+      // (afs-jf-003). Command Center's approve-quote-request route has its
+      // own, separately-verified concept of "user-set name" (see that
+      // route's resolveItemProfileName) — the two send paths are not
+      // assumed symmetric.
+      const trimmedProfileName = profileName.trim();
+      const userSetProfileName =
+        trimmedProfileName !== '' && trimmedProfileName !== 'Untitled Profile' ? trimmedProfileName : null;
+      const generatedProfileName = `FlashDraft ${material || 'Profile'}${gauge ? ` ${gauge}` : ''} ${new Date().toLocaleString('en-US')}`;
       const res = await fetch('/api/studio/send-to-pathfinder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          profileName: `FlashDraft ${material || 'Profile'}${gauge ? ` ${gauge}` : ''} ${new Date().toLocaleString('en-US')}`,
+          profileName: userSetProfileName ?? generatedProfileName,
           points,
           material: material || null,
           gauge: gauge || null,
           color: color.trim() || null,
+          clientBusinessName: clientBusinessName.trim() || null,
+          clientName: clientName.trim() || null,
+          poNumber: poNumber.trim() || null,
+          requestedBy: requestedBy.trim() || null,
+          finish: isAluminum ? (finish || null) : null,
           thicknessIn,
           quantity: Number(quantity) || null,
           lengthFt: lengthFtDecimal || null,
@@ -2732,6 +2786,18 @@ export default function FlashDraftPage() {
       // (afs-sv-009) instead of re-rendering anything.
       const geometryImage = canvasRef.current?.toDataURL('image/png') ?? undefined;
 
+      // Same "user-set name" resolution sendToPathfinder() uses (afs-jf-003)
+      // — only included on the line item when the user actually renamed the
+      // canvas profile away from the default; the Command Center approval
+      // route (approve-quote-request/route.ts's resolveItemProfileName)
+      // falls back to its own generated describeItem() format when absent,
+      // exactly as it did before this field existed.
+      const trimmedProfileNameForSubmit = profileName.trim();
+      const userSetProfileNameForSubmit =
+        trimmedProfileNameForSubmit !== '' && trimmedProfileNameForSubmit !== 'Untitled Profile'
+          ? trimmedProfileNameForSubmit
+          : undefined;
+
       try {
         const res = await fetch('/api/quote-requests', {
           method: 'POST',
@@ -2740,6 +2806,7 @@ export default function FlashDraftPage() {
             items: [
               {
                 profileType: 'Custom FlashDraft Profile',
+                profileName: userSetProfileNameForSubmit,
                 material,
                 gauge,
                 lengthFt: lengthFtDecimal || 0,
@@ -2761,6 +2828,10 @@ export default function FlashDraftPage() {
             isRush: rush,
             color: color.trim() || null,
             finish: isAluminum ? (finish || null) : null,
+            clientBusinessName: clientBusinessName.trim() || null,
+            clientName: clientName.trim() || null,
+            poNumber: poNumber.trim() || null,
+            requestedBy: requestedBy.trim() || null,
             guestEmail: email,
             sourceTool: 'afs-flashdraft',
           }),
@@ -2784,7 +2855,27 @@ export default function FlashDraftPage() {
         setSubmitState('idle');
       }
     },
-    [points, material, gauge, color, finish, isAluminum, colorSatisfied, lengthFtDecimal, quantity, notes, rush, getEffectiveRadius, hemStart, hemEnd]
+    [
+      points,
+      material,
+      gauge,
+      color,
+      finish,
+      isAluminum,
+      colorSatisfied,
+      lengthFtDecimal,
+      quantity,
+      notes,
+      rush,
+      profileName,
+      clientBusinessName,
+      clientName,
+      poNumber,
+      requestedBy,
+      getEffectiveRadius,
+      hemStart,
+      hemEnd,
+    ]
   );
 
   const openSubmitFlow = () => {
@@ -3162,6 +3253,63 @@ export default function FlashDraftPage() {
                 {rush ? 'Rush requested' : 'Standard timeline'}
               </span>
             </button>
+          </div>
+
+          {/* Job-identity intake fields (migration 018, afs-jf-000) — all
+              optional, never block submit (afs-jf-003). */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1.5 block" htmlFor="clientBusinessName">
+                Business Name (optional)
+              </label>
+              <input
+                id="clientBusinessName"
+                type="text"
+                value={clientBusinessName}
+                onChange={(e) => setClientBusinessName(e.target.value)}
+                placeholder="Company name"
+                className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 font-body text-sm text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
+              />
+            </div>
+            <div>
+              <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1.5 block" htmlFor="clientName">
+                Client Name (optional)
+              </label>
+              <input
+                id="clientName"
+                type="text"
+                value={clientName}
+                onChange={(e) => setClientName(e.target.value)}
+                placeholder="Contact name"
+                className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 font-body text-sm text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
+              />
+            </div>
+            <div>
+              <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1.5 block" htmlFor="poNumber">
+                PO Number (optional)
+              </label>
+              <input
+                id="poNumber"
+                type="text"
+                value={poNumber}
+                onChange={(e) => setPoNumber(e.target.value)}
+                placeholder="e.g. PO-10234"
+                className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 font-body text-sm text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
+              />
+            </div>
+            <div>
+              <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1.5 block" htmlFor="requestedBy">
+                Requested By (optional)
+              </label>
+              <input
+                id="requestedBy"
+                type="text"
+                value={requestedBy}
+                onChange={(e) => setRequestedBy(e.target.value)}
+                placeholder="Who is requesting this?"
+                className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 font-body text-sm text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
+              />
+            </div>
           </div>
 
           <div className="bg-afs-bg-surface border border-afs-chrome-dim rounded overflow-hidden">
