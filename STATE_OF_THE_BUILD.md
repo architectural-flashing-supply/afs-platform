@@ -1674,6 +1674,26 @@ standing decision, not an oversight.
 
 ---
 
+## MIGRATION 013 (bid_documents) — CONFIRMED APPLIED LIVE, 2026-08-20
+
+`013_bid_documents.sql` (four tables: `bid_documents`,
+`bid_document_sections`, `bid_document_line_items`,
+`bid_document_viewers` — see `BID_DOCUMENT_SCOPE.md` for the feature
+design) is **confirmed applied to the live Supabase project**, verified
+by Reid directly via `information_schema` in the Dashboard SQL Editor
+(the check was deliberately not attempted through this session's own
+PostgREST access — see migration 015's earlier stale-cache false-positive
+in `MIGRATIONS_STATUS.md` for why PostgREST-based checks on this project
+are not trusted for this purpose).
+
+This confirms only that the migration's schema objects exist live. No
+Bid Documents application code (bid-doc-002/003 — claim-lock UI, pricing
+entry, PDF generation, Resend send) has a status entry in this document
+yet; that is a separate, not-yet-addressed build phase, not implied by
+this migration's live status.
+
+---
+
 ## GOVERNANCE STACK
 
 | Document | Status |

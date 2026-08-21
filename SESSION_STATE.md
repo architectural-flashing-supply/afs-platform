@@ -1335,6 +1335,64 @@ abb5da8  fix: DPR-aware live canvas, unified glyph scale constants, Open/Smashed
 
 ---
 
+## FILE LOSS — LETTER TO SETH (AMS CONTROLS), 2026-08-20
+
+`letter to seth of AMS.docx` (see item 7 above — Seth Oliver, AMS
+Controls, PathfinderEdge 401 root-cause) was lost during a pre-FORGE
+working-tree cleanup that moved stray untracked files out of the repo to
+`C:\Users\manag\Documents\afs-evidence\`. A malformed move command (see
+lesson learned below) ran first and errored out without moving anything;
+by the time a corrected command ran, the file was no longer present in
+`afs-website`. A full recursive search of `C:\Users\manag\Documents`,
+`afs-website`, and `FORGE` (including a 7-day-recency filter) and a
+Windows Recycle Bin check (via Shell COM, not just filesystem search)
+both came up empty. Root cause not conclusively identified — the search
+is closed per direct user instruction, no further recovery attempted.
+
+**Not a blocker.** The letter is reconstructible from this file's
+Thalmann-sync evidence, and per the user, sending it was already on hold.
+Regenerate it post-verification (once the PathfinderEdge 401
+investigation with Seth actually needs it sent) rather than treating this
+as an open task now.
+
+---
+
+## LESSON LEARNED — NO WINDOWS BACKSLASH PATHS IN THE BASH TOOL
+
+The Bash tool in this environment runs Git Bash (POSIX sh), not
+cmd.exe/PowerShell. A command that mixed Windows-style backslash paths
+(`C:\Users\manag\Documents\afs-evidence\`) into double-quoted Bash
+strings broke quoting — a trailing `\"` is parsed as an escaped literal
+quote character, not a closing quote, silently merging the rest of the
+command line (including later `&&`-chained commands, one of which was the
+move that lost the Seth letter, above) into one malformed invocation.
+
+**Rule going forward: POSIX paths only in the Bash tool** —
+`/c/Users/manag/Documents/...` or forward-slash `C:/Users/manag/...`,
+never backslash-escaped Windows paths. Use the PowerShell tool instead
+when a command genuinely needs native Windows path syntax.
+
+---
+
+## MIGRATION 013 (bid_documents) — CONFIRMED APPLIED LIVE, 2026-08-20
+
+`013_bid_documents.sql` (four tables: `bid_documents`,
+`bid_document_sections`, `bid_document_line_items`,
+`bid_document_viewers` — see `BID_DOCUMENT_SCOPE.md`) is **confirmed
+applied to the live Supabase project**, verified by Reid directly via
+`information_schema` in the Dashboard SQL Editor — not checked through
+this session's own PostgREST access, per this project's standing
+migration-verification standard (PostgREST checks on this project have
+produced false positives before; see migration 015's stale-schema-cache
+incident in `MIGRATIONS_STATUS.md`).
+
+This confirms the migration's schema objects exist live — it does not
+imply any Bid Documents application code (claim-lock UI, pricing entry,
+PDF generation, Resend send) has been built or verified; that remains a
+separate, unaddressed build phase.
+
+---
+
 ## PRIOR HISTORY
 
 This file previously contained several thousand lines of session-by-session
