@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/resend/send';
 import { baseEmailTemplate } from '@/lib/resend/templates/base';
+import { isSourceTool } from '@/lib/data/quote-request-source-tool';
 
 interface QuoteRequestItemInput {
   profileType: string;
@@ -100,6 +101,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const jobsiteAddress = body.jobsiteAddress ?? null;
     const isRush = body.isRush === true;
     const notes = typeof body.notes === 'string' ? body.notes : null;
+    // Every real front-end submission path (FlashDraft, the Configurator,
+    // the Quote Builder, the Blueprint Takeoff AI upload flow) sends its own
+    // token here — see lib/data/quote-request-source-tool.ts for the full
+    // list. Anything missing or unrecognized falls back to 'unknown' rather
+    // than trusting an arbitrary client-supplied string into the column.
+    const sourceTool = isSourceTool(body.sourceTool) ? body.sourceTool : 'unknown';
 
     const admin = createAdminClient();
     const requestNumber = await nextRequestNumber(admin);
@@ -116,6 +123,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       is_rush: isRush,
       notes,
       status: 'submitted',
+      source_tool: sourceTool,
     });
 
     if (insertError) {

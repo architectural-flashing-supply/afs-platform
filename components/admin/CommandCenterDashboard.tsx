@@ -7,6 +7,7 @@ import MachineBridgeStatusDot from '@/components/admin/MachineBridgeStatusDot';
 import type { CustomerListRow } from '@/lib/data/customers';
 import type { CrmInvoiceRow } from '@/lib/data/command-center-crm';
 import type { RecentQuoteRequestRow } from '@/lib/data/command-center-dashboard';
+import { sourceToolLabel } from '@/lib/data/quote-request-source-tool';
 
 // A pending quote request and a sent machine_jobs row share the same
 // "Machine Queue" list on this dashboard — normalized to one shape here
@@ -177,6 +178,7 @@ export default function CommandCenterDashboard({
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
                       {req.isRush && <Badge variant="warning">RUSH</Badge>}
+                      <Badge variant="chrome">{sourceToolLabel(req.sourceTool)}</Badge>
                       <Badge variant={QR_STATUS_VARIANT[req.status] ?? 'chrome'}>
                         {QR_STATUS_LABEL[req.status] ?? req.status}
                       </Badge>

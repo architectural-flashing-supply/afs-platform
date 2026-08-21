@@ -252,6 +252,7 @@ export default function QuotePage() {
           isRush: form.rush,
           notes,
           guestEmail: email,
+          sourceTool: 'afs-quote-builder',
         }),
       });
       const data = (await res.json()) as QuoteRequestSuccessResponse | QuoteRequestErrorResponse;

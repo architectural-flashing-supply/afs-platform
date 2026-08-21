@@ -779,7 +779,7 @@ export default function UploadPage() {
       const res = await fetch('/api/quote-requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items, isRush: false, guestEmail: email }),
+        body: JSON.stringify({ items, isRush: false, guestEmail: email, sourceTool: 'afs-takeoff' }),
       });
       const data = (await res.json()) as QuoteRequestSuccessResponse | QuoteRequestErrorResponse;
       if (!res.ok) {

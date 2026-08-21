@@ -29,6 +29,7 @@ export interface PendingQuoteRequestRow {
   isRush: boolean;
   notes: string | null;
   submittedAt: string;
+  sourceTool: string;
   // True when approving this request would map ANY item through
   // buildBendsFromItem's hardcoded 12"/2"/2" fallback (no real dimensions
   // or drawn points captured) — surfaced so an admin sees the warning
@@ -62,7 +63,7 @@ function describeLineItem(item: PendingQuoteRequestLineItem): string {
 export async function getPendingQuoteRequests(supabase: SupabaseClient): Promise<PendingQuoteRequestRow[]> {
   const { data: rows, error } = await supabase
     .from('quote_requests')
-    .select('id, request_number, user_id, guest_email, line_items, is_rush, notes, submitted_at')
+    .select('id, request_number, user_id, guest_email, line_items, is_rush, notes, submitted_at, source_tool')
     .eq('status', 'submitted')
     .order('is_rush', { ascending: false })
     .order('submitted_at', { ascending: false });
@@ -77,6 +78,7 @@ export async function getPendingQuoteRequests(supabase: SupabaseClient): Promise
     is_rush: boolean;
     notes: string | null;
     submitted_at: string;
+    source_tool: string | null;
   }[];
   if (requests.length === 0) return [];
 
@@ -101,6 +103,7 @@ export async function getPendingQuoteRequests(supabase: SupabaseClient): Promise
       isRush: r.is_rush,
       notes: r.notes,
       submittedAt: r.submitted_at,
+      sourceTool: r.source_tool ?? 'unknown',
       willUseFallbackGeometry: items.some(usesFallbackGeometry),
       hasMultipleLineItems: items.length > 1,
     };

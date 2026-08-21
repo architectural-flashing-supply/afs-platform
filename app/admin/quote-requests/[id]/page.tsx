@@ -5,6 +5,7 @@ import { requireAdminUser } from '@/lib/admin/auth';
 import Badge from '@/components/ui/Badge';
 import QuoteEstimatorForm, { type EstimatorLineItem } from '@/components/admin/QuoteEstimatorForm';
 import { estimateShipmentWeight, type WeightReferenceGauge } from '@/lib/admin/pricing';
+import { sourceToolLabel } from '@/lib/data/quote-request-source-tool';
 
 interface QuoteRequestDetailRow {
   id: string;
@@ -19,6 +20,7 @@ interface QuoteRequestDetailRow {
   user_id: string | null;
   guest_email: string | null;
   quote_id: string | null;
+  source_tool: string | null;
   profiles: { full_name: string; company: string | null; phone: string | null; email: string } | null;
 }
 
@@ -42,7 +44,7 @@ export default async function AdminQuoteRequestDetailPage({ params }: { params: 
   const { data: requestRaw } = await supabase
     .from('quote_requests')
     .select(
-      'id, request_number, status, submitted_at, line_items, jobsite_address, po_number, is_rush, notes, user_id, guest_email, quote_id, profiles(full_name, company, phone, email)'
+      'id, request_number, status, submitted_at, line_items, jobsite_address, po_number, is_rush, notes, user_id, guest_email, quote_id, source_tool, profiles(full_name, company, phone, email)'
     )
     .eq('id', params.id)
     .maybeSingle();
@@ -111,6 +113,9 @@ export default async function AdminQuoteRequestDetailPage({ params }: { params: 
             size="md"
           >
             {request.status === 'quoted' ? 'Quoted' : request.status === 'reviewing' ? 'Reviewing' : 'Submitted'}
+          </Badge>
+          <Badge variant="chrome" size="md">
+            {sourceToolLabel(request.source_tool)}
           </Badge>
         </div>
       </div>

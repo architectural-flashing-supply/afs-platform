@@ -327,6 +327,7 @@ export default function ConfiguratorPage() {
           notes: form.notes.trim() || null,
           isRush: rush,
           guestEmail: email,
+          sourceTool: 'afs-configurator',
         }),
       });
       const data = (await res.json()) as QuoteRequestSuccessResponse | QuoteRequestErrorResponse;

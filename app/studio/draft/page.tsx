@@ -2706,6 +2706,7 @@ export default function FlashDraftPage() {
             notes: combinedNotes,
             isRush: rush,
             guestEmail: email,
+            sourceTool: 'afs-flashdraft',
           }),
         });
         const data = (await res.json()) as { requestNumber?: string; error?: string };

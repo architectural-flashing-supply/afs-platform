@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Badge from '@/components/ui/Badge';
 import type { PendingQuoteRequestRow } from '@/lib/data/pending-quote-requests';
+import { sourceToolLabel } from '@/lib/data/quote-request-source-tool';
 
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString('en-US', {
@@ -55,6 +56,7 @@ export default function PendingQuoteRequestCard({ request }: { request: PendingQ
         <div className="flex flex-col items-end gap-1">
           {request.isRush && <Badge variant="warning">RUSH</Badge>}
           {request.willUseFallbackGeometry && <Badge variant="error">Placeholder Geometry</Badge>}
+          <Badge variant="chrome">{sourceToolLabel(request.sourceTool)}</Badge>
         </div>
       </div>
 
