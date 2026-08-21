@@ -169,6 +169,55 @@ color, queue_position, completed_at columns migration, file only
 
 ---
 
+## FULL-PAGE COLOR PICKER WIRED INTO 4 SUBMISSION SURFACES (afs-cv-002) — 2026-08-21
+
+Read `lib/data/metal-colors.ts` (afs-cv-001) and the real seeded `materials`
+rows in `supabase/migrations/002_seed_afs_data.sql` first, per the task's
+own instruction, before grepping the codebase for real material-selection
+surfaces rather than assuming which ones exist.
+
+**Grep result — exactly 4 real surfaces, confirmed against the closed
+`SourceTool` union in `lib/data/quote-request-source-tool.ts`:**
+`app/studio/draft/page.tsx` (FlashDraft), `app/configure/page.tsx`
+(Configurator — this **is** SPEC_FLASHING_CONFIGURATOR.md's real
+implementation, no separate route exists), `app/quote/page.tsx` (Quote
+Builder), and `app/upload/page.tsx` (Blueprint Takeoff AI results table —
+not in the task's "known real candidates" list, found by the grep itself).
+Checked and ruled out as non-selection surfaces: the architect resource
+pages (`finish-palette`, `custom-profiles`, `cad-library` — all read-only
+browse/reference) and the admin quote-request detail page (read-only
+estimator review, not a selection surface — though it did get a new
+`color` display line so the new column isn't invisible to admins).
+
+**New:** `lib/data/material-color-requirement.ts` (maps each of the 9 UI
+material label strings to its real `materials.category`; `painted_steel` →
+McElroy required, `aluminum` → PAC-CLAD required, everything else → no
+color field), `components/quote/ColorPickerModal.tsx` (full-page modal,
+swatch grid + search, afs-* token chrome with a documented CANVAS_COLORS-
+style exception for the swatch hex backgrounds only), and
+`components/quote/ColorField.tsx` (the shared required-field trigger used
+by all 4 surfaces).
+
+**Modified:** `app/api/quote-requests/route.ts` (reads `body.color`, writes
+`quote_requests.color`), and all 4 surfaces above. `app/upload/page.tsx`
+needed different handling from the other 3 — it's the only surface where
+one submission can carry several line items with different color-requiring
+materials at once, so its per-row `ColorField` results feed
+`buildRequestColor()`, which composes one semicolon-joined
+`"ProfileType: ColorName"` entry per item needing a color rather than a
+single value, since `quote_requests.color` is one column for the whole
+request.
+
+`pnpm tsc --noEmit`: 0 errors, run directly this session. No browser/
+Playwright access this session — per this file's verification standard,
+**IMPLEMENTED, UNCONFIRMED**, and additionally blocked on migration 017
+(afs-cv-000, still FILE ONLY as of this session) actually being applied
+live before `quote_requests.color` can be confirmed to persist real
+submissions. Committed as `feat: full-page color picker required for
+painted materials, wired into FlashDraft/quote builder (afs-cv-002)`.
+
+---
+
 ## METAL COLOR CHART DATA EXTRACTED (afs-cv-001) — 2026-08-21
 
 Verified both source PDFs still exist at their exact given paths

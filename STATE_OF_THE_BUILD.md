@@ -167,6 +167,83 @@ through is a future task, not part of afs-sv-010.
 
 ---
 
+## FULL-PAGE COLOR PICKER, REQUIRED FOR PAINTED/ANODIZED MATERIALS (afs-cv-002): IMPLEMENTED, UNCONFIRMED
+
+**Status: `pnpm tsc --noEmit` passes with 0 errors, verified this session.
+This prompt has a real browser surface (4 existing pages gained a new
+required field) but this session had no browser/Playwright access — per
+this file's verification standard it is marked IMPLEMENTED/UNCONFIRMED
+until Reid opens each of the four surfaces below, confirms the picker
+renders and filters correctly, and confirms a submitted request's `color`
+value actually lands in the database. Also depends on migration 017
+(`quote_requests.color`, afs-cv-000) being applied live — still FILE ONLY,
+NOT YET APPLIED LIVE as of this writing (see that entry below) — until
+Reid applies it, a submission that sends `color` will silently no-op that
+column (the insert itself won't fail; Supabase ignores unknown-to-schema-
+cache columns only if PostgREST's schema cache hasn't picked up the
+column, which is the actual live-apply risk here, not a hard failure
+mode — either way, treat `color` as unverified end-to-end until 017 is
+confirmed live AND a real submission is checked in the database).**
+
+**Real material-selection surfaces found and wired — confirmed by grepping
+the codebase, then cross-checked against the closed `SourceTool` union in
+`lib/data/quote-request-source-tool.ts` (exactly 4 tokens, matching exactly
+these 4 surfaces, with no unaccounted 5th):**
+1. `app/studio/draft/page.tsx` (FlashDraft, `sourceTool: 'afs-flashdraft'`)
+2. `app/configure/page.tsx` (Custom Flashing Configurator,
+   `'afs-configurator'`) — this **is** the real, wired implementation of
+   SPEC_FLASHING_CONFIGURATOR.md; no separate/different configurator route
+   exists.
+3. `app/quote/page.tsx` (Quote Builder, `'afs-quote-builder'`)
+4. `app/upload/page.tsx` (Blueprint Takeoff AI results table,
+   `'afs-takeoff'`) — not in the task's own "known real candidates" list,
+   found by the required codebase grep; each extracted line item has its
+   own editable material `<select>`, so this one got a **per-row** color
+   field rather than a single page-level one (see below).
+
+**Surfaces checked and confirmed NOT material-selection surfaces (read-only
+reference/browse pages, no wiring added):** `app/(public)/architects/
+finish-palette/page.tsx` (browses the separate `finishes` table, not the
+McElroy/PAC-CLAD charts), `app/(public)/architects/custom-profiles/page.tsx`,
+`app/(public)/architects/cad-library/page.tsx`, and `app/admin/quote-
+requests/[id]/page.tsx` (admin estimator review — displays the customer's
+already-submitted material/gauge/color read-only via `QuoteEstimatorForm`;
+a `color` display line was added here so the new column is actually visible
+to estimators, but no new *selection* input).
+
+**New files:**
+- `lib/data/material-color-requirement.ts` — maps each of the 9 material
+  label strings used by the UI (which differ slightly in wording from the
+  seeded `materials.name` values, e.g. "Galvanized Galvalume" vs. DB's
+  "Galvalume Steel") to the real `materials.category` value from
+  `supabase/migrations/002_seed_afs_data.sql`. `painted_steel` (Kynar 500
+  Painted Steel, Vintage Steel) → McElroy required; `aluminum` (Anodized
+  Aluminum, the only seeded aluminum material) → PAC-CLAD required; every
+  other category → no color field.
+- `components/quote/ColorPickerModal.tsx` — full-page modal, grid of swatch
+  chips (hex background + name label) filterable by a search box. Chrome
+  (frame/search/labels/layout) is afs-* tokens only; the swatch backgrounds
+  are literal hex from `lib/data/metal-colors.ts`, documented as the same
+  CANVAS_COLORS-pattern exception already used in `app/studio/draft/
+  page.tsx` and `app/checkout/page.tsx` (CLAUDE.md rule #4).
+- `components/quote/ColorField.tsx` — the required-field trigger (swatch
+  preview button + validation message) that opens the modal, shared by all
+  4 wired surfaces.
+
+**Payload/schema:** `app/api/quote-requests/route.ts` now reads
+`body.color` and writes it into `quote_requests.color`. On the 3
+single-item surfaces (FlashDraft, Configurator, Quote Builder) this is a
+straightforward 1:1 mapping. `app/upload/page.tsx`'s takeoff table can hold
+several items with different color-requiring materials in one submission —
+since `quote_requests.color` is a single column, `buildRequestColor()`
+there composes one `"ProfileType: ColorName"` entry per item that needs a
+color, semicolon-joined, rather than silently keeping only the first.
+
+Committed as `feat: full-page color picker required for painted materials,
+wired into FlashDraft/quote builder (afs-cv-002)`.
+
+---
+
 ## METAL COLOR CHART DATA EXTRACTED FROM MCELROY + PAC-CLAD PDFs (afs-cv-001): IMPLEMENTED, UNCONFIRMED
 
 **Status: `lib/data/metal-colors.ts` added, exporting two typed arrays,
