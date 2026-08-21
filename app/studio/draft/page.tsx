@@ -730,6 +730,28 @@ export default function FlashDraftPage() {
   const moveProfileOriginRef = useRef<{ mouse: Point; points: Point[] } | null>(null);
   const hasMovedProfileRef = useRef(false);
 
+  // --- Prepend a new leg from the free end of the FIRST leg (afs-sv-005) ---
+  // Mirror of the "click near the last point continues the line" gesture
+  // below, which always APPENDS. Point 0 can't reuse that exact mechanism:
+  // unlike the true last point (deliberately excluded from hitTestVertex so
+  // grabbing it means "extend"), point 0 IS a fully hit-testable, directly
+  // draggable vertex (afs-sv-003 — grabbing it moves it in place). There is
+  // no empty hit-radius left at point 0's own screen position where a plain
+  // click/drag could unambiguously mean "start a new leg" instead of "move
+  // this one." Resolved the same way afs-sv-004 resolved an equivalent
+  // ambiguity for whole-profile move: reuse this file's existing
+  // modifier-key-for-a-distinct-drag-meaning convention (spacePressed ->
+  // pan, altPressed -> whole-move) instead of inventing a new interaction
+  // paradigm or touching hitTestVertex/the sv-003 fix. Shift+drag anywhere
+  // on the canvas (checked before vertex/segment hit-testing, so it always
+  // takes priority) arms the exact same click-and-drag-drawing state
+  // (dragAnchorRef/isDragDrawing/dragPreview) the append gesture uses, just
+  // anchored at points[0] instead of the last point — prependDragRef is the
+  // only new piece of state, recording which end the live preview and the
+  // eventual commit should extend from.
+  const shiftPressed = useRef(false);
+  const prependDragRef = useRef(false);
+
   // --- Click-and-drag drawing state ---
   const dragAnchorRef = useRef<Point | null>(null);
   const dragDownScreenRef = useRef<Point | null>(null);
@@ -928,6 +950,9 @@ export default function FlashDraftPage() {
       if (e.key === 'Alt') {
         altPressed.current = true;
       }
+      if (e.key === 'Shift') {
+        shiftPressed.current = true;
+      }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         undo();
@@ -953,6 +978,7 @@ export default function FlashDraftPage() {
     function handleKeyUp(e: KeyboardEvent) {
       if (e.code === 'Space') spacePressed.current = false;
       if (e.key === 'Alt') altPressed.current = false;
+      if (e.key === 'Shift') shiftPressed.current = false;
     }
     document.addEventListener('keydown', handleKeyDown);
     document.addEventListener('keyup', handleKeyUp);
@@ -1075,9 +1101,12 @@ export default function FlashDraftPage() {
 
     // Live drag-in-progress segment, from the last committed point to the
     // cursor — or, for the very first point, from the drag's own anchor
-    // (there is no committed point yet to read from `points`).
+    // (there is no committed point yet to read from `points`). A prepend
+    // drag (afs-sv-005 — Shift+drag, see prependDragRef) anchors at
+    // points[0] instead of the last point, mirroring the append case.
     if (isDragDrawing && dragPreview && (points.length > 0 || dragAnchorRef.current)) {
-      const anchor = points.length > 0 ? points[points.length - 1] : dragAnchorRef.current!;
+      const anchor =
+        points.length > 0 ? (prependDragRef.current ? points[0] : points[points.length - 1]) : dragAnchorRef.current!;
       const a = worldToScreen(anchor, canvas);
       const b = worldToScreen(dragPreview.point, canvas);
       ctx.save();
@@ -1448,6 +1477,7 @@ export default function FlashDraftPage() {
     // gesture leaking in.
     legBodyDragCandidateRef.current = null;
     legReshapeGrabOffsetRef.current = null;
+    prependDragRef.current = false;
 
     // Whole-profile move (afs-sv-004) — see the doc comment on
     // isMovingProfile's declaration above for why Alt+drag was chosen.
@@ -1462,6 +1492,30 @@ export default function FlashDraftPage() {
       setSelectedBendPoint(null);
       setSelectedSegment(null);
       canvas.style.cursor = 'grabbing';
+      return;
+    }
+
+    // Prepend a new leg from point 0's free end (afs-sv-005) — see the doc
+    // comment on prependDragRef's declaration for why Shift+drag was
+    // chosen. Checked before vertex/segment hit-testing (same priority as
+    // the Alt branch above) so it always wins over grabbing point 0
+    // directly to move it — that gesture (afs-sv-003) only ever runs while
+    // Shift is NOT held. Arms the same click-and-drag-drawing state the
+    // append gesture (below, "click near the LAST point") uses, anchored
+    // at points[0] instead; the anchor and preview point are only ever
+    // read from live state at commit time (see handlePointerUp), so
+    // exactly where on the canvas this drag starts doesn't matter, mirror
+    // of how Alt+drag above works "anywhere on the canvas."
+    if (shiftPressed.current && points.length > 0) {
+      setSelectedBendPoint(null);
+      setSelectedSegment(null);
+      const anchor = points[0];
+      dragAnchorRef.current = anchor;
+      dragDownScreenRef.current = screenPos;
+      prependDragRef.current = true;
+      setIsDragDrawing(true);
+      setDragPreview({ point: anchor, length: 0, angleDeg: 0 });
+      setDragScreenPos(screenPos);
       return;
     }
 
@@ -1727,6 +1781,19 @@ export default function FlashDraftPage() {
       return;
     }
 
+    // Shift held but not yet dragging — suppress vertex/segment hover so it
+    // doesn't visually compete with point 0's own move affordance; cursor
+    // stays the default crosshair (same "ready to draw" cue plain drawing
+    // already uses), since this gesture also draws a new segment, just
+    // prepended instead of appended (afs-sv-005).
+    if (shiftPressed.current && points.length > 0) {
+      canvas.style.cursor = 'crosshair';
+      canvas.title = '';
+      setHoveredVertex(null);
+      setHoveredSegment(null);
+      return;
+    }
+
     const vertexHover = hitTestVertex(screenPos, canvas);
     setHoveredVertex(vertexHover);
     if (vertexHover !== null) {
@@ -1767,6 +1834,12 @@ export default function FlashDraftPage() {
   const handlePointerUp = () => {
     legBodyDragCandidateRef.current = null;
     legReshapeGrabOffsetRef.current = null;
+    // Read then reset, same pattern as the two refs above — this flag must
+    // never survive past the gesture it belongs to, but the isDragDrawing
+    // finalize branch below still needs to know which end THIS gesture was
+    // extending from (afs-sv-005).
+    const wasPrependDrag = prependDragRef.current;
+    prependDragRef.current = false;
 
     if (isPanning) {
       setIsPanning(false);
@@ -1815,7 +1888,15 @@ export default function FlashDraftPage() {
             : [dragAnchorRef.current]
         );
       } else if (dragPreview.length >= MIN_DRAG_SEGMENT_IN) {
-        commitPoints([...points, dragPreview.point]);
+        // afs-sv-005: a prepend drag inserts the new point at the FRONT —
+        // every existing point shifts one index later, which is exactly
+        // why selectedBendPoint/selectedSegment were already cleared when
+        // this gesture was armed in handlePointerDown (a selection left
+        // pointing at its old index would now silently reference the
+        // wrong vertex/leg). commitPoints's own setSelectedSegment(null)
+        // covers segment selection either way; the append branch needs no
+        // equivalent care since it never shifts any existing index.
+        commitPoints(wasPrependDrag ? [dragPreview.point, ...points] : [...points, dragPreview.point]);
       }
       setIsDragDrawing(false);
       dragAnchorRef.current = null;
@@ -2675,10 +2756,10 @@ export default function FlashDraftPage() {
         </div>
         <p
           className="font-body text-[10px] text-afs-chrome-dim mt-1 hidden md:block"
-          title="Click empty space to draw · click a segment or bend to select it · double-click an endpoint for a hem · Alt+drag to move the whole profile"
+          title="Click empty space to draw · click a segment or bend to select it · double-click an endpoint for a hem · Alt+drag to move the whole profile · Shift+drag to start a new leg from the first leg's free end"
         >
           Click empty space to draw · click a segment or bend to select it · double-click an endpoint for a hem ·
-          Alt+drag to move the whole profile
+          Alt+drag to move the whole profile · Shift+drag to start a new leg from the first leg&apos;s free end
         </p>
       </div>
 
