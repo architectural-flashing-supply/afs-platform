@@ -89,6 +89,48 @@ drawing/editing behavior in the browser with the toggles gone. Committed as
 
 ---
 
+## FLASHDRAFT WHEEL ZOOM FIXED (afs-sv-002) — 2026-08-20
+
+Read the wheel-event handling code in `app/studio/draft/page.tsx` in full
+before changing anything, per the task's instruction, and confirmed the bug
+directly from the code rather than guessing from the reported symptom.
+
+**Root cause:** zoom was wired via React's `onWheel={handleWheel}` JSX
+prop. React always attaches `onWheel` as a **passive** native listener, so
+`handleWheel`'s `e.preventDefault()` call was silently ignored — the
+browser's native page scroll and the canvas zoom both fired on the same
+wheel event, simultaneously and unpredictably, exactly as reported.
+Separately, the old zoom math never adjusted `pan`, so zoom always scaled
+around the canvas's fixed center rather than the cursor, causing the point
+under the cursor to drift on every scroll.
+
+**Fix:**
+- Deleted the `handleWheel` React handler and the `onWheel` JSX prop.
+- Added a `useEffect` that attaches a real native `wheel` listener via
+  `canvas.addEventListener('wheel', handler, { passive: false })` — the
+  only way to make `preventDefault()` actually stop page scroll.
+- The handler now computes cursor position via `getBoundingClientRect()`
+  and updates `pan` together with `zoom` so the world point under the
+  cursor stays fixed on screen — single, deterministic, cursor-centered
+  zoom.
+- The effect depends on `[viewMode]`, matching the existing draw-loop
+  effect's own reasoning: the `<canvas>` element unmounts/remounts when
+  the user toggles the 2D/3D view toggle, so the listener must reattach to
+  the new DOM node each time. Every effect run's cleanup calls
+  `removeEventListener` before the next listener is attached (or on
+  unmount), so listeners cannot accumulate across re-renders.
+
+Only `app/studio/draft/page.tsx` changed (full-file edits, wheel-handling
+code only — no color/styling touched). `pnpm tsc --noEmit` run directly
+this session: 0 errors. Per this file's own verification standard, this is
+**IMPLEMENTED, UNCONFIRMED** — the user has not yet independently confirmed
+by scrolling the mouse wheel over the actual FlashDraft canvas that page
+scroll no longer fires and zoom is now cursor-centered. Committed as `fix:
+FlashDraft wheel handler - single cursor-centered zoom, no page scroll, no
+duplicate listeners (afs-sv-002)`.
+
+---
+
 ## CURRENT STATUS
 
 **FOURTH revision applied (2026-08-20): bend angle now emits SIGNED

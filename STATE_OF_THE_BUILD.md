@@ -119,6 +119,61 @@ pure removal (net −54 lines).
 
 ---
 
+## FLASHDRAFT — WHEEL ZOOM: PAGE-SCROLL + CANVAS-ZOOM FIRING TOGETHER, FIXED (afs-sv-002): IMPLEMENTED, UNCONFIRMED
+
+**Status: code fixed, `pnpm tsc --noEmit` passes with 0 errors. Not yet
+independently confirmed by the user scrolling the mouse wheel over the
+actual FlashDraft canvas — per this file's verification standard, that
+confirmation is required before this can be marked DONE.**
+
+Only file touched: `app/studio/draft/page.tsx` (full-file replacement of
+the wheel-handling code only; nothing else in the file was touched).
+
+**Root cause, confirmed directly from the code before changing anything:**
+the canvas wired zoom via React's `onWheel={handleWheel}` JSX prop
+(`app/studio/draft/page.tsx`, previously around line 1689/2844). React
+attaches `onWheel` as a **passive** native listener regardless of what the
+handler itself does, so the handler's `e.preventDefault()` call was
+silently ignored by the browser — this is a documented React behavior, not
+a typo. With `preventDefault()` a no-op, the browser's native page scroll
+and the canvas's own zoom both fired off the same wheel event, simultaneously
+and unpredictably, exactly as reported. Separately, the old zoom math
+(`setZoom((z) => Math.max(0.25, Math.min(4, z - e.deltaY * 0.001)))`) never
+touched `pan`, so zooming always scaled around the canvas's fixed center
+point rather than the cursor position — the point under the cursor would
+visibly drift on every scroll.
+
+**Fix applied:**
+- Deleted the `handleWheel` React synthetic-event handler and the
+  `onWheel={handleWheel}` JSX prop on the `<canvas>` element.
+- Added a `useEffect` that attaches a **native** `wheel` listener directly
+  to the canvas DOM node via `canvas.addEventListener('wheel', handler, {
+  passive: false })` — the only way to make `preventDefault()` actually
+  block page scroll on a wheel event.
+- The listener computes the cursor's position relative to the canvas via
+  `getBoundingClientRect()`, then updates `pan` alongside `zoom` (solving
+  for the pan offset that keeps the world point under the cursor fixed on
+  screen at the new zoom level) — so zoom is now single, deterministic,
+  and centered on the cursor, not the canvas center.
+- The effect depends on `viewMode`: the `<canvas>` element unmounts and
+  remounts whenever the user toggles between the 2D draw view and the 3D
+  viewer (`{viewMode === '2d' && (<canvas ... />)}` in the JSX), so
+  `canvasRef.current` is a different DOM node after each toggle. Depending
+  on `viewMode` — the same pattern the existing draw-loop `useEffect`
+  already uses for the same reason — makes the listener reattach to the
+  new node each time. Every run of the effect returns a cleanup that calls
+  `canvas.removeEventListener`, so the previous listener is always removed
+  before (or upon) the next one being attached; listeners cannot
+  accumulate across re-renders or across `viewMode` toggles.
+
+**Explicitly NOT touched:** the toolbar zoom in/out buttons and the zoom
+percentage readout (`setZoom` calls tied to `ToolbarButton` `onClick`,
+unrelated to the wheel-event bug), pan-via-space-drag, all other pointer
+handlers, and colors/styling — this was a pure event-wiring and zoom-math
+fix, no afs-* token changes.
+
+---
+
 ## CRITICAL — PATHFINDEREDGE BEND ANGLE, FOURTH REVISION: SIGNED INTERIOR ANGLE, NOT TURN-ANGLE: IMPLEMENTED, PENDING VERIFICATION
 
 **Status: IMPLEMENTED, PENDING Reid's own visual verification matrix

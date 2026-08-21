@@ -1686,10 +1686,50 @@ export default function FlashDraftPage() {
     if (canvas) canvas.title = '';
   };
 
-  const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
-    setZoom((z) => Math.max(0.25, Math.min(4, z - e.deltaY * 0.001)));
-  };
+  // Wheel zoom is wired via a native, non-passive `wheel` listener (below)
+  // rather than the React `onWheel` JSX prop. React attaches `onWheel` as a
+  // PASSIVE listener, which silently ignores `e.preventDefault()` — the
+  // browser scrolls the page at the same time the canvas zooms, both
+  // firing unpredictably together. A manually-attached listener with
+  // `{ passive: false }` is the only way to actually block page scroll
+  // while the cursor is over the canvas.
+  //
+  // The canvas element unmounts/remounts whenever `viewMode` toggles
+  // between '2d' and '3d' (see the `viewMode === '2d' &&` guard in the
+  // JSX below), so this effect depends on `viewMode` to reattach the
+  // listener each time the canvas element is recreated — same pattern the
+  // draw-loop effect above already follows. The effect itself always
+  // attaches at most one listener per canvas instance, and cleans it up
+  // on every re-run and on unmount, so listeners never accumulate across
+  // renders.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    function handleWheelNative(e: WheelEvent) {
+      e.preventDefault();
+      const rect = canvas!.getBoundingClientRect();
+      const cursorX = e.clientX - rect.left;
+      const cursorY = e.clientY - rect.top;
+
+      setZoom((prevZoom) => {
+        const nextZoom = Math.max(0.25, Math.min(4, prevZoom - e.deltaY * 0.001));
+        if (nextZoom !== prevZoom) {
+          // Keep the world point under the cursor fixed on screen: solve
+          // for the pan offset that maps that same world point back to
+          // the same screen position at the new zoom level.
+          setPan((prevPan) => ({
+            x: prevPan.x + (cursorX - rect.width / 2 - prevPan.x) * (1 - nextZoom / prevZoom),
+            y: prevPan.y + (cursorY - rect.height / 2 - prevPan.y) * (1 - nextZoom / prevZoom),
+          }));
+        }
+        return nextZoom;
+      });
+    }
+
+    canvas.addEventListener('wheel', handleWheelNative, { passive: false });
+    return () => canvas.removeEventListener('wheel', handleWheelNative);
+  }, [viewMode]);
 
   const handleDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     // A hem needs a neighbor point to compute a fold direction from, so
@@ -2841,7 +2881,6 @@ export default function FlashDraftPage() {
                 onLostPointerCapture={handlePointerUp}
                 onPointerLeave={handlePointerLeave}
                 onDoubleClick={handleDoubleClick}
-                onWheel={handleWheel}
                 onContextMenu={(e) => e.preventDefault()}
                 className="w-full h-full"
                 style={{ touchAction: 'none', cursor: 'crosshair' }}
