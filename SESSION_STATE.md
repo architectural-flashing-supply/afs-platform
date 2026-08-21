@@ -58,6 +58,37 @@ and not restart from scratch.**
 
 ---
 
+## FLASHDRAFT SNAP TOGGLES REMOVED (afs-sv-001) — 2026-08-20
+
+Read `app/studio/draft/page.tsx` in full before touching anything (3,356
+lines), per the task's own instruction not to guess at wiring from the UI
+alone. Removed the "Snap to 15° angle" and "Snap to 1/8" dimension" sidebar
+checkboxes and every piece of logic behind them:
+
+- `snapAngle` / `snapDimension` state, `applySnapping()`, `snapToGrid()`,
+  and the `SNAP_ANGLE_DEGREES` / `SNAP_DIMENSION_INCHES` constants — all
+  deleted.
+- Three call sites that used them during drawing/editing (first-click
+  anchor, vertex-drag reshape, click-drag-draw preview) now use the raw
+  cursor position directly instead of a snapped one.
+- The drag preview's angle label (`snapAngle && ...`) now always renders,
+  since the toggle it was gated on no longer exists.
+
+Left untouched, confirmed by re-reading before editing: hem logic, bend
+logic, `clampDragAngle`'s 0°/180° guard rail, and the unrelated visual
+background grid (`GRID_INCHES`, a different constant from the removed
+`SNAP_DIMENSION_INCHES`).
+
+Only `app/studio/draft/page.tsx` changed (full-file edits). `pnpm tsc
+--noEmit` run directly this session: 0 errors. Per this file's own
+verification standard (see top of file), this is **IMPLEMENTED,
+UNCONFIRMED** — the user has not yet independently confirmed FlashDraft's
+drawing/editing behavior in the browser with the toggles gone. Committed as
+`fix: remove Snap to 15deg / Snap to 1/8in toggles from FlashDraft
+(afs-sv-001)`.
+
+---
+
 ## CURRENT STATUS
 
 **FOURTH revision applied (2026-08-20): bend angle now emits SIGNED

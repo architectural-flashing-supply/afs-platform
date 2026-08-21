@@ -83,6 +83,42 @@ and not restart from scratch.**
 
 ---
 
+## FLASHDRAFT — "SNAP TO 15° ANGLE" / "SNAP TO 1/8" DIMENSION" TOGGLES REMOVED (afs-sv-001): IMPLEMENTED, UNCONFIRMED
+
+**Status: code removed, `pnpm tsc --noEmit` passes with 0 errors. Not yet
+independently confirmed by the user drawing/editing in the actual FlashDraft
+canvas — per this file's verification standard, that confirmation is
+required before this can be marked DONE.**
+
+Only file touched: `app/studio/draft/page.tsx` (full-file edits, no other
+files reference this logic — confirmed via grep before starting).
+
+Removed entirely:
+- The two checkbox toggles in the FlashDraft sidebar ("Snap to 15° angle",
+  "Snap to 1/8" dimension") and their `snapAngle`/`snapDimension` `useState`
+  fields.
+- `applySnapping()` (angle/length rounding to `SNAP_ANGLE_DEGREES` /
+  `SNAP_DIMENSION_INCHES`) and `snapToGrid()` (first-point grid snap), plus
+  the now-unused `SNAP_ANGLE_DEGREES` / `SNAP_DIMENSION_INCHES` constants.
+- Every call site that invoked that snapping during drawing/editing: the
+  first-click anchor in `handlePointerDown`, the vertex-drag reshape branch
+  in `handlePointerMove` (still runs through the unrelated `clampDragAngle`
+  guard rail, now against the raw cursor position instead of a snapped
+  one), and the click-drag-draw preview branch in `handlePointerMove`.
+- The drag-length/angle preview label's `snapAngle &&` gate — the angle is
+  now always shown next to the length while drag-drawing, since there is no
+  longer a toggle to gate it on.
+
+**Explicitly NOT touched**, per the request: hem logic, bend-angle logic
+(`clampDragAngle`, the bend-radius/angle input panel), the visual
+background grid (`GRID_INCHES`, unrelated to `SNAP_DIMENSION_INCHES` and
+left in place), and everything else in FlashDraft.
+
+No new colors or non-afs-* Tailwind classes were introduced; this was a
+pure removal (net −54 lines).
+
+---
+
 ## CRITICAL — PATHFINDEREDGE BEND ANGLE, FOURTH REVISION: SIGNED INTERIOR ANGLE, NOT TURN-ANGLE: IMPLEMENTED, PENDING VERIFICATION
 
 **Status: IMPLEMENTED, PENDING Reid's own visual verification matrix

@@ -135,8 +135,6 @@ const CANVAS_COLORS = {
 
 const PIXELS_PER_INCH = 20;
 const GRID_INCHES = 0.25;
-const SNAP_ANGLE_DEGREES = 15;
-const SNAP_DIMENSION_INCHES = 0.125;
 const CANVAS_MIN_WIDTH = 600;
 const CANVAS_MIN_HEIGHT = 440;
 const HIT_RADIUS_PX = 10;
@@ -404,32 +402,6 @@ function computeFitView(points: Point[], canvasWidth: number, canvasHeight: numb
   const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
   const centerY = (Math.min(...ys) + Math.max(...ys)) / 2;
   return { zoom: nextZoom, pan: { x: -centerX * PIXELS_PER_INCH * nextZoom, y: -centerY * PIXELS_PER_INCH * nextZoom } };
-}
-
-function applySnapping(prev: Point, raw: Point, snapAngle: boolean, snapDimension: boolean): Point {
-  let dx = raw.x - prev.x;
-  let dy = raw.y - prev.y;
-  let length = Math.hypot(dx, dy);
-  let angleRad = Math.atan2(dy, dx);
-
-  if (snapAngle) {
-    const deg = (angleRad * 180) / Math.PI;
-    const snappedDeg = Math.round(deg / SNAP_ANGLE_DEGREES) * SNAP_ANGLE_DEGREES;
-    angleRad = (snappedDeg * Math.PI) / 180;
-  }
-  if (snapDimension) {
-    length = Math.round(length / SNAP_DIMENSION_INCHES) * SNAP_DIMENSION_INCHES;
-  }
-  dx = Math.cos(angleRad) * length;
-  dy = Math.sin(angleRad) * length;
-  return { x: prev.x + dx, y: prev.y + dy };
-}
-
-function snapToGrid(p: Point): Point {
-  return {
-    x: Math.round(p.x / SNAP_DIMENSION_INCHES) * SNAP_DIMENSION_INCHES,
-    y: Math.round(p.y / SNAP_DIMENSION_INCHES) * SNAP_DIMENSION_INCHES,
-  };
 }
 
 function distanceToSegment(p: Point, a: Point, b: Point): number {
@@ -710,9 +682,6 @@ export default function FlashDraftPage() {
   const [isPanning, setIsPanning] = useState(false);
   const panOrigin = useRef<{ mouse: Point; pan: Point } | null>(null);
   const spacePressed = useRef(false);
-
-  const [snapAngle, setSnapAngle] = useState(true);
-  const [snapDimension, setSnapDimension] = useState(true);
 
   // --- Click-and-drag drawing state ---
   const dragAnchorRef = useRef<Point | null>(null);
@@ -1433,10 +1402,9 @@ export default function FlashDraftPage() {
       // first two points in one continuous gesture, matching how dragging
       // from an already-placed last point behaves.
       const raw = screenToWorld(screenPos.x, screenPos.y, canvas);
-      const anchor = snapDimension ? snapToGrid(raw) : raw;
-      dragAnchorRef.current = anchor;
+      dragAnchorRef.current = raw;
       setIsDragDrawing(true);
-      setDragPreview({ point: anchor, length: 0, angleDeg: 0 });
+      setDragPreview({ point: raw, length: 0, angleDeg: 0 });
       setDragScreenPos(screenPos);
       return;
     }
@@ -1564,16 +1532,11 @@ export default function FlashDraftPage() {
       const original = draggingVertexOriginalPoints.current;
       if (!original) return;
       const originalPos = original[idx];
-      // Snap relative to the fixed incoming-leg neighbor (same helper the
-      // freehand click-drag tool uses) so "Snap to 15° angle" applies to
-      // the incoming leg's new direction, not just grid position.
-      const anchor = original[idx - 1];
-      const snapped = anchor && (snapAngle || snapDimension) ? applySnapping(anchor, raw, snapAngle, snapDimension) : raw;
       // Guard rail: never let this drag reach or cross a self-overlapping
       // (0°) or fully-straightened (180°) bend at either joint it can
-      // reshape — see clampDragAngle. A no-op (returns `snapped` itself,
+      // reshape — see clampDragAngle. A no-op (returns `raw` itself,
       // same object) whenever the candidate is already safe.
-      const clamped = clampDragAngle(snapped, idx, original);
+      const clamped = clampDragAngle(raw, idx, original);
       const delta = { x: clamped.x - originalPos.x, y: clamped.y - originalPos.y };
       // The incoming leg's endpoint (this vertex) moves to the cursor;
       // everything downstream translates by the same delta so downstream
@@ -1620,10 +1583,9 @@ export default function FlashDraftPage() {
 
     if (isDragDrawing && dragAnchorRef.current) {
       const raw = screenToWorld(screenPos.x, screenPos.y, canvas);
-      const snapped = applySnapping(dragAnchorRef.current, raw, snapAngle, snapDimension);
-      const length = dist(dragAnchorRef.current, snapped);
-      const angleDeg = (Math.atan2(snapped.y - dragAnchorRef.current.y, snapped.x - dragAnchorRef.current.x) * 180) / Math.PI;
-      setDragPreview({ point: snapped, length, angleDeg });
+      const length = dist(dragAnchorRef.current, raw);
+      const angleDeg = (Math.atan2(raw.y - dragAnchorRef.current.y, raw.x - dragAnchorRef.current.x) * 180) / Math.PI;
+      setDragPreview({ point: raw, length, angleDeg });
       setDragScreenPos(screenPos);
       return;
     }
@@ -2618,22 +2580,6 @@ export default function FlashDraftPage() {
             />
           </div>
 
-          <div className="flex flex-col gap-2">
-            <label className="flex items-center justify-between font-label text-xs text-afs-chrome-mid">
-              Snap to 15° angle
-              <input type="checkbox" checked={snapAngle} onChange={(e) => setSnapAngle(e.target.checked)} className="accent-afs-crimson" />
-            </label>
-            <label className="flex items-center justify-between font-label text-xs text-afs-chrome-mid">
-              Snap to 1/8&quot; dimension
-              <input
-                type="checkbox"
-                checked={snapDimension}
-                onChange={(e) => setSnapDimension(e.target.checked)}
-                className="accent-afs-crimson"
-              />
-            </label>
-          </div>
-
           {selectedBendPoint !== null && (
             <div className="bg-afs-bg-surface border border-afs-chrome-dim rounded p-3 flex flex-col gap-2">
               <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid block" htmlFor="angleMode">
@@ -2952,7 +2898,7 @@ export default function FlashDraftPage() {
                 }}
               >
                 {dragPreview.length.toFixed(3)}&quot;
-                {snapAngle && <span className="ml-2 opacity-80">{Math.round(dragPreview.angleDeg)}°</span>}
+                <span className="ml-2 opacity-80">{Math.round(dragPreview.angleDeg)}°</span>
               </div>
             )}
 
