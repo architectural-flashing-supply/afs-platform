@@ -49,6 +49,12 @@ const CRM_TABS: { value: CrmTab; label: string }[] = [
 
 const ALL_TABS = [...MACHINE_TABS, ...CRM_TABS];
 
+// Not part of the union above deliberately — Profile Library (afs-sv-009) is
+// a wholly separate route (/admin/profile-library), not a `?tab=` value this
+// page itself renders, so it's a plain nav Link rather than a PageTab.
+const PROFILE_LIBRARY_NAV_LINK_CLASSNAME =
+  'font-label text-sm px-4 py-2.5 border-b-2 border-transparent text-afs-chrome-mid hover:text-afs-chrome-high transition-colors whitespace-nowrap';
+
 function isCrmTab(value: string | undefined): value is CrmTab {
   return CRM_TABS.some((tab) => tab.value === value);
 }
@@ -159,6 +165,10 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
               {tab.label}
             </Link>
           ))}
+          <span className="w-px h-5 bg-afs-border mx-2" />
+          <Link href="/admin/profile-library" className={PROFILE_LIBRARY_NAV_LINK_CLASSNAME}>
+            Profile Library
+          </Link>
         </div>
 
         <CommandCenterDashboard
@@ -259,6 +269,10 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
             </Link>
           );
         })}
+        <span className="w-px h-5 bg-afs-border mx-2" />
+        <Link href="/admin/profile-library" className={PROFILE_LIBRARY_NAV_LINK_CLASSNAME}>
+          Profile Library
+        </Link>
       </div>
 
       {activeTab === 'customers' && <CustomersCrmTab customers={crmCustomers} />}

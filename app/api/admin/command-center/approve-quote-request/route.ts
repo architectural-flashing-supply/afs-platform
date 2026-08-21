@@ -12,6 +12,8 @@ import {
   type PathfinderProfile,
 } from '@/lib/integrations/pathfinder-edge';
 import { flashDraftToMachineProfile, type FlashDraftHemInput } from '@/lib/integrations/flashdraft-to-pathfinder';
+import { generateProfileSVG, slugToProfileType } from '@/lib/utils/profile-svg';
+import { insertShopProfileLibraryRecord } from '@/lib/data/shop-profile-library';
 
 interface FlashDraftPoint {
   x: number;
@@ -27,6 +29,7 @@ interface QuoteRequestLineItem {
   height?: number | null;
   legA?: number | null;
   legB?: number | null;
+  lengthFt?: number | null;
   quantity: number;
   // Present on "Custom FlashDraft Profile" items submitted from
   // app/studio/draft/page.tsx — the real drawn geometry (world inches) and
@@ -40,6 +43,12 @@ interface QuoteRequestLineItem {
   // hems never reached PathfinderEdge as real features.
   hemStart?: FlashDraftHemInput | null;
   hemEnd?: FlashDraftHemInput | null;
+  // Data-URI PNG snapshot of FlashDraft's own canvas at submit time (see
+  // page.tsx's submitQuoteRequest) — reused as-is for
+  // shop_profile_library.geometry_svg (afs-sv-009) below. Only present on
+  // FlashDraft-submitted items; older rows submitted before afs-sv-009
+  // simply have no snapshot to reuse.
+  geometryImage?: string | null;
 }
 
 interface CustomBend {
@@ -223,6 +232,46 @@ function buildMachineProfileForItem(
   };
 }
 
+function svgToDataUri(svg: string): string {
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+// shop_profile_library.geometry_svg (afs-sv-009) must be the exact profile
+// visual the submitting tool already shows — never a newly invented
+// rendering. Two real sources exist:
+//   - FlashDraft-drawn items (item.points present): item.geometryImage is a
+//     canvas.toDataURL() snapshot of FlashDraft's own <canvas>, captured
+//     client-side at submit time (page.tsx's submitQuoteRequest) since this
+//     server route has no canvas to read from. Used as-is.
+//   - Everything else (Configurator-submitted items: profileType +
+//     width/height/legA/legB, no points): rendered server-side via
+//     lib/utils/profile-svg.ts's generateProfileSVG — the exact same
+//     function app/configure/page.tsx and app/upload/page.tsx already call
+//     to draw this profile. Wrapped in a data URI so the admin table can
+//     always just <img src={geometry_svg} /> regardless of which branch
+//     produced it.
+// A profileType this codebase has no known renderer for (e.g. a Quote
+// Builder or Blueprint Takeoff AI item using a free-form label
+// slugToProfileType doesn't recognize) yields null rather than a guessed
+// diagram.
+function buildGeometrySvg(item: QuoteRequestLineItem): string | null {
+  if (item.points && item.points.length >= 2) {
+    return item.geometryImage ?? null;
+  }
+
+  const profileType = slugToProfileType(item.profileType);
+  if (!profileType) return null;
+
+  const svg = generateProfileSVG({
+    profileType,
+    width: item.width ?? null,
+    height: item.height ?? null,
+    legA: item.legA ?? null,
+    legB: item.legB ?? null,
+  });
+  return svgToDataUri(svg);
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const supabase = await createClient();
@@ -246,7 +295,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const { data: quoteRequest, error: qrError } = await supabase
       .from('quote_requests')
-      .select('id, user_id, guest_email, line_items, is_rush, notes, status')
+      .select('id, user_id, guest_email, line_items, is_rush, notes, status, requested_delivery, source_tool')
       .eq('id', quoteRequestId)
       .maybeSingle();
     if (qrError || !quoteRequest) {
@@ -260,6 +309,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       is_rush: boolean;
       notes: string | null;
       status: string;
+      requested_delivery: string | null;
+      source_tool: string | null;
     };
     if (qr.status !== 'submitted') {
       return NextResponse.json({ error: 'Quote request is not pending approval.' }, { status: 409 });
@@ -268,6 +319,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const items = qr.line_items ?? [];
     if (items.length === 0) {
       return NextResponse.json({ error: 'Quote request has no line items.' }, { status: 400 });
+    }
+
+    // Resolved once, reused both for the shop_profile_library rows written
+    // per line item below and for the customer notification sent at the
+    // end of this route — same profile fetch, just hoisted so it's not
+    // duplicated at both call sites.
+    let recipientEmail: string | null = null;
+    let recipientName: string | null = null;
+    let recipientCompany: string | null = null;
+    let recipientPhone: string | null = null;
+    if (qr.user_id) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name, email, phone, company')
+        .eq('id', qr.user_id)
+        .maybeSingle();
+      recipientEmail = (profile?.email as string | undefined) ?? null;
+      recipientName = (profile?.full_name as string | undefined) ?? null;
+      recipientCompany = (profile?.company as string | undefined) ?? null;
+      recipientPhone = (profile?.phone as string | undefined) ?? null;
+    } else {
+      recipientEmail = qr.guest_email;
     }
 
     // One machine_jobs row PER LINE ITEM, each pushed to PathfinderEdge for
@@ -380,6 +453,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           pathfinderMessage: pathfinderResults[i].message,
         },
       });
+
+      // Shop-floor record of this send (afs-sv-009) — one row per line
+      // item, same as the machine_jobs row it's paired with.
+      await insertShopProfileLibraryRecord(supabase, {
+        quoteRequestId,
+        machineJobId,
+        profileName: build.profileName,
+        customerName: recipientName ?? qr.guest_email ?? null,
+        company: recipientCompany,
+        customerEmail: recipientEmail,
+        customerPhone: recipientPhone,
+        accountNotes: qr.notes,
+        material: build.item.material ?? null,
+        gauge: build.item.gauge ?? null,
+        quantity: build.quantity,
+        lengthFt: build.item.lengthFt ?? null,
+        dueDate: qr.requested_delivery,
+        geometryPoints: build.item.points ?? null,
+        geometrySvg: buildGeometrySvg(build.item),
+        sourceTool: qr.source_tool,
+        pathfinderProfileId: pathfinderResults[i].profileId,
+      });
     }
 
     const { error: updateError } = await supabase
@@ -397,20 +492,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // --- Customer notification: job approved / moved to production (never blocks; ARCHITECTURE.md §9) ---
-    let recipientEmail: string | null = null;
-    let recipientName: string | null = null;
-    if (qr.user_id) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('full_name, email')
-        .eq('id', qr.user_id)
-        .maybeSingle();
-      recipientEmail = (profile?.email as string | undefined) ?? null;
-      recipientName = (profile?.full_name as string | undefined) ?? null;
-    } else {
-      recipientEmail = qr.guest_email;
-    }
-
     if (recipientEmail) {
       const emailResult = await sendEmail({
         to: recipientEmail,

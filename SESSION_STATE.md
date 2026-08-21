@@ -426,6 +426,84 @@ Clear/Submit-only clearing (afs-sv-006)`.
 
 ---
 
+## SHOP_PROFILE_LIBRARY POPULATED ON PATHFINDEREDGE SEND, PROFILE LIBRARY ADMIN PAGE ADDED (afs-sv-009) — 2026-08-20
+
+Read both real PathfinderEdge-send routes in full before changing anything,
+per the task's own instruction not to assume: confirmed
+`app/api/admin/command-center/approve-quote-request/route.ts` (admin
+approves a quote request, one push per line item) and
+`app/api/studio/send-to-pathfinder/route.ts` (FlashDraft's direct button,
+independent of the quote-request pipeline — that file's own header comment
+says so explicitly) are the only two real, distinct code paths that call
+`pushProfileToPathfinder`. Also checked and ruled out two look-alikes:
+`app/api/admin/command-center/approve/route.ts` (approves a
+`pending_approval` `machine_jobs` row) is dead code in practice — nothing
+ever creates a `machine_jobs` row at `pending_approval`, since
+`approve-quote-request/route.ts` always inserts `approved_for_machine`
+directly; and `app/api/admin/pathfinder/push-profile/route.ts` is a
+generic stubbed test route (`SITEMAP.md`: "POST — stubbed, not live").
+
+**Renderer reuse — the task's central constraint ("do not write new
+rendering logic, find and call the existing renderer") — resolved
+per source tool:**
+- **FlashDraft:** its canvas draw loop
+  (`app/studio/draft/page.tsx`'s "Draw loop" `useEffect`) is imperative and
+  tightly coupled to live interaction state (zoom, pan, hover, drag-preview)
+  — not a callable pure function. Both `sendToPathfinder()` and
+  `submitQuoteRequest()` now call `canvasRef.current.toDataURL('image/png')`
+  right before sending — an exact pixel snapshot of that same canvas, zero
+  new drawing code. The direct-send route uses this snapshot immediately;
+  the approval route (server-side, no canvas) reads back the snapshot
+  captured at **submission** time, stored verbatim in
+  `quote_requests.line_items[].geometryImage` (a plain passthrough field —
+  `app/api/quote-requests/route.ts` stores whatever the client sends, no
+  whitelist strips it).
+- **Configurator:** items with no drawn `points` (`profileType` +
+  width/height/legA/legB) are rendered via `lib/utils/profile-svg.ts`'s
+  existing `generateProfileSVG()` — the same function `app/configure/
+  page.tsx` and `app/upload/page.tsx` already call — via
+  `slugToProfileType()`, wrapped in a `data:image/svg+xml` URI. An
+  unmappable `profileType` (Quote Builder / Blueprint Takeoff AI items)
+  gets `geometry_svg: null`, not a guessed diagram.
+
+`geometry_points` (FlashDraft items only) stores `item.points` verbatim —
+confirmed via `page.tsx`'s own `Point` interface (`{x, y, radius?}`) and
+`getEffectiveRadius` that this IS FlashDraft's real internal point/bend
+structure, not the separately-computed `bendRadiiIn` array used only for
+the PathfinderEdge adapter's own feature-list construction.
+
+New `lib/data/shop-profile-library.ts` holds `insertShopProfileLibraryRecord()`
+(fails soft — try/catch, logs, never throws, same reasoning as
+`logAdminAction` and every notification send per ARCHITECTURE.md §9: a
+shop-record side effect must not roll back a response that already
+reflects a real PathfinderEdge push) and `getShopProfileLibrary()` (the one
+place `deleted_at IS NULL` is filtered, so a soft-deleted row disappears
+from this admin page and from whatever afs-sv-010's Shop View turns out to
+be, without either needing its own copy of that filter).
+
+New `app/admin/profile-library/page.tsx` + `components/admin/
+ProfileLibraryTable.tsx`: search/sort/filter table, `<img>` thumbnail per
+row from `geometry_svg`, trash-can → confirm modal (same modal pattern as
+`CommandCenterJobCard`) → `DELETE /api/admin/profile-library/[id]`, which
+sets `deleted_at` only. "Profile Library" added to both occurrences of the
+Command Center header nav bar in `app/admin/command-center/page.tsx`,
+styled with the exact non-active-link className the existing CRM tab links
+already use.
+
+**Depends on migration 016 actually being live** (still FILE ONLY per the
+afs-sv-007 entry below, unless re-verified since) — until
+`shop_profile_library` exists and `quote_requests.source_tool` is real,
+these inserts fail at the database level. By design this never blocks the
+underlying PathfinderEdge send (see the fails-soft note above).
+`pnpm tsc --noEmit`: 0 errors, run directly this session. Per this file's
+verification standard: **IMPLEMENTED, UNCONFIRMED** — no browser check has
+been done, and neither the live migration status nor the actual rendered
+thumbnails/table behavior has been confirmed by the user. Committed as
+`feat: populate shop_profile_library on PathfinderEdge send, add Profile
+Library admin page (afs-sv-009)`.
+
+---
+
 ## SOURCE_TOOL WIRED — QUOTE_REQUESTS INSERTS TAGGED, COMMAND CENTER SOURCE BADGE ADDED (afs-sv-008) — 2026-08-20
 
 Grepped every `.from('quote_requests')` call site in the codebase directly

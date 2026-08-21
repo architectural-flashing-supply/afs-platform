@@ -6,6 +6,7 @@ import {
   type FlashDraftPointInput,
   type FlashDraftHemInput,
 } from '@/lib/integrations/flashdraft-to-pathfinder';
+import { insertShopProfileLibraryRecord } from '@/lib/data/shop-profile-library';
 
 // This route is entirely separate from app/api/admin/command-center/
 // approve/route.ts and from machine_jobs/delivery_method — it sends
@@ -16,9 +17,22 @@ interface RequestBody {
   profileName?: string;
   points?: FlashDraftPointInput[];
   material?: string | null;
+  gauge?: string | null;
   thicknessIn?: number;
+  quantity?: number | null;
+  lengthFt?: number | null;
+  notes?: string | null;
   hemStart?: FlashDraftHemInput | null;
   hemEnd?: FlashDraftHemInput | null;
+  // Data-URI PNG snapshot of the FlashDraft canvas at the moment of send —
+  // captured client-side via canvasRef.current.toDataURL('image/png') in
+  // app/studio/draft/page.tsx's sendToPathfinder(). This IS FlashDraft's own
+  // canvas-render code path (the same <canvas> the user is looking at), just
+  // read back as pixels instead of redrawn — no separate rendering logic
+  // exists or is written here. See shop_profile_library.geometry_svg
+  // (migration 016, afs-sv-007) and afs-sv-009's task for why this is
+  // captured on every send.
+  geometryImage?: string | null;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -67,6 +81,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (result.status !== 'connected') {
       return NextResponse.json({ error: result.message }, { status: 502 });
     }
+
+    // Shop-floor record of this send (afs-sv-009) — never tied to a
+    // quote_request/machine_job (this route has neither, per the file
+    // header comment above), so customer/order fields stay null and only
+    // what's actually available from the live draw session is captured.
+    await insertShopProfileLibraryRecord(supabase, {
+      profileName: body.profileName,
+      material: body.material ?? null,
+      gauge: body.gauge ?? null,
+      quantity: typeof body.quantity === 'number' ? body.quantity : null,
+      lengthFt: typeof body.lengthFt === 'number' ? body.lengthFt : null,
+      accountNotes: body.notes ?? null,
+      geometryPoints: body.points,
+      geometrySvg: body.geometryImage ?? null,
+      sourceTool: 'afs-flashdraft',
+      pathfinderProfileId: result.profileId,
+    });
 
     return NextResponse.json({ ok: true, profileId: result.profileId, message: result.message });
   } catch (error) {

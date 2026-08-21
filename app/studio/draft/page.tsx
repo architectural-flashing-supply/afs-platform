@@ -2611,6 +2611,11 @@ export default function FlashDraftPage() {
     setPathfinderState('sending');
     setPathfinderMessage(null);
     try {
+      // Snapshot of the canvas exactly as FlashDraft's own draw-loop effect
+      // just rendered it (see the "Draw loop" useEffect above) — reused as
+      // shop_profile_library.geometry_svg (afs-sv-009) so the shop record's
+      // thumbnail is the real rendered profile, not a re-derived redraw.
+      const geometryImage = canvasRef.current?.toDataURL('image/png') ?? null;
       const res = await fetch('/api/studio/send-to-pathfinder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2618,7 +2623,12 @@ export default function FlashDraftPage() {
           profileName: `FlashDraft ${material || 'Profile'}${gauge ? ` ${gauge}` : ''} ${new Date().toLocaleString('en-US')}`,
           points,
           material: material || null,
+          gauge: gauge || null,
           thicknessIn,
+          quantity: Number(quantity) || null,
+          lengthFt: lengthFtDecimal || null,
+          notes: notes.trim() || null,
+          geometryImage,
           hemStart: hemStart
             ? { type: hemStart.type, gapIn: hemStart.gapIn, lengthIn: hemStart.lengthIn, kick: hemStart.kick }
             : null,
@@ -2679,6 +2689,13 @@ export default function FlashDraftPage() {
         bendRadiiIn.push(getEffectiveRadius(i));
       }
 
+      // Same canvas snapshot sendToPathfinder() captures — stored on the
+      // line item so a later Command Center approval (approve-quote-
+      // request/route.ts, server-side, no live canvas to read) can reuse
+      // this exact rendered image for shop_profile_library.geometry_svg
+      // (afs-sv-009) instead of re-rendering anything.
+      const geometryImage = canvasRef.current?.toDataURL('image/png') ?? undefined;
+
       try {
         const res = await fetch('/api/quote-requests', {
           method: 'POST',
@@ -2694,6 +2711,7 @@ export default function FlashDraftPage() {
                 unit: 'LF',
                 points,
                 bendRadiiIn,
+                geometryImage,
                 hemStart: hemStart
                   ? { type: hemStart.type, gapIn: hemStart.gapIn, lengthIn: hemStart.lengthIn, kick: hemStart.kick }
                   : undefined,
