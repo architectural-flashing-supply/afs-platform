@@ -3,7 +3,9 @@
 import { Fragment, useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { MATERIAL_STOCK_STATUS } from '@/lib/data/catalog';
+import { colorPaletteForMaterial } from '@/lib/data/material-color-requirement';
 import MaterialRecommendationPanel from '@/components/quote/MaterialRecommendationPanel';
+import ColorField from '@/components/quote/ColorField';
 import WasteFactorDisplay from '@/components/quote/WasteFactorDisplay';
 import TrimLengthOptimizerSection from '@/components/quote/TrimLengthOptimizerSection';
 import CrossSellPanel from '@/components/ai/CrossSellPanel';
@@ -20,6 +22,7 @@ interface QuoteFormData {
   profileType:     string;
   material:        string;
   gauge:           string;
+  color:           string;
   width:           string;
   height:          string;
   legA:            string;
@@ -37,6 +40,7 @@ const EMPTY_FORM: QuoteFormData = {
   profileType:    '',
   material:       '',
   gauge:          '',
+  color:          '',
   width:          '',
   height:         '',
   legA:           '',
@@ -181,8 +185,10 @@ export default function QuotePage() {
     setForm(prev => ({ ...prev, [field]: value }));
   };
 
+  const colorPalette = form.material ? colorPaletteForMaterial(form.material) : null;
+
   const selectMaterial = (material: string) => {
-    setForm(prev => ({ ...prev, material, gauge: '' }));
+    setForm(prev => ({ ...prev, material, gauge: '', color: '' }));
   };
 
   const toggleRush = () => {
@@ -191,7 +197,8 @@ export default function QuotePage() {
 
   const gaugeOptions = form.material ? GAUGES[form.material] ?? [] : [];
 
-  const step1Valid = form.profileType !== '' && form.material !== '' && form.gauge !== '';
+  const colorSatisfied = !colorPalette || form.color.trim() !== '';
+  const step1Valid = form.profileType !== '' && form.material !== '' && form.gauge !== '' && colorSatisfied;
   const step2Valid =
     isPositiveNumber(form.lengthFt) &&
     isPositiveNumber(form.quantity) &&
@@ -231,6 +238,12 @@ export default function QuotePage() {
       setSubmitError('Add a profile type, material, and length before submitting.');
       return;
     }
+    if (!colorSatisfied) {
+      setSubmitError(
+        `Select a ${colorPalette === 'mcelroy' ? 'McElroy' : 'PAC-CLAD'} color before submitting.`
+      );
+      return;
+    }
 
     setSubmitError(null);
     setSubmitState('submitting');
@@ -251,6 +264,7 @@ export default function QuotePage() {
           poNumber: form.poNumber.trim() || null,
           isRush: form.rush,
           notes,
+          color: form.color.trim() || null,
           guestEmail: email,
           sourceTool: 'afs-quote-builder',
         }),
@@ -269,11 +283,17 @@ export default function QuotePage() {
       setSubmitError('Submission failed. Please try again.');
       setSubmitState('idle');
     }
-  }, [buildItems, form, selectedAccessories]);
+  }, [buildItems, form, selectedAccessories, colorSatisfied, colorPalette]);
 
   const handleSubmit = () => {
     if (buildItems().length === 0) {
       setSubmitError('Add a profile type, material, and length before submitting.');
+      return;
+    }
+    if (!colorSatisfied) {
+      setSubmitError(
+        `Select a ${colorPalette === 'mcelroy' ? 'McElroy' : 'PAC-CLAD'} color before submitting.`
+      );
       return;
     }
     if (isAuthenticated) {
@@ -458,6 +478,17 @@ export default function QuotePage() {
                 </div>
               </div>
 
+              {colorPalette && (
+                <div className="mt-6 max-w-sm">
+                  <ColorField
+                    palette={colorPalette}
+                    value={form.color || null}
+                    onChange={(name) => setForm(prev => ({ ...prev, color: name }))}
+                    error={form.color.trim() === '' ? `Required for ${form.material} — select a color before continuing.` : null}
+                  />
+                </div>
+              )}
+
               {form.material && (
                 <MaterialRecommendationPanel
                   material={form.material}
@@ -616,10 +647,16 @@ export default function QuotePage() {
                       <td className="font-label text-xs uppercase text-afs-chrome-mid px-4 py-3">Material</td>
                       <td className="font-body text-afs-chrome-high px-4 py-3">{form.material}</td>
                     </tr>
-                    <tr>
+                    <tr className={colorPalette ? 'border-b border-afs-chrome-dim' : ''}>
                       <td className="font-label text-xs uppercase text-afs-chrome-mid px-4 py-3">Gauge / Thickness</td>
                       <td className="font-data text-afs-chrome-high px-4 py-3">{form.gauge}</td>
                     </tr>
+                    {colorPalette && (
+                      <tr>
+                        <td className="font-label text-xs uppercase text-afs-chrome-mid px-4 py-3">Color</td>
+                        <td className="font-body text-afs-chrome-high px-4 py-3">{form.color || '—'}</td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>

@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/client';
 import { gaugeToThicknessMm } from '@/lib/utils/gauge-thickness';
 import ProfileViewer3D, { type ProfileBend } from '@/components/studio/ProfileViewer3D';
 import { ALL_MATERIALS, GAUGES_BY_MATERIAL, STANDARD_PROFILE_DEFAULTS, STANDARD_PANEL_WIDTHS } from '@/lib/data/catalog';
+import { colorPaletteForMaterial } from '@/lib/data/material-color-requirement';
+import ColorField from '@/components/quote/ColorField';
 import { UPLOAD_ACCEPTED_EXTENSIONS, UPLOAD_MAX_SIZE_BYTES } from '@/lib/utils/upload-limits';
 import type { ScopeOption, ScopeDirective } from '@/app/api/takeoff/route';
 import type { SignUploadResponse } from '@/app/api/upload/route';
@@ -218,6 +220,11 @@ interface TakeoffItem {
   material: string | null;
   gauge: string | null;
   finish: string | null;
+  // Selected McElroy/PAC-CLAD color name, required (per row) only when
+  // colorPaletteForMaterial(material) is non-null (afs-cv-002). The AI
+  // extraction never sets this — always null until the estimator picks one
+  // in the results table below.
+  color?: string | null;
   width: number | null;
   height: number | null;
   legA: number | null;
@@ -772,6 +779,19 @@ export default function UploadPage() {
     setPanelWidthUserSelected(prev => prev.filter((_, i) => i !== index));
   };
 
+  // quote_requests.color (migration 017) is a single column for the whole
+  // request, but this table can hold several items with different
+  // color-requiring materials at once — unlike the single-item Configurator/
+  // Quote Builder/FlashDraft surfaces. Composing one "Profile — Color" entry
+  // per item that needs one (joined) preserves every selection instead of
+  // silently keeping only the first.
+  const buildRequestColor = useCallback((): string | null => {
+    const parts = items
+      .filter((item) => item.material && colorPaletteForMaterial(item.material) && item.color)
+      .map((item) => `${item.profileType}: ${item.color}`);
+    return parts.length > 0 ? parts.join('; ') : null;
+  }, [items]);
+
   const submitQuoteRequest = useCallback(async (email?: string) => {
     setSubmitError(null);
     setState('submitting');
@@ -779,7 +799,13 @@ export default function UploadPage() {
       const res = await fetch('/api/quote-requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items, isRush: false, guestEmail: email, sourceTool: 'afs-takeoff' }),
+        body: JSON.stringify({
+          items,
+          isRush: false,
+          color: buildRequestColor(),
+          guestEmail: email,
+          sourceTool: 'afs-takeoff',
+        }),
       });
       const data = (await res.json()) as QuoteRequestSuccessResponse | QuoteRequestErrorResponse;
       if (!res.ok) {
@@ -798,7 +824,7 @@ export default function UploadPage() {
       setSubmitError('Submission failed. Please try again.');
       setState('results');
     }
-  }, [items, uploadId]);
+  }, [items, uploadId, buildRequestColor]);
 
   const handleSubmitClick = () => {
     if (items.length === 0) {
@@ -811,6 +837,17 @@ export default function UploadPage() {
         missingQuantityCount === 1
           ? 'Select a panel width for the item missing a quantity before submitting.'
           : `Select a panel width for all ${missingQuantityCount} items missing a quantity before submitting.`
+      );
+      return;
+    }
+    const missingColorCount = items.filter(
+      (item) => item.material && colorPaletteForMaterial(item.material) && !item.color
+    ).length;
+    if (missingColorCount > 0) {
+      setSubmitError(
+        missingColorCount === 1
+          ? 'Select a color for the item that requires one before submitting.'
+          : `Select a color for all ${missingColorCount} items that require one before submitting.`
       );
       return;
     }
@@ -1079,7 +1116,7 @@ export default function UploadPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                 <thead>
                   <tr style={{ backgroundColor: 'var(--afs-bg-surface)' }}>
-                    {['#', 'Profile', 'Material', 'Gauge', 'Dimensions', 'Length (ft)', 'Qty', 'Confidence', ''].map(h => (
+                    {['#', 'Profile', 'Material', 'Gauge', 'Color', 'Dimensions', 'Length (ft)', 'Qty', 'Confidence', ''].map(h => (
                       <th key={h} style={{ fontFamily: 'var(--font-barlow)', fontSize: '11px', color: 'var(--afs-chrome-base)', textTransform: 'uppercase', letterSpacing: '1px', textAlign: 'left', padding: '12px 16px', borderBottom: '1px solid var(--afs-bg-overlay)' }}>
                         {h}
                       </th>
@@ -1128,6 +1165,20 @@ export default function UploadPage() {
                           </select>
                           {prefilledFields[i]?.has('gauge') && <DefaultBadge />}
                         </div>
+                      </td>
+                      <td style={{ padding: '12px 16px' }}>
+                        {item.material && colorPaletteForMaterial(item.material) ? (
+                          <div style={{ minWidth: '160px' }}>
+                            <ColorField
+                              palette={colorPaletteForMaterial(item.material)!}
+                              value={item.color ?? null}
+                              onChange={(name) => updateItem(i, 'color', name)}
+                              error={!item.color ? 'Required' : null}
+                            />
+                          </div>
+                        ) : (
+                          <span style={{ color: 'var(--afs-chrome-dim)' }}>—</span>
+                        )}
                       </td>
                       <td style={{ padding: '12px 16px' }}>
                         {isRoofPanelItem(item) && item.width == null ? (

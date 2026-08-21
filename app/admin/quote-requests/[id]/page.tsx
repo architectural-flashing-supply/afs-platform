@@ -17,6 +17,10 @@ interface QuoteRequestDetailRow {
   po_number: string | null;
   is_rush: boolean;
   notes: string | null;
+  // McElroy/PAC-CLAD color name selected by the customer when their
+  // material required one (afs-cv-002). Null for bare/mill-finish materials
+  // and for requests submitted before this column existed.
+  color: string | null;
   user_id: string | null;
   guest_email: string | null;
   quote_id: string | null;
@@ -44,7 +48,7 @@ export default async function AdminQuoteRequestDetailPage({ params }: { params: 
   const { data: requestRaw } = await supabase
     .from('quote_requests')
     .select(
-      'id, request_number, status, submitted_at, line_items, jobsite_address, po_number, is_rush, notes, user_id, guest_email, quote_id, source_tool, profiles(full_name, company, phone, email)'
+      'id, request_number, status, submitted_at, line_items, jobsite_address, po_number, is_rush, notes, color, user_id, guest_email, quote_id, source_tool, profiles(full_name, company, phone, email)'
     )
     .eq('id', params.id)
     .maybeSingle();
@@ -149,6 +153,12 @@ export default async function AdminQuoteRequestDetailPage({ params }: { params: 
               <dt className="text-afs-chrome-mid">PO Number</dt>
               <dd className="text-afs-chrome-high">{request.po_number ?? '—'}</dd>
             </div>
+            {request.color && (
+              <div className="flex justify-between">
+                <dt className="text-afs-chrome-mid">Color</dt>
+                <dd className="text-afs-chrome-high text-right">{request.color}</dd>
+              </div>
+            )}
             {request.notes && (
               <div className="flex flex-col gap-1 pt-1 border-t border-afs-border mt-1">
                 <dt className="text-afs-chrome-mid">Customer Notes</dt>

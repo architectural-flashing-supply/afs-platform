@@ -3,8 +3,10 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { generateProfileSVG, type ProfileType } from '@/lib/utils/profile-svg';
+import { colorPaletteForMaterial } from '@/lib/data/material-color-requirement';
 import WasteFactorDisplay from '@/components/quote/WasteFactorDisplay';
 import TrimLengthOptimizerSection from '@/components/quote/TrimLengthOptimizerSection';
+import ColorField from '@/components/quote/ColorField';
 import {
   getProfileStockLengths,
   resolveStockLengthBySlug,
@@ -17,6 +19,7 @@ type DimField = 'width' | 'height' | 'legA' | 'legB';
 interface ConfiguratorForm {
   material: string;
   gauge: string;
+  color: string;
   width: string;
   height: string;
   legA: string;
@@ -64,6 +67,7 @@ interface QuoteRequestErrorResponse {
 const EMPTY_FORM: ConfiguratorForm = {
   material: '',
   gauge: '',
+  color: '',
   width: '',
   height: '',
   legA: '',
@@ -207,6 +211,16 @@ export default function ConfiguratorPage() {
 
   const isCleat = profileType === 'cleat';
 
+  // The 'painted_steel' and 'aluminum' material categories require a color
+  // selection from the McElroy / PAC-CLAD chart before this item can be
+  // added or submitted (afs-cv-002). quote_requests.color (migration 017)
+  // is a single column for the whole request, so this reflects the
+  // CURRENTLY-BUILT item's material/color — the same scope the rest of
+  // this form (length, quantity, notes) already applies per-request rather
+  // than per-queued-item.
+  const colorPalette = form.material ? colorPaletteForMaterial(form.material) : null;
+  const colorSatisfied = !colorPalette || form.color.trim() !== '';
+
   const svgMarkup = useMemo(() => {
     if (!profileType) return null;
     return generateProfileSVG({
@@ -228,7 +242,7 @@ export default function ConfiguratorPage() {
   };
 
   const selectMaterial = (material: string) => {
-    setForm(prev => ({ ...prev, material, gauge: '' }));
+    setForm(prev => ({ ...prev, material, gauge: '', color: '' }));
   };
 
   const gaugeOptions = form.material ? GAUGES[form.material] ?? [] : [];
@@ -237,6 +251,7 @@ export default function ConfiguratorPage() {
     profileType !== '' &&
     form.material !== '' &&
     form.gauge !== '' &&
+    colorSatisfied &&
     isPositiveNumber(form.lengthFt) &&
     isPositiveNumber(form.quantity) &&
     isValidOptionalPositive(form.width) &&
@@ -263,7 +278,13 @@ export default function ConfiguratorPage() {
   const addToQuoteRequest = () => {
     const item = buildCurrentItem();
     if (!item) {
-      setSubmitError('Complete the profile, material, gauge, and length before adding.');
+      if (!colorSatisfied) {
+        setSubmitError(
+          `Select a ${colorPalette === 'mcelroy' ? 'McElroy' : 'PAC-CLAD'} color before adding this item.`
+        );
+      } else {
+        setSubmitError('Complete the profile, material, gauge, and length before adding.');
+      }
       return;
     }
     setSubmitError(null);
@@ -314,6 +335,12 @@ export default function ConfiguratorPage() {
       setSubmitError('Configure at least one profile before submitting.');
       return;
     }
+    if (!colorSatisfied) {
+      setSubmitError(
+        `Select a ${colorPalette === 'mcelroy' ? 'McElroy' : 'PAC-CLAD'} color before submitting.`
+      );
+      return;
+    }
 
     setSubmitError(null);
     setSubmitState('submitting');
@@ -326,6 +353,7 @@ export default function ConfiguratorPage() {
           items,
           notes: form.notes.trim() || null,
           isRush: rush,
+          color: form.color.trim() || null,
           guestEmail: email,
           sourceTool: 'afs-configurator',
         }),
@@ -344,11 +372,17 @@ export default function ConfiguratorPage() {
       setSubmitError('Submission failed. Please try again.');
       setSubmitState('idle');
     }
-  }, [allItemsForSubmit, form.notes, rush]);
+  }, [allItemsForSubmit, form.notes, form.color, rush, colorSatisfied, colorPalette]);
 
   const handleSubmit = () => {
     if (allItemsForSubmit().length === 0) {
       setSubmitError('Configure at least one profile before submitting.');
+      return;
+    }
+    if (!colorSatisfied) {
+      setSubmitError(
+        `Select a ${colorPalette === 'mcelroy' ? 'McElroy' : 'PAC-CLAD'} color before submitting.`
+      );
       return;
     }
     if (isAuthenticated) {
@@ -500,6 +534,17 @@ export default function ConfiguratorPage() {
                   {gaugeOptions.map(g => <option key={g} value={g} className={optionClass}>{g}</option>)}
                 </select>
               </div>
+            </div>
+          )}
+
+          {!isCleat && colorPalette && (
+            <div className="mb-3">
+              <ColorField
+                palette={colorPalette}
+                value={form.color || null}
+                onChange={(name) => setForm(prev => ({ ...prev, color: name }))}
+                error={form.color.trim() === '' ? `Required for ${form.material}.` : null}
+              />
             </div>
           )}
 
@@ -745,5 +790,3 @@ export default function ConfiguratorPage() {
     </main>
   );
 }
-
-
