@@ -167,6 +167,48 @@ through is a future task, not part of afs-sv-010.
 
 ---
 
+## METAL COLOR CHART DATA EXTRACTED FROM MCELROY + PAC-CLAD PDFs (afs-cv-001): IMPLEMENTED, UNCONFIRMED
+
+**Status: `lib/data/metal-colors.ts` added, exporting two typed arrays,
+`mcelroy` (18 colors) and `pacclad` (51 colors: 7 Premium + 5 Timber Series
+Wood Grain + 39 Standard). `pnpm tsc --noEmit` passes with 0 errors,
+verified this session. This prompt has no browser surface (a data file
+only, no UI/API route consuming it yet) — per this file's verification
+standard it is marked IMPLEMENTED/UNCONFIRMED, and specifically: the color
+NAMES must be spot-checked by Reid against the two physical charts
+(`public/Metal Color Charts/McElroy Shades of Distinction Roof and Wall
+Panels.pdf` and `public/Metal Color Charts/PAC CLAD Color Guide-2025.pdf`)
+before being trusted for fabrication or ordering.**
+
+**Source pages used:** McElroy's PDF has no extractable text layer (both
+pages are embedded raster scans) — the 18 names were read visually off
+page 1's swatch grid (3 columns × 6 rows) and cross-checked against the
+column headers of page 2's black-and-white "Product Availability" coil
+matrix, which lists the same 17 coated-color names plus Galvalume Plus as
+text. PAC-CLAD's PDF has a real text layer; page 2 (the full Premium +
+Timber Series + Standard swatch grid) is the source of truth used — page 1
+is a cover-page teaser repeating an 18-color subset of the same Standard
+colors already covered on page 2, so it added no new names.
+
+**Hex values are display-only approximations, not fabrication specs** —
+stated explicitly in a comment at the top of `metal-colors.ts`. Method:
+each PDF page was rendered to a high-resolution raster image
+(PyMuPDF, zoom factor 3×), swatch cell boundaries were located (connected-
+component / fixed-grid-pitch detection, confirmed against the visible
+grid in each rendered page), and the median RGB of a center-inset sample
+region per swatch was converted to hex. Several swatches are textured,
+metallic, or wood-grain finishes that don't reduce to one flat color
+(McElroy's Galvalume Plus and Cor-Ten AZP Raw; PAC-CLAD's Anodic Clear,
+Silversmith, Silver, Weathered Zinc, Weathered Steel, and the five Timber
+Series colors) — for these the median-sampled color is used as a
+reasonable visual approximation, per the task's own instruction, rather
+than left blank.
+
+Committed as `feat: extract McElroy and PAC-CLAD color chart data into
+lib/data/metal-colors.ts (afs-cv-001)`.
+
+---
+
 ## COLOR + QUEUE_POSITION + COMPLETED_AT COLUMNS MIGRATION WRITTEN (afs-cv-000): FILE ONLY, NOT YET APPLIED LIVE
 
 **Status: migration `017_color_and_queue_position.sql` written and

@@ -169,6 +169,59 @@ color, queue_position, completed_at columns migration, file only
 
 ---
 
+## METAL COLOR CHART DATA EXTRACTED (afs-cv-001) — 2026-08-21
+
+Verified both source PDFs still exist at their exact given paths
+(`public/Metal Color Charts/McElroy Shades of Distinction Roof and Wall
+Panels.pdf`, `public/Metal Color Charts/PAC CLAD Color Guide-2025.pdf`)
+before doing anything else, per the task's own instruction.
+
+Rendered each PDF page to a raster image with PyMuPDF (zoom 3×) and read
+every color name directly off the rendered swatch grids:
+- **McElroy — 18 colors.** The PDF has no extractable text layer at all
+  (both pages are embedded scans); names were read visually off page 1's
+  3×6 swatch grid and cross-checked against page 2's "Product Availability"
+  matrix, whose column headers list the same names as plain text (this
+  matrix has no swatches, so it was cross-reference only, not a color
+  source).
+- **PAC-CLAD — 51 colors** (7 Premium, 5 Timber Series Wood Grain, 39
+  Standard). This PDF has a real text layer; page 2's full swatch grid was
+  used as the source. Page 1 is a cover-page teaser repeating an 18-color
+  subset already present on page 2 — confirmed no new names there before
+  discarding it as a source.
+
+Full extracted name lists were printed to the session transcript in
+reading order for Reid to spot-check directly against the two physical
+charts — **that spot-check has not happened yet.**
+
+Hex values were sampled programmatically, not guessed: each swatch's cell
+boundaries were located (connected-component detection on PAC-CLAD's
+clean white background; fixed-grid-pitch math on McElroy's noisier scanned
+background, calibrated by sampling known swatch centers), then the median
+RGB of a center-inset region was converted to hex. Textured/metallic/wood-
+grain swatches that don't reduce to one flat color (Galvalume Plus,
+Cor-Ten AZP Raw, Anodic Clear, Silversmith, Silver, Weathered Zinc,
+Weathered Steel, all five Timber Series colors) use that same median-
+sampled value as a stated approximation rather than being left blank, per
+the task's instruction.
+
+New file `lib/data/metal-colors.ts` exports `MetalColor { name, hex }` and
+two arrays, `mcelroy` and `pacclad`. A comment at the top of the file
+states explicitly that the NAME is the source of truth for fabrication and
+ordering and hex values are display-only approximations, not fabrication
+specifications — matching the task's explicit instruction.
+
+`pnpm tsc --noEmit`: 0 errors, run directly this session. No UI/API route
+was built to consume this data (out of scope for this prompt), so there is
+no browser surface to verify. Per this file's own verification standard,
+this is **IMPLEMENTED, UNCONFIRMED** — specifically pending Reid's own
+spot-check of every extracted name against the two physical charts before
+any of this data is trusted for fabrication or ordering. Committed as
+`feat: extract McElroy and PAC-CLAD color chart data into
+lib/data/metal-colors.ts (afs-cv-001)`.
+
+---
+
 ## FLASHDRAFT SNAP TOGGLES REMOVED (afs-sv-001) — 2026-08-20
 
 Read `app/studio/draft/page.tsx` in full before touching anything (3,356
