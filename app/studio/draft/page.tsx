@@ -314,31 +314,46 @@ function clampAngleAwayFromRef(thetaDeg: number, refDeg: number): number {
 // sequence. Preserves the dragged LENGTH exactly — only the angle is ever
 // pulled back, and only as far as the nearest boundary it would cross.
 function clampDragAngle(candidate: Point, idx: number, original: Point[]): Point {
-  const anchor = original[idx - 1];
+  // Every other vertex has a point strictly BEFORE it (idx-1) to anchor
+  // against. Point 0 has no leg before it — there's nothing at idx-1 — so
+  // this is the one place that anchor mirrors to the point strictly AFTER
+  // it (idx+1) instead. This is a structural necessity, not a preference:
+  // point 0 genuinely has only one leg, on its far side, unlike every
+  // interior point which has one on each side. Everything below is written
+  // once and reads `mirrored` rather than duplicating the whole function,
+  // so the two directions can't drift apart.
+  const mirrored = idx === 0;
+  const anchor = mirrored ? original[idx + 1] : original[idx - 1];
   if (!anchor) return candidate;
   const length = dist(anchor, candidate);
   if (length < 1e-6) return candidate;
   const theta0 = (Math.atan2(candidate.y - anchor.y, candidate.x - anchor.x) * 180) / Math.PI;
   let theta = theta0;
 
-  // Joint at idx-1: the fixed leg coming INTO the anchor from
-  // original[idx-2], vs. the leg this drag is creating (anchor -> theta).
-  const prevNeighbor = original[idx - 2];
-  if (prevNeighbor) {
-    const phiBefore = (Math.atan2(prevNeighbor.y - anchor.y, prevNeighbor.x - anchor.x) * 180) / Math.PI;
+  // Joint at the anchor: the fixed leg coming into the anchor from ITS
+  // far neighbor (original[idx-2] normally; mirrored, original[idx+2] —
+  // the point beyond the anchor, away from idx), vs. the leg this drag is
+  // creating (anchor -> theta).
+  const anchorFarNeighbor = mirrored ? original[idx + 2] : original[idx - 2];
+  if (anchorFarNeighbor) {
+    const phiBefore = (Math.atan2(anchorFarNeighbor.y - anchor.y, anchorFarNeighbor.x - anchor.x) * 180) / Math.PI;
     theta = clampAngleAwayFromRef(theta, phiBefore);
   }
-  // Joint at idx: the leg this drag is creating, vs. the fixed leg going
-  // OUT to original[idx+1] — translation-invariant regardless of where idx
-  // ends up, so measured from the ORIGINAL idx position. Viewed from idx
-  // rather than from the anchor, the dragged leg's direction is theta+180,
-  // so the reference is shifted by 180 to compare like-for-like.
-  const nextNeighbor = original[idx + 1];
-  if (nextNeighbor) {
-    const originalIdxPoint = original[idx];
-    const phiAfter =
-      (Math.atan2(nextNeighbor.y - originalIdxPoint.y, nextNeighbor.x - originalIdxPoint.x) * 180) / Math.PI;
-    theta = clampAngleAwayFromRef(theta, phiAfter + 180);
+  // Joint at idx itself: only applies in the non-mirrored case. It
+  // protects the angle between the leg this drag is creating and the
+  // fixed leg going OUT to original[idx+1] — a second leg on idx's far
+  // side from the anchor. Point 0 (mirrored) has no such far side — its
+  // only leg IS the one being dragged — so there is no second joint to
+  // protect, exactly like the true last point already skips this same
+  // branch today (original[idx+1] is undefined there).
+  if (!mirrored) {
+    const nextNeighbor = original[idx + 1];
+    if (nextNeighbor) {
+      const originalIdxPoint = original[idx];
+      const phiAfter =
+        (Math.atan2(nextNeighbor.y - originalIdxPoint.y, nextNeighbor.x - originalIdxPoint.x) * 180) / Math.PI;
+      theta = clampAngleAwayFromRef(theta, phiAfter + 180);
+    }
   }
 
   if (theta === theta0) return candidate;
@@ -631,13 +646,17 @@ export default function FlashDraftPage() {
   const [hoveredVertex, setHoveredVertex] = useState<number | null>(null);
   const [hoveredSegment, setHoveredSegment] = useState<number | null>(null);
 
-  // --- Leg dragging: drag an interior bend point directly. The incoming
-  // leg (its fixed opposite endpoint stays put) stretches/compresses to
-  // reach the new position; everything downstream (later bend points and
-  // leg endpoints) translates by the same delta, preserving every
-  // downstream leg's length and angle — dragging doesn't activate until
-  // the pointer moves past VERTEX_DRAG_THRESHOLD_PX, so a plain click
-  // still only selects the vertex. ---
+  // --- Leg dragging: drag any bend point or endpoint (including point 0
+  // and the true last point) directly. The incoming leg (its fixed
+  // opposite endpoint stays put) stretches/compresses to reach the new
+  // position; everything downstream (later bend points and leg endpoints)
+  // translates by the same delta, preserving every downstream leg's length
+  // and angle — dragging doesn't activate until the pointer moves past
+  // VERTEX_DRAG_THRESHOLD_PX, so a plain click still only selects the
+  // vertex. Point 0 is the one structural exception: it has no leg before
+  // it to anchor against, so it mirrors instead — only point 0 itself
+  // moves, nothing translates. See clampDragAngle and the idx===0 branch
+  // in handlePointerMove for the mirrored math (afs-sv-003). ---
   const [draggingVertexIndex, setDraggingVertexIndex] = useState<number | null>(null);
   const draggingVertexOriginalPoints = useRef<Point[] | null>(null);
   const hasVertexDraggedRef = useRef(false);
@@ -1334,7 +1353,22 @@ export default function FlashDraftPage() {
     (screenPos: Point, canvas: HTMLCanvasElement): number | null => {
       let hit: number | null = null;
       let minDist = ANGLE_ARC_HIT_PX;
-      for (let i = 1; i < points.length - 1; i++) {
+      // Starts at 0, not 1: point 0 (the first leg's start) is a fully
+      // draggable endpoint exactly like every interior bend point — see the
+      // `mirrored` branch of clampDragAngle and the idx===0 branch of the
+      // draggingVertexIndex handler in handlePointerMove for the matching
+      // drag math. Excluding it here was the root cause of the first leg
+      // being undraggable at that end (afs-sv-003): a click there fell
+      // through to the leg-0 body-drag path, which always drags the FAR
+      // vertex (point 1), stretching the leg instead of moving point 0.
+      //
+      // Still stops at points.length - 1 (the LAST point stays excluded):
+      // a click near it is deliberately claimed by the "continue drawing
+      // from the last point" gesture in handlePointerDown, checked before
+      // segment hit-testing — see that gesture's own comment. That gesture
+      // is keyed specifically to points.length - 1, not point 0, so it has
+      // no bearing on including point 0 here.
+      for (let i = 0; i < points.length - 1; i++) {
         const center = worldToScreen(points[i], canvas);
         const d = Math.hypot(screenPos.x - center.x, screenPos.y - center.y);
         if (d < minDist) {
@@ -1385,7 +1419,13 @@ export default function FlashDraftPage() {
 
     const vertexHit = hitTestVertex(screenPos, canvas);
     if (vertexHit !== null) {
-      setSelectedBendPoint(vertexHit);
+      // Point 0 is a draggable endpoint, not a bend vertex — it has no leg
+      // before it, so no angle and no bend radius to edit. Unlike an
+      // interior hit, it never becomes the Angle/Bend Radius panel's
+      // selectedBendPoint (that panel assumes a point with a leg on each
+      // side — see applyBendAngle/selectAdjacentBendPoint, which already
+      // only ever operate on indices 1..points.length-2).
+      setSelectedBendPoint(vertexHit === 0 ? null : vertexHit);
       setSelectedSegment(null);
       setDraggingVertexIndex(vertexHit);
       draggingVertexOriginalPoints.current = points;
@@ -1537,6 +1577,18 @@ export default function FlashDraftPage() {
       // reshape — see clampDragAngle. A no-op (returns `raw` itself,
       // same object) whenever the candidate is already safe.
       const clamped = clampDragAngle(raw, idx, original);
+      if (idx === 0) {
+        // Point 0 has no leg before it to anchor against (clampDragAngle
+        // mirrors its anchor to point 1 instead — see that function).
+        // With no "before" side to hold fixed and translate the rest
+        // relative to, only point 0 itself moves; every other point stays
+        // exactly where it started. This mirrors how dragging the true
+        // last point also moves alone, with nothing to translate past it.
+        setPoints((prev) =>
+          prev.map((p, i) => (i === 0 ? { x: clamped.x, y: clamped.y, radius: p.radius } : original[i]))
+        );
+        return;
+      }
       const delta = { x: clamped.x - originalPos.x, y: clamped.y - originalPos.y };
       // The incoming leg's endpoint (this vertex) moves to the cursor;
       // everything downstream translates by the same delta so downstream
@@ -1593,7 +1645,11 @@ export default function FlashDraftPage() {
     const vertexHover = hitTestVertex(screenPos, canvas);
     setHoveredVertex(vertexHover);
     if (vertexHover !== null) {
-      const isTooTight = isGauge18OrThicker(gauge) && getEffectiveRadius(vertexHover) < thicknessIn * 1.5;
+      // Point 0 has no bend radius (see the matching selectedBendPoint
+      // guard in handlePointerDown) — never show the tight-radius warning
+      // for it.
+      const isTooTight =
+        vertexHover > 0 && isGauge18OrThicker(gauge) && getEffectiveRadius(vertexHover) < thicknessIn * 1.5;
       canvas.title = isTooTight ? 'Radius too tight for this gauge' : '';
       canvas.style.cursor = 'grab';
       setHoveredSegment(null);
