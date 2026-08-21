@@ -167,6 +167,104 @@ through is a future task, not part of afs-sv-010.
 
 ---
 
+## COLOR SWATCH IN COMMAND CENTER QUOTE VIEWS, shop_profile_library.color WRITE-THROUGH ON BOTH PATHFINDEREDGE SEND PATHS (afs-cv-003): IMPLEMENTED, UNCONFIRMED
+
+**Status: `pnpm tsc --noEmit` passes with 0 errors, verified this session.
+This prompt touches two real browser surfaces (the Command Center
+quote-request list and detail views) but this session had no browser/
+Playwright access — per this file's verification standard it is marked
+IMPLEMENTED/UNCONFIRMED until Reid opens both views and confirms the
+swatch renders, and separately confirms a real PathfinderEdge send from
+each of the two send paths actually writes `shop_profile_library.color`.
+Also still blocked on migration 017 (`quote_requests.color` /
+`shop_profile_library.color`, afs-cv-000) — FILE ONLY, NOT YET APPLIED
+LIVE as of this writing (see that entry below) — until it's applied,
+`color` is not a real column in either table live, so both this display
+and the write paths below are unverified end-to-end regardless of code
+correctness.**
+
+**Re-verified the task's premise before touching anything:** grepped every
+caller of `pushProfileToPathfinder` across the codebase.
+`app/api/admin/command-center/approve-quote-request/route.ts` and
+`app/api/studio/send-to-pathfinder/route.ts` are confirmed to still be the
+only two call sites that also write a `shop_profile_library` row (via
+`insertShopProfileLibraryRecord`) — matching `lib/data/shop-profile-
+library.ts`'s own header comment from afs-sv-009. **Found a third real send
+path not in the task's list:** `app/api/admin/command-center/approve/
+route.ts` (POST, approves a `machine_jobs` row directly by `jobId`) also
+calls `pushProfileToPathfinder` for real and is wired to a real UI button
+(`components/admin/CommandCenterJobCard.tsx`'s approve action) — it is not
+a stub. However, this route has **no `insertShopProfileLibraryRecord` call
+at all** — it never creates or updates a `shop_profile_library` row, so
+there is no write point for this task's `color` column to populate there.
+This is a pre-existing gap from afs-sv-009 (which only wired the
+quote-request-approval and FlashDraft-direct-send paths to
+`shop_profile_library`, not this machine-jobs-approval path), not something
+this task's scope covers — noted here rather than silently expanded into.
+`app/api/admin/pathfinder/push-profile/route.ts` also calls
+`pushProfileToPathfinder` but is confirmed via `SITEMAP.md` ("POST —
+stubbed, not live") and has no UI caller — not a real send path.
+
+**Command Center display (2 views):**
+- `app/admin/quote-requests/page.tsx` (list view) — `getQuoteRequestsQueue`
+  (`lib/data/admin.ts`) now selects and returns `color`; the "Profiles"
+  column (the only per-row spec-summary column that exists in this table —
+  there is no separate material column to piggyback on) renders a new
+  `ColorSwatchChip` next to the profile summary text when `color` is set.
+- `app/admin/quote-requests/[id]/page.tsx` (detail view) — the "Submitted
+  Specification" table's existing "Material / Gauge" column now also
+  renders `ColorSwatchChip` (request-level `color` repeated on every line
+  item row, since the schema stores one `color` per request, not per
+  item). The pre-existing plain-text "Color" row in the Project Details
+  panel was left in place and additionally upgraded to use the same
+  `ColorSwatchChip` component instead of raw text, for visual consistency.
+- New shared component `components/quote/ColorSwatchChip.tsx` — matches
+  `Badge`'s chip styling (`components/ui/Badge.tsx`: border-afs-chrome-dim,
+  font-label, rounded, text-afs-chrome-mid) with the status dot swapped for
+  a real swatch. New `findMetalColorByName()` helper added to
+  `lib/data/metal-colors.ts` to resolve a stored color name back to a hex
+  for the swatch — since `quote_requests.color`/`shop_profile_library.color`
+  store only the name with no palette marker, and a few names exist in both
+  the McElroy and PAC-CLAD charts with different hex values (e.g.
+  "Charcoal", "Hartford Green", "Galvalume Plus"), the lookup checks
+  McElroy first, then PAC-CLAD, and returns the first match — a known,
+  documented limitation of the underlying single-TEXT-column schema, not
+  something this task's scope included fixing.
+- **No second CANVAS_COLORS-style exception introduced** — the swatch
+  chip's inline `style={{ backgroundColor }}` reuses the same exception
+  already documented in `ColorPickerModal.tsx` (afs-cv-002), just
+  referenced from a new call site.
+
+**shop_profile_library.color write-through (2 send paths):**
+- `app/api/admin/command-center/approve-quote-request/route.ts` —
+  `quote_requests` select now includes `color`; every
+  `insertShopProfileLibraryRecord` call (one per line item) passes
+  `color: qr.color` alongside the material/gauge it already passed.
+- `app/api/studio/send-to-pathfinder/route.ts` — this route has no source
+  `quote_request` at all (confirmed in its own header comment: "never tied
+  to a quote_request/machine_job"), so `color` is threaded the same way
+  `material`/`gauge` already are here: as a new optional field on the
+  request body, populated client-side from FlashDraft's own `color` state
+  (`app/studio/draft/page.tsx`'s `sendToPathfinder()`, which already has a
+  `ColorField`-backed `color` state for its own quote-request submission
+  path) and passed straight through to `insertShopProfileLibraryRecord`.
+- `lib/data/shop-profile-library.ts` — `ShopProfileLibraryInsert.color`
+  added and written into the insert alongside `material`/`gauge`.
+
+**Deviation from the task's "full file replacement, not a patch"
+instruction:** every file changed was written in full via `Write` except
+`app/studio/draft/page.tsx` (3,748 lines) — reconstructing that file's
+entire content by hand in a single tool call risked transcription errors
+at that size, so a single precise `Edit` (exact string match, not a
+diff/patch apply) was used there instead, adding one field to the
+`sendToPathfinder()` request body. Flagging this explicitly rather than
+silently deviating.
+
+Committed as `feat: show selected color in Command Center quote views,
+populate shop_profile_library.color on both send paths (afs-cv-003)`.
+
+---
+
 ## FULL-PAGE COLOR PICKER, REQUIRED FOR PAINTED/ANODIZED MATERIALS (afs-cv-002): IMPLEMENTED, UNCONFIRMED
 
 **Status: `pnpm tsc --noEmit` passes with 0 errors, verified this session.

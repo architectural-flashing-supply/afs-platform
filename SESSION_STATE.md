@@ -169,6 +169,62 @@ color, queue_position, completed_at columns migration, file only
 
 ---
 
+## COLOR SWATCH IN COMMAND CENTER + shop_profile_library.color WRITE-THROUGH (afs-cv-003) — 2026-08-21
+
+Read `app/admin/quote-requests/page.tsx`, `app/admin/quote-requests/[id]/
+page.tsx`, `app/api/admin/command-center/approve-quote-request/route.ts`,
+and `app/api/studio/send-to-pathfinder/route.ts` in full first, per the
+task's own instruction, then re-verified those are still the only two real
+`shop_profile_library`-writing PathfinderEdge send paths by grepping every
+`pushProfileToPathfinder` caller.
+
+**Found a third real send path not in the task's list:**
+`app/api/admin/command-center/approve/route.ts` (wired to
+`CommandCenterJobCard.tsx`'s approve button) also pushes to PathfinderEdge
+for real, but has no `insertShopProfileLibraryRecord` call at all — a
+pre-existing afs-sv-009 gap, out of this task's scope, noted rather than
+silently expanded into. `app/api/admin/pathfinder/push-profile/route.ts`
+is confirmed stubbed/not-live per `SITEMAP.md` and has no UI caller.
+
+**Display:** list view (`lib/data/admin.ts`'s `getQuoteRequestsQueue` now
+selects `color`) and detail view both render a new `ColorSwatchChip`
+(`components/quote/ColorSwatchChip.tsx`) wherever material is shown — the
+"Profiles" column in the list table (its only per-row spec column), and
+the "Material / Gauge" column in the detail table's line-item rows. New
+`findMetalColorByName()` in `lib/data/metal-colors.ts` resolves the stored
+name back to a hex; since neither `color` column records which chart
+(McElroy/PAC-CLAD) a name came from and a few names exist in both with
+different hex values, it checks McElroy first — a known limitation of the
+existing schema, not fixed here. No second CANVAS_COLORS-style exception
+introduced — reused the one already documented in `ColorPickerModal.tsx`
+(afs-cv-002).
+
+**Write-through:** `approve-quote-request/route.ts` now selects
+`quote_requests.color` and passes it to every `insertShopProfileLibraryRecord`
+call. `send-to-pathfinder/route.ts` has no source quote_request (confirmed
+in its own header comment), so `color` is threaded exactly like
+`material`/`gauge` already are — a new body field populated from
+FlashDraft's own `ColorField`-backed `color` state
+(`app/studio/draft/page.tsx`).
+
+`pnpm tsc --noEmit`: 0 errors, run directly this session. No browser/
+Playwright access — per this file's verification standard, **IMPLEMENTED,
+UNCONFIRMED**, and additionally blocked on migration 017 (afs-cv-000,
+still FILE ONLY as of this session) — until it's applied live, `color`
+isn't a real column in either table, so this is unverified end-to-end
+regardless of code correctness.
+
+**Full file replacement note:** every changed file was rewritten in full
+via `Write` except `app/studio/draft/page.tsx` (3,748 lines), where a
+single precise `Edit` was used instead to avoid transcription risk on a
+full manual rewrite of a file that size — flagged explicitly rather than
+silently deviating from the task's instruction.
+
+Committed as `feat: show selected color in Command Center quote views,
+populate shop_profile_library.color on both send paths (afs-cv-003)`.
+
+---
+
 ## FULL-PAGE COLOR PICKER WIRED INTO 4 SUBMISSION SURFACES (afs-cv-002) — 2026-08-21
 
 Read `lib/data/metal-colors.ts` (afs-cv-001) and the real seeded `materials`
