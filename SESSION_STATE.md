@@ -58,7 +58,76 @@ and not restart from scratch.**
 
 ---
 
+## SHOP VIEW REWORKED TO ONE-JOB FOCUS MODE (afs-cv-004) — 2026-08-21
+
+Read `app/admin/shop-view/page.tsx` and the real `shop_profile_library`
+schema (migrations 016/017, including afs-cv-000's `queue_position`/
+`completed_at` and afs-cv-003's `color`) in full first, per the task's own
+instruction, before changing anything.
+
+Replaced afs-sv-010's side-by-side multi-card grid with a one-job-at-a-time
+focus layout:
+
+- **Focus panel:** `geometry_svg` rendered as large as the viewport allows
+  (`h-[calc(100vh-280px)]` on large screens), with all job fields arranged
+  in a column beside it — order number, customer/company, contact info,
+  account notes, material/gauge, quantity/length, a prominent color-coded
+  due-date banner, hem instructions, painted-edge badge, special
+  instructions, source badge, PathfinderEdge profile id, and the status
+  control. A color swatch + name renders when `shop_profile_library.color`
+  is set (reusing `ColorSwatchChip.tsx`'s literal-hex exception, not a new
+  one) and is cleanly absent when it isn't.
+- **Numbered queue strip** in the header: one chip per active job, ordered
+  by a new shared `compareShopProfileLibraryQueueOrder`
+  (`lib/data/shop-profile-library.ts`) — `queue_position` ascending (nulls
+  last) → `due_date` ascending (nulls last) → `created_at` ascending as the
+  final tiebreaker. The focused job's chip renders larger/filled; focus
+  defaults to position 1 and auto-reassigns via a `useEffect` whenever the
+  focused job drops out of the active set. Overdue chips render in the
+  `afs-crimson` treatment. Clicking a chip calls `setFocusedId` — no route
+  change, no reload.
+- **Completion:** `app/api/admin/profile-library/[id]/route.ts`'s PATCH
+  handler now writes `status: 'complete'` and `completed_at: now()` in the
+  same `UPDATE` when the advance reaches `complete`. That drops the row out
+  of `activeRows` (removing it from both the focus panel and the queue
+  strip) and the `useEffect` above auto-advances focus to the next queued
+  job in the same sort order. **Explicit comment added at that write site**
+  stating this fires no delivery/invoice/email side effects —
+  `completed_at` is purely an event record for a future automation chain.
+- **"Show Completed Today" toggle** reveals a separate read-only list of
+  jobs completed on the current local calendar day, without pulling them
+  back into the active queue or queue strip.
+- Same 30-second polling (`GET /api/admin/shop-profile-library`, unchanged)
+  — no Realtime dependency introduced, per the task's explicit instruction.
+  Soft-deleted rows (`deleted_at IS NOT NULL`) still excluded via the same
+  single `getShopProfileLibraryFull` query afs-sv-009/010 established.
+
+**Full file replacements** (not patches): `app/admin/shop-view/page.tsx`,
+`components/admin/ShopViewBoard.tsx`. Also edited (not full-file, additive
+changes only): `lib/data/shop-profile-library.ts` (added `color`/
+`queuePosition`/`completedAt` fields + the new comparator) and
+`app/api/admin/profile-library/[id]/route.ts` (the PATCH handler's
+completion write).
+
+`pnpm tsc --noEmit`: 0 errors, run directly this session. `pnpm run build`:
+succeeded, run directly this session. No browser/Playwright access this
+session — per this file's verification standard, **IMPLEMENTED,
+UNCONFIRMED** until Reid opens `/admin/shop-view` and confirms the focus
+layout, chip switching, and completion flow. Also still blocked end-to-end
+on migration 017 (afs-cv-000) actually being applied live — `color`,
+`queue_position`, and `completed_at` are not real columns live until then.
+
+Committed as `feat: rework Shop View to one-job-at-a-time focus mode with
+numbered queue strip (afs-cv-004)`.
+
+---
+
 ## SHOP VIEW ADDED (afs-sv-010) — 2026-08-20
+
+**Superseded by afs-cv-004 above** — the multi-card grid layout described in
+this entry was replaced by a one-job focus-mode layout. Kept for history;
+the API routes, data layer, and polling mechanism described below are still
+what afs-cv-004 builds on.
 
 Read `app/admin/profile-library/page.tsx`, `lib/data/shop-profile-library.ts`,
 and migration `016_source_tool_and_shop_profile_library.sql` first, per the
@@ -2176,27 +2245,26 @@ own section there rather than duplicated here.
 ## RECENT COMMITS (verified via `git log --oneline -20`, most recent first)
 
 ```
-3fa8c70  fix: correct Open hem fold direction, rebuild kick as a true mirror, wire real gap through to the glyph
-2471830  fix: hem length now scales the glyph itself, Gap returns as editable, add inward/outward kick
-2a47bdd  fix: FlashDraft hem system overhaul — Gap replaced by Hem Length, mid-leg hems deleted, teardrop retightened, leg-shrink bug resolved
-a9d729b  docs: record hem line-weight/teardrop tightening fix in governance docs, mark UNCONFIRMED
-e9b5060  fix: match hem glyph line weight to leg stroke, tighten teardrop loop proportions
-27e3cbd  docs: record connecting-line/glyph-size hem fix in governance docs, mark UNCONFIRMED
-171f88c  fix: restore leg-to-fold hem connecting line, fix glyph size to fixed on-screen radius
-f6f5889  docs: record duplicate hem geometry deletion in governance docs, mark UNCONFIRMED
-440d047  fix: delete duplicate hand-coded hem geometry, canvas now draws only the validated glyph
-a9c299d  docs: record hem glyph geometry rebuild in governance docs, mark UNCONFIRMED
-7de79db  fix: replace hem glyph geometry with validated SMACNA hem construction
-7bc1841  docs: record hem-menu trigger offset fix in governance docs
-e5eb3a7  fix: offset hem-menu double-click hit-test past true leg endpoint
-18cc3d9  docs: record auto-fit-view-after-length-entry fix in governance docs
-b9a8d54  fix: auto-fit view after manual segment length entry
-11c20ea  docs: record leg-body grab cursor fix in governance docs
-a551366  fix: leg-body hover shows grab cursor immediately, not just on drag
-75aa55f  docs: rewrite governance docs to reflect verified current state
-abb5da8  fix: DPR-aware live canvas, unified glyph scale constants, Open/Smashed differentiation
-3786ff0  audit: add hem glyph rendering audit evidence images
-0a117eb  feat: add hem glyph debug view, fix illegible popup icon size
+3700f03  feat: rework Shop View to one-job-at-a-time focus mode with numbered queue strip (afs-cv-004)
+b762175  docs: record Command Center color swatch + shop_profile_library.color write-through status, mark IMPLEMENTED/UNCONFIRMED (afs-cv-003)
+971eb1c  feat: show selected color in Command Center quote views, populate shop_profile_library.color on both send paths (afs-cv-003)
+c9afb05  docs: record color picker wiring status, mark IMPLEMENTED/UNCONFIRMED (afs-cv-002)
+de63f33  feat: full-page color picker required for painted materials, wired into FlashDraft/quote builder (afs-cv-002)
+1dfa118  feat: extract McElroy and PAC-CLAD color chart data into lib/data/metal-colors.ts (afs-cv-001)
+1781c50  feat: add color, queue_position, completed_at columns migration, file only (afs-cv-000)
+54c4d6f  docs: confirm migration 016 applied live via information_schema
+cd3f75a  docs: canonical FORGE launch procedure
+f6f1383  docs: record Shop View build status and known data gaps (afs-sv-010)
+63b7cee  feat: add Shop View operator page for shop-floor profile confirmation (afs-sv-010)
+9461dc2  feat: populate shop_profile_library on PathfinderEdge send, add Profile Library admin page (afs-sv-009)
+bb1bb1f  docs: record source_tool wiring and Command Center badge in governance docs (afs-sv-008)
+8358df3  feat: tag quote_requests inserts with source_tool, show source badge in Command Center (afs-sv-008)
+fe13f69  feat: add source_tool column and shop_profile_library table migration, file only (afs-sv-007)
+9ff65ae  feat: FlashDraft autosave to localStorage with debounce and Clear/Submit-only clearing (afs-sv-006)
+86b9213  docs: record FlashDraft prepend-leg feature and rationale (afs-sv-005)
+22e4017  feat: FlashDraft prepend leg from first-leg free end (afs-sv-005)
+ad8b812  docs: record FlashDraft whole-profile move affordance and rationale (afs-sv-004)
+1e19c0a  feat: FlashDraft whole-profile move affordance (afs-sv-004)
 4866dea  fix: stray drag state on mere cursor movement, undo/redo history gaps
 ```
 
@@ -2237,6 +2305,17 @@ abb5da8  fix: DPR-aware live canvas, unified glyph scale constants, Open/Smashed
 8. **Credential rotation** — deliberately deferred to one pass immediately
    before DNS cutover, per standing user instruction. Not an open action
    item for the current build phase; do not re-raise it as a gap.
+9. **Shop View focus-mode rework (afs-cv-004)** — unconfirmed by the user.
+   Needs Reid to open `/admin/shop-view` and confirm: the focus panel and
+   geometry render correctly at full size, the numbered queue strip switches
+   focus on click without a reload, overdue chips render in the crimson
+   treatment, marking a job complete removes it from the queue and
+   auto-advances focus, and "Show Completed Today" reveals same-day
+   completions without pulling them back into the active queue. Also still
+   blocked end-to-end on migration 017 (afs-cv-000, `color`/`queue_position`/
+   `completed_at`) actually being applied live — confirm via
+   `information_schema` before trusting any of those three fields in
+   production.
 
 ---
 

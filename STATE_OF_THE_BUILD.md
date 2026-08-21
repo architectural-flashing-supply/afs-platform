@@ -83,7 +83,104 @@ and not restart from scratch.**
 
 ---
 
-## SHOP VIEW — SHOP-FLOOR OPERATOR DISPLAY ADDED (afs-sv-010): IMPLEMENTED, CODE-REVIEWED ONLY — NOT LIVE-VERIFIED
+## SHOP VIEW REWORKED TO ONE-JOB FOCUS MODE (afs-cv-004): IMPLEMENTED, UNCONFIRMED
+
+**Status: `pnpm tsc --noEmit` passes with 0 errors (verified this session).
+`pnpm run build` completes successfully (verified this session). This
+session had no browser/Playwright access — per this file's verification
+standard, this rework is IMPLEMENTED/UNCONFIRMED, not DONE, until Reid opens
+`/admin/shop-view` in a real browser and confirms the focus layout, the
+queue-strip chip switching, and the completion flow all behave correctly.
+Still carries afs-sv-010's same dependency on migration 016
+(`shop_profile_library`) — CONFIRMED applied live (see afs-sv-010 entry
+below) — plus migration 017 (`color`/`queue_position`/`completed_at`,
+afs-cv-000) which remains **FILE ONLY, NOT YET APPLIED LIVE** as of this
+writing (see that entry below); until 017 is applied, `queue_position`,
+`completed_at`, and `color` are not real columns live, so the queue-position
+ordering, the completion write, and the color swatch are all unverified
+end-to-end regardless of code correctness.**
+
+This supersedes afs-sv-010's side-by-side multi-card grid layout (entry
+below, kept for history) with a one-job-at-a-time focus layout, per this
+task's explicit instruction:
+
+- **Full file replacements** (not patches): `app/admin/shop-view/page.tsx`,
+  `components/admin/ShopViewBoard.tsx`. Also touched: `lib/data/shop-
+  profile-library.ts` (added `color`/`queuePosition`/`completedAt` to
+  `ShopProfileLibraryFullRow` and its query; added a new shared
+  `compareShopProfileLibraryQueueOrder` export) and `app/api/admin/profile-
+  library/[id]/route.ts` (the PATCH handler — see completion behavior
+  below).
+- **Focus panel:** one job full-screen — `geometry_svg` rendered as large as
+  the viewport allows (`h-[calc(100vh-280px)]` on large screens) beside a
+  fields column: order number, customer name/company, contact info, account
+  notes, material/gauge, quantity/length, a visually prominent color-coded
+  due-date banner, hem instructions, a painted-edge badge, special
+  instructions, the source-tool badge, the PathfinderEdge profile id, and
+  the status-advance control. A color swatch + name renders when
+  `shop_profile_library.color` (afs-cv-003) is set, using the same
+  CANVAS_COLORS-style literal-hex exception `ColorSwatchChip.tsx` already
+  documents — cleanly absent (no empty swatch row) when `color` is null.
+- **Numbered queue strip** in the page header: one chip per active
+  (non-complete) job, ordered by the new `compareShopProfileLibraryQueueOrder`
+  (`queue_position` ascending, nulls last → `due_date` ascending, nulls last
+  → `created_at` ascending as the final tiebreaker). The chip for whichever
+  job is currently focused renders larger/filled (`afs-crimson`); focus
+  defaults to position 1 (top of the queue) on load and whenever the
+  previously-focused job drops out of the active set. Chips for jobs whose
+  `due_date` is in the past render in the `afs-crimson`/`afs-crimson-dim`
+  overdue treatment. Clicking a chip calls `setFocusedId` — no page reload,
+  no route change.
+- **Completion:** the existing `queued -> in_progress -> complete` advance
+  control (`nextShopProfileLibraryStatus`, unchanged) now — when the next
+  status is `complete` — has the PATCH route write `status` and
+  `completed_at = now()` in the **same** `UPDATE` call, so a row can never be
+  `complete` with a null `completed_at`. The completed job is filtered out of
+  `activeRows` (status !== 'complete'), which drops it from both the focus
+  panel and the queue strip; a `useEffect` watching `activeRows` then
+  auto-refocuses to whatever is now first in queue order. An explicit code
+  comment sits at the actual write site (the PATCH handler in
+  `app/api/admin/profile-library/[id]/route.ts`) stating this fires **no**
+  delivery/invoice/email side effects — `completed_at` is purely an event
+  record for a future automation chain to consume later.
+- **"Show Completed Today" toggle** in the header reveals a separate
+  read-only panel listing jobs with `status = 'complete'` and `completed_at`
+  falling on the current local calendar day (`toDateString()` comparison) —
+  profile name, customer/company, completed time. These never appear in the
+  active queue strip or focus rotation.
+- Same 30-second polling pattern as afs-sv-010 (`GET /api/admin/shop-
+  profile-library`, unchanged) — no Realtime dependency introduced, per the
+  task's explicit instruction to keep the existing mechanism.
+- Soft-deleted rows (`deleted_at IS NOT NULL`) continue to be excluded via
+  the same single `getShopProfileLibraryFull` query afs-sv-009/010
+  established — no second filter implementation introduced.
+- Colors: afs-* tokens only, reusing the exact same token set afs-sv-010's
+  card layout already used (`afs-crimson`, `afs-crimson-dim`, `afs-warning`,
+  `afs-amber-dim`, `afs-success`, `afs-info`, `afs-chrome-*`) plus the
+  pre-existing swatch-chip literal-hex exception for the color swatch fill —
+  no new exception introduced, no default Tailwind colors.
+
+Committed as `feat: rework Shop View to one-job-at-a-time focus mode with
+numbered queue strip (afs-cv-004)`.
+
+---
+
+## SHOP VIEW — SHOP-FLOOR OPERATOR DISPLAY ADDED (afs-sv-010): SUPERSEDED BY afs-cv-004 — kept for history, do not treat as current UI
+
+**The side-by-side multi-card grid layout described below was replaced by
+afs-cv-004's one-job focus-mode layout (entry above). The API routes, data
+layer, and polling mechanism this entry describes are still the ones
+afs-cv-004 builds on — only `components/admin/ShopViewBoard.tsx` and
+`app/admin/shop-view/page.tsx`'s presentation changed.**
+
+**Status: `pnpm tsc --noEmit` passes with 0 errors (verified this session).
+`pnpm run build` completes successfully (verified this session). This
+session had no browser/Playwright access and the user has not yet seen the
+page — per this file's verification standard, Shop View is UNCONFIRMED, not
+DONE, until the user opens `/admin/shop-view` in a real browser (ideally on
+the actual laptop that will sit beside the PathfinderEdge/Thalmann screen)
+and confirms both the layout is legible at a glance and the status-advance
+control actually persists.**
 
 **Status: `pnpm tsc --noEmit` passes with 0 errors (verified this session).
 `pnpm run build` completes successfully (verified this session). This
