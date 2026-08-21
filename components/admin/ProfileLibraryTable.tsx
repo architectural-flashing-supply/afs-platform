@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { sourceToolLabel } from '@/lib/data/quote-request-source-tool';
-import type { ShopProfileLibraryRow } from '@/lib/data/shop-profile-library';
+import { compareShopProfileLibraryQueueOrder, type ShopProfileLibraryRow } from '@/lib/data/shop-profile-library';
 
 interface ProfileLibraryTableProps {
   rows: ShopProfileLibraryRow[];
@@ -54,6 +54,8 @@ export default function ProfileLibraryTable({ rows: initialRows }: ProfileLibrar
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [reorderingId, setReorderingId] = useState<string | null>(null);
+  const [reorderError, setReorderError] = useState<string | null>(null);
 
   const sourceOptions = useMemo(
     () => Array.from(new Set(rows.map((r) => r.sourceTool).filter((v): v is string => !!v))),
@@ -84,6 +86,60 @@ export default function ProfileLibraryTable({ rows: initialRows }: ProfileLibrar
     } else {
       setSortKey(key);
       setSortDir('asc');
+    }
+  };
+
+  // Shop-floor queue order (afs-cv-005) — always computed from the FULL row
+  // set, independent of the table's search/filter/column-sort above, since
+  // "shop priority" is a global ordering, not a property of whatever subset
+  // is currently visible. Reuses the exact comparator Shop View's queue
+  // strip sorts by (lib/data/shop-profile-library.ts), so the two surfaces
+  // can never disagree about what order the shop should work jobs in.
+  const queueOrder = useMemo(() => [...rows].sort(compareShopProfileLibraryQueueOrder), [rows]);
+  const queueRank = useMemo(() => {
+    const map = new Map<string, number>();
+    queueOrder.forEach((r, idx) => map.set(r.id, idx + 1));
+    return map;
+  }, [queueOrder]);
+
+  // Reordering approach: explicit up/down buttons per row, not drag-to-
+  // reorder (afs-cv-005). This codebase has no drag-and-drop library in
+  // package.json, and pulling one in solely for this single table would be
+  // disproportionate — two buttons per row give Steve the same "set exact
+  // shop priority" capability with zero new dependencies.
+  const moveRow = async (id: string, direction: 'up' | 'down') => {
+    const idx = queueOrder.findIndex((r) => r.id === id);
+    const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (idx === -1 || targetIdx < 0 || targetIdx >= queueOrder.length) return;
+
+    const reordered = [...queueOrder];
+    const [moved] = reordered.splice(idx, 1);
+    reordered.splice(targetIdx, 0, moved);
+    const newPositionById = new Map(reordered.map((r, i) => [r.id, i + 1]));
+
+    const previousRows = rows;
+    setReorderError(null);
+    setReorderingId(id);
+    setRows((prev) => prev.map((r) => ({ ...r, queuePosition: newPositionById.get(r.id) ?? r.queuePosition })));
+
+    try {
+      const res = await fetch('/api/admin/profile-library/reorder', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderedIds: reordered.map((r) => r.id) }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        setRows(previousRows);
+        setReorderError(data.error ?? 'Could not save the new queue order. Please try again.');
+      } else {
+        router.refresh();
+      }
+    } catch {
+      setRows(previousRows);
+      setReorderError('Network error saving the new queue order. Please try again.');
+    } finally {
+      setReorderingId(null);
     }
   };
 
@@ -145,6 +201,12 @@ export default function ProfileLibraryTable({ rows: initialRows }: ProfileLibrar
         </select>
       </div>
 
+      {reorderError && (
+        <div className="bg-afs-crimson-dim/20 border border-afs-crimson rounded px-4 py-3 mb-4">
+          <p className="font-body text-sm text-afs-chrome-high">{reorderError}</p>
+        </div>
+      )}
+
       {filtered.length === 0 ? (
         <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-12 text-center">
           <h3 className="font-heading text-xl text-afs-chrome-high mb-2">No profiles match this filter</h3>
@@ -155,6 +217,9 @@ export default function ProfileLibraryTable({ rows: initialRows }: ProfileLibrar
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-afs-bg-surface border-b border-afs-border">
+                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
+                  Queue
+                </th>
                 <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
                   Thumb
                 </th>
@@ -174,52 +239,83 @@ export default function ProfileLibraryTable({ rows: initialRows }: ProfileLibrar
               </tr>
             </thead>
             <tbody>
-              {filtered.map((row) => (
-                <tr key={row.id} className="border-b border-afs-border last:border-b-0 hover:bg-afs-bg-surface transition-colors">
-                  <td className="px-4 py-3">
-                    {row.geometrySvg ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={row.geometrySvg}
-                        alt={`${row.profileName} thumbnail`}
-                        className="w-12 h-12 object-contain bg-afs-bg-surface border border-afs-border rounded"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 flex items-center justify-center bg-afs-bg-surface border border-afs-border rounded text-afs-chrome-dim text-[10px] font-label">
-                        N/A
+              {filtered.map((row) => {
+                const rank = queueRank.get(row.id) ?? null;
+                const isFirst = rank === 1;
+                const isLast = rank === queueOrder.length;
+                const busy = reorderingId !== null;
+                return (
+                  <tr key={row.id} className="border-b border-afs-border last:border-b-0 hover:bg-afs-bg-surface transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="font-data text-sm text-afs-chrome-high w-5 text-right">{rank ?? '—'}</span>
+                        <div className="flex flex-col leading-none">
+                          <button
+                            type="button"
+                            onClick={() => moveRow(row.id, 'up')}
+                            disabled={busy || isFirst}
+                            aria-label={`Move ${row.profileName} up in shop queue`}
+                            className="text-afs-chrome-mid hover:text-afs-crimson disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-afs-chrome-mid transition-colors text-xs leading-none"
+                          >
+                            ▲
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveRow(row.id, 'down')}
+                            disabled={busy || isLast}
+                            aria-label={`Move ${row.profileName} down in shop queue`}
+                            className="text-afs-chrome-mid hover:text-afs-crimson disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-afs-chrome-mid transition-colors text-xs leading-none"
+                          >
+                            ▼
+                          </button>
+                        </div>
                       </div>
-                    )}
-                  </td>
-                  <td className="font-body text-sm text-afs-chrome-high px-4 py-3">{row.customerName ?? '—'}</td>
-                  <td className="font-body text-sm text-afs-chrome-mid px-4 py-3">{row.company ?? '—'}</td>
-                  <td className="font-body text-sm text-afs-chrome-high px-4 py-3">{row.profileName}</td>
-                  <td className="font-body text-sm text-afs-chrome-mid px-4 py-3">{row.material ?? '—'}</td>
-                  <td className="font-data text-sm text-afs-chrome-high px-4 py-3">{row.quantity ?? '—'}</td>
-                  <td className="font-data text-xs text-afs-chrome-mid px-4 py-3 whitespace-nowrap">{formatDate(row.dueDate)}</td>
-                  <td className="font-label text-xs text-afs-chrome-mid px-4 py-3 whitespace-nowrap">
-                    {sourceToolLabel(row.sourceTool)}
-                  </td>
-                  <td className="font-label text-xs text-afs-chrome-high px-4 py-3 whitespace-nowrap">
-                    {statusLabel(row.status)}
-                  </td>
-                  <td className="font-data text-xs text-afs-chrome-dim px-4 py-3 whitespace-nowrap">
-                    {formatDate(row.createdAt)}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDeleteError(null);
-                        setConfirmDeleteId(row.id);
-                      }}
-                      aria-label="Delete profile library row"
-                      className="text-afs-chrome-mid hover:text-afs-crimson transition-colors"
-                    >
-                      🗑
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-4 py-3">
+                      {row.geometrySvg ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={row.geometrySvg}
+                          alt={`${row.profileName} thumbnail`}
+                          className="w-12 h-12 object-contain bg-afs-bg-surface border border-afs-border rounded"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 flex items-center justify-center bg-afs-bg-surface border border-afs-border rounded text-afs-chrome-dim text-[10px] font-label">
+                          N/A
+                        </div>
+                      )}
+                    </td>
+                    <td className="font-body text-sm text-afs-chrome-high px-4 py-3">{row.customerName ?? '—'}</td>
+                    <td className="font-body text-sm text-afs-chrome-mid px-4 py-3">{row.company ?? '—'}</td>
+                    <td className="font-body text-sm text-afs-chrome-high px-4 py-3">{row.profileName}</td>
+                    <td className="font-body text-sm text-afs-chrome-mid px-4 py-3">{row.material ?? '—'}</td>
+                    <td className="font-data text-sm text-afs-chrome-high px-4 py-3">{row.quantity ?? '—'}</td>
+                    <td className="font-data text-xs text-afs-chrome-mid px-4 py-3 whitespace-nowrap">{formatDate(row.dueDate)}</td>
+                    <td className="font-label text-xs text-afs-chrome-mid px-4 py-3 whitespace-nowrap">
+                      {sourceToolLabel(row.sourceTool)}
+                    </td>
+                    <td className="font-label text-xs text-afs-chrome-high px-4 py-3 whitespace-nowrap">
+                      {statusLabel(row.status)}
+                    </td>
+                    <td className="font-data text-xs text-afs-chrome-dim px-4 py-3 whitespace-nowrap">
+                      {formatDate(row.createdAt)}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDeleteError(null);
+                          setConfirmDeleteId(row.id);
+                        }}
+                        aria-label="Delete profile library row"
+                        className="text-afs-chrome-mid hover:text-afs-crimson transition-colors"
+                      >
+                        🗑
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -35,6 +35,57 @@ export interface ShopProfileLibraryInsert {
   pathfinderProfileId?: string | null;
 }
 
+interface QueueOrderMinimalRow {
+  id: string;
+  queuePosition: number | null;
+  dueDate: string | null;
+  createdAt: string;
+}
+
+/**
+ * Bootstraps `queue_position` for every non-deleted row (afs-cv-005), then
+ * returns the position a brand-new row should append at.
+ *
+ * Before this ships, every existing row's `queue_position` is null, and
+ * `compareShopProfileLibraryQueueOrder` always sorts a null position AFTER
+ * any explicit one. That means a naive `MAX(queue_position) + 1` for a new
+ * row — which would be `1`, since nothing yet has an explicit position —
+ * would rank the new row ahead of every pre-existing null-positioned row.
+ * That's exactly the "new send jumps the queue" bug this must avoid. So the
+ * first time this runs, it assigns every currently non-deleted row a real
+ * sequential position (in the same canonical order Shop View already sorts
+ * by — due_date, then created_at, as a tiebreak), and only then computes the
+ * new row's position as one past the end of that now-fully-sequential set.
+ * Once the table is normalized this way, every future insert keeps it
+ * sequential, so the update pass here is a no-op after the first call.
+ */
+async function appendToQueueEnd(supabase: SupabaseClient): Promise<number> {
+  const { data, error } = await supabase
+    .from('shop_profile_library')
+    .select('id, queue_position, due_date, created_at')
+    .is('deleted_at', null);
+  if (error || !data) return 1;
+
+  const rows: QueueOrderMinimalRow[] = (
+    data as { id: string; queue_position: number | null; due_date: string | null; created_at: string }[]
+  ).map((r) => ({ id: r.id, queuePosition: r.queue_position, dueDate: r.due_date, createdAt: r.created_at }));
+
+  const ordered = [...rows].sort(compareShopProfileLibraryQueueOrder);
+  const stale = ordered.filter((r, idx) => r.queuePosition !== idx + 1);
+  if (stale.length > 0) {
+    await Promise.all(
+      stale.map((r) =>
+        supabase
+          .from('shop_profile_library')
+          .update({ queue_position: ordered.indexOf(r) + 1 })
+          .eq('id', r.id)
+      )
+    );
+  }
+
+  return ordered.length + 1;
+}
+
 /**
  * Never throws — this is a secondary shop-record side effect of a real
  * PathfinderEdge send, not the send itself. A failure here (most likely:
@@ -49,6 +100,10 @@ export async function insertShopProfileLibraryRecord(
   input: ShopProfileLibraryInsert
 ): Promise<void> {
   try {
+    // Appends to the end of the shop queue (afs-cv-005) — see
+    // appendToQueueEnd above for why this can't be a plain MAX()+1.
+    const queuePosition = await appendToQueueEnd(supabase);
+
     const { error } = await supabase.from('shop_profile_library').insert({
       quote_request_id: input.quoteRequestId ?? null,
       machine_job_id: input.machineJobId ?? null,
@@ -69,6 +124,7 @@ export async function insertShopProfileLibraryRecord(
       geometry_svg: input.geometrySvg ?? null,
       source_tool: input.sourceTool ?? null,
       pathfinder_profile_id: input.pathfinderProfileId ?? null,
+      queue_position: queuePosition,
       status: 'queued',
     });
     if (error) {
@@ -93,6 +149,10 @@ export interface ShopProfileLibraryRow {
   sourceTool: string | null;
   status: string;
   geometrySvg: string | null;
+  // Manual shop-floor queue ordering (afs-cv-000's migration 017, afs-cv-005's
+  // reordering UI) — null for rows that predate this column or that no one
+  // has manually sequenced yet. See compareShopProfileLibraryQueueOrder.
+  queuePosition: number | null;
   createdAt: string;
 }
 
@@ -106,7 +166,7 @@ export async function getShopProfileLibrary(supabase: SupabaseClient): Promise<S
   const { data, error } = await supabase
     .from('shop_profile_library')
     .select(
-      'id, profile_name, customer_name, company, customer_email, customer_phone, material, gauge, quantity, due_date, source_tool, status, geometry_svg, created_at'
+      'id, profile_name, customer_name, company, customer_email, customer_phone, material, gauge, quantity, due_date, source_tool, status, geometry_svg, queue_position, created_at'
     )
     .is('deleted_at', null)
     .order('created_at', { ascending: false });
@@ -127,6 +187,7 @@ export async function getShopProfileLibrary(supabase: SupabaseClient): Promise<S
       source_tool: string | null;
       status: string | null;
       geometry_svg: string | null;
+      queue_position: number | null;
       created_at: string;
     }[]
   ).map((r) => ({
@@ -143,6 +204,7 @@ export async function getShopProfileLibrary(supabase: SupabaseClient): Promise<S
     sourceTool: r.source_tool,
     status: r.status ?? 'queued',
     geometrySvg: r.geometry_svg,
+    queuePosition: r.queue_position,
     createdAt: r.created_at,
   }));
 }
@@ -225,7 +287,8 @@ export interface ShopProfileLibraryFullRow {
   // rows written before this column existed, or any row staff hasn't
   // manually sequenced. See compareShopProfileLibraryQueueOrder below for
   // the single sort this drives across Shop View's queue strip and focus
-  // panel (afs-cv-004).
+  // panel (afs-cv-004), and the Profile Library table's up/down reordering
+  // controls (afs-cv-005) — both read/write the exact same column.
   queuePosition: number | null;
   // Set only on the queued/in_progress -> complete transition (afs-cv-004).
   // Distinct from createdAt — used to drive the "Completed today" review
@@ -302,13 +365,20 @@ export async function getShopProfileLibraryFull(supabase: SupabaseClient): Promi
 // ----------------------------------------------------------------------------
 // Queue ordering (afs-cv-004) — queue_position ascending (nulls last), then
 // due_date ascending (nulls last), then created_at ascending as the final
-// tiebreaker. Shared between Shop View's numbered queue strip and its
-// focus-panel "advance to next job" logic so both agree on exactly one order.
+// tiebreaker. Shared between Shop View's numbered queue strip, its focus-panel
+// "advance to next job" logic, and the Profile Library table's up/down
+// reordering controls (afs-cv-005), so all three agree on exactly one order.
+// Structural (not nominal) typing — any row shape carrying these three
+// fields, e.g. both ShopProfileLibraryRow and ShopProfileLibraryFullRow,
+// satisfies QueueOrderFields without an explicit cast.
 // ----------------------------------------------------------------------------
-export function compareShopProfileLibraryQueueOrder(
-  a: ShopProfileLibraryFullRow,
-  b: ShopProfileLibraryFullRow
-): number {
+export interface QueueOrderFields {
+  queuePosition: number | null;
+  dueDate: string | null;
+  createdAt: string;
+}
+
+export function compareShopProfileLibraryQueueOrder(a: QueueOrderFields, b: QueueOrderFields): number {
   if (a.queuePosition !== b.queuePosition) {
     if (a.queuePosition === null) return 1;
     if (b.queuePosition === null) return -1;
