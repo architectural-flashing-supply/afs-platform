@@ -702,6 +702,34 @@ export default function FlashDraftPage() {
   const panOrigin = useRef<{ mouse: Point; pan: Point } | null>(null);
   const spacePressed = useRef(false);
 
+  // --- Whole-profile move (afs-sv-004) ---
+  // UX decision, made without direct user confirmation — documented here
+  // per that constraint: Alt+drag (Option+drag on Mac), held anywhere on
+  // the canvas while a profile exists, translates every point together as
+  // one rigid body. This mirrors the file's own existing modifier-key
+  // convention rather than inventing a new one: spacePressed above already
+  // reserves a held key to mean "this drag pans the view, not editing" —
+  // Alt+drag applies that identical pattern to a second, equally
+  // unambiguous meaning ("this drag moves the whole profile, not one leg")
+  // instead of adding a separate mode-toggle button to the toolbar.
+  // Checked FIRST in handlePointerDown, before any vertex/segment
+  // hit-testing, so it can never be confused with — or fall through from —
+  // grabbing an endpoint or a leg body; those gestures only ever arm when
+  // Alt is NOT held. A plain drag on empty canvas (no Alt held) is
+  // completely unchanged: it still extends the profile with a new segment
+  // exactly as it did before this feature (see the fallback branch at the
+  // end of handlePointerDown) — this gesture never touches that path.
+  // Because every point moves by the identical (dx, dy) world-space delta,
+  // no leg length and no bend angle can change from this gesture — and
+  // therefore neither can the derived blank width (see blankWidthInLive
+  // further down, computed purely from pairwise point distances) — this is
+  // structurally guaranteed by the translation math itself, not a
+  // separate check.
+  const altPressed = useRef(false);
+  const [isMovingProfile, setIsMovingProfile] = useState(false);
+  const moveProfileOriginRef = useRef<{ mouse: Point; points: Point[] } | null>(null);
+  const hasMovedProfileRef = useRef(false);
+
   // --- Click-and-drag drawing state ---
   const dragAnchorRef = useRef<Point | null>(null);
   const dragDownScreenRef = useRef<Point | null>(null);
@@ -897,6 +925,9 @@ export default function FlashDraftPage() {
       if (e.code === 'Space') {
         spacePressed.current = true;
       }
+      if (e.key === 'Alt') {
+        altPressed.current = true;
+      }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         undo();
@@ -921,6 +952,7 @@ export default function FlashDraftPage() {
     }
     function handleKeyUp(e: KeyboardEvent) {
       if (e.code === 'Space') spacePressed.current = false;
+      if (e.key === 'Alt') altPressed.current = false;
     }
     document.addEventListener('keydown', handleKeyDown);
     document.addEventListener('keyup', handleKeyUp);
@@ -1417,6 +1449,22 @@ export default function FlashDraftPage() {
     legBodyDragCandidateRef.current = null;
     legReshapeGrabOffsetRef.current = null;
 
+    // Whole-profile move (afs-sv-004) — see the doc comment on
+    // isMovingProfile's declaration above for why Alt+drag was chosen.
+    // Checked before any vertex/segment hit-testing so it always takes
+    // priority, regardless of whether the drag starts on empty canvas, on
+    // a vertex, or on a leg body — none of those branches below ever run
+    // while Alt is held.
+    if (altPressed.current && points.length > 0) {
+      setIsMovingProfile(true);
+      moveProfileOriginRef.current = { mouse: screenPos, points };
+      hasMovedProfileRef.current = false;
+      setSelectedBendPoint(null);
+      setSelectedSegment(null);
+      canvas.style.cursor = 'grabbing';
+      return;
+    }
+
     const vertexHit = hitTestVertex(screenPos, canvas);
     if (vertexHit !== null) {
       // Point 0 is a draggable endpoint, not a bend vertex — it has no leg
@@ -1539,7 +1587,11 @@ export default function FlashDraftPage() {
     // regardless of root cause. Finalizes/cancels via the same shared path
     // a real release would use, so nothing is left half-committed.
     const dragStateArmed =
-      isPanning || draggingVertexIndex !== null || legBodyDragCandidateRef.current !== null || isDragDrawing;
+      isPanning ||
+      isMovingProfile ||
+      draggingVertexIndex !== null ||
+      legBodyDragCandidateRef.current !== null ||
+      isDragDrawing;
     if (e.buttons === 0 && dragStateArmed) {
       handlePointerUp();
       return;
@@ -1550,6 +1602,28 @@ export default function FlashDraftPage() {
         x: panOrigin.current.pan.x + (screenPos.x - panOrigin.current.mouse.x),
         y: panOrigin.current.pan.y + (screenPos.y - panOrigin.current.mouse.y),
       });
+      return;
+    }
+
+    if (isMovingProfile && moveProfileOriginRef.current) {
+      const origin = moveProfileOriginRef.current;
+      const dxPx = screenPos.x - origin.mouse.x;
+      const dyPx = screenPos.y - origin.mouse.y;
+      if (!hasMovedProfileRef.current) {
+        if (Math.hypot(dxPx, dyPx) < VERTEX_DRAG_THRESHOLD_PX) return; // still just a click, not a drag yet
+        hasMovedProfileRef.current = true;
+      }
+      // Pure translation, computed once from the ORIGINAL (pointer-down-time)
+      // points snapshot — never re-derived from the current `points` state —
+      // so the delta applied here can never drift or compound across a
+      // single drag. Every point (including hem-carrying endpoints — hems
+      // are stored as direction/length data relative to their endpoint, not
+      // as their own points, so they follow automatically) shifts by the
+      // identical world-space vector; no leg length or bend angle is ever
+      // touched.
+      const dxWorld = dxPx / (PIXELS_PER_INCH * zoom);
+      const dyWorld = dyPx / (PIXELS_PER_INCH * zoom);
+      setPoints(origin.points.map((p) => ({ x: p.x + dxWorld, y: p.y + dyWorld, radius: p.radius })));
       return;
     }
 
@@ -1642,6 +1716,17 @@ export default function FlashDraftPage() {
       return;
     }
 
+    // Alt held but not yet dragging — preview the move cursor and suppress
+    // vertex/segment hover highlighting so it doesn't visually compete with
+    // the move affordance (afs-sv-004).
+    if (altPressed.current && points.length > 0) {
+      canvas.style.cursor = 'grab';
+      canvas.title = '';
+      setHoveredVertex(null);
+      setHoveredSegment(null);
+      return;
+    }
+
     const vertexHover = hitTestVertex(screenPos, canvas);
     setHoveredVertex(vertexHover);
     if (vertexHover !== null) {
@@ -1686,6 +1771,22 @@ export default function FlashDraftPage() {
     if (isPanning) {
       setIsPanning(false);
       panOrigin.current = null;
+      return;
+    }
+    if (isMovingProfile) {
+      // Only push undo history if the profile actually moved — an Alt+click
+      // with no real drag must not add a geometrically-identical entry to
+      // the undo stack, same no-op guard the vertex-drag/leg-reshape
+      // gestures elsewhere in this file already apply.
+      if (hasMovedProfileRef.current && moveProfileOriginRef.current) {
+        setPast((p) => [...p, { points: moveProfileOriginRef.current!.points, hemStart, hemEnd }]);
+        setFuture([]);
+      }
+      setIsMovingProfile(false);
+      moveProfileOriginRef.current = null;
+      hasMovedProfileRef.current = false;
+      const canvas = canvasRef.current;
+      if (canvas) canvas.style.cursor = 'crosshair';
       return;
     }
     if (draggingVertexIndex !== null) {
@@ -1735,7 +1836,7 @@ export default function FlashDraftPage() {
   });
 
   const handlePointerLeave = () => {
-    if (isDragDrawing || isPanning || draggingVertexIndex !== null) return;
+    if (isDragDrawing || isPanning || isMovingProfile || draggingVertexIndex !== null) return;
     setHoveredVertex(null);
     setHoveredSegment(null);
     const canvas = canvasRef.current;
@@ -2572,8 +2673,12 @@ export default function FlashDraftPage() {
             ))}
           </div>
         </div>
-        <p className="font-body text-[10px] text-afs-chrome-dim mt-1 hidden md:block" title="Click empty space to draw · click a segment or bend to select it · double-click an endpoint for a hem">
-          Click empty space to draw · click a segment or bend to select it · double-click an endpoint for a hem
+        <p
+          className="font-body text-[10px] text-afs-chrome-dim mt-1 hidden md:block"
+          title="Click empty space to draw · click a segment or bend to select it · double-click an endpoint for a hem · Alt+drag to move the whole profile"
+        >
+          Click empty space to draw · click a segment or bend to select it · double-click an endpoint for a hem ·
+          Alt+drag to move the whole profile
         </p>
       </div>
 
