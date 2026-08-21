@@ -58,6 +58,93 @@ and not restart from scratch.**
 
 ---
 
+## PROFILE LIBRARY QUEUE REORDERING ADDED (afs-cv-005) — 2026-08-21
+
+Read `app/admin/profile-library/page.tsx` (afs-sv-009) and afs-cv-004's Shop
+View queue-strip implementation in full first, per the task's own
+instruction — Shop View's queue order and this feature's writes both have to
+be driven by the exact same `queue_position` values, so the ordering model
+had to match on both ends.
+
+**Reordering approach chosen: explicit up/down buttons per row, not
+drag-to-reorder.** `package.json` has no drag-and-drop library anywhere in
+it; adding one solely for this single table would have been disproportionate
+effort for the need. A code comment states this choice and the reasoning
+directly at the implementation site (`components/admin/
+ProfileLibraryTable.tsx`).
+
+What changed:
+
+- **New "Queue" column** (leftmost) in `components/admin/
+  ProfileLibraryTable.tsx` — shows each row's rank in the canonical queue
+  order plus ▲/▼ buttons. Rank and up/down behavior are computed from the
+  full row set, not whatever the table's own search/filter/sort currently
+  shows, since shop priority is a global order.
+- Reuses the same `compareShopProfileLibraryQueueOrder` comparator afs-cv-004
+  already built for Shop View's queue strip — its signature was generalized
+  from `ShopProfileLibraryFullRow`-only to a small structural
+  `QueueOrderFields` interface (`queuePosition`/`dueDate`/`createdAt`) so
+  both `ShopProfileLibraryRow` (this table) and `ShopProfileLibraryFullRow`
+  (Shop View) satisfy it without a cast. One comparator, two surfaces, no
+  chance of the two disagreeing on order.
+- Clicking ▲/▼ swaps a row with its canonical-order neighbor, then PATCHes a
+  new route, `app/api/admin/profile-library/reorder/route.ts`, with the FULL
+  ordered id list for every currently active (non-deleted) row — not just
+  the two that moved. The route writes `queue_position = index + 1` for
+  every id in that list, after validating the list is exactly a permutation
+  of the current active row set. Optimistic UI update, with rollback and an
+  inline error banner on failure.
+- Why the full list, not just the swapped pair: `compareShopProfileLibraryQueueOrder`
+  always sorts a null `queue_position` after any explicit one. Updating only
+  two rows while the rest stay null would jump those two ahead of every
+  untouched row instead of just moving them one slot — writing the whole set
+  keeps `queue_position` a gapless 1..N sequence.
+- **New sends append to the end of the queue on insert.** Both real
+  PathfinderEdge-send call sites (`app/api/studio/send-to-pathfinder/
+  route.ts`, `app/api/admin/command-center/approve-quote-request/route.ts`)
+  already go through one shared function,
+  `insertShopProfileLibraryRecord` (`lib/data/shop-profile-library.ts`), so
+  only that one function needed to change. It now calls a new
+  `appendToQueueEnd` helper before every insert: reads every current
+  non-deleted row, sorts them into canonical queue order, and — if the
+  table has never been normalized to a real sequential `queue_position`
+  before (true for every row today, since nothing has written this column
+  before this prompt) — writes one now, then returns `count + 1` for the
+  new row.
+- That normalization step is not optional polish — it's what makes the
+  literal instructed formula ("current max `queue_position` among
+  non-deleted rows, plus 1") actually safe. Before any row has an explicit
+  position, plain `MAX + 1` is `1` — but the comparator sorts ANY explicit
+  position before ANY null one regardless of magnitude, so a new row with
+  position `1` would rank ahead of every pre-existing (still-null) row.
+  That's exactly the "jump the queue" bug the task explicitly said to
+  avoid. Normalizing the whole active set to a real sequence once (a no-op
+  on every call after the first) is the only way "append to the end" is
+  actually true going forward.
+- Soft-deleted rows excluded throughout via the existing
+  `.is('deleted_at', null)` filter — no second filter implementation.
+- afs-* tokens only; no new literal-hex/CANVAS_COLORS-style exception
+  needed.
+
+**Verification status: IMPLEMENTED, UNCONFIRMED.** `pnpm tsc --noEmit` — 0
+errors, verified this session. `pnpm run build` — completed successfully,
+verified this session. This session had no browser/Playwright access, so the
+actual up/down interaction, persistence across reload, and the "append to
+end" behavior on a real PathfinderEdge send have NOT been live-verified —
+only code-reviewed and compiled. Also still blocked end-to-end on migration
+017 (`shop_profile_library.queue_position`, afs-cv-000) actually being
+applied live — as of this writing it remains **FILE ONLY, NOT YET APPLIED**;
+until then every write this feature makes will fail against the live
+database regardless of code correctness. Reid needs to confirm in a real
+browser at `/admin/profile-library` that: reordering with ▲/▼ visibly moves
+a row, the new order survives a page reload, and a fresh PathfinderEdge send
+lands at the bottom of the queue, not the top.
+
+Committed as `feat: add operator-controlled queue reordering to Profile
+Library, writing shop_profile_library.queue_position (afs-cv-005)`.
+
+---
+
 ## SHOP VIEW REWORKED TO ONE-JOB FOCUS MODE (afs-cv-004) — 2026-08-21
 
 Read `app/admin/shop-view/page.tsx` and the real `shop_profile_library`
@@ -2245,6 +2332,8 @@ own section there rather than duplicated here.
 ## RECENT COMMITS (verified via `git log --oneline -20`, most recent first)
 
 ```
+edece4e  feat: add operator-controlled queue reordering to Profile Library, writing shop_profile_library.queue_position (afs-cv-005)
+3e3f769  docs: record Shop View focus-mode rework status, mark IMPLEMENTED/UNCONFIRMED (afs-cv-004)
 3700f03  feat: rework Shop View to one-job-at-a-time focus mode with numbered queue strip (afs-cv-004)
 b762175  docs: record Command Center color swatch + shop_profile_library.color write-through status, mark IMPLEMENTED/UNCONFIRMED (afs-cv-003)
 971eb1c  feat: show selected color in Command Center quote views, populate shop_profile_library.color on both send paths (afs-cv-003)

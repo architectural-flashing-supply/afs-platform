@@ -83,6 +83,108 @@ and not restart from scratch.**
 
 ---
 
+## PROFILE LIBRARY QUEUE REORDERING ADDED (afs-cv-005): IMPLEMENTED, UNCONFIRMED
+
+**Status: `pnpm tsc --noEmit` passes with 0 errors (verified this session).
+`pnpm run build` completes successfully (verified this session). This session
+had no browser/Playwright access — per this file's verification standard,
+this is IMPLEMENTED/UNCONFIRMED, not DONE, until Reid opens
+`/admin/profile-library` in a real browser, uses the up/down controls, and
+confirms the row order actually persists across a page reload. Carries the
+exact same migration-017 dependency afs-cv-003/afs-cv-004 already documented
+below: `shop_profile_library.queue_position` remains **FILE ONLY, NOT YET
+APPLIED LIVE** as of this writing (migration
+`017_color_and_queue_position.sql`, afs-cv-000) — until it's applied, every
+write this feature makes will fail against the live database regardless of
+code correctness.**
+
+Read `app/admin/profile-library/page.tsx` (afs-sv-009) and afs-cv-004's Shop
+View queue-strip implementation in full first, per the task's own
+instruction, so both surfaces stay driven by the same `queue_position`
+ordering model.
+
+- **Reordering approach: explicit up/down buttons per row, not
+  drag-to-reorder.** This codebase has no drag-and-drop library anywhere in
+  `package.json`; adding one solely for this one table would have been
+  disproportionate to the need. A code comment states this choice and the
+  reasoning at the implementation site — `components/admin/
+  ProfileLibraryTable.tsx`'s `moveRow` function and the surrounding "Queue"
+  column.
+- **Full file replacements** (not patches): `components/admin/
+  ProfileLibraryTable.tsx`, `lib/data/shop-profile-library.ts`. New file:
+  `app/api/admin/profile-library/reorder/route.ts` (PATCH).
+- **New "Queue" column**, leftmost in the table: shows each row's rank (1..N)
+  in the canonical queue order plus ▲/▼ buttons. The rank and the buttons'
+  up/down behavior are always computed from the FULL row set, independent of
+  the table's own search/filter/column-sort controls — "shop priority" is a
+  global ordering, not a property of whatever subset happens to be visible.
+  Reuses the exact `compareShopProfileLibraryQueueOrder` comparator
+  afs-cv-004's Shop View queue strip already sorts by (`queue_position`
+  ascending, nulls last → `due_date` ascending, nulls last → `created_at`
+  ascending as the final tiebreak) — that comparator's signature was
+  generalized from `ShopProfileLibraryFullRow`-specific to a small structural
+  `QueueOrderFields` interface so both `ShopProfileLibraryRow` (this table)
+  and `ShopProfileLibraryFullRow` (Shop View) satisfy it without a cast, per
+  this task's explicit requirement that both surfaces be driven by the exact
+  same ordering model.
+- **Persistence:** clicking ▲/▼ swaps the row with its canonical-order
+  neighbor, then PATCHes `app/api/admin/profile-library/reorder` with the
+  FULL ordered id list for every currently active (non-deleted) row — not
+  just the two that moved — which writes `queue_position = index + 1` for
+  every one of them in that same request. This is required, not just tidy:
+  `compareShopProfileLibraryQueueOrder` always sorts a null `queue_position`
+  AFTER any explicit one, so a table with a mix of explicit and null
+  positions doesn't behave like one ordered list — updating only the moved
+  pair could jump them ahead of every untouched (still-null) row instead of
+  just swapping with a neighbor. Writing the whole set keeps it a gapless
+  1..N sequence. The route validates the posted id list is exactly a
+  permutation of the current active row set before writing anything, and
+  logs the action via `logAdminAction`. Optimistic UI update on click, with
+  rollback and an inline error banner if the request fails.
+- **New sends append to the end of the queue on insert.** Both real
+  PathfinderEdge-send call sites already went through the single shared
+  `insertShopProfileLibraryRecord` (`lib/data/shop-profile-library.ts`), so
+  this only needed to change in one place. That function now calls a new
+  `appendToQueueEnd` helper before every insert, which:
+  1. Reads every current non-deleted row's `id`/`queue_position`/`due_date`/
+     `created_at`.
+  2. Sorts them into the same canonical queue order as above.
+  3. If any row's stored `queue_position` doesn't already match its rank in
+     that order (i.e. the table has never been normalized — true for every
+     row today, since nothing has ever written this column before this
+     prompt), **writes a real sequential `queue_position` to every one of
+     them first.**
+  4. Returns `existing row count + 1` as the new row's position.
+
+  Step 3 is not optional scope creep — it is the fix for a real bug the
+  literal instruction ("`queue_position` = current max among non-deleted
+  rows, plus 1, never a default that would place a new send ahead of
+  existing queued work") would otherwise still have. Before any row anywhere
+  has an explicit `queue_position`, a plain `MAX(queue_position) + 1` is `1`,
+  since nothing has a value to max over yet — and
+  `compareShopProfileLibraryQueueOrder` sorts ANY explicit position before
+  ANY null one, regardless of magnitude. So a naive "MAX+1" implementation
+  would rank a brand-new send ahead of every pre-existing (still-null)
+  queued row on its very first use — the exact bug the instruction calls
+  out. Normalizing the whole active set to a real sequence first (once,
+  self-healing after that) is the only way an appended position can
+  actually land after all of it. This is a no-op after the first time it
+  runs against a given table state, since the table stays sequential from
+  then on.
+- Soft-deleted rows (`deleted_at IS NOT NULL`) are excluded from all of the
+  above — the queue-order comparison, the rank shown in the Queue column,
+  and `appendToQueueEnd`'s normalization pass — via the same
+  `.is('deleted_at', null)` filter every read/write in this file already
+  uses. No second filter implementation introduced.
+- Colors: afs-* tokens only (`afs-chrome-mid`, `afs-crimson`,
+  `afs-crimson-dim`, `afs-chrome-high`, `afs-border`) — no default Tailwind
+  colors, no new literal hex values, no new CANVAS_COLORS-style exception.
+
+Committed as `feat: add operator-controlled queue reordering to Profile
+Library, writing shop_profile_library.queue_position (afs-cv-005)`.
+
+---
+
 ## SHOP VIEW REWORKED TO ONE-JOB FOCUS MODE (afs-cv-004): IMPLEMENTED, UNCONFIRMED
 
 **Status: `pnpm tsc --noEmit` passes with 0 errors (verified this session).
