@@ -58,6 +58,76 @@ and not restart from scratch.**
 
 ---
 
+## JOB-IDENTITY + FINISH COLUMNS MIGRATION WRITTEN, FILE ONLY (afs-jf-000) — 2026-08-21
+
+Read every file in `supabase/migrations/` (001 through 017) in full and
+this file's own live-apply status notes before choosing a migration
+number, per the task's instruction. Confirmed
+`017_color_and_queue_position.sql` is still the highest-numbered file on
+disk (001–017, no gaps) and is **CONFIRMED APPLIED LIVE** (see the
+afs-cv-000 entry below) — so this migration is correctly numbered 018.
+No discrepancy to note.
+
+**Pre-existing-column check, done directly rather than trusted from the
+task's own note, per its explicit instruction:** grepped
+`001_initial_schema.sql` for `po_number` and confirmed `quote_requests.
+po_number TEXT` already exists there (line 442) — it predates this
+migration and is NOT a new addition. It is included in this migration's
+`quote_requests` `ALTER TABLE` only via `ADD COLUMN IF NOT EXISTS` for
+idempotent-migration-style safety, matching this project's existing
+pattern — both the migration file's header comment and `SCHEMA.md` state
+this pre-existing status explicitly, so it can't be mistaken for new.
+Also checked `shop_profile_library` (via migrations 016 and 017, the
+only two prior migrations touching that table) — none of the five
+columns below existed there before this migration; all five are
+genuinely new on that table.
+
+New `supabase/migrations/018_job_identity_and_finish.sql` — all columns
+nullable, no defaults, `ADD COLUMN IF NOT EXISTS`:
+1. `quote_requests`: `client_business_name TEXT`, `client_name TEXT`,
+   `po_number TEXT` (pre-existing, included only for idempotent safety —
+   see above), `requested_by TEXT`, `finish TEXT`.
+2. `shop_profile_library`: `client_business_name TEXT`, `client_name
+   TEXT`, `po_number TEXT`, `requested_by TEXT`, `finish TEXT` — all five
+   new.
+
+**No indexes, constraints, or defaults beyond the columns listed above.**
+Checked the real pattern already established on `shop_profile_library`
+by migrations 016/017 before deciding, per the task's instruction not to
+invent a new convention: only 5 of its ~20 columns are indexed
+(`customer_name`, `profile_name`, `status`, `due_date`, `created_at`);
+plain nullable text columns like `material`, `gauge`, `order_number`,
+`hem_instructions`, `color` carry no index. All ten new columns (five
+per table) were left unindexed, matching that existing pattern.
+
+`SCHEMA.md` updated: header counts (18 migration files, table count
+unchanged at 54 since no new table is added), the `MIGRATION FILE
+LOCATION` list, a new note on TABLE 15 (`quote_requests`) documenting
+the four new columns plus the `po_number` pre-existing finding, and a
+new note in the SHOP PROFILE LIBRARY TABLE section documenting all five
+new columns there — matching this project's existing documentation
+depth/style for migrations 016/017's own additions in both places.
+
+**This is a FILE-ONLY prompt, per its own instructions — migration 018
+has NOT been applied to the live Supabase project.** Following the same
+"pending manual apply" convention already used for migrations 015/016/
+017: it is written and committed but pending manual Dashboard
+application. No session has had a working Supabase MCP connection to
+this project's actual instance to apply or verify it directly.
+
+`pnpm tsc --noEmit`: 0 errors, run directly this session. This prompt
+adds no UI, no API route, and no data-fetching code — there is no
+browser surface to verify for this prompt itself. Per this file's own
+verification standard (see top of file), this is marked **IMPLEMENTED,
+UNCONFIRMED** — pending Reid's manual application of the migration in
+the Supabase Dashboard, and, per this file's own standard, a file-only
+migration has no browser surface to verify at all, so that "unconfirmed"
+status is expected to persist until a downstream prompt actually
+consumes these columns in the UI. Committed as `feat: add job-identity
+fields and finish columns migration, file only (afs-jf-000)`.
+
+---
+
 ## PROFILE LIBRARY QUEUE REORDERING ADDED (afs-cv-005) — 2026-08-21
 
 Read `app/admin/profile-library/page.tsx` (afs-sv-009) and afs-cv-004's Shop

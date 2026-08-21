@@ -641,6 +641,78 @@ migration, file only (afs-cv-000)`.
 
 ---
 
+## JOB-IDENTITY + FINISH COLUMNS MIGRATION WRITTEN, FILE ONLY (afs-jf-000) — 2026-08-21
+
+**Status: migration `018_job_identity_and_finish.sql` written and
+committed to `supabase/migrations/` — FILE-ONLY change, per the task's
+own instruction; NOT applied to the live Supabase project. `pnpm tsc
+--noEmit` passes with 0 errors, run directly this session. This prompt
+adds no UI, no API route, and no data-fetching code — there is no
+browser surface to verify for this prompt itself, so it is marked
+IMPLEMENTED/UNCONFIRMED pending Reid's manual application and, per this
+file's verification standard, pending browser verification of whatever
+downstream prompt actually consumes these columns.**
+
+Confirmed before choosing the migration number: read every file in
+`supabase/migrations/` (001 through 017) in full and cross-checked
+SESSION_STATE.md's live-apply status notes, per the task's instruction.
+`017_color_and_queue_position.sql` was in fact still the highest-numbered
+file on disk (001–017, no gaps) and is CONFIRMED APPLIED LIVE per
+SESSION_STATE.md's afs-cv-000 entry, so this migration is correctly
+numbered 018 — no discrepancy to note.
+
+**Pre-existing-column finding, verified directly before writing anything
+(per the task's explicit instruction not to trust its own note):**
+`quote_requests.po_number TEXT` already exists — added in
+`001_initial_schema.sql` (line 442), confirmed by reading that file
+directly. It is NOT a new addition of this migration. It is included in
+this migration's `ALTER TABLE quote_requests` statement only via `ADD
+COLUMN IF NOT EXISTS` for idempotent-migration-style safety (a harmless
+no-op against the live column, matching this project's existing
+pattern) — both the migration file's own header comment and SCHEMA.md
+state this explicitly. Also verified: none of the five columns below
+already existed on `shop_profile_library` (checked migrations 016 and
+017, the only two prior migrations touching that table) — all five are
+genuinely new there.
+
+**What it does — all columns nullable, no defaults, `ADD COLUMN IF NOT
+EXISTS`:**
+1. `ALTER TABLE quote_requests ADD COLUMN IF NOT EXISTS
+   client_business_name TEXT, ADD COLUMN IF NOT EXISTS client_name TEXT,
+   ADD COLUMN IF NOT EXISTS po_number TEXT, ADD COLUMN IF NOT EXISTS
+   requested_by TEXT, ADD COLUMN IF NOT EXISTS finish TEXT` —
+   `client_business_name`/`client_name`/`requested_by`/`finish` are new;
+   `po_number` is pre-existing (see above).
+2. `ALTER TABLE shop_profile_library ADD COLUMN IF NOT EXISTS
+   client_business_name TEXT, ADD COLUMN IF NOT EXISTS client_name TEXT,
+   ADD COLUMN IF NOT EXISTS po_number TEXT, ADD COLUMN IF NOT EXISTS
+   requested_by TEXT, ADD COLUMN IF NOT EXISTS finish TEXT` — all five
+   new.
+
+**No indexes, constraints, or defaults added beyond the columns listed
+above.** Checked the real pattern already established on
+`shop_profile_library` first (migrations 016/017), per the task's
+instruction not to invent a new convention: only 5 of its ~20 columns
+carry an index (`customer_name`, `profile_name`, `status`, `due_date`,
+`created_at`); plain nullable text columns like `material`, `gauge`,
+`order_number`, `hem_instructions`, `color` all carry none. No "every
+plain text column gets an index" convention exists to extend, so all ten
+new columns (five per table) were left unindexed, matching the unindexed
+majority.
+
+`SCHEMA.md` updated: header table/migration-file counts (18 migration
+files; table count unchanged at 54 since this migration adds no new
+tables), the `MIGRATION FILE LOCATION` list, a new note on TABLE 15
+(`quote_requests`) documenting the four new columns plus the
+`po_number` pre-existing finding, and a new note in the SHOP PROFILE
+LIBRARY TABLE section documenting all five new columns there — matching
+the depth and style of the existing 016/017 notes in both places.
+
+Committed as `feat: add job-identity fields and finish columns
+migration, file only (afs-jf-000)`.
+
+---
+
 ## FLASHDRAFT — "SNAP TO 15° ANGLE" / "SNAP TO 1/8" DIMENSION" TOGGLES REMOVED (afs-sv-001): IMPLEMENTED, UNCONFIRMED
 
 **Status: code removed, `pnpm tsc --noEmit` passes with 0 errors. Not yet
