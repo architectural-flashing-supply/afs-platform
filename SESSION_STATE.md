@@ -131,6 +131,68 @@ duplicate listeners (afs-sv-002)`.
 
 ---
 
+## FLASHDRAFT FIRST-LEG DRAG ASYMMETRY FIXED (afs-sv-003) — 2026-08-20
+
+Read the leg hit-testing and drag-interaction code in
+`app/studio/draft/page.tsx` in full before changing anything, per the
+task's instruction, and confirmed the bug directly from the code rather
+than guessing from the reported symptom.
+
+**Root cause:** two compounding gaps, both keyed to point 0 (the first
+leg's start, its "top"):
+
+1. `hitTestVertex()` looped `i = 1` to `points.length - 2`, deliberately
+   excluding BOTH true endpoints (point 0 and the last point) from direct
+   vertex hit-testing.
+2. That exclusion was invisible for the LAST point because leg-body
+   dragging (`legBodyDragCandidateRef`) always drags the FAR vertex
+   (`legIndex + 1`) of whichever leg's body is grabbed — for the last
+   leg, that far vertex IS the last point, so grabbing its body still
+   moved it correctly. For the FIRST leg, the same convention drags point
+   1 (`legIndex + 1` where `legIndex = 0`) — never point 0. With point 0
+   excluded from direct vertex hit-testing AND never the far vertex of
+   any leg-body drag, no gesture could ever move it: grabbing near point
+   0 fell through to leg-0 body-drag, stretching the leg by dragging
+   point 1 away while point 0 stayed fixed. That reads exactly like the
+   reported symptom — "grabbing near its top grows/resizes it instead of
+   moving it."
+
+**Fix:**
+- `hitTestVertex()` now starts at `i = 0`, making point 0 a fully
+  hit-testable, directly draggable vertex like every interior bend point.
+  The last point stays excluded — that's a separate, deliberate design
+  choice (owned by the "continue drawing from here" gesture), not part of
+  this bug.
+- `clampDragAngle()` and the `draggingVertexIndex` branch of
+  `handlePointerMove` both special-case `idx === 0`, since point 0 has no
+  leg before it to anchor the shared drag math against (which normally
+  fixes `original[idx - 1]` and translates every point after `idx`).
+  Mirrored instead: anchor on `original[idx + 1]`, move point 0 alone,
+  translate nothing — the same behavior class as dragging the true last
+  point (which also moves alone), not a divergent one. This is the one
+  remaining special case for leg index 0, and it's structurally required
+  (documented in both functions): point 0 genuinely has only one leg, on
+  its far side, unlike every interior point which has one on each side.
+- `selectedBendPoint` (Angle/Bend Radius panel) and the hover "radius too
+  tight" tooltip both now explicitly skip point 0 — it has no bend angle
+  or radius (no leg before it) and was never eligible for either before
+  this fix; this just keeps the newly-hittable point 0 from opening a
+  panel built for a point with legs on both sides.
+
+Explicitly not touched: hem logic, bend-angle/length application
+(`applyBendAngle`, `rotateChainAroundVertex`), and the leg-body-reshape
+mechanism itself (`legBodyDragCandidateRef`, unchanged).
+
+Only `app/studio/draft/page.tsx` changed (full-file edits, hit-testing and
+drag-translation code only). `pnpm tsc --noEmit` and `pnpm run build` both
+run directly this session: 0 errors, build passes. Per this file's own
+verification standard, this is **IMPLEMENTED, UNCONFIRMED** — the user has
+not yet independently confirmed by dragging the first leg's endpoint in
+the actual FlashDraft canvas. Committed as `fix: FlashDraft first-leg drag
+asymmetry - support same interactions as other legs (afs-sv-003)`.
+
+---
+
 ## CURRENT STATUS
 
 **FOURTH revision applied (2026-08-20): bend angle now emits SIGNED

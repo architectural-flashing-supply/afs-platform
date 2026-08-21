@@ -174,6 +174,72 @@ fix, no afs-* token changes.
 
 ---
 
+## FLASHDRAFT — FIRST-LEG DRAG ASYMMETRY, FIXED (afs-sv-003): IMPLEMENTED, UNCONFIRMED
+
+**Status: code fixed, `pnpm tsc --noEmit` passes with 0 errors, `pnpm run
+build` passes. Not yet independently confirmed by the user dragging the
+first leg's endpoint in the actual FlashDraft canvas — per this file's
+verification standard, that confirmation is required before this can be
+marked DONE.**
+
+Only file touched: `app/studio/draft/page.tsx` (full-file replacement of
+the vertex hit-testing and drag-translation code only; hem logic and
+bend-angle/length logic were explicitly not touched, per the request).
+
+**Root cause, confirmed directly from the code before changing anything:**
+two compounding, endpoint-specific gaps, both keyed to point 0 (the first
+leg's start, i.e. its "top"):
+
+1. `hitTestVertex()` looped `for (let i = 1; i < points.length - 1; i++)`
+   — deliberately excluding BOTH true endpoints (point 0 and the last
+   point) from direct vertex hit-testing, so neither could ever be grabbed
+   and dragged as a vertex.
+2. This exclusion was invisible for the LAST point because two other
+   mechanisms happened to cover for it: a click near the last point is
+   claimed by the "continue drawing from here" gesture in
+   `handlePointerDown`, and — more importantly — dragging the BODY of the
+   last leg (`legBodyDragCandidateRef`) always drags its FAR vertex
+   (`legIndex + 1`), which for the last leg IS the last point. For the
+   FIRST leg, the same "always drag the far vertex" convention drags point
+   1 (`legIndex + 1` where `legIndex = 0`) — never point 0. With point 0
+   excluded from direct vertex hit-testing and never the far vertex of any
+   leg-body drag, there was no gesture that could ever move it: grabbing
+   near point 0 fell through to leg-0 body-drag, which stretched the leg
+   by dragging point 1 away while point 0 stayed fixed — reported as "it
+   grows/resizes instead of moving."
+
+**Fix applied:**
+- `hitTestVertex()` now starts its loop at `i = 0`, so point 0 is a fully
+  hit-testable, directly draggable vertex like every interior bend point.
+  The last point stays excluded — that exclusion is a real, separate
+  design choice (the "continue drawing" gesture owns that pixel radius),
+  not the bug.
+- `clampDragAngle()` and the `draggingVertexIndex` branch of
+  `handlePointerMove` both special-case `idx === 0`: since point 0 has no
+  leg before it, the shared drag math — which normally anchors on
+  `original[idx - 1]` (fixed) and translates every point after `idx` by
+  the same delta — mirrors instead, anchoring on `original[idx + 1]` and
+  moving point 0 alone with nothing translating. This is the one
+  remaining special case for leg index 0, and it is structurally required
+  (documented in both functions): point 0 genuinely has only one leg, on
+  its far side, unlike every interior point which has one on each side.
+  It mirrors exactly how the true last point already behaves (moves
+  alone, nothing to translate past it) — same behavior class, not a
+  divergent one.
+- `selectedBendPoint` (the Angle/Bend Radius side panel) and the hover
+  "radius too tight" tooltip both now explicitly skip point 0 — it has no
+  bend angle or bend radius (no leg before it), so it was never eligible
+  for either before this fix and still isn't; this just prevents the
+  newly-hittable point 0 from opening a panel that assumes an interior
+  bend point exists on both sides.
+
+**Explicitly NOT touched:** hem logic, bend-angle/length application
+(`applyBendAngle`, `rotateChainAroundVertex`), the leg-body-reshape
+mechanism itself (`legBodyDragCandidateRef`, unchanged), and everything
+else in FlashDraft.
+
+---
+
 ## CRITICAL — PATHFINDEREDGE BEND ANGLE, FOURTH REVISION: SIGNED INTERIOR ANGLE, NOT TURN-ANGLE: IMPLEMENTED, PENDING VERIFICATION
 
 **Status: IMPLEMENTED, PENDING Reid's own visual verification matrix
