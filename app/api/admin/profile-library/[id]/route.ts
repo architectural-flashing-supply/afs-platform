@@ -96,9 +96,19 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       return NextResponse.json({ error: 'Profile library row not found.' }, { status: 404 });
     }
 
+    // This is the actual completion write (afs-cv-004) — status and
+    // completed_at land in the same UPDATE so a row can never be 'complete'
+    // with a null completed_at. completed_at is purely an event-record
+    // timestamp for a future automation chain to consume later. Marking a
+    // job complete here fires NO delivery, invoice, or email side effects
+    // of any kind — do not assume it does in a future prompt.
+    const completedAt = status === 'complete' ? new Date().toISOString() : null;
+    const updatePayload: { status: typeof status; completed_at?: string } =
+      completedAt !== null ? { status, completed_at: completedAt } : { status };
+
     const { error: updateError } = await supabase
       .from('shop_profile_library')
-      .update({ status })
+      .update(updatePayload)
       .eq('id', params.id);
     if (updateError) {
       console.error('[Profile Library Status Update Error]', updateError);
@@ -111,10 +121,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       resourceType: 'shop_profile_library',
       resourceId: params.id,
       beforeValue: { status: existing.status },
-      afterValue: { status },
+      afterValue: { status, completed_at: completedAt },
     });
 
-    return NextResponse.json({ ok: true, status });
+    return NextResponse.json({ ok: true, status, completedAt });
   } catch (error) {
     console.error('[Profile Library Status Update Route Error]', error);
     return NextResponse.json({ error: 'Could not update status. Please try again.' }, { status: 500 });

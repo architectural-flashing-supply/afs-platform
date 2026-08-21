@@ -207,6 +207,10 @@ export interface ShopProfileLibraryFullRow {
   accountNotes: string | null;
   material: string | null;
   gauge: string | null;
+  // McElroy/PAC-CLAD color name (afs-cv-000's migration 017, afs-cv-003's
+  // write-through) — see ColorSwatchChip.tsx for the established swatch
+  // rendering pattern this reuses.
+  color: string | null;
   quantity: number | null;
   lengthFt: number | null;
   dueDate: string | null;
@@ -217,6 +221,16 @@ export interface ShopProfileLibraryFullRow {
   sourceTool: string | null;
   pathfinderProfileId: string | null;
   status: string;
+  // Manual shop-floor queue ordering (afs-cv-000's migration 017) — null for
+  // rows written before this column existed, or any row staff hasn't
+  // manually sequenced. See compareShopProfileLibraryQueueOrder below for
+  // the single sort this drives across Shop View's queue strip and focus
+  // panel (afs-cv-004).
+  queuePosition: number | null;
+  // Set only on the queued/in_progress -> complete transition (afs-cv-004).
+  // Distinct from createdAt — used to drive the "Completed today" review
+  // panel, not the active queue.
+  completedAt: string | null;
   createdAt: string;
 }
 
@@ -224,7 +238,7 @@ export async function getShopProfileLibraryFull(supabase: SupabaseClient): Promi
   const { data, error } = await supabase
     .from('shop_profile_library')
     .select(
-      'id, order_number, profile_name, customer_name, company, customer_email, customer_phone, account_notes, material, gauge, quantity, length_ft, due_date, hem_instructions, painted_edge, special_instructions, geometry_svg, source_tool, pathfinder_profile_id, status, created_at'
+      'id, order_number, profile_name, customer_name, company, customer_email, customer_phone, account_notes, material, gauge, color, quantity, length_ft, due_date, hem_instructions, painted_edge, special_instructions, geometry_svg, source_tool, pathfinder_profile_id, status, queue_position, completed_at, created_at'
     )
     .is('deleted_at', null)
     .order('created_at', { ascending: false });
@@ -242,6 +256,7 @@ export async function getShopProfileLibraryFull(supabase: SupabaseClient): Promi
       account_notes: string | null;
       material: string | null;
       gauge: string | null;
+      color: string | null;
       quantity: number | null;
       length_ft: number | null;
       due_date: string | null;
@@ -252,6 +267,8 @@ export async function getShopProfileLibraryFull(supabase: SupabaseClient): Promi
       source_tool: string | null;
       pathfinder_profile_id: string | null;
       status: string | null;
+      queue_position: number | null;
+      completed_at: string | null;
       created_at: string;
     }[]
   ).map((r) => ({
@@ -265,6 +282,7 @@ export async function getShopProfileLibraryFull(supabase: SupabaseClient): Promi
     accountNotes: r.account_notes,
     material: r.material,
     gauge: r.gauge,
+    color: r.color,
     quantity: r.quantity,
     lengthFt: r.length_ft,
     dueDate: r.due_date,
@@ -275,6 +293,32 @@ export async function getShopProfileLibraryFull(supabase: SupabaseClient): Promi
     sourceTool: r.source_tool,
     pathfinderProfileId: r.pathfinder_profile_id,
     status: r.status ?? 'queued',
+    queuePosition: r.queue_position,
+    completedAt: r.completed_at,
     createdAt: r.created_at,
   }));
+}
+
+// ----------------------------------------------------------------------------
+// Queue ordering (afs-cv-004) — queue_position ascending (nulls last), then
+// due_date ascending (nulls last), then created_at ascending as the final
+// tiebreaker. Shared between Shop View's numbered queue strip and its
+// focus-panel "advance to next job" logic so both agree on exactly one order.
+// ----------------------------------------------------------------------------
+export function compareShopProfileLibraryQueueOrder(
+  a: ShopProfileLibraryFullRow,
+  b: ShopProfileLibraryFullRow
+): number {
+  if (a.queuePosition !== b.queuePosition) {
+    if (a.queuePosition === null) return 1;
+    if (b.queuePosition === null) return -1;
+    return a.queuePosition - b.queuePosition;
+  }
+  if (a.dueDate !== b.dueDate) {
+    if (!a.dueDate) return 1;
+    if (!b.dueDate) return -1;
+    const diff = new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+    if (diff !== 0) return diff;
+  }
+  return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
 }

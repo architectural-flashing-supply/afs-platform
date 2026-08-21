@@ -15,8 +15,8 @@ export default async function ShopViewPage() {
         <p className="font-label text-afs-crimson text-xs tracking-widest uppercase mb-2">Command Center</p>
         <h1 className="font-heading text-3xl text-afs-chrome-high">Shop View</h1>
         <p className="font-body text-sm text-afs-chrome-mid mt-1">
-          Large-format shop-floor reference — confirm each designed profile against what&apos;s on the
-          PathfinderEdge/Thalmann screen. Refreshes automatically every 30 seconds.
+          Focus-mode shop-floor reference — one job full-screen at a time, for a direct visual check against
+          what&apos;s on the PathfinderEdge/Thalmann screen. Refreshes automatically every 30 seconds.
         </p>
       </div>
 
