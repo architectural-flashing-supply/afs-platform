@@ -83,6 +83,87 @@ and not restart from scratch.**
 
 ---
 
+## COLOR PICKER MODAL — BACK BUTTON NO LONGER NAVIGATES AWAY (afs-jf-001): IMPLEMENTED, UNCONFIRMED
+
+**Status: `pnpm tsc --noEmit` passes with 0 errors (verified this session).
+Root cause and fix both confirmed directly against a real running dev
+server via ad hoc Playwright scripts this session (not committed — scratch
+files, deleted after use), not from code reading alone. Per this file's
+verification standard, this is IMPLEMENTED/UNCONFIRMED, not DONE, until
+Reid independently confirms the Back-button behavior himself on every
+wired surface listed below.**
+
+**Surface list re-verified, not assumed from the prior afs-cv-002 entry:**
+grepped the whole repo for `ColorPickerModal`/`ColorField` — the only real
+wiring surfaces are the same four afs-cv-002 named: `app/studio/draft/
+page.tsx` (FlashDraft), `app/configure/page.tsx` (Configurator),
+`app/quote/page.tsx` (Quote Builder), `app/upload/page.tsx` (Blueprint
+Takeoff AI). All four import `ColorField`, never `ColorPickerModal`
+directly, so the fix lives in one place (`ColorPickerModal.tsx`) and
+covers all four automatically. No fifth surface exists.
+
+**Root cause, confirmed live:** `ColorPickerModal.tsx` was a plain
+conditional-render `fixed inset-0` overlay driven only by its `isOpen`
+prop — opening it never pushed a browser history entry, so it had nothing
+modal-specific for a Back press to intercept. A Playwright script driving
+a real dev server confirmed this directly: on `/quote`, selecting a
+color-required material (Kynar 500 Painted Steel), opening the picker,
+then calling `page.goBack()` navigated the tab away from `/quote`
+entirely (to whatever page actually preceded it in history) instead of
+closing the modal. Same confirmed on `/studio/draft` navigated to from
+`/studio` — Back left FlashDraft and landed back on the Design Studio
+home page, matching the reported symptom exactly.
+
+**Fix, in `ColorPickerModal.tsx` only (full file replacement):** a
+`useEffect` keyed on `isOpen` now calls `window.history.pushState(...)`
+when the modal opens and adds a `popstate` listener that calls `onClose()`
+— so a Back press closes the modal and lands back on the exact
+underlying page state, nothing else navigates. If the modal is instead
+closed via its own Close button or by selecting a color, the effect's
+cleanup calls `window.history.back()` to pop that same pushed entry
+(guarded by a ref so the resulting `popstate` doesn't re-trigger
+`onClose` a second time) — this prevents the pushed entry from lingering
+as a stray forward-navigable entry that would otherwise silently absorb
+the user's next real Back press.
+
+**Verified live this session (Playwright against `pnpm dev`, scripts not
+committed):**
+1. `/quote` — Back while the picker is open: modal closes, URL stays
+   `/quote`, in-progress `#material` field value (`Kynar 500 (Painted
+   Steel)`) preserved.
+2. `/quote` — reopen picker, close via the Close button, then a real
+   Back press: URL goes to the actual prior page (not swallowed by a
+   stray entry) — confirms the cleanup-on-Close path works.
+3. `/studio` → `/studio/draft` → open picker → Back: stays on
+   `/studio/draft`, does not fall through to `/studio` (Design Studio
+   home) as it did before the fix.
+
+**Not independently re-verified in a browser this session:**
+`app/configure/page.tsx` and `app/upload/page.tsx` specifically — both
+wire the identical shared `ColorField`/`ColorPickerModal` pair with no
+surface-specific override, so the same fix applies, but only `/quote` and
+`/studio/draft` were driven end-to-end this session. Reid's own
+confirmation pass should still cover all four surfaces, not just these
+two.
+
+**Related issue, noted but NOT fixed (out of scope — not implicated in
+this bug):** `components/ui/Modal.tsx`, the shared modal used across most
+of `/admin` and `/account` (`ProfileLibraryTable`,
+`CommandCenterJobCard`, `BidsCrmTab`, `CreditApplicationReviewModal`,
+`OrdersCrmTab`, `CustomerDetailDrawer`, `StatusAdvancer`,
+`TemplateCreateModal`, `ProjectEditModal`, `ProjectCreateModal`,
+`InviteTeamMemberModal`, `DocumentUploadForm`, and others), has the exact
+same plain-overlay-without-a-history-entry pattern — no `pushState`, no
+`popstate` listener. A Back press while any of those modals is open would
+likely exhibit the same navigate-away bug. This was not touched here
+since none of those surfaces wire `ColorPickerModal`/`ColorField` and
+fixing it was outside this task's scope.
+
+Committed as `fix: ColorPickerModal Back button closes the picker instead
+of navigating away (afs-jf-001)`.
+
+---
+
 ## PROFILE LIBRARY QUEUE REORDERING ADDED (afs-cv-005): IMPLEMENTED, UNCONFIRMED
 
 **Status: `pnpm tsc --noEmit` passes with 0 errors (verified this session).

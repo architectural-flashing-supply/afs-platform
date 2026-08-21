@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { mcelroy, pacclad, type MetalColor } from '@/lib/data/metal-colors';
 import type { ColorPalette } from '@/lib/data/material-color-requirement';
 
@@ -29,6 +29,16 @@ interface ColorPickerModalProps {
  * app/studio/draft/page.tsx and STRIPE_CARD_ELEMENT_COLORS in
  * app/checkout/page.tsx. Every other element in this modal — frame, search
  * box, labels, layout — uses afs-* tokens only.
+ *
+ * Browser history sync (afs-jf-001): this used to be a plain conditional-
+ * render overlay with no browser history entry of its own, so pressing
+ * Back while open fell through to whatever page actually preceded the
+ * current one — navigating away from the host page entirely instead of
+ * closing the modal. While open, it now pushes one history entry and
+ * listens for `popstate` to close on Back. If it's instead closed via its
+ * own Close button or a color selection, that pushed entry is popped with
+ * `history.back()` so it doesn't linger as a stray forward-navigable entry
+ * that would absorb a later, real Back press.
  */
 export default function ColorPickerModal({
   isOpen,
@@ -38,6 +48,7 @@ export default function ColorPickerModal({
   onClose,
 }: ColorPickerModalProps) {
   const [search, setSearch] = useState('');
+  const pushedHistoryEntryRef = useRef(false);
 
   const colors = PALETTE_COLORS[palette];
   const filtered = useMemo(() => {
@@ -45,6 +56,29 @@ export default function ColorPickerModal({
     if (!q) return colors;
     return colors.filter((c) => c.name.toLowerCase().includes(q));
   }, [colors, search]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    window.history.pushState({ afsColorPickerModal: true }, '');
+    pushedHistoryEntryRef.current = true;
+
+    const handlePopState = () => {
+      pushedHistoryEntryRef.current = false;
+      onClose();
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      if (pushedHistoryEntryRef.current) {
+        pushedHistoryEntryRef.current = false;
+        window.history.back();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
