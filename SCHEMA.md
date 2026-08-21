@@ -1,6 +1,6 @@
 # SCHEMA.md
 ## AFS — Supabase Database Schema
-**54 tables across 17 migration files. RLS on every table. Indexes on every
+**54 tables across 18 migration files. RLS on every table. Indexes on every
 foreign key and filter column.** (This document's "TABLE N" numbering below
 covers the original 25 sections designed in migration 001 — several of
 those sections define more than one physical table, e.g. TABLE 8 =
@@ -22,14 +22,18 @@ section adds 1 more table via migration 016, which also adds
 `quote_requests.source_tool` (see TABLE 15). Migration 017 is column-only
 (adds `quote_requests.color` — see TABLE 15 — and `shop_profile_library.
 color` / `queue_position` / `completed_at` — see SHOP PROFILE LIBRARY
-TABLE; no new tables). 54 is the table count `supabase/README.md` should
-verify against the live database once all 17 migrations are applied —
-**as of this writing, migrations 016 and 017 are written and committed
-as files only; neither has been applied to the live Supabase project,
-so the live table count remains whatever the last actually-applied
-migration produced. See SESSION_STATE.md for each migration's
-individually verified live-apply status — it is never safe to assume
-from a file's presence on disk alone.**)
+TABLE; no new tables). Migration 018 is also column-only (adds
+job-identity fields `client_business_name` / `client_name` / `po_number`
+/ `requested_by` and a `finish` field to both `quote_requests` — see
+TABLE 15 — and `shop_profile_library` — see SHOP PROFILE LIBRARY TABLE;
+no new tables; `quote_requests.po_number` pre-existed migration 018, see
+TABLE 15 for that finding). 54 is the table count `supabase/README.md`
+should verify against the live database once all 18 migrations are
+applied — **as of this writing, migration 018 is written and committed
+as a file only and has not been applied to the live Supabase project.
+See SESSION_STATE.md for each migration's individually verified
+live-apply status — it is never safe to assume from a file's presence on
+disk alone.**)
 
 ---
 
@@ -54,6 +58,7 @@ supabase/migrations/
   015_machine_jobs_delivery_method.sql    Adds machine_jobs.delivery_method — no new tables (see MACHINE BRIDGE TABLES)
   016_source_tool_and_shop_profile_library.sql  Adds quote_requests.source_tool (see TABLE 15), creates shop_profile_library (see SHOP PROFILE LIBRARY TABLE) — FILE ONLY, not yet applied live
   017_color_and_queue_position.sql        Adds quote_requests.color (see TABLE 15) and shop_profile_library.color/queue_position/completed_at (see SHOP PROFILE LIBRARY TABLE) — no new tables — FILE ONLY, not yet applied live
+  018_job_identity_and_finish.sql         Adds client_business_name/client_name/po_number/requested_by/finish to quote_requests (see TABLE 15; po_number pre-existing) and to shop_profile_library (see SHOP PROFILE LIBRARY TABLE, all five new) — no new tables — FILE ONLY, not yet applied live
 ```
 
 Run in numeric order — see `supabase/README.md` for the exact procedure.
@@ -540,6 +545,31 @@ TABLE` below since it was added after this table was originally designed
 — it is a real column on the live schema once 017 is applied. **FILE ONLY
 as of this writing — 017 has not been applied to the live Supabase
 project; see SESSION_STATE.md.**
+
+**Migration 018 (`018_job_identity_and_finish.sql`) adds
+`client_business_name TEXT`, `client_name TEXT`, `po_number TEXT`,
+`requested_by TEXT`, `finish TEXT`** (all nullable, additive `ADD COLUMN
+IF NOT EXISTS`, no defaults) — job-identity intake fields (the client's
+business name, the individual contact's name, and who at AFS/the
+customer requested the job) plus a `finish` field, captured consistently
+alongside the same five fields added to `shop_profile_library` by this
+same migration (see SHOP PROFILE LIBRARY TABLE below).
+
+**Pre-existing column, not new:** `po_number TEXT` already exists on
+`quote_requests` — added in `001_initial_schema.sql` (see the `CREATE
+TABLE` block below, where it is already present) — verified directly
+against that migration file, not assumed. Migration 018 includes it only
+via `ADD COLUMN IF NOT EXISTS` for idempotent-migration-style safety (a
+harmless no-op against the live column, matching this project's existing
+pattern), not as a new addition. Only `client_business_name`,
+`client_name`, `requested_by`, and `finish` are actually new columns on
+this table from migration 018.
+
+`client_business_name`, `client_name`, `requested_by`, and `finish` are
+not shown in the `CREATE TABLE` below since they were added after this
+table was originally designed — they are real columns on the live schema
+once 018 is applied. **FILE ONLY as of this writing — 018 has not been
+applied to the live Supabase project; see SESSION_STATE.md.**
 
 ```sql
 CREATE TABLE quote_requests (
@@ -1738,6 +1768,23 @@ also FILE ONLY, not yet applied live:**
 Not shown in the `CREATE TABLE` below since all three were added after
 this table was originally designed — they are real columns on the live
 schema once 017 is applied.
+
+**Migration 018 (`018_job_identity_and_finish.sql`) adds five columns —
+FILE ONLY, not yet applied live, all new (none of the five pre-existed
+this table — verified directly against migrations 016 and 017, the only
+prior migrations touching this table):**
+- `client_business_name TEXT` (nullable) — the client's business name.
+- `client_name TEXT` (nullable) — the individual contact's name.
+- `po_number TEXT` (nullable) — the customer's PO number for this job.
+- `requested_by TEXT` (nullable) — who requested the job.
+- `finish TEXT` (nullable) — finish spec called out at intake.
+
+All five match the identically-named fields migration 018 also adds to
+`quote_requests` (TABLE 15) — except `po_number`, which is new here but
+pre-existed on `quote_requests` (see TABLE 15's own pre-existing-column
+note). Not shown in the `CREATE TABLE` below since all five were added
+after this table was originally designed — they are real columns on the
+live schema once 018 is applied.
 
 An admin-only, internal shop record of a profile job's full intake
 context — customer/account info, material/geometry, hem/paint
