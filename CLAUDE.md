@@ -265,6 +265,31 @@ Gitignored locally:
 
 ---
 
+## FORGE LAUNCH — CANONICAL (MANDATORY)
+
+Full detail: `C:\Users\manag\Documents\FORGE\README.md`.
+
+All queued FORGE builds for this project launch EXCLUSIVELY via `forge.ps1`
+in `C:\Users\manag\Documents\FORGE`. No session may execute `queue.yaml`
+prompts through Claude Code directly or invent alternate runner syntax.
+
+```powershell
+cd C:\Users\manag\Documents\FORGE
+.\forge.ps1 -project afs-website
+```
+
+- Queue file location is FIXED: `FORGE\projects\afs-website\queue.yaml`.
+  No alternate/named queue files. Back up before replacing, using a
+  `.bak-<date>` suffix.
+- `forge.ps1`'s console output (prompt numbering, coloration, gate
+  pass/fail rendering) is part of the canonical experience — a launch not
+  showing it means `forge.ps1` was bypassed.
+- Do not modify `forge.ps1`'s output formatting, gate rendering, or launch
+  interface without an explicit instruction from Reid recorded in the
+  FORGE README.
+
+---
+
 ## DATA BLOCKERS
 
 The following data has not been received. Features that depend on this data
