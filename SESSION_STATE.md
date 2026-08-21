@@ -24,6 +24,40 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## OPEN/PARKED — PATHFINDEREDGE BEND-ANGLE INVESTIGATION (afs-sv-000)
+
+**Status: OPEN/PARKED as of 2026-08-20. Not resolved, not abandoned —
+a future session should pick this up from here, not assume it is done
+and not restart from scratch.**
+
+1. **Confirmed:** the supplement-swap bug, via a single-bend V test —
+   PathfinderEdge profile 32912069, drawn interior angle 45°, rendered
+   as approximately 135° on the machine side (PathfinderEdge) under
+   the (now superseded) turn-angle formula.
+2. **Staircase test profile 32911526: UNEVALUATED.** Has not yet been
+   checked against this bend-angle behavior. Its only prior verdict
+   (self-intersecting/impossible shape) rests entirely on Reid's own
+   chat messages, not independent visual confirmation — no session has
+   had browser access to PathfinderEdge's own web UI.
+3. **Signed-interior-angle fix status (quoted, not restated from
+   memory — see CURRENT STATUS below for the full write-up):** "FOURTH
+   revision applied (2026-08-20): bend angle now emits SIGNED INTERIOR
+   angle, not turn-angle. IMPLEMENTED, PENDING Reid's visual
+   verification matrix below — not yet confirmed."
+4. **Verification matrix still pending** — none of the following have
+   been run: (1) V-profile sharp angle, (2) W-profile 45°/-60°/45°/-60°
+   sequence, (3) near-90° regression check, (4) a -180°/hem-tail case.
+5. **"Angle vs Radius" feature-type question: still open, undecided.**
+   Whether a bare `radius: 0` (`Angle`-type feature) behaves differently
+   from the `Radius`-type feature every real test so far has used
+   remains untested.
+6. **Production deploy SHA: UNVERIFIED.** Do not claim this fix is live
+   in production without a real `deploy_verify`-equivalent check
+   (production's deployed commit SHA, read from the Vercel API,
+   compared against `git rev-parse HEAD`).
+
+---
+
 ## CURRENT STATUS
 
 **FOURTH revision applied (2026-08-20): bend angle now emits SIGNED
