@@ -49,9 +49,11 @@ const CRM_TABS: { value: CrmTab; label: string }[] = [
 
 const ALL_TABS = [...MACHINE_TABS, ...CRM_TABS];
 
-// Not part of the union above deliberately — Profile Library (afs-sv-009) is
-// a wholly separate route (/admin/profile-library), not a `?tab=` value this
-// page itself renders, so it's a plain nav Link rather than a PageTab.
+// Not part of the union above deliberately — Profile Library (afs-sv-009)
+// and Shop View (afs-sv-010) are each a wholly separate route
+// (/admin/profile-library, /admin/shop-view), not a `?tab=` value this page
+// itself renders, so they're plain nav Links rather than PageTabs. Same
+// classname for both so their styling can never drift apart.
 const PROFILE_LIBRARY_NAV_LINK_CLASSNAME =
   'font-label text-sm px-4 py-2.5 border-b-2 border-transparent text-afs-chrome-mid hover:text-afs-chrome-high transition-colors whitespace-nowrap';
 
@@ -168,6 +170,9 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
           <span className="w-px h-5 bg-afs-border mx-2" />
           <Link href="/admin/profile-library" className={PROFILE_LIBRARY_NAV_LINK_CLASSNAME}>
             Profile Library
+          </Link>
+          <Link href="/admin/shop-view" className={PROFILE_LIBRARY_NAV_LINK_CLASSNAME}>
+            Shop View
           </Link>
         </div>
 

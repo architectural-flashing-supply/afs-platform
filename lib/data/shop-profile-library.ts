@@ -141,3 +141,135 @@ export async function getShopProfileLibrary(supabase: SupabaseClient): Promise<S
     createdAt: r.created_at,
   }));
 }
+
+// ----------------------------------------------------------------------------
+// Status lifecycle (afs-sv-010) — queued -> in_progress -> complete. Shared
+// between the status-update API route (app/api/admin/profile-library/[id]/
+// route.ts's PATCH handler, which validates against this exact set) and
+// Shop View's one-click advance control, so "what are the valid statuses"
+// and "what comes next" each have exactly one implementation.
+// ----------------------------------------------------------------------------
+
+export const SHOP_PROFILE_LIBRARY_STATUSES = ['queued', 'in_progress', 'complete'] as const;
+export type ShopProfileLibraryStatus = (typeof SHOP_PROFILE_LIBRARY_STATUSES)[number];
+
+export function isShopProfileLibraryStatus(value: unknown): value is ShopProfileLibraryStatus {
+  return typeof value === 'string' && (SHOP_PROFILE_LIBRARY_STATUSES as readonly string[]).includes(value);
+}
+
+const NEXT_STATUS: Record<ShopProfileLibraryStatus, ShopProfileLibraryStatus | null> = {
+  queued: 'in_progress',
+  in_progress: 'complete',
+  complete: null,
+};
+
+const STATUS_LABEL: Record<ShopProfileLibraryStatus, string> = {
+  queued: 'Queued',
+  in_progress: 'In Progress',
+  complete: 'Complete',
+};
+
+// Rows written before this status lifecycle existed, or any future write
+// path that leaves status unset, land on the same 'queued' the column's own
+// DEFAULT already uses — never render a raw unrecognized string.
+export function shopProfileLibraryStatusLabel(status: string): string {
+  return STATUS_LABEL[isShopProfileLibraryStatus(status) ? status : 'queued'];
+}
+
+export function nextShopProfileLibraryStatus(status: string): ShopProfileLibraryStatus | null {
+  return NEXT_STATUS[isShopProfileLibraryStatus(status) ? status : 'queued'];
+}
+
+// ----------------------------------------------------------------------------
+// Shop View (afs-sv-010) — the full intake record, for the shop-floor
+// operator display. Profile Library's getShopProfileLibrary above only
+// selects the columns its table needs; Shop View's cards surface
+// substantially more of the row (order number, contact info, account
+// notes, length, hem/paint/special instructions, PathfinderEdge profile
+// id), so it gets its own select rather than over-fetching on every
+// Profile Library page load. Both share the same table, the same
+// `deleted_at IS NULL` filter, and the same admin-only RLS policy.
+// ----------------------------------------------------------------------------
+
+export interface ShopProfileLibraryFullRow {
+  id: string;
+  orderNumber: string | null;
+  profileName: string;
+  customerName: string | null;
+  company: string | null;
+  customerEmail: string | null;
+  customerPhone: string | null;
+  accountNotes: string | null;
+  material: string | null;
+  gauge: string | null;
+  quantity: number | null;
+  lengthFt: number | null;
+  dueDate: string | null;
+  hemInstructions: string | null;
+  paintedEdge: boolean;
+  specialInstructions: string | null;
+  geometrySvg: string | null;
+  sourceTool: string | null;
+  pathfinderProfileId: string | null;
+  status: string;
+  createdAt: string;
+}
+
+export async function getShopProfileLibraryFull(supabase: SupabaseClient): Promise<ShopProfileLibraryFullRow[]> {
+  const { data, error } = await supabase
+    .from('shop_profile_library')
+    .select(
+      'id, order_number, profile_name, customer_name, company, customer_email, customer_phone, account_notes, material, gauge, quantity, length_ft, due_date, hem_instructions, painted_edge, special_instructions, geometry_svg, source_tool, pathfinder_profile_id, status, created_at'
+    )
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false });
+  if (error || !data) return [];
+
+  return (
+    data as {
+      id: string;
+      order_number: string | null;
+      profile_name: string | null;
+      customer_name: string | null;
+      company: string | null;
+      customer_email: string | null;
+      customer_phone: string | null;
+      account_notes: string | null;
+      material: string | null;
+      gauge: string | null;
+      quantity: number | null;
+      length_ft: number | null;
+      due_date: string | null;
+      hem_instructions: string | null;
+      painted_edge: boolean | null;
+      special_instructions: string | null;
+      geometry_svg: string | null;
+      source_tool: string | null;
+      pathfinder_profile_id: string | null;
+      status: string | null;
+      created_at: string;
+    }[]
+  ).map((r) => ({
+    id: r.id,
+    orderNumber: r.order_number,
+    profileName: r.profile_name ?? '—',
+    customerName: r.customer_name,
+    company: r.company,
+    customerEmail: r.customer_email,
+    customerPhone: r.customer_phone,
+    accountNotes: r.account_notes,
+    material: r.material,
+    gauge: r.gauge,
+    quantity: r.quantity,
+    lengthFt: r.length_ft,
+    dueDate: r.due_date,
+    hemInstructions: r.hem_instructions,
+    paintedEdge: r.painted_edge ?? false,
+    specialInstructions: r.special_instructions,
+    geometrySvg: r.geometry_svg,
+    sourceTool: r.source_tool,
+    pathfinderProfileId: r.pathfinder_profile_id,
+    status: r.status ?? 'queued',
+    createdAt: r.created_at,
+  }));
+}

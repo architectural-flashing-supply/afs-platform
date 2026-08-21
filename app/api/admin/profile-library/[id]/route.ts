@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { logAdminAction } from '@/lib/admin/audit';
+import { isShopProfileLibraryStatus } from '@/lib/data/shop-profile-library';
 
 /**
  * Soft-delete only — sets deleted_at, never removes the row. Every read of
@@ -53,5 +54,69 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
   } catch (error) {
     console.error('[Profile Library Delete Route Error]', error);
     return NextResponse.json({ error: 'Could not delete this row. Please try again.' }, { status: 500 });
+  }
+}
+
+/**
+ * Status advance, used by Shop View's (afs-sv-010) one-click
+ * queued -> in_progress -> complete control. Lives on this same route
+ * (rather than a separate shop-view-only API path) because it operates on
+ * the exact same shop_profile_library row DELETE above does — one file per
+ * resource id, one method per action on it. `isShopProfileLibraryStatus`
+ * (lib/data/shop-profile-library.ts) is the single source of truth for
+ * which status strings are valid, shared with the client's own advance logic.
+ */
+export async function PATCH(request: NextRequest, { params }: { params: { id: string } }): Promise<NextResponse> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { data: adminProfile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    if (adminProfile?.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const raw: unknown = await request.json().catch(() => null);
+    const status = raw && typeof raw === 'object' ? (raw as Record<string, unknown>).status : null;
+    if (!isShopProfileLibraryStatus(status)) {
+      return NextResponse.json({ error: 'status must be one of: queued, in_progress, complete.' }, { status: 400 });
+    }
+
+    const { data: existing } = await supabase
+      .from('shop_profile_library')
+      .select('id, status, deleted_at')
+      .eq('id', params.id)
+      .maybeSingle();
+    if (!existing || existing.deleted_at) {
+      return NextResponse.json({ error: 'Profile library row not found.' }, { status: 404 });
+    }
+
+    const { error: updateError } = await supabase
+      .from('shop_profile_library')
+      .update({ status })
+      .eq('id', params.id);
+    if (updateError) {
+      console.error('[Profile Library Status Update Error]', updateError);
+      return NextResponse.json({ error: 'Could not update status. Please try again.' }, { status: 500 });
+    }
+
+    await logAdminAction({
+      adminId: user.id,
+      action: 'update_shop_profile_library_status',
+      resourceType: 'shop_profile_library',
+      resourceId: params.id,
+      beforeValue: { status: existing.status },
+      afterValue: { status },
+    });
+
+    return NextResponse.json({ ok: true, status });
+  } catch (error) {
+    console.error('[Profile Library Status Update Route Error]', error);
+    return NextResponse.json({ error: 'Could not update status. Please try again.' }, { status: 500 });
   }
 }
