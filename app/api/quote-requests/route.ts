@@ -101,11 +101,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const jobsiteAddress = body.jobsiteAddress ?? null;
     const isRush = body.isRush === true;
     const notes = typeof body.notes === 'string' ? body.notes : null;
-    // Selected color name from the McElroy/PAC-CLAD color chart, set by the
-    // ColorField/ColorPickerModal flow on the Configurator, Quote Builder,
-    // and FlashDraft when the request's material requires one (afs-cv-002).
-    // Written into quote_requests.color (migration 017).
+    // Selected color name from the McElroy/PAC-CLAD color chart, or (for
+    // Anodized aluminum, until a PAC-CLAD anodized chart exists) free text,
+    // set by the ColorField/FinishColorField flow on the Configurator,
+    // Quote Builder, FlashDraft, and Blueprint Takeoff AI surfaces when the
+    // request's material requires one (afs-cv-002). Written into
+    // quote_requests.color (migration 017).
     const color = typeof body.color === 'string' && body.color.trim() ? body.color.trim() : null;
+    // The required Finish choice ("Anodized" or "Painted") for a request
+    // whose material is in the 'aluminum' category (afs-jf-002) — supersedes
+    // afs-cv-002's ruling that aluminum always used the PAC-CLAD chart.
+    // null for every other material category; the McElroy/painted-steel
+    // path never had a finish concept before this and still doesn't. Written
+    // into quote_requests.finish (migration 018).
+    const finish = typeof body.finish === 'string' && body.finish.trim() ? body.finish.trim() : null;
     // Every real front-end submission path (FlashDraft, the Configurator,
     // the Quote Builder, the Blueprint Takeoff AI upload flow) sends its own
     // token here — see lib/data/quote-request-source-tool.ts for the full
@@ -128,6 +137,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       is_rush: isRush,
       notes,
       color,
+      finish,
       status: 'submitted',
       source_tool: sourceTool,
     });

@@ -4,8 +4,15 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { ALL_MATERIALS, GAUGES_BY_MATERIAL } from '@/lib/data/catalog';
-import { colorPaletteForMaterial } from '@/lib/data/material-color-requirement';
+import {
+  colorPaletteForMaterial,
+  requiresFinishChoice,
+  isColorRequirementSatisfied,
+  colorRequirementErrorMessage,
+  type AluminumFinish,
+} from '@/lib/data/material-color-requirement';
 import ColorField from '@/components/quote/ColorField';
+import FinishColorField from '@/components/quote/FinishColorField';
 import { gaugeToThicknessMm } from '@/lib/utils/gauge-thickness';
 import { formatInches } from '@/lib/utils/format-inches';
 import ProfileViewer3D, { type ProfileBend } from '@/components/studio/ProfileViewer3D';
@@ -66,6 +73,7 @@ interface AutosaveState {
   material: string;
   gauge: string;
   color: string;
+  finish: AluminumFinish | '';
   lengthFeet: string;
   lengthInches: string;
   quantity: string;
@@ -141,6 +149,13 @@ function isPointArrayShape(value: unknown): value is Point[] {
 
 function isHemShape(value: unknown): value is Hem | null {
   return value === null || (typeof value === 'object' && value !== null);
+}
+
+// Guards the autosaved `finish` field (afs-jf-002) against a stale/corrupt
+// localStorage entry from before this field existed, or any value outside
+// the two real AluminumFinish options.
+function isAluminumFinishShape(value: unknown): value is AluminumFinish | '' {
+  return value === '' || value === 'Anodized' || value === 'Painted';
 }
 
 function isFlashDraftLineItem(
@@ -824,6 +839,7 @@ export default function FlashDraftPage() {
   const [material, setMaterial] = useState('');
   const [gauge, setGauge] = useState('');
   const [color, setColor] = useState('');
+  const [finish, setFinish] = useState<AluminumFinish | ''>('');
   const [lengthFeet, setLengthFeet] = useState('9');
   const [lengthInches, setLengthInches] = useState('0');
   const [quantity, setQuantity] = useState('1');
@@ -860,10 +876,13 @@ export default function FlashDraftPage() {
   const [confirmedPaintFace, setConfirmedPaintFace] = useState<PaintFace | null>(null);
 
   const gaugeOptions = material ? GAUGES_BY_MATERIAL[material] ?? [] : [];
-  // 'painted_steel' and 'aluminum' materials require a color selection from
-  // the McElroy / PAC-CLAD chart before submitting (afs-cv-002).
-  const colorPalette = material ? colorPaletteForMaterial(material) : null;
-  const colorSatisfied = !colorPalette || color.trim() !== '';
+  // 'painted_steel' materials always require a McElroy color selection.
+  // 'aluminum' materials require a Finish choice first (afs-jf-002,
+  // supersedes afs-cv-002's blanket "aluminum always means PAC-CLAD"
+  // ruling) — see lib/data/material-color-requirement.ts.
+  const isAluminum = material ? requiresFinishChoice(material) : false;
+  const colorPalette = material ? colorPaletteForMaterial(material, finish || null) : null;
+  const colorSatisfied = isColorRequirementSatisfied(material, finish || null, color);
   const lengthFtDecimal = (Number(lengthFeet) || 0) + (Number(lengthInches) || 0) / 12;
   const thicknessIn = gaugeToThicknessMm(gauge) / MM_PER_INCH;
 
@@ -884,6 +903,7 @@ export default function FlashDraftPage() {
           if (typeof saved.material === 'string') setMaterial(saved.material);
           if (typeof saved.gauge === 'string') setGauge(saved.gauge);
           if (typeof saved.color === 'string') setColor(saved.color);
+          if (isAluminumFinishShape(saved.finish)) setFinish(saved.finish);
           if (typeof saved.lengthFeet === 'string') setLengthFeet(saved.lengthFeet);
           if (typeof saved.lengthInches === 'string') setLengthInches(saved.lengthInches);
           if (typeof saved.quantity === 'string') setQuantity(saved.quantity);
@@ -918,6 +938,7 @@ export default function FlashDraftPage() {
           material,
           gauge,
           color,
+          finish,
           lengthFeet,
           lengthInches,
           quantity,
@@ -930,7 +951,7 @@ export default function FlashDraftPage() {
       }
     }, AUTOSAVE_DEBOUNCE_MS);
     return () => window.clearTimeout(timeout);
-  }, [points, hemStart, hemEnd, material, gauge, color, lengthFeet, lengthInches, quantity, notes, rush]);
+  }, [points, hemStart, hemEnd, material, gauge, color, finish, lengthFeet, lengthInches, quantity, notes, rush]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -2691,9 +2712,7 @@ export default function FlashDraftPage() {
         return;
       }
       if (!colorSatisfied) {
-        setSubmitError(
-          `Select a ${colorPalette === 'mcelroy' ? 'McElroy' : 'PAC-CLAD'} color before submitting.`
-        );
+        setSubmitError(colorRequirementErrorMessage(material, finish || null));
         return;
       }
 
@@ -2741,6 +2760,7 @@ export default function FlashDraftPage() {
             notes: combinedNotes,
             isRush: rush,
             color: color.trim() || null,
+            finish: isAluminum ? (finish || null) : null,
             guestEmail: email,
             sourceTool: 'afs-flashdraft',
           }),
@@ -2764,7 +2784,7 @@ export default function FlashDraftPage() {
         setSubmitState('idle');
       }
     },
-    [points, material, gauge, color, colorSatisfied, colorPalette, lengthFtDecimal, quantity, notes, rush, getEffectiveRadius, hemStart, hemEnd]
+    [points, material, gauge, color, finish, isAluminum, colorSatisfied, lengthFtDecimal, quantity, notes, rush, getEffectiveRadius, hemStart, hemEnd]
   );
 
   const openSubmitFlow = () => {
@@ -2777,9 +2797,7 @@ export default function FlashDraftPage() {
       return;
     }
     if (!colorSatisfied) {
-      setSubmitError(
-        `Select a ${colorPalette === 'mcelroy' ? 'McElroy' : 'PAC-CLAD'} color before submitting.`
-      );
+      setSubmitError(colorRequirementErrorMessage(material, finish || null));
       return;
     }
     setSubmitError(null);
@@ -2934,6 +2952,7 @@ export default function FlashDraftPage() {
                   setMaterial(e.target.value);
                   setGauge('');
                   setColor('');
+                  setFinish('');
                 }}
                 className="w-full bg-afs-bg-overlay text-white border border-afs-border rounded px-3 py-2.5 font-body text-sm focus:outline-none focus:border-afs-crimson transition-colors"
               >
@@ -2970,12 +2989,25 @@ export default function FlashDraftPage() {
             </div>
           </div>
 
-          {colorPalette && (
+          {colorPalette === 'mcelroy' && (
             <ColorField
-              palette={colorPalette}
+              palette="mcelroy"
               value={color || null}
               onChange={setColor}
               error={color.trim() === '' ? `Required for ${material}.` : null}
+            />
+          )}
+
+          {isAluminum && (
+            <FinishColorField
+              material={material}
+              finish={finish || null}
+              onFinishChange={(f) => {
+                setFinish(f);
+                setColor('');
+              }}
+              color={color}
+              onColorChange={setColor}
             />
           )}
 

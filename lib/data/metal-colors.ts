@@ -111,15 +111,34 @@ export const pacclad: MetalColor[] = [
 ];
 
 /**
- * Looks up a MetalColor by its printed name across both palettes, for
+ * PAC-CLAD anodized aluminum color chart — NOT YET POPULATED. AFS is
+ * waiting on the physical PAC-CLAD anodized chart (expected within days,
+ * afs-jf-002); until real { name, hex } entries land here, the "Anodized"
+ * finish branch (see lib/data/material-color-requirement.ts's
+ * colorPaletteForMaterial and components/quote/FinishColorField.tsx)
+ * collects a free-text color name instead of a chart picker. Populating
+ * this array — mirroring `pacclad` above — is the ONLY change needed
+ * anywhere to switch every surface from free text to a real picker; no
+ * page, component, or other function needs to change.
+ */
+export const pacclad_anodized: MetalColor[] = [];
+
+/**
+ * Looks up a MetalColor by its printed name across all three palettes, for
  * rendering a swatch given only the name stored on quote_requests.color /
  * shop_profile_library.color — neither column records which chart the name
- * came from. McElroy is checked first, then PAC-CLAD; a few names exist in
- * both palettes with different hex values (e.g. "Charcoal", "Hartford
+ * came from. McElroy is checked first, then PAC-CLAD, then PAC-CLAD
+ * Anodized (empty today — see pacclad_anodized above); a few names exist in
+ * multiple palettes with different hex values (e.g. "Charcoal", "Hartford
  * Green", "Galvalume Plus"), so this returns the first match rather than
  * guessing which chart was intended. The stored NAME is still fabrication
  * truth either way per the module comment above — this is display-only.
  */
 export function findMetalColorByName(name: string): MetalColor | null {
-  return mcelroy.find((c) => c.name === name) ?? pacclad.find((c) => c.name === name) ?? null;
+  return (
+    mcelroy.find((c) => c.name === name) ??
+    pacclad.find((c) => c.name === name) ??
+    pacclad_anodized.find((c) => c.name === name) ??
+    null
+  );
 }

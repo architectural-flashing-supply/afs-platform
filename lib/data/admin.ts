@@ -123,6 +123,11 @@ export interface QuoteRequestListRow {
   // for bare/mill-finish materials and requests submitted before this
   // column existed.
   color: string | null;
+  // Required Anodized/Painted choice for an 'aluminum' category request
+  // (afs-jf-002, supersedes afs-cv-002's "aluminum always means PAC-CLAD"
+  // ruling). Null for every other material category and for requests
+  // submitted before this column existed.
+  finish: string | null;
 }
 
 interface QuoteRequestListSource {
@@ -134,6 +139,7 @@ interface QuoteRequestListSource {
   status: string;
   line_items: unknown;
   color: string | null;
+  finish: string | null;
   profiles: { full_name: string; company: string | null } | null;
 }
 
@@ -149,7 +155,7 @@ export async function getQuoteRequestsQueue(
   let query = supabase
     .from('quote_requests')
     .select(
-      'id, request_number, guest_email, is_rush, submitted_at, status, line_items, color, profiles(full_name, company)'
+      'id, request_number, guest_email, is_rush, submitted_at, status, line_items, color, finish, profiles(full_name, company)'
     )
     .order('is_rush', { ascending: false })
     .order('submitted_at', { ascending: true });
@@ -169,6 +175,7 @@ export async function getQuoteRequestsQueue(
     isRush: row.is_rush,
     status: row.status,
     color: row.color,
+    finish: row.finish,
   }));
 }
 

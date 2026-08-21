@@ -5,8 +5,15 @@ import { createClient } from '@/lib/supabase/client';
 import { gaugeToThicknessMm } from '@/lib/utils/gauge-thickness';
 import ProfileViewer3D, { type ProfileBend } from '@/components/studio/ProfileViewer3D';
 import { ALL_MATERIALS, GAUGES_BY_MATERIAL, STANDARD_PROFILE_DEFAULTS, STANDARD_PANEL_WIDTHS } from '@/lib/data/catalog';
-import { colorPaletteForMaterial } from '@/lib/data/material-color-requirement';
+import {
+  colorPaletteForMaterial,
+  requiresFinishChoice,
+  materialRequiresColorValue,
+  isColorRequirementSatisfied,
+  type AluminumFinish,
+} from '@/lib/data/material-color-requirement';
 import ColorField from '@/components/quote/ColorField';
+import FinishColorField from '@/components/quote/FinishColorField';
 import { UPLOAD_ACCEPTED_EXTENSIONS, UPLOAD_MAX_SIZE_BYTES } from '@/lib/utils/upload-limits';
 import type { ScopeOption, ScopeDirective } from '@/app/api/takeoff/route';
 import type { SignUploadResponse } from '@/app/api/upload/route';
@@ -220,11 +227,21 @@ interface TakeoffItem {
   material: string | null;
   gauge: string | null;
   finish: string | null;
-  // Selected McElroy/PAC-CLAD color name, required (per row) only when
-  // colorPaletteForMaterial(material) is non-null (afs-cv-002). The AI
-  // extraction never sets this — always null until the estimator picks one
-  // in the results table below.
+  // Selected McElroy/PAC-CLAD color name (or, for Anodized aluminum until
+  // pacclad_anodized exists, a free-text color), required per row only when
+  // materialRequiresColorValue(material) is true (afs-cv-002, afs-jf-002).
+  // The AI extraction never sets this — always null until the estimator
+  // picks/types one in the results table below.
   color?: string | null;
+  // The required Finish choice (Anodized/Painted) for an 'aluminum'
+  // category row (afs-jf-002) — gates which color mechanism `color` above
+  // uses. Deliberately a DIFFERENT field from `finish` above: that field is
+  // an AI-extracted free-text finish note read off the drawing (see
+  // app/api/takeoff/route.ts's TAKEOFF_SYSTEM_PROMPT JSON schema), never
+  // constrained to 'Anodized'/'Painted' and never displayed or edited in
+  // this table — conflating the two would silently misuse whatever
+  // arbitrary string the AI extracted as if it were this controlled choice.
+  colorFinish?: AluminumFinish | null;
   width: number | null;
   height: number | null;
   legA: number | null;
@@ -784,11 +801,23 @@ export default function UploadPage() {
   // color-requiring materials at once — unlike the single-item Configurator/
   // Quote Builder/FlashDraft surfaces. Composing one "Profile — Color" entry
   // per item that needs one (joined) preserves every selection instead of
-  // silently keeping only the first.
+  // silently keeping only the first. materialRequiresColorValue (not
+  // colorPaletteForMaterial) is the right gate here: an Anodized aluminum
+  // item legitimately has a color (free text) with a null palette.
   const buildRequestColor = useCallback((): string | null => {
     const parts = items
-      .filter((item) => item.material && colorPaletteForMaterial(item.material) && item.color)
+      .filter((item) => item.material && materialRequiresColorValue(item.material) && item.color)
       .map((item) => `${item.profileType}: ${item.color}`);
+    return parts.length > 0 ? parts.join('; ') : null;
+  }, [items]);
+
+  // Same composition pattern as buildRequestColor above, for
+  // quote_requests.finish (migration 018, afs-jf-002) — the required
+  // Anodized/Painted choice for 'aluminum' category rows only.
+  const buildRequestFinish = useCallback((): string | null => {
+    const parts = items
+      .filter((item) => item.material && requiresFinishChoice(item.material) && item.colorFinish)
+      .map((item) => `${item.profileType}: ${item.colorFinish}`);
     return parts.length > 0 ? parts.join('; ') : null;
   }, [items]);
 
@@ -803,6 +832,7 @@ export default function UploadPage() {
           items,
           isRush: false,
           color: buildRequestColor(),
+          finish: buildRequestFinish(),
           guestEmail: email,
           sourceTool: 'afs-takeoff',
         }),
@@ -824,7 +854,7 @@ export default function UploadPage() {
       setSubmitError('Submission failed. Please try again.');
       setState('results');
     }
-  }, [items, uploadId, buildRequestColor]);
+  }, [items, uploadId, buildRequestColor, buildRequestFinish]);
 
   const handleSubmitClick = () => {
     if (items.length === 0) {
@@ -840,8 +870,19 @@ export default function UploadPage() {
       );
       return;
     }
+    const missingFinishCount = items.filter(
+      (item) => item.material && requiresFinishChoice(item.material) && !item.colorFinish
+    ).length;
+    if (missingFinishCount > 0) {
+      setSubmitError(
+        missingFinishCount === 1
+          ? 'Select a Finish for the item that requires one before submitting.'
+          : `Select a Finish for all ${missingFinishCount} items that require one before submitting.`
+      );
+      return;
+    }
     const missingColorCount = items.filter(
-      (item) => item.material && colorPaletteForMaterial(item.material) && !item.color
+      (item) => item.material && !isColorRequirementSatisfied(item.material, item.colorFinish ?? null, item.color ?? '')
     ).length;
     if (missingColorCount > 0) {
       setSubmitError(
@@ -1116,7 +1157,7 @@ export default function UploadPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                 <thead>
                   <tr style={{ backgroundColor: 'var(--afs-bg-surface)' }}>
-                    {['#', 'Profile', 'Material', 'Gauge', 'Color', 'Dimensions', 'Length (ft)', 'Qty', 'Confidence', ''].map(h => (
+                    {['#', 'Profile', 'Material', 'Gauge', 'Finish / Color', 'Dimensions', 'Length (ft)', 'Qty', 'Confidence', ''].map(h => (
                       <th key={h} style={{ fontFamily: 'var(--font-barlow)', fontSize: '11px', color: 'var(--afs-chrome-base)', textTransform: 'uppercase', letterSpacing: '1px', textAlign: 'left', padding: '12px 16px', borderBottom: '1px solid var(--afs-bg-overlay)' }}>
                         {h}
                       </th>
@@ -1167,7 +1208,20 @@ export default function UploadPage() {
                         </div>
                       </td>
                       <td style={{ padding: '12px 16px' }}>
-                        {item.material && colorPaletteForMaterial(item.material) ? (
+                        {item.material && requiresFinishChoice(item.material) ? (
+                          <div style={{ minWidth: '200px' }}>
+                            <FinishColorField
+                              material={item.material}
+                              finish={item.colorFinish ?? null}
+                              onFinishChange={(f) => {
+                                updateItem(i, 'colorFinish', f);
+                                updateItem(i, 'color', null);
+                              }}
+                              color={item.color ?? ''}
+                              onColorChange={(name) => updateItem(i, 'color', name)}
+                            />
+                          </div>
+                        ) : item.material && colorPaletteForMaterial(item.material) ? (
                           <div style={{ minWidth: '160px' }}>
                             <ColorField
                               palette={colorPaletteForMaterial(item.material)!}

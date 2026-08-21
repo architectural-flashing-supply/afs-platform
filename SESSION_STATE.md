@@ -58,6 +58,134 @@ and not restart from scratch.**
 
 ---
 
+## ALUMINUM FINISH CHOICE (ANODIZED/PAINTED) — SUPERSEDES AFS-CV-002 (afs-jf-002) — 2026-08-21
+
+Read `lib/data/material-color-requirement.ts`, `components/quote/
+ColorField.tsx`, and `components/quote/ColorPickerModal.tsx` in full before
+changing anything, per the task's instruction.
+
+**This prompt explicitly supersedes afs-cv-002's ruling** that every
+`aluminum`-category material (currently only "Anodized Aluminum") always
+requires the PAC-CLAD palette. That blanket rule was wrong: an aluminum
+item can be genuinely anodized with no painted coating at all, in which
+case PAC-CLAD (a painted-color chart) doesn't apply. Replaced with a
+required Finish choice — "Anodized" or "Painted" — on every surface that
+previously applied the blanket rule. `painted_steel` (Kynar 500 Painted
+Steel, Vintage Steel → McElroy) is untouched; it never had a finish
+concept and doesn't get one here.
+
+**"Painted"** → the existing PAC-CLAD picker, unchanged (`ColorField`,
+`palette="pacclad"`, the same 51-entry `pacclad` array). **"Anodized"** →
+a required free-text "Specify Anodized Color" input, because
+`lib/data/metal-colors.ts` has no `pacclad_anodized` chart yet — the
+physical PAC-CLAD anodized chart is expected within days.
+
+**Future-swap hook (the task's explicit requirement):** added an empty
+`pacclad_anodized: MetalColor[] = []` export to `metal-colors.ts`.
+`colorPaletteForMaterial()` in `material-color-requirement.ts` branches on
+`pacclad_anodized.length > 0` — not on a hard-coded "Anodized means free
+text" rule — with a FUTURE-SWAP HOOK comment on that exact line explaining
+the intent for whoever adds the real array. `ColorField.tsx` and
+`ColorPickerModal.tsx` already include `'pacclad_anodized'` in their
+palette/label maps, and `findMetalColorByName()` already checks it too —
+all three ahead of the data existing. **Populating `pacclad_anodized` with
+real `{ name, hex }` entries is the only change a future prompt needs to
+make** — no page and no other function needs to change; the real
+`ColorField`/`ColorPickerModal` picker starts rendering automatically on
+all four wired surfaces.
+
+**New component, `components/quote/FinishColorField.tsx`:** the single
+place that renders the Finish toggle + conditional color control (picker
+vs. free text), used by all four wired surfaces in place of a bare
+`ColorField` whenever `requiresFinishChoice(material)` is true. This is
+what makes the future-swap hook above actually require zero surface
+changes — the branch lives in this one component (and
+`colorPaletteForMaterial`), not duplicated at each call site.
+
+**Replaced the old, silently-wrong validity check.** `!colorPalette ||
+color.trim() !== ''` (afs-cv-002) would have incorrectly passed for an
+unfinished Anodized item, since `colorPaletteForMaterial` legitimately
+returns `null` for 'Anodized' (free-text mode) even though a color value
+IS still required. New `isColorRequirementSatisfied(material, finish,
+color)` in `material-color-requirement.ts` is the single source of truth
+now, used by all four surfaces; `colorRequirementErrorMessage()` replaces
+the old inline `colorPalette === 'mcelroy' ? 'McElroy' : 'PAC-CLAD'`
+ternary (which no longer made sense once `colorPalette` could be `null`
+for a legitimately-required Anodized color).
+
+**Four wired surfaces (re-confirmed by grep, same four afs-cv-002/afs-jf-001
+found — no fifth exists):**
+1. `app/quote/page.tsx` — `QuoteFormData.finish: AluminumFinish | ''`,
+   reset alongside gauge/color on material change, shown in the step-4
+   review table.
+2. `app/configure/page.tsx` — `ConfiguratorForm.finish`, same pattern.
+3. `app/studio/draft/page.tsx` — new `finish` state; added to
+   `AutosaveState` and both the localStorage restore/write effects (new
+   `isAluminumFinishShape()` type guard validates a restored value against
+   `'Anodized' | 'Painted' | ''`, rejecting stale/corrupt entries from
+   before this field existed). The separate admin-only `sendToPathfinder()`
+   flow (→ `shop_profile_library`, a different table/pipeline per that
+   route's own file-header comment) was deliberately NOT touched — out of
+   this task's stated scope (`quote_requests.finish` only).
+4. `app/upload/page.tsx` — per-item `TakeoffItem.colorFinish:
+   AluminumFinish | null`, composed into one `"ProfileType: Finish"`-joined
+   string via new `buildRequestFinish()`, mirroring the existing
+   `buildRequestColor()` pattern (this table can hold several items with
+   different aluminum materials/finishes in one submission, unlike the
+   other three single-item surfaces).
+
+**Naming collision found and deliberately avoided:** `TakeoffItem` already
+had an unrelated `finish: string | null` field — a free-text finish note
+the takeoff AI extracts off the drawing (`app/api/takeoff/route.ts`'s JSON
+schema), never displayed, edited, or submitted anywhere in the UI, and
+never constrained to "Anodized"/"Painted". Reusing it for this prompt's
+controlled two-value choice would have silently conflated two different
+things. Named the new field `colorFinish` instead; left the pre-existing
+`finish` field completely untouched.
+
+**No pre-existing finish concept found for the McElroy/painted-steel
+path** — checked `EstimatorLineItem`, the takeoff AI's own extraction
+schema, and every McElroy call site before writing anything, per the
+task's explicit instruction not to invent one. `quote_requests.finish` is
+left `null`/unset for painted-steel submissions.
+
+**Payload/schema:** `app/api/quote-requests/route.ts` now reads
+`body.finish` (mirroring the existing `body.color` handling exactly) and
+writes it into `quote_requests.finish`.
+
+**PRODUCTION-BLOCKING SEQUENCING RISK — flagging explicitly:** the
+`quote_requests` insert in `app/api/quote-requests/route.ts` now always
+includes a `finish` key (null for non-aluminum items). Migration
+`018_job_identity_and_finish.sql` (afs-jf-000), which adds
+`quote_requests.finish`, is still recorded FILE-ONLY / not applied to the
+live Supabase project (re-checked this session, not assumed). **Deploying
+this commit before that migration is applied live would break every
+quote-request submission through all four surfaces**, not just aluminum
+ones — Postgrest rejects an insert referencing a nonexistent column. This
+needs to be sequenced: apply + confirm migration 018 live (same
+`information_schema` standard as 017) before or immediately upon
+deploying this commit.
+
+**Command Center:** `app/admin/quote-requests/page.tsx` (list) and
+`.../[id]/page.tsx` (detail) now render a `finish` `Badge` (chrome
+variant) immediately next to the existing `ColorSwatchChip`, in the list
+row, the detail page's Project Details panel, and the per-item table.
+`lib/data/admin.ts`'s `getQuoteRequestsQueue()` now selects/returns
+`finish`. (The smaller dashboard-widget `getQuoteRequestQueue()` — no
+trailing "s" — was left untouched; it doesn't show `color` today either,
+so `finish` wasn't added there, consistent with the task's named surfaces.)
+
+`pnpm tsc --noEmit`: 0 errors, run directly this session. Per this file's
+verification standard, marked **IMPLEMENTED, UNCONFIRMED** — pending the
+migration-sequencing fix above, plus Reid's own confirmation that the
+Finish choice, both its color paths, and the Command Center display all
+work correctly on every one of the four wired surfaces; no browser/
+Playwright access this session. Committed as `feat: aluminum Finish
+choice (Anodized/Painted), supersedes PAC-CLAD-on-all-aluminum ruling
+(afs-jf-002)`.
+
+---
+
 ## COLOR PICKER MODAL — BACK BUTTON FIX (afs-jf-001) — 2026-08-21
 
 Read `components/quote/ColorPickerModal.tsx` and `components/quote/

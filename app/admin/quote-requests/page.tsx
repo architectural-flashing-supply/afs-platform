@@ -132,6 +132,7 @@ export default async function AdminQuoteRequestsPage({
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <span className="font-body text-sm text-afs-chrome-mid">{row.profileSummary}</span>
+                      {row.finish && <Badge variant="chrome">{row.finish}</Badge>}
                       {row.color && <ColorSwatchChip color={row.color} />}
                     </div>
                   </td>

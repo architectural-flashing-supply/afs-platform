@@ -22,6 +22,11 @@ interface QuoteRequestDetailRow {
   // material required one (afs-cv-002). Null for bare/mill-finish materials
   // and for requests submitted before this column existed.
   color: string | null;
+  // Required Anodized/Painted choice for an 'aluminum' category request
+  // (afs-jf-002, supersedes afs-cv-002's "aluminum always means PAC-CLAD"
+  // ruling). Null for every other material category and for requests
+  // submitted before this column existed.
+  finish: string | null;
   user_id: string | null;
   guest_email: string | null;
   quote_id: string | null;
@@ -49,7 +54,7 @@ export default async function AdminQuoteRequestDetailPage({ params }: { params: 
   const { data: requestRaw } = await supabase
     .from('quote_requests')
     .select(
-      'id, request_number, status, submitted_at, line_items, jobsite_address, po_number, is_rush, notes, color, user_id, guest_email, quote_id, source_tool, profiles(full_name, company, phone, email)'
+      'id, request_number, status, submitted_at, line_items, jobsite_address, po_number, is_rush, notes, color, finish, user_id, guest_email, quote_id, source_tool, profiles(full_name, company, phone, email)'
     )
     .eq('id', params.id)
     .maybeSingle();
@@ -154,6 +159,14 @@ export default async function AdminQuoteRequestDetailPage({ params }: { params: 
               <dt className="text-afs-chrome-mid">PO Number</dt>
               <dd className="text-afs-chrome-high">{request.po_number ?? '—'}</dd>
             </div>
+            {request.finish && (
+              <div className="flex justify-between items-center">
+                <dt className="text-afs-chrome-mid">Finish</dt>
+                <dd className="text-afs-chrome-high text-right">
+                  <Badge variant="chrome">{request.finish}</Badge>
+                </dd>
+              </div>
+            )}
             {request.color && (
               <div className="flex justify-between items-center">
                 <dt className="text-afs-chrome-mid">Color</dt>
@@ -207,6 +220,7 @@ export default async function AdminQuoteRequestDetailPage({ params }: { params: 
                     <span className="font-body text-sm text-afs-chrome-high">
                       {[item.material, item.gauge].filter(Boolean).join(', ') || '—'}
                     </span>
+                    {request.finish && <Badge variant="chrome">{request.finish}</Badge>}
                     {request.color && <ColorSwatchChip color={request.color} />}
                   </div>
                 </td>

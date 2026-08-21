@@ -3,9 +3,16 @@
 import { Fragment, useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { MATERIAL_STOCK_STATUS } from '@/lib/data/catalog';
-import { colorPaletteForMaterial } from '@/lib/data/material-color-requirement';
+import {
+  colorPaletteForMaterial,
+  requiresFinishChoice,
+  isColorRequirementSatisfied,
+  colorRequirementErrorMessage,
+  type AluminumFinish,
+} from '@/lib/data/material-color-requirement';
 import MaterialRecommendationPanel from '@/components/quote/MaterialRecommendationPanel';
 import ColorField from '@/components/quote/ColorField';
+import FinishColorField from '@/components/quote/FinishColorField';
 import WasteFactorDisplay from '@/components/quote/WasteFactorDisplay';
 import TrimLengthOptimizerSection from '@/components/quote/TrimLengthOptimizerSection';
 import CrossSellPanel from '@/components/ai/CrossSellPanel';
@@ -23,6 +30,7 @@ interface QuoteFormData {
   material:        string;
   gauge:           string;
   color:           string;
+  finish:          AluminumFinish | '';
   width:           string;
   height:          string;
   legA:            string;
@@ -41,6 +49,7 @@ const EMPTY_FORM: QuoteFormData = {
   material:       '',
   gauge:          '',
   color:          '',
+  finish:         '',
   width:          '',
   height:         '',
   legA:           '',
@@ -185,10 +194,11 @@ export default function QuotePage() {
     setForm(prev => ({ ...prev, [field]: value }));
   };
 
-  const colorPalette = form.material ? colorPaletteForMaterial(form.material) : null;
+  const isAluminum = form.material ? requiresFinishChoice(form.material) : false;
+  const colorPalette = form.material ? colorPaletteForMaterial(form.material, form.finish || null) : null;
 
   const selectMaterial = (material: string) => {
-    setForm(prev => ({ ...prev, material, gauge: '', color: '' }));
+    setForm(prev => ({ ...prev, material, gauge: '', color: '', finish: '' }));
   };
 
   const toggleRush = () => {
@@ -197,7 +207,7 @@ export default function QuotePage() {
 
   const gaugeOptions = form.material ? GAUGES[form.material] ?? [] : [];
 
-  const colorSatisfied = !colorPalette || form.color.trim() !== '';
+  const colorSatisfied = isColorRequirementSatisfied(form.material, form.finish || null, form.color);
   const step1Valid = form.profileType !== '' && form.material !== '' && form.gauge !== '' && colorSatisfied;
   const step2Valid =
     isPositiveNumber(form.lengthFt) &&
@@ -239,9 +249,7 @@ export default function QuotePage() {
       return;
     }
     if (!colorSatisfied) {
-      setSubmitError(
-        `Select a ${colorPalette === 'mcelroy' ? 'McElroy' : 'PAC-CLAD'} color before submitting.`
-      );
+      setSubmitError(colorRequirementErrorMessage(form.material, form.finish || null));
       return;
     }
 
@@ -265,6 +273,7 @@ export default function QuotePage() {
           isRush: form.rush,
           notes,
           color: form.color.trim() || null,
+          finish: isAluminum ? (form.finish || null) : null,
           guestEmail: email,
           sourceTool: 'afs-quote-builder',
         }),
@@ -283,7 +292,7 @@ export default function QuotePage() {
       setSubmitError('Submission failed. Please try again.');
       setSubmitState('idle');
     }
-  }, [buildItems, form, selectedAccessories, colorSatisfied, colorPalette]);
+  }, [buildItems, form, selectedAccessories, colorSatisfied, isAluminum]);
 
   const handleSubmit = () => {
     if (buildItems().length === 0) {
@@ -291,9 +300,7 @@ export default function QuotePage() {
       return;
     }
     if (!colorSatisfied) {
-      setSubmitError(
-        `Select a ${colorPalette === 'mcelroy' ? 'McElroy' : 'PAC-CLAD'} color before submitting.`
-      );
+      setSubmitError(colorRequirementErrorMessage(form.material, form.finish || null));
       return;
     }
     if (isAuthenticated) {
@@ -478,13 +485,25 @@ export default function QuotePage() {
                 </div>
               </div>
 
-              {colorPalette && (
+              {colorPalette === 'mcelroy' && (
                 <div className="mt-6 max-w-sm">
                   <ColorField
-                    palette={colorPalette}
+                    palette="mcelroy"
                     value={form.color || null}
                     onChange={(name) => setForm(prev => ({ ...prev, color: name }))}
                     error={form.color.trim() === '' ? `Required for ${form.material} — select a color before continuing.` : null}
+                  />
+                </div>
+              )}
+
+              {isAluminum && (
+                <div className="mt-6 max-w-sm">
+                  <FinishColorField
+                    material={form.material}
+                    finish={form.finish || null}
+                    onFinishChange={(finish) => setForm(prev => ({ ...prev, finish, color: '' }))}
+                    color={form.color}
+                    onColorChange={(name) => setForm(prev => ({ ...prev, color: name }))}
                   />
                 </div>
               )}
@@ -647,11 +666,17 @@ export default function QuotePage() {
                       <td className="font-label text-xs uppercase text-afs-chrome-mid px-4 py-3">Material</td>
                       <td className="font-body text-afs-chrome-high px-4 py-3">{form.material}</td>
                     </tr>
-                    <tr className={colorPalette ? 'border-b border-afs-chrome-dim' : ''}>
+                    <tr className={(colorPalette || isAluminum) ? 'border-b border-afs-chrome-dim' : ''}>
                       <td className="font-label text-xs uppercase text-afs-chrome-mid px-4 py-3">Gauge / Thickness</td>
                       <td className="font-data text-afs-chrome-high px-4 py-3">{form.gauge}</td>
                     </tr>
-                    {colorPalette && (
+                    {isAluminum && (
+                      <tr className="border-b border-afs-chrome-dim">
+                        <td className="font-label text-xs uppercase text-afs-chrome-mid px-4 py-3">Finish</td>
+                        <td className="font-body text-afs-chrome-high px-4 py-3">{form.finish || '—'}</td>
+                      </tr>
+                    )}
+                    {(colorPalette || isAluminum) && (
                       <tr>
                         <td className="font-label text-xs uppercase text-afs-chrome-mid px-4 py-3">Color</td>
                         <td className="font-body text-afs-chrome-high px-4 py-3">{form.color || '—'}</td>

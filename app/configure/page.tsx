@@ -3,10 +3,17 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { generateProfileSVG, type ProfileType } from '@/lib/utils/profile-svg';
-import { colorPaletteForMaterial } from '@/lib/data/material-color-requirement';
+import {
+  colorPaletteForMaterial,
+  requiresFinishChoice,
+  isColorRequirementSatisfied,
+  colorRequirementErrorMessage,
+  type AluminumFinish,
+} from '@/lib/data/material-color-requirement';
 import WasteFactorDisplay from '@/components/quote/WasteFactorDisplay';
 import TrimLengthOptimizerSection from '@/components/quote/TrimLengthOptimizerSection';
 import ColorField from '@/components/quote/ColorField';
+import FinishColorField from '@/components/quote/FinishColorField';
 import {
   getProfileStockLengths,
   resolveStockLengthBySlug,
@@ -20,6 +27,7 @@ interface ConfiguratorForm {
   material: string;
   gauge: string;
   color: string;
+  finish: AluminumFinish | '';
   width: string;
   height: string;
   legA: string;
@@ -68,6 +76,7 @@ const EMPTY_FORM: ConfiguratorForm = {
   material: '',
   gauge: '',
   color: '',
+  finish: '',
   width: '',
   height: '',
   legA: '',
@@ -212,14 +221,17 @@ export default function ConfiguratorPage() {
   const isCleat = profileType === 'cleat';
 
   // The 'painted_steel' and 'aluminum' material categories require a color
-  // selection from the McElroy / PAC-CLAD chart before this item can be
-  // added or submitted (afs-cv-002). quote_requests.color (migration 017)
-  // is a single column for the whole request, so this reflects the
-  // CURRENTLY-BUILT item's material/color — the same scope the rest of
-  // this form (length, quantity, notes) already applies per-request rather
-  // than per-queued-item.
-  const colorPalette = form.material ? colorPaletteForMaterial(form.material) : null;
-  const colorSatisfied = !colorPalette || form.color.trim() !== '';
+  // selection before this item can be added or submitted. 'painted_steel'
+  // always uses the McElroy chart; 'aluminum' requires a Finish choice
+  // first (afs-jf-002, supersedes afs-cv-002's blanket "aluminum always
+  // means PAC-CLAD" ruling) — see lib/data/material-color-requirement.ts.
+  // quote_requests.color / .finish (migrations 017/018) are single columns
+  // for the whole request, so this reflects the CURRENTLY-BUILT item's
+  // material/finish/color — the same scope the rest of this form (length,
+  // quantity, notes) already applies per-request rather than per-queued-item.
+  const isAluminum = form.material ? requiresFinishChoice(form.material) : false;
+  const colorPalette = form.material ? colorPaletteForMaterial(form.material, form.finish || null) : null;
+  const colorSatisfied = isColorRequirementSatisfied(form.material, form.finish || null, form.color);
 
   const svgMarkup = useMemo(() => {
     if (!profileType) return null;
@@ -242,7 +254,7 @@ export default function ConfiguratorPage() {
   };
 
   const selectMaterial = (material: string) => {
-    setForm(prev => ({ ...prev, material, gauge: '', color: '' }));
+    setForm(prev => ({ ...prev, material, gauge: '', color: '', finish: '' }));
   };
 
   const gaugeOptions = form.material ? GAUGES[form.material] ?? [] : [];
@@ -279,9 +291,7 @@ export default function ConfiguratorPage() {
     const item = buildCurrentItem();
     if (!item) {
       if (!colorSatisfied) {
-        setSubmitError(
-          `Select a ${colorPalette === 'mcelroy' ? 'McElroy' : 'PAC-CLAD'} color before adding this item.`
-        );
+        setSubmitError(colorRequirementErrorMessage(form.material, form.finish || null));
       } else {
         setSubmitError('Complete the profile, material, gauge, and length before adding.');
       }
@@ -336,9 +346,7 @@ export default function ConfiguratorPage() {
       return;
     }
     if (!colorSatisfied) {
-      setSubmitError(
-        `Select a ${colorPalette === 'mcelroy' ? 'McElroy' : 'PAC-CLAD'} color before submitting.`
-      );
+      setSubmitError(colorRequirementErrorMessage(form.material, form.finish || null));
       return;
     }
 
@@ -354,6 +362,7 @@ export default function ConfiguratorPage() {
           notes: form.notes.trim() || null,
           isRush: rush,
           color: form.color.trim() || null,
+          finish: isAluminum ? (form.finish || null) : null,
           guestEmail: email,
           sourceTool: 'afs-configurator',
         }),
@@ -372,7 +381,7 @@ export default function ConfiguratorPage() {
       setSubmitError('Submission failed. Please try again.');
       setSubmitState('idle');
     }
-  }, [allItemsForSubmit, form.notes, form.color, rush, colorSatisfied, colorPalette]);
+  }, [allItemsForSubmit, form.notes, form.color, form.finish, form.material, rush, colorSatisfied, isAluminum]);
 
   const handleSubmit = () => {
     if (allItemsForSubmit().length === 0) {
@@ -380,9 +389,7 @@ export default function ConfiguratorPage() {
       return;
     }
     if (!colorSatisfied) {
-      setSubmitError(
-        `Select a ${colorPalette === 'mcelroy' ? 'McElroy' : 'PAC-CLAD'} color before submitting.`
-      );
+      setSubmitError(colorRequirementErrorMessage(form.material, form.finish || null));
       return;
     }
     if (isAuthenticated) {
@@ -537,13 +544,25 @@ export default function ConfiguratorPage() {
             </div>
           )}
 
-          {!isCleat && colorPalette && (
+          {!isCleat && colorPalette === 'mcelroy' && (
             <div className="mb-3">
               <ColorField
-                palette={colorPalette}
+                palette="mcelroy"
                 value={form.color || null}
                 onChange={(name) => setForm(prev => ({ ...prev, color: name }))}
                 error={form.color.trim() === '' ? `Required for ${form.material}.` : null}
+              />
+            </div>
+          )}
+
+          {!isCleat && isAluminum && (
+            <div className="mb-3">
+              <FinishColorField
+                material={form.material}
+                finish={form.finish || null}
+                onFinishChange={(finish) => setForm(prev => ({ ...prev, finish, color: '' }))}
+                color={form.color}
+                onColorChange={(name) => setForm(prev => ({ ...prev, color: name }))}
               />
             </div>
           )}

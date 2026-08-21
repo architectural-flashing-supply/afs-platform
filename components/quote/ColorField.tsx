@@ -3,9 +3,9 @@
 import { useState } from 'react';
 import ColorPickerModal from './ColorPickerModal';
 import type { ColorPalette } from '@/lib/data/material-color-requirement';
-import { mcelroy, pacclad } from '@/lib/data/metal-colors';
+import { mcelroy, pacclad, pacclad_anodized } from '@/lib/data/metal-colors';
 
-const PALETTE_COLORS: Record<ColorPalette, typeof mcelroy> = { mcelroy, pacclad };
+const PALETTE_COLORS: Record<ColorPalette, typeof mcelroy> = { mcelroy, pacclad, pacclad_anodized };
 
 interface ColorFieldProps {
   palette: ColorPalette;

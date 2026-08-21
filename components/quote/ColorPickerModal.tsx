@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { mcelroy, pacclad, type MetalColor } from '@/lib/data/metal-colors';
+import { mcelroy, pacclad, pacclad_anodized, type MetalColor } from '@/lib/data/metal-colors';
 import type { ColorPalette } from '@/lib/data/material-color-requirement';
 
-const PALETTE_COLORS: Record<ColorPalette, MetalColor[]> = { mcelroy, pacclad };
+const PALETTE_COLORS: Record<ColorPalette, MetalColor[]> = { mcelroy, pacclad, pacclad_anodized };
 const PALETTE_LABEL: Record<ColorPalette, string> = {
   mcelroy: 'McElroy — Shades of Distinction',
   pacclad: 'PAC-CLAD Color Guide',
+  pacclad_anodized: 'PAC-CLAD Anodized Color Guide',
 };
 
 interface ColorPickerModalProps {
