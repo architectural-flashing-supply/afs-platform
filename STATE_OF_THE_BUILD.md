@@ -240,6 +240,69 @@ else in FlashDraft.
 
 ---
 
+## FLASHDRAFT — WHOLE-PROFILE MOVE AFFORDANCE ADDED (afs-sv-004): IMPLEMENTED, UNCONFIRMED
+
+**Status: code added, `pnpm tsc --noEmit` and `pnpm run build` both pass
+with 0 errors. A new Playwright e2e test (`tests/e2e/flashdraft.spec.ts`)
+asserts the numeric-identity requirement below programmatically, but per
+this file's verification standard that is evidence to bring to the user,
+not a substitute for the user independently confirming the interaction
+feels right in the actual FlashDraft canvas — required before this can be
+marked DONE.**
+
+Only files touched: `app/studio/draft/page.tsx` (full-file edits) and
+`tests/e2e/flashdraft.spec.ts` (one new test, plus a small shared-setup
+helper extracted from the existing test).
+
+**The feature:** before this change, every drag gesture on the canvas
+either edited one vertex/leg (grab an endpoint, drag a leg body, drag a
+bend-radius circle) or panned the view (middle-click or space+drag) — there
+was no way to move an entire drawn profile as a single rigid body; the only
+options were re-drawing it or nudging every point individually.
+
+**Interaction chosen, and why (a UX decision made without direct user
+confirmation — flagged here per the task's own instruction):** hold Alt
+(Option on Mac) and drag anywhere on the canvas while a profile exists.
+This mirrors a convention the file already uses — `spacePressed` reserves
+a held key to mean "this drag pans the view, not editing" — applied to a
+second, equally unambiguous meaning ("this drag moves the whole profile,
+not one leg"), rather than adding a new mode-toggle button to the toolbar.
+The check runs FIRST in `handlePointerDown`, before any vertex/segment
+hit-testing, so it always wins and never falls through into a leg-edit
+gesture — grabbing an endpoint or a leg body only ever behaves as before
+when Alt is NOT held. A plain drag on empty canvas (no Alt) is completely
+unchanged — it still extends the profile with a new segment exactly as it
+did before, per the task's explicit requirement not to repurpose that
+gesture. The toolbar's existing shortcut-hint line (below the toolbar) and
+a live cursor change (to a "grab" hand while Alt is held, "grabbing" while
+actively moving) both surface the gesture, since it has no other UI
+affordance.
+
+**Numeric-identity verification (the task's explicit ask):** the move is
+implemented as a pure translation — every point in the ORIGINAL
+(pointer-down-time) points snapshot shifts by one identical world-space
+`(dx, dy)` delta, computed once from cursor movement and never re-derived
+from live state, so it cannot drift or compound mid-drag. Because
+`bendAngleAt`/leg-length/`blankWidthInLive` are all computed purely from
+pairwise point positions (relative distances and angles), and a rigid
+translation leaves every pairwise relationship unchanged by construction,
+no leg length, no bend angle, and no derived blank width can change from
+this gesture — this is a structural guarantee of the math, not a
+value that needed separate clamping or re-derivation. Hems are stored as
+direction/length data relative to their endpoint (not as their own points),
+so they follow the translation automatically with no extra handling.
+Confirmed with a new Playwright test that draws a 2-leg profile, reads the
+Blank Width/Bend Count readout, performs an Alt+drag starting exactly on
+the profile's bend vertex (proving Alt overrides the ordinary vertex-grab
+there), and asserts both readouts are byte-for-byte unchanged afterward.
+
+**Explicitly NOT touched:** every existing drag gesture (vertex drag, leg
+reshape, hem creation, bend-radius/angle panels, pan, wheel zoom, drag-draw
+of new segments) — none of their code paths changed; the new branch is
+purely additive and is checked before all of them.
+
+---
+
 ## CRITICAL — PATHFINDEREDGE BEND ANGLE, FOURTH REVISION: SIGNED INTERIOR ANGLE, NOT TURN-ANGLE: IMPLEMENTED, PENDING VERIFICATION
 
 **Status: IMPLEMENTED, PENDING Reid's own visual verification matrix

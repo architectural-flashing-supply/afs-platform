@@ -193,6 +193,74 @@ asymmetry - support same interactions as other legs (afs-sv-003)`.
 
 ---
 
+## FLASHDRAFT WHOLE-PROFILE MOVE AFFORDANCE ADDED (afs-sv-004) — 2026-08-20
+
+Read the full drag/interaction code in `app/studio/draft/page.tsx` (pointer
+handlers, hit-testing, panning) before adding anything, per the task's
+instruction, so the new gesture could be made to not conflict with any
+existing leg-edit drag or with empty-canvas drag-to-draw.
+
+**The ask:** a move affordance that translates ALL points of the profile
+together — a true whole-profile move, distinct from editing one leg —
+without repurposing the empty-canvas drag gesture (which continues to
+extend the profile with a new segment, exactly as before).
+
+**Interaction chosen (a UX decision made without direct user confirmation
+— documented per the task's instruction):** hold Alt (Option on Mac) and
+drag anywhere on the canvas while a profile exists. This reuses the file's
+own existing modifier-key-for-a-distinct-drag-meaning convention —
+`spacePressed` already means "this drag pans, not edits" — applied to a
+second unambiguous meaning, rather than introducing a separate mode-toggle
+button. The check in `handlePointerDown` runs before any vertex/segment
+hit-testing, so it always wins: grabbing an endpoint or a leg body behaves
+exactly as before whenever Alt is not held, and a plain drag on empty
+canvas is untouched regardless of Alt state (the new branch requires
+`points.length > 0` and returns before reaching the drag-to-draw fallback
+either way). Cursor feedback (`grab` while Alt is held and hovering,
+`grabbing` while actively moving) and an update to the toolbar's existing
+shortcut-hint line are the only UI surface for discoverability — there is
+no dedicated button.
+
+**Implementation:** `isMovingProfile` state plus a `moveProfileOriginRef`
+snapshot (mirroring the existing `panOrigin` pattern) captured at
+pointer-down. On move, every point in that ORIGINAL snapshot — never the
+live `points` state, so the delta can't drift or compound — is shifted by
+one identical world-space `(dx, dy)`. On release, the pre-move snapshot is
+pushed to the undo stack (skipped if the drag never crossed
+`VERTEX_DRAG_THRESHOLD_PX`, matching the no-op guard the vertex-drag/
+leg-reshape gestures already use elsewhere in this file).
+
+**Numeric-identity verification (explicit task requirement):** a rigid
+translation leaves every pairwise point relationship unchanged by
+construction — `bendAngleAt`, leg length (`dist`), and the derived
+`blankWidthInLive` are all computed purely from pairwise point positions,
+so no leg length, bend angle, or blank width can change from this gesture.
+This is a structural property of the math, not something that needed a
+separate check. Hems are stored as direction/length data relative to their
+endpoint, not as their own points, so they translate automatically.
+Added a new Playwright test (`tests/e2e/flashdraft.spec.ts`) that draws a
+2-leg profile, records the Blank Width/Bend Count readout, Alt+drags
+starting exactly on the profile's bend vertex (proving Alt overrides the
+ordinary vertex-grab there rather than only working over empty canvas),
+and asserts both readouts are unchanged afterward. Extracted the existing
+test's profile-drawing steps into a small shared `drawTwoLegProfile()`
+helper so both tests use identical setup.
+
+Explicitly not touched: every other drag gesture (vertex drag, leg
+reshape, hem creation/editing, bend-radius/angle panels, pan, wheel zoom,
+drag-to-draw of new segments) — none of their code changed; the new branch
+is purely additive and is checked before all of them.
+
+Only `app/studio/draft/page.tsx` and `tests/e2e/flashdraft.spec.ts`
+changed. `pnpm tsc --noEmit` and `pnpm run build` both run directly this
+session: 0 errors, build passes. Per this file's own verification
+standard, this is **IMPLEMENTED, UNCONFIRMED** — the user has not yet
+independently confirmed Alt+drag moving a profile in the actual FlashDraft
+canvas. Committed as `feat: FlashDraft whole-profile move affordance
+(afs-sv-004)`.
+
+---
+
 ## CURRENT STATUS
 
 **FOURTH revision applied (2026-08-20): bend angle now emits SIGNED
