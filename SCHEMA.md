@@ -1,6 +1,6 @@
 # SCHEMA.md
 ## AFS — Supabase Database Schema
-**53 tables across 13 migration files. RLS on every table. Indexes on every
+**54 tables across 16 migration files. RLS on every table. Indexes on every
 foreign key and filter column.** (This document's "TABLE N" numbering below
 covers the original 25 sections designed in migration 001 — several of
 those sections define more than one physical table, e.g. TABLE 8 =
@@ -14,9 +14,19 @@ The BID MONITOR section adds 4 more tables via migration 010. Migration
 011 is constraint-only (no new tables, no new columns — see TABLE 18
 below). Migration 012 is column-only (adds `machine_jobs.
 used_fallback_geometry` — see MACHINE BRIDGE TABLES). The BID DOCUMENT
-TABLES section adds 4 more tables via migration 013. 53 is the table
-count `supabase/README.md` should verify against the live database once
-all 13 migrations are applied.)
+TABLES section adds 4 more tables via migration 013. Migration 014 is
+CHECK-constraint-only (widens `takeoff_uploads.status` — no new tables,
+no new columns). Migration 015 is column-only (adds `machine_jobs.
+delivery_method` — see MACHINE BRIDGE TABLES). The SHOP PROFILE LIBRARY
+section adds 1 more table via migration 016, which also adds
+`quote_requests.source_tool` (see TABLE 15). 54 is the table count
+`supabase/README.md` should verify against the live database once all 16
+migrations are applied — **as of this writing, migration 016 is written
+and committed as a file only; it has NOT been applied to the live
+Supabase project, so the live table count remains whatever the last
+actually-applied migration produced. See SESSION_STATE.md for each
+migration's individually verified live-apply status — it is never safe
+to assume from a file's presence on disk alone.**)
 
 ---
 
@@ -37,6 +47,9 @@ supabase/migrations/
   011_orders_quote_id_unique.sql       Adds UNIQUE(orders.quote_id) — no new tables/columns (see TABLE 18)
   012_machine_jobs_fallback_geometry.sql  Adds machine_jobs.used_fallback_geometry — no new tables (see MACHINE BRIDGE TABLES)
   013_bid_documents.sql                Bid Documents — project-level GC bid pricing (see BID DOCUMENT TABLES)
+  014_takeoff_uploads_pending_status.sql  Widens takeoff_uploads.status CHECK to add 'pending', new default — no new tables/columns
+  015_machine_jobs_delivery_method.sql    Adds machine_jobs.delivery_method — no new tables (see MACHINE BRIDGE TABLES)
+  016_source_tool_and_shop_profile_library.sql  Adds quote_requests.source_tool (see TABLE 15), creates shop_profile_library (see SHOP PROFILE LIBRARY TABLE) — FILE ONLY, not yet applied live
 ```
 
 Run in numeric order — see `supabase/README.md` for the exact procedure.
@@ -501,6 +514,18 @@ CREATE POLICY "admin_all_projects" ON projects
 ---
 
 ## TABLE 15 — quote_requests
+
+**Migration 016 (`016_source_tool_and_shop_profile_library.sql`) adds
+`source_tool TEXT NOT NULL DEFAULT 'unknown'`** (nullable-safe `ADD
+COLUMN IF NOT EXISTS`, same additive pattern as migration 003's
+`cost_notes` / migration 012's `used_fallback_geometry`) — records which
+intake tool a request actually came through (e.g. FlashDraft, a future
+phone/walk-in entry path, PathfinderEdge), defaulting to `'unknown'` for
+every pre-existing row so the column is safe to add without a backfill
+pass. Not shown in the `CREATE TABLE` below since it was added after this
+table was originally designed — it is a real column on the live schema
+once 016 is applied. **FILE ONLY as of this writing — 016 has not been
+applied to the live Supabase project; see SESSION_STATE.md.**
 
 ```sql
 CREATE TABLE quote_requests (
@@ -1674,6 +1699,70 @@ Realtime idiom already established by `ProductionQueueRealtime.tsx` and
 over a real table that triggers a refetch on any change, not Supabase's
 separate ephemeral Presence-channel API (grepping this repo for
 `.channel(` never turns up that API anywhere).
+
+---
+
+## SHOP PROFILE LIBRARY TABLE (migration 016_source_tool_and_shop_profile_library.sql)
+
+**FILE ONLY as of this writing — written and committed but NOT yet applied
+to the live Supabase project. Do not assume this table exists live; see
+SESSION_STATE.md for the current, individually-verified apply status of
+every migration.**
+
+An admin-only, internal shop record of a profile job's full intake
+context — customer/account info, material/geometry, hem/paint
+instructions, and machine-routing identifiers — independent of both
+`quote_requests` (TABLE 15, a customer-facing RFQ submission) and
+`machine_jobs` (MACHINE BRIDGE TABLES above, the approval → generation →
+delivery lifecycle for one bend program). `quote_request_id` and
+`machine_job_id` are both nullable FKs, not a required link: a row can
+exist with no matching quote request or machine job at all (e.g. a job
+phoned or walked in and entered directly by shop staff), and can
+optionally reference either or both when it does trace back to an online
+submission and/or a real bend program.
+
+```sql
+CREATE TABLE shop_profile_library (
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  quote_request_id      UUID REFERENCES quote_requests(id),
+  machine_job_id        UUID REFERENCES machine_jobs(id),
+  order_number          TEXT,
+  profile_name          TEXT,
+  customer_name         TEXT,
+  company               TEXT,
+  customer_email        TEXT,
+  customer_phone        TEXT,
+  account_notes         TEXT,
+  material              TEXT,
+  gauge                 TEXT,
+  quantity              INTEGER,
+  length_ft             NUMERIC,
+  due_date              DATE,
+  hem_instructions      TEXT,
+  painted_edge          BOOLEAN DEFAULT false,
+  special_instructions  TEXT,
+  geometry_points       JSONB,   -- FlashDraft-style drawn point sequence, if captured
+  geometry_svg          TEXT,    -- rendered SVG snapshot of the geometry, if captured
+  source_tool           TEXT,    -- which intake tool produced this row
+  pathfinder_profile_id TEXT,    -- PathfinderEdge profile id, if pushed there
+  status                TEXT DEFAULT 'queued',
+  created_at            TIMESTAMPTZ DEFAULT NOW(),
+  deleted_at            TIMESTAMPTZ  -- soft-delete marker; no hard-delete path
+);
+```
+
+**Indexes:** `customer_name`, `profile_name`, `status`, `due_date`,
+`created_at` — one plain B-tree index per column, matching this schema's
+established one-index-per-filter-column convention (see e.g.
+`bid_projects`' `status`/`bid_due_date`/`discovered_at` indexes in
+migration 010).
+
+**RLS: admin only** — `FOR ALL USING (EXISTS (SELECT 1 FROM profiles
+WHERE id = auth.uid() AND role = 'admin'))`, the same inline admin-only
+pattern `machine_jobs` (migration 005) uses, not the operator-inclusive
+pattern `bid_documents` (migration 013) uses — this is an internal shop
+record, not a feature any `operator`-role staff member is named as a user
+of.
 
 ---
 

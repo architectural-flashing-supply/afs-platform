@@ -465,6 +465,78 @@ Saved-Profiles/library code paths are unchanged.
 
 ---
 
+## SOURCE_TOOL COLUMN + SHOP_PROFILE_LIBRARY TABLE ADDED (afs-sv-007): FILE ONLY, NOT APPLIED LIVE
+
+**Status: new migration `016_source_tool_and_shop_profile_library.sql`
+written and committed to `supabase/migrations/`. `pnpm tsc --noEmit`
+passes with 0 errors. Per this project's standing migration-verification
+standard, a migration's live-apply status is never assumed from its
+presence on disk — this migration has NOT been run against the live
+Supabase project. It must be applied manually via the Dashboard SQL
+Editor (same pending-manual-apply state migration 015 was in before its
+own later live confirmation — see SESSION_STATE.md) before anything can
+depend on `shop_profile_library` existing or on `quote_requests` having a
+real `source_tool` column.**
+
+Confirmed before choosing the migration number: `015_machine_jobs_
+delivery_method.sql` was the highest-numbered file in
+`supabase/migrations/` (001 through 015, no gaps), so this migration is
+correctly numbered 016.
+
+**What it does:**
+1. `ALTER TABLE quote_requests ADD COLUMN IF NOT EXISTS source_tool TEXT
+   NOT NULL DEFAULT 'unknown'` — additive, nullable-safe pattern (same as
+   migration 003's `cost_notes` / migration 012's
+   `used_fallback_geometry`), defaulting every existing row to
+   `'unknown'` so no backfill pass is required.
+2. New table `shop_profile_library` — an admin-only internal shop record
+   of a profile job's full intake context (customer/account info,
+   material/geometry, hem/paint instructions, machine-routing
+   identifiers), independent of both `quote_requests` (a customer-facing
+   RFQ submission) and `machine_jobs` (the approval → generation →
+   delivery lifecycle for one bend program). `quote_request_id` and
+   `machine_job_id` are both nullable FKs — a row can exist with no
+   matching quote request or machine job at all (e.g. a job phoned or
+   walked in and entered directly by shop staff). Full column list: `id`
+   (UUID PK, `gen_random_uuid()`), `quote_request_id`, `machine_job_id`,
+   `order_number`, `profile_name`, `customer_name`, `company`,
+   `customer_email`, `customer_phone`, `account_notes`, `material`,
+   `gauge`, `quantity`, `length_ft`, `due_date`, `hem_instructions`,
+   `painted_edge` (default false), `special_instructions`,
+   `geometry_points` (JSONB), `geometry_svg`, `source_tool`,
+   `pathfinder_profile_id`, `status` (default `'queued'`), `created_at`
+   (default `NOW()`), `deleted_at` (soft-delete marker, no hard-delete
+   path).
+3. RLS: admin only — `FOR ALL USING (EXISTS (SELECT 1 FROM profiles
+   WHERE id = auth.uid() AND role = 'admin'))`, matching `machine_jobs`'
+   (migration 005) inline admin-only pattern exactly, not the
+   operator-inclusive pattern `bid_documents` (migration 013) uses — this
+   is an internal shop record, not a feature any `operator`-role staff
+   member is named as a user of.
+4. Indexes: one plain B-tree index each on `customer_name`,
+   `profile_name`, `status`, `due_date`, `created_at`.
+
+`SCHEMA.md` updated: header table/migration counts (54 tables / 16
+migration files), the `MIGRATION FILE LOCATION` list (also backfilled
+one-line entries for migrations 014 and 015, which had no entry at all —
+a pre-existing gap, not something this migration caused, fixed in
+passing since it sits in the same list this migration needed to extend),
+a new note on TABLE 15 (`quote_requests`) documenting `source_tool`, and
+a new `SHOP PROFILE LIBRARY TABLE` section at the end mirroring the
+`BID DOCUMENT TABLES` section's depth and style.
+
+**Separately confirmed while reading SESSION_STATE.md for this task, not
+introduced by this session:** that file's own "CORRECTED 2026-08-20" note
+under the delivery_method entry states migration 015 **is** confirmed
+applied live (verified via `information_schema`), and a separate
+standalone note further down states migration 013 (`bid_documents`) is
+also confirmed applied live, verified by Reid directly on 2026-08-20.
+Neither of those statuses was reassessed or changed by this session —
+recorded here only because this task's own instructions asked that they
+be checked directly against the current file text rather than assumed.
+
+---
+
 ## CRITICAL — PATHFINDEREDGE BEND ANGLE, FOURTH REVISION: SIGNED INTERIOR ANGLE, NOT TURN-ANGLE: IMPLEMENTED, PENDING VERIFICATION
 
 **Status: IMPLEMENTED, PENDING Reid's own visual verification matrix

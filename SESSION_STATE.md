@@ -426,6 +426,80 @@ Clear/Submit-only clearing (afs-sv-006)`.
 
 ---
 
+## SOURCE_TOOL COLUMN + SHOP_PROFILE_LIBRARY TABLE MIGRATION WRITTEN (afs-sv-007) — 2026-08-20
+
+Read every file in `supabase/migrations/` in full (001 through 015)
+before choosing a migration number, per the task's instruction, and
+confirmed `015_machine_jobs_delivery_method.sql` is in fact the
+highest-numbered file on disk (no gaps) — so the new migration is
+correctly numbered 016.
+
+**Live-apply status check, done directly against this file's current
+text rather than assumed, per the task's explicit instruction:**
+
+- **Migration 015:** this file's own "CORRECTED 2026-08-20" note (under
+  the "Command Center — added `machine_jobs.delivery_method`" prior-
+  session entry, further down this file) states migration 015 **is
+  confirmed applied to the live Supabase project**, verified via a direct
+  `information_schema` query — not the "written and committed as a file
+  only, not yet applied" status this task's own prompt described. That
+  correction is this file's current, standing word on 015's status; it
+  was not re-verified or changed by this session.
+- **Migration 013:** contrary to this task's framing that it "is not
+  addressed in SESSION_STATE.md," this file already contains a dedicated
+  "MIGRATION 013 (bid_documents) — CONFIRMED APPLIED LIVE, 2026-08-20"
+  section further down, stating Reid verified it directly via
+  `information_schema` in the Dashboard SQL Editor.
+- **MIGRATIONS_STATUS.md**, also checked directly: it only covers
+  migrations 007–010 (its own title is "Migrations 007–010 — Live
+  Status"); it says nothing about either 013 or 015.
+
+Neither finding changes anything about migration 016 itself — recorded
+here only because the task asked that the actual current text be checked
+rather than trusted from memory or from the prompt's own framing, and
+both findings are relevant discrepancies a future session should not
+re-litigate from scratch.
+
+**New migration `016_source_tool_and_shop_profile_library.sql` — FILE
+ONLY, NOT applied to the live Supabase project.** Per this project's
+standing migration-verification standard (no schema_migrations ledger
+exists on this project — see the CORRECTED note referenced above), this
+must be verified live via `information_schema` before anything depends
+on it, the same way 013 and 015 eventually were.
+
+What it does:
+1. `quote_requests.source_tool TEXT NOT NULL DEFAULT 'unknown'` — additive
+   `ADD COLUMN IF NOT EXISTS`, defaults every existing row so no backfill
+   is needed.
+2. New table `shop_profile_library` — admin-only internal shop record of
+   a profile job's full intake context, independent of (but optionally
+   linked to via nullable `quote_request_id`/`machine_job_id` FKs) both
+   `quote_requests` and `machine_jobs`. Full column list: `id`,
+   `quote_request_id`, `machine_job_id`, `order_number`, `profile_name`,
+   `customer_name`, `company`, `customer_email`, `customer_phone`,
+   `account_notes`, `material`, `gauge`, `quantity`, `length_ft`,
+   `due_date`, `hem_instructions`, `painted_edge` (default false),
+   `special_instructions`, `geometry_points` (JSONB), `geometry_svg`,
+   `source_tool`, `pathfinder_profile_id`, `status` (default `'queued'`),
+   `created_at`, `deleted_at`.
+3. RLS: admin only, matching `machine_jobs`' (005) inline
+   `EXISTS (... role = 'admin')` pattern exactly — not the
+   operator-inclusive pattern `bid_documents` (013) uses, since this is
+   an internal shop record with no named operator user.
+4. Indexes on `customer_name`, `profile_name`, `status`, `due_date`,
+   `created_at`.
+
+`SCHEMA.md` updated to document both the new column and the new table
+(header counts, migration file list — also backfilled missing one-line
+entries for migrations 014/015, a pre-existing gap in that list, not
+caused by this change — TABLE 15 note, and a new SHOP PROFILE LIBRARY
+TABLE section). `pnpm tsc --noEmit` — 0 errors. See
+STATE_OF_THE_BUILD.md's matching afs-sv-007 entry for the full writeup.
+Committed as `feat: add source_tool column and shop_profile_library
+table migration, file only (afs-sv-007)`.
+
+---
+
 ## CURRENT STATUS
 
 **FOURTH revision applied (2026-08-20): bend angle now emits SIGNED
