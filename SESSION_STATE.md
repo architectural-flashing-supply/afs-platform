@@ -426,6 +426,70 @@ Clear/Submit-only clearing (afs-sv-006)`.
 
 ---
 
+## SOURCE_TOOL WIRED — QUOTE_REQUESTS INSERTS TAGGED, COMMAND CENTER SOURCE BADGE ADDED (afs-sv-008) — 2026-08-20
+
+Grepped every `.from('quote_requests')` call site in the codebase directly
+(per the task's own instruction not to assume from spec docs) rather than
+trusting `SPEC_PHOTO_TO_QUOTE_AI.md`'s framing. Confirmed: **there is
+exactly one real insert path**, `admin.from('quote_requests').insert(...)`
+in `app/api/quote-requests/route.ts`. Everything else touching
+`quote_requests` — both admin command-center routes, the chat AI's
+order-history lookup, the machine bridge's pending-jobs poll, both
+dashboard/list data files — only `select`s or `update`s it.
+
+That one insert route is shared by four distinct front-end tools (found by
+grepping for callers of `POST /api/quote-requests`), confirmed real by
+reading each page:
+
+1. **`app/studio/draft/page.tsx` (FlashDraft)** → `afs-flashdraft`
+2. **`app/configure/page.tsx` (Custom Flashing Configurator)** →
+   `afs-configurator`
+3. **`app/quote/page.tsx` (Quick Quote / "Build Your Quote")** →
+   `afs-quote-builder`
+4. **`app/upload/page.tsx`** → `afs-takeoff`. This is the one genuinely
+   ambiguous case worth flagging: `app/studio/page.tsx` markets this same
+   page under two different tiles, "Scan to Quote" AND "Photo to Quote"
+   (both `ctaHref: '/upload'`) — there is no separate photo-specific insert
+   path despite the SPEC_PHOTO_TO_QUOTE_AI.md name; internally the code
+   calls this feature "takeoff" throughout (`/api/takeoff`,
+   `takeoff_uploads` table, `TAKEOFF_SYSTEM_PROMPT`), so `afs-takeoff` was
+   used rather than inventing a name matching either marketing tile.
+
+Each of the four pages now sends `sourceTool: '<token>'` in its
+`POST /api/quote-requests` body. The route (`app/api/quote-requests/route.ts`)
+validates it against a new shared allow-list module,
+`lib/data/quote-request-source-tool.ts` (`isSourceTool` /
+`SOURCE_TOOL_LABEL` / `sourceToolLabel`), and writes it to the new
+`source_tool` column (migration 016, afs-sv-007 below) added to the
+`quote_requests` insert — falling back to `'unknown'` for anything missing
+or unrecognized, since the column has no CHECK constraint.
+
+**Command Center UI — badge added everywhere a quote request is shown,**
+matching the existing `Badge` component's `chrome` (neutral) variant used
+elsewhere on these same cards for non-status tags:
+- `components/admin/PendingQuoteRequestCard.tsx` — the Pending Approval
+  tab's list view.
+- `components/admin/CommandCenterDashboard.tsx` — the dashboard's "Quote
+  Requests" recent-activity list view.
+- `app/admin/quote-requests/[id]/page.tsx` — the detail page both list
+  views link out to.
+
+`lib/data/pending-quote-requests.ts` and `lib/data/command-center-dashboard.ts`
+both now select `source_tool` and pass it through their row types.
+
+**This depends on migration 016 actually being live** (see the afs-sv-007
+entry immediately below — as of this session, still FILE ONLY, unverified
+against the live Supabase project). Until it's applied, any `select`/
+`insert` touching `quote_requests.source_tool` will fail at the database
+level even though `pnpm tsc --noEmit` passes (0 errors, run directly this
+session). Per this file's verification standard (see top of file): this is
+**IMPLEMENTED, UNCONFIRMED** — no browser check has been done, and the
+column's live-apply status has not been re-verified by this session.
+Committed as `feat: tag quote_requests inserts with source_tool, show
+source badge in Command Center (afs-sv-008)`.
+
+---
+
 ## SOURCE_TOOL COLUMN + SHOP_PROFILE_LIBRARY TABLE MIGRATION WRITTEN (afs-sv-007) — 2026-08-20
 
 Read every file in `supabase/migrations/` in full (001 through 015)

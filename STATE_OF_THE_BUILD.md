@@ -465,6 +465,76 @@ Saved-Profiles/library code paths are unchanged.
 
 ---
 
+## QUOTE_REQUESTS INSERTS TAGGED WITH SOURCE_TOOL, COMMAND CENTER SOURCE BADGE ADDED (afs-sv-008): IMPLEMENTED, UNCONFIRMED
+
+**Status: `pnpm tsc --noEmit` passes with 0 errors. Depends on migration
+016 (afs-sv-007, immediately below) actually being applied live — until
+`quote_requests.source_tool` exists in the live Supabase project, every
+`select`/`insert` that references it will fail at the database level even
+though the code compiles. Not yet independently confirmed by the user in
+the browser.**
+
+**Every real insert path into `quote_requests` was found by grepping the
+codebase directly, not assumed from spec docs** — `SPEC_PHOTO_TO_QUOTE_AI.md`
+was checked and confirmed to NOT correspond to a separate code path: the
+Design Studio's "Photo to Quote" tile (`app/studio/page.tsx`) and its "Scan
+to Quote" tile both link to the same `/upload` page, which is internally
+named "takeoff" throughout the code (`/api/takeoff`, `takeoff_uploads`,
+`TAKEOFF_SYSTEM_PROMPT`) — there is one real insert path here, not two.
+Every other candidate found via `.from('quote_requests')` (admin
+approve/reject routes, the chat AI's order-history lookup, the machine
+bridge's pending-jobs poll, various dashboard counts) was confirmed to only
+`select` or `update` — never `insert`.
+
+**The actual, single insert statement lives in
+`app/api/quote-requests/route.ts` (`admin.from('quote_requests').insert(...)`,
+one call site) and is shared by four distinct front-end submission tools,
+each of which now sends its own `sourceTool` token in the POST body:**
+
+| Token | Tool | Route |
+|---|---|---|
+| `afs-flashdraft` | FlashDraft (draw-your-own-profile canvas) | `/studio/draft` |
+| `afs-configurator` | Custom Flashing Configurator | `/configure` |
+| `afs-quote-builder` | Quick Quote / "Build Your Quote" | `/quote` |
+| `afs-takeoff` | Blueprint Takeoff AI ("Scan to Quote" / "Photo to Quote") | `/upload` |
+
+New shared module `lib/data/quote-request-source-tool.ts` is the single
+source of truth for these four tokens — `isSourceTool()` validates the
+API route's incoming `body.sourceTool` (falls back to `'unknown'` for
+anything missing or unrecognized, since the column has no CHECK
+constraint and a client could send an arbitrary string), and
+`sourceToolLabel()` renders a display label everywhere the value is shown.
+
+**Command Center UI — badge added to both the list and detail surfaces
+that show individual quote requests:**
+- `PendingQuoteRequestCard` (Command Center → Pending Approval tab, the
+  quote-request list view) — a `chrome`-variant `Badge` showing the source
+  tool, next to the existing RUSH / Placeholder Geometry badges.
+- `CommandCenterDashboard`'s "Quote Requests" recent-activity list (the
+  Command Center dashboard's other list view) — same badge, next to the
+  existing status badge.
+- `/admin/quote-requests/[id]` (the detail view both of the above link
+  out to) — same badge, `size="md"`, next to the existing status badge in
+  the page header.
+
+All three consume `quote_requests.source_tool` via `sourceToolLabel()`;
+`lib/data/pending-quote-requests.ts` and `lib/data/command-center-dashboard.ts`
+both select the new column and fall back to `'unknown'` client-side if the
+row's value is null (pre-migration rows, or the migration not yet applied).
+
+**Files changed** (`git diff --stat`): `app/api/quote-requests/route.ts`,
+the four submission pages (`app/studio/draft/page.tsx`,
+`app/configure/page.tsx`, `app/quote/page.tsx`, `app/upload/page.tsx`),
+`lib/data/pending-quote-requests.ts`, `lib/data/command-center-dashboard.ts`,
+`components/admin/PendingQuoteRequestCard.tsx`,
+`components/admin/CommandCenterDashboard.tsx`,
+`app/admin/quote-requests/[id]/page.tsx`, plus the new
+`lib/data/quote-request-source-tool.ts`. Committed as `feat: tag
+quote_requests inserts with source_tool, show source badge in Command
+Center (afs-sv-008)`.
+
+---
+
 ## SOURCE_TOOL COLUMN + SHOP_PROFILE_LIBRARY TABLE ADDED (afs-sv-007): FILE ONLY, NOT APPLIED LIVE
 
 **Status: new migration `016_source_tool_and_shop_profile_library.sql`
