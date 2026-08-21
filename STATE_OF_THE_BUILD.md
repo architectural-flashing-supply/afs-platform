@@ -90,13 +90,14 @@ and not restart from scratch.**
 had no browser/Playwright access — per this file's verification standard,
 this is IMPLEMENTED/UNCONFIRMED, not DONE, until Reid opens
 `/admin/profile-library` in a real browser, uses the up/down controls, and
-confirms the row order actually persists across a page reload. Carries the
-exact same migration-017 dependency afs-cv-003/afs-cv-004 already documented
-below: `shop_profile_library.queue_position` remains **FILE ONLY, NOT YET
-APPLIED LIVE** as of this writing (migration
-`017_color_and_queue_position.sql`, afs-cv-000) — until it's applied, every
-write this feature makes will fail against the live database regardless of
-code correctness.**
+confirms the row order actually persists across a page reload. Carried the
+same migration-017 dependency afs-cv-003/afs-cv-004 already documented
+below: `shop_profile_library.queue_position` (migration
+`017_color_and_queue_position.sql`, afs-cv-000) is now **CONFIRMED APPLIED
+LIVE** (see the afs-cv-000 entry below) — that dependency is closed; Reid
+still needs to confirm in a real browser that reordering, persistence
+across reload, and append-to-end all behave correctly, per the note
+above.**
 
 Read `app/admin/profile-library/page.tsx` (afs-sv-009) and afs-cv-004's Shop
 View queue-strip implementation in full first, per the task's own
@@ -196,11 +197,10 @@ queue-strip chip switching, and the completion flow all behave correctly.
 Still carries afs-sv-010's same dependency on migration 016
 (`shop_profile_library`) — CONFIRMED applied live (see afs-sv-010 entry
 below) — plus migration 017 (`color`/`queue_position`/`completed_at`,
-afs-cv-000) which remains **FILE ONLY, NOT YET APPLIED LIVE** as of this
-writing (see that entry below); until 017 is applied, `queue_position`,
-`completed_at`, and `color` are not real columns live, so the queue-position
-ordering, the completion write, and the color swatch are all unverified
-end-to-end regardless of code correctness.**
+afs-cv-000), now also **CONFIRMED APPLIED LIVE** (see the afs-cv-000 entry
+below) — that dependency is closed too; the queue-position ordering, the
+completion write, and the color swatch still need their own browser
+confirmation, per the note above.**
 
 This supersedes afs-sv-010's side-by-side multi-card grid layout (entry
 below, kept for history) with a one-job-at-a-time focus layout, per this
@@ -375,12 +375,11 @@ Playwright access — per this file's verification standard it is marked
 IMPLEMENTED/UNCONFIRMED until Reid opens both views and confirms the
 swatch renders, and separately confirms a real PathfinderEdge send from
 each of the two send paths actually writes `shop_profile_library.color`.
-Also still blocked on migration 017 (`quote_requests.color` /
-`shop_profile_library.color`, afs-cv-000) — FILE ONLY, NOT YET APPLIED
-LIVE as of this writing (see that entry below) — until it's applied,
-`color` is not a real column in either table live, so both this display
-and the write paths below are unverified end-to-end regardless of code
-correctness.**
+Migration 017 (`quote_requests.color` /
+`shop_profile_library.color`, afs-cv-000) is now **CONFIRMED APPLIED
+LIVE** (see the afs-cv-000 entry below) — that dependency is closed; the
+swatch display and the write paths below still need their own
+browser/live-send confirmation, per the note above.**
 
 **Re-verified the task's premise before touching anything:** grepped every
 caller of `pushProfileToPathfinder` across the codebase.
@@ -472,15 +471,12 @@ required field) but this session had no browser/Playwright access — per
 this file's verification standard it is marked IMPLEMENTED/UNCONFIRMED
 until Reid opens each of the four surfaces below, confirms the picker
 renders and filters correctly, and confirms a submitted request's `color`
-value actually lands in the database. Also depends on migration 017
-(`quote_requests.color`, afs-cv-000) being applied live — still FILE ONLY,
-NOT YET APPLIED LIVE as of this writing (see that entry below) — until
-Reid applies it, a submission that sends `color` will silently no-op that
-column (the insert itself won't fail; Supabase ignores unknown-to-schema-
-cache columns only if PostgREST's schema cache hasn't picked up the
-column, which is the actual live-apply risk here, not a hard failure
-mode — either way, treat `color` as unverified end-to-end until 017 is
-confirmed live AND a real submission is checked in the database).**
+value actually lands in the database. Migration 017
+(`quote_requests.color`, afs-cv-000) is now **CONFIRMED APPLIED LIVE**
+(see the afs-cv-000 entry below) — that dependency is closed; a real
+submission through each of the four surfaces below still needs to be
+checked in the database to confirm `color` actually persists
+end-to-end.**
 
 **Real material-selection surfaces found and wired — confirmed by grepping
 the codebase, then cross-checked against the closed `SourceTool` union in
@@ -583,17 +579,29 @@ lib/data/metal-colors.ts (afs-cv-001)`.
 
 ---
 
-## COLOR + QUEUE_POSITION + COMPLETED_AT COLUMNS MIGRATION WRITTEN (afs-cv-000): FILE ONLY, NOT YET APPLIED LIVE
+## COLOR + QUEUE_POSITION + COMPLETED_AT COLUMNS MIGRATION WRITTEN (afs-cv-000), THEN CONFIRMED APPLIED LIVE
+
+**UPDATE 2026-08-21:** Reid ran migration 017 in the Supabase Dashboard SQL
+Editor and confirmed it completed with no errors, then independently
+verified all four new columns exist via a direct `information_schema`
+query in the Dashboard — four `true` results, covering
+`quote_requests.color`, `shop_profile_library.color`,
+`shop_profile_library.queue_position`, and
+`shop_profile_library.completed_at`. This closes the FILE-ONLY status this
+entry originally recorded (see below for the original write-up, left
+intact for history) with the same standard of evidence migrations
+013/015/016 already carry. No session has had a working Supabase MCP
+connection to this project's actual instance to run that check itself —
+this verification was run by Reid directly in the Dashboard.
 
 **Status: migration `017_color_and_queue_position.sql` written and
-committed to `supabase/migrations/` — a FILE-ONLY change, per the task's
-own instruction, NOT applied to the live Supabase project. `pnpm tsc
---noEmit` passes with 0 errors. This prompt has no browser surface to
-verify (it adds no UI, no API route, no data-fetching code) — it is
-marked IMPLEMENTED/UNCONFIRMED pending Reid's own manual application of
-the migration in the Supabase Dashboard and, separately, his independent
-`information_schema` confirmation that all four columns exist live,
-following the same standard already applied to migrations 013/015/016.**
+committed to `supabase/migrations/` — originally a FILE-ONLY change, per
+the task's own instruction; now CONFIRMED APPLIED LIVE per the UPDATE note
+above. `pnpm tsc --noEmit` passes with 0 errors. This prompt itself has no
+browser surface to verify (it adds no UI, no API route, no data-fetching
+code) — the migration is no longer the blocker for downstream prompts
+(afs-cv-002 through afs-cv-005), each of which still needs its own
+browser/Playwright confirmation independent of this.**
 
 Confirmed before choosing the migration number: read every file in
 `supabase/migrations/` (001 through 016) in full and cross-checked
