@@ -51,8 +51,29 @@ interface ProfileSnapshot {
   hemEnd: Hem | null;
 }
 
+// The full editable profile model persisted for autosave — everything that
+// composes "the current drawing," not just geometry. Deliberately excludes
+// saved-profile identity (profileName/revision/savedProfileId/categoryId/
+// subcategory) since those belong to the separate Saved Profiles feature —
+// restoring a stale savedProfileId here could make a later "Save" silently
+// overwrite an unrelated saved profile.
+interface AutosaveState {
+  points: Point[];
+  hemStart: Hem | null;
+  hemEnd: Hem | null;
+  material: string;
+  gauge: string;
+  lengthFeet: string;
+  lengthInches: string;
+  quantity: string;
+  notes: string;
+  rush: boolean;
+}
+
 const MM_PER_INCH = 25.4;
 const VIEWER_DEBOUNCE_MS = 300;
+const AUTOSAVE_KEY = 'afs-flashdraft-autosave';
+const AUTOSAVE_DEBOUNCE_MS = 500;
 
 // Shown in the 3D confirmation modal before the user has drawn anything —
 // in practice unreachable, since the submit flow requires a real drawing,
@@ -102,6 +123,21 @@ function isPointArray(value: unknown): value is Point[] {
       (p) => !!p && typeof p === 'object' && typeof (p as Point).x === 'number' && typeof (p as Point).y === 'number'
     )
   );
+}
+
+// Same shape check as isPointArray but without the >=2 length requirement —
+// an autosaved profile may be mid-draw (0 or 1 points) rather than complete.
+function isPointArrayShape(value: unknown): value is Point[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (p) => !!p && typeof p === 'object' && typeof (p as Point).x === 'number' && typeof (p as Point).y === 'number'
+    )
+  );
+}
+
+function isHemShape(value: unknown): value is Hem | null {
+  return value === null || (typeof value === 'object' && value !== null);
 }
 
 function isFlashDraftLineItem(
@@ -627,6 +663,10 @@ export default function FlashDraftPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const canvasWrapRef = useRef<HTMLDivElement>(null);
   const jetbrainsFontRef = useRef<string>('monospace');
+  // Guards the debounced autosave-write effect against firing with the
+  // pre-restore initial state before the restore-on-mount effect (below)
+  // has had a chance to run.
+  const autosaveHydratedRef = useRef(false);
 
   useEffect(() => {
     const value = getComputedStyle(document.documentElement).getPropertyValue('--font-jetbrains').trim();
@@ -818,6 +858,69 @@ export default function FlashDraftPage() {
   const gaugeOptions = material ? GAUGES_BY_MATERIAL[material] ?? [] : [];
   const lengthFtDecimal = (Number(lengthFeet) || 0) + (Number(lengthInches) || 0) / 12;
   const thicknessIn = gaugeToThicknessMm(gauge) / MM_PER_INCH;
+
+  // Autosave restore — runs once on mount, before the loadProfile/loadCanonical
+  // handoff effect below, so an explicit "Load into FlashDraft" (from the
+  // machine library, Saved Profiles, or the canonical-profile handoff) always
+  // overwrites whatever this restores, exactly as it would overwrite anything
+  // else already on the canvas.
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(AUTOSAVE_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw) as Partial<AutosaveState>;
+        if (isPointArrayShape(saved.points) && isHemShape(saved.hemStart) && isHemShape(saved.hemEnd)) {
+          setPoints(saved.points);
+          setHemStart(saved.hemStart ?? null);
+          setHemEnd(saved.hemEnd ?? null);
+          if (typeof saved.material === 'string') setMaterial(saved.material);
+          if (typeof saved.gauge === 'string') setGauge(saved.gauge);
+          if (typeof saved.lengthFeet === 'string') setLengthFeet(saved.lengthFeet);
+          if (typeof saved.lengthInches === 'string') setLengthInches(saved.lengthInches);
+          if (typeof saved.quantity === 'string') setQuantity(saved.quantity);
+          if (typeof saved.notes === 'string') setNotes(saved.notes);
+          if (typeof saved.rush === 'boolean') setRush(saved.rush);
+        }
+      }
+    } catch {
+      // Corrupt entry or localStorage blocked — start with a clean canvas.
+    } finally {
+      autosaveHydratedRef.current = true;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Autosave write — debounced ~500ms after the last change to any part of
+  // the profile model, so it does not thrash on every mouse-move while
+  // dragging. Guarded on autosaveHydratedRef so the restore effect above
+  // always wins the race against this one writing back the pre-restore
+  // (empty) initial state. Cleared ONLY by clearCanvas() (Clear button) and
+  // on a successful submitQuoteRequest() — never by this effect, so simple
+  // navigation away or a refresh always leaves the last autosaved state
+  // intact for the restore effect to pick back up.
+  useEffect(() => {
+    if (!autosaveHydratedRef.current) return;
+    const timeout = window.setTimeout(() => {
+      try {
+        const state: AutosaveState = {
+          points,
+          hemStart,
+          hemEnd,
+          material,
+          gauge,
+          lengthFeet,
+          lengthInches,
+          quantity,
+          notes,
+          rush,
+        };
+        window.localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(state));
+      } catch {
+        // Best-effort — browser may be blocking local storage.
+      }
+    }, AUTOSAVE_DEBOUNCE_MS);
+    return () => window.clearTimeout(timeout);
+  }, [points, hemStart, hemEnd, material, gauge, lengthFeet, lengthInches, quantity, notes, rush]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -2326,6 +2429,11 @@ export default function FlashDraftPage() {
     setTopMatchDiagramBends(null);
     setHemStart(null);
     setHemEnd(null);
+    try {
+      window.localStorage.removeItem(AUTOSAVE_KEY);
+    } catch {
+      // Best-effort — browser may be blocking local storage.
+    }
   };
 
   const openLibrary = async () => {
@@ -2609,6 +2717,11 @@ export default function FlashDraftPage() {
         setRequestNumber(data.requestNumber ?? null);
         setShowEmailCapture(false);
         setSubmitState('submitted');
+        try {
+          window.localStorage.removeItem(AUTOSAVE_KEY);
+        } catch {
+          // Best-effort — browser may be blocking local storage.
+        }
       } catch {
         setSubmitError('Submission failed. Please try again.');
         setSubmitState('idle');

@@ -401,6 +401,70 @@ checked before all of it.
 
 ---
 
+## FLASHDRAFT — AUTOSAVE TO LOCALSTORAGE ADDED (afs-sv-006): IMPLEMENTED, UNCONFIRMED
+
+**Status: code added, `pnpm tsc --noEmit` passes with 0 errors. No new
+Playwright test was added and the existing `tests/e2e/flashdraft.spec.ts`
+suite was not re-run this session — per this file's verification
+standard, this is evidence to bring to the user, not a substitute for the
+user independently confirming the behavior in the actual FlashDraft
+canvas. Required before this can be marked DONE.**
+
+Only file touched: `app/studio/draft/page.tsx`.
+
+**The feature:** the full editable profile model — `points`, `hemStart`,
+`hemEnd`, `material`, `gauge`, `lengthFeet`, `lengthInches`, `quantity`,
+`notes`, and `rush` — is serialized to `localStorage` under the key
+`afs-flashdraft-autosave`, debounced 500ms after the last change so it
+does not write on every mouse-move during a drag. On mount, if a saved
+entry exists, it is restored automatically before the user does anything.
+Deliberately excludes saved-profile identity (`profileName`, `revision`,
+`savedProfileId`, `profileCategoryId`, `profileSubcategory`): those
+belong to the separate Saved Profiles feature (`saved_configurations`
+table), and restoring a stale `savedProfileId` here could make a later
+"Save" silently overwrite an unrelated saved profile instead of creating
+a new one.
+
+**Clear conditions — exactly two, both explicit `removeItem` calls, never
+implicit:** (a) `clearCanvas()`, the Clear toolbar button's handler, and
+(b) `submitQuoteRequest()`'s success branch, immediately after a formal
+quote request is created. Simple navigation away or a page refresh never
+clears it — the debounced write effect only ever writes, it never
+removes. Both `removeItem` calls happen synchronously in the same tick as
+the state reset, not deferred to the debounce, specifically so that
+clicking Clear (or submitting) and then closing the tab within the
+500ms debounce window can't leave the pre-clear/pre-submit state behind
+in `localStorage` for the next visit to wrongly restore.
+
+**Why the existing localStorage key (`afs-flashdraft-draft`, written by
+the pre-existing manual "Save Draft" button) was left alone rather than
+reused:** it already has one purpose (an explicit, user-initiated save)
+with no matching restore code path anywhere in the file — repurposing it
+for autosave would have conflated two different persistence intents
+under one key. The new `afs-flashdraft-autosave` key is entirely
+separate.
+
+**Why the existing Load feature needed no changes:** "Load" (the machine
+profile library), "My Saved Profiles", and the canonical-profile
+`?loadCanonical=1` handoff all already call `setPoints`/`setHemStart`/
+`setHemEnd` directly. Since the autosave-restore effect runs once on
+mount and any of those three replace the same state afterward, the
+loaded state always wins — and because the write effect is keyed off
+that same state, the next debounced write 500ms later naturally
+overwrites `afs-flashdraft-autosave` with the newly loaded profile,
+satisfying "replacing whatever the autosave held for the current
+session" with no explicit `removeItem` needed in any of the three load
+paths.
+
+**Explicitly NOT touched:** the "New" toolbar button (`confirmNew`) —
+per the task's explicit scope, the autosave entry is cleared ONLY by
+Clear and successful Submit, not by New (which already leaves `material`/
+`gauge`/`notes`/etc. untouched today, same asymmetry Clear has always
+had). The manual "Save Draft"/`afs-flashdraft-draft` button and all
+Saved-Profiles/library code paths are unchanged.
+
+---
+
 ## CRITICAL — PATHFINDEREDGE BEND ANGLE, FOURTH REVISION: SIGNED INTERIOR ANGLE, NOT TURN-ANGLE: IMPLEMENTED, PENDING VERIFICATION
 
 **Status: IMPLEMENTED, PENDING Reid's own visual verification matrix

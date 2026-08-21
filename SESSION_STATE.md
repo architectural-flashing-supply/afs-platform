@@ -350,6 +350,82 @@ first-leg free end (afs-sv-005)`.
 
 ---
 
+## FLASHDRAFT AUTOSAVE TO LOCALSTORAGE ADDED (afs-sv-006) — 2026-08-20
+
+Read the current canvas state model, the Clear action (`clearCanvas`),
+and the Submit for Quote action (`submitQuoteRequest`/`openSubmitFlow`)
+in `app/studio/draft/page.tsx` in full before changing anything, per the
+task's instruction.
+
+**What was implemented:** a new `AutosaveState` (`points`, `hemStart`,
+`hemEnd`, `material`, `gauge`, `lengthFeet`, `lengthInches`, `quantity`,
+`notes`, `rush`) is written to `localStorage` under key
+`afs-flashdraft-autosave`, debounced 500ms (`AUTOSAVE_DEBOUNCE_MS`) after
+the last change via a `useEffect` keyed on all ten fields. A new
+`autosaveHydratedRef` guards this write effect so it never fires with the
+pre-restore initial (empty) state on first mount — it only starts writing
+once the restore effect below has run. On mount, a separate restore
+effect reads the key, validates shape with new `isPointArrayShape`/
+`isHemShape` helpers (lenient versions of the existing `isPointArray`
+check — no `length >= 2` floor, since an autosaved profile may be
+mid-draw), and repopulates all ten fields if valid.
+
+**Why saved-profile identity fields are deliberately excluded from the
+autosave payload:** `profileName`, `revision`, `savedProfileId`,
+`profileCategoryId`, and `profileSubcategory` belong to the separate
+Saved Profiles feature (the `saved_configurations` table, `performSave`).
+Restoring a stale `savedProfileId` on every page load would make a later
+click of the "Save" button silently overwrite whatever unrelated saved
+profile that stale id pointed to, instead of creating a new one as the
+user would expect from a fresh, unsaved autosaved draft.
+
+**Clear conditions, and why they're synchronous `removeItem` calls, not
+left to the debounce:** exactly two call sites remove the key —
+`clearCanvas()` (the Clear toolbar button) and the success branch inside
+`submitQuoteRequest()`, right after a quote request is created. Both call
+`window.localStorage.removeItem(AUTOSAVE_KEY)` directly in the same tick
+as the state reset, rather than relying on the debounced write effect to
+eventually overwrite the entry — if a user clicked Clear (or submitted)
+and closed the tab inside the 500ms debounce window, an entry only
+removed by the debounce's next write would still hold the pre-clear/
+pre-submit state, and the next visit would wrongly restore it. Navigation
+away or a plain refresh never calls `removeItem` anywhere, so the last
+autosaved state always survives those.
+
+**Why the existing `afs-flashdraft-draft` key (written by the
+pre-existing manual "Save Draft" button, `saveDraft()`) was left alone:**
+grepped the whole repo for it first — it's written in exactly one place
+(`saveDraft()`) and read back nowhere; a corresponding restore has never
+existed anywhere in the codebase. Reusing it for autosave would have
+conflated an explicit user-initiated
+save with a silent auto-save under one key; `afs-flashdraft-autosave` is
+a new, separate key instead.
+
+**Why the three existing Load code paths (`loadFromLibrary`,
+`loadSavedProfile`, `loadCanonicalFromHandoff`) needed zero changes to
+satisfy "Load must replace the autosave for the current session":** all
+three already call `setPoints`/`setHemStart`/`setHemEnd` directly, which
+happens after the one-time mount-restore effect (the restore effect is
+declared earlier in the component and, for the URL-param-triggered loads,
+completes essentially instantly since it's a synchronous localStorage
+read with no `await`, well before the async `fetch`-backed loads
+resolve). Because the debounced write effect is keyed off that same
+state, the very next 500ms-debounced write after any Load naturally
+overwrites `afs-flashdraft-autosave` with the newly loaded profile — no
+explicit `removeItem` was needed in any of the three.
+
+Only `app/studio/draft/page.tsx` changed. `pnpm tsc --noEmit` run
+directly this session: 0 errors. `pnpm run build` and
+`tests/e2e/flashdraft.spec.ts` were not re-run this session. Per this
+file's own verification standard, this is **IMPLEMENTED, UNCONFIRMED** —
+the user has not yet independently confirmed autosave/restore behavior
+in the actual FlashDraft canvas (draw → refresh → state restored; Clear
+→ refresh → state stays empty; Submit → refresh → state stays empty).
+Committed as `feat: FlashDraft autosave to localStorage with debounce and
+Clear/Submit-only clearing (afs-sv-006)`.
+
+---
+
 ## CURRENT STATUS
 
 **FOURTH revision applied (2026-08-20): bend angle now emits SIGNED
