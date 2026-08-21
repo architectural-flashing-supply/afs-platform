@@ -261,6 +261,95 @@ canvas. Committed as `feat: FlashDraft whole-profile move affordance
 
 ---
 
+## FLASHDRAFT PREPEND-LEG-FROM-FIRST-LEG ADDED (afs-sv-005) — 2026-08-20
+
+Read the leg-creation, bend/angle, hem-endpoint, and blank-width code in
+`app/studio/draft/page.tsx` in full before changing anything, per the
+task's instruction, specifically to understand how appending a leg at the
+end already works so prepending could be made to produce equivalent,
+correct results at the other end.
+
+**What "append" already does, and why it can't be copy-pasted onto point
+0 unmodified:** the last point is deliberately excluded from
+`hitTestVertex()` (see afs-sv-003's own root-cause writeup above) so that
+grabbing it always means "continue drawing" — `commitPoints([...points,
+newPoint])`. Point 0, after afs-sv-003, is the opposite: it's now a fully
+hit-testable, directly draggable vertex (grabbing it moves it in place).
+That fix was correct and is not being reverted, which means point 0's own
+screen position has no empty hit-radius left where a plain click/drag
+could unambiguously mean "start a new leg" instead of "move this one."
+
+**Interaction chosen (a UX decision made without direct user confirmation
+— documented per the task's instruction, same as afs-sv-004's Alt+drag):**
+hold Shift and drag anywhere on the canvas while a profile exists. Reuses
+this file's own existing modifier-key-for-a-distinct-drag-meaning
+convention (`spacePressed` -> pan, `altPressed` -> whole-profile move,
+now `shiftPressed` -> prepend) instead of touching `hitTestVertex` or the
+afs-sv-003 fix, or inventing a click-radius-based disambiguation that
+would be fragile at different zoom levels. Checked in `handlePointerDown`
+right after the Alt branch, before any vertex/segment hit-testing, so it
+always wins over grabbing point 0 directly — that move gesture only ever
+runs while Shift is NOT held. A new `prependDragRef` records, for the
+duration of one drag-drawing gesture, which end the live preview
+(draw-loop) and the eventual commit (`handlePointerUp`) should extend
+from; it's reset unconditionally at the top of both `handlePointerDown`
+and `handlePointerUp`, the same defensive pattern already used for
+`legBodyDragCandidateRef`/`legReshapeGrabOffsetRef`, so it can never leak
+into an unrelated later gesture.
+
+**Why no other code needed to change — confirmed by reading, not
+assumed:** every bend-angle, blank-width, and hem computation in this file
+already operates generically on the live `points` array and on
+`hemStart`/`hemEnd`, never on a specific point's identity:
+- `bendAngleAt` loops `i = 1..points.length-2` over whatever `points`
+  currently is.
+- Blank width (both the live `blankWidthInLive` readout and the two
+  debounced sync effects for profile-matching and the 3D viewer) sums
+  `dist(points[i], points[i+1])` across every adjacent pair, so a leg
+  prepended onto the front contributes its own length automatically.
+- `hemStart`/`hemEnd` render and compute allowance at structural index 0
+  / `points.length - 1`, not at a remembered point identity — exactly the
+  same structural convention that already lets an appended leg silently
+  inherit `hemEnd` at the new last point. Prepending a new point 0 makes
+  it inherit `hemStart` the same way, for free, with no hem-transfer code
+  needed.
+- The OLD point 0 (shifted to index 1 after a prepend) becomes an ordinary
+  interior bend point with two legs: its `radius` was always `undefined`
+  (point 0 is excluded from `selectedBendPoint`/`applyBendRadius` by the
+  afs-sv-003 fix, so it could never have had one set), and
+  `getEffectiveRadius(1)` already falls back to
+  `defaultBendRadiusIn(material)` for any point with no radius — the exact
+  same fallback an appended profile's old last point already relies on.
+- The NEW point 0 is drag/edit-capable exactly like every other leg with
+  no new code: `clampDragAngle`'s `mirrored` branch and
+  `handlePointerMove`'s `idx === 0` branch are keyed to the array index,
+  not a remembered identity, so they apply automatically to whichever
+  point is *currently* at index 0 — this is what directly resolves the
+  task's afs-sv-003-interaction requirement: after a prepend, the new
+  point 0 supports full drag/edit exactly like every other leg, and the
+  old point 0 (now an interior point) supports full angle/radius editing,
+  both without any additional special-casing.
+
+**One real correctness fix inside the new code, not pre-existing:**
+`selectedBendPoint`/`selectedSegment` are explicitly cleared the moment
+the Shift+drag gesture arms (`handlePointerDown`), not just by
+`commitPoints`'s own `setSelectedSegment(null)`. A prepend shifts every
+existing point's index by one — a selection left pointing at its old
+index would silently reference the wrong vertex/leg after commit. Append
+never shifts any existing index, so it never needed this.
+
+Only `app/studio/draft/page.tsx` changed (full-file edits). `pnpm tsc
+--noEmit` and `pnpm run build` both run directly this session: 0 errors,
+build passes. No new Playwright test was added for this feature (unlike
+afs-sv-004) — the existing `tests/e2e/flashdraft.spec.ts` suite was not
+re-run this session. Per this file's own verification standard, this is
+**IMPLEMENTED, UNCONFIRMED** — the user has not yet independently
+confirmed Shift+drag from the first leg's free end in the actual
+FlashDraft canvas. Committed as `feat: FlashDraft prepend leg from
+first-leg free end (afs-sv-005)`.
+
+---
+
 ## CURRENT STATUS
 
 **FOURTH revision applied (2026-08-20): bend angle now emits SIGNED
