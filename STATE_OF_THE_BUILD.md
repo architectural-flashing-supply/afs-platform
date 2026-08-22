@@ -120,6 +120,11 @@ standard already used for 017). **Apply and confirm migration 018 live
 before or immediately upon deploying this commit — every quote-request
 submission through all four surfaces will otherwise fail outright.**
 
+**RESOLVED 2026-08-22:** migration 018 is now CONFIRMED APPLIED LIVE —
+see the updated afs-jf-000 entry below, which records Reid's five-`true`
+`information_schema` verification covering all five job-identity/finish
+columns on `quote_requests`. This sequencing risk no longer applies.
+
 **Re-verified before touching anything, per the task's instruction:** read
 all four submission surfaces (`app/studio/draft/page.tsx`,
 `app/configure/page.tsx`, `app/quote/page.tsx`, `app/upload/page.tsx`),
@@ -312,6 +317,11 @@ four surfaces — not just aluminum ones — will fail** (Postgrest rejects an
 insert referencing a column that doesn't exist). Apply migration 018 live
 and confirm it via `information_schema` (the same standard used for 017)
 before or immediately upon deploying this commit.
+
+**RESOLVED 2026-08-22:** migration 018 is now CONFIRMED APPLIED LIVE —
+see the updated afs-jf-000 entry below, which records Reid's five-`true`
+`information_schema` verification. `quote_requests.finish` exists on the
+live project; this sequencing risk no longer applies.
 
 **Supersedes afs-cv-002's ruling, and why:** afs-cv-002 mapped the
 `aluminum` material category (currently only "Anodized Aluminum") straight
@@ -1047,17 +1057,34 @@ migration, file only (afs-cv-000)`.
 
 ---
 
-## JOB-IDENTITY + FINISH COLUMNS MIGRATION WRITTEN, FILE ONLY (afs-jf-000) — 2026-08-21
+## JOB-IDENTITY + FINISH COLUMNS MIGRATION WRITTEN (afs-jf-000), THEN CONFIRMED APPLIED LIVE — 2026-08-21
+
+**UPDATE 2026-08-22:** Reid ran migration 018 in the Supabase Dashboard SQL
+Editor and confirmed it completed with no errors, then independently
+verified via a direct `information_schema` query in the Dashboard —
+five `true` results, covering `quote_requests.client_business_name`,
+`quote_requests.client_name`, `quote_requests.po_number`,
+`quote_requests.requested_by`, and `quote_requests.finish`. This closes
+the FILE-ONLY status this entry originally recorded (see below for the
+original write-up, left intact for history) with the same standard of
+evidence migrations 013/015/016/017 already carry, and resolves the
+production-blocking sequencing risk flagged in the afs-jf-002 and
+afs-jf-003 entries above — `app/api/quote-requests/route.ts`'s insert can
+now safely reference all five columns. No session has had a working
+Supabase MCP connection to this project's actual instance to run that
+check itself — this verification was run by Reid directly in the
+Dashboard.
 
 **Status: migration `018_job_identity_and_finish.sql` written and
-committed to `supabase/migrations/` — FILE-ONLY change, per the task's
-own instruction; NOT applied to the live Supabase project. `pnpm tsc
---noEmit` passes with 0 errors, run directly this session. This prompt
-adds no UI, no API route, and no data-fetching code — there is no
-browser surface to verify for this prompt itself, so it is marked
-IMPLEMENTED/UNCONFIRMED pending Reid's manual application and, per this
-file's verification standard, pending browser verification of whatever
-downstream prompt actually consumes these columns.**
+committed to `supabase/migrations/` — originally a FILE-ONLY change, per
+the task's own instruction; now CONFIRMED APPLIED LIVE per the UPDATE
+note above. `pnpm tsc --noEmit` passes with 0 errors, run directly this
+session. This prompt itself adds no UI, no API route, and no
+data-fetching code — there is no browser surface to verify for this
+prompt itself; per this file's verification standard, browser
+verification is owed by whatever downstream prompt actually consumes
+these columns (afs-jf-002, afs-jf-003), independent of this migration's
+now-confirmed live-apply status.**
 
 Confirmed before choosing the migration number: read every file in
 `supabase/migrations/` (001 through 017) in full and cross-checked

@@ -141,6 +141,11 @@ always includes four more columns beyond `finish` — apply and confirm
 migration 018 live before or immediately upon deploying this commit, or
 every quote-request submission through all four surfaces will fail.
 
+**RESOLVED 2026-08-22:** migration 018 is now CONFIRMED APPLIED LIVE —
+see the updated afs-jf-000 entry below, which records Reid's five-`true`
+`information_schema` verification covering all five job-identity/finish
+columns on `quote_requests`. This sequencing risk no longer applies.
+
 `pnpm tsc --noEmit`: 0 errors. `pnpm run build`: succeeds. Both run
 directly this session. Marked **IMPLEMENTED, UNCONFIRMED** per this file's
 verification standard — no browser/Playwright access this session; pending
@@ -260,6 +265,11 @@ needs to be sequenced: apply + confirm migration 018 live (same
 `information_schema` standard as 017) before or immediately upon
 deploying this commit.
 
+**RESOLVED 2026-08-22:** migration 018 is now CONFIRMED APPLIED LIVE —
+see the updated afs-jf-000 entry below, which records Reid's five-`true`
+`information_schema` verification. `quote_requests.finish` exists on the
+live project; this sequencing risk no longer applies.
+
 **Command Center:** `app/admin/quote-requests/page.tsx` (list) and
 `.../[id]/page.tsx` (detail) now render a `finish` `Badge` (chrome
 variant) immediately next to the existing `ColorSwatchChip`, in the list
@@ -373,7 +383,23 @@ ColorPickerModal Back button closes the picker instead of navigating away
 
 ---
 
-## JOB-IDENTITY + FINISH COLUMNS MIGRATION WRITTEN, FILE ONLY (afs-jf-000) — 2026-08-21
+## JOB-IDENTITY + FINISH COLUMNS MIGRATION WRITTEN (afs-jf-000), THEN CONFIRMED APPLIED LIVE — 2026-08-21
+
+**UPDATE 2026-08-22:** Reid ran migration 018 in the Supabase Dashboard SQL
+Editor and confirmed it completed with no errors, then independently
+verified via a direct `information_schema` query in the Dashboard — five
+`true` results, covering `quote_requests.client_business_name`,
+`quote_requests.client_name`, `quote_requests.po_number`,
+`quote_requests.requested_by`, and `quote_requests.finish`. This closes
+the FILE-ONLY status this entry originally recorded (see below for the
+original write-up, left intact for history) with the same standard of
+evidence migrations 013/015/016/017 already carry, and resolves the
+production-blocking sequencing risk flagged in the afs-jf-002 and
+afs-jf-003 entries above — `app/api/quote-requests/route.ts`'s insert can
+now safely reference all five columns. No session has had a working
+Supabase MCP connection to this project's actual instance to run that
+check itself — this verification was run by Reid directly in the
+Dashboard.
 
 Read every file in `supabase/migrations/` (001 through 017) in full and
 this file's own live-apply status notes before choosing a migration
@@ -423,12 +449,15 @@ new note in the SHOP PROFILE LIBRARY TABLE section documenting all five
 new columns there — matching this project's existing documentation
 depth/style for migrations 016/017's own additions in both places.
 
-**This is a FILE-ONLY prompt, per its own instructions — migration 018
-has NOT been applied to the live Supabase project.** Following the same
-"pending manual apply" convention already used for migrations 015/016/
-017: it is written and committed but pending manual Dashboard
-application. No session has had a working Supabase MCP connection to
-this project's actual instance to apply or verify it directly.
+**This was originally a FILE-ONLY prompt, per its own instructions.
+Migration 018 is now CONFIRMED APPLIED LIVE — see the UPDATE note at the
+top of this entry.** It followed the same "pending manual apply"
+convention already used for migrations 015/016/017: written and committed,
+then applied by Reid via the Dashboard and independently verified via
+`information_schema`, the same standard of evidence 013/015/016/017
+already carry. No session has had a working Supabase MCP connection to
+this project's actual instance to apply or verify it directly — this
+verification was run by Reid directly in the Dashboard.
 
 `pnpm tsc --noEmit`: 0 errors, run directly this session. This prompt
 adds no UI, no API route, and no data-fetching code — there is no
