@@ -156,13 +156,13 @@ convention).
   select (and the `qr` type) — `job_name` was already added to
   `quote_requests` by migration `019_job_name_and_delivery_date.sql`
   (afs-jf-004), which per that migration's own header and this file's
-  afs-jf-004 entry above is **still FILE ONLY, NOT applied to the live
-  Supabase project** as of this writing. Selecting a column that does not
-  exist on the live table will fail this route's `quote_requests` select
-  outright (same production-drift risk documented in the afs-jf-005 entry
-  below for `job_name` on the insert side) — **migration 019 must be
-  applied before this reaches production traffic**, same standing
-  dependency as afs-jf-005, now with a second call site depending on it.
+  afs-jf-004 entry above was **FILE ONLY, NOT applied to the live
+  Supabase project** as of this writing, and is now **CONFIRMED APPLIED
+  LIVE** (see the updated afs-jf-004 entry below). Selecting this column no
+  longer risks failing this route's `quote_requests` select (same
+  production-drift risk that was documented in the afs-jf-005 entry below
+  for `job_name` on the insert side, now resolved) — the standing
+  pre-deploy dependency shared with afs-jf-005 is closed.
 - `composeDescription` in `pathfinder-edge.ts` (the Business/Client/PO/
   Requested By/Finish `description` line) was explicitly NOT touched —
   separate, already correct, out of scope, confirmed unchanged by this
@@ -192,25 +192,23 @@ overlay's collapsed/expanded states, the date picker, a real send on both
 paths (Send to PathfinderEdge as admin, Submit for Quote), and confirms the
 Requested By field is actually gone.**
 
-**⚠️ CRITICAL DEPENDENCY — READ BEFORE DEPLOYING:** `app/api/quote-requests/
-route.ts`'s insert now unconditionally includes `job_name: jobName` in every
+**⚠️ CRITICAL DEPENDENCY, RESOLVED 2026-08-23 — see the UPDATE note in the
+afs-jf-004 entry below:** `app/api/quote-requests/
+route.ts`'s insert unconditionally includes `job_name: jobName` in every
 `quote_requests` insert — this route is shared by **every** submission
 surface (FlashDraft, Configurator, Quote Builder, Blueprint Takeoff AI
 upload), not just FlashDraft. Migration `019_job_name_and_delivery_date.sql`
-(afs-jf-004) is still **FILE ONLY, NOT applied to the live Supabase
-project** (confirmed this session — see the afs-jf-004 entry immediately
-below). If this code reaches production before migration 019 is applied,
-`quote_requests.job_name` does not exist on the live table, Postgres/PostgREST
-returns a "column does not exist" error, `insertError` is truthy, and
-**every quote-request submission across the entire site 500s** (the insert
-is not soft-caught — see `app/api/quote-requests/route.ts` lines ~151–175).
-`quote_requests.requested_delivery` is safe (pre-existing column, confirmed
-live under afs-jf-000). The `shop_profile_library.job_name` /
-`.requested_delivery_date` write in `insertShopProfileLibraryRecord` is
-lower risk — that insert is wrapped in try/catch and only logs on failure,
-per its own "never throws" doc comment — but will still silently fail to
-record those two fields until 019 is live. **Apply migration 019 before this
-lands on production traffic.**
+(afs-jf-004) was **FILE ONLY, NOT applied to the live Supabase
+project** at the time this prompt ran; it is now **CONFIRMED APPLIED LIVE**,
+independently verified via `information_schema` (see the afs-jf-004 entry
+immediately below). `quote_requests.job_name` now exists on the live table,
+so the "column does not exist" 500 risk on this insert (`app/api/
+quote-requests/route.ts` lines ~151–175) no longer applies.
+`quote_requests.requested_delivery` was already safe (pre-existing column,
+confirmed live under afs-jf-000). The `shop_profile_library.job_name` /
+`.requested_delivery_date` write in `insertShopProfileLibraryRecord` — lower
+risk regardless, wrapped in try/catch and only logs on failure per its own
+"never throws" doc comment — is also now safe with 019 live.
 
 Changes to `app/studio/draft/page.tsx` (3,929 lines before this prompt,
 3,988 after — edited via precise `Edit` calls, not a full-file rewrite, per
@@ -290,15 +288,30 @@ Requested By removed (afs-jf-005)`.
 
 ---
 
-## JOB_NAME + REQUESTED_DELIVERY_DATE COLUMNS MIGRATION WRITTEN, RETIRES DEAD REQUESTED_BY (afs-jf-004): IMPLEMENTED, UNCONFIRMED — 2026-08-23
+## JOB_NAME + REQUESTED_DELIVERY_DATE COLUMNS MIGRATION WRITTEN (afs-jf-004), THEN CONFIRMED APPLIED LIVE — 2026-08-23
 
-**Status: FILE ONLY. `pnpm tsc --noEmit` returns 0 errors, run directly this
-session. This prompt adds no UI, no API route, and no data-fetching code —
-there is no browser surface to verify for this prompt itself. Migration
-`019_job_name_and_delivery_date.sql` is written and committed but has NOT
-been applied to the live Supabase project — pending Reid's manual
-application in the Supabase Dashboard, following the same convention as
-migrations 015/016/017/018.**
+**UPDATE 2026-08-23:** Migration 019 was applied and independently verified
+via a direct `information_schema` query — three `true` results, covering
+`quote_requests.job_name`, `shop_profile_library.job_name`, and
+`shop_profile_library.requested_delivery_date`. This closes the FILE-ONLY
+status this entry originally recorded (see below for the original write-up,
+left intact for history) with the same standard of evidence migrations
+013/015/016/017/018 already carry, and resolves the production-blocking
+sequencing risk flagged in the afs-jf-005 and afs-jf-006 entries above —
+`app/api/quote-requests/route.ts`'s insert, `insertShopProfileLibraryRecord`,
+and `approve-quote-request/route.ts`'s `quote_requests` select can now
+safely reference these columns. No session has had a working Supabase MCP
+connection to this project's actual instance to run that check itself.
+
+**Status: migration `019_job_name_and_delivery_date.sql` written and
+committed to `supabase/migrations/` — originally a FILE-ONLY change, per
+the task's own instruction; now CONFIRMED APPLIED LIVE per the UPDATE note
+above. `pnpm tsc --noEmit` returns 0 errors, run directly this session.
+This prompt itself adds no UI, no API route, and no data-fetching code —
+there is no browser surface to verify for this prompt itself; per this
+file's verification standard, browser verification is owed by whatever
+downstream prompt actually consumes these columns (afs-jf-005, afs-jf-006),
+independent of this migration's now-confirmed live-apply status.**
 
 Read every file in `supabase/migrations/` (001 through 018) in full and
 SESSION_STATE.md's live-apply status notes before choosing a migration

@@ -38,9 +38,10 @@ migration-018 `requested_by` columns). 54 is the table count
 migrations are applied. Migration 018 is **CONFIRMED APPLIED LIVE** (see
 SESSION_STATE.md's afs-jf-000 entry — Reid verified all five of its new
 `quote_requests` columns directly via `information_schema` in the
-Supabase Dashboard on 2026-08-22). Migration 019 is **FILE ONLY as of
-this writing — written and committed but not yet applied to the live
-Supabase project.** See SESSION_STATE.md for each migration's
+Supabase Dashboard on 2026-08-22). Migration 019 is also **CONFIRMED
+APPLIED LIVE** (see SESSION_STATE.md's afs-jf-004 entry — verified via
+`information_schema`, three `true` results, on 2026-08-23). See
+SESSION_STATE.md for each migration's
 individually verified live-apply status — it is never safe to assume
 from a file's presence on disk alone.)
 
@@ -68,7 +69,7 @@ supabase/migrations/
   016_source_tool_and_shop_profile_library.sql  Adds quote_requests.source_tool (see TABLE 15), creates shop_profile_library (see SHOP PROFILE LIBRARY TABLE) — FILE ONLY, not yet applied live
   017_color_and_queue_position.sql        Adds quote_requests.color (see TABLE 15) and shop_profile_library.color/queue_position/completed_at (see SHOP PROFILE LIBRARY TABLE) — no new tables — FILE ONLY, not yet applied live
   018_job_identity_and_finish.sql         Adds client_business_name/client_name/po_number/requested_by/finish to quote_requests (see TABLE 15; po_number pre-existing) and to shop_profile_library (see SHOP PROFILE LIBRARY TABLE, all five new) — no new tables — CONFIRMED APPLIED LIVE 2026-08-22, see SESSION_STATE.md
-  019_job_name_and_delivery_date.sql      Adds job_name to quote_requests (see TABLE 15) and job_name/requested_delivery_date to shop_profile_library (see SHOP PROFILE LIBRARY TABLE); retires (documents as dead, does not drop) both tables' migration-018 requested_by columns — no new tables — FILE ONLY, not yet applied live
+  019_job_name_and_delivery_date.sql      Adds job_name to quote_requests (see TABLE 15) and job_name/requested_delivery_date to shop_profile_library (see SHOP PROFILE LIBRARY TABLE); retires (documents as dead, does not drop) both tables' migration-018 requested_by columns — no new tables — CONFIRMED APPLIED LIVE 2026-08-23, see SESSION_STATE.md
 ```
 
 Run in numeric order — see `supabase/README.md` for the exact procedure.
@@ -601,9 +602,8 @@ project/job name (e.g. "Smith Residence Reroof"), distinct from
 `client_name` (the individual contact person, migration 018) and
 `client_business_name` (the company, migration 018). Not shown in the
 `CREATE TABLE` below since it was added after this table was originally
-designed — it is a real column on the live schema once 019 is applied.
-**FILE ONLY as of this writing — 019 has not been applied to the live
-Supabase project; see SESSION_STATE.md.**
+designed. **CONFIRMED APPLIED LIVE 2026-08-23** — verified via
+`information_schema`; see SESSION_STATE.md's afs-jf-004 entry.
 
 **`quote_requests` gets no new date column from migration 019.** The
 customer's requested-delivery date is captured via the pre-existing
@@ -1863,9 +1863,8 @@ COLUMN IF NOT EXISTS`, no defaults) — both genuinely new on this table
 `job_name` is the project/job name, matching the identically-named field
 migration 019 also adds to `quote_requests` (TABLE 15). Not shown in the
 `CREATE TABLE` below since both were added after this table was
-originally designed — they are real columns on the live schema once 019
-is applied. **FILE ONLY as of this writing — 019 has not been applied to
-the live Supabase project; see SESSION_STATE.md.**
+originally designed. **CONFIRMED APPLIED LIVE 2026-08-23** — verified via
+`information_schema`; see SESSION_STATE.md's afs-jf-004 entry.
 
 **`requested_delivery_date` vs. `quote_requests.requested_delivery` —
 naming asymmetry, intentional, not an oversight:** both capture the same

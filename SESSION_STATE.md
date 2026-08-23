@@ -111,11 +111,11 @@ scope).
   `JobIdentityFields` with a `jobName` field, sourced from a new `job_name`
   column added to this route's `quote_requests` select and to the `qr`
   type — same column migration `019_job_name_and_delivery_date.sql`
-  (afs-jf-004) already added to `quote_requests`. **That migration is still
-  FILE ONLY, not applied live** (see the afs-jf-004/afs-jf-005 entries
-  below) — this route's `quote_requests` select will fail once deployed
-  against the live schema until 019 is applied, a second call site now
-  depending on that same standing pre-deploy requirement. No timestamp
+  (afs-jf-004) already added to `quote_requests`. **That migration was FILE
+  ONLY at the time this prompt ran; it is now CONFIRMED APPLIED LIVE** (see
+  the afs-jf-004 entry below) — this route's `quote_requests` select is
+  safe against the live schema, a second call site that depended on that
+  standing pre-deploy requirement, now resolved. No timestamp
   fallback exists server-side, and none was added: `item.profileType` is a
   required, non-nullable field on `QuoteRequestLineItem`, so the
   composition can never actually come back empty even with no material
@@ -203,21 +203,21 @@ reference, no orphaned input.
   `insertShopProfileLibraryRecord` shop-record write-through, per the
   task's narrower explicit scope.
 
-**⚠️ Real risk surfaced this session, not present before this prompt:**
-`app/api/quote-requests/route.ts` now unconditionally sends `job_name` in
-every `quote_requests` insert — and this route is shared by **every**
-submission surface (FlashDraft, Configurator, Quote Builder, Blueprint
-Takeoff), not just FlashDraft. Migration `019_job_name_and_delivery_date.
-sql` (afs-jf-004, entry directly below) is still FILE ONLY — NOT applied
-live. Confirmed directly: this insert is a hard failure path (`if
-(insertError) return NextResponse.json(..., { status: 500 })`, not
-soft-caught), so if this commit reaches production before 019 is applied,
-every quote-request submission site-wide will 500 with a "column job_name
-does not exist" error. `requested_delivery` itself is safe (pre-existing,
-confirmed live). The `shop_profile_library` write in
+**⚠️ Real risk surfaced this session, RESOLVED 2026-08-23 — see the UPDATE
+note in the afs-jf-004 entry below:** `app/api/quote-requests/route.ts` now
+unconditionally sends `job_name` in every `quote_requests` insert — and this
+route is shared by **every** submission surface (FlashDraft, Configurator,
+Quote Builder, Blueprint Takeoff), not just FlashDraft. Migration
+`019_job_name_and_delivery_date.sql` (afs-jf-004, entry directly below) was
+FILE ONLY at the time this prompt ran; it is now **CONFIRMED APPLIED LIVE**,
+independently verified via `information_schema`. Confirmed directly: this
+insert is a hard failure path (`if (insertError) return NextResponse.json(...,
+{ status: 500 })`, not soft-caught) — this "column job_name does not exist"
+500 risk no longer applies now that 019 is live. `requested_delivery` itself
+is safe (pre-existing, confirmed live). The `shop_profile_library` write in
 `insertShopProfileLibraryRecord` is lower-risk — it's wrapped in try/catch
-and only logs, per its own "never throws" doc comment. **Migration 019
-must be applied before this reaches production traffic.**
+and only logs, per its own "never throws" doc comment — and also now safe
+with 019 live.
 
 Cosmetic: the profile-name field's idle placeholder now renders `italic
 opacity-60` when `profileName === 'Untitled Profile'`. Read
@@ -238,7 +238,20 @@ Requested Delivery Date added, Requested By removed (afs-jf-005)`.
 
 ---
 
-## JOB_NAME + REQUESTED_DELIVERY_DATE COLUMNS, DEAD REQUESTED_BY RETIRED (afs-jf-004) — 2026-08-23
+## JOB_NAME + REQUESTED_DELIVERY_DATE COLUMNS, DEAD REQUESTED_BY RETIRED (afs-jf-004), THEN CONFIRMED APPLIED LIVE — 2026-08-23
+
+**UPDATE 2026-08-23:** Migration 019 was applied and independently verified
+via a direct `information_schema` query — three `true` results, covering
+`quote_requests.job_name`, `shop_profile_library.job_name`, and
+`shop_profile_library.requested_delivery_date`. This closes the FILE-ONLY
+status this entry originally recorded (see below for the original write-up,
+left intact for history) with the same standard of evidence migrations
+013/015/016/017/018 already carry, and resolves the production-blocking
+sequencing risk flagged in the afs-jf-005 and afs-jf-006 entries above —
+`app/api/quote-requests/route.ts`'s insert, `insertShopProfileLibraryRecord`,
+and `approve-quote-request/route.ts`'s `quote_requests` select can now safely
+reference these columns. No session has had a working Supabase MCP
+connection to this project's actual instance to run that check itself.
 
 Read every file in `supabase/migrations/` (001 through 018) in full and
 this file's own live-apply status notes before choosing a migration
@@ -337,21 +350,21 @@ is CONFIRMED APPLIED LIVE per the afs-jf-000 entry below, this document's
 own record) — that language now reflects 018's real current status
 instead of being left stale.
 
-**This is a FILE-ONLY prompt, per its own instructions. Migration 019 is
-written and committed but is PENDING MANUAL APPLICATION in the Supabase
-Dashboard** — following the same "pending manual apply" convention
-already used for migrations 015/016/017/018. No session has had a working
-Supabase MCP connection to this project's actual instance to apply or
-verify it directly.
+**This was originally a FILE-ONLY prompt, per its own instructions.
+Migration 019 is now CONFIRMED APPLIED LIVE — see the UPDATE note at the
+top of this entry.** It followed the same "pending manual apply"
+convention already used for migrations 015/016/017/018: written and
+committed, then applied and independently verified via
+`information_schema`, the same standard of evidence 013/015/016/017/018
+already carry. No session has had a working Supabase MCP connection to
+this project's actual instance to apply or verify it directly.
 
 `pnpm tsc --noEmit`: 0 errors, run directly this session. This prompt
 adds no UI, no API route, and no data-fetching code — there is no browser
-surface to verify for this prompt itself. Per this file's own
-verification standard (see top of file), this is marked **IMPLEMENTED,
-UNCONFIRMED** — pending Reid's manual application of the migration in the
-Supabase Dashboard; a file-only migration has no browser surface to
-verify at all, so that "unconfirmed" status is expected to persist until
-a downstream prompt actually consumes these columns in the UI. Committed
+surface to verify for this prompt itself; per this file's verification
+standard, browser verification is owed by whatever downstream prompt
+actually consumes these columns (afs-jf-005, afs-jf-006), independent of
+this migration's now-confirmed live-apply status. Committed
 as `feat: add job_name + requested_delivery_date columns, retire dead
 requested_by, file only (afs-jf-004)`.
 
