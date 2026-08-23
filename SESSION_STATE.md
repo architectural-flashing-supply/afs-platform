@@ -24,6 +24,106 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## FLASHDRAFT INFO OVERLAY RELOCATION (afs-jf-005) — 2026-08-23
+
+Read `app/studio/draft/page.tsx` in full before changing anything, per the
+task's instruction — confirmed 3,929 lines at the start of this prompt
+(3,988 after). Grepped every `requestedBy`/`clientBusinessName`/
+`clientName`/`poNumber` reference first (the canvas overlay's "PART 2 —
+PROFILE INFO PANEL" at the old line ~3477, the sidebar's 2-column
+job-identity grid at the old line ~3258, the `useState` declarations at
+~856–859, the autosave restore effect at ~924–927, the autosave write
+effect + its dependency array at ~963–990, `sendToPathfinder`'s POST body
+at ~2708–2711, and `submitQuoteRequest`'s body + its `useCallback`
+dependency array at ~2831–2874) before touching any of them, per the
+task's explicit instruction not to guess the shape.
+
+**What moved (unchanged wiring, only UI location changed):** Business
+Name, Client Name, PO Number — out of the sidebar's job-identity grid,
+into the canvas overlay, now behind a collapsed-by-default "+ Job Info"
+toggle alongside two new fields.
+
+**What was added:** `jobName`/`setJobName` state (sent as `jobName` on
+both outgoing paths) and `requestedDeliveryDate`/`setRequestedDeliveryDate`
+state, backed by a native `<input type="date">` (re-confirmed this
+session: no date-picker library in `package.json`, matching the task's
+own note that this was "confirmed" but should be "re-verified before
+assuming"). Both are wired into the same `AUTOSAVE_KEY` localStorage
+restore/write effects the moved fields already used.
+
+**Naming asymmetry implemented exactly as afs-jf-004 specified — verified,
+not assumed:** `requestedDeliveryDate` is the key `sendToPathfinder` sends
+(→ `shop_profile_library.requested_delivery_date`, a genuinely new
+column); `requestedDelivery` (no "Date" suffix) is the key
+`submitQuoteRequest` sends (→ `quote_requests.requested_delivery`, the
+pre-existing column migration 019 deliberately reused instead of adding a
+duplicate). These two outgoing body keys are intentionally different
+strings — double-checked this wasn't accidentally typo'd into matching.
+
+**What was removed — real cleanup, not hide-but-keep-wired:** FlashDraft's
+own `requestedBy`/`setRequestedBy` state, its sidebar input, its two
+autosave restore/write entries, and its key in both outgoing request
+bodies, all deleted. Confirmed by grep after the edit: the only two
+remaining occurrences of the string `requestedBy` in the file are doc
+comments explaining the retirement (lines 83, 859) — no dangling state
+reference, no orphaned input.
+
+**Explicitly left untouched, per the task's scope:**
+- `app/api/studio/send-to-pathfinder/route.ts`'s and `lib/data/
+  shop-profile-library.ts`'s own `requestedBy` parameter/field — both stay,
+  typed optional, because the three other submission surfaces
+  (Configurator, Quote Builder, Blueprint Takeoff AI upload) documented as
+  still writing to `quote_requests.requested_by` in afs-jf-004's entry
+  below are not part of this prompt.
+- `app/configure/page.tsx`, `app/quote/page.tsx`, `app/upload/page.tsx` —
+  their own separate Requested By inputs (afs-jf-003) were not touched.
+- `lib/data/shop-profile-library.ts`'s read-side (`ShopProfileLibraryRow`,
+  `ShopProfileLibraryFullRow`, `getShopProfileLibrary`,
+  `getShopProfileLibraryFull`) — only the `ShopProfileLibraryInsert`
+  interface and the insert call itself got the new `jobName`/
+  `requestedDeliveryDate` fields, matching the task's literal instruction
+  ("that file's `ShopProfileLibraryInsert` interface and insert call").
+- `lib/integrations/flashdraft-to-pathfinder.ts` / `pushProfileToPathfinder`
+  — `jobName`/`requestedDeliveryDate` were NOT threaded into the
+  PathfinderEdge push itself, only into the separate
+  `insertShopProfileLibraryRecord` shop-record write-through, per the
+  task's narrower explicit scope.
+
+**⚠️ Real risk surfaced this session, not present before this prompt:**
+`app/api/quote-requests/route.ts` now unconditionally sends `job_name` in
+every `quote_requests` insert — and this route is shared by **every**
+submission surface (FlashDraft, Configurator, Quote Builder, Blueprint
+Takeoff), not just FlashDraft. Migration `019_job_name_and_delivery_date.
+sql` (afs-jf-004, entry directly below) is still FILE ONLY — NOT applied
+live. Confirmed directly: this insert is a hard failure path (`if
+(insertError) return NextResponse.json(..., { status: 500 })`, not
+soft-caught), so if this commit reaches production before 019 is applied,
+every quote-request submission site-wide will 500 with a "column job_name
+does not exist" error. `requested_delivery` itself is safe (pre-existing,
+confirmed live). The `shop_profile_library` write in
+`insertShopProfileLibraryRecord` is lower-risk — it's wrapped in try/catch
+and only logs, per its own "never throws" doc comment. **Migration 019
+must be applied before this reaches production traffic.**
+
+Cosmetic: the profile-name field's idle placeholder now renders `italic
+opacity-60` when `profileName === 'Untitled Profile'`. Read
+`sendToPathfinder`'s `userSetProfileName` and `submitQuoteRequest`'s
+`userSetProfileNameForSubmit` logic directly first and confirmed both
+already compare against that exact literal string — neither the
+comparison nor the stored/sent default value was touched, only the
+placeholder's visual treatment.
+
+`pnpm tsc --noEmit`: 0 errors. `pnpm run build`: succeeds. Per this file's
+own verification standard, this is **IMPLEMENTED, UNCONFIRMED** — no
+browser/Playwright access this session, so Reid needs to independently
+confirm in `/studio/draft`: the overlay's collapsed/expanded states, the
+date picker, a real send on both paths (admin "Send to PathfinderEdge" and
+"Submit for Quote"), and that the Requested By field is actually gone.
+Committed as `feat: FlashDraft info overlay relocation -- Job Name +
+Requested Delivery Date added, Requested By removed (afs-jf-005)`.
+
+---
+
 ## JOB_NAME + REQUESTED_DELIVERY_DATE COLUMNS, DEAD REQUESTED_BY RETIRED (afs-jf-004) — 2026-08-23
 
 Read every file in `supabase/migrations/` (001 through 018) in full and

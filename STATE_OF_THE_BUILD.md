@@ -83,6 +83,114 @@ and not restart from scratch.**
 
 ---
 
+## FLASHDRAFT INFO OVERLAY RELOCATION — JOB NAME + REQUESTED DELIVERY DATE ADDED, REQUESTED BY REMOVED (afs-jf-005): IMPLEMENTED, UNCONFIRMED — 2026-08-23
+
+**Status: `pnpm tsc --noEmit` returns 0 errors and `pnpm run build` completes
+successfully, both run directly this session. No browser/Playwright access
+this session, so per this file's verification standard this is
+IMPLEMENTED/UNCONFIRMED until Reid opens `/studio/draft` and checks the
+overlay's collapsed/expanded states, the date picker, a real send on both
+paths (Send to PathfinderEdge as admin, Submit for Quote), and confirms the
+Requested By field is actually gone.**
+
+**⚠️ CRITICAL DEPENDENCY — READ BEFORE DEPLOYING:** `app/api/quote-requests/
+route.ts`'s insert now unconditionally includes `job_name: jobName` in every
+`quote_requests` insert — this route is shared by **every** submission
+surface (FlashDraft, Configurator, Quote Builder, Blueprint Takeoff AI
+upload), not just FlashDraft. Migration `019_job_name_and_delivery_date.sql`
+(afs-jf-004) is still **FILE ONLY, NOT applied to the live Supabase
+project** (confirmed this session — see the afs-jf-004 entry immediately
+below). If this code reaches production before migration 019 is applied,
+`quote_requests.job_name` does not exist on the live table, Postgres/PostgREST
+returns a "column does not exist" error, `insertError` is truthy, and
+**every quote-request submission across the entire site 500s** (the insert
+is not soft-caught — see `app/api/quote-requests/route.ts` lines ~151–175).
+`quote_requests.requested_delivery` is safe (pre-existing column, confirmed
+live under afs-jf-000). The `shop_profile_library.job_name` /
+`.requested_delivery_date` write in `insertShopProfileLibraryRecord` is
+lower risk — that insert is wrapped in try/catch and only logs on failure,
+per its own "never throws" doc comment — but will still silently fail to
+record those two fields until 019 is live. **Apply migration 019 before this
+lands on production traffic.**
+
+Changes to `app/studio/draft/page.tsx` (3,929 lines before this prompt,
+3,988 after — edited via precise `Edit` calls, not a full-file rewrite, per
+the same file-size exception prior sessions afs-cv-003/afs-jf-003 used for
+this exact file):
+1. **MOVED** (state/draft-restore/draft-save/both outgoing request bodies
+   unchanged) Business Name, Client Name, PO Number from the sidebar's
+   job-identity grid into the canvas "PART 2 — PROFILE INFO PANEL" overlay.
+2. **ADDED** Job Name — new `jobName`/`setJobName` state, wired into the
+   same autosave restore/write effects, sent as `jobName` in both
+   `sendToPathfinder`'s POST body and `submitQuoteRequest`'s body.
+3. **ADDED** Requested Delivery Date — new `requestedDeliveryDate`/
+   `setRequestedDeliveryDate` state (plain `YYYY-MM-DD` string), backed by a
+   native `<input type="date">` (confirmed again this session: still no
+   date-picker library in `package.json`). Sent as `requestedDeliveryDate`
+   in `sendToPathfinder`'s body (→ `shop_profile_library.
+   requested_delivery_date`) and as `requestedDelivery` in
+   `submitQuoteRequest`'s body (→ `quote_requests.requested_delivery`) —
+   **the two outgoing body keys are deliberately different**, matching
+   afs-jf-004's naming-asymmetry decision; verified this is not an
+   accidental mismatch.
+4. **REMOVED** Requested By entirely from FlashDraft: the `requestedBy`
+   state, its sidebar input, its autosave restore/write entries, and its key
+   in both outgoing request bodies. `/api/studio/send-to-pathfinder/
+   route.ts`'s and `lib/data/shop-profile-library.ts`'s own `requestedBy`
+   parameter/field were left in place, typed optional, per the task's
+   explicit instruction — they're shared code other (still-unfixed, per
+   afs-jf-004) submission surfaces continue to use.
+   `app/configure/page.tsx`/`app/quote/page.tsx`/`app/upload/page.tsx`'s own
+   separate Requested By inputs were **not touched** — explicitly
+   out-of-scope for this prompt.
+5. All five job-identity/date controls sit behind a collapsed-by-default
+   "+ Job Info" / "− Job Info" toggle inside the overlay, ordered Business
+   Name, Client Name, PO Number, Job Name, Requested Delivery Date. The
+   overlay's existing `bg-black/70 text-white` background (no
+   `backdrop-blur` — confirmed that's the real existing class list, not
+   assumed) applies at both collapsed and expanded states, since it's set
+   on the outer container div regardless of the toggle.
+6. Cosmetic: the profile-name field's idle "Untitled Profile" placeholder
+   now renders `italic opacity-60`. Confirmed directly (not assumed) that
+   the literal string `'Untitled Profile'` is the exact sentinel both
+   `sendToPathfinder`'s `userSetProfileName` and `submitQuoteRequest`'s
+   `userSetProfileNameForSubmit` logic already compare against — that
+   comparison and the stored/sent default value are unchanged, only the
+   placeholder's visual treatment changed.
+7. Sidebar's job-identity `<div className="grid grid-cols-2 gap-2">` block
+   removed entirely (all 4 inputs, including Requested By). Grepped the
+   file after the change for `clientBusinessName`, `clientName`,
+   `poNumber`, `jobName`, `requestedDeliveryDate`, and `requestedBy` —
+   confirmed exactly one `id="..."` input element per surviving field
+   (all now in the overlay) and zero remaining references to the removed
+   `requestedBy` state (only two doc-comment mentions of the retirement
+   remain, at lines 83 and 859).
+
+`app/api/quote-requests/route.ts`: added `jobName`/`requestedDelivery` body
+parsing (same `typeof ... === 'string' && .trim()` pattern as
+`clientBusinessName`/`clientName`/`poNumber`), written to `job_name`/
+`requested_delivery` in the insert — see the critical dependency note above.
+
+`app/api/studio/send-to-pathfinder/route.ts`: added `jobName`/
+`requestedDeliveryDate` to the `RequestBody` interface and to the
+`insertShopProfileLibraryRecord` call — NOT added to the
+`flashDraftToMachineProfile`/`pushProfileToPathfinder` call, per the task's
+explicit, narrower scope (only the shop-record write-through was requested).
+
+`lib/data/shop-profile-library.ts`: added `jobName`/`requestedDeliveryDate`
+to `ShopProfileLibraryInsert` and the insert call only (`job_name`/
+`requested_delivery_date`) — the read-side row interfaces/selects
+(`ShopProfileLibraryRow`, `ShopProfileLibraryFullRow`,
+`getShopProfileLibrary`, `getShopProfileLibraryFull`) were intentionally
+**not** touched; out of this prompt's explicit scope.
+
+`pnpm tsc --noEmit`: 0 errors. `pnpm run build`: succeeds, `/studio/draft`
+compiles at 20.4 kB / 343 kB First Load JS. Committed as `feat: FlashDraft
+info overlay relocation -- Job Name + Requested Delivery Date added,
+Requested By removed (afs-jf-005)`.
+
+---
+
 ## JOB_NAME + REQUESTED_DELIVERY_DATE COLUMNS MIGRATION WRITTEN, RETIRES DEAD REQUESTED_BY (afs-jf-004): IMPLEMENTED, UNCONFIRMED — 2026-08-23
 
 **Status: FILE ONLY. `pnpm tsc --noEmit` returns 0 errors, run directly this
