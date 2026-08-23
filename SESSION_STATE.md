@@ -24,6 +24,120 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## PATHFINDEREDGE TITLE GENERATOR REWRITE (afs-jf-006) — 2026-08-23
+
+Read both real title-generation call sites in full before changing
+anything, per the task's instruction: `app/studio/draft/page.tsx`'s
+`sendToPathfinder` (client-side `generatedProfileName` template +
+`userSetProfileName` check) and `approve-quote-request/route.ts`'s
+`describeItem`/`resolveItemProfileName` (server-side, shared by every
+submission surface). Confirmed directly, not assumed:
+- Both existing "use the real user-set name first" checks are unchanged —
+  `sendToPathfinder`'s `trimmedProfileName !== 'Untitled Profile'`
+  comparison and `resolveItemProfileName`'s `item.profileName?.trim() ||
+  describeItem(...)` fallback. Only what each generates when that check
+  fails was rewritten.
+- `describeItem` is genuinely shared, not FlashDraft-specific — re-read
+  `itemBuilds`'s `.map` in `approve-quote-request/route.ts`: every line
+  item from every submission surface (FlashDraft, Configurator, Quote
+  Builder, Blueprint Takeoff AI upload) is pushed to PathfinderEdge through
+  this same `resolveItemProfileName`/`buildMachineProfileForItem` call
+  chain, and the request-level `identity` object (built once, before the
+  `.map`) is in scope at that call site.
+- `nameEn: input.profileName` in `flashdraft-to-pathfinder.ts` and the
+  equivalent `nameEn:` assignments in `buildMachineProfileForItem` both
+  confirmed as the real data flow into `pushProfileToPathfinder`'s outgoing
+  PathfinderEdge `profileName` — both generators genuinely feed
+  machine-facing text, not cosmetic UI.
+
+**Materials data source, confirmed directly per the task's instruction:**
+the `material` string both generators receive at runtime is
+`lib/data/catalog.ts`'s `ALL_MATERIALS` (re-read directly — nine entries:
+Galvanized Steel, Galvanized Galvalume, Copper, Lead Coated Copper,
+Anodized Aluminum, Stainless Steel, Zinc, Kynar 500 (Painted Steel),
+Vintage Steel), NOT the live `materials` Supabase table. Re-confirmed
+`lib/data/material-color-requirement.ts`'s header comment still states none
+of the three material-selection surfaces query that live table directly,
+and that its spellings differ from `ALL_MATERIALS` (e.g. "Galvalume Steel"
+in the DB seed vs. "Galvanized Galvalume" in `ALL_MATERIALS`) — so the new
+`MATERIAL_SHORTHAND` map (added to `lib/data/catalog.ts`, next to
+`ALL_MATERIALS`) is keyed on the `ALL_MATERIALS` spellings:
+
+```
+'Galvanized Steel'          -> 'Galvanized'
+'Galvanized Galvalume'      -> 'Galvalume'
+'Copper'                    -> 'Copper'
+'Lead Coated Copper'        -> 'Lead Coated'
+'Anodized Aluminum'         -> 'Anodized'
+'Stainless Steel'           -> 'Stainless'
+'Zinc'                      -> 'Zinc'
+'Kynar 500 (Painted Steel)' -> 'Kynar'
+'Vintage Steel'             -> 'Vintage'
+```
+
+`'Kynar 500 (Painted Steel)' -> 'Kynar'` and `'Anodized Aluminum' ->
+'Anodized'` are exactly as specified in the task. The other seven follow
+the same rule (drop the generic base-metal qualifier already implied by
+the more specific descriptor): `'Lead Coated Copper' -> 'Lead Coated'`
+drops "Copper" the same way "Steel"/"Aluminum" are dropped elsewhere;
+`'Stainless Steel' -> 'Stainless'` and `'Vintage Steel' -> 'Vintage'` drop
+the redundant "Steel"; `'Galvanized Galvalume' -> 'Galvalume'` drops the
+redundant "Galvanized" (Galvalume is itself a galvanized coating);
+`'Copper'` and `'Zinc'` have no redundant qualifier to drop, so they stay
+as-is. **This map is machine-bound text (PathfinderEdge → the physical
+Thalmann DS2801) and is flagged IMPLEMENTED/UNCONFIRMED pending Reid's
+review**, per the task's explicit instruction not to trust it for
+fabrication-facing text without that review.
+
+**Fallback composition, identical priority logic on both paths, "FlashDraft"
+prefix dropped entirely (already true of `describeItem`, only relevant to
+the client-side template):** `[shortMaterial + gauge] - [first present of:
+Job Name, Business Name, Client Name] - [PO Number, as "PO <number>"]`,
+blanks dropped, no dangling ` - ` separators — same drop-blank-segments
+convention `composeDescription` in `pathfinder-edge.ts` already uses (read
+that function first, reused its convention, did not invent a new one;
+`composeDescription` itself was explicitly not touched, per the task's
+scope).
+
+- **Client-side** (`buildFallbackProfileName`, new top-level helper in
+  `page.tsx`): `jobName` was already in local state after afs-jf-005, so no
+  new plumbing was needed there. When none of Job Name / Business Name /
+  Client Name / PO Number is present, falls back to short-material + gauge
+  + `new Date().toLocaleString('en-US')`, matching the pre-existing
+  generator's always-a-timestamp behavior for that one case, per the
+  task's explicit instruction.
+- **Server-side** (`describeItem`, now `describeItem(item, identity)` in
+  `approve-quote-request/route.ts`): `identity.jobName` required extending
+  `JobIdentityFields` with a `jobName` field, sourced from a new `job_name`
+  column added to this route's `quote_requests` select and to the `qr`
+  type — same column migration `019_job_name_and_delivery_date.sql`
+  (afs-jf-004) already added to `quote_requests`. **That migration is still
+  FILE ONLY, not applied live** (see the afs-jf-004/afs-jf-005 entries
+  below) — this route's `quote_requests` select will fail once deployed
+  against the live schema until 019 is applied, a second call site now
+  depending on that same standing pre-deploy requirement. No timestamp
+  fallback exists server-side, and none was added: `item.profileType` is a
+  required, non-nullable field on `QuoteRequestLineItem`, so the
+  composition can never actually come back empty even with no material
+  shorthand match and no identity field present — judged an acceptable
+  last resort per the task's explicit "use your own judgment" instruction,
+  documented here rather than left silent.
+
+`lib/data/catalog.ts`, `app/studio/draft/page.tsx`, and
+`approve-quote-request/route.ts` were all edited via targeted `Edit` calls
+(not full-file rewrites) — each file was read in full or in relevant
+section first, per the task's own re-verification instructions.
+
+`pnpm tsc --noEmit`: 0 errors, run directly this session. No `pnpm run
+build` and no browser/Playwright access this session — per this project's
+verification standard, **IMPLEMENTED, UNCONFIRMED** until Reid (1) reviews
+the shorthand map above and (2) confirms a real fallback-title send on
+both paths, tried once with job-identity fields present and once with
+none present. Committed as `feat: PathfinderEdge title generator rewrite --
+materials shorthand, Job Name-first fallback priority (afs-jf-006)`.
+
+---
+
 ## FLASHDRAFT INFO OVERLAY RELOCATION (afs-jf-005) — 2026-08-23
 
 Read `app/studio/draft/page.tsx` in full before changing anything, per the

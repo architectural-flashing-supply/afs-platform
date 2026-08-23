@@ -83,6 +83,105 @@ and not restart from scratch.**
 
 ---
 
+## PATHFINDEREDGE TITLE GENERATOR REWRITE — MATERIALS SHORTHAND, JOB NAME-FIRST FALLBACK PRIORITY (afs-jf-006): IMPLEMENTED, UNCONFIRMED — 2026-08-23
+
+**Status: `pnpm tsc --noEmit` returns 0 errors, run directly this session.
+No `pnpm run build` / browser / Playwright access this session, so per this
+file's verification standard this is IMPLEMENTED/UNCONFIRMED until Reid (1)
+reviews the materials shorthand map below and (2) opens `/studio/draft` and
+confirms a real fallback-title send on both paths (Send to PathfinderEdge as
+admin, and a Command Center approval of a quote request with no
+`profileName` on its line item), each tried once with job-identity fields
+present and once with none present.**
+
+**Both send paths' existing "use the user-set name when present" checks
+were re-read before any change and are UNCHANGED by this prompt:**
+- Client-side (`app/studio/draft/page.tsx`'s `sendToPathfinder`): the
+  `trimmedProfileName !== '' && trimmedProfileName !== 'Untitled Profile'`
+  comparison against `profileName.trim()` is untouched — only
+  `generatedProfileName`'s composition (the value used when this check
+  fails) changed, via a new `buildFallbackProfileName` helper.
+- Server-side (`approve-quote-request/route.ts`'s `resolveItemProfileName`):
+  `item.profileName?.trim() || describeItem(...)` is untouched — only
+  `describeItem`'s internal composition (and its signature, now taking
+  `identity: JobIdentityFields` as a second argument) changed.
+
+**Materials shorthand map — `MATERIAL_SHORTHAND` in `lib/data/catalog.ts`,
+keyed on the exact `ALL_MATERIALS` strings (re-verified directly this
+session, not from memory) both send paths' `material` value actually is at
+runtime, NOT the live `materials` Supabase table's differently-spelled seed
+data. Printed here in full for Reid's review before being trusted as
+fabrication-facing text (PathfinderEdge → the physical Thalmann DS2801):**
+
+```
+'Galvanized Steel'          -> 'Galvanized'
+'Galvanized Galvalume'      -> 'Galvalume'
+'Copper'                    -> 'Copper'
+'Lead Coated Copper'        -> 'Lead Coated'
+'Anodized Aluminum'         -> 'Anodized'
+'Stainless Steel'           -> 'Stainless'
+'Zinc'                      -> 'Zinc'
+'Kynar 500 (Painted Steel)' -> 'Kynar'
+'Vintage Steel'             -> 'Vintage'
+```
+
+**Fallback composition — identical priority logic on both paths, "FlashDraft"
+prefix dropped entirely:**
+`[shortMaterial + gauge] - [first present of: Job Name, Business Name,
+Client Name] - [PO Number, as "PO <number>"]`, blanks dropped, no dangling
+` - ` separators (same drop-blank-segments convention as
+`pathfinder-edge.ts`'s pre-existing `composeDescription`, not a new
+convention).
+
+- **Client-side** (`buildFallbackProfileName` in `page.tsx`): if NONE of
+  Job Name / Business Name / Client Name / PO Number is present, appends
+  `new Date().toLocaleString('en-US')` as a final segment — preserves the
+  pre-existing generator's always-a-timestamp behavior for that one case.
+  `shortMaterial` defaults to the literal string `'Profile'` when
+  `material` is empty, matching the prior `material || 'Profile'` fallback.
+- **Server-side** (`describeItem` in `approve-quote-request/route.ts`, now
+  `describeItem(item, identity)`): no timestamp fallback exists or is
+  needed — `item.profileType` is a required, always-non-blank field on
+  `QuoteRequestLineItem`, so when `item.material` has no shorthand entry
+  and no identity field is present, `item.profileType` alone stands in for
+  the material+gauge segment. This is a deliberate judgment call (the task
+  left it open), not an oversight: server-side composition can never
+  actually resolve to an empty string, so no timestamp source was needed.
+  `describeItem` is the SHARED fallback for every submission surface routed
+  through this file's `itemBuilds` (FlashDraft, Configurator, Quote
+  Builder, Blueprint Takeoff AI upload) — confirmed directly by re-reading
+  `itemBuilds`'s `.map`, not assumed.
+- `identity: JobIdentityFields` gained a new `jobName` field, sourced from
+  a new `job_name` column added to this route's existing `quote_requests`
+  select (and the `qr` type) — `job_name` was already added to
+  `quote_requests` by migration `019_job_name_and_delivery_date.sql`
+  (afs-jf-004), which per that migration's own header and this file's
+  afs-jf-004 entry above is **still FILE ONLY, NOT applied to the live
+  Supabase project** as of this writing. Selecting a column that does not
+  exist on the live table will fail this route's `quote_requests` select
+  outright (same production-drift risk documented in the afs-jf-005 entry
+  below for `job_name` on the insert side) — **migration 019 must be
+  applied before this reaches production traffic**, same standing
+  dependency as afs-jf-005, now with a second call site depending on it.
+- `composeDescription` in `pathfinder-edge.ts` (the Business/Client/PO/
+  Requested By/Finish `description` line) was explicitly NOT touched —
+  separate, already correct, out of scope, confirmed unchanged by this
+  prompt.
+
+`lib/data/catalog.ts`: added `MATERIAL_SHORTHAND` export, next to
+`ALL_MATERIALS`. `app/studio/draft/page.tsx`: added `buildFallbackProfileName`
+top-level helper, imported `MATERIAL_SHORTHAND`, rewired
+`sendToPathfinder`'s `generatedProfileName`. `approve-quote-request/
+route.ts`: rewired `describeItem`/`resolveItemProfileName` signatures and
+bodies, extended `JobIdentityFields`/the `quote_requests` select/the `qr`
+type/the `identity` object with `jobName`, imported `MATERIAL_SHORTHAND`.
+
+`pnpm tsc --noEmit`: 0 errors. Committed as `feat: PathfinderEdge title
+generator rewrite -- materials shorthand, Job Name-first fallback priority
+(afs-jf-006)`.
+
+---
+
 ## FLASHDRAFT INFO OVERLAY RELOCATION — JOB NAME + REQUESTED DELIVERY DATE ADDED, REQUESTED BY REMOVED (afs-jf-005): IMPLEMENTED, UNCONFIRMED — 2026-08-23
 
 **Status: `pnpm tsc --noEmit` returns 0 errors and `pnpm run build` completes
