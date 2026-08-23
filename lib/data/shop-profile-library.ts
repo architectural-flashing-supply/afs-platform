@@ -37,6 +37,10 @@ export interface ShopProfileLibraryInsert {
   clientName?: string | null;
   poNumber?: string | null;
   requestedBy?: string | null;
+  // job_name + requested_delivery_date (migration 019, afs-jf-004/afs-jf-005)
+  // — same write-through story as the fields above.
+  jobName?: string | null;
+  requestedDeliveryDate?: string | null;
   finish?: string | null;
   quantity?: number | null;
   lengthFt?: number | null;
@@ -133,6 +137,8 @@ export async function insertShopProfileLibraryRecord(
       client_name: input.clientName ?? null,
       po_number: input.poNumber ?? null,
       requested_by: input.requestedBy ?? null,
+      job_name: input.jobName ?? null,
+      requested_delivery_date: input.requestedDeliveryDate ?? null,
       finish: input.finish ?? null,
       quantity: input.quantity ?? null,
       length_ft: input.lengthFt ?? null,

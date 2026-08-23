@@ -37,6 +37,12 @@ interface RequestBody {
   clientName?: string | null;
   poNumber?: string | null;
   requestedBy?: string | null;
+  // job_name + requested_delivery_date (migration 019, afs-jf-004/afs-jf-005)
+  // — same reasoning as the fields above: no source quote_request exists on
+  // this route, so these come straight from FlashDraft's own live
+  // draw-session state, sent as-is. All optional.
+  jobName?: string | null;
+  requestedDeliveryDate?: string | null;
   finish?: string | null;
   // Data-URI PNG snapshot of the FlashDraft canvas at the moment of send —
   // captured client-side via canvasRef.current.toDataURL('image/png') in
@@ -114,6 +120,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       clientName: body.clientName ?? null,
       poNumber: body.poNumber ?? null,
       requestedBy: body.requestedBy ?? null,
+      jobName: body.jobName ?? null,
+      requestedDeliveryDate: body.requestedDeliveryDate ?? null,
       finish: body.finish ?? null,
       quantity: typeof body.quantity === 'number' ? body.quantity : null,
       lengthFt: typeof body.lengthFt === 'number' ? body.lengthFt : null,

@@ -80,11 +80,15 @@ interface AutosaveState {
   notes: string;
   rush: boolean;
   // Job-identity intake fields (migration 018, afs-jf-000) — all optional,
-  // never block submit (afs-jf-003).
+  // never block submit (afs-jf-003). `requestedBy` retired by migration 019
+  // (afs-jf-004) — it was a naming mistake that actually meant a delivery
+  // date, not a person's name — and replaced here by `jobName` +
+  // `requestedDeliveryDate` (afs-jf-005).
   clientBusinessName: string;
   clientName: string;
   poNumber: string;
-  requestedBy: string;
+  jobName: string;
+  requestedDeliveryDate: string;
 }
 
 const MM_PER_INCH = 25.4;
@@ -852,11 +856,18 @@ export default function FlashDraftPage() {
   const [notes, setNotes] = useState('');
   const [rush, setRush] = useState(false);
   // Job-identity intake fields (migration 018, afs-jf-000) — all optional,
-  // never block submit (afs-jf-003).
+  // never block submit (afs-jf-003). `requestedBy` retired by migration 019
+  // (afs-jf-004, afs-jf-005) — replaced by `jobName` + `requestedDeliveryDate`.
   const [clientBusinessName, setClientBusinessName] = useState('');
   const [clientName, setClientName] = useState('');
   const [poNumber, setPoNumber] = useState('');
-  const [requestedBy, setRequestedBy] = useState('');
+  const [jobName, setJobName] = useState('');
+  // Plain YYYY-MM-DD string matching the native <input type="date"> value
+  // format (afs-jf-005) — no date-picker library exists in this project.
+  const [requestedDeliveryDate, setRequestedDeliveryDate] = useState('');
+  // Collapsed by default so the canvas info overlay stays compact when the
+  // job-identity fields aren't in use (afs-jf-005).
+  const [showJobInfo, setShowJobInfo] = useState(false);
 
   const [matches, setMatches] = useState<ProfileMatch[]>([]);
   const [matchLoading, setMatchLoading] = useState(false);
@@ -924,7 +935,8 @@ export default function FlashDraftPage() {
           if (typeof saved.clientBusinessName === 'string') setClientBusinessName(saved.clientBusinessName);
           if (typeof saved.clientName === 'string') setClientName(saved.clientName);
           if (typeof saved.poNumber === 'string') setPoNumber(saved.poNumber);
-          if (typeof saved.requestedBy === 'string') setRequestedBy(saved.requestedBy);
+          if (typeof saved.jobName === 'string') setJobName(saved.jobName);
+          if (typeof saved.requestedDeliveryDate === 'string') setRequestedDeliveryDate(saved.requestedDeliveryDate);
         }
       }
     } catch {
@@ -963,7 +975,8 @@ export default function FlashDraftPage() {
           clientBusinessName,
           clientName,
           poNumber,
-          requestedBy,
+          jobName,
+          requestedDeliveryDate,
         };
         window.localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(state));
       } catch {
@@ -987,7 +1000,8 @@ export default function FlashDraftPage() {
     clientBusinessName,
     clientName,
     poNumber,
-    requestedBy,
+    jobName,
+    requestedDeliveryDate,
   ]);
 
   useEffect(() => {
@@ -2708,7 +2722,8 @@ export default function FlashDraftPage() {
           clientBusinessName: clientBusinessName.trim() || null,
           clientName: clientName.trim() || null,
           poNumber: poNumber.trim() || null,
-          requestedBy: requestedBy.trim() || null,
+          jobName: jobName.trim() || null,
+          requestedDeliveryDate: requestedDeliveryDate || null,
           finish: isAluminum ? (finish || null) : null,
           thicknessIn,
           quantity: Number(quantity) || null,
@@ -2831,7 +2846,8 @@ export default function FlashDraftPage() {
             clientBusinessName: clientBusinessName.trim() || null,
             clientName: clientName.trim() || null,
             poNumber: poNumber.trim() || null,
-            requestedBy: requestedBy.trim() || null,
+            jobName: jobName.trim() || null,
+            requestedDelivery: requestedDeliveryDate || null,
             guestEmail: email,
             sourceTool: 'afs-flashdraft',
           }),
@@ -2871,7 +2887,8 @@ export default function FlashDraftPage() {
       clientBusinessName,
       clientName,
       poNumber,
-      requestedBy,
+      jobName,
+      requestedDeliveryDate,
       getEffectiveRadius,
       hemStart,
       hemEnd,
@@ -3255,63 +3272,6 @@ export default function FlashDraftPage() {
             </button>
           </div>
 
-          {/* Job-identity intake fields (migration 018, afs-jf-000) — all
-              optional, never block submit (afs-jf-003). */}
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1.5 block" htmlFor="clientBusinessName">
-                Business Name (optional)
-              </label>
-              <input
-                id="clientBusinessName"
-                type="text"
-                value={clientBusinessName}
-                onChange={(e) => setClientBusinessName(e.target.value)}
-                placeholder="Company name"
-                className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 font-body text-sm text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
-              />
-            </div>
-            <div>
-              <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1.5 block" htmlFor="clientName">
-                Client Name (optional)
-              </label>
-              <input
-                id="clientName"
-                type="text"
-                value={clientName}
-                onChange={(e) => setClientName(e.target.value)}
-                placeholder="Contact name"
-                className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 font-body text-sm text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
-              />
-            </div>
-            <div>
-              <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1.5 block" htmlFor="poNumber">
-                PO Number (optional)
-              </label>
-              <input
-                id="poNumber"
-                type="text"
-                value={poNumber}
-                onChange={(e) => setPoNumber(e.target.value)}
-                placeholder="e.g. PO-10234"
-                className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 font-body text-sm text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
-              />
-            </div>
-            <div>
-              <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1.5 block" htmlFor="requestedBy">
-                Requested By (optional)
-              </label>
-              <input
-                id="requestedBy"
-                type="text"
-                value={requestedBy}
-                onChange={(e) => setRequestedBy(e.target.value)}
-                placeholder="Who is requesting this?"
-                className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 font-body text-sm text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
-              />
-            </div>
-          </div>
-
           <div className="bg-afs-bg-surface border border-afs-chrome-dim rounded overflow-hidden">
             <div className="px-3 py-2 border-b border-afs-chrome-dim">
               <span className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid">
@@ -3499,7 +3459,9 @@ export default function FlashDraftPage() {
                       setProfileNameDraft(profileName);
                       setEditingName(true);
                     }}
-                    className="text-left hover:underline font-semibold"
+                    className={`text-left hover:underline font-semibold ${
+                      profileName === 'Untitled Profile' ? 'italic opacity-60' : ''
+                    }`}
                   >
                     {profileName}
                   </button>
@@ -3508,6 +3470,103 @@ export default function FlashDraftPage() {
                 <span>Bend Count: {bendCountLive}</span>
                 <span>Hem Count: {hemCountLive}</span>
                 <span>Revision: {revision}</span>
+
+                {/* Job-identity intake fields (migration 018/019, afs-jf-000/
+                    afs-jf-004) — relocated here from the sidebar, collapsed by
+                    default so the overlay stays compact (afs-jf-005). All
+                    optional, never block submit (afs-jf-003). */}
+                <button
+                  type="button"
+                  onClick={() => setShowJobInfo((v) => !v)}
+                  className="text-left font-semibold hover:underline mt-1 pt-1 border-t border-white/20"
+                >
+                  {showJobInfo ? '− Job Info' : '+ Job Info'}
+                </button>
+
+                {showJobInfo && (
+                  <div className="flex flex-col gap-2 mt-1" style={{ width: 210 }}>
+                    <div>
+                      <label
+                        className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid mb-1 block"
+                        htmlFor="clientBusinessName"
+                      >
+                        Business Name (optional)
+                      </label>
+                      <input
+                        id="clientBusinessName"
+                        type="text"
+                        value={clientBusinessName}
+                        onChange={(e) => setClientBusinessName(e.target.value)}
+                        placeholder="Company name"
+                        className="w-full bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 font-body text-xs text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label
+                        className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid mb-1 block"
+                        htmlFor="clientName"
+                      >
+                        Client Name (optional)
+                      </label>
+                      <input
+                        id="clientName"
+                        type="text"
+                        value={clientName}
+                        onChange={(e) => setClientName(e.target.value)}
+                        placeholder="Contact name"
+                        className="w-full bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 font-body text-xs text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label
+                        className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid mb-1 block"
+                        htmlFor="poNumber"
+                      >
+                        PO Number (optional)
+                      </label>
+                      <input
+                        id="poNumber"
+                        type="text"
+                        value={poNumber}
+                        onChange={(e) => setPoNumber(e.target.value)}
+                        placeholder="e.g. PO-10234"
+                        className="w-full bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 font-body text-xs text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label
+                        className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid mb-1 block"
+                        htmlFor="jobName"
+                      >
+                        Job Name (optional)
+                      </label>
+                      <input
+                        id="jobName"
+                        type="text"
+                        value={jobName}
+                        onChange={(e) => setJobName(e.target.value)}
+                        placeholder="e.g. Smith Residence Reroof"
+                        className="w-full bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 font-body text-xs text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label
+                        className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid mb-1 block"
+                        htmlFor="requestedDeliveryDate"
+                      >
+                        Requested Delivery Date (optional)
+                      </label>
+                      <input
+                        id="requestedDeliveryDate"
+                        type="date"
+                        value={requestedDeliveryDate}
+                        onChange={(e) => setRequestedDeliveryDate(e.target.value)}
+                        className="w-full bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 font-body text-xs text-afs-chrome-high focus:outline-none focus:border-afs-crimson transition-colors"
+                        style={{ colorScheme: 'dark' }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {isDragDrawing && dragPreview && dragScreenPos && (

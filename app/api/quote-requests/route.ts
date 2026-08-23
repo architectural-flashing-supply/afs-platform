@@ -127,6 +127,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const clientName = typeof body.clientName === 'string' && body.clientName.trim() ? body.clientName.trim() : null;
     const poNumber = typeof body.poNumber === 'string' && body.poNumber.trim() ? body.poNumber.trim() : null;
     const requestedBy = typeof body.requestedBy === 'string' && body.requestedBy.trim() ? body.requestedBy.trim() : null;
+    // job_name (migration 019, afs-jf-004/afs-jf-005) — the project/job name,
+    // distinct from client_name (contact) and client_business_name (company).
+    const jobName = typeof body.jobName === 'string' && body.jobName.trim() ? body.jobName.trim() : null;
+    // Reuses the pre-existing quote_requests.requested_delivery DATE column
+    // (001_initial_schema.sql) rather than adding a new one — see migration
+    // 019's header comment for the full reuse decision. Previously
+    // unpopulated by every submission surface despite being read at
+    // approve-quote-request/route.ts to seed machine_jobs.due_date.
+    const requestedDelivery =
+      typeof body.requestedDelivery === 'string' && body.requestedDelivery.trim() ? body.requestedDelivery.trim() : null;
     // Every real front-end submission path (FlashDraft, the Configurator,
     // the Quote Builder, the Blueprint Takeoff AI upload flow) sends its own
     // token here — see lib/data/quote-request-source-tool.ts for the full
@@ -154,6 +164,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       client_name: clientName,
       po_number: poNumber,
       requested_by: requestedBy,
+      job_name: jobName,
+      requested_delivery: requestedDelivery,
       status: 'submitted',
       source_tool: sourceTool,
     });
