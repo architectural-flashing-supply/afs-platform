@@ -1,6 +1,6 @@
 # SCHEMA.md
 ## AFS — Supabase Database Schema
-**54 tables across 18 migration files. RLS on every table. Indexes on every
+**54 tables across 19 migration files. RLS on every table. Indexes on every
 foreign key and filter column.** (This document's "TABLE N" numbering below
 covers the original 25 sections designed in migration 001 — several of
 those sections define more than one physical table, e.g. TABLE 8 =
@@ -27,13 +27,22 @@ job-identity fields `client_business_name` / `client_name` / `po_number`
 / `requested_by` and a `finish` field to both `quote_requests` — see
 TABLE 15 — and `shop_profile_library` — see SHOP PROFILE LIBRARY TABLE;
 no new tables; `quote_requests.po_number` pre-existed migration 018, see
-TABLE 15 for that finding). 54 is the table count `supabase/README.md`
-should verify against the live database once all 18 migrations are
-applied — **as of this writing, migration 018 is written and committed
-as a file only and has not been applied to the live Supabase project.
-See SESSION_STATE.md for each migration's individually verified
-live-apply status — it is never safe to assume from a file's presence on
-disk alone.**)
+TABLE 15 for that finding). Migration 019 is also column-only (adds
+`job_name` to both `quote_requests` — see TABLE 15 — and
+`shop_profile_library` — see SHOP PROFILE LIBRARY TABLE — plus
+`requested_delivery_date` to `shop_profile_library` only; no new tables;
+see both sections for the `requested_delivery`/`requested_delivery_date`
+naming-asymmetry decision and the retirement of both tables'
+migration-018 `requested_by` columns). 54 is the table count
+`supabase/README.md` should verify against the live database once all 19
+migrations are applied. Migration 018 is **CONFIRMED APPLIED LIVE** (see
+SESSION_STATE.md's afs-jf-000 entry — Reid verified all five of its new
+`quote_requests` columns directly via `information_schema` in the
+Supabase Dashboard on 2026-08-22). Migration 019 is **FILE ONLY as of
+this writing — written and committed but not yet applied to the live
+Supabase project.** See SESSION_STATE.md for each migration's
+individually verified live-apply status — it is never safe to assume
+from a file's presence on disk alone.)
 
 ---
 
@@ -58,7 +67,8 @@ supabase/migrations/
   015_machine_jobs_delivery_method.sql    Adds machine_jobs.delivery_method — no new tables (see MACHINE BRIDGE TABLES)
   016_source_tool_and_shop_profile_library.sql  Adds quote_requests.source_tool (see TABLE 15), creates shop_profile_library (see SHOP PROFILE LIBRARY TABLE) — FILE ONLY, not yet applied live
   017_color_and_queue_position.sql        Adds quote_requests.color (see TABLE 15) and shop_profile_library.color/queue_position/completed_at (see SHOP PROFILE LIBRARY TABLE) — no new tables — FILE ONLY, not yet applied live
-  018_job_identity_and_finish.sql         Adds client_business_name/client_name/po_number/requested_by/finish to quote_requests (see TABLE 15; po_number pre-existing) and to shop_profile_library (see SHOP PROFILE LIBRARY TABLE, all five new) — no new tables — FILE ONLY, not yet applied live
+  018_job_identity_and_finish.sql         Adds client_business_name/client_name/po_number/requested_by/finish to quote_requests (see TABLE 15; po_number pre-existing) and to shop_profile_library (see SHOP PROFILE LIBRARY TABLE, all five new) — no new tables — CONFIRMED APPLIED LIVE 2026-08-22, see SESSION_STATE.md
+  019_job_name_and_delivery_date.sql      Adds job_name to quote_requests (see TABLE 15) and job_name/requested_delivery_date to shop_profile_library (see SHOP PROFILE LIBRARY TABLE); retires (documents as dead, does not drop) both tables' migration-018 requested_by columns — no new tables — FILE ONLY, not yet applied live
 ```
 
 Run in numeric order — see `supabase/README.md` for the exact procedure.
@@ -567,9 +577,55 @@ this table from migration 018.
 
 `client_business_name`, `client_name`, `requested_by`, and `finish` are
 not shown in the `CREATE TABLE` below since they were added after this
-table was originally designed — they are real columns on the live schema
-once 018 is applied. **FILE ONLY as of this writing — 018 has not been
-applied to the live Supabase project; see SESSION_STATE.md.**
+table was originally designed. **Migration 018 is CONFIRMED APPLIED
+LIVE** — Reid verified all five columns (including the pre-existing
+`po_number`) directly via `information_schema` in the Supabase Dashboard
+on 2026-08-22 (see SESSION_STATE.md's afs-jf-000 entry) — they are real
+columns on the live schema now, not merely on disk.
+
+**`requested_by TEXT` (migration 018) is DEAD — retired by migration 019,
+not removed.** It was a naming mistake: the column was meant to capture a
+delivery date, not a person's name. It remains in place, untouched, and
+must be treated as always-null going forward — no UI or logic should read
+or write it. (Three submission surfaces still write to it as of migration
+019 — see SESSION_STATE.md's afs-jf-004 entry for that known,
+deliberately out-of-scope gap.) Do not confuse this column with
+`machine_jobs.requested_by UUID REFERENCES profiles(id)` (MACHINE BRIDGE
+TABLES below, an earlier and unrelated migration, actively used — set to
+the requesting user's id on every Command Center approval) — same column
+name, different table, different meaning, no relationship between them.
+
+**Migration 019 (`019_job_name_and_delivery_date.sql`) adds `job_name
+TEXT`** (nullable, additive `ADD COLUMN IF NOT EXISTS`, no default) — the
+project/job name (e.g. "Smith Residence Reroof"), distinct from
+`client_name` (the individual contact person, migration 018) and
+`client_business_name` (the company, migration 018). Not shown in the
+`CREATE TABLE` below since it was added after this table was originally
+designed — it is a real column on the live schema once 019 is applied.
+**FILE ONLY as of this writing — 019 has not been applied to the live
+Supabase project; see SESSION_STATE.md.**
+
+**`quote_requests` gets no new date column from migration 019.** The
+customer's requested-delivery date is captured via the pre-existing
+`requested_delivery DATE` column below (added in `001_initial_schema.sql`,
+not new) instead of a same-named `requested_delivery_date` column —
+deliberately reused rather than duplicated. As of migration 019,
+`requested_delivery` is still unpopulated by every submission surface
+(FlashDraft, Configurator, Quote Builder, Blueprint Takeoff AI upload)
+despite being read at
+`app/api/admin/command-center/approve-quote-request/route.ts` (the
+`qr.requested_delivery` select feeding `machine_jobs.due_date` on every
+approval) — wiring a submission surface to actually populate it is a
+future prompt's work, not part of migration 019. This produces an
+intentional **naming asymmetry** with `shop_profile_library.
+requested_delivery_date` (new in migration 019, see SHOP PROFILE LIBRARY
+TABLE below) — same real-world concept, two different column names,
+because `quote_requests` already had a column for it and
+`shop_profile_library` did not. Also distinct from
+`shop_profile_library.due_date` (migration 016) — see that table's own
+section for the due-date-vs-requested-delivery-date distinction, which
+applies symmetrically to `quote_requests.requested_delivery`: what the
+customer asks for at intake is not the shop's committed date.
 
 ```sql
 CREATE TABLE quote_requests (
@@ -1748,10 +1804,9 @@ separate ephemeral Presence-channel API (grepping this repo for
 
 ## SHOP PROFILE LIBRARY TABLE (migration 016_source_tool_and_shop_profile_library.sql)
 
-**FILE ONLY as of this writing — written and committed but NOT yet applied
-to the live Supabase project. Do not assume this table exists live; see
-SESSION_STATE.md for the current, individually-verified apply status of
-every migration.**
+**Live-apply status per migration — see SESSION_STATE.md for the
+current, individually-verified apply status of every migration; do not
+assume from a file's presence on disk alone.**
 
 **Migration 017 (`017_color_and_queue_position.sql`) adds three columns —
 also FILE ONLY, not yet applied live:**
@@ -1783,8 +1838,55 @@ All five match the identically-named fields migration 018 also adds to
 `quote_requests` (TABLE 15) — except `po_number`, which is new here but
 pre-existed on `quote_requests` (see TABLE 15's own pre-existing-column
 note). Not shown in the `CREATE TABLE` below since all five were added
-after this table was originally designed — they are real columns on the
-live schema once 018 is applied.
+after this table was originally designed. **Migration 018 is CONFIRMED
+APPLIED LIVE** — Reid verified this migration's `quote_requests` columns
+directly via `information_schema` in the Supabase Dashboard on
+2026-08-22 (see SESSION_STATE.md's afs-jf-000 entry); `shop_profile_
+library`'s five columns were added by the same migration file and are
+real columns on the live schema now, not merely on disk.
+
+**`requested_by TEXT` (migration 018) is DEAD — retired by migration 019,
+not removed.** It was a naming mistake: the column was meant to capture a
+delivery date, not a person's name. It remains in place, untouched, and
+must be treated as always-null going forward — no UI or logic should read
+or write it. Not to be confused with `machine_jobs.requested_by UUID
+REFERENCES profiles(id)` (MACHINE BRIDGE TABLES above, an earlier and
+unrelated migration, actively used) or with `quote_requests.requested_by`
+(TABLE 15, also retired by migration 019, but a distinct column on a
+distinct table) — three different `requested_by` columns exist across
+this schema; see TABLE 15's own note for the full disambiguation.
+
+**Migration 019 (`019_job_name_and_delivery_date.sql`) adds `job_name
+TEXT` and `requested_delivery_date DATE`** (both nullable, additive `ADD
+COLUMN IF NOT EXISTS`, no defaults) — both genuinely new on this table
+(no pre-existing equivalent, unlike `quote_requests`; see below).
+`job_name` is the project/job name, matching the identically-named field
+migration 019 also adds to `quote_requests` (TABLE 15). Not shown in the
+`CREATE TABLE` below since both were added after this table was
+originally designed — they are real columns on the live schema once 019
+is applied. **FILE ONLY as of this writing — 019 has not been applied to
+the live Supabase project; see SESSION_STATE.md.**
+
+**`requested_delivery_date` vs. `quote_requests.requested_delivery` —
+naming asymmetry, intentional, not an oversight:** both capture the same
+real-world concept (what the customer asks for at intake), but the column
+names differ across the two tables. `quote_requests` already had a
+`requested_delivery DATE` column (pre-existing, `001_initial_schema.sql`)
+before migration 019 — reused rather than duplicated with a second,
+differently-named column. `shop_profile_library` had no equivalent
+pre-existing column, so `requested_delivery_date` is new here. The `_date`
+suffix on this table's column and its absence on `quote_requests`' is the
+only difference; both mean the same thing.
+
+**`requested_delivery_date` vs. `due_date` (migration 016) — distinct
+concepts, not duplicates:** `requested_delivery_date` is what the
+customer asks for at intake, captured from the same FlashDraft field that
+(per the naming-asymmetry decision above) writes `quote_requests.
+requested_delivery` on that table instead. `due_date` is the shop's own
+committed date — what Steve sets/confirms in Command Center — and may
+differ from what the customer originally requested. The same distinction
+applies to `quote_requests.requested_delivery` relative to any date the
+shop later commits to elsewhere in the order/machine-job lifecycle.
 
 An admin-only, internal shop record of a profile job's full intake
 context — customer/account info, material/geometry, hem/paint
