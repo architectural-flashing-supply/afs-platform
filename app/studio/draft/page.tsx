@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
-import { ALL_MATERIALS, GAUGES_BY_MATERIAL } from '@/lib/data/catalog';
+import { ALL_MATERIALS, GAUGES_BY_MATERIAL, MATERIAL_SHORTHAND } from '@/lib/data/catalog';
 import {
   colorPaletteForMaterial,
   requiresFinishChoice,
@@ -309,6 +309,37 @@ function isGauge18OrThicker(gauge: string): boolean {
   const match = gauge.trim().match(/^(\d+)\s*ga$/i);
   if (!match) return false;
   return parseInt(match[1], 10) <= 18;
+}
+
+// PathfinderEdge fallback title generator (afs-jf-006) — used by
+// sendToPathfinder() below ONLY when the user hasn't set a real canvas
+// profile name (see that call site's own userSetProfileName check, which
+// this function does not duplicate or re-decide). Composed left to right:
+// short-material + gauge, then the first present of Job Name / Business
+// Name / Client Name, then PO Number (as "PO <number>") — blanks dropped,
+// no dangling separators, same drop-blank-segments convention as
+// pathfinder-edge.ts's composeDescription. Falls back to a timestamp
+// only when NONE of job/business/client/PO is present, matching this
+// generator's pre-afs-jf-006 behavior of always including a timestamp.
+function buildFallbackProfileName(
+  material: string | null,
+  gauge: string | null,
+  jobName: string | null,
+  businessName: string | null,
+  clientName: string | null,
+  poNumber: string | null
+): string {
+  const shortMaterial = material ? (MATERIAL_SHORTHAND[material] ?? material) : 'Profile';
+  const materialGauge = [shortMaterial, gauge || null].filter(Boolean).join(' ');
+  const identitySegment = jobName || businessName || clientName || null;
+  const poSegment = poNumber ? `PO ${poNumber}` : null;
+  const segments = [materialGauge, identitySegment, poSegment].filter(
+    (s): s is string => !!s && s.trim() !== ''
+  );
+  if (!identitySegment && !poSegment) {
+    segments.push(new Date().toLocaleString('en-US'));
+  }
+  return segments.join(' - ');
 }
 
 function dist(a: Point, b: Point): number {
@@ -2709,7 +2740,14 @@ export default function FlashDraftPage() {
       const trimmedProfileName = profileName.trim();
       const userSetProfileName =
         trimmedProfileName !== '' && trimmedProfileName !== 'Untitled Profile' ? trimmedProfileName : null;
-      const generatedProfileName = `FlashDraft ${material || 'Profile'}${gauge ? ` ${gauge}` : ''} ${new Date().toLocaleString('en-US')}`;
+      const generatedProfileName = buildFallbackProfileName(
+        material || null,
+        gauge || null,
+        jobName.trim() || null,
+        clientBusinessName.trim() || null,
+        clientName.trim() || null,
+        poNumber.trim() || null
+      );
       const res = await fetch('/api/studio/send-to-pathfinder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

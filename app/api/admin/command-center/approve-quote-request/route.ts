@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { logAdminAction } from '@/lib/admin/audit';
+import { MATERIAL_SHORTHAND } from '@/lib/data/catalog';
 import { sendEmail } from '@/lib/resend/send';
 import { baseEmailTemplate } from '@/lib/resend/templates/base';
 import { usesFallbackGeometry } from '@/lib/machine-jobs/fallback-geometry';
@@ -73,11 +74,32 @@ interface CustomBend {
 const MM_PER_INCH = 25.4;
 const DEFAULT_DIMENSIONS_IN = { width: 12, legA: 2, legB: 2 };
 
-function describeItem(item: QuoteRequestLineItem): string {
-  const parts = [item.profileType];
-  if (item.material) parts.push(item.material);
-  if (item.gauge) parts.push(item.gauge);
-  return parts.join(' — ');
+// SHARED PathfinderEdge-title fallback (afs-jf-006) for every submission
+// surface that funnels through this route (FlashDraft, Configurator, Quote
+// Builder, Blueprint Takeoff AI upload all push line items through
+// itemBuilds below) — not FlashDraft-specific. Mirrors
+// app/studio/draft/page.tsx's buildFallbackProfileName composition
+// (short-material + gauge, then first-present-of Job Name / Business Name
+// / Client Name, then PO Number as "PO <number>", blanks dropped, no
+// dangling separators) but duplicated rather than imported, per this
+// codebase's established client-page/server-route duplication precedent
+// (see flashdraft-to-pathfinder.ts's own header comment). No timestamp
+// fallback here (unlike the client-side generator): item.profileType is a
+// required, always-non-blank field, so when item.material has no
+// MATERIAL_SHORTHAND entry and no identity field is present, the
+// composition still can't come back empty — item.profileType alone stands
+// in for the material+gauge segment in that case, judged an acceptable
+// last resort rather than inventing a server-side timestamp source.
+function describeItem(item: QuoteRequestLineItem, identity: JobIdentityFields): string {
+  const shortMaterial = item.material ? (MATERIAL_SHORTHAND[item.material] ?? item.material) : null;
+  const materialGauge = shortMaterial
+    ? [shortMaterial, item.gauge || null].filter(Boolean).join(' ')
+    : item.profileType;
+  const identitySegment = identity.jobName || identity.clientBusinessName || identity.clientName || null;
+  const poSegment = identity.poNumber ? `PO ${identity.poNumber}` : null;
+  return [materialGauge, identitySegment, poSegment]
+    .filter((s): s is string => !!s && s.trim() !== '')
+    .join(' - ');
 }
 
 // The user-set FlashDraft name if present and non-blank, otherwise the same
@@ -86,8 +108,8 @@ function describeItem(item: QuoteRequestLineItem): string {
 // "user-set name," so this route's own real data (item.profileName, only
 // ever populated for FlashDraft-submitted line items) drives this, not any
 // assumption borrowed from send-to-pathfinder's client-side state.
-function resolveItemProfileName(item: QuoteRequestLineItem): string {
-  return item.profileName?.trim() || describeItem(item);
+function resolveItemProfileName(item: QuoteRequestLineItem, identity: JobIdentityFields): string {
+  return item.profileName?.trim() || describeItem(item, identity);
 }
 
 function distanceIn(a: FlashDraftPoint, b: FlashDraftPoint): number {
@@ -203,12 +225,17 @@ function buildBendsFromItem(
 // Job-identity intake fields + finish (migration 018, afs-jf-003) — carried
 // on the parent quote_requests row (one set per request, not per line
 // item), so every line item's MachineProfile gets the same values.
+// jobName (migration 019, afs-jf-004) added by afs-jf-006 — used only by
+// describeItem's fallback-title priority chain below, not pushed into
+// MachineProfile/composeDescription (out of scope of this task, see
+// pathfinder-edge.ts's own composeDescription comment).
 interface JobIdentityFields {
   clientBusinessName: string | null;
   clientName: string | null;
   poNumber: string | null;
   requestedBy: string | null;
   finish: string | null;
+  jobName: string | null;
 }
 
 // Builds the MachineProfile pushProfileToPathfinder expects for one line
@@ -335,7 +362,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const { data: quoteRequest, error: qrError } = await supabase
       .from('quote_requests')
       .select(
-        'id, user_id, guest_email, line_items, is_rush, notes, status, requested_delivery, source_tool, color, client_business_name, client_name, po_number, requested_by, finish'
+        'id, user_id, guest_email, line_items, is_rush, notes, status, requested_delivery, source_tool, color, client_business_name, client_name, po_number, requested_by, finish, job_name'
       )
       .eq('id', quoteRequestId)
       .maybeSingle();
@@ -365,6 +392,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       po_number: string | null;
       requested_by: string | null;
       finish: string | null;
+      // job_name (migration 019, afs-jf-004) — added to this select by
+      // afs-jf-006, used only by describeItem's fallback-title priority
+      // chain (see JobIdentityFields.jobName above).
+      job_name: string | null;
     };
     if (qr.status !== 'submitted') {
       return NextResponse.json({ error: 'Quote request is not pending approval.' }, { status: 409 });
@@ -381,6 +412,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       poNumber: qr.po_number,
       requestedBy: qr.requested_by,
       finish: qr.finish,
+      jobName: qr.job_name,
     };
 
     // Resolved once, reused both for the shop_profile_library rows written
@@ -415,7 +447,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // click rather than being left with a job that looks approved but
     // never actually reached PathfinderEdge.
     const itemBuilds = items.map((item, i) => {
-      const baseName = resolveItemProfileName(item);
+      const baseName = resolveItemProfileName(item, identity);
       const profileName = items.length > 1 ? `${baseName} (item ${i + 1} of ${items.length})` : baseName;
       const { bends, blankWidthMm, usedFallbackGeometry } = buildBendsFromItem(item);
       const machineProfile = buildMachineProfileForItem(item, profileName, bends, blankWidthMm, identity);

@@ -52,6 +52,27 @@ export const ALL_MATERIALS = [
   'Vintage Steel',
 ] as const;
 
+// Shorthand for the PathfinderEdge fallback title generator (afs-jf-006) —
+// both send paths (FlashDraft's own "Send to PathfinderEdge" button and
+// Command Center's approve-quote-request describeItem fallback) key off
+// these exact ALL_MATERIALS strings, NOT the live `materials` Supabase
+// table's differently-spelled seed data (see
+// lib/data/material-color-requirement.ts's header comment). Drops the
+// generic base-metal qualifier already implied by the more specific
+// descriptor, mirroring the "Kynar 500 (Painted Steel)" -> "Kynar" /
+// "Anodized Aluminum" -> "Anodized" precedent set by this task.
+export const MATERIAL_SHORTHAND: Record<string, string> = {
+  'Galvanized Steel': 'Galvanized',
+  'Galvanized Galvalume': 'Galvalume',
+  Copper: 'Copper',
+  'Lead Coated Copper': 'Lead Coated',
+  'Anodized Aluminum': 'Anodized',
+  'Stainless Steel': 'Stainless',
+  Zinc: 'Zinc',
+  'Kynar 500 (Painted Steel)': 'Kynar',
+  'Vintage Steel': 'Vintage',
+};
+
 // Placeholder availability mapping — real stock status per material is pending
 // supplier data (see CLAUDE.md Data Blockers). Used to drive AI material guidance.
 export const MATERIAL_STOCK_STATUS: Record<string, StockType> = {
