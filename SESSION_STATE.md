@@ -24,6 +24,125 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## JOB_NAME + REQUESTED_DELIVERY_DATE COLUMNS, DEAD REQUESTED_BY RETIRED (afs-jf-004) — 2026-08-23
+
+Read every file in `supabase/migrations/` (001 through 018) in full and
+this file's own live-apply status notes before choosing a migration
+number, per the task's instruction. Confirmed
+`018_job_identity_and_finish.sql` is still the highest-numbered file on
+disk (001–018, no gaps) and is **CONFIRMED APPLIED LIVE** (see the
+afs-jf-000 entry below, "RESOLVED 2026-08-22") — so this migration is
+correctly numbered 019. No discrepancy to note.
+
+**Pre-check on `quote_requests.requested_delivery`, done directly per the
+task's explicit instruction, not assumed:** confirmed `requested_delivery
+DATE` already exists (`001_initial_schema.sql`, line 441). Grepped the
+whole repo for `requested_delivery`/`requestedDelivery`: the only file
+referencing it at all is
+`app/api/admin/command-center/approve-quote-request/route.ts`, which
+selects `qr.requested_delivery` and assigns `dueDate: qr.requested_delivery`
+feeding `machine_jobs.due_date` on every approval. None of FlashDraft,
+Configurator, Quote Builder, or the Blueprint Takeoff AI upload write to
+it — confirmed by the same grep turning up no other reference anywhere.
+Every approved job's `due_date` is silently seeded NULL today; this
+migration does not fix that, it only adds the column reuse decision below
+so a future prompt can.
+
+New `supabase/migrations/019_job_name_and_delivery_date.sql` — all
+columns nullable, no defaults, `ADD COLUMN IF NOT EXISTS`, matching the
+established pattern from migrations 016/017/018 (verified directly, not
+assumed):
+1. `quote_requests`: `job_name TEXT` only.
+2. `shop_profile_library`: `job_name TEXT`, `requested_delivery_date DATE`.
+
+**Decision already made with Reid, executed here: do NOT add a new
+`requested_delivery_date` column to `quote_requests`.** Its existing
+`requested_delivery` column is reused for that purpose instead —
+`quote_requests` gets no new date column from this migration.
+`shop_profile_library` has no equivalent pre-existing column (only
+`due_date` from migration 016, a distinct concept — the shop's own
+committed date Steve sets/confirms in Command Center, not what the
+customer asked for at intake), so `requested_delivery_date` is genuinely
+new there. This produces an intentional naming asymmetry between the two
+tables for the same real-world concept, documented explicitly in
+SCHEMA.md (both the TABLE 15 and SHOP PROFILE LIBRARY TABLE sections) so
+it doesn't read as an oversight to a future session.
+
+**Three `requested_by` columns — disambiguated per the task's explicit
+warning not to confuse them:**
+1. `quote_requests.requested_by TEXT` (migration 018) — DEAD. Retired by
+   this migration (documented as dead, left in place untouched).
+2. `shop_profile_library.requested_by TEXT` (migration 018) — ALSO DEAD,
+   also retired here.
+3. `machine_jobs.requested_by UUID REFERENCES profiles(id)` (an earlier,
+   unrelated migration) — ACTIVELY USED, set to `qr.user_id` at
+   `approve-quote-request/route.ts` around line 483. **Not touched,
+   renamed, or documented as dead** — verified this is a completely
+   separate column on a separate table before writing anything, per the
+   task's explicit instruction.
+
+**Both TEXT `requested_by` columns retired, not removed — always null
+going forward, per the decision that both were a naming mistake (meant to
+capture a delivery date, not a person's name).** No UI or logic should be
+built against either, noted here explicitly so no future session tries to
+wire either one up.
+
+**Known, deliberately out-of-scope consequence, recorded here per the
+task's explicit instruction:**
+(a) The Configurator (`app/configure/page.tsx`), Quote Builder
+(`app/quote/page.tsx`), and Blueprint Takeoff AI upload (`app/upload/
+page.tsx`) surfaces (afs-jf-003) still each have their own "Requested By"
+input writing to `quote_requests.requested_by` — this migration does not
+remove any of those three inputs. FlashDraft (`app/studio/draft/
+page.tsx`) also still has its own "Requested By" input (confirmed by grep
+— `requestedBy` state, autosave restore, and the labeled form field are
+all still present); a separate future prompt, afs-jf-005, is expected to
+remove FlashDraft's own instance. So the column will not actually be
+"always null" in practice until future prompts remove all four remaining
+inputs.
+(b) `lib/integrations/pathfinder-edge.ts`'s `composeDescription` still
+includes a `Req: <name>` segment sourced from `requestedBy` (confirmed at
+line ~373). Since that value keeps arriving non-null from all four
+submission surfaces until they are cleaned up, the segment will simply
+keep being populated or dropped exactly as before — this migration does
+not touch that composition function.
+
+`SCHEMA.md` updated: header counts (19 migration files, table count
+unchanged at 54 since no new table is added), the `MIGRATION FILE
+LOCATION` list, new documentation on TABLE 15 (`quote_requests.job_name`,
+the `requested_delivery` reuse decision and why, the dead `requested_by`
+retirement, the three-`requested_by`-column disambiguation) and the SHOP
+PROFILE LIBRARY TABLE section (`job_name`, `requested_delivery_date`, the
+naming-asymmetry writeup, the `due_date` vs. `requested_delivery_date`
+distinction, the same dead-column retirement note) — matching this
+project's existing documentation depth/style for migrations 016/017/018's
+own additions. Also corrected the stale "FILE ONLY as of this writing —
+018 has not been applied to the live Supabase project" language left over
+in both of those same sections from migration 018's original entries (018
+is CONFIRMED APPLIED LIVE per the afs-jf-000 entry below, this document's
+own record) — that language now reflects 018's real current status
+instead of being left stale.
+
+**This is a FILE-ONLY prompt, per its own instructions. Migration 019 is
+written and committed but is PENDING MANUAL APPLICATION in the Supabase
+Dashboard** — following the same "pending manual apply" convention
+already used for migrations 015/016/017/018. No session has had a working
+Supabase MCP connection to this project's actual instance to apply or
+verify it directly.
+
+`pnpm tsc --noEmit`: 0 errors, run directly this session. This prompt
+adds no UI, no API route, and no data-fetching code — there is no browser
+surface to verify for this prompt itself. Per this file's own
+verification standard (see top of file), this is marked **IMPLEMENTED,
+UNCONFIRMED** — pending Reid's manual application of the migration in the
+Supabase Dashboard; a file-only migration has no browser surface to
+verify at all, so that "unconfirmed" status is expected to persist until
+a downstream prompt actually consumes these columns in the UI. Committed
+as `feat: add job_name + requested_delivery_date columns, retire dead
+requested_by, file only (afs-jf-004)`.
+
+---
+
 ## OPEN/PARKED — PATHFINDEREDGE BEND-ANGLE INVESTIGATION (afs-sv-000)
 
 **Status: OPEN/PARKED as of 2026-08-20. Not resolved, not abandoned —

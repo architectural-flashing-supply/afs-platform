@@ -83,6 +83,83 @@ and not restart from scratch.**
 
 ---
 
+## JOB_NAME + REQUESTED_DELIVERY_DATE COLUMNS MIGRATION WRITTEN, RETIRES DEAD REQUESTED_BY (afs-jf-004): IMPLEMENTED, UNCONFIRMED — 2026-08-23
+
+**Status: FILE ONLY. `pnpm tsc --noEmit` returns 0 errors, run directly this
+session. This prompt adds no UI, no API route, and no data-fetching code —
+there is no browser surface to verify for this prompt itself. Migration
+`019_job_name_and_delivery_date.sql` is written and committed but has NOT
+been applied to the live Supabase project — pending Reid's manual
+application in the Supabase Dashboard, following the same convention as
+migrations 015/016/017/018.**
+
+Read every file in `supabase/migrations/` (001 through 018) in full and
+SESSION_STATE.md's live-apply status notes before choosing a migration
+number, per the task's instruction. Confirmed
+`018_job_identity_and_finish.sql` is still the highest-numbered file on
+disk (001–018, no gaps) and is **CONFIRMED APPLIED LIVE** (see the
+afs-jf-000 entry below) — so this migration is correctly numbered 019. No
+discrepancy to note.
+
+**Pre-check done directly, not assumed:** confirmed `quote_requests.
+requested_delivery DATE` already exists (`001_initial_schema.sql`, line
+441), is currently unpopulated by every submission surface (FlashDraft,
+Configurator, Quote Builder, Blueprint Takeoff AI upload — grepped for
+`requested_delivery`/`requestedDelivery` across the repo; the only real
+usage is `app/api/admin/command-center/approve-quote-request/route.ts`),
+and is read there — `qr.requested_delivery` selected and assigned to
+`dueDate: qr.requested_delivery` feeding `machine_jobs.due_date` on every
+approval — meaning every approved job's `due_date` is silently seeded
+NULL today, unchanged by this migration.
+
+New `supabase/migrations/019_job_name_and_delivery_date.sql` — all
+columns nullable, no defaults, `ADD COLUMN IF NOT EXISTS`:
+1. `quote_requests`: `job_name TEXT` only — no new date column.
+   **Decision (already made with Reid): reuse the existing
+   `quote_requests.requested_delivery` column instead of adding a
+   same-purpose `requested_delivery_date` column** — an intentional
+   naming asymmetry with `shop_profile_library.requested_delivery_date`
+   below, documented in SCHEMA.md.
+2. `shop_profile_library`: `job_name TEXT` and `requested_delivery_date
+   DATE` — both genuinely new (this table had no pre-existing equivalent
+   column, unlike `quote_requests`).
+
+**Three `requested_by` columns disambiguated, per the task's explicit
+instruction not to confuse them:**
+1. `quote_requests.requested_by TEXT` (migration 018) — DEAD, retired by
+   this migration (documented, not dropped).
+2. `shop_profile_library.requested_by TEXT` (migration 018) — ALSO DEAD,
+   also retired by this migration.
+3. `machine_jobs.requested_by UUID REFERENCES profiles(id)` (an earlier,
+   unrelated migration) — ACTIVELY USED (set to `qr.user_id` at
+   `approve-quote-request/route.ts` line ~483). NOT touched, renamed, or
+   documented as dead — confirmed by direct read before writing anything.
+
+**Retirement is documentation-only, not a schema drop.** Both `TEXT`
+`requested_by` columns remain in place, untouched, always null going
+forward. Per SESSION_STATE.md's afs-jf-004 entry, this is NOT yet true in
+practice: three submission surfaces (Configurator, Quote Builder,
+Blueprint Takeoff AI upload) still have their own "Requested By" input
+writing to `quote_requests.requested_by` as of this migration — a known,
+deliberately out-of-scope gap, not fixed here.
+
+`SCHEMA.md` updated: header counts (19 migration files), the `MIGRATION
+FILE LOCATION` list, new documentation on TABLE 15 (`quote_requests.
+job_name`, the `requested_delivery` reuse decision, the dead
+`requested_by` retirement, the three-column disambiguation) and the SHOP
+PROFILE LIBRARY TABLE section (`job_name`, `requested_delivery_date`, the
+naming-asymmetry writeup, the `due_date` distinction, the same dead-column
+retirement note) — matching this project's existing documentation depth/
+style for migrations 016/017/018's own additions. Also corrected the
+stale "FILE ONLY... 018 has not been applied" language left over in both
+of those same sections from migration 018's original entries, since 018
+is now CONFIRMED APPLIED LIVE per SESSION_STATE.md.
+
+Committed as `feat: add job_name + requested_delivery_date columns,
+retire dead requested_by, file only (afs-jf-004)`.
+
+---
+
 ## JOB-IDENTITY FIELDS END TO END — SUBMISSION SURFACES, COMMAND CENTER EDIT, PATHFINDEREDGE DESCRIPTION, SHOP VIEW/PROFILE LIBRARY DISPLAY (afs-jf-003): IMPLEMENTED, UNCONFIRMED — 2026-08-21
 
 **Status: `pnpm tsc --noEmit` returns 0 errors and `pnpm run build` completes
