@@ -49,10 +49,21 @@ export async function middleware(request: NextRequest) {
   const isAccountRoute = pathname.startsWith('/account');
   const isCheckoutRoute = pathname.startsWith('/checkout');
   const isAdminRoute = pathname.startsWith('/admin');
+  const isFieldContractorRoute = pathname.startsWith('/field/contractor');
+  const isFieldShopRoute = pathname.startsWith('/field/shop');
   const isAuthEntryRoute = pathname === '/login' || pathname === '/register';
 
-  // Unauthenticated users cannot reach protected routes.
+  // Unauthenticated users cannot reach protected routes. /field/contractor
+  // and /field/shop send unauthorized visitors to /field/no-access rather
+  // than /login — per SPEC, signed-out is just one more "not contractor,
+  // not admin" case, not a login prompt.
   if (!user) {
+    if (isFieldContractorRoute || isFieldShopRoute) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/field/no-access';
+      url.search = '';
+      return NextResponse.redirect(url);
+    }
     if (isAccountRoute || isCheckoutRoute || isAdminRoute) {
       const url = request.nextUrl.clone();
       url.pathname = '/login';
@@ -63,7 +74,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // From here on, user is authenticated. Role is only ever needed for the
-  // two route classes below, so it's fetched at most once per request.
+  // route classes below, so it's fetched at most once per request.
   if (isAdminRoute) {
     const role = await getUserRole(user.id);
     if (role !== 'admin') {
@@ -72,6 +83,18 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url);
     }
     // Admin confirmed — allow through, no redirect.
+    return supabaseResponse;
+  }
+
+  if (isFieldContractorRoute || isFieldShopRoute) {
+    const role = await getUserRole(user.id);
+    const allowed = isFieldShopRoute ? role === 'admin' : role === 'contractor' || role === 'admin';
+    if (!allowed) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/field/no-access';
+      url.search = '';
+      return NextResponse.redirect(url);
+    }
     return supabaseResponse;
   }
 

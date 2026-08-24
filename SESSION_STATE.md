@@ -24,6 +24,63 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## /field ROUTE ACCESS CONTROL (afs-fl-001) — 2026-08-24
+
+Read `profiles.role`'s real CHECK constraint directly (migrations
+`001_initial_schema.sql` and `007_delivery_tracking.sql`), not from any
+prior session's summary, before touching anything. Confirmed: five allowed
+values — `admin`, `contractor`, `architect`, `customer`, `operator`. Grepped
+migrations 008–019 for any further alteration — none found. No migration
+runs in this prompt; no new role is introduced.
+
+`/field/contractor` and `/field/shop` now have a real server-side guard,
+not a client-side redirect or a hidden nav link:
+- `middleware.ts` — extended the existing `isAdminRoute` pattern with
+  `isFieldContractorRoute`/`isFieldShopRoute`, reusing the same
+  service-role `getUserRole()` helper already in the file. Unauthorized
+  visitors (wrong role or signed out) are redirected to a new
+  `/field/no-access` page, never to the field routes themselves.
+- `lib/field/auth.ts` — new `requireFieldRole(supabase, allowedRoles)`,
+  called from both page components (now async server components), matching
+  `lib/admin/auth.ts`'s `requireAdminUser()` precedent of checking again at
+  the page level in case middleware is ever bypassed.
+- `/field/contractor`: `contractor` + `admin`. `/field/shop`: `admin` only.
+  Decision recorded: admin is allowed at `/field/contractor` too, for
+  oversight/testing — not a new privilege since admin already has standing
+  access everywhere else.
+
+**Verification actually run, not assumed:** started `pnpm dev` and issued
+direct unauthenticated `curl` requests — `GET /field/shop` and
+`GET /field/contractor` both returned `307` to `/field/no-access`;
+`/field/no-access` itself returns `200`, no loop. This is the closest
+exercisable stand-in for "a non-admin, non-contractor account" available in
+this environment (no seeded architect/customer/operator test login exists
+here) — it exercises the middleware layer for real; the page-level
+`requireFieldRole()` layer was checked by code review only, not by an
+authenticated wrong-role session.
+
+RLS confirmed by reading the actual `CREATE POLICY` statements in the
+migrations, not a prior summary:
+- `quote_requests` already has `users_insert_requests` — any authenticated
+  user can insert a request for themselves (`auth.uid() = user_id OR
+  user_id IS NULL`). This is what afs-fl-002 needs later in this queue;
+  coverage exists, no gap.
+- `shop_profile_library` has exactly one policy —
+  `admin_all_shop_profile_library`, admin-only `FOR ALL` — unchanged since
+  migration 016, confirmed against 017–019 too. **No new RLS policy was
+  written here.** Because `/field/shop` reuses the existing `admin` role
+  instead of inventing one, this one policy already covers everything
+  afs-fl-003 (reading + updating `shop_profile_library` rows) will need.
+  This intentionally replaces an earlier, discarded design that would have
+  added a new `shop_operator` role and a `profiles.role` constraint
+  migration against a table this repo's own production code depends on —
+  rejected specifically to avoid that risk; reusing `admin` sidesteps it
+  entirely.
+
+`pnpm tsc --noEmit` — 0 errors, run directly this session.
+
+---
+
 ## /field MOBILE ROUTES SCAFFOLDED (afs-fl-000) — 2026-08-24
 
 New build phase, opened by this prompt: mobile-first `/field/**` routes
