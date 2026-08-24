@@ -449,3 +449,62 @@ export function compareShopProfileLibraryQueueOrder(a: QueueOrderFields, b: Queu
   }
   return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
 }
+
+// ----------------------------------------------------------------------------
+// Field — Shop (afs-fl-003) — a read-only queue for the mobile job-completion
+// list at app/field/shop/page.tsx. Only non-complete rows are relevant here
+// (a completed job has no more action to take), same `status !== 'complete'`
+// filter ShopViewBoard's own activeRows already applies, in the same
+// compareShopProfileLibraryQueueOrder order every other queue surface uses.
+// ----------------------------------------------------------------------------
+
+export interface FieldShopQueueRow {
+  id: string;
+  orderNumber: string | null;
+  profileName: string;
+  customerName: string | null;
+  company: string | null;
+  jobName: string | null;
+  dueDate: string | null;
+  status: string;
+  queuePosition: number | null;
+  createdAt: string;
+}
+
+export async function getFieldShopQueue(supabase: SupabaseClient): Promise<FieldShopQueueRow[]> {
+  const { data, error } = await supabase
+    .from('shop_profile_library')
+    .select('id, order_number, profile_name, customer_name, company, job_name, due_date, status, queue_position, created_at')
+    .is('deleted_at', null)
+    .neq('status', 'complete')
+    .order('created_at', { ascending: false });
+  if (error || !data) return [];
+
+  const rows: FieldShopQueueRow[] = (
+    data as {
+      id: string;
+      order_number: string | null;
+      profile_name: string | null;
+      customer_name: string | null;
+      company: string | null;
+      job_name: string | null;
+      due_date: string | null;
+      status: string | null;
+      queue_position: number | null;
+      created_at: string;
+    }[]
+  ).map((r) => ({
+    id: r.id,
+    orderNumber: r.order_number,
+    profileName: r.profile_name ?? '—',
+    customerName: r.customer_name,
+    company: r.company,
+    jobName: r.job_name,
+    dueDate: r.due_date,
+    status: r.status ?? 'queued',
+    queuePosition: r.queue_position,
+    createdAt: r.created_at,
+  }));
+
+  return [...rows].sort(compareShopProfileLibraryQueueOrder);
+}
