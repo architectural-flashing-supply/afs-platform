@@ -24,6 +24,107 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## CONTRACTOR CAMERA-TO-QUOTE FLOW (afs-fl-002) — 2026-08-24
+
+Replaced the disabled placeholder at `app/field/contractor/page.tsx`
+(afs-fl-000) with the real flow: `components/field/
+ContractorCameraQuoteForm.tsx` (client component) renders a camera-capture
+`<input type="file" accept="image/*" capture="environment">` behind one big
+button, then optional Business Name / Job Name / Client Name / PO Number /
+Notes fields plus a Send button — two taps end to end (camera, then Send),
+no intermediate required screen. The photo starts uploading in the
+background the moment it's captured; if Send is tapped before that upload
+finishes, `handleSubmit` just awaits the same promise rather than requiring
+a third tap.
+
+**Read SCHEMA.md's TABLE 15 directly before mapping fields** (migrations
+018/019, both CONFIRMED APPLIED LIVE): Business Name -> `client_business_
+name`, Job Name -> `job_name`, Client Name -> `client_name`, PO Number ->
+`po_number`, Notes -> `notes`. `requested_by` (migration 018, retired dead
+by migration 019 per that migration's own note) is never written by the
+new insert route — confirmed by reading the route before considering this
+done. `line_items` (NOT NULL) is inserted as an explicit `[]` — a photo-
+only submission has no line items until an estimator adds them.
+
+**Two new API routes**, both gated inline (contractor + admin only, same
+`profiles.select('role')` check pattern `approve-quote-request/route.ts`
+already uses for admin-only routes — middleware.ts's matcher doesn't cover
+`/api/field/**`, so this inline check is the sole guard, consistent with
+how every other `/api/admin/*` route already works):
+- `app/api/field/photo-upload/route.ts` — signs a Storage upload URL
+  (mechanics copied from `app/api/upload/route.ts`) and inserts a
+  `takeoff_uploads` row with `status: 'pending'`.
+- `app/api/field/quote-request/route.ts` — verifies the `uploadId` belongs
+  to the calling user, flips its `takeoff_uploads.status` to `'uploaded'`,
+  then inserts the `quote_requests` row with `source_tool:
+  'field_photo_quote'` and `upload_id` set to that upload's id. Deliberately
+  a new dedicated route rather than reusing `app/api/quote-requests/
+  route.ts`, which hard-rejects zero-item submissions
+  (`rawItems.length === 0` check) — a photo-only request always has zero
+  items, and this route's job is exactly that case. No changes made to the
+  shared route or its other callers.
+
+**Photo storage decision (diverges from a literal "reuse takeoff_uploads +
+blueprints" reading, documented per the prompt's own instruction to do so
+if there's a real reason):** still uses the `takeoff_uploads` table and
+still populates `quote_requests.upload_id` (confirmed by grep: no other
+insert path in this codebase populates that column today — FlashDraft/
+Configurator/Quote Builder/Takeoff all copy items straight into
+`line_items` instead), so the existing FK relationship, RLS policies, and
+signed-upload-URL security model are all reused as-is. The one change: the
+file is signed into the **`documents`** Storage bucket (private, 100MB max,
+already live for the Project Document Vault — see `app/api/documents/
+upload/route.ts` — per SPEC_SUPABASE_INTEGRATION.md §2), not `blueprints`.
+Reason: `blueprints` + `takeoff_uploads` is purpose-built for the AI
+blueprint-extraction pipeline (`app/api/takeoff/route.ts`) — this flow
+never calls that route (no AI extraction, by design: "no FlashDraft, no
+drawing tool, no configurator"), so a field photo would leave
+`result_items`/`confirmed_items`/`overall_confidence`/`processing_notes`/
+`page_count` permanently null and its storage path would misleadingly read
+`blueprints/...` for a file that was never a blueprint. `takeoff_uploads.
+status` stays at `'pending'` until the quote-request route confirms the
+upload and flips it to `'uploaded'` — it never advances further for these
+rows (no `/api/takeoff` call), which is expected, not a stuck-processing
+bug.
+
+**Command Center reachability — verified by reading the code, not
+assumed, no changes needed:**
+- `lib/data/command-center-dashboard.ts` (`getRecentQuoteRequests`) and
+  `lib/data/pending-quote-requests.ts` (`getPendingQuoteRequests`) both
+  read `source_tool` as `r.source_tool ?? 'unknown'` with no CHECK
+  constraint and no switch/case — confirmed no exhaustiveness break from
+  adding a union member (grepped for `case 'afs-` and any switch on
+  sourceTool: none exist). `sourceToolLabel()` (`lib/data/quote-request-
+  source-tool.ts`) now recognizes `'field_photo_quote'` (added to both the
+  `SourceTool` union and the `SOURCE_TOOL_LABEL` record — the latter is
+  required, not optional, since it's typed `Record<SourceTool, string>`)
+  and renders it as "Field Photo" rather than falling back to "Unknown".
+- `app/api/admin/command-center/approve-quote-request/route.ts` (lines
+  404-406) returns a clean `400 { error: 'Quote request has no line
+  items.' }` when `qr.line_items` is empty — a `field_photo_quote` row
+  displays in the Pending Approval queue without erroring; an admin simply
+  can't approve it until line items are added (expected, out of scope
+  here).
+- Neither dashboard/queue query joins `takeoff_uploads`, so the attached
+  photo itself isn't yet visible in the Command Center UI — only the row
+  and its text fields are. Not asked for in this prompt.
+
+`pnpm tsc --noEmit`: 0 errors.
+
+Committed: "feat: contractor camera-to-quote flow at /field/contractor,
+two-tap submit into quote_requests (afs-fl-002)".
+
+**Status: IMPLEMENTED, UNCONFIRMED.** No browser/Playwright verification
+run this session — mobile camera capture (`capture="environment"`) can't
+be meaningfully exercised without a real phone. Pending Reid's own
+end-to-end check: open `/field/contractor` on a phone as a contractor
+account, tap the camera button, confirm the OS camera opens directly (not
+a file picker), take a photo, optionally fill a field, tap Send, and
+confirm a `quote_requests` row lands with the photo actually reachable via
+`takeoff_uploads.storage_key` in the `documents` bucket.
+
+---
+
 ## /field ROUTE ACCESS CONTROL (afs-fl-001) — 2026-08-24
 
 Read `profiles.role`'s real CHECK constraint directly (migrations

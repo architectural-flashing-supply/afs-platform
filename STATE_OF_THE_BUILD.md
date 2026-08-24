@@ -83,6 +83,93 @@ and not restart from scratch.**
 
 ---
 
+## CONTRACTOR CAMERA-TO-QUOTE FLOW (afs-fl-002): IMPLEMENTED, UNCONFIRMED — 2026-08-24
+
+Built out `app/field/contractor/page.tsx` (previously a disabled placeholder
+from afs-fl-000). Strictly camera photo -> optional job-identity fields ->
+Send, two taps end to end. No FlashDraft, no drawing tool, no configurator.
+
+**Field mapping** (`quote_requests`, per SCHEMA.md TABLE 15, migrations
+018/019 confirmed applied live):
+- Business Name -> `client_business_name`
+- Job Name -> `job_name`
+- Client Name -> `client_name`
+- PO Number -> `po_number`
+- Notes -> `notes`
+- `requested_by` is **not written** — confirmed dead per migration 019's
+  retirement note, left untouched.
+- `line_items` inserted as an explicit `[]` (NOT NULL column; a photo-only
+  submission has no line items yet — an estimator adds them after opening
+  the photo).
+- `source_tool = 'field_photo_quote'` — a new value added to
+  `lib/data/quote-request-source-tool.ts`'s `SourceTool` union (and its
+  `SOURCE_TOOL_LABEL` map, required since it's a `Record<SourceTool, ...>`).
+  Deliberately breaks the `'afs-*'` naming convention every other value
+  follows — kept exactly as specified rather than renamed, since
+  `source_tool` has no DB CHECK constraint (free TEXT) and nothing
+  downstream parses the prefix.
+
+**Photo storage — diverged from the literal "mirror takeoff_uploads"
+instruction, documenting why:** the photo is stored via a new
+`app/api/field/photo-upload/route.ts` (signed-upload-URL mechanics copied
+from `app/api/upload/route.ts`) that still inserts into `takeoff_uploads`
+and still links back via `quote_requests.upload_id` — so the existing FK
+relationship and RLS policies are reused, not replaced. The one deliberate
+divergence: the file is signed into the **`documents`** Storage bucket
+(SPEC_SUPABASE_INTEGRATION.md §2 — private, 100MB max, already live for the
+Project Document Vault), not `blueprints`. Reason: `blueprints` +
+`takeoff_uploads` is purpose-built for the AI blueprint-extraction pipeline
+— `/api/takeoff` is never called for a field photo (no AI extraction in
+this flow by design), so `result_items`/`confirmed_items`/
+`overall_confidence`/`processing_notes`/`page_count` would sit permanently
+null, and the storage path would read `blueprints/...` for a file that is
+not a blueprint. `takeoff_uploads.status` is set to `'pending'` at sign
+time (bytes not yet in Storage, same as the Blueprint Takeoff flow's own
+`'pending'` state added in migration 014) and flipped to `'uploaded'` by
+`app/api/field/quote-request/route.ts` once the client's signed PUT is
+confirmed — it never advances past `'uploaded'` for these rows, which is
+correct and expected, not a stuck/failed state.
+
+Also confirmed by grep before choosing this path: no existing insert path
+in this codebase populates `quote_requests.upload_id` today — the
+Blueprint Takeoff flow copies extracted items straight into `line_items`
+instead of linking via `upload_id`. This is the first real write to that
+column.
+
+**Dedicated insert route, not the shared one:** `app/api/field/quote-
+request/route.ts` is new, not a reuse of `app/api/quote-requests/route.ts`
+— that shared route hard-rejects any submission with zero line items
+(`rawItems.length === 0` -> 400), which a photo-only submission always is.
+No changes were made to the shared route or its other callers (FlashDraft,
+Configurator, Quote Builder, Blueprint Takeoff AI).
+
+**Command Center compatibility — confirmed by reading the code, no changes
+needed:**
+- `lib/data/command-center-dashboard.ts` and `lib/data/pending-quote-
+  requests.ts` both do `r.source_tool ?? 'unknown'` with no CHECK
+  constraint or switch/case on the value — an unrecognized string (pre-
+  this-change) or the newly recognized `'field_photo_quote'` both render
+  fine via `sourceToolLabel()`, which now returns "Field Photo" instead of
+  falling back to "Unknown" now that the value is in the union.
+- `app/api/admin/command-center/approve-quote-request/route.ts` reads
+  `line_items` and returns a graceful `400 { error: 'Quote request has no
+  line items.' }` when `items.length === 0` (lines 404-406) — an admin
+  cannot approve a `field_photo_quote` row until line items are added,
+  which is expected (out of scope for this prompt), not a crash.
+- Neither dashboard query joins `takeoff_uploads` for display, so the
+  attached photo does not yet appear in the Command Center list UI itself
+  — only the row and its optional fields do. Surfacing the photo in that
+  UI was not asked for in this prompt and is not built.
+
+`pnpm tsc --noEmit`: 0 errors.
+
+**Status: IMPLEMENTED, UNCONFIRMED** — pending Reid's own browser
+verification of a real end-to-end camera capture + Send on a phone. No
+Playwright/browser check was run in this session (mobile camera capture
+can't be meaningfully exercised outside a real device).
+
+---
+
 ## /field ROUTE ACCESS CONTROL — CONTRACTOR/ADMIN ROLE GUARD (afs-fl-001): DONE — 2026-08-24
 
 **profiles.role re-verified directly against the schema before any code was
