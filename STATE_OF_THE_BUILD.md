@@ -83,6 +83,39 @@ and not restart from scratch.**
 
 ---
 
+## MONDAY INTEGRATION HANDOFF DOC (afs-fl-005): DONE — 2026-08-24
+
+`AFS_FIELD_INTEGRATION_TODO.md` added at the project root. It is a
+documentation-only handoff for Reid, not application code — each item
+names the exact file/function where the relevant stub lives today, sourced
+by re-reading afs-fl-000 through afs-fl-004 directly:
+
+1. Resend key + sender domain — needed by `app/api/field/shop/[id]/
+   complete/route.ts`'s `POST` handler to flip `completion_events.
+   email_sent` from its default `false`.
+2. Delivery-scheduling logic for `completion_events.delivery_scheduled` —
+   explicitly flagged as an open question for Reid (what input should
+   drive it, where should it live), not decided here.
+3. Invoice amount source — confirmed queryable via `completion_events.
+   shop_profile_library_id` → `shop_profile_library.quote_request_id` →
+   `quote_requests.quote_id` → `quotes.total`; confirmed `shop_profile_
+   library.order_number` is NOT a usable join key (never populated by
+   `insertShopProfileLibraryRecord`'s only caller).
+4. Twilio SMS — optional, no existing stub found.
+5. Google Business Profile — afs-fl-004's delivery-photo button already
+   queues correctly into the existing `gbp_photo_queue` pipeline; the only
+   remaining work is real OAuth credentials / the `/admin/settings/
+   integrations` flow described in `lib/integrations/google-business.ts`'s
+   DEVIATION FLAGGED (d-007) comment, shared with the Employee PWA.
+
+Also documents migrations 020 (`completion_events`) and 021
+(`gbp_photo_queue.shop_profile_library_id`) as still pending manual
+Supabase Dashboard application, in that order, and notes neither needs
+elevated review — neither touches `profiles` or any table the existing
+production security model depends on.
+
+---
+
 ## DELIVERY PHOTO CAPTURE AT /field/shop (afs-fl-004): IMPLEMENTED, UNCONFIRMED — 2026-08-24
 
 Added a "Delivery Photo" button to each job card in `components/field/

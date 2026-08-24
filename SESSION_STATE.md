@@ -24,6 +24,36 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## MONDAY INTEGRATION HANDOFF DOC (afs-fl-005) — 2026-08-24
+
+Wrote `AFS_FIELD_INTEGRATION_TODO.md` at the project root — a handoff doc
+for Reid covering the five real integration gaps left after afs-fl-000
+through afs-fl-004 (contractor/shop field flows). Every item was sourced by
+re-reading the actual code, not reconstructed from memory: (1) Resend
+API key + sender domain needed before `app/api/field/shop/[id]/complete/
+route.ts`'s `POST` handler can flip `completion_events.email_sent` from its
+default `false`; (2) delivery-scheduling logic for `completion_events.
+delivery_scheduled` is flagged as a genuinely open question for Reid — what
+input should drive it and where that logic should live is not decided or
+guessed at; (3) confirmed an approved quote's dollar amount **is** queryable
+from this system, via `completion_events.shop_profile_library_id` →
+`shop_profile_library.quote_request_id` → `quote_requests.quote_id` →
+`quotes.total` — NOT via `shop_profile_library.order_number`, which is
+never populated on this insert path; (4) Twilio SMS noted as optional with
+no existing stub — nothing to point to yet; (5) Google Business Profile
+clarified as already fully wired end-to-end for afs-fl-004's delivery-photo
+button (reuses the exact same `gbp_photo_queue` pipeline the Employee PWA
+uses) — the only remaining GBP work is provisioning real OAuth
+credentials/building the `/admin/settings/integrations` flow, per
+`lib/integrations/google-business.ts`'s own DEVIATION FLAGGED (d-007)
+comment, shared with (not duplicated from) the Employee PWA's existing GBP
+posting. Also lists migrations 020 and 021 as still pending manual
+Dashboard application, in apply order, and notes neither needs elevated
+review — neither alters `profiles` or any table this codebase's security
+model depends on. No application code was touched in this prompt.
+
+---
+
 ## DELIVERY PHOTO CAPTURE AT /field/shop (afs-fl-004) — 2026-08-24
 
 Added a "Delivery Photo" button to `components/field/
