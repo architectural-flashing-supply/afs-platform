@@ -24,6 +24,101 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## SHOP-FLOOR JOB COMPLETION FLOW (afs-fl-003) — 2026-08-24
+
+Replaced the disabled placeholder at `app/field/shop/page.tsx` (afs-fl-000)
+with the real flow: a read-only job queue, each job with one large "Mark
+Complete" button, no other controls.
+
+**Read query — reused the existing style, not a new shape:** added
+`getFieldShopQueue()` to `lib/data/shop-profile-library.ts`, sitting next to
+`getShopProfileLibrary()`/`getShopProfileLibraryFull()` and following their
+exact pattern (comma-joined `.select()` string, typed raw-row intermediate,
+explicit `?? ` fallbacks in the map). Filters `deleted_at IS NULL` (same as
+every other reader of this table) and `status != 'complete'` (a completed
+job has no action left to take — same filter `ShopViewBoard.tsx`'s own
+`activeRows` already applies), then sorts client-side with the existing
+`compareShopProfileLibraryQueueOrder`, the same ordering Shop View and
+Profile Library both already use.
+
+**Status literal — grepped `components/admin/ShopViewBoard.tsx` directly
+before writing anything, not assumed:** the literal is `'complete'`, not
+`'completed'` (confirmed at lines 91, 122, 267, 305 — `SHOP_PROFILE_LIBRARY_
+STATUSES` in `lib/data/shop-profile-library.ts` is the actual source of
+truth: `['queued', 'in_progress', 'complete']`). The new completion route
+writes this exact literal.
+
+**New route — `app/api/field/shop/[id]/complete/route.ts` (POST):**
+gated inline (`profiles.select('role') === 'admin'`, same pattern every
+other `/api/field/**` and `/api/admin/**` route already uses — `middleware.
+ts` doesn't cover `/api/field/**`). Rejects an already-`'complete'` row with
+`409` (double-tap guard — this is a real button on a mobile screen). Then
+two writes, in this order, not a single Postgres transaction (the Supabase
+JS client doesn't expose multi-statement transactions across two `.from()`
+calls, so a literal transaction wasn't a clean fit — matches this route's
+own prompt-specified fallback):
+1. `shop_profile_library` `UPDATE status = 'complete', completed_at = now()`
+   — same combined status+completed_at write `app/api/admin/profile-
+   library/[id]/route.ts`'s PATCH handler already does for this exact
+   transition (afs-cv-004).
+2. `completion_events` `INSERT` (new table, migration 020 below) —
+   `shop_profile_library_id`, `order_number` (copied from the row), and the
+   same `completed_at` timestamp as write 1. `status`/`delivery_scheduled`/
+   `invoice_generated`/`email_sent` are left to their column defaults
+   (`'pending_integration'`/`false`/`false`/`false`).
+
+**Write-ordering failure mode, handled explicitly per the prompt's own
+instruction:** if write 2 fails after write 1 already succeeded, the route
+does **not** roll back write 1 (the shop-floor job really is done) and does
+**not** silently swallow the failure — it returns a `500` with `error:
+'Job was marked complete, but the completion record failed to save. Tell an
+admin — this must be fixed manually.'` plus the `completedAt` timestamp, and
+`console.error`s the raw Supabase error for follow-up. The client
+(`components/field/ShopJobCompletionList.tsx`) surfaces that exact message
+inline on the job card rather than showing the success text.
+
+**No external API calls anywhere in this prompt.** No Resend, no Twilio, no
+PathfinderEdge. The UI's post-completion text is the literal string the
+prompt specified, verbatim, not paraphrased: "Job marked complete. Delivery
+scheduling, invoice, and customer email will be sent automatically once
+integration is finalized." — shown per-job, replacing that job's button,
+once its own `POST` resolves `ok: true`.
+
+**No new RLS policy needed on `shop_profile_library`** — confirmed per
+afs-fl-001's own entry below: `admin_all_shop_profile_library` already
+covers read + update, since shop staff use the existing `'admin'` role.
+
+**New migration, FILE ONLY — `020_completion_events.sql`:** confirmed 019 is
+still the highest file on disk and is CONFIRMED APPLIED LIVE (see the
+afs-jf-004 entry below) before numbering this one 020, not assumed. Creates
+`completion_events` (`id`, `shop_profile_library_id` FK ->
+`shop_profile_library(id)`, `order_number`, `completed_at`, `status`
+DEFAULT `'pending_integration'`, `delivery_scheduled`/`invoice_generated`/
+`email_sent` all `BOOLEAN NOT NULL DEFAULT false`, `created_at`), RLS
+enabled, one policy — `"admin_all_completion_events"`, `FOR ALL USING
+(EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role =
+'admin'))` — matching the exact `<scope>_<verb>_<table>` naming and
+single-`FOR ALL`-policy shape `shop_profile_library`'s own
+`admin_all_shop_profile_library` already uses (migration 016). **Not applied
+live in this session** — pending manual Dashboard application, same
+convention already used for migrations 015–019.
+
+`pnpm tsc --noEmit`: 0 errors. `pnpm run build`: clean, `/field/shop` listed
+as a dynamic route, no collisions.
+
+Committed: "feat: shop staff job completion flow at /field/shop, real
+completion_events record, no fake success states (afs-fl-003)".
+
+**Status: IMPLEMENTED, UNCONFIRMED.** Pending Reid's own browser
+verification of a real Mark Complete tap on `/field/shop` as an admin
+account, plus a direct query confirming the `completion_events` row actually
+persisted (`shop_profile_library_id`, `order_number`, `completed_at` all
+populated; `status = 'pending_integration'`; all three booleans `false`) —
+**and** confirming migration 020 has actually been applied in the Dashboard
+first, since none of this is queryable live until that happens.
+
+---
+
 ## CONTRACTOR CAMERA-TO-QUOTE FLOW (afs-fl-002) — 2026-08-24
 
 Replaced the disabled placeholder at `app/field/contractor/page.tsx`

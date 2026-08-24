@@ -83,6 +83,89 @@ and not restart from scratch.**
 
 ---
 
+## SHOP-FLOOR JOB COMPLETION FLOW (afs-fl-003): IMPLEMENTED, UNCONFIRMED — 2026-08-24
+
+Built out `app/field/shop/page.tsx` (previously a disabled placeholder from
+afs-fl-000): a read-only job queue, one large "Mark Complete" button per
+job, nothing else.
+
+**Read query:** new `getFieldShopQueue()` in `lib/data/shop-profile-
+library.ts`, written in the same style as the file's existing
+`getShopProfileLibrary()`/`getShopProfileLibraryFull()` (same comma-joined
+`.select()` string, same typed-raw-row-then-map shape) rather than
+inventing a different query shape. Filters `deleted_at IS NULL` and
+`status != 'complete'` (a completed job has nothing left to do — matches
+`ShopViewBoard.tsx`'s own `activeRows` filter), sorted with the existing
+`compareShopProfileLibraryQueueOrder`.
+
+**Status literal confirmed by grep, not assumed:** `components/admin/
+ShopViewBoard.tsx` uses `'complete'` (lines 91, 122, 267, 305), matching
+`SHOP_PROFILE_LIBRARY_STATUSES` in `lib/data/shop-profile-library.ts`. The
+new completion route writes this exact string — not `'completed'`.
+
+**New route — `app/api/field/shop/[id]/complete/route.ts` (POST):** inline
+`role === 'admin'` gate (same pattern as every other `/api/field/**` and
+`/api/admin/**` route). Returns `409` if the job is already `'complete'`
+(double-tap guard on a mobile button). Two writes, sequential (not a single
+Postgres transaction — the Supabase JS client has no multi-statement
+transaction across two `.from()` calls, so a literal transaction wasn't a
+clean fit, per the prompt's own documented fallback):
+1. `shop_profile_library` update: `status = 'complete'`, `completed_at =
+   now()` — same combined write afs-cv-004's PATCH route already does for
+   this transition.
+2. `completion_events` insert (new table, migration 020): `shop_profile_
+   library_id`, `order_number`, `completed_at` (same timestamp as write 1).
+   `status`/`delivery_scheduled`/`invoice_generated`/`email_sent` all left
+   to column defaults.
+
+**Failure-mode handling, explicit per the prompt's ask:** if write 2 fails
+after write 1 already succeeded, the route does not roll back write 1 (the
+job really is done) and does not swallow the failure — it returns `500`
+with a distinct error string (`'Job was marked complete, but the completion
+record failed to save. Tell an admin — this must be fixed manually.'`) plus
+the `completedAt` timestamp, and logs the raw Supabase error. The client
+component surfaces that exact message on the job's card instead of the
+success text.
+
+**No external API calls.** No Resend, Twilio, or PathfinderEdge call
+anywhere in this prompt's code. Confirmation text is the prompt's exact
+literal, unparaphrased: "Job marked complete. Delivery scheduling, invoice,
+and customer email will be sent automatically once integration is
+finalized." — shown per job, in place of that job's button, once its
+`POST` returns `ok: true`.
+
+**No new RLS policy on `shop_profile_library`** — reconfirmed
+`admin_all_shop_profile_library` (migration 016) already covers read +
+update for the `'admin'` role afs-fl-001 established shop staff use;
+consistent with that entry's own conclusion below.
+
+**New migration, FILE ONLY — `020_completion_events.sql`.** Verified 019 is
+still the highest migration on disk and is CONFIRMED APPLIED LIVE (see the
+afs-jf-004 entry below) before numbering this 020, not assumed from a prior
+session's summary. New `completion_events` table: `id`, `shop_profile_
+library_id` (FK -> `shop_profile_library(id)`), `order_number`,
+`completed_at`, `status DEFAULT 'pending_integration'`,
+`delivery_scheduled`/`invoice_generated`/`email_sent` (`BOOLEAN NOT NULL
+DEFAULT false`), `created_at`. RLS enabled, one policy —
+`"admin_all_completion_events"`, `FOR ALL USING (EXISTS (SELECT 1 FROM
+profiles WHERE id = auth.uid() AND role = 'admin'))` — same
+`<scope>_<verb>_<table>` naming and single-`FOR ALL`-policy shape as
+`shop_profile_library`'s own `admin_all_shop_profile_library`. **Not applied
+to the live Supabase project in this session** — pending manual Dashboard
+application, same convention already used for migrations 015–019.
+
+`pnpm tsc --noEmit`: 0 errors. `pnpm run build`: clean, `/field/shop` listed
+as a dynamic route.
+
+**Status: IMPLEMENTED, UNCONFIRMED** — pending Reid's own browser
+verification of a real Mark Complete tap at `/field/shop` on an admin
+account, and a direct query confirming the `completion_events` row actually
+persisted with the expected columns/defaults. Both are blocked on migration
+020 actually being applied in the Dashboard first — nothing here is
+queryable live until then.
+
+---
+
 ## CONTRACTOR CAMERA-TO-QUOTE FLOW (afs-fl-002): IMPLEMENTED, UNCONFIRMED — 2026-08-24
 
 Built out `app/field/contractor/page.tsx` (previously a disabled placeholder
