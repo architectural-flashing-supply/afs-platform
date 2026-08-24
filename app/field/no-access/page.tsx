@@ -1,7 +1,8 @@
 /**
  * Landing spot for anyone requireFieldRole() (lib/field/auth.ts) and
- * middleware.ts both reject from /field/contractor or /field/shop —
- * signed-out visitors and every role except 'contractor'/'admin'.
+ * middleware.ts both reject from /field/shop — signed-out visitors and
+ * every role except 'admin'. /field/contractor has no gate (afs-fl-007)
+ * and never redirects here.
  */
 export default function FieldNoAccessPage() {
   return (

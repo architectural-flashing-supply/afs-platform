@@ -12,6 +12,11 @@ import { FIELD_PHOTO_ACCEPTED_EXTENSIONS, FIELD_PHOTO_MAX_SIZE_BYTES } from '@/l
 // decision). The row still lands in takeoff_uploads so it can be linked from
 // quote_requests.upload_id exactly like a real takeoff upload would be —
 // only the bucket differs.
+//
+// No auth required (afs-fl-007) — /field/contractor is an anonymous guest
+// flow per SPEC_PHOTO_TO_QUOTE_AI.md, same userId-or-null pattern as
+// app/api/upload/route.ts. takeoff_uploads.user_id is nullable with a
+// permissive RLS insert policy for exactly this case.
 export interface FieldPhotoSignResponse {
   uploadId: string;
   storageKey: string;
@@ -34,14 +39,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-    if (profile?.role !== 'contractor' && profile?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const userId = user?.id ?? null;
 
     const body = (await request.json().catch(() => null)) as FieldPhotoSignRequestBody | null;
     if (!body?.filename || typeof body.fileSize !== 'number') {
@@ -63,7 +61,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const uploadId = crypto.randomUUID();
     const sanitizedFilename = sanitizeFilename(body.filename);
-    const storageKey = `documents/field-photos/${user.id}/${uploadId}/${sanitizedFilename}`;
+    const storageKey = `documents/field-photos/${userId ?? 'guest'}/${uploadId}/${sanitizedFilename}`;
 
     const admin = createAdminClient();
 
@@ -80,7 +78,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       .from('takeoff_uploads')
       .insert({
         id: uploadId,
-        user_id: user.id,
+        user_id: userId,
         storage_key: storageKey,
         file_name: body.filename,
         file_type: ext,

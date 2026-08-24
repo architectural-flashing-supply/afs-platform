@@ -24,6 +24,52 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## /field/contractor ROLE-GATE REMOVAL — ANONYMOUS GUEST ACCESS (afs-fl-007) — 2026-08-24
+
+Fixed a spec mismatch, not a regression: afs-fl-001 gated `/field/contractor`
+behind `role IN ('contractor','admin')` — a pre-assigned AFS account.
+`SPEC_PHOTO_TO_QUOTE_AI.md` specifies this flow for anonymous field
+contractors/superintendents with **no AFS account**, the same guest-access
+pattern already live on `/upload`. Removed the gate from
+`middleware.ts` (dropped `isFieldContractorRoute`, only `/field/shop` is
+still checked), `app/field/contractor/page.tsx` (no longer calls
+`requireFieldRole`), `app/api/field/photo-upload/route.ts`, and
+`app/api/field/quote-request/route.ts` (both now `userId = user?.id ?? null`
+matching `app/api/upload/route.ts`'s / `app/api/quote-requests/route.ts`'s
+existing guest pattern exactly — `guestEmail` + `EMAIL_PATTERN` required only
+when signed out, `user_id`/`guest_email` written accordingly).
+`ContractorCameraQuoteForm.tsx` got the same `isAuthenticated` +
+`showEmailCapture` two-step submit `app/upload/page.tsx` already uses.
+`/field/shop`'s admin-only gate and `lib/field/auth.ts`'s `requireFieldRole`
+itself are unchanged (still used, unmodified, by `/field/shop`) — only their
+comments were updated to stop describing `/field/contractor` as gated.
+
+Did NOT touch `/field/page.tsx` — it does not exist in this codebase (no
+`app/field/page.tsx` file), so there was no root-redirect logic to preserve
+or accidentally change.
+
+**Verified this pass:** `pnpm tsc --noEmit` 0 errors, `pnpm build` clean
+(`/field/contractor` now builds static). Against a real running `pnpm dev`
+instance with zero cookies sent (curl, simulating incognito): `GET
+/field/contractor` → `200` with the camera-capture UI in the initial HTML,
+no redirect anywhere. `POST /api/field/quote-request` with no auth/no email
+→ `400`; with no auth + a valid `guestEmail` → `200`, and the resulting
+`quote_requests` row was read back directly from the live Supabase project
+(`user_id: null`, `guest_email` set, `source_tool: 'field_photo_quote'`,
+`status: 'submitted'`) confirming it matches exactly what
+`lib/data/pending-quote-requests.ts`'s Command Center query selects, then
+deleted (test data). Full photo-attach path (upload -> Storage ->
+`quote_requests.upload_id`) could NOT be end-to-end verified: the live
+project's Storage has only a `blueprints` bucket, and `documents` (which
+`/api/field/photo-upload` targets) does not exist there —
+`StorageApiError: The related resource does not exist`, a pre-existing gap
+independent of this fix (would 500 for a legitimate authenticated
+contractor too, since that upload code path is unchanged). Flagged to Reid
+in STATE_OF_THE_BUILD.md rather than fixed here — creating a bucket in the
+live project is out of scope for a role-gate bug fix.
+
+---
+
 ## MONDAY INTEGRATION HANDOFF DOC (afs-fl-005) — 2026-08-24
 
 Wrote `AFS_FIELD_INTEGRATION_TODO.md` at the project root — a handoff doc

@@ -9,6 +9,13 @@ import { createAdminClient } from '@/lib/supabase/admin';
 // capture-and-send with no configurator/drawing-tool item entry, so
 // quote_requests.line_items is inserted as an explicit `[]` (the column is
 // NOT NULL). An AFS estimator adds real line items once they open the photo.
+//
+// No auth required (afs-fl-007) — /field/contractor is an anonymous guest
+// flow per SPEC_PHOTO_TO_QUOTE_AI.md, same guestEmail pattern as
+// app/api/quote-requests/route.ts: a signed-in user's request is tied to
+// their account, a signed-out visitor must supply a valid email instead.
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 interface FieldQuoteRequestBody {
   uploadId?: string | null;
   clientBusinessName?: string | null;
@@ -16,6 +23,7 @@ interface FieldQuoteRequestBody {
   clientName?: string | null;
   poNumber?: string | null;
   notes?: string | null;
+  guestEmail?: string;
 }
 
 interface FieldQuoteRequestResponse {
@@ -51,14 +59,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-    if (profile?.role !== 'contractor' && profile?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const userId = user?.id ?? null;
 
     const raw: unknown = await request.json().catch(() => null);
     if (!raw || typeof raw !== 'object') {
@@ -66,18 +67,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
     const body = raw as FieldQuoteRequestBody;
 
+    const guestEmail = typeof body.guestEmail === 'string' ? body.guestEmail.trim() : '';
+    if (!userId && !EMAIL_PATTERN.test(guestEmail)) {
+      return NextResponse.json(
+        { error: 'Sign in or provide a valid email to submit a quote request.' },
+        { status: 400 }
+      );
+    }
+
     const admin = createAdminClient();
     let uploadId: string | null = null;
 
     if (typeof body.uploadId === 'string' && body.uploadId) {
-      // Only accept an uploadId this user actually created — prevents
-      // attaching someone else's takeoff_uploads row by guessing a UUID.
-      const { data: upload } = await admin
-        .from('takeoff_uploads')
-        .select('id')
-        .eq('id', body.uploadId)
-        .eq('user_id', user.id)
-        .maybeSingle();
+      // Only accept an uploadId this user (or, for a guest, this same
+      // guest-owned row) actually created — prevents attaching someone
+      // else's takeoff_uploads row by guessing a UUID.
+      const ownershipQuery = admin.from('takeoff_uploads').select('id').eq('id', body.uploadId);
+      const { data: upload } = await (userId ? ownershipQuery.eq('user_id', userId) : ownershipQuery.is('user_id', null)).maybeSingle();
 
       if (!upload) {
         return NextResponse.json({ error: 'Photo upload not found.' }, { status: 400 });
@@ -101,8 +107,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const { error: insertError } = await admin.from('quote_requests').insert({
       id: requestId,
       request_number: requestNumber,
-      user_id: user.id,
-      guest_email: null,
+      user_id: userId,
+      guest_email: userId ? null : guestEmail,
       project_id: null,
       line_items: [],
       jobsite_address: null,

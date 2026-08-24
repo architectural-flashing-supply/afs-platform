@@ -52,6 +52,8 @@ async function uploadPhoto(file: File, onError: (message: string) => void): Prom
   }
 }
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export default function ContractorCameraQuoteForm() {
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
@@ -68,8 +70,20 @@ export default function ContractorCameraQuoteForm() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [requestNumber, setRequestNumber] = useState<string | null>(null);
 
+  // Guest-access flow (afs-fl-007) — /field/contractor has no login gate, so
+  // a submitter without a Supabase session must supply an email instead.
+  // Same isAuthenticated + showEmailCapture pattern as app/upload/page.tsx.
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [showEmailCapture, setShowEmailCapture] = useState(false);
+  const [guestEmail, setGuestEmail] = useState('');
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadPromiseRef = useRef<Promise<string | null> | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => setIsAuthenticated(!!data.user));
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -109,8 +123,7 @@ export default function ContractorCameraQuoteForm() {
     e.target.value = '';
   };
 
-  const handleSubmit = async () => {
-    if (!photo) return;
+  const submitQuoteRequest = async (email?: string) => {
     setSubmitError(null);
     setSubmitState('submitting');
 
@@ -132,6 +145,7 @@ export default function ContractorCameraQuoteForm() {
           clientName: clientName.trim() || null,
           poNumber: poNumber.trim() || null,
           notes: notes.trim() || null,
+          guestEmail: email,
         }),
       });
       const data = (await res.json().catch(() => null)) as { requestNumber: string } | ApiErrorResponse | null;
@@ -140,12 +154,32 @@ export default function ContractorCameraQuoteForm() {
         setSubmitState('failed');
         return;
       }
+      setShowEmailCapture(false);
       setRequestNumber(data.requestNumber);
       setSubmitState('submitted');
     } catch {
       setSubmitError('Submission failed. Please try again.');
       setSubmitState('failed');
     }
+  };
+
+  const handleSubmit = () => {
+    if (!photo) return;
+    if (isAuthenticated) {
+      submitQuoteRequest();
+    } else {
+      setSubmitError(null);
+      setShowEmailCapture(true);
+    }
+  };
+
+  const handleGuestSubmit = () => {
+    const trimmed = guestEmail.trim();
+    if (!EMAIL_PATTERN.test(trimmed)) {
+      setSubmitError('Enter a valid email address.');
+      return;
+    }
+    submitQuoteRequest(trimmed);
   };
 
   const resetToIdle = () => {
@@ -163,6 +197,8 @@ export default function ContractorCameraQuoteForm() {
     setSubmitState('idle');
     setSubmitError(null);
     setRequestNumber(null);
+    setShowEmailCapture(false);
+    setGuestEmail('');
   };
 
   if (submitState === 'submitted') {
@@ -272,15 +308,48 @@ export default function ContractorCameraQuoteForm() {
             />
           </div>
 
+          {showEmailCapture && (
+            <div className="flex flex-col gap-3 rounded-lg border border-afs-border bg-afs-bg-overlay p-4">
+              <p className="font-body text-sm text-afs-chrome-high">
+                Enter your email so AFS can send your quote confirmation.
+              </p>
+              <Input
+                type="email"
+                placeholder="you@company.com"
+                value={guestEmail}
+                onChange={(e) => setGuestEmail(e.target.value)}
+              />
+              <div className="flex gap-3">
+                <Button
+                  className="flex-1"
+                  onClick={handleGuestSubmit}
+                  disabled={submitState === 'submitting'}
+                >
+                  {submitState === 'submitting' ? 'Sending…' : 'Submit'}
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => setShowEmailCapture(false)}
+                  disabled={submitState === 'submitting'}
+                  className="font-label text-sm uppercase tracking-wide text-afs-chrome-mid underline"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
           {submitError && <p className="font-body text-sm text-afs-crimson">{submitError}</p>}
 
-          <Button
-            className="w-full py-4 text-lg"
-            onClick={handleSubmit}
-            disabled={submitState === 'submitting' || uploadState === 'failed'}
-          >
-            {submitState === 'submitting' ? 'Sending…' : 'Send'}
-          </Button>
+          {!showEmailCapture && (
+            <Button
+              className="w-full py-4 text-lg"
+              onClick={handleSubmit}
+              disabled={submitState === 'submitting' || uploadState === 'failed'}
+            >
+              {submitState === 'submitting' ? 'Sending…' : 'Send'}
+            </Button>
+          )}
         </div>
       )}
     </main>

@@ -83,6 +83,83 @@ and not restart from scratch.**
 
 ---
 
+## /field/contractor ROLE-GATE REMOVAL — ANONYMOUS GUEST ACCESS (afs-fl-007): DONE — 2026-08-24
+
+**Bug, not a regression:** afs-fl-001 (see the entry below) gated
+`/field/contractor` behind `role IN ('contractor','admin')`, requiring a
+pre-assigned AFS account. That contradicts `SPEC_PHOTO_TO_QUOTE_AI.md`,
+which specifies this flow for anonymous field contractors/superintendents
+with **no AFS account** — the same guest-access pattern already built for
+`/upload` (`app/upload/page.tsx`'s `isAuthenticated`/`showEmailCapture`
+flow, `app/api/quote-requests/route.ts`'s `guestEmail` handling). This
+entry removes that gate; `/field/shop` (admin-only) and `/field/page.tsx`'s
+role redirect are unchanged.
+
+Changed:
+- `middleware.ts` — dropped `isFieldContractorRoute` entirely; the
+  `!user` and authenticated role-check branches now only gate
+  `/field/shop`. `/field/contractor` is no longer in the matcher logic at
+  all — no redirect to `/login` or `/field/no-access` for any visitor.
+- `app/field/contractor/page.tsx` — no longer calls `requireFieldRole`;
+  now a plain (non-async) page that renders `ContractorCameraQuoteForm`
+  directly. No Supabase session read on the server at all.
+- `app/api/field/photo-upload/route.ts` — dropped the `401`/`403` auth
+  checks. Follows `app/api/upload/route.ts`'s exact pattern:
+  `userId = user?.id ?? null`, storage key falls back to `'guest'` when
+  signed out, `takeoff_uploads.user_id` inserted as `null` for a guest
+  (column is nullable, RLS already allows `user_id IS NULL` inserts —
+  same table the Blueprint Takeoff guest flow already uses this way).
+- `app/api/field/quote-request/route.ts` — dropped the `401`/`403` auth
+  checks. Added the same `guestEmail`/`EMAIL_PATTERN` requirement as
+  `app/api/quote-requests/route.ts`: a signed-in submission is tied to
+  `user_id`; a signed-out submission requires a valid email, written to
+  `quote_requests.guest_email` (`user_id` inserted as `null`). The
+  `uploadId` ownership check now branches on `userId` present (`.eq
+  ('user_id', userId)`) vs. guest (`.is('user_id', null)`).
+- `components/field/ContractorCameraQuoteForm.tsx` — added the same
+  `isAuthenticated` + `showEmailCapture`/`guestEmail` two-step submit as
+  `app/upload/page.tsx`: signed-in submits immediately, signed-out is
+  prompted for an email (validated client-side) before the existing
+  `/api/field/quote-request` call, now sent with `guestEmail`.
+- `lib/field/auth.ts` and `app/field/no-access/page.tsx` — comments
+  updated to state `/field/contractor` no longer calls
+  `requireFieldRole`/never redirects here; no behavior change to either
+  file (`requireFieldRole` is still used, unchanged, by `/field/shop`).
+
+**Verified this pass:**
+- `pnpm tsc --noEmit` — 0 errors.
+- `pnpm build` — clean; `/field/contractor` now builds as a static (`○`)
+  route (no more per-request server auth check).
+- Real anonymous request against a running `pnpm dev` instance, no
+  cookies sent (curl, simulating a logged-out/incognito browser):
+  `GET /field/contractor` → `200`, camera-capture UI in the initial HTML,
+  no redirect to `/login` or `/field/no-access`.
+- `POST /api/field/quote-request` with no auth and no `guestEmail` → `400`
+  ("Sign in or provide a valid email..."). With no auth and a valid
+  `guestEmail` → `200`, real `quote_requests` row inserted
+  (`user_id: null`, `guest_email` set, `source_tool: 'field_photo_quote'`,
+  `status: 'submitted'`), confirmed via a direct read against the live
+  Supabase project, then deleted (test data, not left in the table).
+  Confirmed this row shape matches exactly what
+  `lib/data/pending-quote-requests.ts`'s Command Center query selects
+  (`status = 'submitted'`, `user_id`/`guest_email`/`source_tool` columns)
+  — no additional filtering excludes a guest/field-sourced row.
+
+**Known gap found during this verification, NOT fixed here (out of
+scope for a role-gate bug fix) — flagged for Reid:** the live Supabase
+project's Storage only has a `blueprints` bucket; `documents` (which
+`/api/field/photo-upload` and `/api/documents/*` target) does not exist.
+`POST /api/field/photo-upload` 500s with `StorageApiError: The related
+resource does not exist` regardless of auth — this would have blocked a
+legitimate authenticated contractor before this fix too, since the
+upload code path is unchanged. The photo-attach half of afs-fl-002/004's
+flow cannot be end-to-end verified (photo upload -> Storage -> linked
+`quote_requests.upload_id`) until a `documents` bucket is created in
+that project. The quote-request creation itself (identity fields, notes,
+guest email) was verified independent of this, per the item above.
+
+---
+
 ## MONDAY INTEGRATION HANDOFF DOC (afs-fl-005): DONE — 2026-08-24
 
 `AFS_FIELD_INTEGRATION_TODO.md` added at the project root. It is a

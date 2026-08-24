@@ -49,16 +49,17 @@ export async function middleware(request: NextRequest) {
   const isAccountRoute = pathname.startsWith('/account');
   const isCheckoutRoute = pathname.startsWith('/checkout');
   const isAdminRoute = pathname.startsWith('/admin');
-  const isFieldContractorRoute = pathname.startsWith('/field/contractor');
   const isFieldShopRoute = pathname.startsWith('/field/shop');
   const isAuthEntryRoute = pathname === '/login' || pathname === '/register';
 
-  // Unauthenticated users cannot reach protected routes. /field/contractor
-  // and /field/shop send unauthorized visitors to /field/no-access rather
-  // than /login — per SPEC, signed-out is just one more "not contractor,
-  // not admin" case, not a login prompt.
+  // Unauthenticated users cannot reach protected routes. /field/shop sends
+  // unauthorized visitors to /field/no-access rather than /login — per
+  // SPEC, signed-out is just one more "not admin" case, not a login prompt.
+  // /field/contractor is deliberately NOT gated here — SPEC_PHOTO_TO_QUOTE_AI.md
+  // specifies it for anonymous field contractors/superintendents with no AFS
+  // account (afs-fl-007), the same guest-access pattern as /upload.
   if (!user) {
-    if (isFieldContractorRoute || isFieldShopRoute) {
+    if (isFieldShopRoute) {
       const url = request.nextUrl.clone();
       url.pathname = '/field/no-access';
       url.search = '';
@@ -86,9 +87,9 @@ export async function middleware(request: NextRequest) {
     return supabaseResponse;
   }
 
-  if (isFieldContractorRoute || isFieldShopRoute) {
+  if (isFieldShopRoute) {
     const role = await getUserRole(user.id);
-    const allowed = isFieldShopRoute ? role === 'admin' : role === 'contractor' || role === 'admin';
+    const allowed = role === 'admin';
     if (!allowed) {
       const url = request.nextUrl.clone();
       url.pathname = '/field/no-access';

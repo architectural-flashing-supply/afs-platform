@@ -9,13 +9,17 @@ export interface FieldUser {
 }
 
 /**
- * middleware.ts already blocks unauthorized roles from /field/contractor
- * and /field/shop, but middleware can be bypassed by misconfiguration or
- * future route changes — every /field page calls this too, matching
- * lib/admin/auth.ts's requireAdminUser() precedent, so the role check
- * never depends on a single layer. Anyone not in `allowedRoles` (including
- * signed-out visitors, and the existing 'architect'/'customer'/'operator'
- * roles) lands on /field/no-access rather than the field routes themselves.
+ * middleware.ts already blocks unauthorized roles from /field/shop, but
+ * middleware can be bypassed by misconfiguration or future route changes —
+ * /field/shop's page also calls this, matching lib/admin/auth.ts's
+ * requireAdminUser() precedent, so the role check never depends on a single
+ * layer. Anyone not in `allowedRoles` (including signed-out visitors, and
+ * the existing 'architect'/'customer'/'operator' roles) lands on
+ * /field/no-access rather than the field route itself.
+ *
+ * /field/contractor does NOT call this (afs-fl-007) — SPEC_PHOTO_TO_QUOTE_AI.md
+ * specifies that flow for anonymous field contractors/superintendents with
+ * no AFS account, the same guest-access pattern as /upload.
  */
 export async function requireFieldRole(
   supabase: SupabaseClient,
