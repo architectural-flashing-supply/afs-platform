@@ -83,6 +83,40 @@ and not restart from scratch.**
 
 ---
 
+## NEW BUILD PHASE — /field MOBILE ROUTES SCAFFOLDED (afs-fl-000): DONE — 2026-08-24
+
+Scaffold-only prompt, first of a new phase: mobile-first field routes for
+contractor camera-to-quote (afs-fl-002, not yet built) and shop-floor job
+completion (afs-fl-003, not yet built), inside this same `afs-website`
+repo — **not** a separate app, deploy, or git history. No governance
+document currently lists this phase (BLUEPRINT.md/SITEMAP.md predate it);
+a future session updating those should add `/field/contractor` and
+`/field/shop` alongside the existing `/employee` PWA entry.
+
+Added:
+- `app/field/layout.tsx` — bare mobile shell (afs-bg-dim background,
+  max-w-md centered column, mobile viewport meta). No auth gate yet —
+  intentionally deferred to afs-fl-002/003, which will define who is
+  allowed to hit each sub-route (contractor vs. shop/operator roles are
+  not the same gate).
+- `app/field/contractor/page.tsx` — placeholder shell only.
+- `app/field/shop/page.tsx` — placeholder shell only.
+- `components/layout/AppChrome.tsx` — added `/field` to `PORTAL_PREFIXES`
+  so the public NavBar/Footer/ChatWidget do not render on top of the new
+  bare shell. This is the same step ARCHITECTURE.md's AppChrome section
+  says was missed for `/admin` in afs-036 (the double-nav bug) — confirmed
+  directly by reading the file before editing, not assumed from the doc.
+
+Verified directly this pass, not from memory:
+- `app/field` did not exist before this prompt (`test -d app/field`
+  checked first).
+- `pnpm tsc --noEmit` — 0 errors.
+- `pnpm run build` — clean; build output lists `/field/contractor` and
+  `/field/shop` as static routes with no path collision against any
+  existing route.
+
+---
+
 ## PATHFINDEREDGE TITLE GENERATOR REWRITE — MATERIALS SHORTHAND, JOB NAME-FIRST FALLBACK PRIORITY (afs-jf-006): IMPLEMENTED, UNCONFIRMED — 2026-08-23
 
 **Status: `pnpm tsc --noEmit` returns 0 errors, run directly this session.

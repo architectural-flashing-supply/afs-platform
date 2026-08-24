@@ -12,8 +12,11 @@ const NO_CHROME_PREFIXES = ['/login', '/register', '/forgot-password', '/reset-p
 // and must show no public nav at all — not the NavBar, not the Footer, not
 // the marketing ChatWidget. The Employee PWA (/employee) is the same case:
 // it renders its own bottom nav (EmployeeBottomNav) and is a distinct
-// installable app, not a page within the main site.
-const PORTAL_PREFIXES = ['/admin', '/account', '/employee'];
+// installable app, not a page within the main site. /field is the same
+// case again: app/field/layout.tsx renders its own bare mobile shell —
+// forgetting to list a new portal prefix here is exactly what caused the
+// double-nav bug fixed in afs-036.
+const PORTAL_PREFIXES = ['/admin', '/account', '/employee', '/field'];
 
 export default function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

@@ -24,6 +24,42 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## /field MOBILE ROUTES SCAFFOLDED (afs-fl-000) — 2026-08-24
+
+New build phase, opened by this prompt: mobile-first `/field/**` routes
+inside this same repo (confirmed via `git status`/`git log` at session
+start — same clean working tree, same `main` branch, no separate repo or
+deploy involved) for two flows to be built in later, separately-numbered
+prompts:
+- `afs-fl-002` — contractor camera-to-quote (`/field/contractor`)
+- `afs-fl-003` — shop-floor job completion (`/field/shop`)
+
+This prompt (afs-fl-000) is scaffold only — both pages are disabled-button
+placeholders, no data wiring, no auth gate. Confirmed `app/field` did not
+already exist before creating anything (`test -d app/field`), reused
+`lib/supabase/{client,server,admin}.ts` (no new client files — none of the
+placeholder pages call Supabase yet, but the layout was built to sit
+alongside the existing pattern, not a parallel one), and the existing
+`afs-*` Tailwind tokens from `tailwind.config.js` (no new tokens, no
+second Tailwind config).
+
+One deliberate addition beyond the three files named in the prompt:
+`components/layout/AppChrome.tsx`'s `PORTAL_PREFIXES` now includes
+`/field`. Read the file before editing — without this, the public
+NavBar/Footer/ChatWidget would render on top of `app/field/layout.tsx`'s
+own bare shell, the exact double-nav bug ARCHITECTURE.md documents as
+afs-036. `/employee` already established this same pattern for its own
+PWA shell, so `/field` follows it rather than inventing a new mechanism.
+
+Gates run directly this session: `pnpm tsc --noEmit` (0 errors), `pnpm
+run build` (clean — `/field/contractor` and `/field/shop` both listed as
+new static routes, no collision with any existing route). Not yet done:
+Playwright coverage (no interactive behavior to test yet — both pages are
+static placeholders) and any user-facing browser check, since there is
+nothing behaviorally meaningful to confirm until afs-fl-002/003 land.
+
+---
+
 ## PATHFINDEREDGE TITLE GENERATOR REWRITE (afs-jf-006) — 2026-08-23
 
 Read both real title-generation call sites in full before changing
