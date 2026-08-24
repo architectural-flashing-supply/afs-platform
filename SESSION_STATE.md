@@ -52,6 +52,14 @@ Dashboard application, in apply order, and notes neither needs elevated
 review — neither alters `profiles` or any table this codebase's security
 model depends on. No application code was touched in this prompt.
 
+**UPDATE 2026-08-24: migrations 020 and 021 are now CONFIRMED APPLIED
+LIVE** — independently verified via a direct `information_schema` query,
+two `true` results, covering `completion_events` (020) and
+`gbp_photo_queue.shop_profile_library_id` (021). See the updated afs-fl-004
+and afs-fl-003 entries below for the full detail. No session has had a
+working Supabase MCP connection to this project's actual instance to run
+that check itself.
+
 ---
 
 ## DELIVERY PHOTO CAPTURE AT /field/shop (afs-fl-004) — 2026-08-24
@@ -86,8 +94,11 @@ happen regardless of what this prompt builds.
 `gbp_photo_queue`. Instead extended it with exactly one new nullable
 column so a field-captured photo can be tied back to the job it belongs to.
 
-**New migration, FILE ONLY — `021_gbp_photo_queue_shop_job_link.sql`:**
-confirmed `020_completion_events.sql` (afs-fl-003) is the highest-numbered
+**New migration — `021_gbp_photo_queue_shop_job_link.sql`. CONFIRMED
+APPLIED LIVE 2026-08-24**, independently verified via a direct
+`information_schema` query (`true`, alongside migration 020's own `true` —
+see the afs-fl-005 UPDATE note above). Originally FILE ONLY: confirmed
+`020_completion_events.sql` (afs-fl-003) is the highest-numbered
 migration file on disk before numbering this one `021` — not assumed from
 the prompt's "likely 020... verify, don't assume" framing. Adds:
 ```sql
@@ -101,9 +112,8 @@ queue`'s existing operator/admin INSERT-own-row (`queued_by = auth.uid()`)
 and SELECT/UPDATE-all-rows policies (007_delivery_tracking.sql) already
 cover this new insert path, since `/field/shop` shop staff use the
 existing `'admin'` role — same precedent afs-fl-001 already established
-for `shop_profile_library` itself, no new role introduced. **Not applied
-to the live Supabase project in this session** — pending manual Dashboard
-application, same convention already used for migrations 015–020.
+for `shop_profile_library` itself, no new role introduced. **CONFIRMED
+APPLIED LIVE 2026-08-24** — see the UPDATE note above.
 
 **New component — `components/field/DeliveryPhotoCapture.tsx`:** hidden
 file input, `accept="image/*"` + `capture="environment"` — same camera-
@@ -145,13 +155,12 @@ Committed: "feat: delivery photo capture on /field/shop reuses existing
 gbp_photo_queue pipeline via new nullable shop_profile_library_id column
 (afs-fl-004)".
 
-**Status: IMPLEMENTED, UNCONFIRMED.** Pending Reid's own browser
-verification of a real photo capture at `/field/shop` (as an admin/shop-
-staff account) landing as a new row in the SAME `/employee/photos` review
-queue used by Employee PWA photos today, with `shop_profile_library_id`
-populated to the correct job — **and** confirming migration 021 has
-actually been applied in the Dashboard first, since none of this is
-queryable live until that happens.
+**Status: IMPLEMENTED, UNCONFIRMED.** Migration 021 is now CONFIRMED
+APPLIED LIVE (see above), so this feature's data path is queryable live.
+Still pending Reid's own browser verification of a real photo capture at
+`/field/shop` (as an admin/shop-staff account) landing as a new row in the
+SAME `/employee/photos` review queue used by Employee PWA photos today,
+with `shop_profile_library_id` populated to the correct job.
 
 ---
 
@@ -219,7 +228,10 @@ once its own `POST` resolves `ok: true`.
 afs-fl-001's own entry below: `admin_all_shop_profile_library` already
 covers read + update, since shop staff use the existing `'admin'` role.
 
-**New migration, FILE ONLY — `020_completion_events.sql`:** confirmed 019 is
+**New migration — `020_completion_events.sql`. CONFIRMED APPLIED LIVE
+2026-08-24**, independently verified via a direct `information_schema`
+query (`true`, alongside migration 021's own `true` — see the afs-fl-005
+UPDATE note above). Originally FILE ONLY: confirmed 019 is
 still the highest file on disk and is CONFIRMED APPLIED LIVE (see the
 afs-jf-004 entry below) before numbering this one 020, not assumed. Creates
 `completion_events` (`id`, `shop_profile_library_id` FK ->
@@ -230,9 +242,8 @@ enabled, one policy — `"admin_all_completion_events"`, `FOR ALL USING
 (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role =
 'admin'))` — matching the exact `<scope>_<verb>_<table>` naming and
 single-`FOR ALL`-policy shape `shop_profile_library`'s own
-`admin_all_shop_profile_library` already uses (migration 016). **Not applied
-live in this session** — pending manual Dashboard application, same
-convention already used for migrations 015–019.
+`admin_all_shop_profile_library` already uses (migration 016). **CONFIRMED
+APPLIED LIVE 2026-08-24** — see the UPDATE note above.
 
 `pnpm tsc --noEmit`: 0 errors. `pnpm run build`: clean, `/field/shop` listed
 as a dynamic route, no collisions.
@@ -240,13 +251,13 @@ as a dynamic route, no collisions.
 Committed: "feat: shop staff job completion flow at /field/shop, real
 completion_events record, no fake success states (afs-fl-003)".
 
-**Status: IMPLEMENTED, UNCONFIRMED.** Pending Reid's own browser
-verification of a real Mark Complete tap on `/field/shop` as an admin
-account, plus a direct query confirming the `completion_events` row actually
-persisted (`shop_profile_library_id`, `order_number`, `completed_at` all
-populated; `status = 'pending_integration'`; all three booleans `false`) —
-**and** confirming migration 020 has actually been applied in the Dashboard
-first, since none of this is queryable live until that happens.
+**Status: IMPLEMENTED, UNCONFIRMED.** Migration 020 is now CONFIRMED
+APPLIED LIVE (see above), so this feature's data path is queryable live.
+Still pending Reid's own browser verification of a real Mark Complete tap
+on `/field/shop` as an admin account, plus a direct query confirming the
+`completion_events` row actually persisted (`shop_profile_library_id`,
+`order_number`, `completed_at` all populated; `status =
+'pending_integration'`; all three booleans `false`).
 
 ---
 

@@ -114,6 +114,14 @@ Supabase Dashboard application, in that order, and notes neither needs
 elevated review — neither touches `profiles` or any table the existing
 production security model depends on.
 
+**UPDATE 2026-08-24: migrations 020 and 021 are now CONFIRMED APPLIED
+LIVE** — independently verified via a direct `information_schema` query,
+two `true` results, covering `completion_events` (020) and
+`gbp_photo_queue.shop_profile_library_id` (021). See the updated afs-fl-004
+and afs-fl-003 entries below for the full detail. No session has had a
+working Supabase MCP connection to this project's actual instance to run
+that check itself.
+
 ---
 
 ## DELIVERY PHOTO CAPTURE AT /field/shop (afs-fl-004): IMPLEMENTED, UNCONFIRMED — 2026-08-24
@@ -170,8 +178,11 @@ added to the Google Business Profile review queue. Will post once reviewed
 and API access is approved." — shown per job, replacing the Delivery Photo
 button, once the queue insert resolves successfully.
 
-**New migration, FILE ONLY — `021_gbp_photo_queue_shop_job_link.sql`.**
-Verified 020 is the highest migration number on disk before numbering this
+**New migration — `021_gbp_photo_queue_shop_job_link.sql`. CONFIRMED
+APPLIED LIVE 2026-08-24**, independently verified via a direct
+`information_schema` query (`true`, alongside migration 020's own `true` —
+see the afs-fl-005 UPDATE note above). Originally FILE ONLY:
+verified 020 is the highest migration number on disk before numbering this
 021, not assumed. Adds exactly one nullable column: `gbp_photo_queue.
 shop_profile_library_id UUID REFERENCES shop_profile_library(id)`, plus a
 supporting index. Additive and backward-compatible — no existing row or
@@ -179,16 +190,16 @@ policy changes. No RLS change: `gbp_photo_queue`'s existing operator/admin
 INSERT-own-row / SELECT-all-rows policies (007_delivery_tracking.sql)
 already cover this new insert path, since shop staff use the existing
 `'admin'` role (afs-fl-001's precedent — no new role introduced here
-either). **Not applied to the live Supabase project in this session** —
-pending manual Dashboard application, same convention as migration 020.
+either). **CONFIRMED APPLIED LIVE 2026-08-24** — see the UPDATE note
+above.
 
 `pnpm tsc --noEmit`: 0 errors.
 
-**Status: IMPLEMENTED, UNCONFIRMED** — pending Reid's own browser
-verification of a real photo capture at `/field/shop` landing as a new row
-in the SAME `/employee/photos` review queue (with `shop_profile_library_id`
-populated), and confirming migration 021 has actually been applied in the
-Dashboard first — nothing here is queryable live until then.
+**Status: IMPLEMENTED, UNCONFIRMED** — migration 021 is now CONFIRMED
+APPLIED LIVE (see above), so this feature's data path is queryable live.
+Still pending Reid's own browser verification of a real photo capture at
+`/field/shop` landing as a new row in the SAME `/employee/photos` review
+queue (with `shop_profile_library_id` populated).
 
 ---
 
@@ -248,7 +259,10 @@ finalized." — shown per job, in place of that job's button, once its
 update for the `'admin'` role afs-fl-001 established shop staff use;
 consistent with that entry's own conclusion below.
 
-**New migration, FILE ONLY — `020_completion_events.sql`.** Verified 019 is
+**New migration — `020_completion_events.sql`. CONFIRMED APPLIED LIVE
+2026-08-24**, independently verified via a direct `information_schema`
+query (`true`, alongside migration 021's own `true` — see the afs-fl-005
+UPDATE note above). Originally FILE ONLY: verified 019 is
 still the highest migration on disk and is CONFIRMED APPLIED LIVE (see the
 afs-jf-004 entry below) before numbering this 020, not assumed from a prior
 session's summary. New `completion_events` table: `id`, `shop_profile_
@@ -259,19 +273,18 @@ DEFAULT false`), `created_at`. RLS enabled, one policy —
 `"admin_all_completion_events"`, `FOR ALL USING (EXISTS (SELECT 1 FROM
 profiles WHERE id = auth.uid() AND role = 'admin'))` — same
 `<scope>_<verb>_<table>` naming and single-`FOR ALL`-policy shape as
-`shop_profile_library`'s own `admin_all_shop_profile_library`. **Not applied
-to the live Supabase project in this session** — pending manual Dashboard
-application, same convention already used for migrations 015–019.
+`shop_profile_library`'s own `admin_all_shop_profile_library`. **CONFIRMED
+APPLIED LIVE 2026-08-24** — see the UPDATE note above.
 
 `pnpm tsc --noEmit`: 0 errors. `pnpm run build`: clean, `/field/shop` listed
 as a dynamic route.
 
-**Status: IMPLEMENTED, UNCONFIRMED** — pending Reid's own browser
-verification of a real Mark Complete tap at `/field/shop` on an admin
-account, and a direct query confirming the `completion_events` row actually
-persisted with the expected columns/defaults. Both are blocked on migration
-020 actually being applied in the Dashboard first — nothing here is
-queryable live until then.
+**Status: IMPLEMENTED, UNCONFIRMED** — migration 020 is now CONFIRMED
+APPLIED LIVE (see above), so this feature's data path is queryable live.
+Still pending Reid's own browser verification of a real Mark Complete tap
+at `/field/shop` on an admin account, and a direct query confirming the
+`completion_events` row actually persisted with the expected
+columns/defaults.
 
 ---
 
