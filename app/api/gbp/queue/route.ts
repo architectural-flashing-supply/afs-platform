@@ -12,6 +12,12 @@ import { requireOperatorApi } from '@/lib/auth/require-operator';
  * cover this insert for a real operator session, but the service-role client
  * is used anyway to match every other operator-gated write in this codebase
  * (auth verified via the session client above, write via admin client).
+ *
+ * `shopProfileLibraryId` (optional) — added by afs-fl-004's /field/shop
+ * Delivery Photo button (migration 021, FILE ONLY, not yet applied live).
+ * Reuses this exact route rather than a parallel insert path; omitted
+ * entirely by the Employee PWA caller above, so existing calls are
+ * unaffected and the column stays NULL for them.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
@@ -25,11 +31,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (!raw || typeof raw !== 'object') {
       return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 });
     }
-    const { storageKey, caption } = raw as Record<string, unknown>;
+    const { storageKey, caption, shopProfileLibraryId } = raw as Record<string, unknown>;
     if (typeof storageKey !== 'string' || !storageKey.trim()) {
       return NextResponse.json({ error: 'storageKey is required.' }, { status: 400 });
     }
     const captionValue = typeof caption === 'string' && caption.trim() ? caption.trim() : null;
+    const shopProfileLibraryIdValue =
+      typeof shopProfileLibraryId === 'string' && shopProfileLibraryId.trim() ? shopProfileLibraryId.trim() : null;
 
     const admin = createAdminClient();
     const { data, error } = await admin
@@ -39,6 +47,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         storage_key: storageKey,
         caption: captionValue,
         status: 'pending_review',
+        shop_profile_library_id: shopProfileLibraryIdValue,
       })
       .select('id')
       .single();

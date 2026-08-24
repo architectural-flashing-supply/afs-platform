@@ -24,6 +24,107 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## DELIVERY PHOTO CAPTURE AT /field/shop (afs-fl-004) — 2026-08-24
+
+Added a "Delivery Photo" button to `components/field/
+ShopJobCompletionList.tsx`'s job cards, deliberately separate and
+independent from afs-fl-003's "Mark Complete" button — separate React
+state (`DeliveryPhotoCapture` owns its own upload/queue state internally),
+so a job can get a delivery photo without being marked complete, and vice
+versa.
+
+**Read directly before writing anything, per the prompt's own instruction
+— not assumed from the prompt's description:** `lib/integrations/google-
+business.ts`, `app/api/gbp/queue/route.ts`, `app/api/gbp/post/[id]/
+route.ts`, `components/employee/EmployeePhotoUploader.tsx`, `app/employee/
+photos/page.tsx`, and `gbp_photo_queue`'s table definition + RLS notes in
+`SCHEMA.md` (source: `007_delivery_tracking.sql`). Confirmed this is a
+real, fully wired, already-in-production queue-review-post pipeline, not
+scaffolding: camera upload -> `gbp-photos` Storage bucket -> `POST
+/api/gbp/queue` inserts a `gbp_photo_queue` row (`status: 'pending_
+review'`) -> the existing `/employee/photos` review step flips it to
+`approved`/`rejected` -> `POST /api/gbp/post/[id]` calls `postPhotoToGbp()`,
+a real Google My Business API v4 `POST` to `mybusiness.googleapis.com`,
+gated on `isGbpConfigured()` (checks `GOOGLE_BUSINESS_CLIENT_ID`/`SECRET`/
+`LOCATION_ID`) and the separately-checked, manually-provisioned
+`GOOGLE_BUSINESS_ACCESS_TOKEN` env var. Per CLAUDE.md's DATA BLOCKERS
+section, GBP API access has not been granted — none of these env vars are
+set, so `isGbpConfigured()` returns `false` today and no live post can
+happen regardless of what this prompt builds.
+
+**Did NOT create a new `delivery_photos` table** — would have duplicated
+`gbp_photo_queue`. Instead extended it with exactly one new nullable
+column so a field-captured photo can be tied back to the job it belongs to.
+
+**New migration, FILE ONLY — `021_gbp_photo_queue_shop_job_link.sql`:**
+confirmed `020_completion_events.sql` (afs-fl-003) is the highest-numbered
+migration file on disk before numbering this one `021` — not assumed from
+the prompt's "likely 020... verify, don't assume" framing. Adds:
+```sql
+ALTER TABLE gbp_photo_queue
+  ADD COLUMN shop_profile_library_id UUID REFERENCES shop_profile_library(id);
+```
+plus a supporting `idx_gbp_photo_queue_shop_profile_library_id` index.
+Purely additive/backward-compatible — every existing Employee PWA row
+leaves this column `NULL`, unaffected. No RLS policy change: `gbp_photo_
+queue`'s existing operator/admin INSERT-own-row (`queued_by = auth.uid()`)
+and SELECT/UPDATE-all-rows policies (007_delivery_tracking.sql) already
+cover this new insert path, since `/field/shop` shop staff use the
+existing `'admin'` role — same precedent afs-fl-001 already established
+for `shop_profile_library` itself, no new role introduced. **Not applied
+to the live Supabase project in this session** — pending manual Dashboard
+application, same convention already used for migrations 015–020.
+
+**New component — `components/field/DeliveryPhotoCapture.tsx`:** hidden
+file input, `accept="image/*"` + `capture="environment"` — same camera-
+capture pattern afs-fl-002's `ContractorCameraQuoteForm.tsx` already uses.
+On file select: uploads directly to the existing `'gbp-photos'` Storage
+bucket using the operator's own session — this is `EmployeePhotoUploader.
+tsx`'s `handleQueue()` upload mechanism mirrored exactly (`supabase.
+storage.from('gbp-photos').upload(storageKey, file, { contentType:
+file.type || 'image/jpeg' })`, same `${user.id}/${crypto.randomUUID()}.
+${ext}` storage-key shape), not a new upload path. Then calls the EXISTING
+`POST /api/gbp/queue` route (not a parallel admin-client insert — this was
+a clean fit) with `{ storageKey, shopProfileLibraryId: job.id }`. No
+separate review UI is built — the row lands in the SAME queue Steve/admin
+already reviews at `/employee/photos`.
+
+**`app/api/gbp/queue/route.ts` extended, not duplicated:** added one
+optional `shopProfileLibraryId` field to the existing request body,
+written through to the new `gbp_photo_queue.shop_profile_library_id`
+column on insert (`null` if omitted/blank). `queued_by` and `status:
+'pending_review'` are unchanged — same `auth.userId` and existing column
+default as before. `EmployeePhotoUploader.tsx`'s own call site never sends
+this field, so its behavior and resulting rows are unaffected.
+
+**`postPhotoToGbp()` / the live Google API is never called from this new
+button or any new code in this prompt.** Posting stays gated behind
+exactly the same review-then-post flow that already exists in production
+— this prompt adds a second way to QUEUE a photo into that pipeline, not a
+second way to POST one.
+
+**Confirmation text — exact literal from the prompt, not paraphrased:**
+"Photo saved and added to the Google Business Profile review queue. Will
+post once reviewed and API access is approved." — shown per job, replacing
+the Delivery Photo button, once `POST /api/gbp/queue` resolves
+successfully.
+
+`pnpm tsc --noEmit`: 0 errors.
+
+Committed: "feat: delivery photo capture on /field/shop reuses existing
+gbp_photo_queue pipeline via new nullable shop_profile_library_id column
+(afs-fl-004)".
+
+**Status: IMPLEMENTED, UNCONFIRMED.** Pending Reid's own browser
+verification of a real photo capture at `/field/shop` (as an admin/shop-
+staff account) landing as a new row in the SAME `/employee/photos` review
+queue used by Employee PWA photos today, with `shop_profile_library_id`
+populated to the correct job — **and** confirming migration 021 has
+actually been applied in the Dashboard first, since none of this is
+queryable live until that happens.
+
+---
+
 ## SHOP-FLOOR JOB COMPLETION FLOW (afs-fl-003) — 2026-08-24
 
 Replaced the disabled placeholder at `app/field/shop/page.tsx` (afs-fl-000)

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Button from '@/components/ui/Button';
+import DeliveryPhotoCapture from '@/components/field/DeliveryPhotoCapture';
 import type { FieldShopQueueRow } from '@/lib/data/shop-profile-library';
 
 type JobState = 'idle' | 'submitting' | 'done' | 'failed';
@@ -57,6 +58,10 @@ function JobCard({ job, state, error, onMarkComplete }: JobCardProps) {
           </Button>
         </>
       )}
+
+      {/* Independent of Mark Complete above — a job can get a delivery photo
+          without being marked complete and vice versa (afs-fl-004). */}
+      <DeliveryPhotoCapture shopProfileLibraryId={job.id} />
     </li>
   );
 }
