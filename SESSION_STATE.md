@@ -24,6 +24,65 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## COMMAND CENTER PENDING APPROVAL — THUMBNAIL, CAPTURE-TIME ORIENTATION FIX, CANCEL (afs-fl-011) — 2026-08-25
+
+Three root-cause fixes to the Pending Approval workflow, no workarounds.
+
+**1. Inline photo thumbnail.** `getPendingQuoteRequests`
+(`lib/data/pending-quote-requests.ts`) now selects `upload_id`, batches a
+`takeoff_uploads` join by upload_id, and mints a 900-second signed URL via
+the service-role admin client — same pattern already used by the
+quote-request detail view (afs-fl-008). `QuoteRequestAttachmentCard.tsx`'s
+`IMAGE_EXTENSIONS` constant is now exported and reused rather than
+redefined. `PendingQuoteRequestCard.tsx` renders a real clickable
+thumbnail (image types) with click-through to full resolution via the
+existing `ImageLightbox`, or a download link (non-image types) — same
+fallback `QuoteRequestAttachmentCard` already uses. Traced the call site:
+`app/admin/command-center/page.tsx` calls `getPendingQuoteRequests(supabase)`
+and passes the rows straight to `PendingQuoteRequestCard` via
+`CommandCenterDashboard`'s pending tab — data flows through with no
+intermediate transform to break.
+
+**2. Photo orientation at capture time.**
+`ContractorCameraQuoteForm.tsx` previously uploaded the raw camera `File`
+unmodified. New `correctPhotoOrientation` decodes with
+`createImageBitmap(file, { imageOrientation: 'from-image' })`, draws to a
+canvas at the corrected natural width/height, and re-encodes via
+`canvas.toBlob` — baking the correction into pixels rather than trusting
+downstream EXIF handling. The corrected file drives both the pre-submit
+preview and the actual upload. Falls back to the original file on any
+failure so the golden path can't be blocked.
+**Does not fix already-uploaded sideways photos** — `AFS-QR-2026-00029`
+and `AFS-QR-2026-00030` stay stored sideways; this only affects captures
+made after deploy.
+
+**3. Soft-delete (cancel).** New
+`app/api/admin/command-center/cancel-quote-request/route.ts`, same
+admin-auth shape as `approve-quote-request`/`reject`: sets
+`quote_requests.status = 'cancelled'` via the admin client. `'cancelled'`
+was already valid under the existing CHECK constraint
+(`001_initial_schema.sql:438`) — no migration. `PendingQuoteRequestCard.tsx`
+gained a trash-can button (top-right, near the RUSH/source badges) with an
+inline confirm step (no modal, matching this component's existing style),
+then `router.refresh()` on success. `getPendingQuoteRequests`'s existing
+`.eq('status', 'submitted')` filter means a cancelled row just disappears
+from Pending Approval on refresh — no query change needed.
+
+**Verified this pass:** `pnpm tsc --noEmit` — 0 errors. `pnpm build` —
+succeeded, new route confirmed in the route table.
+
+**Not yet confirmed — needs Reid's live check once deployed:**
+- A real thumbnail rendering and opening at full resolution on an actual
+  Pending Approval card. **Request `AFS-QR-2026-00027` and
+  `AFS-QR-2026-00029` are the known existing requests with real photos** —
+  test against those.
+- Clicking Cancel on a real pending card and confirming it disappears from
+  Pending Approval after `router.refresh()`.
+- `AFS-QR-2026-00029`/`00030` (known sideways-photo cases) are useful for
+  confirming fix #2 correctly leaves already-stored photos untouched.
+
+---
+
 ## ROOT + FIELD PWA INSTALL ICONS/MANIFESTS (afs-fl-010) — 2026-08-25
 
 Root site (`/`) had zero install capability before this pass — no

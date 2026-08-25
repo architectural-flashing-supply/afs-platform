@@ -34,18 +34,85 @@ summary, not a replacement for it.
 
 ---
 
-## VERIFIED THIS PASS (2026-08-11)
+## VERIFIED THIS PASS (2026-08-25, afs-fl-011)
 
 ```
-git log --oneline -20              Confirmed. Local main matches the commits
-                                    listed under RECENT COMMITS below.
-git status                         Clean except tsconfig.tsbuildinfo
-                                    (build artifact, not source).
-origin/main sync                   0 ahead / 0 behind — local main is fully
-                                    pushed, nothing sitting uncommitted or
-                                    unpushed.
 pnpm tsc --noEmit                  0 errors. Exit code 0.
+pnpm build                         Succeeded — new route
+                                    /api/admin/command-center/cancel-quote-request
+                                    registered in the build output.
+git status                         Clean except supabase/.temp/ (Supabase
+                                    CLI cache, not source, pre-existing).
+origin/main sync                   0 behind / 1 ahead — commit c0a2dfc
+                                    (afs-fl-011) is local-only, not pushed
+                                    this pass.
 ```
+
+---
+
+## COMMAND CENTER PENDING APPROVAL — THUMBNAIL, CAPTURE-TIME ORIENTATION FIX, CANCEL (afs-fl-011): IMPLEMENTED, UNCONFIRMED — 2026-08-25
+
+Three fixes to the Pending Approval workflow, all root-cause, no workarounds.
+
+1. **Inline photo thumbnail on the Pending Approval card.**
+   `lib/data/pending-quote-requests.ts`'s `getPendingQuoteRequests` now
+   selects `upload_id`, joins `takeoff_uploads` (batched by upload_id, not
+   per-row) and mints a 900-second signed URL via the service-role admin
+   client — same pattern `app/admin/quote-requests/[id]/page.tsx` already
+   uses for the detail view (afs-fl-008). `PendingQuoteRequestRow` gained
+   `attachmentUrl`/`attachmentFileName`/`attachmentFileType`.
+   `components/admin/QuoteRequestAttachmentCard.tsx`'s `IMAGE_EXTENSIONS`
+   constant is now exported and reused (not redefined) by
+   `PendingQuoteRequestCard.tsx`, which renders a real clickable thumbnail
+   for image attachments — click-through to full resolution via the
+   existing `components/ui/ImageLightbox.tsx` — and a download link for
+   non-image types, matching `QuoteRequestAttachmentCard`'s existing
+   fallback.
+
+2. **Photo orientation fix at capture time.**
+   `components/field/ContractorCameraQuoteForm.tsx` previously uploaded the
+   raw camera `File` with no processing, relying on downstream consumers to
+   honor the EXIF orientation flag — they don't reliably. New
+   `correctPhotoOrientation` decodes via `createImageBitmap(file, {
+   imageOrientation: 'from-image' })`, draws the corrected bitmap to a
+   canvas at its natural post-rotation width/height, and re-encodes via
+   `canvas.toBlob` — baking the correction into the actual pixels rather
+   than depending on EXIF being honored later. The corrected `File` is used
+   for both the pre-submit preview and the actual upload, so what the
+   contractor sees matches what's stored. Falls back to the original,
+   unmodified file on any decode/encode failure — golden path (take photo,
+   send) cannot be blocked by this.
+   **Does not retroactively correct already-uploaded sideways photos** —
+   `AFS-QR-2026-00029` and `AFS-QR-2026-00030` remain stored sideways as-is;
+   only photos captured after this deploy get the correction.
+
+3. **Soft-delete (cancel) on the Pending Approval card.**
+   New `app/api/admin/command-center/cancel-quote-request/route.ts`, same
+   admin-auth pattern as `approve-quote-request/route.ts` and `reject/
+   route.ts`: sets `quote_requests.status = 'cancelled'` via the
+   service-role admin client (`'cancelled'` was already a valid value in
+   the existing CHECK constraint, `supabase/migrations/
+   001_initial_schema.sql:438` — no migration needed).
+   `PendingQuoteRequestCard.tsx` gained a trash-can icon button (top-right,
+   near the RUSH/source badges, visually distinct from "Approve & Send to
+   Machine") that requires an inline confirm step (no modal — matches this
+   component's existing style) before firing, then `router.refresh()` on
+   success. Since `getPendingQuoteRequests` already filters
+   `.eq('status', 'submitted')`, a cancelled row disappears from the view
+   automatically — no query change needed.
+
+**Verified this pass:** `pnpm tsc --noEmit` 0 errors, `pnpm build`
+succeeded (new route confirmed present in the build's route table).
+
+**Not confirmed — hold as unresolved per this file's verification
+standard:** no live visual check has been done. Once deployed, this needs:
+(a) a real thumbnail rendering and clicking through to full resolution on
+an actual Pending Approval card — **request `AFS-QR-2026-00027` and
+`AFS-QR-2026-00029` are the known existing requests with real photos to
+test against**, and (b) clicking Cancel on a real pending card and
+confirming it disappears from Pending Approval on refresh. `AFS-QR-2026-
+00029`/`00030` are also the known pre-existing sideways-photo cases
+useful for confirming fix #2 does *not* retroactively touch them.
 
 ---
 
