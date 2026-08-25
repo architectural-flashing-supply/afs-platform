@@ -153,17 +153,20 @@ code path, not a duplicate.
 
 ---
 
-## Migrations still pending manual Supabase Dashboard application
+## Migrations — apply order (now confirmed applied live)
 
-Apply in this order (both are additive, neither has been applied to the
-live Supabase project as of this doc):
+**UPDATE:** both migrations below are now **CONFIRMED APPLIED LIVE**, per
+commit `ecc98e0` ("docs: migrations 020 and 021 confirmed applied live via
+information_schema") — verified via a direct `information_schema` query
+against the live Supabase project, two `true` results. Listed here in
+apply order for the record, not because either is still pending:
 
 1. `supabase/migrations/020_completion_events.sql` — creates
    `completion_events` (afs-fl-003).
 2. `supabase/migrations/021_gbp_photo_queue_shop_job_link.sql` — adds the
    nullable `gbp_photo_queue.shop_profile_library_id` column (afs-fl-004).
 
-**Neither needs elevated review beyond the normal pending-apply process.**
+**Neither needed elevated review beyond the normal pending-apply process.**
 Both are read directly, in full, as part of writing this doc:
 `020_completion_events.sql` only creates a new table with its own RLS
 policy (`admin_all_completion_events`, mirroring `shop_profile_library`'s
