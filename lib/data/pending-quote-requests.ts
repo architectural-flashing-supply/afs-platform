@@ -1,5 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { usesFallbackGeometry } from '@/lib/machine-jobs/fallback-geometry';
+import { createAdminClient } from '@/lib/supabase/admin';
+
+// Matches app/admin/quote-requests/[id]/page.tsx's ATTACHMENT_SIGNED_URL_TTL_SECONDS
+// (same 15-minute window, same lib/data/orders.ts getOrderAttachments precedent).
+const ATTACHMENT_SIGNED_URL_TTL_SECONDS = 900;
 
 // Same shape quote_requests.line_items is actually stored in — see
 // app/api/quote-requests/route.ts's QuoteRequestItemInput. No bend/angle
@@ -44,6 +49,13 @@ export interface PendingQuoteRequestRow {
   // informational, surfaced so an admin knows N separate jobs will be
   // created from one click.
   hasMultipleLineItems: boolean;
+  // Attachment (afs-fl-011) — same takeoff_uploads join and signed-URL
+  // pattern as app/admin/quote-requests/[id]/page.tsx's detail view, surfaced
+  // here so a photo/drawing is visible without opening the request. Null
+  // when the request has no upload_id or the signed URL couldn't be created.
+  attachmentUrl: string | null;
+  attachmentFileName: string | null;
+  attachmentFileType: string | null;
 }
 
 function describeLineItem(item: PendingQuoteRequestLineItem): string {
@@ -63,7 +75,7 @@ function describeLineItem(item: PendingQuoteRequestLineItem): string {
 export async function getPendingQuoteRequests(supabase: SupabaseClient): Promise<PendingQuoteRequestRow[]> {
   const { data: rows, error } = await supabase
     .from('quote_requests')
-    .select('id, request_number, user_id, guest_email, line_items, is_rush, notes, submitted_at, source_tool')
+    .select('id, request_number, user_id, guest_email, line_items, is_rush, notes, submitted_at, source_tool, upload_id')
     .eq('status', 'submitted')
     .order('is_rush', { ascending: false })
     .order('submitted_at', { ascending: false });
@@ -79,6 +91,7 @@ export async function getPendingQuoteRequests(supabase: SupabaseClient): Promise
     notes: string | null;
     submitted_at: string;
     source_tool: string | null;
+    upload_id: string | null;
   }[];
   if (requests.length === 0) return [];
 
@@ -91,9 +104,30 @@ export async function getPendingQuoteRequests(supabase: SupabaseClient): Promise
     profileMap.set(p.id, { fullName: p.full_name, company: p.company });
   }
 
+  // Attachments (afs-fl-011) — same takeoff_uploads join + service-role
+  // signed URL as app/admin/quote-requests/[id]/page.tsx's detail view.
+  // Batched by upload_id (not per-request) so a signed URL is only ever
+  // generated once even if this list ever contains a shared upload_id.
+  const uploadIds = requests.map((r) => r.upload_id).filter((v): v is string => !!v);
+  const { data: uploads } = uploadIds.length
+    ? await supabase.from('takeoff_uploads').select('id, storage_key, file_name, file_type').in('id', uploadIds)
+    : { data: [] };
+  const attachmentMap = new Map<string, { url: string | null; fileName: string; fileType: string }>();
+  if (uploads?.length) {
+    const admin = createAdminClient();
+    for (const u of uploads as { id: string; storage_key: string; file_name: string; file_type: string }[]) {
+      const bucket = u.storage_key.split('/')[0];
+      const { data: signed } = await admin.storage
+        .from(bucket)
+        .createSignedUrl(u.storage_key, ATTACHMENT_SIGNED_URL_TTL_SECONDS);
+      attachmentMap.set(u.id, { url: signed?.signedUrl ?? null, fileName: u.file_name, fileType: u.file_type });
+    }
+  }
+
   return requests.map((r) => {
     const profile = r.user_id ? profileMap.get(r.user_id) : null;
     const items = r.line_items ?? [];
+    const attachment = r.upload_id ? attachmentMap.get(r.upload_id) : null;
     return {
       id: r.id,
       requestNumber: r.request_number,
@@ -106,6 +140,9 @@ export async function getPendingQuoteRequests(supabase: SupabaseClient): Promise
       sourceTool: r.source_tool ?? 'unknown',
       willUseFallbackGeometry: items.some(usesFallbackGeometry),
       hasMultipleLineItems: items.length > 1,
+      attachmentUrl: attachment?.url ?? null,
+      attachmentFileName: attachment?.fileName ?? null,
+      attachmentFileType: attachment?.fileType ?? null,
     };
   });
 }

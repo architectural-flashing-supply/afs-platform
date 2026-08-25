@@ -54,6 +54,35 @@ async function uploadPhoto(file: File, onError: (message: string) => void): Prom
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// Mobile camera captures commonly carry an EXIF orientation flag instead of
+// upright pixels — downstream consumers (the admin card thumbnail, the
+// lightbox, <img> in general) don't reliably honor it, so the photo can
+// render sideways/upside-down wherever it's later displayed. Decoding via
+// createImageBitmap with imageOrientation: 'from-image' applies that
+// correction once, here, and drawing the result to a canvas bakes it into
+// the actual pixels — so every later consumer just sees an upright image,
+// no EXIF-awareness required on their end. Falls back to the original,
+// unmodified file on any failure (unsupported browser, decode error) so the
+// golden path — take a photo, send it — never breaks.
+async function correctPhotoOrientation(file: File): Promise<File> {
+  try {
+    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    const canvas = document.createElement('canvas');
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('2D canvas context unavailable');
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    const mimeType = file.type || 'image/jpeg';
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, mimeType, 0.92));
+    if (!blob) throw new Error('canvas.toBlob produced no blob');
+    return new File([blob], file.name, { type: blob.type || mimeType });
+  } catch {
+    return file;
+  }
+}
+
 export default function ContractorCameraQuoteForm() {
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
@@ -91,30 +120,36 @@ export default function ContractorCameraQuoteForm() {
     };
   }, [photoPreviewUrl]);
 
-  const handleFileChange = useCallback((file: File) => {
-    if (file.size > FIELD_PHOTO_MAX_SIZE_BYTES) {
+  const handleFileChange = useCallback((rawFile: File) => {
+    if (rawFile.size > FIELD_PHOTO_MAX_SIZE_BYTES) {
       setUploadError(`Photo exceeds ${FIELD_PHOTO_MAX_SIZE_BYTES / 1024 / 1024}MB.`);
       setUploadState('failed');
       return;
     }
 
-    setPhoto(file);
-    setPhotoPreviewUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return URL.createObjectURL(file);
-    });
     setUploadError(null);
     setSubmitError(null);
     setUploadState('uploading');
 
-    const promise = uploadPhoto(file, (message) => {
-      setUploadError(message);
-      setUploadState('failed');
-    }).then((uploadId) => {
-      if (uploadId) setUploadState('ready');
-      return uploadId;
+    // Orientation-corrected before the preview is shown or the upload
+    // starts, so what the contractor sees pre-submit matches what's stored
+    // (see correctPhotoOrientation above).
+    correctPhotoOrientation(rawFile).then((file) => {
+      setPhoto(file);
+      setPhotoPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return URL.createObjectURL(file);
+      });
+
+      const promise = uploadPhoto(file, (message) => {
+        setUploadError(message);
+        setUploadState('failed');
+      }).then((uploadId) => {
+        if (uploadId) setUploadState('ready');
+        return uploadId;
+      });
+      uploadPromiseRef.current = promise;
     });
-    uploadPromiseRef.current = promise;
   }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {

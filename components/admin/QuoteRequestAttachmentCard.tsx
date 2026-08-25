@@ -6,7 +6,7 @@ import ImageLightbox from '@/components/ui/ImageLightbox';
 // Renderable-as-<img> extensions. Blueprint Takeoff also accepts .pdf/.dwg/.dxf
 // (lib/utils/upload-limits.ts) which browsers can't inline as an image — those
 // fall back to a plain download link instead of a thumbnail.
-const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.heic', '.tiff', '.tif'];
+export const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.heic', '.tiff', '.tif'];
 
 export interface QuoteRequestAttachment {
   fileName: string;
