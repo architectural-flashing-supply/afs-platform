@@ -24,6 +24,54 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## QUOTE-REQUEST ATTACHMENT VIEWER, COMMAND CENTER (afs-fl-008) — 2026-08-25
+
+**Genuine pre-existing gap, discovered during field-app testing — not a
+regression from this week's work.** The Command Center quote-request
+detail view has never surfaced `quote_requests.upload_id`, for either
+flow that can set it: the original Blueprint Takeoff upload and the
+newer field_photo_quote flow (afs-fl-002/007). It only surfaced now
+because field_photo_quote submissions are upload-only with no line
+items to fall back on, but the same gap has existed for Blueprint
+Takeoff since it shipped.
+
+Added `upload_id` to the detail page's `quote_requests` select
+(`app/admin/quote-requests/[id]/page.tsx`); when set, joins
+`takeoff_uploads` and mints a signed URL via the service-role admin
+client — same pattern as `getOrderAttachments` (`lib/data/orders.ts:618`)
+and `getGbpPhotos` (`lib/data/command-center-crm.ts:258`), 900-second
+TTL, full original resolution, no thumbnail generated. Bucket is derived
+from `storage_key`'s first path segment rather than stored separately,
+matching both upload routes' existing key conventions. New
+`components/admin/QuoteRequestAttachmentCard.tsx` renders a clickable
+thumbnail for image attachments (falls back to a download link for
+Blueprint Takeoff's non-image extensions — `.pdf`/`.dwg`/`.dxf`). New
+`components/ui/ImageLightbox.tsx` is a full-viewport zoomable/pannable
+viewer — checked the codebase first and found no existing full-screen
+image viewer to reuse; `components/ui/Modal.tsx` is a small fixed-size
+dialog and deliberately wasn't repurposed, since the whole point is
+inspecting fine detail (hand-drawn dimensions, a damaged seam) that a
+small modal would defeat.
+
+**Verified this pass:** `pnpm tsc --noEmit` 0 errors. Tested the signed-
+URL logic directly against the live Supabase project: exactly one
+`quote_requests` row has a non-null `upload_id` (`AFS-QR-2026-00027`,
+field_photo_quote) — no Blueprint Takeoff row has one yet, so that path
+has code coverage but no live data to exercise it against (flagged, not
+silently assumed fine). Derived its bucket, minted a signed URL the same
+way the new code does, fetched it directly: `200`, `image/jpeg`,
+1,254,905 bytes — full original resolution. Then a real Playwright
+session (cookie-based login as the live admin account) opened that
+request's detail page: thumbnail rendered, click opened the lightbox
+full-viewport with zero console errors, the sketch's hand-written labels
+were legible at 100%, and zooming to 205% made individual pen strokes
+inspectable — the ~8.8x bounding-box jump between those two scales (not
+2.05x) confirms the image actually renders at native intrinsic
+resolution once zoomed rather than a clamped/downscaled copy. Close
+button removed the overlay cleanly.
+
+---
+
 ## /field/contractor ROLE-GATE REMOVAL — ANONYMOUS GUEST ACCESS (afs-fl-007) — 2026-08-24
 
 Fixed a spec mismatch, not a regression: afs-fl-001 gated `/field/contractor`

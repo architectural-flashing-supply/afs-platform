@@ -83,6 +83,85 @@ and not restart from scratch.**
 
 ---
 
+## QUOTE-REQUEST ATTACHMENT VIEWER, COMMAND CENTER (afs-fl-008): DONE — 2026-08-25
+
+**Pre-existing gap, not a regression from this week's field-app work:**
+the Command Center quote-request detail view (`app/admin/quote-requests/
+[id]/page.tsx`) has never surfaced `quote_requests.upload_id` at all —
+this affected **every** submission surface that can attach a file, both
+the original Blueprint Takeoff flow and the newer field_photo_quote flow
+(afs-fl-002/007). It was only actually noticed now, during this week's
+field-app testing, because field_photo_quote is upload-only (no line
+items to look at instead) — but the gap has existed since Blueprint
+Takeoff shipped.
+
+Changed:
+- `app/admin/quote-requests/[id]/page.tsx` — added `upload_id` to the
+  `quote_requests` select. When set, fetches the linked `takeoff_uploads`
+  row and mints a signed URL via the service-role admin client
+  (`lib/supabase/admin.ts`), same pattern as `getOrderAttachments`
+  (`lib/data/orders.ts:618`) and `getGbpPhotos`
+  (`lib/data/command-center-crm.ts:258`) — 900-second TTL, full original
+  resolution, no downscaled thumbnail is ever generated. The bucket name
+  isn't a stored column; it's derived as `storage_key.split('/')[0]`,
+  which matches the convention both upload routes already use
+  (`app/api/upload/route.ts`'s `blueprints/...` keys in the `blueprints`
+  bucket, `app/api/field/photo-upload/route.ts`'s
+  `documents/field-photos/...` keys in the `documents` bucket).
+- `components/admin/QuoteRequestAttachmentCard.tsx` (new) — renders a
+  clickable thumbnail for image extensions, or a plain download link for
+  non-image extensions Blueprint Takeoff also accepts (`.pdf`/`.dwg`/
+  `.dxf`, see `lib/utils/upload-limits.ts`) that can't be inlined as
+  `<img>`.
+- `components/ui/ImageLightbox.tsx` (new) — full-viewport zoomable/
+  pannable image viewer. `components/ui/Modal.tsx` (small fixed-size
+  dialog) was deliberately NOT reused — a small modal is exactly what
+  this needed to not be, since the point is inspecting fine detail (a
+  hand-drawn dimension, a damaged seam, small text) in the original
+  photo. Scale 1 shows the image at native resolution capped only by the
+  viewport (object-contain-style, never upscaled); scroll-wheel or the
+  on-screen +/- controls zoom past that, revealing the image's true
+  intrinsic pixel resolution (the `maxWidth`/`maxHeight` clamp only
+  applies at scale 1), and dragging pans once zoomed. No pre-existing
+  full-screen/lightbox component was found anywhere else in the codebase
+  to reuse (checked `components/ui/`, `components/resources/
+  ResourcesBrowser.tsx`, `components/studio/ProfileViewer3D.tsx`).
+
+**Verified this pass:**
+- `pnpm tsc --noEmit` — 0 errors.
+- Server-side signed-URL logic tested directly against the live
+  Supabase project (not just code review): queried `quote_requests` for
+  every row with a non-null `upload_id` — exactly one exists,
+  `AFS-QR-2026-00027` (`source_tool: 'field_photo_quote'`). No Blueprint
+  Takeoff row has a non-null `upload_id` yet in the live data, so that
+  half of this feature has real code coverage but no live row to
+  exercise it against — flagged here rather than silently treated as
+  verified. Derived the bucket from that row's `takeoff_uploads.storage_key`
+  exactly as the new code does, minted a signed URL, and fetched it
+  directly: `200`, `content-type: image/jpeg`, `content-length: 1,254,905`
+  bytes — a real, full-resolution phone photo, not a thumbnail.
+- Real browser session against `pnpm dev` (Playwright, cookie-based
+  session for the live `admin` account, screenshots captured): opened
+  `AFS-QR-2026-00027`'s detail page, the new "Attachment" section
+  rendered with a thumbnail of the actual submitted jobsite sketch
+  photo. Clicked it — `ImageLightbox` opened full-viewport with the same
+  full-resolution image, zero console/page errors. At 100% scale, the
+  hand-written labels on the sketch ("Pitch Change," "Open Hem," "Closed
+  Hem") were legible; zoomed to 205% (three clicks on the `+` control),
+  individual pen strokes were inspectable — confirming the image is
+  rendered at native resolution once zoomed, not a downscaled copy. The
+  bounding-box jump between 100% and 205% (roughly 8.8x, not 2.05x)
+  confirms the `maxWidth: 'none'` unclamping actually took effect at
+  that scale rather than silently capping at the container size. Close
+  button dismissed the overlay correctly (image element gone from the
+  DOM afterward).
+- This closes the gap for both existing upload flows — no schema change
+  and no change to either upload route was needed, since `upload_id` and
+  `takeoff_uploads` already existed for exactly this purpose and simply
+  weren't being read by this one view.
+
+---
+
 ## /field/contractor ROLE-GATE REMOVAL — ANONYMOUS GUEST ACCESS (afs-fl-007): DONE — 2026-08-24
 
 **Bug, not a regression:** afs-fl-001 (see the entry below) gated
