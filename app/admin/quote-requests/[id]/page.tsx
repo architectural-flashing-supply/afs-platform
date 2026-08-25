@@ -1,13 +1,17 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { requireAdminUser } from '@/lib/admin/auth';
 import Badge from '@/components/ui/Badge';
 import ColorSwatchChip from '@/components/quote/ColorSwatchChip';
 import QuoteEstimatorForm, { type EstimatorLineItem } from '@/components/admin/QuoteEstimatorForm';
 import JobIdentityEditorForm from '@/components/admin/JobIdentityEditorForm';
+import QuoteRequestAttachmentCard from '@/components/admin/QuoteRequestAttachmentCard';
 import { estimateShipmentWeight, type WeightReferenceGauge } from '@/lib/admin/pricing';
 import { sourceToolLabel } from '@/lib/data/quote-request-source-tool';
+
+const ATTACHMENT_SIGNED_URL_TTL_SECONDS = 900; // 15 minutes — matches lib/data/orders.ts getOrderAttachments
 
 interface QuoteRequestDetailRow {
   id: string;
@@ -38,6 +42,11 @@ interface QuoteRequestDetailRow {
   guest_email: string | null;
   quote_id: string | null;
   source_tool: string | null;
+  // Links to takeoff_uploads for either flow that can attach a file to a
+  // quote request — the Blueprint Takeoff drawing upload and the
+  // field_photo_quote jobsite photo (afs-fl-008). Null for requests
+  // submitted without an attachment.
+  upload_id: string | null;
   profiles: { full_name: string; company: string | null; phone: string | null; email: string } | null;
 }
 
@@ -61,7 +70,7 @@ export default async function AdminQuoteRequestDetailPage({ params }: { params: 
   const { data: requestRaw } = await supabase
     .from('quote_requests')
     .select(
-      'id, request_number, status, submitted_at, line_items, jobsite_address, po_number, is_rush, notes, color, finish, client_business_name, client_name, requested_by, user_id, guest_email, quote_id, source_tool, profiles(full_name, company, phone, email)'
+      'id, request_number, status, submitted_at, line_items, jobsite_address, po_number, is_rush, notes, color, finish, client_business_name, client_name, requested_by, user_id, guest_email, quote_id, source_tool, upload_id, profiles(full_name, company, phone, email)'
     )
     .eq('id', params.id)
     .maybeSingle();
@@ -87,6 +96,38 @@ export default async function AdminQuoteRequestDetailPage({ params }: { params: 
       .eq('id', request.quote_id)
       .maybeSingle();
     linkedQuoteNumber = (linkedQuote?.quote_number as string | undefined) ?? null;
+  }
+
+  // Attachment (afs-fl-008) — the Blueprint Takeoff and field_photo_quote
+  // flows both write an upload_id into quote_requests, but this detail view
+  // never surfaced it. storage_key's first path segment is always the
+  // bucket name by convention (e.g. 'blueprints/...' in app/api/upload/route.ts,
+  // 'documents/field-photos/...' in app/api/field/photo-upload/route.ts), so
+  // the bucket can be derived rather than needing its own column. Uses the
+  // service-role admin client for the signed URL, same as
+  // getOrderAttachments (lib/data/orders.ts) and getGbpPhotos
+  // (lib/data/command-center-crm.ts) — full original resolution, no
+  // downscaled thumbnail is generated.
+  let attachment: { fileName: string; fileType: string; signedUrl: string | null } | null = null;
+  if (request.upload_id) {
+    const { data: uploadRow } = await supabase
+      .from('takeoff_uploads')
+      .select('storage_key, file_name, file_type')
+      .eq('id', request.upload_id)
+      .maybeSingle();
+
+    if (uploadRow) {
+      const bucket = uploadRow.storage_key.split('/')[0];
+      const admin = createAdminClient();
+      const { data: signed } = await admin.storage
+        .from(bucket)
+        .createSignedUrl(uploadRow.storage_key, ATTACHMENT_SIGNED_URL_TTL_SECONDS);
+      attachment = {
+        fileName: uploadRow.file_name,
+        fileType: uploadRow.file_type,
+        signedUrl: signed?.signedUrl ?? null,
+      };
+    }
   }
 
   const items = request.line_items ?? [];
@@ -187,6 +228,16 @@ export default async function AdminQuoteRequestDetailPage({ params }: { params: 
           </dl>
         </div>
       </div>
+
+      {attachment && (
+        <div className="mb-6">
+          <QuoteRequestAttachmentCard
+            fileName={attachment.fileName}
+            fileType={attachment.fileType}
+            signedUrl={attachment.signedUrl}
+          />
+        </div>
+      )}
 
       {/* Job-identity intake fields (migration 018, afs-jf-000) — view and
           edit before approval (afs-jf-003). Replaces the prior static
