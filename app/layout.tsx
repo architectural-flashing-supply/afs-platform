@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Bebas_Neue, Barlow_Condensed, Barlow, Inter, JetBrains_Mono } from 'next/font/google';
 import AppChrome from '@/components/layout/AppChrome';
 import './globals.css';
@@ -36,6 +36,15 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: 'AFS — Architectural Flashing Supply',
   description: 'Custom fabricated sheet metal flashing. Upload your blueprint and receive a formal quote.',
+  manifest: '/manifest.json',
+  icons: {
+    icon: '/favicon.ico',
+    apple: '/apple-touch-icon.png',
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#C0001A',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

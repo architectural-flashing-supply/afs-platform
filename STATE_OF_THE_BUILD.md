@@ -83,6 +83,87 @@ and not restart from scratch.**
 
 ---
 
+## ROOT + FIELD PWA INSTALL ICONS/MANIFESTS (afs-fl-010): IMPLEMENTED, UNCONFIRMED — 2026-08-25
+
+**Audit finding: the root site (`/`) had zero install capability before this
+pass** — no `app/manifest.ts`, no `public/manifest.json`, no
+`favicon.ico`/`apple-touch-icon.png` anywhere in the repo. The only existing
+manifest was `public/employee-manifest.json` (`/employee`, afs-sv-era),
+untouched by this work. `/field/contractor` and `/field/shop` had no
+manifest either — this is genuinely new capability on all three routes, not
+a fix to something broken.
+
+**Source logo confirmed to have true alpha transparency**, checked by
+hand-decoding the PNG (no image library in this project — see
+`scripts/generate-employee-icons.js` precedent): `public/afs-logo-512.png`
+is 1024x1024, 8-bit RGBA (colorType 6). Alpha at all four corners and mid-
+edges samples `0`; only a ~1.5%-of-pixels anti-aliased transition band
+separates full-transparent from full-opaque (histogram-verified, not
+guessed). This is a real cutout with a soft edge, not a baked vignette
+wearing an alpha channel — so direct alpha-compositing onto a flat color
+was the correct approach, no manual recreation needed for any of the nine
+generated icon files.
+
+New `scripts/generate-pwa-icons.js` (same hand-rolled-PNG pattern as
+`generate-employee-icons.js`, extended with a PNG *decoder* to read the
+real logo and a minimal multi-image `.ico` encoder): finds the mark's
+bounding box (px 34,242 – 1005,622 of 1024x1024), crops to it, and
+composites onto a size x size canvas at each target size with 4x4
+supersampled downsampling, alpha-blending against a solid RGB that is
+written into every output pixel — not left to OS/browser default fill,
+which is what caused the inconsistent Android/iOS results previously.
+
+Three independent sets, each with its own manifest/icons wired at the
+narrowest scope that will hold it:
+
+1. **Root** (`public/manifest.json`, `icon-192.png`, `icon-512.png`,
+   `apple-touch-icon.png`, `favicon.ico` [16/32/48 multi-size]) — RED
+   (`#C0001A`, `afs-crimson`, matching the existing employee-manifest
+   theme color) baked into every size. Wired in `app/layout.tsx` via
+   `metadata.manifest` + `metadata.icons` + a new `viewport.themeColor`
+   export (the root layout previously exported neither).
+2. **AFS Field** (`public/field-contractor-manifest.json`, scope
+   `/field/contractor`) — BLACK (`#000000`) baked in. Wired via a new
+   `metadata` export added directly to `app/field/contractor/page.tsx`
+   (Next.js 14.2.5 resolves `manifest`/`icons` per-segment — a page's own
+   value replaces rather than merges with the parent layout's), leaving
+   `app/field/layout.tsx`'s shared title/viewport untouched. Confirmed
+   afs-fl-007's no-auth anonymous guest access is unaffected — the page's
+   component body and export default were not touched, only a sibling
+   `metadata` export was added above it.
+3. **AFS Shop** (`public/field-shop-manifest.json`, scope `/field/shop`)
+   — WHITE (`#FFFFFF`) baked in. Wired the same way in
+   `app/field/shop/page.tsx`; `requireFieldRole(supabase, ['admin'])`
+   is unchanged, still runs, still gates the route.
+
+**Scoping verified by grep**, not assumed: `app/field/layout.tsx` (the
+shared shell both pages sit under) exports no `manifest` at all — only
+`title`/`viewport` — so there is no shared manifest for either field page
+to inherit or leak into the other. Each field page's `metadata.manifest`
+is its own file, and each manifest's own `"scope"` key further restricts
+it. The root manifest carries no `scope` key (defaults to `/`) and is
+unrelated to either field manifest.
+
+**Verified this pass:** `pnpm tsc --noEmit` — 0 errors. Read every
+generated 512px icon back as an image and visually confirmed red/black/
+white are genuinely baked into the pixels (not a guess) and clearly
+distinguishable from one another; spot-checked the 192px and 180px
+(apple-touch) sizes too. Did not run `pnpm build` this pass (task called
+for the tsc gate specifically) — should be run before this ships to
+confirm the new segment-level `metadata` exports don't trip anything at
+build time.
+
+**Not confirmed — per this file's verification standard, do not treat as
+DONE:** no real-device install has been checked. Actually adding this to
+a home screen on Android and iOS and confirming (a) the correct name/icon
+appears per route, (b) the red/black/white backgrounds render correctly
+rather than reverting to a default fill (the specific failure mode this
+work was meant to fix), and (c) `/field/contractor`'s installed shortcut
+still opens with no login prompt, all remain open until Reid checks them
+on real devices.
+
+---
+
 ## QUOTE-REQUEST ATTACHMENT VIEWER, COMMAND CENTER (afs-fl-008): DONE — 2026-08-25
 
 **Pre-existing gap, not a regression from this week's field-app work:**
@@ -4481,7 +4562,13 @@ When migrating DNS to the live domain, these must be updated BEFORE go-live:
 
 ## NEXT ACTION
 
-1. Get the user's own confirmation on the FlashDraft hem system (geometry,
+1. **New:** Get the user's own confirmation of the three PWA install sets
+   (afs-fl-010, see entry above) on a real Android and iOS device —
+   correct name/icon per route, red/black/white baked backgrounds actually
+   render (not a default OS fill), and `/field/contractor` still installs
+   and opens with no login prompt. Also run `pnpm build` once, not yet
+   done this pass.
+2. Get the user's own confirmation on the FlashDraft hem system (geometry,
    Hem Length glyph scaling, Gap re-added and now actually wired to the
    glyph, Outside/Inside Kick rebuilt as a true mirror, mid-leg removal,
    leg-shrink fix, Teardrop now sized from material thickness) against his

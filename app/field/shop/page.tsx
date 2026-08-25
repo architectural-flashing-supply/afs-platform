@@ -1,7 +1,20 @@
+import type { Metadata } from 'next';
 import { createClient } from '@/lib/supabase/server';
 import { requireFieldRole } from '@/lib/field/auth';
 import { getFieldShopQueue } from '@/lib/data/shop-profile-library';
 import ShopJobCompletionList from '@/components/field/ShopJobCompletionList';
+
+// Route-scoped PWA install (afs-fl-010) -- overrides the root layout's
+// manifest/icons for this segment only, per Next.js metadata resolution
+// (a segment's `manifest`/`icons` replace rather than merge with the
+// parent's). Does not touch auth: still admin-gated below, unchanged.
+export const metadata: Metadata = {
+  manifest: '/field-shop-manifest.json',
+  icons: {
+    icon: '/field-shop-icon-192.png',
+    apple: '/field-shop-apple-touch-icon.png',
+  },
+};
 
 /**
  * Shop-floor job completion (afs-fl-003), replacing the disabled placeholder

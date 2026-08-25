@@ -24,6 +24,54 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## ROOT + FIELD PWA INSTALL ICONS/MANIFESTS (afs-fl-010) — 2026-08-25
+
+Root site (`/`) had zero install capability before this pass — no
+`app/manifest.ts`, no `public/manifest.json`, no favicon/apple-touch-icon
+anywhere in the repo (the only existing manifest was
+`public/employee-manifest.json`, `/employee`, afs-sv-era, untouched here).
+`/field/contractor` and `/field/shop` had no manifest either — new
+capability on all three routes, not a fix to something broken.
+
+Confirmed `public/afs-logo-512.png` (the site-wide mark) has true alpha
+transparency by hand-decoding the PNG (1024x1024, 8-bit RGBA, colorType
+6) — no image library in this project, so this followed the existing
+`scripts/generate-employee-icons.js` hand-rolled-PNG precedent. New
+`scripts/generate-pwa-icons.js` extends that pattern with a PNG decoder
+and a minimal multi-image `.ico` encoder, crops to the mark's bounding
+box, and composites onto each target size with 4x4 supersampling,
+alpha-blending against a solid RGB baked into every output pixel — not
+left to OS/browser default fill, which is what caused inconsistent
+Android/iOS results previously.
+
+Three independently scoped sets: **root** (RED `#C0001A`, wired in
+`app/layout.tsx` via `metadata.manifest`/`metadata.icons` + a new
+`viewport.themeColor` export), **AFS Field** (BLACK `#000000`, scope
+`/field/contractor`, wired via a `metadata` export added directly to
+`app/field/contractor/page.tsx` — afs-fl-007's anonymous no-auth access
+untouched, only a sibling export was added above the existing component),
+**AFS Shop** (WHITE `#FFFFFF`, scope `/field/shop`, same pattern in
+`app/field/shop/page.tsx` — `requireFieldRole(['admin'])` still gates the
+route, unchanged). `app/field/layout.tsx` exports no `manifest` of its
+own, confirmed by reading it, so neither field page can leak into the
+other or inherit a shared one.
+
+**Verified this pass:** `pnpm tsc --noEmit` 0 errors. Read every
+generated 512px icon back as an image and visually confirmed red/black/
+white are actually baked into the pixels, not guessed at, and clearly
+distinguishable from each other; spot-checked 192px and 180px sizes too.
+Did not run `pnpm build` this pass.
+
+**Not confirmed — hold as unresolved per this file's verification
+standard:** no real-device install has been checked. Adding this to a
+home screen on Android and iOS and confirming (a) correct name/icon per
+route, (b) red/black/white actually render instead of a default fill —
+the specific failure this work targets, and (c) `/field/contractor`'s
+installed shortcut still opens with no login prompt, all remain open
+until Reid checks them on real devices.
+
+---
+
 ## QUOTE-REQUEST ATTACHMENT VIEWER, COMMAND CENTER (afs-fl-008) — 2026-08-25
 
 **Genuine pre-existing gap, discovered during field-app testing — not a
