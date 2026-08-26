@@ -23,6 +23,20 @@ export interface PendingQuoteRequestLineItem {
   legB?: number | null;
   quantity: number;
   points?: { x: number; y: number }[] | null;
+  // Auto-generated bend/leg/radius/hem technical readout (afs-fl-012) —
+  // present on "Custom FlashDraft Profile" items only. See
+  // app/api/quote-requests/route.ts's QuoteRequestItemInput and
+  // app/studio/draft/page.tsx's buildBendSummary.
+  geometrySummary?: string | null;
+}
+
+// describeLineItem's return shape — split so a FlashDraft item's
+// auto-generated geometry readout can render as its own visually distinct
+// block under "Requested Profiles" (PendingQuoteRequestCard.tsx) instead of
+// being appended into the same profileType/material/gauge/dims line.
+export interface LineItemDescription {
+  label: string;
+  geometrySummary: string | null;
 }
 
 export interface PendingQuoteRequestRow {
@@ -30,7 +44,7 @@ export interface PendingQuoteRequestRow {
   requestNumber: string;
   customerName: string;
   customerCompany: string | null;
-  lineItemDescriptions: string[];
+  lineItemDescriptions: LineItemDescription[];
   isRush: boolean;
   notes: string | null;
   submittedAt: string;
@@ -58,7 +72,7 @@ export interface PendingQuoteRequestRow {
   attachmentFileType: string | null;
 }
 
-function describeLineItem(item: PendingQuoteRequestLineItem): string {
+function describeLineItem(item: PendingQuoteRequestLineItem): LineItemDescription {
   const parts = [item.profileType];
   if (item.material) parts.push(item.material);
   if (item.gauge) parts.push(item.gauge);
@@ -69,7 +83,10 @@ function describeLineItem(item: PendingQuoteRequestLineItem): string {
   if (item.legB) dims.push(`B:${item.legB}"`);
   const label = parts.join(' — ');
   const qty = item.quantity ? ` × ${item.quantity}` : '';
-  return dims.length ? `${label} (${dims.join(' ')})${qty}` : `${label}${qty}`;
+  return {
+    label: dims.length ? `${label} (${dims.join(' ')})${qty}` : `${label}${qty}`,
+    geometrySummary: item.geometrySummary ?? null,
+  };
 }
 
 export async function getPendingQuoteRequests(supabase: SupabaseClient): Promise<PendingQuoteRequestRow[]> {

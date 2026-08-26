@@ -23,6 +23,13 @@ interface QuoteRequestItemInput {
   // in line_items so "My Saved Profiles" (app/studio/draft/page.tsx) can
   // reload the exact drawn shape later instead of reconstructing it.
   points?: { x: number; y: number; radius?: number }[];
+  // Auto-generated bend/leg/radius/hem technical readout (afs-fl-012) —
+  // present on "Custom FlashDraft Profile" items, kept as its own field
+  // (rather than folded into the top-level `notes` string) so Command
+  // Center's Pending Approval card can render it as a distinct block from
+  // whatever the customer actually typed. See page.tsx's buildBendSummary
+  // and lib/data/pending-quote-requests.ts's describeLineItem.
+  geometrySummary?: string | null;
 }
 
 interface QuoteRequestResponse {

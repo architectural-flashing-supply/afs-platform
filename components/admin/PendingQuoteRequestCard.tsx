@@ -171,9 +171,16 @@ export default function PendingQuoteRequestCard({ request }: { request: PendingQ
 
       <div className="mb-4">
         <p className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1.5">Requested Profiles</p>
-        <ul className="font-data text-xs text-afs-chrome-high space-y-1 list-disc list-inside">
+        <ul className="font-data text-xs text-afs-chrome-high space-y-2 list-disc list-inside">
           {request.lineItemDescriptions.length > 0 ? (
-            request.lineItemDescriptions.map((desc, i) => <li key={i}>{desc}</li>)
+            request.lineItemDescriptions.map((item, i) => (
+              <li key={i}>
+                {item.label}
+                {item.geometrySummary && (
+                  <p className="font-body normal-case text-afs-chrome-mid pl-4 mt-0.5">{item.geometrySummary}</p>
+                )}
+              </li>
+            ))
           ) : (
             <li className="text-afs-chrome-dim list-none">No line items on this request.</li>
           )}

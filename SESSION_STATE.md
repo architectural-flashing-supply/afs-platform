@@ -24,6 +24,71 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## FLASHDRAFT: CUSTOMER NOTES SEPARATED FROM AUTO-GENERATED BEND/GEOMETRY SUMMARY (afs-fl-012) — 2026-08-26
+
+Root-cause fix, no workaround. `submitQuoteRequest` in
+`app/studio/draft/page.tsx` was sending `notes: [buildBendSummary(),
+notes.trim() || null].filter(Boolean).join('\n\n')` — the auto-generated
+leg/angle/radius/hem readout always went first, and with blank customer
+notes, `quote_requests.notes` held *only* that readout. On Command Center's
+Pending Approval card this looked like customer notes never populate.
+`buildBendSummary()`'s calculation logic was not touched — only where its
+output is transmitted and displayed.
+
+**Changes:**
+1. `app/studio/draft/page.tsx` — `notes: notes.trim() || null` now (matches
+   `app/api/field/quote-request/route.ts`'s existing pattern). Line item
+   gained `geometrySummary: buildBendSummary()`.
+2. `app/api/quote-requests/route.ts` — `QuoteRequestItemInput` gained
+   documented optional `geometrySummary?: string | null`. No storage-layer
+   change was actually required: `items = rawItems.filter(isValidItem)`
+   never reconstructs the item object, so extra fields already passed
+   through to `line_items` untouched — this is a type-safety addition
+   matching the file's existing convention, not new plumbing.
+3. `lib/data/pending-quote-requests.ts` — `PendingQuoteRequestLineItem`
+   gained `geometrySummary`. `describeLineItem` now returns a new
+   `LineItemDescription { label, geometrySummary }` shape instead of a bare
+   string; `PendingQuoteRequestRow.lineItemDescriptions` is now
+   `LineItemDescription[]`. `PendingQuoteRequestCard.tsx` renders `label` as
+   before plus a dimmed, visually distinct `<p>` block for `geometrySummary`
+   when present — not concatenated into the label line.
+   `app/admin/command-center/page.tsx`'s `QueueItem` mapping updated to
+   `r.lineItemDescriptions[0]?.label`.
+4. **Traced other consumers of `quote_requests.notes` before touching
+   anything — found two, deliberately left unchanged, flagged instead of
+   guessed:**
+   - `approve-quote-request/route.ts` copies `qr.notes` into
+     `machine_jobs.notes`, which `app/api/machine-bridge/pending-jobs/route.ts`
+     exposes to the separate `afs-machine-bridge` project.
+   - The same route also copies `qr.notes` into
+     `shop_profile_library.account_notes`, rendered on the shop floor by
+     `ShopViewBoard.tsx` under "Account Notes."
+   - Both will stop receiving the bend/geometry readout in newly-approved
+     requests' notes text (the real structured bend data still reaches
+     `machine_jobs.custom_bends`/`blank_width_mm` independently — this is
+     just the human-readable text). **If Reid relies on seeing the geometry
+     readout there, that's a real follow-up** (e.g. read `geometrySummary`
+     off the item instead of `qr.notes`) — not assumed either way here.
+5. **`sendToPathfinder()` (temporary admin test button) — checked, already
+   correct, no change made.** It already sends `notes: notes.trim() ||
+   null` and never calls `buildBendSummary()`; geometry goes to
+   PathfinderEdge as separate structured fields (`points`/`hemStart`/
+   `hemEnd`), not folded into notes text.
+
+**Verified this pass:** `pnpm tsc --noEmit` — 0 errors. `pnpm build` —
+succeeded.
+
+**Not yet confirmed — needs Reid's live check once deployed:** queried this
+project's live Supabase instance directly (not the org's other, unrelated
+Supabase projects visible through the connected MCP) — **zero
+`quote_requests` rows exist with `source_tool = 'afs-flashdraft'`** (35 total
+rows: 26 `unknown`, 9 `field_photo_quote`). A fresh FlashDraft submission
+with real typed notes is required: confirm Customer Notes on the Pending
+Approval card shows only the typed text, and the bend/leg/radius/hem summary
+renders separately under "Requested Profiles," not commingled or lost.
+
+---
+
 ## COMMAND CENTER PENDING APPROVAL — THUMBNAIL, CAPTURE-TIME ORIENTATION FIX, CANCEL (afs-fl-011) — 2026-08-25
 
 Three root-cause fixes to the Pending Approval workflow, no workarounds.

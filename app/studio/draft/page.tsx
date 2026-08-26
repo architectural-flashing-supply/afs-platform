@@ -2826,7 +2826,6 @@ export default function FlashDraftPage() {
       setSubmitError(null);
       setSubmitState('submitting');
 
-      const combinedNotes = [buildBendSummary(), notes.trim() || null].filter(Boolean).join('\n\n');
       const bendRadiiIn: number[] = [];
       for (let i = 1; i < points.length - 1; i++) {
         bendRadiiIn.push(getEffectiveRadius(i));
@@ -2868,6 +2867,14 @@ export default function FlashDraftPage() {
                 points,
                 bendRadiiIn,
                 geometryImage,
+                // Auto-generated bend/leg/radius/hem technical readout
+                // (afs-fl-012) — sent as its own field instead of folded
+                // into the top-level `notes` string, so it can render as a
+                // distinct block under "Requested Profiles" on the Command
+                // Center card instead of burying (or, with no customer
+                // text, replacing entirely) whatever the customer actually
+                // typed in Customer Notes. See buildBendSummary above.
+                geometrySummary: buildBendSummary(),
                 hemStart: hemStart
                   ? { type: hemStart.type, gapIn: hemStart.gapIn, lengthIn: hemStart.lengthIn, kick: hemStart.kick }
                   : undefined,
@@ -2877,7 +2884,11 @@ export default function FlashDraftPage() {
                 paint_face: paintFace ?? undefined,
               },
             ],
-            notes: combinedNotes,
+            // Customer-typed text only (afs-fl-012) — matches the pattern
+            // in app/api/field/quote-request/route.ts. The auto-generated
+            // bend/leg/radius/hem summary travels on the line item itself
+            // as `geometrySummary` (see above), not folded in here.
+            notes: notes.trim() || null,
             isRush: rush,
             color: color.trim() || null,
             finish: isAluminum ? (finish || null) : null,

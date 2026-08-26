@@ -34,19 +34,109 @@ summary, not a replacement for it.
 
 ---
 
-## VERIFIED THIS PASS (2026-08-25, afs-fl-011)
+## VERIFIED THIS PASS (2026-08-26, afs-fl-012)
 
 ```
 pnpm tsc --noEmit                  0 errors. Exit code 0.
-pnpm build                         Succeeded — new route
-                                    /api/admin/command-center/cancel-quote-request
-                                    registered in the build output.
-git status                         Clean except supabase/.temp/ (Supabase
-                                    CLI cache, not source, pre-existing).
-origin/main sync                   0 behind / 1 ahead — commit c0a2dfc
-                                    (afs-fl-011) is local-only, not pushed
-                                    this pass.
+pnpm build                         Succeeded — full route table generated,
+                                    no new/removed routes (this was a data-
+                                    shape fix, not a new endpoint).
+Supabase quote_requests query      Live query against this project's own
+(REST, service role)               Supabase instance (NOT the org's other
+                                    "tarritrix"/"hail-intel" projects visible
+                                    via the connected Supabase MCP — those
+                                    are unrelated projects on the same
+                                    account and were not used). 35 total
+                                    quote_requests rows; 0 with
+                                    source_tool = 'afs-flashdraft'. No real
+                                    FlashDraft-submitted row exists yet to
+                                    visually confirm against — see the open
+                                    item below.
 ```
+
+---
+
+## FLASHDRAFT: CUSTOMER NOTES SEPARATED FROM AUTO-GENERATED BEND/GEOMETRY SUMMARY (afs-fl-012): IMPLEMENTED, UNCONFIRMED — 2026-08-26
+
+**Root cause.** `app/studio/draft/page.tsx`'s `submitQuoteRequest` built the
+submitted `notes` field as `[buildBendSummary(), notes.trim() || null]
+.filter(Boolean).join('\n\n')` — the auto-generated leg/bend-angle/radius/hem
+technical readout was always prepended ahead of whatever the customer typed,
+and when the customer left Notes blank, `quote_requests.notes` contained
+*only* the geometry readout with no visual indication it wasn't customer
+text. On Command Center's Pending Approval card, this read as "customer
+notes never populate" — they were either buried under machine-readable text
+or, in the common blank-notes case, entirely absent-looking.
+
+**Fix — relocates where the summary is displayed, does not touch what it
+contains.** `buildBendSummary()`'s calculation logic is untouched.
+
+1. `app/studio/draft/page.tsx`: `submitQuoteRequest` now sends
+   `notes: notes.trim() || null` (customer-typed text only — matches the
+   existing pattern in `app/api/field/quote-request/route.ts`). The technical
+   readout now travels as its own field on the FlashDraft line item,
+   `geometrySummary: buildBendSummary()`.
+2. `app/api/quote-requests/route.ts`: `QuoteRequestItemInput` gained an
+   optional `geometrySummary?: string | null` field, documented the same way
+   as the existing `points` field. No behavior change was required for
+   storage itself — `items = rawItems.filter(isValidItem)` never
+   reconstructs the item object, so extra fields on a submitted item were
+   already passed through to `line_items` (jsonb) untouched; this is purely
+   a type-safety/documentation addition matching the file's existing
+   convention.
+3. `lib/data/pending-quote-requests.ts`: `PendingQuoteRequestLineItem` gained
+   the matching optional `geometrySummary` field. `describeLineItem` now
+   returns a new `LineItemDescription` shape (`{ label, geometrySummary }`)
+   instead of a plain string, and `PendingQuoteRequestRow.lineItemDescriptions`
+   is now `LineItemDescription[]`. `PendingQuoteRequestCard.tsx` renders
+   `label` as before and, when `geometrySummary` is present, an additional
+   dimmed `<p>` block beneath it inside the same list item — visually
+   distinct from the label line, not concatenated into it.
+   `app/admin/command-center/page.tsx`'s `QueueItem` mapping was updated to
+   read `r.lineItemDescriptions[0]?.label` (was reading the old bare string).
+4. **Checked for other consumers expecting the old combined
+   `quote_requests.notes` — two real ones found, deliberately NOT changed:**
+   - `app/api/admin/command-center/approve-quote-request/route.ts` copies
+     `qr.notes` verbatim into `machine_jobs.notes` (line ~504) at approval
+     time. `machine_jobs.notes` is then exposed via
+     `app/api/machine-bridge/pending-jobs/route.ts` to the external,
+     separate `afs-machine-bridge` project (see CLAUDE.md's Machine
+     Integration section) — a real consumer outside this repo.
+   - The same route also copies `qr.notes` into
+     `shop_profile_library.account_notes` (line ~561,
+     `insertShopProfileLibraryRecord`), which
+     `components/admin/ShopViewBoard.tsx` renders on the shop floor under an
+     "Account Notes" heading.
+   - **Both currently receive whatever is in `quote_requests.notes` at
+     approval time.** After this fix, a newly-submitted FlashDraft request's
+     `notes` will no longer carry the bend/leg/radius/hem readout, so these
+     two downstream surfaces will stop seeing it there (the real structured
+     bend data still reaches `machine_jobs.custom_bends`/`blank_width_mm`
+     independently — this only affects the human-readable text block). Not
+     fixed here — flagged per the task's explicit instruction not to guess
+     whether changing them is safe. If Reid relies on seeing the geometry
+     readout in "Account Notes" on the Shop View Board or in the machine
+     bridge's job notes, that needs a deliberate follow-up (e.g. having
+     those two call sites read `geometrySummary` off the approved item(s)
+     instead of `qr.notes`), not an assumption either way.
+5. **`sendToPathfinder()`(the temporary admin "Send to PathfinderEdge" test
+   button, `app/studio/draft/page.tsx`) — checked, needed no fix.** It
+   already sends `notes: notes.trim() || null` (customer text only) and
+   never calls `buildBendSummary()`; geometry reaches PathfinderEdge through
+   separate structured fields (`points`, `hemStart`, `hemEnd`) it sends
+   independently, not as text folded into a notes/description string.
+
+**Verified this pass:** `pnpm tsc --noEmit` 0 errors, `pnpm build` succeeded.
+
+**Not confirmed — hold as unresolved per this file's verification
+standard:** zero `quote_requests` rows with `source_tool = 'afs-flashdraft'`
+currently exist in the live database (checked directly against this
+project's own Supabase instance — 35 total rows, all `unknown` or
+`field_photo_quote`). A fresh FlashDraft submission with real typed notes is
+needed to visually confirm: Customer Notes on the Pending Approval card shows
+*only* the typed text, and the bend/leg/radius/hem summary appears as a
+separate, visually distinct block under "Requested Profiles" — not
+commingled, not lost.
 
 ---
 

@@ -99,7 +99,7 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
           kind: 'pending',
           requestNumber: r.requestNumber,
           customerName: r.customerName,
-          profileName: r.lineItemDescriptions[0] ?? '—',
+          profileName: r.lineItemDescriptions[0]?.label ?? '—',
           status: 'pending_approval',
           submittedAt: r.submittedAt,
           isRush: r.isRush,
