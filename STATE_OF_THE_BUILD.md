@@ -34,17 +34,74 @@ summary, not a replacement for it.
 
 ---
 
-## VERIFIED THIS PASS (2026-08-26, afs-fl-013)
+## VERIFIED THIS PASS (2026-08-26, afs-fl-015)
 
 ```
 pnpm tsc --noEmit                  0 errors. Exit code 0.
-pnpm build                         Succeeded — full route table generated,
-                                    no new/removed routes.
 ```
 
-No live user confirmation of the visual behavior yet — see the "Not
-confirmed" note under afs-fl-013 below. Held as IMPLEMENTED, UNCONFIRMED per
-this file's verification standard.
+`pnpm build` was not re-run this pass (not requested by the task); `tsc
+--noEmit` is the gate this task explicitly asked for. No live user
+confirmation of the visual behavior yet — see the "Not confirmed" note
+under afs-fl-015 below. Held as IMPLEMENTED, UNCONFIRMED per this file's
+verification standard.
+
+---
+
+## COMMAND CENTER APPROVAL: GEOMETRY SUMMARY RESTORED TO SHOP-FLOOR ACCOUNT NOTES (afs-fl-015): IMPLEMENTED, UNCONFIRMED — 2026-08-26
+
+**Root cause.** afs-fl-012 (below) correctly narrowed `quote_requests.notes`
+to customer-typed text only, moving the auto-generated bend/leg/radius/hem
+geometry readout onto each line item's own `geometrySummary` field instead.
+That change explicitly flagged, but deliberately did not fix, a side
+effect: `app/api/admin/command-center/approve-quote-request/route.ts` still
+copied `qr.notes` verbatim into both `machine_jobs.notes` (read by the
+external `afs-machine-bridge` project) and
+`shop_profile_library.account_notes` (rendered by
+`components/admin/ShopViewBoard.tsx` under "Account Notes"). Since
+`qr.notes` no longer carries the geometry summary, both downstream surfaces
+stopped showing it for any newly-approved FlashDraft request. Confirmed by
+Reid as requiring a real fix, not a documented gap.
+
+**Fix.** `approve-quote-request/route.ts`:
+1. `QuoteRequestLineItem` gained the matching optional
+   `geometrySummary?: string | null` field (the same shape already carried
+   on `quote_requests.line_items` since afs-fl-012 — this route just hadn't
+   typed/read it).
+2. New `composeShopFloorNotes(customerNotes, geometrySummary)` joins the
+   customer's notes and that line item's geometry summary with a blank-line
+   separator (`\n\n`) — the same convention already used elsewhere in this
+   codebase for combining human-typed and auto-generated text into one
+   free-text column (`app/api/contact/route.ts`'s `descriptionLines`,
+   `app/api/consultation/request/route.ts`'s `noteLines`). Returns `null`
+   when both inputs are empty, same as the field's prior behavior.
+3. Called once per line item — this route already creates one
+   `machine_jobs` row and one `shop_profile_library` row per line item (the
+   existing per-item loop, not changed by this fix), so each row naturally
+   receives only its own item's geometry summary rather than every item's
+   geometry summary mixed into every row. This is the "one per item,
+   clearly delimited" combination for multi-item requests: the existing
+   per-row architecture already provides it.
+4. `field_photo_quote`-sourced items never carry `geometrySummary` (they're
+   not FlashDraft profiles, so the field is `undefined`) —
+   `composeShopFloorNotes` degrades to customer notes only in that case,
+   identical to pre-afs-fl-012 behavior. No regression.
+5. `components/admin/ShopViewBoard.tsx`'s "Account Notes" `<p>` gained
+   `whitespace-pre-line` — without it, the `\n\n` separator collapses to a
+   single space in rendered HTML and the two parts would run together
+   un-delimited, defeating the point of the fix. (`PendingQuoteRequestCard.tsx`'s
+   "Customer Notes" block already uses this same class for the same reason.)
+
+**Verified this pass:** `pnpm tsc --noEmit` — 0 errors.
+
+**Not confirmed — needs Reid's live check, held per this file's
+verification standard:** a fresh FlashDraft submission, once approved and
+sent to the machine, showing BOTH the customer's typed note AND the
+bend/geometry summary in Shop View's Account Notes, clearly separated — and
+confirming a field-photo-quote submission's Account Notes is unaffected
+(customer text only, as before). No live FlashDraft-sourced
+`quote_requests` row existed in the database as of afs-fl-012's pass either
+(see that entry's own unconfirmed note) — not re-checked this pass.
 
 ---
 
@@ -224,6 +281,8 @@ contains.** `buildBendSummary()`'s calculation logic is untouched.
      bridge's job notes, that needs a deliberate follow-up (e.g. having
      those two call sites read `geometrySummary` off the approved item(s)
      instead of `qr.notes`), not an assumption either way.
+     **FIXED by afs-fl-015 (see entry above) — Reid confirmed this required
+     a real fix.**
 5. **`sendToPathfinder()`(the temporary admin "Send to PathfinderEdge" test
    button, `app/studio/draft/page.tsx`) — checked, needed no fix.** It
    already sends `notes: notes.trim() || null` (customer text only) and

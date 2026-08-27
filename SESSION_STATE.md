@@ -24,6 +24,55 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## COMMAND CENTER APPROVAL: GEOMETRY SUMMARY RESTORED TO SHOP-FLOOR ACCOUNT NOTES (afs-fl-015) — 2026-08-26
+
+Root-cause fix, no workaround, for a side effect afs-fl-012 (below) flagged
+but deliberately left unfixed, now confirmed by Reid as needing a real fix.
+afs-fl-012 correctly narrowed `quote_requests.notes` to customer-typed text
+only, moving the auto-generated bend/leg/radius/hem readout onto each line
+item's own `geometrySummary` field. But
+`app/api/admin/command-center/approve-quote-request/route.ts` still copied
+`qr.notes` verbatim into `machine_jobs.notes` (read by the external
+`afs-machine-bridge` project) and `shop_profile_library.account_notes`
+(rendered by `ShopViewBoard.tsx`'s "Account Notes"). With the geometry
+readout no longer in `qr.notes`, both stopped showing it for any
+newly-approved FlashDraft request.
+
+**Changes:**
+1. `approve-quote-request/route.ts`'s `QuoteRequestLineItem` gained the
+   matching `geometrySummary?: string | null` field (already present in
+   `quote_requests.line_items` since afs-fl-012, just not typed/read here).
+2. New `composeShopFloorNotes(customerNotes, geometrySummary)` joins the
+   two with a `\n\n` separator — same convention as
+   `app/api/contact/route.ts`'s `descriptionLines` and
+   `app/api/consultation/request/route.ts`'s `noteLines`. Used for both the
+   `machine_jobs.notes` insert and the `shop_profile_library.account_notes`
+   insert, called once per line item (this route already writes one row of
+   each per line item, so each row naturally gets only its own item's
+   geometry rather than every item's geometry mixed together — that's the
+   "one per item, clearly delimited" handling for multi-item requests).
+3. `field_photo_quote` items never carry `geometrySummary` (not FlashDraft
+   profiles) — `composeShopFloorNotes` falls through to customer notes only
+   for them, unchanged from before this fix.
+4. `ShopViewBoard.tsx`'s "Account Notes" `<p>` gained `whitespace-pre-line`
+   — without it the `\n\n` collapses to a single space in rendered HTML and
+   the two parts wouldn't actually appear separated. Matches
+   `PendingQuoteRequestCard.tsx`'s "Customer Notes" block, which already
+   uses this class for the same reason.
+
+**Verified this pass:** `pnpm tsc --noEmit` — 0 errors.
+
+**Not yet confirmed — needs Reid's live check:** a fresh FlashDraft
+submission, once approved and sent to the machine, showing BOTH the
+customer's typed note AND the bend/geometry summary in Shop View's Account
+Notes, clearly separated — and that a field-photo-quote submission's
+Account Notes is unaffected (customer text only, as before). As of
+afs-fl-012's pass, no live `quote_requests` row with
+`source_tool = 'afs-flashdraft'` existed in the database yet — not
+re-checked this pass.
+
+---
+
 ## FLASHDRAFT: REAL CUSTOMER-SELECTED PAINT COLOR, EARLY 2D PAINT-FACE DECISION, PLACEHOLDER ANODIZED COLOR CHART (afs-fl-013) — 2026-08-26
 
 **⚠ Ships a short-lived PLACEHOLDER anodized aluminum color chart — see
