@@ -5,7 +5,7 @@ import ProfileViewer3D, { type ProfileBend } from '@/components/studio/ProfileVi
 import {
   type PaintFace,
   isPaintedMaterial,
-  approxPaintColor,
+  resolveSelectedPaintColor,
   BARE_METAL_COLOR,
   ROTATE_SPEED,
   ROTATE_DURATION_MS,
@@ -18,6 +18,7 @@ export interface MatchedProfile3DModalProps {
   material: string;
   gauge: string;
   thicknessMm: number;
+  color: string;
   onClose: () => void;
 }
 
@@ -31,6 +32,7 @@ export default function MatchedProfile3DModal({
   material,
   gauge,
   thicknessMm,
+  color,
   onClose,
 }: MatchedProfile3DModalProps) {
   const isPainted = isPaintedMaterial(material);
@@ -54,7 +56,7 @@ export default function MatchedProfile3DModal({
             thicknessMm={thicknessMm}
             profileName={profileName}
             paintFace={isPainted ? paintFace : undefined}
-            paintColor={isPainted ? approxPaintColor(material) : undefined}
+            paintColor={isPainted ? resolveSelectedPaintColor(material, color) : undefined}
             bareColor={isPainted ? BARE_METAL_COLOR : undefined}
             autoRotateSpeed={ROTATE_SPEED}
             autoRotateDurationMs={ROTATE_DURATION_MS}

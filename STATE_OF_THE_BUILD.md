@@ -34,25 +34,130 @@ summary, not a replacement for it.
 
 ---
 
-## VERIFIED THIS PASS (2026-08-26, afs-fl-012)
+## VERIFIED THIS PASS (2026-08-26, afs-fl-013)
 
 ```
 pnpm tsc --noEmit                  0 errors. Exit code 0.
 pnpm build                         Succeeded — full route table generated,
-                                    no new/removed routes (this was a data-
-                                    shape fix, not a new endpoint).
-Supabase quote_requests query      Live query against this project's own
-(REST, service role)               Supabase instance (NOT the org's other
-                                    "tarritrix"/"hail-intel" projects visible
-                                    via the connected Supabase MCP — those
-                                    are unrelated projects on the same
-                                    account and were not used). 35 total
-                                    quote_requests rows; 0 with
-                                    source_tool = 'afs-flashdraft'. No real
-                                    FlashDraft-submitted row exists yet to
-                                    visually confirm against — see the open
-                                    item below.
+                                    no new/removed routes.
 ```
+
+No live user confirmation of the visual behavior yet — see the "Not
+confirmed" note under afs-fl-013 below. Held as IMPLEMENTED, UNCONFIRMED per
+this file's verification standard.
+
+---
+
+## FLASHDRAFT: REAL CUSTOMER-SELECTED PAINT COLOR, EARLY 2D PAINT-FACE DECISION, PLACEHOLDER ANODIZED COLOR CHART (afs-fl-013): IMPLEMENTED, UNCONFIRMED — 2026-08-26
+
+**⚠ Contains short-lived PLACEHOLDER color data — see item 1 below. Not
+production-final.**
+
+**Root cause (two real gaps, both pre-existing):**
+1. `approxPaintColor(material)` in `lib/utils/paint-appearance.ts` derived a
+   color from the **material name** via regex (e.g. "any Kynar material
+   shows the Kynar swatch"), never from the customer's actual selected
+   color/finish (`color` state in `app/studio/draft/page.tsx`, chosen via
+   `ColorField`/`FinishColorField`) — the 3D viewer showed a generic guess,
+   not the real picked color.
+2. `isPaintedMaterial()`'s regex (`/kynar|painted|vintage/i`) never matched
+   "Anodized Aluminum" at all, so anodized aluminum never entered the
+   paint-face flow in 3D — even though anodizing is a one-face coating
+   exactly like Kynar.
+
+Separately, `lib/data/metal-colors.ts`'s `pacclad_anodized` array was empty,
+so `FinishColorField.tsx` fell back to a free-text input for anodized color
+with no real hex data at all.
+
+**Fix:**
+1. **Placeholder anodized color data.** Populated `pacclad_anodized` in
+   `lib/data/metal-colors.ts` with 9 `{ name, hex }` entries (Brite Clear,
+   Clear Satin, Brite Brushed Clear, Brite Gold, Gold Satin, Brite Brushed
+   Gold, Dark Bronze, LA Extra Bronze, Black). **These are PLACEHOLDER
+   values sampled by pixel-averaging a PAC-CLAD reference PDF on
+   2026-08-26, explicitly expected to be REPLACED WITHIN DAYS once Reid
+   receives the distributor's real vector color chart (afs-jf-002).** The
+   array's own code comment states this. Traced `colorPaletteForMaterial()`
+   in `lib/data/material-color-requirement.ts` and confirmed by code
+   inspection that populating this array is genuinely the only change
+   needed — `FinishColorField.tsx` was NOT modified, and none was needed:
+   `colorPaletteForMaterial(material, 'Anodized')` now returns
+   `'pacclad_anodized'` instead of `null` the moment the array has entries,
+   which flips `FinishColorField`'s `palette ? <ColorField palette={palette} />
+   : <free text>` branch to the real chart picker automatically, and
+   `ColorField`/`ColorPickerModal` already had `pacclad_anodized` wired into
+   their `PALETTE_COLORS` records.
+2. **Paint-face detection now covers anodized aluminum.**
+   `isPaintedMaterial()` in `lib/utils/paint-appearance.ts` no longer uses
+   its own regex — it now delegates to
+   `materialRequiresColorValue()` (`lib/data/material-color-requirement.ts`),
+   the exact same painted_steel/aluminum category check
+   `app/studio/draft/page.tsx` already uses for `isAluminum`/`colorPalette`.
+   One source of truth instead of two regexes that could drift.
+3. **Real selected color, not a material guess.** New
+   `resolveSelectedPaintColor(material, color)` in `paint-appearance.ts`
+   looks up the customer's actual selected name via `findMetalColorByName()`
+   (`lib/data/metal-colors.ts`) — the same colorMatch-by-name lookup
+   `components/admin/ShopViewBoard.tsx` uses for `row.color` — which checks
+   McElroy, then PAC-CLAD, then PAC-CLAD Anodized by name. Falls back to
+   catalog.ts's existing "Custom Color Match" placeholder hex (`#C0001A`)
+   for a free-text/unmatched name. **Deviation from the literal prompt
+   wording, flagged explicitly:** the prompt said to look up painted_steel
+   colors in `lib/data/catalog.ts`'s `FINISHES` array. Traced
+   `app/studio/draft/page.tsx` and confirmed it never imports `FINISHES` —
+   FlashDraft's painted_steel color field renders `<ColorField
+   palette="mcelroy">`, so every real customer selection is a McElroy chart
+   name (e.g. "Autumn Red"), not one of `FINISHES`'s five generic entries
+   ("Kynar 500 — Bone White", etc). Looking up a McElroy name in `FINISHES`
+   would never match, silently falling back to the placeholder color for
+   every real selection — reproducing the exact bug this prompt fixes.
+   Used `findMetalColorByName` instead, which is also the literal reuse
+   target the prompt named (ShopViewBoard's `colorMatch` pattern) and
+   correctly resolves both painted_steel (McElroy) and anodized aluminum
+   (PAC-CLAD Anodized) names.
+   `SubmitConfirmation3DModal.tsx` and `MatchedProfile3DModal.tsx` both now
+   take a `color: string` prop from `app/studio/draft/page.tsx` and pass
+   `resolveSelectedPaintColor(material, color)` as `paintColor` instead of
+   `approxPaintColor(material)` (removed — no remaining callers).
+4. **Early 2D paint-face decision.** New page-level `paintFace` state in
+   `app/studio/draft/page.tsx` (was only local state inside
+   `SubmitConfirmation3DModal`, resetting on every open). A new sidebar
+   toggle ("Painted Side Up"/"Painted Side Down") plus a real resolved-hex
+   swatch chip appears as soon as `isPaintedMaterial(material) &&
+   color.trim() !== ''` — not sprung on the customer only at final 3D
+   confirm. `SubmitConfirmation3DModal` gained a required `initialPaintFace`
+   prop; its internal toggle now seeds from that instead of a hardcoded
+   `'up'`. `handle3DConfirmed` writes the confirmed face back to the
+   page-level `paintFace` state, so the 2D sidebar and 3D modal stay in
+   sync in both directions.
+5. **2D canvas visual indicator.** The main profile-drawing effect in
+   `app/studio/draft/page.tsx` now strokes a colored stripe alongside the
+   drawn profile line, offset perpendicular via an averaged-normal miter
+   (mirrors `ProfileViewer3D.tsx`'s `offsetPolyline` outer/inner-face
+   convention, computed in screen space here), sign flipped by
+   `paintFace`, using `resolveSelectedPaintColor()`'s real hex as a raw
+   `ctx.strokeStyle` value — the same documented CANVAS_COLORS/rule #4
+   exception this file already uses (a 2D canvas context can't consume
+   afs-* tokens).
+
+**Verified this pass:** `pnpm tsc --noEmit` — 0 errors. `pnpm build` —
+succeeded, no new/removed routes.
+
+**Not confirmed — needs Reid's live check, held per this file's
+verification standard:**
+(a) Whether `FinishColorField.tsx` visually switches to a real
+`ColorField`/`ColorPickerModal` picker for Anodized Aluminum in the running
+app (traced correct by code inspection, not clicked through in a browser).
+(b) A fresh FlashDraft draw with a real Kynar (McElroy) color AND a
+separate one with a real anodized (placeholder PAC-CLAD Anodized) color,
+confirming the actual selected swatch — not a generic guess — appears
+correctly in the 2D sidebar, on the 2D canvas stripe, and in the 3D
+confirmation modal.
+(c) That the up/down toggle chosen early in the 2D sidebar correctly
+carries through as the 3D modal's starting state rather than resetting to
+'up'.
+(d) That the 2D canvas stripe reads clearly as "this side is painted"
+rather than as visual clutter, once seen against a real drawn profile.
 
 ---
 
@@ -1441,6 +1546,16 @@ never had a finish concept and this prompt doesn't give it one.
 **"Anodized" finish** → a required free-text "Specify Anodized Color"
 input instead, because no `pacclad_anodized` chart exists yet (AFS is
 waiting on the physical PAC-CLAD anodized chart, expected within days).
+
+**SUPERSEDED 2026-08-26 (afs-fl-013):** `pacclad_anodized` is no longer
+empty — see the afs-fl-013 entry above. It was populated with 9
+**PLACEHOLDER** `{ name, hex }` entries pixel-sampled from a PDF, explicitly
+expected to be replaced within days once Reid gets the real vector chart.
+The free-text fallback described below is now dead code in practice (still
+present, still correct if the array were ever emptied again) — every
+surface using `FinishColorField.tsx` now renders the real `ColorField`
+picker for Anodized, exactly as the FUTURE-SWAP HOOK below predicted, with
+no changes needed to any of the four wired surfaces.
 
 **Future-swap hook, so a later prompt doesn't have to touch UI code:**
 `lib/data/metal-colors.ts` now exports an empty `pacclad_anodized:

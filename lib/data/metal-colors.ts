@@ -111,17 +111,27 @@ export const pacclad: MetalColor[] = [
 ];
 
 /**
- * PAC-CLAD anodized aluminum color chart — NOT YET POPULATED. AFS is
- * waiting on the physical PAC-CLAD anodized chart (expected within days,
- * afs-jf-002); until real { name, hex } entries land here, the "Anodized"
- * finish branch (see lib/data/material-color-requirement.ts's
- * colorPaletteForMaterial and components/quote/FinishColorField.tsx)
- * collects a free-text color name instead of a chart picker. Populating
- * this array — mirroring `pacclad` above — is the ONLY change needed
- * anywhere to switch every surface from free text to a real picker; no
- * page, component, or other function needs to change.
+ * PAC-CLAD anodized aluminum color chart — PLACEHOLDER data sampled by
+ * pixel-averaging a PAC-CLAD reference PDF on 2026-08-26, explicitly
+ * expected to be REPLACED WITHIN DAYS once Reid receives the distributor's
+ * real vector color chart (afs-jf-002, afs-fl-013). Do not treat this as
+ * final production color data — it exists only so the "Anodized" finish
+ * branch (see lib/data/material-color-requirement.ts's
+ * colorPaletteForMaterial and components/quote/FinishColorField.tsx) has a
+ * real chart picker instead of free text while the physical chart is in
+ * transit.
  */
-export const pacclad_anodized: MetalColor[] = [];
+export const pacclad_anodized: MetalColor[] = [
+  { name: 'Brite Clear', hex: '#D6DFDC' },
+  { name: 'Clear Satin', hex: '#D1D3CD' },
+  { name: 'Brite Brushed Clear', hex: '#D5D7D5' },
+  { name: 'Brite Gold', hex: '#BFB589' },
+  { name: 'Gold Satin', hex: '#A79661' },
+  { name: 'Brite Brushed Gold', hex: '#B9A66E' },
+  { name: 'Dark Bronze', hex: '#41362F' },
+  { name: 'LA Extra Bronze', hex: '#2B231E' },
+  { name: 'Black', hex: '#0E0F0F' },
+];
 
 /**
  * Looks up a MetalColor by its printed name across all three palettes, for

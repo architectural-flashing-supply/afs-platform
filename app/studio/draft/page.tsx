@@ -21,6 +21,7 @@ import { drawHemGlyph, HEM_GLYPH_R } from '@/lib/flashdraft/hem-glyph';
 import BendSequenceDiagram from '@/components/studio/BendSequenceDiagram';
 import SubmitConfirmation3DModal, { type PaintFace } from '@/components/studio/SubmitConfirmation3DModal';
 import MatchedProfile3DModal from '@/components/studio/MatchedProfile3DModal';
+import { isPaintedMaterial, resolveSelectedPaintColor } from '@/lib/utils/paint-appearance';
 import ProfileDetailsModal, { type ProfileDetailsFormValues } from '@/components/studio/ProfileDetailsModal';
 import Toast from '@/components/ui/Toast';
 import type { ProfileMatch, DiagramBend } from '@/app/api/studio/match-profile/route';
@@ -928,6 +929,11 @@ export default function FlashDraftPage() {
 
   const [show3DConfirm, setShow3DConfirm] = useState(false);
   const [confirmedPaintFace, setConfirmedPaintFace] = useState<PaintFace | null>(null);
+  // Early 2D paint-face decision (afs-fl-013) — lifted out of
+  // SubmitConfirmation3DModal's own local state so a choice made here in
+  // the 2D sidebar carries through as that modal's starting value instead
+  // of always resetting to 'up' at final submit confirmation.
+  const [paintFace, setPaintFace] = useState<PaintFace>('up');
 
   const gaugeOptions = material ? GAUGES_BY_MATERIAL[material] ?? [] : [];
   // 'painted_steel' materials always require a McElroy color selection.
@@ -937,6 +943,12 @@ export default function FlashDraftPage() {
   const isAluminum = material ? requiresFinishChoice(material) : false;
   const colorPalette = material ? colorPaletteForMaterial(material, finish || null) : null;
   const colorSatisfied = isColorRequirementSatisfied(material, finish || null, color);
+  // Real customer-selected paint face/color (afs-fl-013) — drives the early
+  // 2D sidebar toggle, the 2D canvas stripe, and both 3D modals, replacing
+  // the old material-name-guessed swatch.
+  const isPainted = material ? isPaintedMaterial(material) : false;
+  const paintFaceSelectable = isPainted && color.trim() !== '';
+  const resolvedPaintColor = resolveSelectedPaintColor(material, color);
   const lengthFtDecimal = (Number(lengthFeet) || 0) + (Number(lengthInches) || 0) / 12;
   const thicknessIn = gaugeToThicknessMm(gauge) / MM_PER_INCH;
 
@@ -1315,6 +1327,57 @@ export default function FlashDraftPage() {
       ctx.fillText(formatInches(length), midX + 6, midY - 6);
     }
 
+    // Painted-side indicator (afs-fl-013) — a colored stripe running along
+    // whichever side of the profile the paintFace toggle currently selects,
+    // using the real resolved swatch color (resolveSelectedPaintColor), not
+    // a generic material guess. Raw ctx.strokeStyle hex value — same
+    // documented CANVAS_COLORS exception (CLAUDE.md rule #4): a 2D canvas
+    // context can't consume afs-* tokens. Offsets each vertex along the
+    // averaged normal of its two adjacent segments (mirrors
+    // ProfileViewer3D's offsetPolyline outer/inner-face convention) so the
+    // stripe reads as one continuous edge rather than a per-segment zig-zag.
+    if (points.length >= 2 && paintFaceSelectable) {
+      const screenPoints = points.map((p) => worldToScreen(p, canvas));
+      const segNormal = (p: Point, q: Point) => {
+        const dx = q.x - p.x;
+        const dy = q.y - p.y;
+        const len = Math.hypot(dx, dy) || 1;
+        return { x: -dy / len, y: dx / len };
+      };
+      const sign = paintFace === 'up' ? 1 : -1;
+      const stripeOffsetPx = 8;
+      const stripePoints = screenPoints.map((p, i) => {
+        let nx: number;
+        let ny: number;
+        if (i === 0) {
+          const n = segNormal(screenPoints[0], screenPoints[1]);
+          nx = n.x;
+          ny = n.y;
+        } else if (i === screenPoints.length - 1) {
+          const n = segNormal(screenPoints[i - 1], screenPoints[i]);
+          nx = n.x;
+          ny = n.y;
+        } else {
+          const n1 = segNormal(screenPoints[i - 1], screenPoints[i]);
+          const n2 = segNormal(screenPoints[i], screenPoints[i + 1]);
+          nx = n1.x + n2.x;
+          ny = n1.y + n2.y;
+          const len = Math.hypot(nx, ny) || 1;
+          nx /= len;
+          ny /= len;
+        }
+        return { x: p.x + nx * stripeOffsetPx * sign, y: p.y + ny * stripeOffsetPx * sign };
+      });
+      ctx.save();
+      ctx.strokeStyle = resolvedPaintColor;
+      ctx.lineWidth = 4;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      stripePoints.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
+      ctx.stroke();
+      ctx.restore();
+    }
+
     // Live drag-in-progress segment, from the last committed point to the
     // cursor — or, for the very first point, from the drag's own anchor
     // (there is no committed point yet to read from `points`). A prepend
@@ -1529,6 +1592,9 @@ export default function FlashDraftPage() {
     hemEnd,
     draggingVertexIndex,
     viewMode,
+    paintFaceSelectable,
+    paintFace,
+    resolvedPaintColor,
   ]);
 
   // --- Debounced profile matching ---
@@ -2961,11 +3027,16 @@ export default function FlashDraftPage() {
     setShow3DConfirm(true);
   };
 
-  const handle3DConfirmed = (paintFace: PaintFace | null) => {
-    setConfirmedPaintFace(paintFace);
+  const handle3DConfirmed = (confirmedFace: PaintFace | null) => {
+    setConfirmedPaintFace(confirmedFace);
+    // Keep the 2D sidebar's toggle in sync with whatever the 3D modal was
+    // actually confirmed with (it seeds from `paintFace` but the customer
+    // can still flip it there) — so re-opening the 3D confirm later, or
+    // looking back at the 2D sidebar, doesn't show a stale choice.
+    if (confirmedFace) setPaintFace(confirmedFace);
     setShow3DConfirm(false);
     if (isAuthenticated) {
-      submitQuoteRequest(undefined, paintFace);
+      submitQuoteRequest(undefined, confirmedFace);
     } else {
       setShowEmailCapture(true);
     }
@@ -3166,6 +3237,40 @@ export default function FlashDraftPage() {
               color={color}
               onColorChange={setColor}
             />
+          )}
+
+          {paintFaceSelectable && (
+            <div>
+              <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1.5 block">
+                Painted Side
+              </label>
+              <div className="flex items-center gap-3">
+                <span
+                  className="w-6 h-6 rounded shrink-0 border border-afs-chrome-dim"
+                  // Literal hex fill — same CANVAS_COLORS-style exception this
+                  // file already documents (CLAUDE.md rule #4): the real
+                  // selected color/finish has no afs-* token equivalent.
+                  style={{ backgroundColor: resolvedPaintColor }}
+                  aria-hidden="true"
+                />
+                <div className="flex gap-2 flex-1">
+                  {(['up', 'down'] as PaintFace[]).map((f) => (
+                    <button
+                      key={f}
+                      type="button"
+                      onClick={() => setPaintFace(f)}
+                      className={`flex-1 font-label text-xs px-3 py-2 rounded border transition-colors ${
+                        paintFace === f
+                          ? 'bg-afs-crimson text-white border-afs-crimson'
+                          : 'bg-afs-bg-overlay text-white border-afs-border hover:border-afs-chrome-base'
+                      }`}
+                    >
+                      {f === 'up' ? 'Painted Side Up' : 'Painted Side Down'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
           )}
 
           <div>
@@ -3967,6 +4072,8 @@ export default function FlashDraftPage() {
           material={material}
           gauge={gauge}
           thicknessMm={gaugeToThicknessMm(gauge)}
+          color={color}
+          initialPaintFace={paintFace}
           onCancel={() => setShow3DConfirm(false)}
           onConfirm={handle3DConfirmed}
         />
@@ -3981,6 +4088,7 @@ export default function FlashDraftPage() {
           material={material || 'Galvanized Steel'}
           gauge={gauge || GAUGES_BY_MATERIAL['Galvanized Steel']?.[1] || '24 ga'}
           thicknessMm={gaugeToThicknessMm(gauge || GAUGES_BY_MATERIAL['Galvanized Steel']?.[1])}
+          color={color}
           onClose={() => setShowMatched3DView(false)}
         />
       )}

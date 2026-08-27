@@ -5,7 +5,7 @@ import ProfileViewer3D, { type ProfileBend } from '@/components/studio/ProfileVi
 import {
   type PaintFace,
   isPaintedMaterial,
-  approxPaintColor,
+  resolveSelectedPaintColor,
   BARE_METAL_COLOR,
   ROTATE_SPEED,
   ROTATE_DURATION_MS,
@@ -19,6 +19,8 @@ export interface SubmitConfirmation3DModalProps {
   material: string;
   gauge: string;
   thicknessMm: number;
+  color: string;
+  initialPaintFace: PaintFace;
   onConfirm: (paintFace: PaintFace | null) => void;
   onCancel: () => void;
   submitting?: boolean;
@@ -30,12 +32,18 @@ export default function SubmitConfirmation3DModal({
   material,
   gauge,
   thicknessMm,
+  color,
+  initialPaintFace,
   onConfirm,
   onCancel,
   submitting,
 }: SubmitConfirmation3DModalProps) {
   const isPainted = isPaintedMaterial(material);
-  const [paintFace, setPaintFace] = useState<PaintFace>('up');
+  // Seeded from the customer's early 2D choice (app/studio/draft/page.tsx's
+  // page-level paintFace state) rather than always resetting to 'up' — the
+  // 2D decision carries through to this final confirmation instead of being
+  // silently discarded (afs-fl-013).
+  const [paintFace, setPaintFace] = useState<PaintFace>(initialPaintFace);
 
   return (
     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-6">
@@ -55,7 +63,7 @@ export default function SubmitConfirmation3DModal({
             gauge={gauge}
             thicknessMm={thicknessMm}
             paintFace={isPainted ? paintFace : undefined}
-            paintColor={isPainted ? approxPaintColor(material) : undefined}
+            paintColor={isPainted ? resolveSelectedPaintColor(material, color) : undefined}
             bareColor={isPainted ? BARE_METAL_COLOR : undefined}
             autoRotateSpeed={ROTATE_SPEED}
             autoRotateDurationMs={ROTATE_DURATION_MS}
