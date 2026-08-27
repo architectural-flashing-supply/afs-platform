@@ -323,7 +323,7 @@ function FocusPanel({ row, advancing, onAdvance }: FocusPanelProps) {
           {row.accountNotes && (
             <div>
               <p className="font-label text-xs uppercase tracking-widest text-afs-chrome-dim mb-1">Account Notes</p>
-              <p className="font-body text-sm text-afs-chrome-high">{row.accountNotes}</p>
+              <p className="font-body text-sm text-afs-chrome-high whitespace-pre-line">{row.accountNotes}</p>
             </div>
           )}
 

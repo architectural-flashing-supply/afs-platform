@@ -57,6 +57,16 @@ interface QuoteRequestLineItem {
   // otherwise. When absent/blank, this route falls back to describeItem()
   // exactly as it did before this field existed.
   profileName?: string | null;
+  // Auto-generated bend/leg/radius/hem technical readout (afs-fl-012) —
+  // present on "Custom FlashDraft Profile" items only (see page.tsx's
+  // buildBendSummary and lib/data/pending-quote-requests.ts's
+  // describeLineItem, which already surface this on the admin Pending
+  // Approval card). Never present on field_photo_quote items, which have
+  // no FlashDraft geometry at all. Used by composeShopFloorNotes below
+  // (afs-fl-015) to restore this onto machine_jobs.notes and
+  // shop_profile_library.account_notes independently of qr.notes, which
+  // afs-fl-012 narrowed to customer-typed text only.
+  geometrySummary?: string | null;
 }
 
 interface CustomBend {
@@ -110,6 +120,30 @@ function describeItem(item: QuoteRequestLineItem, identity: JobIdentityFields): 
 // assumption borrowed from send-to-pathfinder's client-side state.
 function resolveItemProfileName(item: QuoteRequestLineItem, identity: JobIdentityFields): string {
   return item.profileName?.trim() || describeItem(item, identity);
+}
+
+// Restores the auto-generated bend/leg/radius/hem geometry readout onto the
+// shop-floor-visible notes fields (machine_jobs.notes, read by the external
+// afs-machine-bridge project; shop_profile_library.account_notes, rendered
+// by ShopViewBoard.tsx under "Account Notes") without putting it back into
+// qr.notes itself — afs-fl-012 deliberately narrowed qr.notes to
+// customer-typed text only, and that must stay true (it's also what's
+// echoed back to the customer). Same \n\n-joined-lines convention already
+// used by app/api/contact/route.ts's descriptionLines and
+// app/api/consultation/request/route.ts's noteLines for combining a
+// human-typed field with auto-generated text into one free-text column.
+// Called once per line item, using that item's own geometrySummary — since
+// this route already creates one machine_jobs/shop_profile_library row per
+// line item (see the per-item loop below), each row naturally gets only the
+// geometry for the item it actually describes rather than every item's
+// geometry mixed into every row. field_photo_quote items never carry
+// geometrySummary (they're not FlashDraft profiles), so this is a no-op for
+// them: customerNotes passes through unchanged, exactly as before this fix.
+function composeShopFloorNotes(customerNotes: string | null, geometrySummary: string | null | undefined): string | null {
+  const lines = [customerNotes?.trim() || null, geometrySummary?.trim() || null].filter(
+    (s): s is string => !!s
+  );
+  return lines.length ? lines.join('\n\n') : null;
 }
 
 function distanceIn(a: FlashDraftPoint, b: FlashDraftPoint): number {
@@ -501,7 +535,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           custom_bends: build.bends,
           used_fallback_geometry: build.usedFallbackGeometry,
           is_rush: qr.is_rush,
-          notes: qr.notes,
+          notes: composeShopFloorNotes(qr.notes, build.item.geometrySummary),
           status: 'approved_for_machine',
           // The real, intended behavior change this prompt exists for —
           // confirmed explicitly with Reid (2026-08-18): every job
@@ -558,7 +592,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         company: recipientCompany,
         customerEmail: recipientEmail,
         customerPhone: recipientPhone,
-        accountNotes: qr.notes,
+        accountNotes: composeShopFloorNotes(qr.notes, build.item.geometrySummary),
         material: build.item.material ?? null,
         gauge: build.item.gauge ?? null,
         color: qr.color,
