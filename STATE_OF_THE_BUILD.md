@@ -34,6 +34,29 @@ summary, not a replacement for it.
 
 ---
 
+## VERIFIED THIS PASS (2026-08-27, afs-fl-022)
+
+```
+pnpm tsc --noEmit                  0 errors. Exit code 0.
+```
+
+`pnpm build` was not re-run this pass (not requested by the task; `tsc
+--noEmit` plus the live Playwright verification below is what the task
+explicitly asked for). Also ran real functional verification beyond the
+compile gate (task explicitly required it — "do not report this complete
+based on tsc/build success alone"): Playwright drove the real
+`/studio/draft` page against a running `pnpm dev` server, loaded a real
+painted profile (Kynar 500, Z Closure template, a real McElroy color)
+through the real Submit for Quote -> `SubmitConfirmation3DModal` flow, and
+screenshotted `ProfileViewer3D` from the Reset/Top/Side/End camera presets
+plus several manual drag-rotations, both before and after the fix, for both
+`paintFace` values. See the afs-fl-022 entry below for what those
+screenshots showed. No live Reid confirmation of the real `/studio/draft`
+flow yet — held as IMPLEMENTED, UNCONFIRMED per this file's verification
+standard, same as every other visual/interactive item below.
+
+---
+
 ## VERIFIED THIS PASS (2026-08-27, afs-fl-020)
 
 ```
@@ -166,6 +189,104 @@ pnpm tsc --noEmit                  0 errors. Exit code 0.
 confirmation of the visual behavior yet — see the "Not confirmed" note
 under afs-fl-015 below. Held as IMPLEMENTED, UNCONFIRMED per this file's
 verification standard.
+
+---
+
+## FLASHDRAFT 3D VIEWER: PAINT-FACE REGRESSION FIX — DECAL ARCHITECTURE REPLACED (afs-fl-022): IMPLEMENTED, UNCONFIRMED — 2026-08-27
+
+Regression fix to `components/studio/ProfileViewer3D.tsx`. afs-fl-018's own
+fix for paint-face z-fighting (a separate "paint decal" surface held a hair
+off the base mesh via `polygonOffset` + a `0.15mm` geometric standoff) made
+things worse, per Reid's live report: the paint color now rendered on BOTH
+the painted and bare faces at once, not just an angle-dependent flip.
+
+**Live diagnosis (not assumed — two theories were flagged, neither
+confirmed going in).** Playwright drove the real `/studio/draft` page
+against a running `pnpm dev` server: selected Kynar 500 (Painted Steel),
+loaded the "Z Closure" template (a real 2-bend zigzag profile — this shape
+matters, see root cause below), picked a real McElroy color, and opened the
+real `SubmitConfirmation3DModal`. Screenshotted from the Reset/Top/Side/End
+camera presets and several drag-rotations, for both `paintFace` values.
+
+Observed on the pre-fix code: at one rotation frame, a leg that correctly
+read bare gray across nearly its whole face leaked a thin RED sliver along
+one edge — paint bleeding onto the wrong face, not a clean full-face flip.
+Flipping `paintFace` from `'up'` to `'down'` at the same rotation made this
+categorically worse: both legs rendered fully red with no bare face visible
+anywhere, instead of the expected clean color swap.
+
+**Root cause confirmed:** the standoff push (`offsetPolyline(paintFace ===
+'up' ? outer : inner, standoffSign * PAINT_DECAL_STANDOFF_MM)`) recomputes
+its push direction from whichever rail (`outer`/`inner`) it's handed, using
+*that rail's own local per-vertex geometry* — not the master centerline's
+normal. That direction only reliably points "away from the solid" when the
+rail's local geometry happens to agree with the centerline's; on a zigzag
+profile that necessarily alternates convex/concave turns (exactly what "Z
+Closure" is), it doesn't, for at least one of the two rails. The `down`
+case (pushing the *inner* rail, which inherits more distortion from the
+ribbon-offset step that produced it) was reliably worse than `up`, matching
+what was observed live. `side: THREE.DoubleSide` on the decal material
+compounded this by making the resulting mispositioned sliver visible from
+camera angles that should have culled it away.
+
+**Fix — the architecture change the task asked to seriously evaluate,
+not a third standoff-tuning attempt.** The second near-coincident surface
+is gone entirely. The solid is now built as its own real, non-coincident
+faces directly:
+- `outerWallGeom` / `innerWallGeom` — the outer and inner rail swept along
+  the extrusion length via the existing `buildDecalStripGeometry` helper
+  (previously used only for the decal and for hems) — each gets its own
+  mesh and its own material (`paintMaterial` on whichever rail matches
+  `paintFace`, `edgeMaterial` — bare metal — on the other).
+- `startEdgeGeom` / `endEdgeGeom` — the raw sheet-metal cut edge at the
+  profile's two open ends (where outer and inner rails meet), always bare
+  metal, matching real painted coil stock's exposed edge.
+- `startCapGeom` / `endCapGeom` — the two flat cross-section end caps (what
+  you'd see looking at the cut end of a 1-foot length), built via
+  `THREE.ShapeGeometry` reusing the same `shape` the old single
+  `ExtrudeGeometry` solid triangulated — robust ear-clipping, not a
+  hand-rolled fan triangulation, safe for this profile's non-convex
+  outline.
+
+No standoff, no `polygonOffset`, nothing racing for the same pixels — the
+bug class is removed at the source, not tuned around a third time. This
+branch only fires when `paintFace && paintColor` are both set (FlashDraft's
+own paint-confirmation flow); every other `ProfileViewer3D` caller
+(machine-library match view, shared profile-viewer page — see this file's
+`hemStart`/`hemEnd` doc-comment precedent for why those omit props they
+don't have real data for) is unaffected and still gets the original single
+bevelled `ExtrudeGeometry` solid, byte-for-byte the same code path as
+before this fix, just reached via an `else` branch instead of always
+running. `centerShift` (used to keep every mesh — base solid, hems, paint
+walls — aligned with dimension labels) was reworked to compute from the
+`outline` polygon's own bounding box instead of `geometry.center()`'s
+post-bevel one, so the identical value applies whether or not that branch
+runs (differs from the old bevel-inflated bbox by at most `bevelSize`
+= 0.3mm — invisible at this profile's scale).
+
+**Re-verification after the fix (same Playwright flow, fresh
+screenshots):** every camera preset and rotation frame checked shows a
+clean, sharp color boundary at each fold line — no bleeding, no dithering,
+no face showing both colors. A frozen-camera before/after comparison (Side
+preset + a fixed manual drag, screenshot, click "Flip Paint Side" with zero
+camera movement, screenshot again) shows both legs swap cleanly between
+bare gray and painted red with a sharp fold-line boundary — confirming
+`paintFace` controls exactly one real face per leg, not a coincidental
+depth-test outcome.
+
+**Gates:** `pnpm tsc --noEmit` — 0 errors. `pnpm build` not re-run this pass
+(not requested; see the VERIFIED THIS PASS entry above). All scratch
+Playwright driver scripts and screenshots used for diagnosis/verification
+were deleted after this pass — none committed.
+
+**Not confirmed — held to this project's stated verification standard:** no
+live Reid walkthrough of the real `/studio/draft` Submit Confirmation flow
+with a real painted material yet. The findings above come from this
+session's own Playwright screenshots against the real `/studio/draft` page
+and the real `ProfileViewer3D` component — real evidence, not a substitute
+for Reid's own check, especially given this exact feature has now regressed
+twice (afs-fl-018 -> afs-fl-022) on claims that later turned out to need
+correction once actually viewed live.
 
 ---
 

@@ -59,11 +59,6 @@ type CameraPreset = 'default' | 'top' | 'side' | 'end';
 
 const EXTRUDE_DEPTH_MM = 304.8; // one linear foot
 const DIM_LINE_OFFSET_MM = 15;
-// Real (not just GL-depth-bias) gap between the paint decal and the base
-// mesh's coplanar face — see the paint-decal block below (afs-fl-018) for
-// why this exists. Small enough to be visually seamless with the sheet
-// edge, large enough to survive this scene's depth-buffer precision.
-const PAINT_DECAL_STANDOFF_MM = 0.15;
 const INITIAL_CAMERA_POSITION = new THREE.Vector3(200, 150, 300);
 const CAMERA_PRESETS: Record<CameraPreset, { position: THREE.Vector3; target: THREE.Vector3 }> = {
   default: { position: INITIAL_CAMERA_POSITION.clone(), target: new THREE.Vector3(0, 0, 0) },
@@ -596,39 +591,125 @@ export default function ProfileViewer3D({
       });
       shape.closePath();
 
-      const geometry = new THREE.ExtrudeGeometry(shape, {
-        depth: EXTRUDE_DEPTH_MM,
-        bevelEnabled: true,
-        bevelThickness: 0.5,
-        bevelSize: 0.3,
-        bevelSegments: 2,
-        curveSegments: 8,
-      });
-      // Equivalent to geometry.center(), done manually so the same shift can
-      // be re-applied to the paint-side decal geometry below and keep it
-      // coplanar with the (now-centered) base mesh.
-      geometry.computeBoundingBox();
-      const centerShift = new THREE.Vector3();
-      if (geometry.boundingBox) geometry.boundingBox.getCenter(centerShift).multiplyScalar(-1);
-      geometry.translate(centerShift.x, centerShift.y, centerShift.z);
+      // Bounding-box center of the cross-section outline plus the full Z
+      // depth — used to center every mesh built below (base solid, hems,
+      // paint walls) into the space dimension labels expect. Computed from
+      // `outline` directly (rather than geometry.center()'s own post-bevel
+      // bbox) so the SAME centerShift works whether or not the branch below
+      // builds a beveled ExtrudeGeometry at all. At most bevelSize (0.3mm)
+      // off from a true bevel-inflated bbox — invisible on a profile this
+      // size.
+      const outlineXs = outline.map((p) => p.x);
+      const outlineYs = outline.map((p) => p.y);
+      const centerShift = new THREE.Vector3(
+        -(Math.min(...outlineXs) + Math.max(...outlineXs)) / 2,
+        -(Math.min(...outlineYs) + Math.max(...outlineYs)) / 2,
+        -EXTRUDE_DEPTH_MM / 2
+      );
 
       const appearance = getMaterialAppearance(material);
-      const meshMaterial = new THREE.MeshStandardMaterial({
-        color: bareColor ?? appearance.color,
-        metalness: appearance.metalness,
-        roughness: appearance.roughness,
-      });
-      const mesh = new THREE.Mesh(geometry, meshMaterial);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      meshGroup.add(mesh);
+
+      if (paintFace && paintColor) {
+        // afs-fl-022: the prior approach (one bare-metal ExtrudeGeometry
+        // solid plus a second "paint decal" surface held a hair off the
+        // base mesh's own coincident face via polygonOffset + a geometric
+        // standoff) produced two different real bugs across two attempts —
+        // an angle-dependent z-fight flip to bare metal, then (confirmed
+        // live here, Playwright, rotating a real painted profile) BOTH
+        // faces reading painted at once. Root cause: the standoff's
+        // offsetPolyline call recomputes its push direction from whichever
+        // rail (outer/inner) it's handed, using that rail's OWN local
+        // geometry — which doesn't reliably point "away from the solid" for
+        // both rails, especially on a zigzag profile that alternates
+        // convex/concave turns. `side: THREE.DoubleSide` on the decal then
+        // made the resulting mispositioned sliver visible from angles it
+        // should have been hidden at. Removing the second surface removes
+        // the whole bug class: the solid is now built directly as its own
+        // two real, non-coincident faces (the outer rail wall and the
+        // inner rail wall, each its own mesh/material) plus the two raw
+        // sheet-edge strips and the two cross-section end caps — nothing
+        // else ever competes for the same pixels, so there's no standoff
+        // direction left to get wrong.
+        const paintMaterial = new THREE.MeshStandardMaterial({
+          color: paintColor,
+          // Flat/non-reflective, matching a real painted (Kynar) coating.
+          metalness: 0,
+          roughness: 0.85,
+          side: THREE.DoubleSide,
+        });
+        // Bare metal, DoubleSide — same reasoning as hemMaterial below:
+        // these hand-lofted strips' triangle winding isn't guaranteed to
+        // face the camera from every angle the way a THREE.ExtrudeGeometry
+        // solid's does.
+        const edgeMaterial = new THREE.MeshStandardMaterial({
+          color: bareColor ?? appearance.color,
+          metalness: appearance.metalness,
+          roughness: appearance.roughness,
+          side: THREE.DoubleSide,
+        });
+
+        const outerWallGeom = buildDecalStripGeometry(outer, EXTRUDE_DEPTH_MM);
+        const innerWallGeom = buildDecalStripGeometry(inner, EXTRUDE_DEPTH_MM);
+        // The raw cut edge of the sheet at the profile's two open ends
+        // (where outer and inner meet) — always bare metal regardless of
+        // paintFace, same as real painted coil stock's exposed cut edge.
+        const startEdgeGeom = buildDecalStripGeometry([outer[0], inner[0]], EXTRUDE_DEPTH_MM);
+        const endEdgeGeom = buildDecalStripGeometry(
+          [outer[outer.length - 1], inner[inner.length - 1]],
+          EXTRUDE_DEPTH_MM
+        );
+        // The two flat cross-section end caps (what you'd see looking at
+        // the cut end of a 1-foot length) — reuses the same `shape` the old
+        // ExtrudeGeometry solid triangulated, via THREE.ShapeGeometry
+        // (robust ear-clipping, safe for this profile's non-convex outline)
+        // instead of a hand-rolled fan triangulation.
+        const startCapGeom = new THREE.ShapeGeometry(shape);
+        const endCapGeom = new THREE.ShapeGeometry(shape);
+        endCapGeom.translate(0, 0, EXTRUDE_DEPTH_MM);
+
+        [outerWallGeom, innerWallGeom, startEdgeGeom, endEdgeGeom, startCapGeom, endCapGeom].forEach((g) =>
+          g.translate(centerShift.x, centerShift.y, centerShift.z)
+        );
+
+        const outerMesh = new THREE.Mesh(outerWallGeom, paintFace === 'up' ? paintMaterial : edgeMaterial);
+        const innerMesh = new THREE.Mesh(innerWallGeom, paintFace === 'down' ? paintMaterial : edgeMaterial);
+        const startEdgeMesh = new THREE.Mesh(startEdgeGeom, edgeMaterial);
+        const endEdgeMesh = new THREE.Mesh(endEdgeGeom, edgeMaterial);
+        const startCapMesh = new THREE.Mesh(startCapGeom, edgeMaterial);
+        const endCapMesh = new THREE.Mesh(endCapGeom, edgeMaterial);
+        [outerMesh, innerMesh, startEdgeMesh, endEdgeMesh, startCapMesh, endCapMesh].forEach((m) => {
+          m.castShadow = true;
+          m.receiveShadow = true;
+          meshGroup.add(m);
+        });
+      } else {
+        const geometry = new THREE.ExtrudeGeometry(shape, {
+          depth: EXTRUDE_DEPTH_MM,
+          bevelEnabled: true,
+          bevelThickness: 0.5,
+          bevelSize: 0.3,
+          bevelSegments: 2,
+          curveSegments: 8,
+        });
+        geometry.translate(centerShift.x, centerShift.y, centerShift.z);
+        const bareMaterial = new THREE.MeshStandardMaterial({
+          color: bareColor ?? appearance.color,
+          metalness: appearance.metalness,
+          roughness: appearance.roughness,
+        });
+        const mesh = new THREE.Mesh(geometry, bareMaterial);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        meshGroup.add(mesh);
+      }
 
       if (hemStart || hemEnd) {
-        // Bare metal, DoubleSide (rather than reusing `meshMaterial`) —
+        // Bare metal, DoubleSide (rather than reusing `bareMaterial`) —
         // the hem's outer/inner rails are two independently-lofted strips
-        // (buildDecalStripGeometry, same as the paint decal below) whose
-        // triangle winding isn't guaranteed to face the camera from every
-        // angle the way the main ExtrudeGeometry solid's does.
+        // (buildDecalStripGeometry, same technique the paint-face walls
+        // above use) whose triangle winding isn't guaranteed to face the
+        // camera from every angle the way a THREE.ExtrudeGeometry solid's
+        // does.
         const hemMaterial = new THREE.MeshStandardMaterial({
           color: bareColor ?? appearance.color,
           metalness: appearance.metalness,
@@ -654,44 +735,6 @@ export default function ProfileViewer3D({
             centerShift
           ).forEach((geom) => meshGroup.add(new THREE.Mesh(geom, hemMaterial)));
         }
-      }
-
-      if (paintFace && paintColor) {
-        // Real standoff, not just a GL polygonOffset depth-bias hack
-        // (afs-fl-018) — confirmed live (Playwright, rotating a real
-        // painted profile through a full range of angles) that the paint
-        // decal, sitting EXACTLY coplanar with the base mesh's own face,
-        // genuinely lost the depth test at some angles: visible GPU
-        // z-fight dithering at the transition angles, then a hard flip to
-        // solid bare-metal across the ENTIRE face — not a metalness/
-        // specular artifact (that would read as a localized highlight, not
-        // a full-face color swap). polygonOffset alone wasn't reliable
-        // enough at this scene's scale (camera near:1/far:5000 gives coarse
-        // depth precision at the ~200-400 unit distance this profile
-        // renders at). Nudging the decal a small but real distance outward
-        // — along the SAME per-vertex normal buildRibbonOutline already
-        // offset outer/inner from the centerline by — removes the
-        // coplanarity at its source; polygonOffset is kept as a second
-        // line of defense, not the primary fix.
-        const standoffSign = paintFace === 'up' ? 1 : -1;
-        const shellPoints = offsetPolyline(paintFace === 'up' ? outer : inner, standoffSign * PAINT_DECAL_STANDOFF_MM);
-        const decalGeometry = buildDecalStripGeometry(shellPoints, EXTRUDE_DEPTH_MM);
-        decalGeometry.translate(centerShift.x, centerShift.y, centerShift.z);
-        const decalMaterial = new THREE.MeshStandardMaterial({
-          color: paintColor,
-          // Flat/non-reflective, matching a real painted (Kynar) coating —
-          // wasn't the cause of the angle-dependent flip above (that was
-          // pure z-fighting), but a painted face still shouldn't read as
-          // glossy/metallic regardless.
-          metalness: 0,
-          roughness: 0.85,
-          side: THREE.DoubleSide,
-          polygonOffset: true,
-          polygonOffsetFactor: -4,
-          polygonOffsetUnits: -4,
-        });
-        const decalMesh = new THREE.Mesh(decalGeometry, decalMaterial);
-        meshGroup.add(decalMesh);
       }
 
       if (dimensionsOn) {

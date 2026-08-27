@@ -24,6 +24,88 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## FLASHDRAFT 3D VIEWER: PAINT-FACE REGRESSION FIX — DECAL ARCHITECTURE REPLACED (afs-fl-022) — 2026-08-27
+
+Root-cause build, no workarounds, confined to
+`components/studio/ProfileViewer3D.tsx`. Regression report: afs-fl-018's own
+paint-face fix (a separate decal surface held off the base mesh via
+`polygonOffset` + a `0.15mm` geometric standoff) made things worse per
+Reid's live test — paint now rendered on BOTH the painted and bare faces at
+once, not just an angle-dependent flip.
+
+**Diagnosed live first, per the task's explicit instruction — did not
+assume which of the two flagged theories (decal `side: THREE.DoubleSide`,
+or the standoff's direction assumption) was correct.** Playwright drove the
+real `/studio/draft` page against a running `pnpm dev` server: Kynar 500
+material, the "Z Closure" template (a real 2-bend zigzag — this shape
+matters), a real McElroy color, through the real Submit for Quote ->
+`SubmitConfirmation3DModal` flow. Screenshotted Reset/Top/Side/End presets
+plus manual drag-rotations, both `paintFace` values, before touching any
+code. **Confirmed:** one rotation frame showed a leg that read correctly
+bare across nearly its whole face leak a thin red sliver at one edge; the
+same frame's `paintFace: 'down'` counterpart showed BOTH legs fully red
+with no bare face anywhere — worse than a clean swap, matching Reid's
+report exactly.
+
+**Root cause:** `offsetPolyline`, called a second time on whichever rail
+(`outer`/`inner`) the standoff push needed, recomputes its push direction
+from *that rail's own local per-vertex geometry*, not the master
+centerline's normal — which only reliably points away from the solid when
+the rail happens to agree with the centerline. A zigzag profile (like "Z
+Closure") necessarily alternates convex/concave turns, so at least one rail
+disagrees somewhere along its length. The `down` case (inner rail, which
+inherits more distortion from the ribbon-offset step) was reliably worse,
+matching what was observed live. `DoubleSide` on the decal then made the
+resulting mispositioned sliver visible from angles that should have culled
+it.
+
+**Fix — the multi-material-solid architecture the task asked to seriously
+evaluate before a third standoff-tuning attempt.** Removed the second
+surface entirely rather than tuning its offset again. The solid is now
+built directly as its own real, non-coincident faces: `outerWallGeom` /
+`innerWallGeom` (the outer/inner rail swept along the extrusion length via
+the existing `buildDecalStripGeometry` helper — previously used only for
+the old decal and for hems), each its own mesh with its own material
+(`paintMaterial` on whichever rail matches `paintFace`, bare `edgeMaterial`
+on the other); `startEdgeGeom` / `endEdgeGeom` for the raw sheet-metal cut
+edge at the profile's two open ends (always bare, matching real coil
+stock); `startCapGeom` / `endCapGeom` for the two flat cross-section end
+caps, built via `THREE.ShapeGeometry` reusing the same `shape` the old
+single `ExtrudeGeometry` solid triangulated (robust ear-clipping, not a
+hand-rolled fan). No standoff, no `polygonOffset` — nothing left to race
+for the same pixels. This only fires when `paintFace && paintColor` are set
+(FlashDraft's paint-confirmation flow); every other caller
+(`MatchedProfile3DModal`, the shared profile-viewer page) is unaffected and
+still gets the original single bevelled `ExtrudeGeometry` solid via an
+`else` branch, byte-for-byte the same as before this fix. `centerShift`
+(keeps every mesh — base solid, hems, paint walls — aligned with dimension
+labels) now derives from the `outline` polygon's own bounding box instead
+of `geometry.center()`'s post-bevel one, so it's identical whether or not
+that branch runs (off by at most `bevelSize` = 0.3mm from the old value —
+invisible at this profile's scale).
+
+**Re-verification (same Playwright flow, fresh screenshots):** every preset
+and rotation frame checked shows a clean, sharp color boundary at each fold
+line — no bleeding, no dithering, no face reading both colors. A
+frozen-camera before/after check (Side preset + a fixed manual drag,
+screenshot, click "Flip Paint Side" with zero camera movement, screenshot
+again) shows both legs swap cleanly between bare gray and painted red with
+a sharp fold-line boundary — confirms `paintFace` now controls one real
+face per leg, not a depth-test coin flip.
+
+**Gates:** `pnpm tsc --noEmit` — 0 errors. `pnpm build` not re-run this pass
+(not requested by the task). All scratch Playwright driver scripts and
+screenshots used for diagnosis/verification were deleted after this pass —
+none committed.
+
+**Not confirmed — held to this project's stated verification standard:** no
+live Reid walkthrough of the real `/studio/draft` Submit Confirmation flow
+with a real painted material yet — especially warranted here since this
+exact feature has now regressed twice (afs-fl-018 -> afs-fl-022) on claims
+that needed correction once actually viewed live.
+
+---
+
 ## FLASHDRAFT 20-ITEM TEMPLATE LIST + VARIANTPICKER FOR COPING CAP/VALLEY (afs-fl-020) — 2026-08-27
 
 Root-cause build, no workarounds. `AFS_SESSION_HANDOFF_2026-08-08.md`
