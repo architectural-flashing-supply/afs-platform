@@ -4411,10 +4411,34 @@ migration-verification standard (PostgREST checks on this project have
 produced false positives before; see migration 015's stale-schema-cache
 incident in `MIGRATIONS_STATUS.md`).
 
-This confirms the migration's schema objects exist live — it does not
-imply any Bid Documents application code (claim-lock UI, pricing entry,
-PDF generation, Resend send) has been built or verified; that remains a
-separate, unaddressed build phase.
+This confirms the migration's schema objects exist live.
+
+**CORRECTION, 2026-08-27 (afs-fl-021):** the line above ("that remains a
+separate, unaddressed build phase") was wrong and is corrected here. A
+prompt on 2026-08-27 was given to build any genuinely missing
+Bid Documents application code, but was scoped to check live reality
+first rather than trust either conflicting record blindly. `git log`
+confirms `37e920d`/`640f9c2` (2026-07-31) built the real application
+code — matching an orchestrator log of prompts `bid-doc-001/002/003`
+run that same day — and a full read of every relevant file (data layer,
+all ~11 API routes, `BidBuilder.tsx`, the PDF generator, the Resend
+email util, the Command Center tab and nav entry) confirmed real,
+complete, non-stub code implementing claim-lock collaboration, pricing
+entry with server-computed totals, real PDF generation (not the
+browser-print fallback `BID_DOCUMENT_SCOPE.md` §7.3 had planned —
+`lib/utils/simple-pdf.ts` plus the `pdf-lib` dependency), an
+approval/send gate in the builder UI, and real Resend delivery with a
+PDF attachment. `pnpm tsc --noEmit` passes with 0 errors on it today.
+See the matching, more detailed correction in `STATE_OF_THE_BUILD.md`'s
+migration 013 section for exactly which file covers which piece of the
+scope doc's workflow.
+
+**No new application code was built this session** — there was no
+genuine gap to fill. The one thing this session could not do: exercise
+a real `bid_documents` row end-to-end (claim → price → preview → send),
+because the Supabase MCP connection available in this session is scoped
+to unrelated projects, not this app's live project. That remains the
+one open confidence-building step, not a missing feature.
 
 ---
 

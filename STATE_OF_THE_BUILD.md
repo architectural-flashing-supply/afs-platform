@@ -5262,11 +5262,66 @@ PostgREST access — see migration 015's earlier stale-cache false-positive
 in `MIGRATIONS_STATUS.md` for why PostgREST-based checks on this project
 are not trusted for this purpose).
 
-This confirms only that the migration's schema objects exist live. No
-Bid Documents application code (bid-doc-002/003 — claim-lock UI, pricing
-entry, PDF generation, Resend send) has a status entry in this document
-yet; that is a separate, not-yet-addressed build phase, not implied by
-this migration's live status.
+This confirms only that the migration's schema objects exist live.
+
+**CORRECTION, 2026-08-27 (afs-fl-021): the paragraph above was wrong.**
+An orchestrator log showed prompts `bid-doc-001/002/003` ran against this
+scope on 2026-07-31 — commit `37e920d` (same day, `640f9c2` right after)
+— and this session verified against live code, not memory, before
+writing anything: `git log` confirms the commits, and a full read of
+every file confirms real, non-stub, wired-up application code already
+exists for the entire `BID_DOCUMENT_SCOPE.md` workflow:
+
+- Claim-lock: `POST .../claim`, `.../release`, `.../heartbeat`,
+  `lib/data/bid-documents.ts`'s `isClaimActive`/`CLAIM_INACTIVITY_TIMEOUT_MINUTES`,
+  `BidDocumentRealtime.tsx` (claim-state live refresh) and
+  `BidDocumentViewers.tsx` + `.../viewer-ping`/`.../viewers` (presence) —
+  all present, all real, matching §3 of the scope doc exactly.
+- Pricing entry: `POST .../sections`, `POST .../sections/[sectionId]/line-items`
+  (server-computed `extended_price` via `lib/admin/pricing.ts`'s
+  `computeExtendedPrice`/`round2`, server-recomputed `bid_documents.subtotal`
+  on every insert — never client-trusted), rendered in `BidBuilder.tsx`.
+- PDF generation: `lib/utils/bid-document-pdf.ts` +
+  `lib/utils/simple-pdf.ts` (a real, dependency-light PDF generator built
+  in this codebase — `pdf-lib` is also a project dependency) — this
+  supersedes the scope doc's §7.3 "browser print only, no PDF library"
+  plan; a real PDF now backs both `GET .../pdf` (preview) and the actual
+  Resend attachment. Not a stub — renders the AFS logo, project/GC
+  header, every section's line items, subtotal, tax note, and terms.
+- Admin approval/send step: `BidBuilder.tsx`'s "Approval" panel — Preview
+  PDF and "Send to Customer" are gated on `hasPricing` (at least one
+  priced line item) and a GC contact email on file, exactly matching the
+  scope doc's approval-step intent — before `POST .../send` is even
+  reachable.
+- Resend delivery: `lib/utils/bid-document-email.ts`'s
+  `sendBidDocumentEmail()` — service-role client (no customer session to
+  scope against, per §1.2), generates the PDF, sends via the existing
+  `lib/resend/send.ts` + `baseEmailTemplate` pattern (same shape as
+  `sendInvoiceEmail`), attaches the PDF, flips `status: 'sent'` +
+  `sent_at` only on send success, logs both outcomes via `logAdminAction`.
+  Never throws to the caller (matches ARCHITECTURE.md §9).
+- Command Center surfacing: the `bids` CRM tab (`BidsCrmTab.tsx`), the
+  `app/admin/command-center/bids/[id]/page.tsx` detail route, and the
+  `AdminShell.tsx` "📋 Bids" nav entry are all wired in, not just built
+  in isolation.
+
+`pnpm tsc --noEmit` passes with 0 errors on this code today (verified
+this session, not assumed from the commit having once passed CI).
+
+**What was NOT re-verified this session:** no live `bid_documents` row
+exists that this session had DB access to exercise end-to-end (the
+Supabase MCP connection available in this session is scoped to
+unrelated projects, not this app's live project) — so the Resend send
+path and PDF rendering were verified by full source read + a clean
+`tsc`, not by a live click-through. If a real bid document exists in
+production, running one through claim → price → preview → send once
+is the remaining confidence-building step, not a rebuild.
+
+**No new application code was written for afs-fl-021** — the prior
+paragraph's "separate, not-yet-addressed build phase" claim was simply
+stale/incorrect and is corrected here rather than acted on. Do not
+re-build any of the above from scratch on a future prompt without first
+re-checking this section against the live repo.
 
 ---
 
