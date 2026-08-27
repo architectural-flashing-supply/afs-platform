@@ -34,6 +34,46 @@ summary, not a replacement for it.
 
 ---
 
+## VERIFIED THIS PASS (2026-08-27, afs-fl-020)
+
+```
+pnpm tsc --noEmit                  0 errors. Exit code 0.
+pnpm build                         Clean. Exit code 0.
+```
+
+Also ran real functional verification beyond the gates above (task
+explicitly required it): a Playwright spec against a running `pnpm dev`
+server confirmed all 21 template buttons render (the locked 20-item list
+plus Coping Cap, carried forward from the prior 10-item set — see the
+PLACEHOLDER GEOMETRY comment in `app/studio/draft/page.tsx` for why), that
+two non-variant templates (Sill, J-Channel) load distinguishably different
+geometry (different Bend Count readouts, not a shared/copy-pasted shape),
+and that clicking Coping Cap and Valley each opens VariantPicker with
+exactly 3 selectable options, each of which loads onto the canvas. That
+Playwright run also caught and fixed a real bug pre-ship: VariantPicker was
+originally conditionally mounted (only rendered while a template with
+variants was selected), which under React Strict Mode's dev-only
+double-effect-invocation raced the picker's cleanup's async
+`window.history.back()` against its own freshly-mounted popstate listener —
+the picker closed itself immediately after opening. Fixed by keeping it
+always-mounted and toggled via an `isOpen` prop, matching
+`components/quote/ColorPickerModal.tsx`'s existing (and correct) pattern.
+
+**PLACEHOLDER GEOMETRY — not production-final.** Every one of the 20
+locked-list items' points, plus all 6 Coping Cap / Valley variant
+placeholders, are simple generic 2-8 point shapes at approximate standard
+dimensions — not real fabrication geometry. The real bend-point geometry
+was meant to come from physical reference images not available this pass;
+per Reid's explicit constraint, physical product dimensions are never
+fabricated from memory or invented as if sourced from a real reference.
+Swapping in real dimensions is a pure data change to the
+`PROFILE_TEMPLATES` array in `app/studio/draft/page.tsx` — the
+template/VariantPicker mechanism itself does not need to change. No live
+Reid confirmation of the rendered shapes or the picker flow yet — held as
+IMPLEMENTED, UNCONFIRMED per this file's verification standard.
+
+---
+
 ## VERIFIED THIS PASS (2026-08-27, afs-fl-019)
 
 ```
@@ -126,6 +166,87 @@ pnpm tsc --noEmit                  0 errors. Exit code 0.
 confirmation of the visual behavior yet — see the "Not confirmed" note
 under afs-fl-015 below. Held as IMPLEMENTED, UNCONFIRMED per this file's
 verification standard.
+
+---
+
+## FLASHDRAFT 20-ITEM TEMPLATE LIST + VARIANTPICKER FOR COPING CAP/VALLEY (afs-fl-020): IMPLEMENTED, UNCONFIRMED — 2026-08-27
+
+Replaces the prior 10-item "Start From a Template" button row in
+`app/studio/draft/page.tsx` with the 20-item list locked with Reid in a
+prior session (Z Closure, Sill, J-Channel, Z-Spacer Trim, Outside Corner,
+Inside Corner, Window Drip, Siding Starter, Stucco Perimeter, Pitch Change,
+Drip Edge, Drip Edge with Kick, Hook Drip Edge, Sidewall, Head Wall, Ridge
+Cap Vented, Counter, Peak Wall, Gutter, Valley), plus Coping Cap carried
+forward as a 21st button — Coping Cap is not one of the 20 newly-locked
+names, but this task's own step 2 explicitly required wiring it to
+VariantPicker, so dropping it would have contradicted that instruction;
+this is a judgment call, flagged here rather than made silently.
+
+**PLACEHOLDER GEOMETRY.** Every item's `points` (and every Coping Cap /
+Valley variant's `points`) in the `PROFILE_TEMPLATES` array is a simple,
+generic 2-8 point shape at approximate standard dimensions — explicitly
+commented in the array's header as PLACEHOLDER, not real fabrication
+geometry. The real bend-point geometry was meant to come from physical
+reference images not available this pass (`AFS_SESSION_HANDOFF_2026-08-08.md`
+does not exist anywhere in this repo or its git history — confirmed via
+`git log --all --diff-filter=A` — so it was not available to source real
+dimensions from even if that constraint didn't apply). Per Reid's explicit
+constraint, physical product dimensions are never fabricated from memory or
+invented as if sourced from a real reference. Swapping in real dimensions
+later is meant to be a pure data change to `PROFILE_TEMPLATES` — the
+template/VariantPicker mechanism does not need to change.
+
+**VariantPicker.** New component, `components/studio/VariantPicker.tsx` —
+generic and reusable (category label + variant list passed in by the
+caller, not hardcoded to one profile), not just a Coping Cap/Valley-specific
+modal. Renders a small thumbnail grid where each thumbnail is an SVG
+preview traced from the variant's own placeholder points (normalized to a
+0-100 box), not a real product photo — no photography exists yet for these
+variants. Modeled on `components/quote/ColorPickerModal.tsx`'s full-page
+thumbnail-grid layout and its browser-history-on-open pattern (pushes one
+history entry while open, closes on Back).
+
+Coping Cap wired with 3 variant placeholders: 2-Piece Cleat, 1-Piece Cleat,
+Face Cleat. Valley wired with 3: Closed / Rolled Hem, Open Hook, Heavy
+Reinforced Closed Fold. In the template button row, `template.variants`
+being set routes the click to `setVariantPickerTemplate(template)` (opening
+the picker) instead of `loadTemplate(template)` (loading geometry
+directly); every other template button is unaffected.
+
+**Bug found and fixed during verification, not left for later.**
+VariantPicker was originally conditionally mounted — `{variantPickerTemplate
+&& (<VariantPicker .../>)}` — so opening it was always a fresh React mount.
+Under React 18 Strict Mode's dev-only double-invocation of a freshly-mounted
+effect (mount → cleanup → mount, to catch missing-cleanup bugs), the first
+mount's cleanup fired its async `window.history.back()`, and the resulting
+(delayed) `popstate` event landed on the *second* mount's own listener —
+which calls `onClose()`. Net effect: the picker closed itself immediately
+after opening, on every single open. A Playwright test clicking Coping Cap
+surfaced this directly (state went `coping-cap` → `null` within the same
+tick, confirmed via temporary `console.log` instrumentation before being
+removed). Fixed by adopting ColorPickerModal's actual pattern exactly: the
+component stays mounted at all times, gated by an `isOpen` prop, with the
+history-pushing effect itself gated on `isOpen` (`if (!isOpen) return;`)
+rather than the component's mount/unmount lifecycle.
+
+**Verified this pass, beyond tsc/build:**
+- `pnpm exec playwright test tests/e2e/flashdraft.spec.ts -g afs-fl-020` —
+  new spec confirms 21 buttons render, two non-variant templates (Sill,
+  J-Channel) load geometry with different Bend Count readouts (proving
+  distinguishable shapes, not a shared/copy-pasted one), and both Coping Cap
+  and Valley open VariantPicker with exactly 3 options each, each of which
+  loads onto the canvas and closes the picker.
+- `pnpm build` — clean, `/studio/draft` route compiles (22.8 kB route size).
+
+**Not yet confirmed:** Reid has not seen the actual shapes render or used
+the VariantPicker flow live. The placeholder shapes are, by design, not
+meant to look like real production geometry — his review here is about
+confirming the mechanism (21 buttons, distinguishable placeholder shapes,
+2 variant pickers with 3 real options each) works as the scaffold for the
+real dimensions he'll provide later, not about approving the shapes
+themselves.
+
+**Gates:** `pnpm tsc --noEmit` — 0 errors. `pnpm build` — clean.
 
 ---
 

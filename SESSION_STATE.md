@@ -24,6 +24,85 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## FLASHDRAFT 20-ITEM TEMPLATE LIST + VARIANTPICKER FOR COPING CAP/VALLEY (afs-fl-020) — 2026-08-27
+
+Root-cause build, no workarounds. `AFS_SESSION_HANDOFF_2026-08-08.md`
+(referenced by the task as the possible source of the locked 20-item list)
+does not exist anywhere in this repo or its git history — confirmed via
+`Glob`, filesystem search, and `git log --all --diff-filter=A`. The 20-item
+list was instead taken directly from the task prompt itself, which stated
+it had been locked with Reid in a prior session.
+
+**1. Template data.** `app/studio/draft/page.tsx`'s `PROFILE_TEMPLATES`
+array (previously 10 items) replaced with the locked 20-item list, every
+entry's `points` explicitly commented PLACEHOLDER — simple 2-8 point
+generic shapes at approximate standard dimensions, not real fabrication
+geometry (per Reid's standing constraint: never fabricate physical product
+dimensions from memory or invent them as if from a real reference). Coping
+Cap was NOT one of the 20 newly-locked names, but the task's own step 2
+explicitly required wiring it to VariantPicker with 3 named variants —
+dropping it would have contradicted that instruction, so it was kept as a
+21st button; flagged here as a judgment call rather than made silently.
+`ProfileTemplate` gained an optional `variants` field (used by Coping Cap
+and Valley in place of `points`); `loadTemplate` was split into a shared
+`loadTemplateGeometry(label, points)` used by both the direct-load path and
+a new `handleVariantSelect`.
+
+**2. VariantPicker component.** New, `components/studio/VariantPicker.tsx`
+— generic and reusable (takes a category label + variant list as props, not
+hardcoded to any one profile), modeled on
+`components/quote/ColorPickerModal.tsx`'s full-page thumbnail-grid +
+browser-history pattern. Thumbnails are SVG traces of each variant's own
+placeholder points (no product photography exists yet). Coping Cap wired
+with 3 variants (2-Piece Cleat / 1-Piece Cleat / Face Cleat); Valley wired
+with 3 (Closed / Rolled Hem / Open Hook / Heavy Reinforced Closed Fold) —
+all placeholder geometry, same PLACEHOLDER flagging as the 20-item list.
+
+**3. Button row.** The 10-item row's rendering replaced with the 21-item
+list; a template's `onClick` now checks `template.variants` and opens
+VariantPicker instead of loading geometry directly for Coping Cap and
+Valley only.
+
+**Bug found and fixed mid-verification (not deferred).** VariantPicker was
+initially conditionally mounted (`{variantPickerTemplate && (<VariantPicker
+.../>)}`), making every open a fresh React mount. React 18 Strict Mode's
+dev-only double-effect-invocation on that fresh mount raced the first
+mount's cleanup (`window.history.back()`, async) against the second mount's
+own `popstate` listener — the delayed `popstate` fired `onClose()`
+immediately after the picker opened, every time. A Playwright test clicking
+Coping Cap caught this directly (temporary `console.log` instrumentation
+showed state going `coping-cap` → `null` within the same interaction, then
+removed). Fixed by keeping VariantPicker always-mounted and gating it on an
+`isOpen` prop instead — exactly ColorPickerModal's existing, already-correct
+pattern, including gating its history-pushing effect on `isOpen` rather than
+on mount/unmount.
+
+**Verified this pass:**
+```
+pnpm tsc --noEmit                  0 errors. Exit code 0.
+pnpm build                         Clean. Exit code 0.
+pnpm exec playwright test tests/e2e/flashdraft.spec.ts -g afs-fl-020
+                                    1 passed (new spec, added this pass)
+```
+The new spec (in `tests/e2e/flashdraft.spec.ts`, ungated on E2E creds since
+template loading is pure client state) confirms: 21 template buttons
+render; Sill and J-Channel (two non-variant templates) load geometry with
+different Bend Count readouts, confirming distinguishable placeholder
+shapes rather than a shared/copy-pasted one; Coping Cap and Valley each open
+VariantPicker with exactly 3 selectable options, and selecting one loads it
+onto the canvas and closes the picker.
+
+**Not confirmed:** Reid has not seen the actual button row or picker flow
+live. The placeholder shapes are deliberately generic and not meant to
+resemble final production geometry — his review is about the mechanism (21
+buttons all present and distinguishable, both pickers offering exactly 3
+real options each) as the scaffold for the real dimensions he'll provide
+from reference images later, not an approval of the shapes themselves.
+
+**Gates:** `pnpm tsc --noEmit` — 0 errors. `pnpm build` — clean.
+
+---
+
 ## FLASHDRAFT — LIGHTER CANVAS BACKGROUND, COMPACT SIDEBAR INPUTS (afs-fl-019) — 2026-08-27
 
 Root-cause build, no workarounds, both changes confined to

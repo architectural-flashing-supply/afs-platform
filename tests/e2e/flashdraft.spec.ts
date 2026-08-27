@@ -112,3 +112,64 @@ test.describe('FlashDraft canvas', () => {
     await expect(bendCountLine).toHaveText(bendCountBefore ?? '');
   });
 });
+
+// afs-fl-020 — 20-item template list + VariantPicker for Coping Cap/Valley.
+// Not gated on hasCreds like the describe block above: loading a template
+// or opening VariantPicker is pure canvas/client state, no auth involved,
+// same as drawTwoLegProfile's own "public page" note.
+test.describe('FlashDraft templates (afs-fl-020)', () => {
+  test('renders 21 template buttons, loads distinguishable placeholder geometry, and opens VariantPicker for Coping Cap and Valley', async ({
+    page,
+  }) => {
+    await page.goto('/studio/draft');
+
+    // loadTemplateGeometry window.confirm()s before replacing an
+    // already-loaded shape — Playwright auto-dismisses unhandled dialogs,
+    // which would silently no-op every template click after the first.
+    page.on('dialog', (dialog) => dialog.accept());
+
+    const canvas = page.locator('canvas');
+    await expect(canvas).toBeVisible();
+
+    // 20 locked-list items + Coping Cap carried forward as a variant-picker
+    // trigger (see the PLACEHOLDER GEOMETRY comment in page.tsx).
+    const templateBar = page.getByText('Start From a Template').locator('..');
+    const buttons = templateBar.getByRole('button');
+    await expect(buttons).toHaveCount(21);
+
+    // A plain (non-variant) template loads geometry straight onto the
+    // canvas — Bend Count should go non-empty/nonzero-ish once loaded.
+    await buttons.filter({ hasText: 'Sill' }).click();
+    await expect(page.getByText(/^Bend Count:/)).toBeVisible();
+    const sillBendCount = await page.getByText(/^Bend Count:/).textContent();
+
+    await buttons.filter({ hasText: 'J-Channel' }).click();
+    await expect(page.getByText(/^Bend Count:/)).toBeVisible();
+    const jChannelBendCount = await page.getByText(/^Bend Count:/).textContent();
+
+    // Different point counts (Sill: 4 pts/2 bends, J-Channel: 5 pts/3
+    // bends) should read back as different Bend Count values — confirms
+    // each template loads genuinely distinguishable geometry, not a
+    // shared/copy-pasted shape.
+    expect(sillBendCount).not.toBe(jChannelBendCount);
+
+    // Coping Cap opens VariantPicker with exactly 3 selectable options.
+    await buttons.filter({ hasText: 'Coping Cap' }).click();
+    await expect(page.getByText('Choose a Variant')).toBeVisible();
+    let variantButtons = page.locator('button').filter({ hasText: /Cleat$/ });
+    await expect(variantButtons).toHaveCount(3);
+    await variantButtons.filter({ hasText: '1-Piece Cleat' }).click();
+    await expect(page.getByText('Choose a Variant')).toHaveCount(0);
+    await expect(page.getByText(/^Bend Count:/)).toBeVisible();
+
+    // Valley opens VariantPicker with exactly 3 selectable options.
+    await buttons.filter({ hasText: 'Valley' }).click();
+    await expect(page.getByText('Choose a Variant')).toBeVisible();
+    variantButtons = page.locator('button').filter({
+      hasText: /Closed \/ Rolled Hem|Open Hook|Heavy Reinforced Closed Fold/,
+    });
+    await expect(variantButtons).toHaveCount(3);
+    await variantButtons.filter({ hasText: 'Open Hook' }).click();
+    await expect(page.getByText('Choose a Variant')).toHaveCount(0);
+  });
+});

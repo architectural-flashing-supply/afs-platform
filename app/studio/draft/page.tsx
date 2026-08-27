@@ -28,6 +28,7 @@ import SubmitConfirmation3DModal, { type PaintFace } from '@/components/studio/S
 import MatchedProfile3DModal from '@/components/studio/MatchedProfile3DModal';
 import { isPaintedMaterial, resolveSelectedPaintColor } from '@/lib/utils/paint-appearance';
 import ProfileDetailsModal, { type ProfileDetailsFormValues } from '@/components/studio/ProfileDetailsModal';
+import VariantPicker from '@/components/studio/VariantPicker';
 import Toast from '@/components/ui/Toast';
 import type { ProfileMatch, DiagramBend } from '@/app/api/studio/match-profile/route';
 import {
@@ -500,45 +501,100 @@ function distanceToSegment(p: Point, a: Point, b: Point): number {
   return Math.hypot(p.x - proj.x, p.y - proj.y);
 }
 
+interface ProfileTemplateVariant {
+  id: string;
+  label: string;
+  // See the PLACEHOLDER notice on PROFILE_TEMPLATES below — every variant's
+  // points are provisional generic shapes, not real fabrication geometry.
+  points: Point[];
+}
+
 interface ProfileTemplate {
   id: string;
   label: string;
   // Design-time coordinates on an assumed 600x600 canvas, centered on
   // (300,300) — converted to world inches (origin at canvas center, same
   // convention worldToScreen/screenToWorld use) via TEMPLATE_CANVAS_CENTER
-  // and PIXELS_PER_INCH below, not stored pre-converted.
-  points: Point[];
+  // and PIXELS_PER_INCH below, not stored pre-converted. Present only for
+  // single-shape templates — omitted when `variants` is set, since those
+  // open VariantPicker instead of loading geometry directly.
+  points?: Point[];
+  // When set, clicking this template's button opens VariantPicker instead
+  // of calling loadTemplateGeometry directly (see the button row below).
+  variants?: ProfileTemplateVariant[];
 }
 
-// "Common Profiles" template bar (Part 7). Cleat is intentionally not a
-// template here — cleats need custom-drawn geometry and are redirected to
-// FlashDraft directly from the Custom Flashing Configurator instead.
+// ============================================================================
+// PLACEHOLDER GEOMETRY — afs-fl-020
+//
+// Every points/variants array below is a simple, generic 2-8 point shape at
+// approximate standard dimensions, NOT real fabrication geometry. The real
+// bend-point geometry for each of these 20 profiles (plus the 6 Coping Cap /
+// Valley variants) was meant to come from physical reference images not
+// available when this list was built — per Reid's explicit constraint,
+// physical product dimensions are never fabricated from memory or invented
+// as if sourced from a real reference. Swapping in real dimensions later is
+// meant to be a pure data change to this array, not a rebuild of the
+// template/VariantPicker mechanism itself. Do not present any shape here as
+// production-final in code comments or UI copy — see STATE_OF_THE_BUILD.md
+// (afs-fl-020) for the full list of what's still pending.
+//
+// This is the locked 20-item list (replaces the prior 10-item set), plus
+// Coping Cap carried forward from that prior set as a 21st button — Coping
+// Cap isn't one of the 20 newly-locked names, but it's explicitly required
+// to route through VariantPicker (see task step 2), so it stays in the row
+// rather than being dropped.
+// ============================================================================
 const PROFILE_TEMPLATES: ProfileTemplate[] = [
   {
-    id: 'coping-cap',
-    label: 'Coping Cap',
+    id: 'z-closure',
+    label: 'Z Closure',
+    points: [{ x: 150, y: 280 }, { x: 250, y: 280 }, { x: 300, y: 330 }, { x: 400, y: 330 }],
+  },
+  {
+    id: 'sill',
+    label: 'Sill',
+    points: [{ x: 200, y: 220 }, { x: 200, y: 320 }, { x: 340, y: 320 }, { x: 360, y: 350 }],
+  },
+  {
+    id: 'j-channel',
+    label: 'J-Channel',
     points: [
-      { x: 180, y: 200 }, { x: 180, y: 320 }, { x: 200, y: 320 }, { x: 200, y: 340 },
-      { x: 400, y: 340 }, { x: 400, y: 320 }, { x: 420, y: 320 }, { x: 420, y: 200 },
+      { x: 220, y: 200 }, { x: 220, y: 320 }, { x: 260, y: 320 }, { x: 260, y: 260 }, { x: 300, y: 260 },
     ],
   },
   {
-    id: 'drip-edge',
-    label: 'Drip Edge',
-    points: [{ x: 150, y: 250 }, { x: 150, y: 350 }, { x: 380, y: 350 }, { x: 420, y: 390 }],
+    id: 'z-spacer-trim',
+    label: 'Z-Spacer Trim',
+    points: [{ x: 200, y: 240 }, { x: 280, y: 240 }, { x: 320, y: 300 }, { x: 400, y: 300 }],
   },
   {
-    id: 'gravel-stop',
-    label: 'Gravel Stop',
+    id: 'outside-corner',
+    label: 'Outside Corner',
+    points: [{ x: 220, y: 200 }, { x: 220, y: 300 }, { x: 340, y: 300 }],
+  },
+  {
+    id: 'inside-corner',
+    label: 'Inside Corner',
+    points: [{ x: 200, y: 200 }, { x: 200, y: 280 }, { x: 260, y: 280 }, { x: 260, y: 340 }],
+  },
+  {
+    id: 'window-drip',
+    label: 'Window Drip',
+    points: [{ x: 220, y: 240 }, { x: 220, y: 300 }, { x: 380, y: 300 }, { x: 400, y: 330 }],
+  },
+  {
+    id: 'siding-starter',
+    label: 'Siding Starter',
+    points: [{ x: 220, y: 260 }, { x: 220, y: 320 }, { x: 260, y: 320 }, { x: 280, y: 300 }],
+  },
+  {
+    id: 'stucco-perimeter',
+    label: 'Stucco Perimeter',
     points: [
-      { x: 150, y: 350 }, { x: 150, y: 250 }, { x: 400, y: 250 },
-      { x: 400, y: 350 }, { x: 420, y: 350 }, { x: 420, y: 380 },
+      { x: 220, y: 220 }, { x: 220, y: 320 }, { x: 260, y: 320 }, { x: 260, y: 300 },
+      { x: 340, y: 300 }, { x: 340, y: 340 },
     ],
-  },
-  {
-    id: 'fascia',
-    label: 'Fascia',
-    points: [{ x: 250, y: 180 }, { x: 250, y: 380 }, { x: 310, y: 380 }, { x: 310, y: 400 }],
   },
   {
     id: 'pitch-change',
@@ -546,21 +602,55 @@ const PROFILE_TEMPLATES: ProfileTemplate[] = [
     points: [{ x: 150, y: 280 }, { x: 280, y: 280 }, { x: 360, y: 340 }, { x: 460, y: 340 }],
   },
   {
-    id: 'pref-z-bar',
-    label: 'Pref Z Bar',
-    points: [{ x: 150, y: 260 }, { x: 280, y: 260 }, { x: 360, y: 360 }, { x: 460, y: 360 }],
+    id: 'drip-edge',
+    label: 'Drip Edge',
+    points: [{ x: 150, y: 250 }, { x: 150, y: 350 }, { x: 380, y: 350 }, { x: 420, y: 390 }],
   },
   {
-    id: 'hip-ridge',
-    label: 'Hip / Ridge',
+    id: 'drip-edge-kick',
+    label: 'Drip Edge with Kick',
     points: [
-      { x: 150, y: 250 }, { x: 160, y: 270 }, { x: 300, y: 380 }, { x: 440, y: 270 }, { x: 450, y: 250 },
+      { x: 150, y: 250 }, { x: 150, y: 350 }, { x: 380, y: 350 }, { x: 400, y: 370 }, { x: 430, y: 365 },
     ],
   },
   {
-    id: 'z-closure',
-    label: 'Z Closure',
-    points: [{ x: 150, y: 280 }, { x: 250, y: 280 }, { x: 300, y: 330 }, { x: 400, y: 330 }],
+    id: 'hook-drip-edge',
+    label: 'Hook Drip Edge',
+    points: [
+      { x: 150, y: 250 }, { x: 150, y: 350 }, { x: 380, y: 350 }, { x: 410, y: 380 },
+      { x: 400, y: 400 }, { x: 380, y: 395 },
+    ],
+  },
+  {
+    id: 'sidewall',
+    label: 'Sidewall',
+    points: [
+      { x: 200, y: 220 }, { x: 200, y: 300 }, { x: 260, y: 300 }, { x: 260, y: 340 }, { x: 340, y: 340 },
+    ],
+  },
+  {
+    id: 'head-wall',
+    label: 'Head Wall',
+    points: [
+      { x: 200, y: 220 }, { x: 260, y: 220 }, { x: 260, y: 300 }, { x: 340, y: 300 }, { x: 340, y: 360 },
+    ],
+  },
+  {
+    id: 'ridge-cap-vented',
+    label: 'Ridge Cap Vented',
+    points: [
+      { x: 170, y: 260 }, { x: 180, y: 280 }, { x: 300, y: 380 }, { x: 420, y: 280 }, { x: 430, y: 260 },
+    ],
+  },
+  {
+    id: 'counter',
+    label: 'Counter',
+    points: [{ x: 220, y: 200 }, { x: 220, y: 280 }, { x: 260, y: 300 }, { x: 260, y: 360 }],
+  },
+  {
+    id: 'peak-wall',
+    label: 'Peak Wall',
+    points: [{ x: 200, y: 220 }, { x: 300, y: 340 }, { x: 400, y: 220 }],
   },
   {
     id: 'gutter',
@@ -568,11 +658,56 @@ const PROFILE_TEMPLATES: ProfileTemplate[] = [
     points: [{ x: 150, y: 240 }, { x: 150, y: 380 }, { x: 420, y: 380 }, { x: 420, y: 300 }],
   },
   {
-    id: 'inside-outside-corner',
-    label: 'Inside/Outside Corner',
-    points: [
-      { x: 150, y: 200 }, { x: 150, y: 350 }, { x: 160, y: 360 },
-      { x: 290, y: 360 }, { x: 300, y: 370 }, { x: 300, y: 200 },
+    id: 'valley',
+    label: 'Valley',
+    variants: [
+      {
+        id: 'valley-closed-rolled-hem',
+        label: 'Closed / Rolled Hem',
+        points: [{ x: 200, y: 200 }, { x: 300, y: 340 }, { x: 400, y: 200 }],
+      },
+      {
+        id: 'valley-open-hook',
+        label: 'Open Hook',
+        points: [{ x: 200, y: 200 }, { x: 300, y: 340 }, { x: 400, y: 200 }, { x: 420, y: 220 }],
+      },
+      {
+        id: 'valley-heavy-reinforced-closed-fold',
+        label: 'Heavy Reinforced Closed Fold',
+        points: [
+          { x: 190, y: 200 }, { x: 210, y: 220 }, { x: 300, y: 340 }, { x: 390, y: 220 }, { x: 410, y: 200 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'coping-cap',
+    label: 'Coping Cap',
+    variants: [
+      {
+        id: 'coping-cap-2-piece-cleat',
+        label: '2-Piece Cleat',
+        points: [
+          { x: 180, y: 200 }, { x: 180, y: 320 }, { x: 200, y: 320 }, { x: 200, y: 340 },
+          { x: 400, y: 340 }, { x: 400, y: 320 }, { x: 420, y: 320 }, { x: 420, y: 200 },
+        ],
+      },
+      {
+        id: 'coping-cap-1-piece-cleat',
+        label: '1-Piece Cleat',
+        points: [
+          { x: 180, y: 200 }, { x: 180, y: 320 }, { x: 200, y: 320 }, { x: 200, y: 340 },
+          { x: 400, y: 340 }, { x: 400, y: 200 },
+        ],
+      },
+      {
+        id: 'coping-cap-face-cleat',
+        label: 'Face Cleat',
+        points: [
+          { x: 180, y: 220 }, { x: 180, y: 320 }, { x: 200, y: 320 }, { x: 200, y: 340 },
+          { x: 400, y: 340 }, { x: 400, y: 300 }, { x: 420, y: 280 },
+        ],
+      },
     ],
   },
 ];
@@ -839,6 +974,10 @@ export default function FlashDraftPage() {
   const [hemPopup, setHemPopup] = useState<{ endpoint: HemEndpoint; screenPos: Point } | null>(null);
   const [hemLengthDraft, setHemLengthDraft] = useState(String(HEM_DEFAULT_LENGTH_IN));
   const [hemGapDraft, setHemGapDraft] = useState(String(HEM_DEFAULT_GAP_IN_OPEN));
+
+  // Template that opened VariantPicker (Coping Cap / Valley) — null when
+  // the picker is closed. See PROFILE_TEMPLATES' `variants` field.
+  const [variantPickerTemplate, setVariantPickerTemplate] = useState<ProfileTemplate | null>(null);
 
   // A drag starting on a leg's BODY (not its endpoints) reshapes the leg by
   // dragging its far endpoint, via the existing vertex-drag machinery
@@ -2125,17 +2264,20 @@ export default function FlashDraftPage() {
 
   const centerView = () => setPan({ x: 0, y: 0 });
 
-  const loadTemplate = (template: ProfileTemplate) => {
+  // Shared by both the direct single-shape templates and VariantPicker
+  // selections below — the only difference between the two is where the
+  // (label, points) pair comes from.
+  const loadTemplateGeometry = (label: string, templatePoints: Point[]) => {
     if (points.length > 0) {
       const confirmed = window.confirm('Load template? This will replace your current work.');
       if (!confirmed) return;
     }
-    const worldPoints = templatePointsToWorld(template.points);
+    const worldPoints = templatePointsToWorld(templatePoints);
     setPast((p) => [...p, { points, hemStart, hemEnd }]);
     setFuture([]);
     setPoints(worldPoints);
     setSelectedSegment(null);
-    setProfileName(template.label);
+    setProfileName(label);
 
     const canvas = canvasRef.current;
     if (canvas) {
@@ -2144,6 +2286,16 @@ export default function FlashDraftPage() {
       setZoom(nextZoom);
       setPan(nextPan);
     }
+  };
+
+  const loadTemplate = (template: ProfileTemplate) => {
+    if (!template.points) return;
+    loadTemplateGeometry(template.label, template.points);
+  };
+
+  const handleVariantSelect = (variant: ProfileTemplateVariant) => {
+    loadTemplateGeometry(variant.label, variant.points);
+    setVariantPickerTemplate(null);
   };
 
   const rotateProfile = (deltaDeg: number) => {
@@ -3656,7 +3808,9 @@ export default function FlashDraftPage() {
 
               {/* Part 7 — "Common Profiles" template bar, overlaid at the
                   bottom of the canvas instead of a separate row below it.
-                  Cleat is intentionally excluded (see PROFILE_TEMPLATES above). */}
+                  Cleat is intentionally excluded (see PROFILE_TEMPLATES above).
+                  Coping Cap and Valley have `variants` set, so their buttons
+                  open VariantPicker instead of loading geometry directly. */}
               <div className="absolute bottom-0 left-0 right-0 z-20 bg-afs-bg-raised/95 border-t border-afs-border flex items-center gap-4 px-4 py-2">
                 <span className="font-label text-xs text-afs-chrome-mid uppercase tracking-wider shrink-0">
                   Start From a Template
@@ -3666,7 +3820,9 @@ export default function FlashDraftPage() {
                     <button
                       key={template.id}
                       type="button"
-                      onClick={() => loadTemplate(template)}
+                      onClick={() =>
+                        template.variants ? setVariantPickerTemplate(template) : loadTemplate(template)
+                      }
                       className="shrink-0 py-1.5 px-3 text-xs font-label bg-afs-crimson hover:bg-afs-crimson-hover text-white rounded transition-colors"
                     >
                       {template.label}
@@ -3674,6 +3830,17 @@ export default function FlashDraftPage() {
                   ))}
                 </div>
               </div>
+
+              {/* Always mounted, toggled via isOpen — see the doc comment on
+                  VariantPicker for why conditional mount/unmount here would
+                  break under React Strict Mode's dev-only double-effect. */}
+              <VariantPicker
+                isOpen={!!variantPickerTemplate}
+                categoryLabel={variantPickerTemplate?.label ?? ''}
+                variants={variantPickerTemplate?.variants ?? []}
+                onSelect={handleVariantSelect}
+                onClose={() => setVariantPickerTemplate(null)}
+              />
             </div>
 
             {/* PART 6 — split-screen matched-profile panel, always mounted
