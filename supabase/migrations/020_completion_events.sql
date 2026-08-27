@@ -1,20 +1,18 @@
 -- ============================================================================
 -- 020_completion_events.sql
 -- Adds `completion_events` — one row per shop-floor job completion
--- (afs-fl-003's "Mark Complete" tap at /field/shop), recording the event for
--- a future delivery-scheduling / invoice / customer-email automation chain
--- to consume later. This migration does NOT build that automation — no
--- Resend, Twilio, or other external API call is wired to this table by this
--- migration or by afs-fl-003's app code. `status` defaults to
--- 'pending_integration' and the three boolean flags all default to false
--- until that future automation actually runs and flips them.
+-- (afs-fl-003's "Mark Complete" tap at /field/shop), recording the event.
+-- `status` defaults to 'pending_integration' and the three boolean flags all
+-- default to false; afs-fl-014's delivery/invoice/email automation
+-- (lib/utils/shop-job-completion.ts) does not currently flip them — it acts
+-- directly on the matched `orders` row instead, since these flags predate
+-- that automation's design and no code path updates them.
 --
--- FILE ONLY — this migration is written and committed but has NOT been
--- applied to the live Supabase project. Per this project's standing
--- migration-verification standard (see SESSION_STATE.md), a migration's
--- live-apply status is never assumed from its presence on disk — it must
--- be verified directly against the live database (via information_schema
--- in the Supabase Dashboard SQL Editor) before anything depends on it.
+-- CONFIRMED APPLIED LIVE — verified directly against the live Supabase
+-- project (information_schema + a live query against this table), 2026-08-24
+-- and reconfirmed 2026-08-26. Per this project's standing migration-
+-- verification standard (see SESSION_STATE.md), a migration's live-apply
+-- status is never assumed from its presence on disk.
 -- ============================================================================
 
 CREATE TABLE completion_events (

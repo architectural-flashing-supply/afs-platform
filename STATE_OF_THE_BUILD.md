@@ -34,6 +34,25 @@ summary, not a replacement for it.
 
 ---
 
+## VERIFIED THIS PASS (2026-08-26, afs-fl-014)
+
+```
+pnpm tsc --noEmit                  0 errors. Exit code 0.
+pnpm build                         Clean. Exit code 0.
+```
+
+Also ran the real `runShopJobCompletionAutomation()` function (not a
+reimplementation) directly against the live Supabase project via `tsx`,
+against synthetic fixtures created and deleted for this test only — see the
+afs-fl-014 entry below for the full trace. No live user confirmation of the
+actual ShopViewBoard/`/field/shop` UI flow yet (this prompt did not ask for
+that and no admin session was driven through the browser) — held as
+IMPLEMENTED, UNCONFIRMED for the UI trigger paths themselves; the
+automation function's own DB behavior is confirmed against the live
+database, not just compiled.
+
+---
+
 ## VERIFIED THIS PASS (2026-08-26, afs-fl-015)
 
 ```
@@ -45,6 +64,115 @@ pnpm tsc --noEmit                  0 errors. Exit code 0.
 confirmation of the visual behavior yet — see the "Not confirmed" note
 under afs-fl-015 below. Held as IMPLEMENTED, UNCONFIRMED per this file's
 verification standard.
+
+---
+
+## SHOP JOB COMPLETION -> DELIVERY SCHEDULING + INVOICE EMAIL (afs-fl-014): IMPLEMENTED, UNCONFIRMED — 2026-08-26
+
+**Scope.** Two existing code paths write `shop_profile_library.status =
+'complete'` and, by explicit prior design, fired zero delivery/invoice/email
+side effects: `ShopViewBoard.tsx`'s advance control (PATCH
+`app/api/admin/profile-library/[id]/route.ts`) and the mobile `/field/shop`
+"Mark Complete" tap (`app/api/field/shop/[id]/complete/route.ts`). This
+prompt built that automation as one shared function both routes call,
+without touching order creation, checkout, or the Stripe webhook (hard
+constraint, respected — verified via `git diff` before committing that
+neither `app/api/checkout/` nor `app/api/webhooks/stripe/route.ts` changed).
+
+**Step 1 finding — the job-to-order link, verified against the live
+database, not assumed:**
+- `shop_profile_library.order_number` (loose `TEXT`, no FK — confirmed via
+  `016_source_tool_and_shop_profile_library.sql`) is **never populated by
+  any write path in this codebase.** Grepped every writer
+  (`insertShopProfileLibraryRecord`, `lib/data/shop-profile-library.ts`,
+  called only from `approve-quote-request/route.ts` and
+  `send-to-pathfinder/route.ts`) — neither ever sets `orderNumber`. Queried
+  the live `shop_profile_library` table directly (service-role REST call):
+  all 8 live rows have `order_number: null`. This matches SESSION_STATE.md's
+  afs-fl-005 handoff note, written independently in a prior session.
+- The real, FK-backed link is **`shop_profile_library.quote_request_id` ->
+  `quote_requests.quote_id`** (set by
+  `app/api/admin/quote-requests/[id]/send/route.ts` when AFS sends a formal
+  quote) **-> `quotes.id` -> `orders.quote_id`** (set only by
+  `createOrderFromQuote()`, post-payment/net-terms — see
+  `ORDER_LIFECYCLE_DECISION.md`). This is what the shared function actually
+  uses as its primary lookup; `order_number` equality is kept as a
+  defensive fallback only, since nothing currently populates it.
+- Live-database reality check: `orders` has **0 rows** and `quotes` has **0
+  rows** in the live project as of this pass — no quote has ever been sent
+  and no order has ever been created. So today, this automation will always
+  find "no real matching order" and skip, for every existing
+  `shop_profile_library` row — that's the correct, honest behavior given
+  current data, not a bug in the new code.
+- A row with no `quote_request_id` and no `order_number` (e.g. a direct
+  FlashDraft "Send to PathfinderEdge" admin test,
+  `app/api/studio/send-to-pathfinder/route.ts`) correctly finds no order and
+  is logged via `console.error`, never thrown — the completion write itself
+  always succeeds regardless.
+
+**Step 2 — shared function.** `lib/utils/shop-job-completion.ts`,
+`runShopJobCompletionAutomation()`. Both `profile-library/[id]/route.ts`
+(only on an actual `!= 'complete' -> 'complete'` transition, not on
+queued<->in_progress advances) and `field/shop/[id]/complete/route.ts` call
+it identically, after their own status write succeeds. Uses
+`createAdminClient()` internally (service-role), independent of which
+session-scoped client the calling route used.
+
+**Step 3 — delivery date.** Traced the real mechanism the Track Delivery
+page uses — NOT `SPEC_DELIVERY_SCHEDULER.md`'s `POST /api/delivery/schedule`
+(that spec's own scheduling API/table is explicitly BLOCKED, checklist
+#84/#85/#80–82, and no such route exists in the codebase). The real,
+already-shipped mechanism is `orders.delivery_scheduled_at` /
+`orders.delivery_window` — written today by
+`app/api/admin/orders/[id]/crm/route.ts`'s `[Set Delivery Date]` control and
+`app/api/pickup/schedule/route.ts`, and read by `app/api/track/verify/route.ts`
+(Track Delivery's actual data source) and both `/account` order views. The
+new automation sets `orders.delivery_scheduled_at` (+ `updated_at`) on the
+matched order using this exact existing column — no new column, no new
+table.
+
+**Step 4 — invoice email with tracking link.** `sendInvoiceEmail()`
+(`lib/utils/invoice-email.ts`) did not previously include a tracking link.
+Extended it with an optional second `trackingUrl` parameter, rendered with
+the same `ctaButton()` the dispatch route's own email already uses —
+additive and backward-compatible; the dispatch route's and
+`/api/invoices/[id]/send`'s existing calls are unchanged (no second
+argument passed, so their emails render exactly as before). The new
+automation passes `` `${APP_URL}/track/${order.tracking_token}` `` for the
+matched order.
+
+**Step 5 — confirmed NOT touched.** `orders.status`, dispatch SMS
+(`lib/twilio/sms.ts`, `app/api/orders/[id]/dispatch/route.ts`) — grepped the
+diff, neither appears anywhere in the new code.
+
+**End-to-end verification against the live database (not just
+compile/build):** Wrote a throwaway `tsx` script (deleted after the run, not
+committed) that created a real `quote_requests` -> `quotes` -> `orders`
+fixture chain in the live project (using the existing
+`hem-e2e-admin@afs-internal.test` profile as `user_id`, matching this
+codebase's established e2e-test-data convention), a `shop_profile_library`
+row pointing at it, then called the actual `runShopJobCompletionAutomation()`
+export directly (not a reimplementation). Result: it resolved the order via
+the `quote_request_id` chain, set `orders.delivery_scheduled_at`, wrote the
+expected `admin_audit_log` row, and called `sendInvoiceEmail()`, which
+failed gracefully with `"Resend is not configured"` (a pre-existing,
+already-documented CLAUDE.md data blocker — `RESEND_API_KEY` is not set in
+this environment — not a defect in this pass's code) and logged that
+failure to `notifications` exactly like every other Resend call site
+already does. Also directly verified the "no match" path (no
+`quote_request_id`, no `order_number`) logs via `console.error` and returns
+without throwing. All test fixtures were deleted after the run; confirmed
+via a follow-up read that no test rows remain in `quote_requests`, `quotes`,
+`orders`, or `shop_profile_library`.
+
+**Not confirmed:** no browser-driven click-through of ShopViewBoard's
+advance control or the `/field/shop` "Mark Complete" button against a real
+order in this pass — the live database currently has no real order for
+either surface to complete against (see the Step 1 finding above), so that
+UI-level confirmation isn't yet possible in this environment regardless.
+Held as IMPLEMENTED, UNCONFIRMED until the user (or a future pass, once a
+real quote has actually been sent and paid) exercises this via the real UI
+against a real order.
 
 ---
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { logAdminAction } from '@/lib/admin/audit';
+import { runShopJobCompletionAutomation } from '@/lib/utils/shop-job-completion';
 
 interface FieldShopCompleteResponse {
   ok: true;
@@ -15,10 +16,13 @@ interface FieldShopCompleteResponse {
  * handler already does for the queued -> in_progress -> complete
  * lifecycle's final step (status literal confirmed by grepping
  * components/admin/ShopViewBoard.tsx directly: 'complete', not
- * 'completed'), plus a new completion_events row (migration 020, FILE
- * ONLY, not yet applied live) recording the event for a future
- * delivery/invoice/email automation chain this prompt does not build or
- * call out to.
+ * 'completed'), plus a completion_events row (migration 020 — CONFIRMED
+ * APPLIED LIVE, see STATE_OF_THE_BUILD.md/SESSION_STATE.md; the "FILE
+ * ONLY" language previously here was stale). Both this route and the
+ * ShopViewBoard PATCH handler call the same runShopJobCompletionAutomation
+ * (lib/utils/shop-job-completion.ts) once their own status write succeeds,
+ * so delivery scheduling + invoice email fire identically regardless of
+ * which surface triggered completion (afs-fl-014).
  */
 export async function POST(request: NextRequest, { params }: { params: { id: string } }): Promise<NextResponse> {
   try {
@@ -37,7 +41,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
     const { data: existing } = await supabase
       .from('shop_profile_library')
-      .select('id, status, order_number, deleted_at')
+      .select('id, status, order_number, quote_request_id, deleted_at')
       .eq('id', params.id)
       .maybeSingle();
     if (!existing || existing.deleted_at) {
@@ -98,6 +102,16 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       resourceId: params.id,
       beforeValue: { status: existing.status },
       afterValue: { status: 'complete', completed_at: completedAt, completion_event_id: eventRow.id as string },
+    });
+
+    // Delivery scheduling + invoice email for whichever real order (if any)
+    // this job belongs to — see runShopJobCompletionAutomation's own header
+    // comment for why this never errors or blocks the completion above.
+    await runShopJobCompletionAutomation({
+      shopProfileLibraryId: params.id,
+      orderNumber: existing.order_number as string | null,
+      quoteRequestId: existing.quote_request_id as string | null,
+      completedBy: user.id,
     });
 
     const response: FieldShopCompleteResponse = { ok: true, completedAt, completionEventId: eventRow.id as string };

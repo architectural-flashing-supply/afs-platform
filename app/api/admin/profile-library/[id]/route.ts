@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { logAdminAction } from '@/lib/admin/audit';
 import { isShopProfileLibraryStatus } from '@/lib/data/shop-profile-library';
+import { runShopJobCompletionAutomation } from '@/lib/utils/shop-job-completion';
 
 /**
  * Soft-delete only — sets deleted_at, never removes the row. Every read of
@@ -89,7 +90,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
     const { data: existing } = await supabase
       .from('shop_profile_library')
-      .select('id, status, deleted_at')
+      .select('id, status, order_number, quote_request_id, deleted_at')
       .eq('id', params.id)
       .maybeSingle();
     if (!existing || existing.deleted_at) {
@@ -99,9 +100,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     // This is the actual completion write (afs-cv-004) — status and
     // completed_at land in the same UPDATE so a row can never be 'complete'
     // with a null completed_at. completed_at is purely an event-record
-    // timestamp for a future automation chain to consume later. Marking a
-    // job complete here fires NO delivery, invoice, or email side effects
-    // of any kind — do not assume it does in a future prompt.
+    // timestamp for the completion automation below to key off of.
     const completedAt = status === 'complete' ? new Date().toISOString() : null;
     const updatePayload: { status: typeof status; completed_at?: string } =
       completedAt !== null ? { status, completed_at: completedAt } : { status };
@@ -123,6 +122,19 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       beforeValue: { status: existing.status },
       afterValue: { status, completed_at: completedAt },
     });
+
+    // Same delivery-scheduling + invoice-email automation the mobile
+    // field/shop "Mark Complete" route (app/api/field/shop/[id]/complete/
+    // route.ts) fires on this exact transition — fires only on a genuine
+    // -> 'complete' move, not on queued <-> in_progress advances.
+    if (status === 'complete' && existing.status !== 'complete') {
+      await runShopJobCompletionAutomation({
+        shopProfileLibraryId: params.id,
+        orderNumber: existing.order_number as string | null,
+        quoteRequestId: existing.quote_request_id as string | null,
+        completedBy: user.id,
+      });
+    }
 
     return NextResponse.json({ ok: true, status, completedAt });
   } catch (error) {

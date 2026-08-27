@@ -1,6 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/resend/send';
-import { baseEmailTemplate } from '@/lib/resend/templates/base';
+import { baseEmailTemplate, ctaButton } from '@/lib/resend/templates/base';
 import { toInvoiceRow } from '@/lib/data/invoices';
 import { generateInvoicePDF } from './invoice-pdf';
 
@@ -14,13 +14,20 @@ export interface SendInvoiceEmailResult {
 
 /**
  * Shared by POST /api/orders/[id]/dispatch (fires automatically as part of
- * dispatch) and POST /api/invoices/[id]/send (manual resend from the CRM
- * Invoices tab) — both need to generate and email the same PDF, just from
- * different trigger points. Never throws — matches the notification
- * failure-must-not-block-order-flow rule every other send in this codebase
- * already follows.
+ * dispatch), POST /api/invoices/[id]/send (manual resend from the CRM
+ * Invoices tab), and the shop-job-completion automation
+ * (lib/utils/shop-job-completion.ts) — all three need to generate and email
+ * the same PDF, just from different trigger points. Never throws — matches
+ * the notification failure-must-not-block-order-flow rule every other send
+ * in this codebase already follows.
+ *
+ * `trackingUrl` is optional and additive — the dispatch route already sends
+ * its own separate tracking email, so its call (and the CRM resend route's)
+ * omit it and keep today's exact output. Passing it renders the same
+ * `ctaButton` pattern the dispatch email already uses, just inside this
+ * template.
  */
-export async function sendInvoiceEmail(orderId: string): Promise<SendInvoiceEmailResult> {
+export async function sendInvoiceEmail(orderId: string, trackingUrl?: string): Promise<SendInvoiceEmailResult> {
   const admin = createAdminClient();
 
   const { data: orderRaw, error: orderError } = await admin
@@ -79,6 +86,7 @@ export async function sendInvoiceEmail(orderId: string): Promise<SendInvoiceEmai
       <strong>${orderRaw.order_number}</strong>, totaling
       <strong>${currency.format(orderRaw.total)}</strong>.
     </p>
+    ${trackingUrl ? ctaButton(trackingUrl, 'Track Your Delivery') : ''}
     <p style="margin:0;">Questions about this invoice? Just reply to this email.</p>
   `);
 

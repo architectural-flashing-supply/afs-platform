@@ -24,6 +24,87 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## SHOP JOB COMPLETION -> DELIVERY SCHEDULING + INVOICE EMAIL (afs-fl-014) — 2026-08-26
+
+Root-cause build, no workaround. Two existing "Mark Complete" code paths
+(`ShopViewBoard.tsx` via `app/api/admin/profile-library/[id]/route.ts`'s
+PATCH, and the mobile `/field/shop` page via
+`app/api/field/shop/[id]/complete/route.ts`) wrote
+`shop_profile_library.status = 'complete'` with zero delivery/invoice/email
+side effects, by explicit prior design. Built one shared function,
+`runShopJobCompletionAutomation()` (new file
+`lib/utils/shop-job-completion.ts`), both routes now call identically once
+their own status write succeeds.
+
+**Verified the job-to-order link directly against the live database before
+building on it** (the prompt's explicit step 1, not skipped or assumed):
+`shop_profile_library.order_number` is a loose `TEXT` field with no FK, and
+— confirmed by grepping every write path and by querying the live table
+directly — it is **never populated** by any code in this repo (all 8 live
+rows have `order_number: null`). The real, FK-backed link is
+`shop_profile_library.quote_request_id` -> `quote_requests.quote_id` (set
+when AFS sends a formal quote) -> `quotes.id` -> `orders.quote_id` (set only
+post-payment, per `ORDER_LIFECYCLE_DECISION.md`). This matches a note
+already left independently in this file's own afs-fl-005 entry. The shared
+function uses that chain as its primary lookup and `order_number` equality
+only as a defensive fallback. Live-database reality: `orders` and `quotes`
+both have **0 rows** right now — no quote has ever been sent, so this
+automation currently has nothing to act on for any existing job, which is
+correct given the data, not a bug. A job with neither link (e.g. a direct
+FlashDraft admin test send) logs via `console.error` and is skipped —
+marking the shop job complete always succeeds regardless.
+
+**Delivery date (step 3):** traced the real mechanism Track Delivery
+actually reads — `orders.delivery_scheduled_at` / `.delivery_window`
+(`app/api/track/verify/route.ts`), already written today by the Command
+Center CRM's `[Set Delivery Date]` control
+(`app/api/admin/orders/[id]/crm/route.ts`) and by
+`app/api/pickup/schedule/route.ts`. `SPEC_DELIVERY_SCHEDULER.md`'s own
+`POST /api/delivery/schedule` API does not exist in the codebase (its
+scheduling inputs are explicitly BLOCKED, checklist #84/85/80–82) — used the
+real, already-shipped column instead of inventing a new one.
+
+**Invoice email + tracking link (step 4):** `sendInvoiceEmail()`
+(`lib/utils/invoice-email.ts`) gained an optional `trackingUrl` second
+parameter, rendered via the same `ctaButton()` the dispatch route's email
+already uses. Additive only — the dispatch route's and
+`/api/invoices/[id]/send`'s existing calls pass nothing and are byte-for-
+byte unchanged.
+
+**Confirmed untouched, per the prompt's hard constraint:** `app/api/checkout/`,
+`app/api/webhooks/stripe/route.ts`, `orders.status`, and dispatch SMS —
+checked the diff directly before committing.
+
+**End-to-end verification, real function against the real live database:**
+wrote a throwaway `tsx` script (not committed — deleted immediately after)
+that created a real `quote_requests` -> `quotes` -> `orders` fixture chain
+in the live project (reusing the existing `hem-e2e-admin@afs-internal.test`
+profile as `user_id`, this codebase's established e2e-fixture convention)
+and a linked `shop_profile_library` row, then imported and called the
+actual `runShopJobCompletionAutomation()` export — not a reimplementation.
+It correctly resolved the order via the `quote_request_id` chain, set
+`orders.delivery_scheduled_at`, wrote the expected `admin_audit_log` row,
+and called `sendInvoiceEmail()`, which failed gracefully with `"Resend is
+not configured"` (pre-existing CLAUDE.md data blocker — no `RESEND_API_KEY`
+in this environment, not a defect introduced here) and logged that to
+`notifications` exactly like every other Resend call site. Separately
+verified the "no matching order" path logs and returns without throwing.
+All fixtures were deleted after the run and re-verified gone. `pnpm tsc
+--noEmit` and `pnpm build` both clean.
+
+**Not confirmed:** no browser click-through of either "Mark Complete"
+surface against a real order — the live database has no real order to
+complete against yet (see above), so that isn't possible in this
+environment regardless of code correctness. Held IMPLEMENTED, UNCONFIRMED.
+
+**Also corrected while in these files:** `app/api/field/shop/[id]/complete/
+route.ts`'s header comment claimed migration 020 (`completion_events`) was
+"FILE ONLY, not yet applied live" — stale; it's confirmed applied live (see
+afs-fl-003/afs-fl-005 entries below and the live query in this pass).
+Updated that comment and `020_completion_events.sql`'s own header to match.
+
+---
+
 ## COMMAND CENTER APPROVAL: GEOMETRY SUMMARY RESTORED TO SHOP-FLOOR ACCOUNT NOTES (afs-fl-015) — 2026-08-26
 
 Root-cause fix, no workaround, for a side effect afs-fl-012 (below) flagged
