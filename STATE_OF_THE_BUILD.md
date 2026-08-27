@@ -34,6 +34,26 @@ summary, not a replacement for it.
 
 ---
 
+## VERIFIED THIS PASS (2026-08-27, afs-fl-018)
+
+```
+pnpm tsc --noEmit                  0 errors. Exit code 0.
+pnpm build                         Clean. Exit code 0.
+```
+
+Also ran real functional verification beyond the gates above (this pass's
+task explicitly required it — "do not report this complete based on
+tsc/build success alone"): a temporary debug page rendered
+`ProfileViewer3D` directly (not a reimplementation) with real `Hem` data and
+a real `paintFace`, driven by Playwright against a running `pnpm dev`
+server — screenshotted and visually inspected, not assumed. See the
+afs-fl-018 entry below for what that verification found on both fixes. No
+live Reid confirmation of either fix in the real `/studio/draft` flow yet —
+held as IMPLEMENTED, UNCONFIRMED per this file's verification standard, same
+as every other visual/interactive item below.
+
+---
+
 ## VERIFIED THIS PASS (2026-08-26, afs-fl-017)
 
 ```
@@ -87,6 +107,101 @@ pnpm tsc --noEmit                  0 errors. Exit code 0.
 confirmation of the visual behavior yet — see the "Not confirmed" note
 under afs-fl-015 below. Held as IMPLEMENTED, UNCONFIRMED per this file's
 verification standard.
+
+---
+
+## FLASHDRAFT 3D VIEWER: REAL HEM GEOMETRY, PAINT-FACE Z-FIGHTING FIX (afs-fl-018): IMPLEMENTED, UNCONFIRMED — 2026-08-27
+
+Two independent, root-caused fixes to `components/studio/ProfileViewer3D.tsx`.
+
+**Fix 1 — real 3D hem geometry.** The 3D viewer previously rendered zero hem
+geometry at all — no `hemStart`/`hemEnd` input existed anywhere in its props
+or render logic, even though `lib/flashdraft/hem-glyph.ts`'s `drawHemGlyph`
+has long been the single authoritative definition of what Open/Smashed/
+Teardrop hems actually look like (fold direction, gap, length, kick).
+- Added `hemStart?: Hem | null` / `hemEnd?: Hem | null` props (the same
+  `Hem` type as `lib/types/profile.ts`).
+- Ported hem-glyph.ts's shape math (not its canvas-drawing calls) into two
+  pure point-generator functions — `buildHookFoldCenterline` (Open/Smashed:
+  moveTo → lineTo → 180° arc → lineTo, same topology as `drawHookGlyph`) and
+  `buildTeardropFoldCenterline` (a straight run then the exact same sweep/
+  tail-diverge math as hem-glyph.ts's teardrop branch — an OPEN curl with a
+  visible gap, not a closed loop) — parameterized by REAL millimeters
+  (`hem.lengthIn`/`hem.gapIn` converted via `IN_TO_MM`, teardrop curl radius
+  derived from real sheet thickness via the same
+  `TEARDROP_THICKNESS_TO_R * 0.8` ratio `lib/flashdraft/draw-profile-scene.ts`
+  already uses for its own screen-space glyph, with the screen-only
+  `pixelsPerInch * zoom` factor dropped since this is real mm) — not the
+  fixed-pixel, explicitly-not-to-scale `HEM_GLYPH_R`.
+- `buildHemGeometries` places that centerline at the profile's actual first/
+  last point, oriented along the leg's outward direction and mirrored per
+  `hem.kick`, then lofts an outer rail, an inner rail (offset by the sheet's
+  own `thicknessMm` via the same `offsetPolyline` helper the main ribbon
+  uses), and a small end cap at the fold's free/open end — all three via
+  `buildDecalStripGeometry`, this file's own existing precedent for lofting
+  a 2D profile-plane boundary into 3D `BufferGeometry` (previously only used
+  for the paint decal).
+- Wired through only where real hem data actually exists:
+  `app/studio/draft/page.tsx`'s own in-canvas `ProfileViewer3D` (the 2D/3D
+  toggle) and its `SubmitConfirmation3DModal` call (which gained
+  `hemStart`/`hemEnd` props). Deliberately NOT wired into
+  `MatchedProfile3DModal` (machine-library `machine_profile_bends` records
+  have no hem columns at all — confirmed against `SCHEMA.md` and
+  `app/api/studio/match-profile/route.ts`'s `DiagramBend`), the shared
+  `/studio/profile-viewer/[profileId]` page (same reason), or `app/upload`'s
+  item viewer (out of scope per the task's own framing).
+
+**Fix 2 — paint face read as angle-dependent, not physically fixed.**
+Reid reported that rotating a painted profile made the whole piece flicker
+between painted and bare. The task flagged the paint decal's `metalness:
+0.25` as one plausible cause (a specular highlight at grazing angles) but
+required live diagnosis before assuming that was it.
+
+**Diagnosis (not assumed):** a temporary debug page rendered a real painted
+profile via `ProfileViewer3D` exactly as `MatchedProfile3DModal` does;
+Playwright rotated it through a full range of angles, screenshotting each
+one. Actual observed behavior: the ENTIRE large face flipped between solid
+bare-metal gray and solid painted red as the camera rotated — including one
+transition frame showing visible GPU z-fight dither speckling at the
+boundary. That rules out the metalness/specular hypothesis (which would
+produce a localized highlight, not a full-face color swap) and instead
+confirms classic z-fighting: the paint decal was rendered EXACTLY coplanar
+with the base mesh's own face, relying only on a weak GL `polygonOffset`
+depth-bias (`factor/units: -2`) to win the depth test — insufficient at this
+scene's scale (camera `near: 1, far: 5000` gives coarse depth precision at
+the ~200–400 unit render distance), so the winner flipped essentially at
+random as the camera moved.
+
+**Fix:** gave the decal a real geometric standoff — `shellPoints` (outer/
+inner) get one more `offsetPolyline` pass, a small (`0.15mm`,
+`PAINT_DECAL_STANDOFF_MM`) push further outward along the same per-vertex
+normal `buildRibbonOutline` already used, before lofting — removing the
+coplanarity at its source instead of relying on depth-bias alone
+(`polygonOffset` kept, strengthened to `-4/-4`, as a second line of
+defense). Also corrected the decal material to `metalness: 0, roughness:
+0.85` (a real painted/Kynar coating isn't glossy-metallic) — not the root
+cause of the flip, but still physically wrong regardless.
+
+**Re-verification after the fix (same Playwright rotation sweep, fresh
+screenshots):** the painted face now reads as solid, consistent red across
+every angle where it's actually facing the camera, and solid bare gray only
+when the camera has rotated far enough to see the sheet's genuine reverse
+side (a real, physically-correct transition — confirmed clean/non-flickery
+across the intermediate frames, unlike the pre-fix dithering) or the actual
+folded edge (a thin line, not a face-wide flip) — matching the task's
+success criteria exactly. Both temporary debug pages
+(`app/studio/paint-debug`, `app/studio/hem3d-debug`), their Playwright specs,
+and all screenshots were deleted after verification — none committed.
+
+**Gates:** `pnpm tsc --noEmit` — 0 errors. `pnpm build` — clean.
+
+**Not confirmed — held to this project's stated verification standard:** no
+live Reid walkthrough of the real `/studio/draft` Submit Confirmation flow
+with a real drawn hem + real painted material selected yet. The
+hem-topology and paint-stability findings above come from this session's own
+Playwright screenshots against temporary debug pages exercising the real
+`ProfileViewer3D` component — real evidence, not a substitute for Reid's own
+check.
 
 ---
 
