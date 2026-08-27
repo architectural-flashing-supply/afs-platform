@@ -34,6 +34,25 @@ summary, not a replacement for it.
 
 ---
 
+## VERIFIED THIS PASS (2026-08-27, afs-fl-019)
+
+```
+pnpm tsc --noEmit                  0 errors. Exit code 0.
+```
+
+`pnpm build` was not re-run this pass (not requested by the task). Root
+cause was traced before changing anything: `CANVAS_COLORS.background` was
+unused dead code (grepped for `fillRect`/`.background` usage — zero hits on
+the main canvas), so the visible "canvas background" was actually the
+shared `bg-afs-bg-raised` wrapper div behind the transparent canvas. Fix
+applies the constant directly to the canvas element (scoped to this file,
+shared token untouched) rather than editing a value that had no visual
+effect. See the afs-fl-019 entry below for exact hex values and the sidebar
+input measurements. No live Reid confirmation yet — held as IMPLEMENTED,
+UNCONFIRMED per this file's verification standard.
+
+---
+
 ## VERIFIED THIS PASS (2026-08-27, afs-fl-018)
 
 ```
@@ -5028,14 +5047,42 @@ spent on it despite being requested.
 
 ---
 
-## FLASHDRAFT — CANVAS/SIDEBAR UI CHANGES: NOT STARTED
+## FLASHDRAFT — LIGHTER CANVAS BACKGROUND, COMPACT SIDEBAR INPUTS (afs-fl-019): IMPLEMENTED, UNCONFIRMED — 2026-08-27
 
-**Status: NOT STARTED.**
+**Root cause found for the canvas background:** `CANVAS_COLORS.background`
+(`app/studio/draft/page.tsx`) was dead code — declared but never applied to
+anything. A repo-wide check confirmed no `fillRect`/`clearRect` call ever
+painted the main 2D canvas. What the user was actually seeing as the
+canvas's "background" was the parent wrapper `<div>`'s
+`bg-afs-bg-raised` Tailwind class (`#363C4A`, dark gunmetal) showing through
+the transparent canvas element. `bg-afs-bg-raised` is a sitewide shared
+token (NavBar, cards, `/configure`, architect components, etc. — dozens of
+usages outside this file) and was deliberately left untouched.
 
-The lighter-gray canvas background and compact sidebar redesign requested
-by the user have not been implemented. `CANVAS_COLORS.background` in
-`app/studio/draft/page.tsx` has not changed as part of this request, and no
-sidebar-layout commit exists for it.
+Fix: the `<canvas>` element itself now gets an inline
+`background: CANVAS_COLORS.background` style, scoped to this one element,
+independent of the still-unchanged `bg-afs-bg-raised` wrapper behind it (used
+for the 3D viewer and other overlays in the same panel). `CANVAS_COLORS.background`
+changed from `#F5F5F0` (its old, never-rendered value) to `#C4C4C4`, a light
+neutral gray — visibly lighter than the `#363C4A` the user was actually
+seeing, without going nearly-white.
+
+**Sidebar inputs:** the three numeric fields Reid called "quite bulky" —
+Length/Feet (`#lengthFeet`), Length/Inches (`#lengthInches`), and Quantity
+(`#quantity`), all in the left sidebar panel — had `px-3 py-2.5` (10px
+vertical padding, ~40px total field height with `text-sm`). Reduced to
+`px-3 py-1.5` (6px vertical padding, ~32px total height) — a visible density
+reduction while remaining a normal clickable form-field height. Label text
+(`text-[10px]`/`text-xs` above each field) was not touched. No other input,
+select, textarea, or button in the sidebar was changed — `py-2.5` on
+Material/Gauge selects, Notes textarea, and the toolbar buttons below the
+form was left as-is (not named in the request, not described as bulky).
+
+`pnpm tsc --noEmit`: 0 errors. `git diff --stat` confirms only
+`app/studio/draft/page.tsx` changed — no other page's canvas or sidebar
+styling was touched, and `tailwind.config.js`'s `afs-bg-raised` token was
+not modified. No live Reid confirmation of the rendered result yet — held as
+IMPLEMENTED, UNCONFIRMED per this file's verification standard.
 
 ---
 
@@ -5285,7 +5332,9 @@ When migrating DNS to the live domain, these must be updated BEFORE go-live:
    dedicated NOT STARTED entry above.
 4. FlashDraft template rebuild (Pass 1–4) — not started, needs scoping into
    actual FORGE prompts against the locked 20-item list + PAC-CLAD picker.
-5. Canvas/sidebar UI changes — not started.
+5. Canvas/sidebar UI changes (afs-fl-019) — implemented this pass, needs
+   Reid's live confirmation of the lighter canvas gray and the more
+   compact Length/Quantity fields in `/studio/draft`.
 6. PathfinderEdge — blocked on AMS Controls (Seth Oliver) providing
    server-side logs for the 401 root cause; no code work possible until a
    real, documented API surface is confirmed.

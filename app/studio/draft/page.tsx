@@ -190,7 +190,13 @@ function isFlashDraftLineItem(
 // (same documented exception pattern already used for the Stripe
 // CardElement in app/checkout/page.tsx). See DESIGN_TOKENS.md §10.
 const CANVAS_COLORS = {
-  background: '#F5F5F0',
+  // Applied as the 2D canvas element's own inline background (see the
+  // <canvas> below) — deliberately NOT the shared afs-bg-raised token
+  // (#363C4A), which stays untouched for every other page/component that
+  // uses it. Light neutral gray so the crimson/blue profile lines and
+  // black-ink dimension labels stay high-contrast against the drawing
+  // surface (afs-fl-019).
+  background: '#C4C4C4',
   grid: 'rgba(17, 17, 17, 0.08)',
   profile: '#C0001A',
   profileSelected: '#2563EB',
@@ -3056,7 +3062,7 @@ export default function FlashDraftPage() {
                   step="1"
                   value={lengthFeet}
                   onChange={(e) => setLengthFeet(e.target.value)}
-                  className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 font-data text-sm text-afs-chrome-high focus:outline-none focus:border-afs-crimson transition-colors"
+                  className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-1.5 font-data text-sm text-afs-chrome-high focus:outline-none focus:border-afs-crimson transition-colors"
                 />
               </div>
               <div>
@@ -3071,7 +3077,7 @@ export default function FlashDraftPage() {
                   step="0.125"
                   value={lengthInches}
                   onChange={(e) => setLengthInches(e.target.value)}
-                  className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 font-data text-sm text-afs-chrome-high focus:outline-none focus:border-afs-crimson transition-colors"
+                  className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-1.5 font-data text-sm text-afs-chrome-high focus:outline-none focus:border-afs-crimson transition-colors"
                 />
               </div>
             </div>
@@ -3087,7 +3093,7 @@ export default function FlashDraftPage() {
               min="1"
               value={quantity}
               onChange={(e) => setQuantity(e.target.value)}
-              className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 font-data text-sm text-afs-chrome-high focus:outline-none focus:border-afs-crimson transition-colors"
+              className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-1.5 font-data text-sm text-afs-chrome-high focus:outline-none focus:border-afs-crimson transition-colors"
             />
           </div>
 
@@ -3356,7 +3362,7 @@ export default function FlashDraftPage() {
                 onDoubleClick={handleDoubleClick}
                 onContextMenu={(e) => e.preventDefault()}
                 className="w-full h-full"
-                style={{ touchAction: 'none', cursor: 'crosshair' }}
+                style={{ touchAction: 'none', cursor: 'crosshair', background: CANVAS_COLORS.background }}
               />
 
               {/* PART 2 — PROFILE INFO PANEL */}

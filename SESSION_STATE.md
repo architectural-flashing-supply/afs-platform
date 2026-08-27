@@ -24,6 +24,50 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## FLASHDRAFT — LIGHTER CANVAS BACKGROUND, COMPACT SIDEBAR INPUTS (afs-fl-019) — 2026-08-27
+
+Root-cause build, no workarounds, both changes confined to
+`app/studio/draft/page.tsx`.
+
+**Canvas background.** Task named `CANVAS_COLORS.background` as the value to
+change, but before touching it a repo grep for `fillRect`/`.background`
+usage confirmed it was dead code — never applied anywhere. The main 2D
+canvas element had no background of its own; what actually rendered behind
+the crimson/blue profile lines was the parent wrapper `<div>`'s
+`bg-afs-bg-raised` Tailwind class (`#363C4A`, dark gunmetal), which is a
+shared sitewide token (NavBar, cards, `/configure`, architect components —
+dozens of other usages, confirmed via grep). Editing only the unused
+constant would have changed nothing visible, so the fix wires the constant
+onto the canvas element itself via an inline `style={{ background:
+CANVAS_COLORS.background }}`, scoped to this one element — `bg-afs-bg-raised`
+on the wrapper (still used behind the 3D viewer and other overlays in the
+same panel) was left untouched, and `tailwind.config.js` was not modified.
+`CANVAS_COLORS.background` changed `#F5F5F0` → `#C4C4C4` (light neutral
+gray) — the old value was never rendered, so the real before/after the user
+will see is `#363C4A` (dark gunmetal) → `#C4C4C4` (light neutral gray).
+
+**Sidebar inputs.** Reid described the dimension inputs as "quite bulky."
+The three fields he named — Length/Feet, Length/Inches, and Quantity
+(`#lengthFeet`, `#lengthInches`, `#quantity`) — were the only numeric
+`<input>` elements in the sidebar using the bulkier `px-3 py-2.5` padding
+(10px vertical, ~40px total field height at `text-sm`). Changed to `px-3
+py-1.5` (6px vertical, ~32px total height) — a visible ~20% height
+reduction, still a normal clickable field height. Left unchanged: the
+Material/Gauge `<select>` elements, the Notes `<textarea>`, and the toolbar
+buttons below the form, all of which also use `py-2.5` but were not named as
+bulky and are not numeric dimension inputs. Label text size was not touched.
+
+**Verification:** `pnpm tsc --noEmit` — 0 errors. `git diff --stat` after
+the change shows only `app/studio/draft/page.tsx` modified — confirmed no
+other page's canvas or sidebar styling changed, and confirmed
+`tailwind.config.js`'s `afs-bg-raised` token is untouched (grepped for its
+usage across the repo before and after — same call sites). No live Reid
+confirmation of the rendered result yet — held as IMPLEMENTED, UNCONFIRMED
+per this file's verification standard until he's seen it in the real
+`/studio/draft` page.
+
+---
+
 ## FLASHDRAFT 3D VIEWER: REAL HEM GEOMETRY, PAINT-FACE Z-FIGHTING FIX (afs-fl-018) — 2026-08-27
 
 Root-cause build, no workarounds, both fixes confined to
