@@ -6,6 +6,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { formatInches } from '@/lib/utils/format-inches';
 import { computeProfilePoints } from '@/lib/flashdraft/geometry';
+import type { Hem } from '@/lib/types/profile';
 
 export interface ProfileBend {
   leftLeg: number;
@@ -32,6 +33,17 @@ export interface ProfileViewer3DProps {
   paintFace?: 'up' | 'down';
   paintColor?: string;
   bareColor?: string;
+  /**
+   * Real fold geometry at the profile's start/end (afs-fl-018) — mirrors
+   * FlashDraft's own hemStart/hemEnd (lib/types/profile.ts's Hem). Only
+   * passed where real hem data actually exists (FlashDraft's own draft
+   * canvas and its Submit Confirmation modal) — the machine-library match
+   * view and the shared profile-viewer page have no hem data on record, so
+   * they omit these props entirely and render no hem geometry, same as
+   * before this prop existed.
+   */
+  hemStart?: Hem | null;
+  hemEnd?: Hem | null;
   /** Degrees per second-equivalent (three.js OrbitControls convention). Defaults preserve existing behavior. */
   autoRotateSpeed?: number;
   /** How long auto-rotation runs before stopping. Defaults preserve existing behavior. */
@@ -47,6 +59,11 @@ type CameraPreset = 'default' | 'top' | 'side' | 'end';
 
 const EXTRUDE_DEPTH_MM = 304.8; // one linear foot
 const DIM_LINE_OFFSET_MM = 15;
+// Real (not just GL-depth-bias) gap between the paint decal and the base
+// mesh's coplanar face — see the paint-decal block below (afs-fl-018) for
+// why this exists. Small enough to be visually seamless with the sheet
+// edge, large enough to survive this scene's depth-buffer precision.
+const PAINT_DECAL_STANDOFF_MM = 0.15;
 const INITIAL_CAMERA_POSITION = new THREE.Vector3(200, 150, 300);
 const CAMERA_PRESETS: Record<CameraPreset, { position: THREE.Vector3; target: THREE.Vector3 }> = {
   default: { position: INITIAL_CAMERA_POSITION.clone(), target: new THREE.Vector3(0, 0, 0) },
@@ -182,6 +199,136 @@ function buildDecalStripGeometry(pts: Point2D[], depth: number): THREE.BufferGeo
   return geom;
 }
 
+const IN_TO_MM = 25.4;
+// Real-world teardrop curl radius, as a multiple of material thickness —
+// lib/flashdraft/draw-profile-scene.ts derives its (screen-space, schematic)
+// teardrop glyph radius from `effectiveThicknessIn * TEARDROP_THICKNESS_TO_R
+// (= 1/0.22) * 0.8` (hem-glyph.ts's own `r = R * 0.8`); this is that same
+// ratio with the screen-only pixelsPerInch*zoom conversion dropped, since
+// this is real millimeters, not screen pixels.
+const HEM_TEARDROP_CURL_RADIUS_TO_THICKNESS = (1 / 0.22) * 0.8;
+const HEM_HOOK_ARC_SEGMENTS = 16;
+const HEM_TEARDROP_ARC_SEGMENTS = 24;
+// The following three match lib/flashdraft/hem-glyph.ts's drawHemGlyph
+// teardrop branch exactly (sweepDeg, tailFrac, TAIL_DIVERGE_DEG) — that file
+// is the authoritative definition of the teardrop's open hook/curl topology,
+// not reinvented here.
+const HEM_TEARDROP_SWEEP_DEG = 310;
+const HEM_TEARDROP_TAIL_FRAC = 0.42;
+const HEM_TEARDROP_TAIL_DIVERGE_DEG = 20;
+
+/**
+ * Real (to-scale, millimeter) centerline for an Open/Smashed hem's fold —
+ * same topology as lib/flashdraft/hem-glyph.ts's drawHookGlyph (a straight
+ * run, a 180-degree turn, a straight run back, separated by the real gap),
+ * traced in local hem space: origin (0,0) = the profile's actual endpoint,
+ * +x = outward along the leg's own direction. `gapMm` is floored well above
+ * zero so a "smashed" (nearly flush) hem still traces a renderable arc
+ * instead of a degenerate zero-radius turn.
+ */
+function buildHookFoldCenterline(lengthMm: number, gapMm: number): Point2D[] {
+  const gap = Math.max(gapMm, 0.02);
+  const r = gap / 2;
+  const flatLen = Math.max(lengthMm - r, 0);
+  const points: Point2D[] = [
+    { x: 0, y: 0 },
+    { x: flatLen, y: 0 },
+  ];
+  for (let s = 1; s <= HEM_HOOK_ARC_SEGMENTS; s++) {
+    const t = s / HEM_HOOK_ARC_SEGMENTS;
+    const ang = -Math.PI / 2 + Math.PI * t;
+    points.push({ x: flatLen + r * Math.cos(ang), y: r + r * Math.sin(ang) });
+  }
+  points.push({ x: 0, y: gap });
+  return points;
+}
+
+/**
+ * Real (to-scale, millimeter) centerline for a Teardrop hem's fold — a
+ * straight run of the hem's own real `lengthIn` (Reid's reference photos:
+ * "the strip running flat and straight... that part IS hem.lengthIn"), then
+ * the same open hook/curl-with-tail topology as hem-glyph.ts's teardrop
+ * branch (NOT a closed loop — a visible gap remains between the tail and
+ * the curl), traced with the exact same sweep/tail math, just translated so
+ * the curl starts at the end of the straight run instead of at local-origin.
+ */
+function buildTeardropFoldCenterline(lengthMm: number, curlRadiusMm: number): Point2D[] {
+  const r = Math.max(curlRadiusMm, 0.01);
+  const cx = lengthMm;
+  const cy = r;
+  const thetaStart = -Math.PI / 2;
+  const thetaEnd = thetaStart + (HEM_TEARDROP_SWEEP_DEG * Math.PI) / 180;
+  const points: Point2D[] = [
+    { x: 0, y: 0 },
+    { x: lengthMm, y: 0 },
+  ];
+  for (let s = 1; s <= HEM_TEARDROP_ARC_SEGMENTS; s++) {
+    const t = s / HEM_TEARDROP_ARC_SEGMENTS;
+    const ang = thetaStart + (thetaEnd - thetaStart) * t;
+    points.push({ x: cx + r * Math.cos(ang), y: cy + r * Math.sin(ang) });
+  }
+  const arcEndX = cx + r * Math.cos(thetaEnd);
+  const arcEndY = cy + r * Math.sin(thetaEnd);
+  const tangentX = -Math.sin(thetaEnd);
+  const tangentY = Math.cos(thetaEnd);
+  const divergeRad = (HEM_TEARDROP_TAIL_DIVERGE_DEG * Math.PI) / 180;
+  const tailDirX = tangentX * Math.cos(divergeRad) - tangentY * Math.sin(divergeRad);
+  const tailDirY = tangentX * Math.sin(divergeRad) + tangentY * Math.cos(divergeRad);
+  const tailLen = HEM_TEARDROP_TAIL_FRAC * r;
+  points.push({ x: arcEndX + tailDirX * tailLen, y: arcEndY + tailDirY * tailLen });
+  return points;
+}
+
+/**
+ * Builds the real 3D geometry for one hem (start or end) — places the
+ * to-scale 2D fold centerline (buildHookFoldCenterline/
+ * buildTeardropFoldCenterline) in the profile's own XY plane at `p`,
+ * oriented along the leg's outward direction and mirrored per `hem.kick`
+ * ('outside' folds toward the same side as the ribbon's own `outer`
+ * boundary — see buildRibbonOutline — 'inside' toward `inner`, matching
+ * this file's existing outer/inner naming), then lofts an outer rail, an
+ * inner rail (the fold's own sheet thickness, offset via the same
+ * offsetPolyline helper the main ribbon uses), and a small end cap at the
+ * fold's free/open end along Z using buildDecalStripGeometry — the same
+ * technique this file already uses to loft a 2D profile-plane boundary into
+ * 3D BufferGeometry for the paint decal.
+ */
+function buildHemGeometries(
+  hem: Hem,
+  p: Point2D,
+  neighbor: Point2D,
+  normal: Point2D,
+  thicknessMm: number,
+  depth: number,
+  centerShift: THREE.Vector3
+): THREE.BufferGeometry[] {
+  const dx = p.x - neighbor.x;
+  const dy = p.y - neighbor.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const u: Point2D = { x: dx / len, y: dy / len };
+  const kickSign = hem.kick === 'outside' ? 1 : -1;
+
+  const lengthMm = Math.max(hem.lengthIn, 0) * IN_TO_MM;
+  const gapMm = Math.max(hem.gapIn, 0) * IN_TO_MM;
+  const curlRadiusMm = thicknessMm * HEM_TEARDROP_CURL_RADIUS_TO_THICKNESS;
+
+  const local = hem.type === 'teardrop' ? buildTeardropFoldCenterline(lengthMm, curlRadiusMm) : buildHookFoldCenterline(lengthMm, gapMm);
+
+  const worldCenterline: Point2D[] = local.map((pt) => ({
+    x: p.x + pt.x * u.x + pt.y * kickSign * normal.x,
+    y: p.y + pt.x * u.y + pt.y * kickSign * normal.y,
+  }));
+
+  const half = thicknessMm / 2;
+  const outerRail = offsetPolyline(worldCenterline, half);
+  const innerRail = offsetPolyline(worldCenterline, -half);
+  const tipCap = [innerRail[innerRail.length - 1], outerRail[outerRail.length - 1]];
+
+  const geometries = [buildDecalStripGeometry(outerRail, depth), buildDecalStripGeometry(innerRail, depth), buildDecalStripGeometry(tipCap, depth)];
+  geometries.forEach((g) => g.translate(centerShift.x, centerShift.y, centerShift.z));
+  return geometries;
+}
+
 function bendAngleLabel(bend: ProfileBend): string {
   return `${Math.round(bend.angle)}°`;
 }
@@ -261,6 +408,8 @@ export default function ProfileViewer3D({
   paintFace,
   paintColor,
   bareColor,
+  hemStart,
+  hemEnd,
   autoRotateSpeed = 4,
   autoRotateDurationMs = 3000,
 }: ProfileViewer3DProps) {
@@ -438,7 +587,8 @@ export default function ProfileViewer3D({
     if (points.length >= 2) {
       const radiiMm = bends.map((b) => b.radius || 0);
       const filletedPoints = filletPolyline(points, radiiMm);
-      const { outline, outer, inner } = buildRibbonOutline(filletedPoints, thicknessMm || 0.6);
+      const effectiveThicknessMm = thicknessMm || 0.6;
+      const { outline, outer, inner } = buildRibbonOutline(filletedPoints, effectiveThicknessMm);
       const shape = new THREE.Shape();
       outline.forEach((p, i) => {
         if (i === 0) shape.moveTo(p.x, p.y);
@@ -473,18 +623,72 @@ export default function ProfileViewer3D({
       mesh.receiveShadow = true;
       meshGroup.add(mesh);
 
+      if (hemStart || hemEnd) {
+        // Bare metal, DoubleSide (rather than reusing `meshMaterial`) —
+        // the hem's outer/inner rails are two independently-lofted strips
+        // (buildDecalStripGeometry, same as the paint decal below) whose
+        // triangle winding isn't guaranteed to face the camera from every
+        // angle the way the main ExtrudeGeometry solid's does.
+        const hemMaterial = new THREE.MeshStandardMaterial({
+          color: bareColor ?? appearance.color,
+          metalness: appearance.metalness,
+          roughness: appearance.roughness,
+          side: THREE.DoubleSide,
+        });
+        const lastIdx = filletedPoints.length - 1;
+        if (hemStart) {
+          const normal = segNormal(filletedPoints[0], filletedPoints[1]);
+          buildHemGeometries(hemStart, filletedPoints[0], filletedPoints[1], normal, effectiveThicknessMm, EXTRUDE_DEPTH_MM, centerShift).forEach(
+            (geom) => meshGroup.add(new THREE.Mesh(geom, hemMaterial))
+          );
+        }
+        if (hemEnd) {
+          const normal = segNormal(filletedPoints[lastIdx - 1], filletedPoints[lastIdx]);
+          buildHemGeometries(
+            hemEnd,
+            filletedPoints[lastIdx],
+            filletedPoints[lastIdx - 1],
+            normal,
+            effectiveThicknessMm,
+            EXTRUDE_DEPTH_MM,
+            centerShift
+          ).forEach((geom) => meshGroup.add(new THREE.Mesh(geom, hemMaterial)));
+        }
+      }
+
       if (paintFace && paintColor) {
-        const shellPoints = paintFace === 'up' ? outer : inner;
+        // Real standoff, not just a GL polygonOffset depth-bias hack
+        // (afs-fl-018) — confirmed live (Playwright, rotating a real
+        // painted profile through a full range of angles) that the paint
+        // decal, sitting EXACTLY coplanar with the base mesh's own face,
+        // genuinely lost the depth test at some angles: visible GPU
+        // z-fight dithering at the transition angles, then a hard flip to
+        // solid bare-metal across the ENTIRE face — not a metalness/
+        // specular artifact (that would read as a localized highlight, not
+        // a full-face color swap). polygonOffset alone wasn't reliable
+        // enough at this scene's scale (camera near:1/far:5000 gives coarse
+        // depth precision at the ~200-400 unit distance this profile
+        // renders at). Nudging the decal a small but real distance outward
+        // — along the SAME per-vertex normal buildRibbonOutline already
+        // offset outer/inner from the centerline by — removes the
+        // coplanarity at its source; polygonOffset is kept as a second
+        // line of defense, not the primary fix.
+        const standoffSign = paintFace === 'up' ? 1 : -1;
+        const shellPoints = offsetPolyline(paintFace === 'up' ? outer : inner, standoffSign * PAINT_DECAL_STANDOFF_MM);
         const decalGeometry = buildDecalStripGeometry(shellPoints, EXTRUDE_DEPTH_MM);
         decalGeometry.translate(centerShift.x, centerShift.y, centerShift.z);
         const decalMaterial = new THREE.MeshStandardMaterial({
           color: paintColor,
-          metalness: 0.25,
-          roughness: 0.55,
+          // Flat/non-reflective, matching a real painted (Kynar) coating —
+          // wasn't the cause of the angle-dependent flip above (that was
+          // pure z-fighting), but a painted face still shouldn't read as
+          // glossy/metallic regardless.
+          metalness: 0,
+          roughness: 0.85,
           side: THREE.DoubleSide,
           polygonOffset: true,
-          polygonOffsetFactor: -2,
-          polygonOffsetUnits: -2,
+          polygonOffsetFactor: -4,
+          polygonOffsetUnits: -4,
         });
         const decalMesh = new THREE.Mesh(decalGeometry, decalMaterial);
         meshGroup.add(decalMesh);
@@ -551,7 +755,7 @@ export default function ProfileViewer3D({
     scene.add(labelGroup);
     meshGroupRef.current = meshGroup;
     labelGroupRef.current = labelGroup;
-  }, [bends, blankWidth, material, thicknessMm, dimensionsOn, paintFace, paintColor, bareColor]);
+  }, [bends, blankWidth, material, thicknessMm, dimensionsOn, paintFace, paintColor, bareColor, hemStart, hemEnd]);
 
   return (
     <div className={`relative ${className ?? ''}`} style={{ minHeight: 500 }}>

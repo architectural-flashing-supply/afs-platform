@@ -3334,6 +3334,8 @@ export default function FlashDraftPage() {
                     gauge={gauge || GAUGES_BY_MATERIAL['Galvanized Steel']?.[1] || '24 ga'}
                     thicknessMm={gaugeToThicknessMm(gauge || GAUGES_BY_MATERIAL['Galvanized Steel']?.[1])}
                     profileName={profileName}
+                    hemStart={hemStart}
+                    hemEnd={hemEnd}
                     className="w-full h-full"
                   />
                 </div>
@@ -3843,6 +3845,8 @@ export default function FlashDraftPage() {
           thicknessMm={gaugeToThicknessMm(gauge)}
           color={color}
           initialPaintFace={paintFace}
+          hemStart={hemStart}
+          hemEnd={hemEnd}
           onCancel={() => setShow3DConfirm(false)}
           onConfirm={handle3DConfirmed}
         />

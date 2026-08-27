@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import ProfileViewer3D, { type ProfileBend } from '@/components/studio/ProfileViewer3D';
+import type { Hem } from '@/lib/types/profile';
 import {
   type PaintFace,
   isPaintedMaterial,
@@ -21,6 +22,9 @@ export interface SubmitConfirmation3DModalProps {
   thicknessMm: number;
   color: string;
   initialPaintFace: PaintFace;
+  /** Real hem fold data from FlashDraft's own draft canvas (afs-fl-018) — see ProfileViewer3D's own doc comment. */
+  hemStart?: Hem | null;
+  hemEnd?: Hem | null;
   onConfirm: (paintFace: PaintFace | null) => void;
   onCancel: () => void;
   submitting?: boolean;
@@ -34,6 +38,8 @@ export default function SubmitConfirmation3DModal({
   thicknessMm,
   color,
   initialPaintFace,
+  hemStart,
+  hemEnd,
   onConfirm,
   onCancel,
   submitting,
@@ -65,6 +71,8 @@ export default function SubmitConfirmation3DModal({
             paintFace={isPainted ? paintFace : undefined}
             paintColor={isPainted ? resolveSelectedPaintColor(material, color) : undefined}
             bareColor={isPainted ? BARE_METAL_COLOR : undefined}
+            hemStart={hemStart}
+            hemEnd={hemEnd}
             autoRotateSpeed={ROTATE_SPEED}
             autoRotateDurationMs={ROTATE_DURATION_MS}
             className="w-full h-full"
