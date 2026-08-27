@@ -18,6 +18,11 @@ import { formatInches } from '@/lib/utils/format-inches';
 import ProfileViewer3D, { type ProfileBend } from '@/components/studio/ProfileViewer3D';
 import { computeProfilePoints } from '@/lib/flashdraft/geometry';
 import { drawHemGlyph, HEM_GLYPH_R } from '@/lib/flashdraft/hem-glyph';
+import {
+  drawProfileScene,
+  renderShopSnapshotDataUri,
+  LIVE_CANVAS_LABEL_STYLE,
+} from '@/lib/flashdraft/draw-profile-scene';
 import BendSequenceDiagram from '@/components/studio/BendSequenceDiagram';
 import SubmitConfirmation3DModal, { type PaintFace } from '@/components/studio/SubmitConfirmation3DModal';
 import MatchedProfile3DModal from '@/components/studio/MatchedProfile3DModal';
@@ -199,7 +204,6 @@ const CANVAS_COLORS = {
 };
 
 const PIXELS_PER_INCH = 20;
-const GRID_INCHES = 0.25;
 const CANVAS_MIN_WIDTH = 600;
 const CANVAS_MIN_HEIGHT = 440;
 const HIT_RADIUS_PX = 10;
@@ -210,7 +214,6 @@ const MIN_BEND_RADIUS_IN = 0.125;
 const MAX_BEND_RADIUS_IN = 4;
 const MIN_DRAG_SEGMENT_IN = 0.05;
 
-const ANGLE_ARC_RADIUS_PX = 20; // fixed, unscaled by zoom — a UI indicator, not to-scale geometry
 const ANGLE_ARC_HIT_PX = 16;
 
 const HEM_HIT_RADIUS_PX = 22; // generous double-click target for creating a NEW hem — was 14px, too tight to hit reliably in testing
@@ -236,50 +239,15 @@ const HEM_TRIGGER_OFFSET_IN = 0.5;
 // release. See the guard in handlePointerDown.
 const NEW_SEGMENT_MISS_GUARD_PX = 24;
 
-// HEM_GLYPH_R and drawHemGlyph itself now live in lib/flashdraft/hem-glyph.ts
+// HEM_GLYPH_R and drawHemGlyph itself live in lib/flashdraft/hem-glyph.ts
 // (imported above) — shared with the standalone debug view at
 // app/studio/hem-debug/page.tsx, which calls the exact same function at a
-// larger scale rather than reimplementing it.
-
-// The fold glyph's screen radius is derived from the hem's own real-world
-// lengthIn (converted to screen px via PIXELS_PER_INCH * zoom) rather than a
-// fixed constant — a fixed-size glyph made increasing Hem Length only push
-// the icon further away along a longer straight connecting line, never grow
-// the fold shape itself, which read as "extending the leg" instead of
-// growing the hem. HEM_GLYPH_LENGTH_SCALE is a tuning knob on top of the
-// real 1:1 inch-to-glyph-size mapping (hem-glyph.ts's own internal
-// proportions are already relative to R, so one scale factor grows/shrinks
-// the whole shape) — starting at 1.0, a first pass Reid may want to adjust
-// once seen live. MIN_READABLE_R is a floor so a very short hem length
-// never becomes an illegibly tiny glyph.
-const HEM_GLYPH_LENGTH_SCALE = 1.0;
-const MIN_READABLE_R = 10; // px floor
-
-// Teardrop is the one hem type this length-driven R formula is wrong for.
-// Reid's reference photos of real formed material show the strip running
-// flat and straight (that part IS hem.lengthIn, and stays so — see the
-// connecting-line math below, unchanged) then rolling into a small, TIGHT,
-// closed curl only at the very tip. The curl's own size reads as
-// proportional to material thickness, not to how far the straight run
-// extends — so growing Hem Length must not balloon the curl. TEARDROP_R
-// derives R from effective thickness instead. TEARDROP_THICKNESS_TO_R is
-// left as its own tuning constant, independent of hem-glyph.ts's tangent-
-// circle radius ratio (currently R * 0.36, restored to Reid-confirmed
-// proportions — see that file) — not re-derived from it, per explicit
-// instruction not to change this constant.
-//
-// MIN_TEARDROP_R is a SEPARATE floor from MIN_READABLE_R/HEM_GLYPH_R:
-// with no gauge selected (effectiveThicknessIn's 0.0625" fallback), the
-// thickness-driven R collapsed to HEM_GLYPH_R (6px), which at the tangent-
-// circle construction's proportions renders under 4px across — reads as a
-// dot, not a closed loop, confirmed by Reid's live no-gauge test. Raised
-// to a value empirically large enough for the loop to still read as a
-// loop regardless of material thickness — same "guarantee legibility over
-// strict proportionality" principle Open/Smashed's own MIN_READABLE_R
-// already applies, just a different (smaller) floor value because
-// Teardrop's curl is supposed to look tight, not like Open's hook.
-const TEARDROP_THICKNESS_TO_R = 1 / 0.22;
-const MIN_TEARDROP_R = 14; // px, empirically the smallest size the tangent-circle construction reads as a closed loop rather than a dot
+// larger scale rather than reimplementing it. The draw-loop's own use of
+// drawHemGlyph, plus GRID_INCHES/ANGLE_ARC_RADIUS_PX/HEM_GLYPH_LENGTH_SCALE/
+// MIN_READABLE_R/TEARDROP_THICKNESS_TO_R/MIN_TEARDROP_R and their tuning
+// rationale, now live in lib/flashdraft/draw-profile-scene.ts's
+// drawProfileScene (afs-fl-017) — shared with the offscreen shop-snapshot
+// render at submit time, so this page no longer needs them directly.
 
 const VERTEX_DRAG_THRESHOLD_PX = 3; // movement before a vertex click becomes a drag
 
@@ -1281,299 +1249,46 @@ export default function FlashDraftPage() {
     // store), so bounds/positions use cssWidth/cssHeight — the logical
     // size — never canvas.width/canvas.height, which are now the physical
     // (DPR-multiplied) backing-store dimensions.
-    ctx.clearRect(0, 0, cssWidth, cssHeight);
-    ctx.fillStyle = CANVAS_COLORS.background;
-    ctx.fillRect(0, 0, cssWidth, cssHeight);
-
-    // Grid
-    const step = GRID_INCHES * PIXELS_PER_INCH * zoom;
-    ctx.strokeStyle = CANVAS_COLORS.grid;
-    ctx.lineWidth = 1;
-    const offsetX = (pan.x + cssWidth / 2) % step;
-    const offsetY = (pan.y + cssHeight / 2) % step;
-    for (let x = offsetX; x < cssWidth; x += step) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, cssHeight);
-      ctx.stroke();
-    }
-    for (let y = offsetY; y < cssHeight; y += step) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(cssWidth, y);
-      ctx.stroke();
-    }
-
-    if (points.length === 0 && !isDragDrawing) return;
-
-    // Segments — leg dimension label in fractional inches (real fab
-    // convention, e.g. "3 3/8"") rather than decimal.
-    for (let i = 0; i < points.length - 1; i++) {
-      const a = worldToScreen(points[i], canvas);
-      const b = worldToScreen(points[i + 1], canvas);
-      const isActive = selectedSegment === i || hoveredSegment === i;
-      ctx.strokeStyle = selectedSegment === i ? CANVAS_COLORS.profileSelected : CANVAS_COLORS.profile;
-      ctx.lineWidth = isActive ? 3 : 2;
-      ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
-      ctx.stroke();
-
-      const length = dist(points[i], points[i + 1]);
-      const midX = (a.x + b.x) / 2;
-      const midY = (a.y + b.y) / 2;
-      ctx.fillStyle = CANVAS_COLORS.ink;
-      ctx.font = `12px ${jetbrainsFontRef.current}`;
-      ctx.fillText(formatInches(length), midX + 6, midY - 6);
-    }
-
-    // Painted-side indicator (afs-fl-013) — a colored stripe running along
-    // whichever side of the profile the paintFace toggle currently selects,
-    // using the real resolved swatch color (resolveSelectedPaintColor), not
-    // a generic material guess. Raw ctx.strokeStyle hex value — same
-    // documented CANVAS_COLORS exception (CLAUDE.md rule #4): a 2D canvas
-    // context can't consume afs-* tokens. Offsets each vertex along the
-    // averaged normal of its two adjacent segments (mirrors
-    // ProfileViewer3D's offsetPolyline outer/inner-face convention) so the
-    // stripe reads as one continuous edge rather than a per-segment zig-zag.
-    if (points.length >= 2 && paintFaceSelectable) {
-      const screenPoints = points.map((p) => worldToScreen(p, canvas));
-      const segNormal = (p: Point, q: Point) => {
-        const dx = q.x - p.x;
-        const dy = q.y - p.y;
-        const len = Math.hypot(dx, dy) || 1;
-        return { x: -dy / len, y: dx / len };
-      };
-      const sign = paintFace === 'up' ? 1 : -1;
-      const stripeOffsetPx = 8;
-      const stripePoints = screenPoints.map((p, i) => {
-        let nx: number;
-        let ny: number;
-        if (i === 0) {
-          const n = segNormal(screenPoints[0], screenPoints[1]);
-          nx = n.x;
-          ny = n.y;
-        } else if (i === screenPoints.length - 1) {
-          const n = segNormal(screenPoints[i - 1], screenPoints[i]);
-          nx = n.x;
-          ny = n.y;
-        } else {
-          const n1 = segNormal(screenPoints[i - 1], screenPoints[i]);
-          const n2 = segNormal(screenPoints[i], screenPoints[i + 1]);
-          nx = n1.x + n2.x;
-          ny = n1.y + n2.y;
-          const len = Math.hypot(nx, ny) || 1;
-          nx /= len;
-          ny /= len;
-        }
-        return { x: p.x + nx * stripeOffsetPx * sign, y: p.y + ny * stripeOffsetPx * sign };
-      });
-      ctx.save();
-      ctx.strokeStyle = resolvedPaintColor;
-      ctx.lineWidth = 4;
-      ctx.lineJoin = 'round';
-      ctx.beginPath();
-      stripePoints.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    // Live drag-in-progress segment, from the last committed point to the
-    // cursor — or, for the very first point, from the drag's own anchor
-    // (there is no committed point yet to read from `points`). A prepend
-    // drag (afs-sv-005 — Shift+drag, see prependDragRef) anchors at
-    // points[0] instead of the last point, mirroring the append case.
-    if (isDragDrawing && dragPreview && (points.length > 0 || dragAnchorRef.current)) {
-      const anchor =
-        points.length > 0 ? (prependDragRef.current ? points[0] : points[points.length - 1]) : dragAnchorRef.current!;
-      const a = worldToScreen(anchor, canvas);
-      const b = worldToScreen(dragPreview.point, canvas);
-      ctx.save();
-      ctx.setLineDash([6, 4]);
-      ctx.strokeStyle = CANVAS_COLORS.profile;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
-      ctx.stroke();
-      ctx.restore();
-
-      ctx.fillStyle = CANVAS_COLORS.point;
-      ctx.beginPath();
-      ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-
-    // Points (small dot at every vertex, including the two hem-able endpoints).
-    // The vertex currently being leg-dragged renders larger as feedback.
-    // Suppressed at an endpoint that carries a hem — the hem glyph itself
-    // is the visual marker there, and the plain vertex dot just clutters it.
-    points.forEach((p, i) => {
-      const isHemmedEndpoint = (i === 0 && hemStart) || (i === points.length - 1 && hemEnd);
-      if (isHemmedEndpoint) return;
-      const s = worldToScreen(p, canvas);
-      ctx.fillStyle = CANVAS_COLORS.point;
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, i === draggingVertexIndex ? 12 : 4, 0, Math.PI * 2);
-      ctx.fill();
+    // Segment lines, painted-side stripe, points, angle arcs, hem folds/
+    // glyphs, and every label among them are drawn by the shared
+    // drawProfileScene (lib/flashdraft/draw-profile-scene.ts) — the exact
+    // same function the offscreen shop-snapshot render calls at submit time
+    // (see renderShopSnapshotDataUri in sendToPathfinder/submitQuoteRequest
+    // below), just with LIVE_CANVAS_LABEL_STYLE's small label sizes and this
+    // draw pass's real interactive state. Visual output here is unchanged
+    // from before afs-fl-017.
+    drawProfileScene({
+      ctx,
+      cssWidth,
+      cssHeight,
+      points,
+      hemStart,
+      hemEnd,
+      worldToScreen: (p) => worldToScreen(p, canvas),
+      fontFamily: jetbrainsFontRef.current,
+      pixelsPerInch: PIXELS_PER_INCH,
+      zoom,
+      pan,
+      gauge,
+      thicknessIn,
+      getEffectiveRadius,
+      isGauge18OrThicker,
+      signedAngleBetween,
+      colors: CANVAS_COLORS,
+      labelStyle: LIVE_CANVAS_LABEL_STYLE,
+      interaction: {
+        selectedSegment,
+        hoveredSegment,
+        draggingVertexIndex,
+        hoveredVertex,
+        selectedBendPoint,
+        isDragDrawing,
+        dragPreviewPoint: dragPreview?.point ?? null,
+        dragAnchor: dragAnchorRef.current,
+        prependDrag: prependDragRef.current,
+      },
+      paint: paintFaceSelectable ? { paintFace, resolvedPaintColor } : undefined,
     });
-
-    // Angle indicators — PathfinderEdge-style: a clean fixed-radius arc
-    // between the two leg directions, a signed degree label near it, no
-    // circle background. Radius is still set via the left-panel numeric
-    // input (no canvas drag anymore) — Angle is set via the Part 8 panel.
-    const gaugeIsThick = isGauge18OrThicker(gauge);
-    for (let i = 1; i < points.length - 1; i++) {
-      const prev = points[i - 1];
-      const curr = points[i];
-      const next = points[i + 1];
-      const s = worldToScreen(curr, canvas);
-      const effectiveRadius = getEffectiveRadius(i);
-      const isTooTight = gaugeIsThick && effectiveRadius < thicknessIn * 1.5;
-      const arcColor = isTooTight ? CANVAS_COLORS.angleArcWarn : CANVAS_COLORS.angleArc;
-
-      const angleToPrev = Math.atan2(prev.y - curr.y, prev.x - curr.x);
-      const angleToNext = Math.atan2(next.y - curr.y, next.x - curr.x);
-      let sweep = angleToNext - angleToPrev;
-      while (sweep <= -Math.PI) sweep += Math.PI * 2;
-      while (sweep > Math.PI) sweep -= Math.PI * 2;
-
-      const isSelected = selectedBendPoint === i;
-      const isHovered = hoveredVertex === i;
-      ctx.strokeStyle = arcColor;
-      ctx.lineWidth = isSelected || isHovered ? 2.5 : 1.5;
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, ANGLE_ARC_RADIUS_PX, angleToPrev, angleToNext, sweep < 0);
-      ctx.stroke();
-
-      const v1 = { x: prev.x - curr.x, y: prev.y - curr.y };
-      const v2 = { x: next.x - curr.x, y: next.y - curr.y };
-      const signedDeg = signedAngleBetween(v1, v2);
-      const bisectorAngle = angleToPrev + sweep / 2;
-      const labelX = s.x + Math.cos(bisectorAngle) * (ANGLE_ARC_RADIUS_PX + 12);
-      const labelY = s.y + Math.sin(bisectorAngle) * (ANGLE_ARC_RADIUS_PX + 12);
-      ctx.fillStyle = CANVAS_COLORS.ink;
-      ctx.font = `11px ${jetbrainsFontRef.current}`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(`${signedDeg.toFixed(0)}°`, labelX, labelY);
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'alphabetic';
-
-      // Minimal selection marker — not a badge, just enough to show which
-      // vertex the Part 8 angle panel is currently editing.
-      if (isSelected) {
-        ctx.strokeStyle = CANVAS_COLORS.angleArc;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.arc(s.x, s.y, 4, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-    }
-
-    // Local wrapper over the module-level drawHemGlyph — closes over this
-    // draw pass's `ctx` so call sites below don't have to thread it through.
-    // See drawHemGlyph's own doc comment for the local coordinate
-    // convention every call site must normalize `angleRad` to.
-    const drawHemGlyphHere = (tip: Point, angleRad: number, type: HemType, R: number, mirror: boolean, gapPx: number) =>
-      drawHemGlyph(ctx, tip, angleRad, type, R, mirror, gapPx);
-
-    // Hem folds — drawn at whichever endpoint(s) have one. All hem lines
-    // continue from the last leg's direction (u), then fold back 180° —
-    // rendered in afs-crimson so they read clearly against the profile.
-    const renderHemAt = (hem: Hem, endpointIdx: number, neighborIdx: number) => {
-      const p = points[endpointIdx];
-      const q = points[neighborIdx];
-      const dx = p.x - q.x;
-      const dy = p.y - q.y;
-      const len = Math.hypot(dx, dy) || 1;
-      const u = { x: dx / len, y: dy / len };
-      const angleU = Math.atan2(u.y, u.x);
-
-      // kick no longer touches the fold-direction vector at all — every hem
-      // type folds straight back along the leg's own line (angleU), exactly
-      // like Teardrop/Smashed always did. kick now drives ONLY whether the
-      // glyph construction is mirrored across that line (see hem-glyph.ts's
-      // `mirror` param) — a true perpendicular mirror, not a π rotation, so
-      // it flips which side of the leg the hook/loop curls toward without
-      // touching its direction along the line. Reid confirmed live that the
-      // prior 'inside' -> mirror=true mapping rendered backwards ("Outside"
-      // visually produced the inside result and vice versa) — flipped to
-      // 'outside' -> mirror=true.
-      const mirrorGlyph = hem.kick === 'outside';
-      const gapPx = hem.gapIn * PIXELS_PER_INCH * zoom;
-
-      ctx.strokeStyle = CANVAS_COLORS.hemLine;
-      ctx.fillStyle = CANVAS_COLORS.hemLine;
-      ctx.font = `10px ${jetbrainsFontRef.current}`;
-
-      if (hem.type === 'open') {
-        // Fold-back LENGTH (how far the return leg runs) is this hem's own
-        // lengthIn — independent of gapIn, which is the real-world air gap
-        // the glyph itself renders internally (hem-glyph.ts) via gapPx, not
-        // a separate positional offset computed here.
-        const foldTip = { x: p.x + u.x * hem.lengthIn, y: p.y + u.y * hem.lengthIn };
-        const sP = worldToScreen(p, canvas);
-        const sFoldTip = worldToScreen(foldTip, canvas);
-        const R = Math.max(MIN_READABLE_R, hem.lengthIn * PIXELS_PER_INCH * zoom * HEM_GLYPH_LENGTH_SCALE);
-
-        // The leg's true vertex to the fold tip is real material — draw it
-        // regardless of hem type before the glyph itself.
-        ctx.strokeStyle = CANVAS_COLORS.hemLine;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(sP.x, sP.y);
-        ctx.lineTo(sFoldTip.x, sFoldTip.y);
-        ctx.stroke();
-
-        drawHemGlyphHere(sFoldTip, angleU, 'open', R, mirrorGlyph, gapPx);
-        ctx.font = `10px ${jetbrainsFontRef.current}`;
-        ctx.fillText(`OPEN ${formatInches(hem.gapIn)} gap`, sFoldTip.x + R * 2 + 6, sFoldTip.y - 6);
-      } else if (hem.type === 'teardrop') {
-        // Straight connecting run to the curl is still real material driven
-        // by hem.lengthIn, unchanged — only the curl's own size (R below)
-        // is decoupled from it. See TEARDROP_THICKNESS_TO_R's comment.
-        const foldTip = { x: p.x + u.x * hem.lengthIn, y: p.y + u.y * hem.lengthIn };
-        const sP = worldToScreen(p, canvas);
-        const sFoldTip = worldToScreen(foldTip, canvas);
-        const effectiveThicknessIn = gauge ? thicknessIn : 0.0625;
-        const R = Math.max(MIN_TEARDROP_R, effectiveThicknessIn * PIXELS_PER_INCH * zoom * TEARDROP_THICKNESS_TO_R);
-
-        ctx.strokeStyle = CANVAS_COLORS.hemLine;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(sP.x, sP.y);
-        ctx.lineTo(sFoldTip.x, sFoldTip.y);
-        ctx.stroke();
-
-        drawHemGlyphHere(sFoldTip, angleU, 'teardrop', R, mirrorGlyph, gapPx);
-        ctx.font = `10px ${jetbrainsFontRef.current}`;
-        ctx.fillText('TEARDROP', sFoldTip.x + R * 2 + 6, sFoldTip.y - 6);
-      } else {
-        const foldTip = { x: p.x + u.x * hem.lengthIn, y: p.y + u.y * hem.lengthIn };
-        const sP = worldToScreen(p, canvas);
-        const sFoldTip = worldToScreen(foldTip, canvas);
-        const R = Math.max(MIN_READABLE_R, hem.lengthIn * PIXELS_PER_INCH * zoom * HEM_GLYPH_LENGTH_SCALE);
-
-        ctx.strokeStyle = CANVAS_COLORS.hemLine;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(sP.x, sP.y);
-        ctx.lineTo(sFoldTip.x, sFoldTip.y);
-        ctx.stroke();
-
-        drawHemGlyphHere(sFoldTip, angleU, 'smashed', R, mirrorGlyph, gapPx);
-        ctx.font = `10px ${jetbrainsFontRef.current}`;
-        ctx.fillText('SMASHED', sFoldTip.x + R * 2 + 6, sFoldTip.y - 6);
-      }
-    };
-
-    if (points.length >= 2) {
-      if (hemStart) renderHemAt(hemStart, 0, 1);
-      if (hemEnd) renderHemAt(hemEnd, points.length - 1, points.length - 2);
-    }
-
   }, [
     points,
     selectedSegment,
@@ -2778,6 +2493,58 @@ export default function FlashDraftPage() {
     }
   };
 
+  // Renders the currently drawn profile onto a fresh offscreen canvas via
+  // the same drawProfileScene the live draw-loop effect uses above, but with
+  // SHOP_SNAPSHOT_LABEL_STYLE's larger, bold labels and no hover/selection/
+  // drag overlays — the shop-floor-bound geometryImage for
+  // shop_profile_library.geometry_svg (afs-sv-009/afs-fl-017) needs to read
+  // clearly from a few feet away, not just at on-screen editing zoom. Shared
+  // by both submit paths below (sendToPathfinder and submitQuoteRequest),
+  // which both write this same field. Never touches the live, on-screen
+  // canvas — that one keeps drawing with LIVE_CANVAS_LABEL_STYLE, unchanged.
+  const buildShopSnapshotImage = useCallback(
+    (paintFaceForSnapshot: PaintFace | null): string | null => {
+      const canvas = canvasRef.current;
+      if (!canvas) return null;
+      const rect = canvas.getBoundingClientRect();
+      return renderShopSnapshotDataUri({
+        cssWidth: rect.width,
+        cssHeight: rect.height,
+        points,
+        hemStart,
+        hemEnd,
+        worldToScreen: (p) => worldToScreen(p, canvas),
+        fontFamily: jetbrainsFontRef.current,
+        pixelsPerInch: PIXELS_PER_INCH,
+        zoom,
+        pan,
+        gauge,
+        thicknessIn,
+        getEffectiveRadius,
+        isGauge18OrThicker,
+        signedAngleBetween,
+        colors: CANVAS_COLORS,
+        paint:
+          paintFaceSelectable && paintFaceForSnapshot
+            ? { paintFace: paintFaceForSnapshot, resolvedPaintColor }
+            : undefined,
+      });
+    },
+    [
+      points,
+      hemStart,
+      hemEnd,
+      worldToScreen,
+      zoom,
+      pan,
+      gauge,
+      thicknessIn,
+      getEffectiveRadius,
+      paintFaceSelectable,
+      resolvedPaintColor,
+    ]
+  );
+
   // Sends the CURRENTLY DRAWN profile straight to PathfinderEdge —
   // entirely separate from Submit for Quote / the quote-request pipeline.
   // Does not touch machine_jobs or delivery_method at all.
@@ -2790,11 +2557,11 @@ export default function FlashDraftPage() {
     setPathfinderState('sending');
     setPathfinderMessage(null);
     try {
-      // Snapshot of the canvas exactly as FlashDraft's own draw-loop effect
-      // just rendered it (see the "Draw loop" useEffect above) — reused as
-      // shop_profile_library.geometry_svg (afs-sv-009) so the shop record's
-      // thumbnail is the real rendered profile, not a re-derived redraw.
-      const geometryImage = canvasRef.current?.toDataURL('image/png') ?? null;
+      // Shop-floor snapshot (larger, bold labels) rendered offscreen — see
+      // buildShopSnapshotImage above — reused as shop_profile_library.
+      // geometry_svg (afs-sv-009) so the shop record's thumbnail is legible
+      // at a glance, not a re-derived redraw of unrelated geometry.
+      const geometryImage = buildShopSnapshotImage(paintFace);
       // Use the user's own canvas profile name when they've actually set
       // one (i.e. renamed it away from the "Untitled Profile" default via
       // the name editor or by loading a library/saved profile) — falls
@@ -2897,12 +2664,13 @@ export default function FlashDraftPage() {
         bendRadiiIn.push(getEffectiveRadius(i));
       }
 
-      // Same canvas snapshot sendToPathfinder() captures — stored on the
-      // line item so a later Command Center approval (approve-quote-
-      // request/route.ts, server-side, no live canvas to read) can reuse
-      // this exact rendered image for shop_profile_library.geometry_svg
-      // (afs-sv-009) instead of re-rendering anything.
-      const geometryImage = canvasRef.current?.toDataURL('image/png') ?? undefined;
+      // Same shop-floor snapshot sendToPathfinder() builds (see
+      // buildShopSnapshotImage above) — stored on the line item so a later
+      // Command Center approval (approve-quote-request/route.ts,
+      // server-side, no live canvas to read) can reuse this exact rendered
+      // image for shop_profile_library.geometry_svg (afs-sv-009) instead of
+      // re-rendering anything.
+      const geometryImage = buildShopSnapshotImage(paintFace ?? null) ?? undefined;
 
       // Same "user-set name" resolution sendToPathfinder() uses (afs-jf-003)
       // — only included on the line item when the user actually renamed the
@@ -3007,6 +2775,7 @@ export default function FlashDraftPage() {
       getEffectiveRadius,
       hemStart,
       hemEnd,
+      buildShopSnapshotImage,
     ]
   );
 

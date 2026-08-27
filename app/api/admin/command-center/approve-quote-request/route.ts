@@ -354,6 +354,20 @@ function svgToDataUri(svg: string): string {
 // Builder or Blueprint Takeoff AI item using a free-form label
 // slugToProfileType doesn't recognize) yields null rather than a guessed
 // diagram.
+//
+// SHOP_DIAGRAM_LABEL_SCALE (afs-fl-017) is passed to generateProfileSVG ONLY
+// here, for the shop_profile_library-bound copy — every other
+// generateProfileSVG caller (app/configure/page.tsx,
+// components/product/ProductDetailView.tsx,
+// components/architects/SavedConfigCard.tsx, the architect specs page)
+// omits it and renders exactly as before. FlashDraft-drawn items (the
+// item.geometryImage branch above) get the equivalent larger/bold-label
+// treatment from a different mechanism — see renderShopSnapshotDataUri in
+// lib/flashdraft/draw-profile-scene.ts, called client-side at submit time
+// in app/studio/draft/page.tsx — since this server route has no live canvas
+// to redraw from.
+const SHOP_DIAGRAM_LABEL_SCALE = 1.75;
+
 function buildGeometrySvg(item: QuoteRequestLineItem): string | null {
   if (item.points && item.points.length >= 2) {
     return item.geometryImage ?? null;
@@ -368,6 +382,7 @@ function buildGeometrySvg(item: QuoteRequestLineItem): string | null {
     height: item.height ?? null,
     legA: item.legA ?? null,
     legB: item.legB ?? null,
+    labelScale: SHOP_DIAGRAM_LABEL_SCALE,
   });
   return svgToDataUri(svg);
 }

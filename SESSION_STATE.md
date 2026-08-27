@@ -24,6 +24,76 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## LARGER, BOLD SHOP-FLOOR GEOMETRY LABELS — FLASHDRAFT + CONFIGURATOR (afs-fl-017) — 2026-08-26
+
+Root-cause build, no workaround, following directly from afs-fl-016's
+handoff (it correctly stopped after finding both `geometry_svg` sources are
+shared code, and Reid approved both of its recommended fixes).
+
+**Source 1 (FlashDraft canvas snapshot).** Rather than copy-paste the
+`/studio/draft` draw loop into a second block for an offscreen render (the
+exact "two implementations of one fact" trap this codebase's own comments
+call out for `SHOP_PROFILE_LIBRARY_STATUSES` /
+`compareShopProfileLibraryQueueOrder`), the whole draw-loop rendering
+routine — segments, painted-side stripe, points, angle arcs, hem folds/
+glyphs, and every label among them — moved into one shared function,
+`drawProfileScene` (new `lib/flashdraft/draw-profile-scene.ts`),
+parameterized by label font size/weight. The live draw-loop `useEffect`
+calls it with the original small, non-bold sizes and its real
+hover/selection/drag state; a new `renderShopSnapshotDataUri()` in the same
+file renders onto a fresh offscreen canvas (never attached to the DOM) with
+larger, bold sizes and no interaction overlays, exported via `toDataURL()`.
+Both `sendToPathfinder()` and `submitQuoteRequest()` now call this instead
+of snapshotting the live canvas.
+
+**Source 2 (Configurator SVG).** `generateProfileSVG()` gained an opt-in
+`labelScale?: number` param — omitted (every existing caller does), output
+is byte-for-byte identical to before; passed, dimension-label font-size
+scales and weight goes to 700 (bold). `buildGeometrySvg` in
+`approve-quote-request/route.ts` passes `labelScale: 1.75` only when
+building the `shop_profile_library`-bound copy.
+
+**Verification — went well beyond `tsc`/`build`, per the task's explicit
+instruction not to rely on gates alone:**
+- Node script called `generateProfileSVG` directly: no-`labelScale` output's
+  four dimension labels are all `font-size="15" font-weight="600"` (matches
+  the pre-change literal exactly) and is **byte-identical** across repeated
+  calls with no `labelScale` — the four existing callers (Configurator,
+  product detail, SavedConfigCard, architect specs) are provably unaffected.
+  `labelScale: 1.75` output: all four labels `26/700` — visibly larger,
+  bold.
+- Playwright script drove a real `pnpm dev` server: monkey-patched
+  `CanvasRenderingContext2D.prototype.font`'s setter to log every font
+  string, tagged by canvas. Seeded a real profile (points + an Open hem) via
+  the app's own `afs-flashdraft-autosave` localStorage restore path,
+  reloaded, and confirmed the **live, on-screen canvas** used only
+  `12px`/`11px`/`10px`, never bold — unchanged from before this pass (also
+  read its `toDataURL()` bitmap directly and visually confirmed small
+  labels). Then drove the real Submit for Quote -> 3D confirm -> guest-email
+  Submit flow and intercepted the real `POST /api/quote-requests` body (not
+  a reimplementation): the **offscreen shop-snapshot canvas**, created only
+  at that moment, used `bold 21px`/`bold 19px`/`bold 17.5px`; the
+  `geometryImage` data URI in that real request body, decoded to a PNG,
+  showed the same profile geometry with visibly larger, bold labels. Both
+  temporary verification scripts and PNGs were deleted after the run, not
+  committed.
+
+**Not confirmed — held to this project's stated verification standard, not
+just my own testing:** no live walkthrough of the real Command Center
+approve-request flow into an actual Shop View card (would need an admin
+session this environment has no credentials for) — the Playwright check
+above intercepted the client-side request rather than completing a real
+authenticated approval. Reid still needs to independently confirm: (1) a
+real FlashDraft submission's Shop View card shows the larger/bold labels,
+(2) a real Configurator-sourced quote request's Shop View card does too, and
+(3) `/studio/draft` itself is visually and behaviorally unchanged while
+actually drawing. See STATE_OF_THE_BUILD.md's afs-fl-017 entry for the full
+trace.
+
+**Gates:** `pnpm tsc --noEmit` — 0 errors. `pnpm build` — clean.
+
+---
+
 ## SHOP JOB COMPLETION -> DELIVERY SCHEDULING + INVOICE EMAIL (afs-fl-014) — 2026-08-26
 
 Root-cause build, no workaround. Two existing "Mark Complete" code paths

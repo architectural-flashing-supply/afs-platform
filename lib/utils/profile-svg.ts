@@ -22,6 +22,18 @@ export interface ProfileSVGParams {
   height?: number | null;
   legA?: number | null;
   legB?: number | null;
+  /**
+   * Opt-in dimension-label size multiplier (afs-fl-017) — omitted (the
+   * default) renders byte-for-byte identical to before this option existed.
+   * Every existing caller (app/configure/page.tsx,
+   * components/product/ProductDetailView.tsx,
+   * components/architects/SavedConfigCard.tsx, the architect specs page)
+   * omits it and is unaffected. Only buildGeometrySvg in
+   * app/api/admin/command-center/approve-quote-request/route.ts passes it,
+   * and only when building the shop_profile_library-bound copy, so labels
+   * read clearly on the shop floor — roughly 1.5-2x larger and bold.
+   */
+  labelScale?: number;
 }
 
 interface Point {
@@ -424,11 +436,27 @@ function buildGeometry(
   }
 }
 
+interface DimensionLabelStyle {
+  fontSize: number;
+  fontWeight: number;
+}
+
+// Default matches the SVG's original literal "15"/"600" exactly — callers
+// that omit labelScale get byte-for-byte identical output to before this
+// existed. See ProfileSVGParams.labelScale.
+const DEFAULT_LABEL_STYLE: DimensionLabelStyle = { fontSize: 15, fontWeight: 600 };
+
+function resolveLabelStyle(labelScale: number | null | undefined): DimensionLabelStyle {
+  if (!labelScale || !Number.isFinite(labelScale) || labelScale <= 0) return DEFAULT_LABEL_STYLE;
+  return { fontSize: Math.round(DEFAULT_LABEL_STYLE.fontSize * labelScale), fontWeight: 700 };
+}
+
 function renderDimension(
   dim: DimensionLine,
   toX: (n: number) => number,
   toY: (n: number) => number,
-  index: number
+  index: number,
+  labelStyle: DimensionLabelStyle
 ): string {
   const offsetPx = 34 + index * 24;
   const text = `${dim.label} ${formatInches(dim.value)}`;
@@ -447,7 +475,7 @@ function renderDimension(
       <line x1="${xa.toFixed(1)}" y1="${y.toFixed(1)}" x2="${xa.toFixed(1)}" y2="${dimY.toFixed(1)}" stroke="${DIM_COLOR}" stroke-width="1" />
       <line x1="${xb.toFixed(1)}" y1="${y.toFixed(1)}" x2="${xb.toFixed(1)}" y2="${dimY.toFixed(1)}" stroke="${DIM_COLOR}" stroke-width="1" />
       <line x1="${xa.toFixed(1)}" y1="${dimY.toFixed(1)}" x2="${xb.toFixed(1)}" y2="${dimY.toFixed(1)}" stroke="${DIM_COLOR}" stroke-width="1" marker-start="url(#afsDimArrow)" marker-end="url(#afsDimArrow)" />
-      <text x="${midX.toFixed(1)}" y="${textY.toFixed(1)}" text-anchor="middle" font-family="${LABEL_FONT}" font-size="15" font-weight="600" fill="${DIM_COLOR}">${text}</text>
+      <text x="${midX.toFixed(1)}" y="${textY.toFixed(1)}" text-anchor="middle" font-family="${LABEL_FONT}" font-size="${labelStyle.fontSize}" font-weight="${labelStyle.fontWeight}" fill="${DIM_COLOR}">${text}</text>
     `;
   }
 
@@ -464,7 +492,7 @@ function renderDimension(
     <line x1="${x.toFixed(1)}" y1="${ya.toFixed(1)}" x2="${dimX.toFixed(1)}" y2="${ya.toFixed(1)}" stroke="${DIM_COLOR}" stroke-width="1" />
     <line x1="${x.toFixed(1)}" y1="${yb.toFixed(1)}" x2="${dimX.toFixed(1)}" y2="${yb.toFixed(1)}" stroke="${DIM_COLOR}" stroke-width="1" />
     <line x1="${dimX.toFixed(1)}" y1="${ya.toFixed(1)}" x2="${dimX.toFixed(1)}" y2="${yb.toFixed(1)}" stroke="${DIM_COLOR}" stroke-width="1" marker-start="url(#afsDimArrow)" marker-end="url(#afsDimArrow)" />
-    <text x="${textX.toFixed(1)}" y="${(midY + 4).toFixed(1)}" text-anchor="${dim.side === 'left' ? 'end' : 'start'}" font-family="${LABEL_FONT}" font-size="15" font-weight="600" fill="${DIM_COLOR}">${text}</text>
+    <text x="${textX.toFixed(1)}" y="${(midY + 4).toFixed(1)}" text-anchor="${dim.side === 'left' ? 'end' : 'start'}" font-family="${LABEL_FONT}" font-size="${labelStyle.fontSize}" font-weight="${labelStyle.fontWeight}" fill="${DIM_COLOR}">${text}</text>
   `;
 }
 
@@ -501,12 +529,13 @@ export function generateProfileSVG(params: ProfileSVGParams): string {
     .map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(p.x).toFixed(1)} ${toY(p.y).toFixed(1)}`)
     .join(' ');
 
+  const labelStyle = resolveLabelStyle(params.labelScale);
   const sideCounts: Partial<Record<DimSide, number>> = {};
   const dimSVGs = dims
     .map(d => {
       const idx = sideCounts[d.side] ?? 0;
       sideCounts[d.side] = idx + 1;
-      return renderDimension(d, toX, toY, idx);
+      return renderDimension(d, toX, toY, idx, labelStyle);
     })
     .join('');
 

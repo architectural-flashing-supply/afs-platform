@@ -34,6 +34,29 @@ summary, not a replacement for it.
 
 ---
 
+## VERIFIED THIS PASS (2026-08-26, afs-fl-017)
+
+```
+pnpm tsc --noEmit                  0 errors. Exit code 0.
+pnpm build                         Clean. Exit code 0.
+```
+
+Also ran real functional verification beyond the gates above (this pass's
+task explicitly required it — "do not report this complete based on
+tsc/build success alone"): a Playwright script drove the actual
+`/studio/draft` page against a running `pnpm dev` server, seeded a real
+profile (points + an Open hem) via the same `afs-flashdraft-autosave`
+localStorage key the app's own autosave-restore effect reads, and clicked
+through the real Submit for Quote -> 3D confirm -> guest-email flow,
+intercepting the real `/api/quote-requests` POST body (not a
+reimplementation) to recover the actual `geometryImage` a real submission
+sends. See the afs-fl-017 entry below for what that verification found. No
+live Reid confirmation of the actual Shop View screen yet — held as
+IMPLEMENTED, UNCONFIRMED per this file's verification standard, same as
+every other visual/interactive item below.
+
+---
+
 ## VERIFIED THIS PASS (2026-08-26, afs-fl-014)
 
 ```
@@ -64,6 +87,105 @@ pnpm tsc --noEmit                  0 errors. Exit code 0.
 confirmation of the visual behavior yet — see the "Not confirmed" note
 under afs-fl-015 below. Held as IMPLEMENTED, UNCONFIRMED per this file's
 verification standard.
+
+---
+
+## LARGER, BOLD SHOP-FLOOR GEOMETRY LABELS — FLASHDRAFT + CONFIGURATOR (afs-fl-017): IMPLEMENTED, UNCONFIRMED — 2026-08-26
+
+**Root cause.** afs-fl-016 traced `shop_profile_library.geometry_svg` to its
+two real sources and found both are shared code, not Shop-View-only
+rendering, and stopped rather than silently change shared code. Reid
+approved both of that pass's recommended fixes; this pass implements them.
+
+**Source 1 — FlashDraft canvas snapshot.** Previously,
+`geometryImage` sent to `shop_profile_library.geometry_svg` was a plain
+`canvasRef.current.toDataURL('image/png')` snapshot of the exact same live
+`/studio/draft` canvas the customer draws on — same font sizes as the live
+editing view, illegible at shop-floor viewing distance. Fix, without
+duplicating the draw loop as a second copy-pasted block (the same
+one-fact-one-place principle `SHOP_PROFILE_LIBRARY_STATUSES` and
+`compareShopProfileLibraryQueueOrder` already document elsewhere in this
+codebase):
+- Extracted the entire draw-loop rendering routine (segments + length
+  labels, painted-side stripe, points, angle arcs + labels, hem folds +
+  glyphs + labels, background/grid) out of `app/studio/draft/page.tsx`'s
+  draw-loop `useEffect` into one shared function, `drawProfileScene` (new
+  file `lib/flashdraft/draw-profile-scene.ts`), parameterized by a
+  `labelStyle` (font px + bold) and an optional `interaction` state object
+  (hover/selection/drag — omitted for a neutral render).
+- The live draw-loop effect now calls `drawProfileScene` with
+  `LIVE_CANVAS_LABEL_STYLE` (12px/11px/10px, not bold — the exact values the
+  inline code used before this pass) and its real interaction state —
+  verified byte-identical visual behavior (see verification below).
+- A new `renderShopSnapshotDataUri()` (same file) renders onto a brand-new,
+  never-attached-to-the-DOM offscreen canvas with `SHOP_SNAPSHOT_LABEL_STYLE`
+  (21px/19px/17.5px, bold — roughly 1.75x) and no interaction overlays, then
+  exports via `toDataURL()`. Both `sendToPathfinder()` and
+  `submitQuoteRequest()` in `page.tsx` now call this (via a shared
+  `buildShopSnapshotImage` helper) instead of snapshotting the live canvas —
+  both write to `shop_profile_library.geometry_svg`, one directly
+  (`send-to-pathfinder/route.ts`), one via `buildGeometrySvg` in
+  `approve-quote-request/route.ts`.
+- `drawHemGlyph` itself (`lib/flashdraft/hem-glyph.ts`) is unchanged — its
+  own geometry (R, line width) is driven by real hem dimensions, not font;
+  only the hem TYPE label text ("OPEN 3/8" gap" etc.) picks up the larger/
+  bold treatment via the same `labelStyle` plumbing.
+
+**Source 2 — Configurator SVG.** `generateProfileSVG()`
+(`lib/utils/profile-svg.ts`) gained an opt-in `labelScale?: number` param on
+`ProfileSVGParams`. Omitted (every existing caller —
+`app/configure/page.tsx`, `components/product/ProductDetailView.tsx`,
+`components/architects/SavedConfigCard.tsx`, the architect specs page —
+omits it), `renderDimension` renders `font-size="15" font-weight="600"`,
+byte-for-byte identical to before this pass (verified — see below). Passed,
+output is `font-size` scaled by the multiplier (rounded) and
+`font-weight="700"`. `buildGeometrySvg` in `approve-quote-request/route.ts`
+passes `labelScale: 1.75` ONLY when building the `shop_profile_library`-bound
+copy — the only call site touched.
+
+**Verification (beyond `tsc`/`build` — this pass's task explicitly required
+real behavior, not gates alone):**
+- **SVG determinism (Source 2):** ran `generateProfileSVG` directly (no
+  browser) with and without `labelScale`. No-`labelScale` output's four
+  dimension-label `font-size`/`font-weight` pairs: all `15/600` (matches
+  pre-change literal exactly); a second no-`labelScale` call produced a
+  **byte-identical** string to the first, confirming every existing caller
+  (Configurator, product detail, SavedConfigCard, architect specs) is
+  unaffected. `labelScale: 1.75` output: all four pairs `26/700` — visibly
+  larger and bold.
+- **FlashDraft live vs. shop snapshot (Source 1):** Playwright script (see
+  the "VERIFIED THIS PASS" block above) monkey-patched
+  `CanvasRenderingContext2D.prototype.font`'s setter to log every font
+  string assigned, tagged by which `<canvas>` it belonged to. Seeded a real
+  profile (3 points + an Open hem) via `localStorage`, reloaded, and read
+  the log:
+  - **Live, on-screen canvas** (the first canvas created): font strings used
+    were exactly `12px ...`, `11px ...`, `10px ...` — no `bold` — identical
+    to pre-change behavior. Its own `toDataURL()` bitmap, read directly and
+    saved to disk, showed the same small labels as always.
+  - Then drove the real Submit for Quote -> "Looks correct — Submit Quote"
+    -> guest-email Submit flow and intercepted the real
+    `POST /api/quote-requests` body. The **offscreen shop-snapshot canvas**
+    (created only at that moment) used exactly `bold 21px ...`,
+    `bold 19px ...`, `bold 17.5px ...`. The `geometryImage` data URI in that
+    real request body was decoded and saved as a PNG: same geometry (an
+    8"x3" leg with an Open hem), visibly larger, bold "OPEN 3/8" gap",
+    dimension, and angle labels, versus the live canvas's small ones.
+- Both temporary verification scripts and their output PNGs were deleted
+  after the run — not committed.
+
+**Not confirmed:** no live Reid walkthrough of the real Command Center
+approve-request -> Shop View screen yet (this pass's Playwright check
+intercepted the outgoing request client-side rather than completing a real
+authenticated approval + Shop View render, since that requires an admin
+session this environment does not have credentials for). The
+`buildGeometrySvg` passthrough for FlashDraft items (`return
+item.geometryImage ?? null`) is unchanged code, already covered by
+afs-sv-009's own prior verification, so the only new surface Reid needs to
+check is: (1) a real FlashDraft submission's Shop View card shows the
+larger/bold labels, (2) a real Configurator-sourced quote request's Shop
+View card does too, (3) `/studio/draft` itself still looks and behaves
+exactly as before while drawing. Held as IMPLEMENTED, UNCONFIRMED.
 
 ---
 
