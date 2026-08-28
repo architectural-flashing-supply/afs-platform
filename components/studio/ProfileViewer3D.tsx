@@ -166,7 +166,18 @@ function buildRibbonOutline(points: Point2D[], thickness: number): { outline: Po
   const half = thickness / 2;
   const outer = offsetPolyline(points, half);
   const inner = offsetPolyline(points, -half);
-  return { outline: [...outer, ...inner.reverse()], outer, inner };
+  // afs-fl-023: Array.prototype.reverse() mutates in place. Reversing
+  // `inner` directly here (as this used to do) corrupted the very `inner`
+  // array being returned below — silently un-aligning outer[i]/inner[i]
+  // (each meant to be the same cross-section point offset in opposite
+  // directions) into forward (A->B) vs reversed (B->A) order. Every caller
+  // that pairs outer[i] with inner[i] (the paint-face branch's
+  // startEdgeGeom/endEdgeGeom "true free tip" end caps) then bridged the
+  // wrong pair of points across the whole open shape instead of capping a
+  // single tip's sheet thickness. Reversing a copy for the closed `outline`
+  // loop leaves the returned `outer`/`inner` correctly index-aligned.
+  const innerReversedForOutline = [...inner].reverse();
+  return { outline: [...outer, ...innerReversedForOutline], outer, inner };
 }
 
 /**
