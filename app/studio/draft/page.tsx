@@ -85,7 +85,6 @@ interface AutosaveState {
   lengthInches: string;
   quantity: string;
   notes: string;
-  rush: boolean;
   // Job-identity intake fields (migration 018, afs-jf-000) — all optional,
   // never block submit (afs-jf-003). `requestedBy` retired by migration 019
   // (afs-jf-004) — it was a naming mistake that actually meant a delivery
@@ -999,7 +998,6 @@ export default function FlashDraftPage() {
   const [lengthInches, setLengthInches] = useState('0');
   const [quantity, setQuantity] = useState('1');
   const [notes, setNotes] = useState('');
-  const [rush, setRush] = useState(false);
   // Job-identity intake fields (migration 018, afs-jf-000) — all optional,
   // never block submit (afs-jf-003). `requestedBy` retired by migration 019
   // (afs-jf-004, afs-jf-005) — replaced by `jobName` + `requestedDeliveryDate`.
@@ -1087,7 +1085,6 @@ export default function FlashDraftPage() {
           if (typeof saved.lengthInches === 'string') setLengthInches(saved.lengthInches);
           if (typeof saved.quantity === 'string') setQuantity(saved.quantity);
           if (typeof saved.notes === 'string') setNotes(saved.notes);
-          if (typeof saved.rush === 'boolean') setRush(saved.rush);
           if (typeof saved.clientBusinessName === 'string') setClientBusinessName(saved.clientBusinessName);
           if (typeof saved.clientName === 'string') setClientName(saved.clientName);
           if (typeof saved.poNumber === 'string') setPoNumber(saved.poNumber);
@@ -1127,7 +1124,6 @@ export default function FlashDraftPage() {
           lengthInches,
           quantity,
           notes,
-          rush,
           clientBusinessName,
           clientName,
           poNumber,
@@ -1152,7 +1148,6 @@ export default function FlashDraftPage() {
     lengthInches,
     quantity,
     notes,
-    rush,
     clientBusinessName,
     clientName,
     poNumber,
@@ -2881,7 +2876,11 @@ export default function FlashDraftPage() {
             // bend/leg/radius/hem summary travels on the line item itself
             // as `geometrySummary` (see above), not folded in here.
             notes: notes.trim() || null,
-            isRush: rush,
+            // afs-fl-026: the Rush Order toggle was removed from this page's
+            // sidebar (Reid: "they have notes" — rush requests now go in the
+            // Notes field above instead) — isRush is intentionally omitted
+            // here rather than hardcoded false; app/api/quote-requests/
+            // route.ts already treats a missing isRush as false.
             color: color.trim() || null,
             finish: isAluminum ? (finish || null) : null,
             clientBusinessName: clientBusinessName.trim() || null,
@@ -2923,7 +2922,6 @@ export default function FlashDraftPage() {
       lengthFtDecimal,
       quantity,
       notes,
-      rush,
       profileName,
       clientBusinessName,
       clientName,
@@ -3041,7 +3039,7 @@ export default function FlashDraftPage() {
 
       {/* PART 1 — PROFESSIONAL TOOLBAR (single row) */}
       <div className="px-4 py-1.5 border-b border-afs-chrome-dim shrink-0 bg-afs-bg-dim">
-        <div className="flex items-center gap-1 flex-wrap">
+        <div className="flex items-center gap-1 flex-wrap justify-end">
           <ToolbarButton icon="new" label="New" onClick={() => setShowNewConfirm(true)} />
           <ToolbarButton icon="open" label="My Saved Profiles" onClick={openSavedProfiles} />
           <ToolbarButton icon="save" label="Save" onClick={openSaveModal} disabled={points.length < 2} />
@@ -3068,19 +3066,27 @@ export default function FlashDraftPage() {
           <ToolbarButton icon="next" label="Next" onClick={() => selectAdjacentBendPoint(1)} disabled={points.length < 3} />
           <span className="w-px h-5 bg-afs-chrome-dim mx-1" />
           <div className="flex items-center gap-1 bg-afs-bg-overlay border border-afs-border rounded p-0.5" role="group" aria-label="View mode">
-            {(['2d', '3d'] as const).map((v) => (
-              <button
-                key={v}
-                type="button"
-                onClick={() => setViewMode(v)}
-                title={v === '2d' ? '2D View' : '3D View'}
-                className={`font-label text-[10px] px-2 py-1 rounded transition-colors ${
-                  viewMode === v ? 'bg-afs-crimson text-white' : 'bg-afs-bg-raised text-white'
-                }`}
-              >
-                {v === '2d' ? '2D' : '3D'}
-              </button>
-            ))}
+            {(['2d', '3d'] as const).map((v) => {
+              const isActive = viewMode === v;
+              return (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setViewMode(v)}
+                  title={v === '2d' ? '2D View' : '3D View'}
+                  aria-pressed={isActive}
+                  // afs-fl-026: the 3D button now carries afs-crimson permanently
+                  // (Reid's request), so color alone can no longer show which
+                  // mode is active — a white ring on whichever button IS active
+                  // is the surviving indicator instead.
+                  className={`font-label text-[10px] px-2 py-1 rounded transition-colors text-white ${
+                    v === '3d' ? 'bg-afs-crimson' : 'bg-afs-bg-raised'
+                  } ${isActive ? 'ring-2 ring-white' : ''}`}
+                >
+                  {v === '2d' ? '2D' : '3D'}
+                </button>
+              );
+            })}
           </div>
         </div>
         <p
@@ -3094,10 +3100,10 @@ export default function FlashDraftPage() {
 
       <div className="flex-1 flex flex-col lg:flex-row gap-4 pt-4 px-4 min-h-0">
         {/* LEFT PANEL */}
-        <div className="w-full lg:w-[320px] lg:shrink-0 bg-afs-bg-raised border border-afs-chrome-dim rounded p-5 flex flex-col gap-4 overflow-y-auto">
-          <div className="grid grid-cols-2 gap-4">
+        <div className="w-full lg:w-[320px] lg:shrink-0 bg-afs-bg-raised border border-afs-chrome-dim rounded p-3.5 flex flex-col gap-2.5 overflow-y-auto">
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1.5 block" htmlFor="material">
+              <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1 block" htmlFor="material">
                 Material
               </label>
               <select
@@ -3109,7 +3115,7 @@ export default function FlashDraftPage() {
                   setColor('');
                   setFinish('');
                 }}
-                className="w-full bg-afs-bg-overlay text-white border border-afs-border rounded px-3 py-2.5 font-body text-sm focus:outline-none focus:border-afs-crimson transition-colors"
+                className="w-full bg-afs-bg-overlay text-white border border-afs-border rounded px-3 py-2 font-body text-sm focus:outline-none focus:border-afs-crimson transition-colors"
               >
                 <option value="" disabled>
                   Select
@@ -3122,7 +3128,7 @@ export default function FlashDraftPage() {
               </select>
             </div>
             <div>
-              <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1.5 block" htmlFor="gauge">
+              <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1 block" htmlFor="gauge">
                 Gauge
               </label>
               <select
@@ -3130,7 +3136,7 @@ export default function FlashDraftPage() {
                 value={gauge}
                 disabled={!material}
                 onChange={(e) => setGauge(e.target.value)}
-                className="w-full bg-afs-bg-overlay text-white border border-afs-border rounded px-3 py-2.5 font-body text-sm focus:outline-none focus:border-afs-crimson transition-colors disabled:opacity-40"
+                className="w-full bg-afs-bg-overlay text-white border border-afs-border rounded px-3 py-2 font-body text-sm focus:outline-none focus:border-afs-crimson transition-colors disabled:opacity-40"
               >
                 <option value="" disabled>
                   {material ? 'Select' : '—'}
@@ -3168,7 +3174,7 @@ export default function FlashDraftPage() {
 
           {paintFaceSelectable && (
             <div>
-              <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1.5 block">
+              <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1 block">
                 Painted Side
               </label>
               <div className="flex items-center gap-3">
@@ -3201,8 +3207,8 @@ export default function FlashDraftPage() {
           )}
 
           <div>
-            <span className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1.5 block">Length</span>
-            <div className="grid grid-cols-2 gap-4">
+            <span className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1 block">Length</span>
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-dim mb-1 block" htmlFor="lengthFeet">
                   Feet
@@ -3236,7 +3242,7 @@ export default function FlashDraftPage() {
           </div>
 
           <div>
-            <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1.5 block" htmlFor="quantity">
+            <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1 block" htmlFor="quantity">
               Quantity
             </label>
             <input
@@ -3290,7 +3296,7 @@ export default function FlashDraftPage() {
 
           {selectedBendPoint !== null && (
             <div className="bg-afs-bg-surface border border-afs-chrome-dim rounded p-3">
-              <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1.5 block" htmlFor="bendRadius">
+              <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1 block" htmlFor="bendRadius">
                 Bend Radius (in)
               </label>
               <input
@@ -3314,43 +3320,17 @@ export default function FlashDraftPage() {
           )}
 
           <div>
-            <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1.5 block" htmlFor="notes">
+            <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1 block" htmlFor="notes">
               Notes (optional)
             </label>
             <textarea
               id="notes"
-              rows={3}
+              rows={2}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Anything else we should know?"
-              className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 font-body text-sm text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
+              placeholder="Anything else we should know? (e.g. rush timeline)"
+              className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-1.5 font-body text-sm text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
             />
-          </div>
-
-          <div>
-            <span className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1.5 block">Rush Order</span>
-            <button
-              type="button"
-              onClick={() => setRush((r) => !r)}
-              className={`flex items-center gap-3 border rounded px-3 py-2.5 w-full transition-colors ${
-                rush ? 'bg-afs-crimson border-afs-crimson' : 'bg-afs-bg-overlay border-afs-border hover:bg-afs-bg-surface'
-              }`}
-            >
-              <span
-                className={`w-10 h-5 rounded-full relative transition-colors shrink-0 ${
-                  rush ? 'bg-afs-crimson' : 'bg-afs-bg-overlay border border-afs-border'
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white transition-transform ${
-                    rush ? 'translate-x-5' : 'translate-x-0.5'
-                  }`}
-                />
-              </span>
-              <span className="font-label text-sm text-afs-chrome-high">
-                {rush ? 'Rush requested' : 'Standard timeline'}
-              </span>
-            </button>
           </div>
 
           <div className="bg-afs-bg-surface border border-afs-chrome-dim rounded overflow-hidden">

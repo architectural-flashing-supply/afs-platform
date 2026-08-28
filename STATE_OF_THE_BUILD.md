@@ -34,6 +34,82 @@ summary, not a replacement for it.
 
 ---
 
+## FLASHDRAFT UI POLISH: IMPLEMENTED, UNCONFIRMED (2026-08-28, afs-fl-026)
+
+Six scoped UI/UX changes to FlashDraft (`app/studio/draft/page.tsx`,
+`components/studio/ProfileViewer3D.tsx`), plus one site-wide change
+(`components/ai/ChatWidget.tsx`) Reid explicitly confirmed was not
+FlashDraft-scoped. `pnpm tsc --noEmit` passes with 0 errors. This session
+drove the real pages with Playwright against a live `pnpm dev` server and
+screenshotted every change (temporary verification script and screenshots,
+deleted before commit — not committed) — per this file's own verification
+standard above, that is evidence brought to the user, not a substitute for
+Reid checking it himself. Status stays **IMPLEMENTED, UNCONFIRMED** until he
+has.
+
+1. **3D auto-fit camera** — `INITIAL_CAMERA_POSITION` was a fixed
+   `Vector3(200,150,300)`, wrong for any profile whose size differed from
+   whatever it was tuned against. Replaced with `computeFitCamera`: builds a
+   real `THREE.Box3` from the actual mesh after geometry is built, derives a
+   bounding-sphere-based distance that frames it (both vertical and
+   horizontal FOV, so viewport aspect ratio can't clip it), applied once per
+   mount. **Root cause found and fixed mid-session, not just symptom-patched:**
+   the first implementation used a plain `useRef` boolean
+   (`hasAutoFitRef`) to apply the fit only once — but React 18 StrictMode's
+   dev-only mount→cleanup→remount cycle reuses the same component instance
+   (and therefore the same ref) across two camera objects, so the *second*,
+   real camera silently never got the fit applied, leaving the original
+   too-close framing bug in place under a different name. Fixed by resetting
+   `hasAutoFitRef.current = false` every time a fresh camera is constructed,
+   not just on component mount. Confirmed live: a real drawn profile taken
+   through the actual Submit Confirmation flow now opens fully visible with
+   comfortable margin, no manual zoom needed.
+2. **Lighter 3D background** — dome `#3A3A3A` -> `#565656`, renderer clear
+   color `#4A4A4A` -> `#6A6A6A`. Confirmed live against Vintage Steel (the
+   darkest material swatch) and Anodized Aluminum (a light/reflective one):
+   both stay clearly distinguishable from the new background.
+3. **Chat widget 3x, site-wide** — `components/ai/ChatWidget.tsx`'s
+   collapsed trigger (mounted once in `AppChrome.tsx`, used on every page)
+   grew from 64px to 192px. Confirmed live on both `/studio/draft` and the
+   homepage, desktop and a 375px mobile viewport — no overlap, no cutoff.
+4. **Toolbar right-aligned** — added `justify-end` to the toolbar row's flex
+   container; confirmed live.
+5. **Compact sidebar** —
+   - Rush Order toggle removed entirely, including its `rush` state, its
+     `AutosaveState` field, and the `isRush` key in the submit payload
+     (omitted, not hardcoded — `app/api/quote-requests/route.ts` already
+     defaults a missing `isRush` to `false`). **Confirmed downstream impact,
+     not silently left broken:** `is_rush` actively drives real sort order,
+     not just a badge — `lib/data/pending-quote-requests.ts`,
+     `lib/data/admin.ts` (`getQuoteRequestsList`), and
+     `lib/data/machine-jobs.ts` all `.order('is_rush', {ascending:false})`,
+     and `components/admin/CommandCenterJobCard.tsx` /
+     `ProductionQueueTable.tsx` render a RUSH badge/highlight off the same
+     column. A FlashDraft-submitted request can no longer float to the top
+     of the Command Center queue or show the RUSH badge, even if the
+     customer types "rush" in Notes — that text is never parsed back into
+     `is_rush`. This is a real, confirmed behavior change, not a
+     hypothetical; the Notes placeholder was updated to hint at this
+     ("e.g. rush timeline") but no notes-parsing was built (out of scope of
+     what was asked).
+   - Notes textarea: `rows={3}` -> `rows={2}`, padding tightened.
+   - General spacing tightened (`p-5`->`p-3.5`, `gap-4`->`gap-2.5`,
+     label margins, select/input padding). Confirmed live at a 1440x900
+     viewport: sidebar `scrollHeight === clientHeight` (no scroll).
+6. **Permanent red 3D button** — the 3D toggle now always carries
+   `bg-afs-crimson`; the active state indicator is now a `ring-2 ring-white`
+   on whichever button (2D or 3D) is currently selected, plus
+   `aria-pressed`. Confirmed live in both states via cropped screenshots.
+
+**Flag for Reid, not silently resolved:** `components/ai/ChatWidget.tsx`
+also defines an unused `HardHatQuestionIcon` SVG component (dead code, not
+rendered anywhere — the live collapsed-trigger icon is `/chat_bubble_icon.png`,
+which does visually render as a red hardhat+question-mark, matching the task's
+"hardhat/chat icon" description). Left untouched — out of scope of what was
+asked, noted here only so it isn't mistaken for something this pass added.
+
+---
+
 ## NOT REPRODUCIBLE THIS PASS (2026-08-27, afs-fl-025)
 
 Fourth reported `ProfileViewer3D` paint-face/geometry failure in one night

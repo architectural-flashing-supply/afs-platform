@@ -24,6 +24,69 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## FLASHDRAFT UI POLISH: afs-fl-026 -- IMPLEMENTED, UNCONFIRMED (2026-08-28)
+
+Six scoped UI/UX changes: 3D auto-fit camera, lighter 3D background, chat
+widget 3x size (site-wide, per Reid's explicit confirmation — not
+FlashDraft-scoped), toolbar moved right, compact sidebar (Rush Order
+removed), and a permanently-red 3D toggle button with a ring-based active
+indicator. `pnpm tsc --noEmit` — 0 errors.
+
+**Root-cause bug found and fixed mid-session (not just symptom-patched):**
+the auto-fit camera's first implementation used a `useRef` boolean to apply
+the fit only once per mount. Live Playwright testing showed the profile
+rendering just as zoomed-in as the original bug — tracked it down to React
+18 StrictMode's dev-only mount->cleanup->remount cycle: the ref survives
+across that phantom remount (same component instance), but the actual
+`THREE.PerspectiveCamera` object is recreated fresh each time (it's `const
+camera = new THREE.PerspectiveCamera(...)` inside the effect body). The
+flag was getting set to `true` on the *first, phantom* camera and never
+reset for the *second, real* one, so the real camera silently kept its
+hardcoded starting position. Fixed by resetting the ref to `false` every
+time a fresh camera is constructed (inside the same effect that creates
+it), not just relying on mount-once semantics.
+
+**Downstream check Reid explicitly asked for, and what it found:** removing
+the Rush Order toggle removes the *only* place `isRush` could be set to
+`true` on a FlashDraft-submitted quote request. Checked what reads that
+column before removing the control — it's not just
+`CommandCenterJobCard.tsx`'s RUSH badge: `lib/data/
+pending-quote-requests.ts`, `lib/data/admin.ts`, and `lib/data/
+machine-jobs.ts` all `.order('is_rush', {ascending:false})`, meaning
+FlashDraft-submitted requests can no longer sort to the top of any of those
+three admin queues either, regardless of what the customer types in Notes
+(that text is never parsed back into the boolean). Removed the toggle as
+asked — Reid's own call, "they have notes" — but this is now a documented,
+confirmed behavior change, not a silent gap. No notes-parsing was built to
+compensate; that would have been inventing scope beyond what was asked.
+
+**Verification performed this session (evidence for Reid, not a
+substitute for his own check — see this file's standing verification
+note above):** started a real `pnpm dev` server and drove it with
+Playwright (`@playwright/test`'s bundled chromium, no extra install
+needed). Confirmed via screenshots + DOM/class assertions, then deleted
+the temporary script and screenshots (nothing verification-related was
+committed):
+- A profile drawn on the real canvas, taken through the real Submit
+  Confirmation flow, renders fully visible in the 3D modal with margin —
+  no manual zoom.
+- Same 3D view compared across Vintage Steel (darkest material) and
+  Anodized Aluminum (light/reflective) against the new background colors
+  (`#565656` dome / `#6A6A6A` clear) — both stay clearly distinguishable.
+- Chat widget at 192px (was 64px) on `/studio/draft`, the homepage, and a
+  375px-wide mobile viewport — no overlap or cutoff on any of the three.
+- Toolbar buttons cluster at the right edge of their bar (screenshot).
+- Sidebar `scrollHeight === clientHeight` at 1440x900 (no scroll needed).
+- 2D/3D toggle: cropped screenshots in both states confirm the 3D button
+  stays red in both, and the white ring moves to whichever button is
+  active.
+
+Next session (or Reid): please confirm all six visually against the real
+app before this moves from IMPLEMENTED, UNCONFIRMED to DONE in
+STATE_OF_THE_BUILD.md.
+
+---
+
 ## FLASHDRAFT 3D VIEWER: afs-fl-025 -- COULD NOT REPRODUCE, BOTH TIPS NOW VERIFIED (2026-08-27)
 
 Fourth reported `ProfileViewer3D` paint-face failure in one night. Reid's

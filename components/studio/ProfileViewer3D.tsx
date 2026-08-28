@@ -59,13 +59,51 @@ type CameraPreset = 'default' | 'top' | 'side' | 'end';
 
 const EXTRUDE_DEPTH_MM = 304.8; // one linear foot
 const DIM_LINE_OFFSET_MM = 15;
+// Fallback only — used before the first real bounding box is known (e.g. the
+// very first render tick). The real initial camera position is computed per
+// profile by computeFitCamera below (afs-fl-026), since a fixed distance
+// like this one is comfortable for some profile sizes and wrong (too close
+// or too far) for others.
 const INITIAL_CAMERA_POSITION = new THREE.Vector3(200, 150, 300);
+// Same oblique viewing angle as the old fixed INITIAL_CAMERA_POSITION,
+// normalized to a pure direction — computeFitCamera scales this by the
+// actual profile's size to get a real position.
+const DEFAULT_CAMERA_DIRECTION = INITIAL_CAMERA_POSITION.clone().normalize();
+// Multiplier applied on top of the tightest distance that exactly frames the
+// profile's bounding sphere, so the profile sits comfortably inside the
+// viewport with margin rather than touching its edges.
+const FIT_MARGIN = 1.35;
 const CAMERA_PRESETS: Record<CameraPreset, { position: THREE.Vector3; target: THREE.Vector3 }> = {
   default: { position: INITIAL_CAMERA_POSITION.clone(), target: new THREE.Vector3(0, 0, 0) },
   top: { position: new THREE.Vector3(0, 400, 0.01), target: new THREE.Vector3(0, 0, 0) },
   side: { position: new THREE.Vector3(400, 0, 0), target: new THREE.Vector3(0, 0, 0) },
   end: { position: new THREE.Vector3(0, 0, 400), target: new THREE.Vector3(0, 0, 0) },
 };
+
+/**
+ * Frame-to-fit: positions a camera at the nearest distance (along
+ * `direction`, plus FIT_MARGIN of breathing room) that keeps `box`'s entire
+ * bounding sphere inside the camera's view frustum, for BOTH the vertical
+ * and horizontal field of view — so a tall-narrow or short-wide profile is
+ * still fully framed regardless of the viewport's own aspect ratio, not just
+ * whichever axis happens to be the vertical FOV.
+ */
+function computeFitCamera(
+  box: THREE.Box3,
+  camera: THREE.PerspectiveCamera,
+  direction: THREE.Vector3
+): { position: THREE.Vector3; target: THREE.Vector3 } | null {
+  if (box.isEmpty()) return null;
+  const sphere = box.getBoundingSphere(new THREE.Sphere());
+  if (!(sphere.radius > 0)) return null;
+  const vFov = (camera.fov * Math.PI) / 180;
+  const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
+  const fitDistanceV = sphere.radius / Math.sin(vFov / 2);
+  const fitDistanceH = sphere.radius / Math.sin(hFov / 2);
+  const distance = FIT_MARGIN * Math.max(fitDistanceV, fitDistanceH);
+  const position = sphere.center.clone().add(direction.clone().normalize().multiplyScalar(distance));
+  return { position, target: sphere.center.clone() };
+}
 
 interface MaterialAppearance {
   color: string;
@@ -428,6 +466,15 @@ export default function ProfileViewer3D({
   const meshGroupRef = useRef<THREE.Group | null>(null);
   const labelGroupRef = useRef<THREE.Group | null>(null);
   const cameraAnimRef = useRef<{ from: THREE.Vector3; to: THREE.Vector3; fromTarget: THREE.Vector3; toTarget: THREE.Vector3; start: number } | null>(null);
+  // Latest real frame-to-fit camera position/target for this profile
+  // (afs-fl-026) — kept current on every geometry rebuild so "Reset View"
+  // always returns to a correctly-framed shot, not the generic fallback.
+  const fitCameraRef = useRef<{ position: THREE.Vector3; target: THREE.Vector3 } | null>(null);
+  // Auto-fit only drives the camera on the FIRST geometry build after mount —
+  // later rebuilds (e.g. flipping paintFace) update fitCameraRef for Reset
+  // View but must not yank the camera out from under a user who has already
+  // manually orbited/zoomed.
+  const hasAutoFitRef = useRef(false);
 
   const [dimensionsOn, setDimensionsOn] = useState(true);
   const [hintVisible, setHintVisible] = useState(true);
@@ -436,7 +483,9 @@ export default function ProfileViewer3D({
     const camera = cameraRef.current;
     const controls = controlsRef.current;
     if (!camera || !controls) return;
-    const target = CAMERA_PRESETS[preset];
+    // 'default' (Reset View) prefers the real computed frame-to-fit shot for
+    // THIS profile over the generic CAMERA_PRESETS fallback, once one exists.
+    const target = (preset === 'default' && fitCameraRef.current) || CAMERA_PRESETS[preset];
     cameraAnimRef.current = {
       from: camera.position.clone(),
       to: target.position.clone(),
@@ -458,8 +507,10 @@ export default function ProfileViewer3D({
     // facing sphere) gives contrast for both light metals (aluminum,
     // stainless) and dark ones (painted steel, vintage) — a solid black
     // background washed out the light metals and made the dark ones vanish.
+    // (afs-fl-026: lightened from #3A3A3A — still dark enough to stay well
+    // below vintage's ~#7A6B5A fold color so it doesn't disappear.)
     const domeGeometry = new THREE.SphereGeometry(2000, 32, 16);
-    const domeMaterial = new THREE.MeshBasicMaterial({ color: '#3A3A3A', side: THREE.BackSide });
+    const domeMaterial = new THREE.MeshBasicMaterial({ color: '#565656', side: THREE.BackSide });
     const dome = new THREE.Mesh(domeGeometry, domeMaterial);
     scene.add(dome);
 
@@ -469,11 +520,19 @@ export default function ProfileViewer3D({
     const camera = new THREE.PerspectiveCamera(45, width / height, 1, 5000);
     camera.position.copy(INITIAL_CAMERA_POSITION);
     cameraRef.current = camera;
+    // This effect's cleanup disposes the renderer/controls but this ref
+    // itself survives (React StrictMode's dev-only mount->cleanup->remount
+    // cycle reuses the same component instance and its refs). Reset the
+    // flag alongside every fresh camera so the geometry-rebuild effect's
+    // one-time auto-fit (afs-fl-026) always applies to THIS camera instead
+    // of silently no-op'ing because a phantom earlier mount already flipped
+    // it for a camera that no longer exists.
+    hasAutoFitRef.current = false;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setClearColor('#4A4A4A', 1);
+    renderer.setClearColor('#6A6A6A', 1); // afs-fl-026: lightened from #4A4A4A, see domeMaterial comment above
     renderer.shadowMap.enabled = true;
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
@@ -809,6 +868,26 @@ export default function ProfileViewer3D({
     scene.add(labelGroup);
     meshGroupRef.current = meshGroup;
     labelGroupRef.current = labelGroup;
+
+    // Frame-to-fit (afs-fl-026): compute the real bounding box of the mesh
+    // just built and derive a camera shot that keeps the whole profile
+    // visible, scaled to ITS actual size rather than a fixed distance that's
+    // only right for one particular profile. Only drives the live camera on
+    // the first build after mount — see hasAutoFitRef above.
+    const camera = cameraRef.current;
+    if (camera) {
+      const box = new THREE.Box3().setFromObject(meshGroup);
+      const fit = computeFitCamera(box, camera, DEFAULT_CAMERA_DIRECTION);
+      if (fit) {
+        fitCameraRef.current = fit;
+        if (!hasAutoFitRef.current) {
+          camera.position.copy(fit.position);
+          controlsRef.current?.target.copy(fit.target);
+          controlsRef.current?.update();
+          hasAutoFitRef.current = true;
+        }
+      }
+    }
   }, [bends, blankWidth, material, thicknessMm, dimensionsOn, paintFace, paintColor, bareColor, hemStart, hemEnd]);
 
   return (
