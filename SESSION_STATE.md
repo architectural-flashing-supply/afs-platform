@@ -87,6 +87,72 @@ STATE_OF_THE_BUILD.md.
 
 ---
 
+## FLASHDRAFT UI POLISH: afs-fl-026 -- SECOND VERIFICATION PASS, ONE CLAIM ABOVE WAS WRONG (2026-08-28)
+
+Follow-up session, same task re-run. Code was already committed (`2e553b5`)
+and `pnpm tsc --noEmit` still passes with 0 errors — no code changes this
+pass except this doc. Re-ran independent live verification against a fresh
+`pnpm dev` server with a new temporary Playwright script (deleted after
+use, nothing committed), specifically because the first pass's own
+screenshots/evidence no longer existed to check and this file's own
+verification standard treats a session's self-report as evidence, not
+ground truth.
+
+**The first pass's claim on item 3 ("no overlap or cutoff on any of the
+three [viewports]") does not hold up.** Re-checked with real bounding-box
+math, not a visual glance: on `/studio/draft` at a 375x812 mobile
+viewport, the chat trigger's fixed 192x192 footprint (x:159-351,
+y:596-788) genuinely overlaps the sidebar's `Clear` button (x:138-237,
+y:667-705) and `Load` button (x:245-344, y:667-705) — confirmed with
+`page.evaluate` boundingBox reads on both elements, not inference from a
+screenshot. The pre-fix 64px trigger's footprint (y:724-788) sat below
+that row and never reached it — so this is a real regression from the 3x
+resize, not a pre-existing issue the resize happened to inherit. Homepage
+at the same 375px width has no equivalent problem (normal page scroll, no
+fixed-height/overflow-hidden container, nothing critical pinned under the
+trigger's corner) — this is specific to FlashDraft's constrained-height
+mobile layout, not a site-wide issue despite the resize itself being
+site-wide. Left unfixed on purpose: the actual fix belongs to a design call
+(give the trigger narrower-viewport clearance? reserve space in
+FlashDraft's sidebar? something else?) that shouldn't be guessed at against
+this page's already-fragile fixed-height flex layout under a "make it work"
+time pressure — that's exactly how a workaround gets shipped instead of a
+root-cause fix. Recorded in STATE_OF_THE_BUILD.md as a second explicit flag
+for Reid, separate from the original HardHatQuestionIcon dead-code note.
+
+**Everything else re-confirmed independently, with real interaction** (a
+profile actually drawn via the "Z Closure" template button, not a
+hand-built fixture; a material actually picked from the live `<select>`;
+for the two materials that require it, a color actually chosen from the
+real `ColorPickerModal`; Submit actually clicked through to the real
+`SubmitConfirmation3DModal` — not a mocked or stubbed path):
+- Auto-fit camera: two different real materials (Stainless Steel, and
+  Vintage Steel painted Matte Black) both open fully framed with margin in
+  the Submit Confirmation 3D view, no manual zoom needed.
+- Background: Stainless Steel (bright, high-metalness — one face reads
+  near-white, the other near-black under the scene's lighting) and Vintage
+  Steel painted Matte Black (`#1E2028`, genuinely dark, not just a
+  dark-sounding name) both stay clearly separated from the lightened
+  `#565656`/`#6A6A6A` background — this pass deliberately picked an actual
+  near-black paint color rather than reusing the first pass's "Vintage
+  Steel" label with no color chosen, to make sure the dark-material check
+  was real.
+- Toolbar: button cluster confirmed right-aligned on its bar.
+- Sidebar: `scrollHeight === clientHeight` (736px both) at 1440x900,
+  reconfirmed by direct DOM measurement; a full body-text search confirms
+  no "Rush Order" string anywhere in the sidebar.
+- 2D/3D toggle: DOM class assertions in both states confirm the 3D button's
+  `className` always includes `bg-afs-crimson` and never
+  `bg-afs-bg-raised`, while `ring-2 ring-white` + `aria-pressed="true"`
+  move to whichever button is actually active.
+
+Still **IMPLEMENTED, UNCONFIRMED** in STATE_OF_THE_BUILD.md for five items
+— per this file's own standard, two independent Claude Code sessions
+verifying the same thing is still not Reid's own confirmation. Item 3 is
+now flagged as a confirmed, unresolved bug rather than "confirmed working."
+
+---
+
 ## FLASHDRAFT 3D VIEWER: afs-fl-025 -- COULD NOT REPRODUCE, BOTH TIPS NOW VERIFIED (2026-08-27)
 
 Fourth reported `ProfileViewer3D` paint-face failure in one night. Reid's

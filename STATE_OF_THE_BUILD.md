@@ -34,18 +34,55 @@ summary, not a replacement for it.
 
 ---
 
-## FLASHDRAFT UI POLISH: IMPLEMENTED, UNCONFIRMED (2026-08-28, afs-fl-026)
+## FLASHDRAFT UI POLISH: IMPLEMENTED, UNCONFIRMED -- ONE CONFIRMED REGRESSION FOUND (2026-08-28, afs-fl-026)
 
 Six scoped UI/UX changes to FlashDraft (`app/studio/draft/page.tsx`,
 `components/studio/ProfileViewer3D.tsx`), plus one site-wide change
 (`components/ai/ChatWidget.tsx`) Reid explicitly confirmed was not
-FlashDraft-scoped. `pnpm tsc --noEmit` passes with 0 errors. This session
-drove the real pages with Playwright against a live `pnpm dev` server and
-screenshotted every change (temporary verification script and screenshots,
-deleted before commit — not committed) — per this file's own verification
-standard above, that is evidence brought to the user, not a substitute for
-Reid checking it himself. Status stays **IMPLEMENTED, UNCONFIRMED** until he
-has.
+FlashDraft-scoped. `pnpm tsc --noEmit` passes with 0 errors. The code for
+all six items was already committed (commit `2e553b5`) by the session that
+built it; this entry covers a **second, independent** live-verification
+pass run in a follow-up session, against a live `pnpm dev` server via a
+temporary Playwright script (deleted after use, not committed, same as the
+first pass). Per this file's own verification standard above, this is
+still evidence to bring to Reid, not a substitute for his own check — status
+stays **IMPLEMENTED, UNCONFIRMED** for five of the six items. The sixth
+(chat widget resize) has a **confirmed, unresolved regression** on one page
+— see below, not silently glossed over.
+
+**Item 3 (chat widget 3x, site-wide) — confirmed bug on FlashDraft mobile,
+not yet fixed.** The first session's own report claimed "no overlap or
+cutoff" at a 375px mobile viewport on `/studio/draft`; this session's
+re-check found that claim wrong. Bounding-box math (not just a visual
+glance): the collapsed trigger is `position:fixed; bottom:24px; right:24px;
+width:192px; height:192px` (`components/ai/ChatWidget.tsx`), giving it a
+screen footprint of x:159-351, y:596-788 at 375x812. FlashDraft's sidebar
+footer row (`Save Draft` / `Clear` / `Load` buttons,
+`app/studio/draft/page.tsx`) sits at y:667-705 in that same layout — real,
+measured overlap confirmed against both the `Clear` button (x:138-237) and
+the `Load` button (x:245-344), not just the transparent padding around the
+hardhat glyph (the whole 192x192 box is a `<button>`, so it captures clicks
+even where the PNG is visually transparent). The pre-fix 64px trigger did
+NOT reach this row (its footprint was y:724-788, below the button row's
+y:705 bottom edge) — this is a real regression introduced by the 3x resize,
+specific to FlashDraft's fixed-height (`h-[calc(100vh-56px)] overflow-
+hidden`), non-page-scrolling mobile layout, not a general site-wide
+problem: the homepage at the same 375px viewport has no equivalent
+overlap (its CTAs sit well above the fold; the page scrolls normally, so a
+user can scroll past the trigger's footprint, unlike FlashDraft's sidebar
+which doesn't need to scroll and therefore can never move out from under
+it). **Deliberately not fixed in this pass** — the right fix (reserve
+bottom clearance in FlashDraft's sidebar on narrow viewports vs. shrinking/
+repositioning the trigger itself vs. something else) is a design call, and
+guessing at FlashDraft's already-fragile constrained-height flex layout
+without that call risked exactly the kind of workaround this project's
+standing instruction says not to ship. Flagging for Reid's decision instead.
+
+Everything else confirmed by this pass, with real interaction (not just
+static screenshots — draft profile actually drawn via a template button,
+material picked from the real dropdown, color chosen from the real
+ColorPickerModal, submit actually clicked through to the real
+`SubmitConfirmation3DModal`):
 
 1. **3D auto-fit camera** — `INITIAL_CAMERA_POSITION` was a fixed
    `Vector3(200,150,300)`, wrong for any profile whose size differed from
@@ -61,19 +98,30 @@ has.
    real camera silently never got the fit applied, leaving the original
    too-close framing bug in place under a different name. Fixed by resetting
    `hasAutoFitRef.current = false` every time a fresh camera is constructed,
-   not just on component mount. Confirmed live: a real drawn profile taken
-   through the actual Submit Confirmation flow now opens fully visible with
-   comfortable margin, no manual zoom needed.
+   not just on component mount. **Re-confirmed live this session** with two
+   fresh real profiles (a Z Closure template, drawn via the actual template
+   button, taken through the actual `/studio/draft` -> Submit for Quote ->
+   `SubmitConfirmation3DModal` flow): both a Stainless Steel and a Vintage
+   Steel + Matte Black profile open fully visible with comfortable margin,
+   no manual zoom, no clipping.
 2. **Lighter 3D background** — dome `#3A3A3A` -> `#565656`, renderer clear
-   color `#4A4A4A` -> `#6A6A6A`. Confirmed live against Vintage Steel (the
-   darkest material swatch) and Anodized Aluminum (a light/reflective one):
-   both stay clearly distinguishable from the new background.
+   color `#4A4A4A` -> `#6A6A6A`. **Re-confirmed live this session** against
+   Stainless Steel bare metal (the lightest/most reflective swatch — its
+   lit face renders near-white, its shaded face near-black, both plainly
+   distinct from the mid-gray backdrop) and Vintage Steel painted Matte
+   Black (`#1E2028`, genuinely dark, not just the swatch's own name) — the
+   whole mesh reads as a near-black solid, still clearly separated from the
+   lighter background, not swallowed by it.
 3. **Chat widget 3x, site-wide** — `components/ai/ChatWidget.tsx`'s
    collapsed trigger (mounted once in `AppChrome.tsx`, used on every page)
-   grew from 64px to 192px. Confirmed live on both `/studio/draft` and the
-   homepage, desktop and a 375px mobile viewport — no overlap, no cutoff.
+   grew from 64px to 192px. Confirmed correct on desktop (`/studio/draft`
+   and the homepage) and on a 375px mobile viewport on the homepage. **On a
+   375px mobile viewport on `/studio/draft`, this session found a real,
+   measured overlap with the sidebar's `Clear`/`Load` buttons — see the
+   flagged item above.** Not confirmed clean on all three as previously
+   reported.
 4. **Toolbar right-aligned** — added `justify-end` to the toolbar row's flex
-   container; confirmed live.
+   container; confirmed live, re-confirmed this session.
 5. **Compact sidebar** —
    - Rush Order toggle removed entirely, including its `rush` state, its
      `AutosaveState` field, and the `isRush` key in the submit payload
@@ -96,10 +144,18 @@ has.
    - General spacing tightened (`p-5`->`p-3.5`, `gap-4`->`gap-2.5`,
      label margins, select/input padding). Confirmed live at a 1440x900
      viewport: sidebar `scrollHeight === clientHeight` (no scroll).
+     Re-confirmed this session by direct DOM measurement (both values
+     736px) plus a body-text search confirming no "Rush Order" string
+     anywhere in the sidebar.
 6. **Permanent red 3D button** — the 3D toggle now always carries
    `bg-afs-crimson`; the active state indicator is now a `ring-2 ring-white`
    on whichever button (2D or 3D) is currently selected, plus
    `aria-pressed`. Confirmed live in both states via cropped screenshots.
+   Re-confirmed this session via a DOM class assertion in both states: the
+   3D button's `className` carries `bg-afs-crimson` (never
+   `bg-afs-bg-raised`) regardless of which button is active, while
+   `ring-2 ring-white` and `aria-pressed="true"` move to whichever button
+   (2D or 3D) is actually selected.
 
 **Flag for Reid, not silently resolved:** `components/ai/ChatWidget.tsx`
 also defines an unused `HardHatQuestionIcon` SVG component (dead code, not
@@ -107,6 +163,12 @@ rendered anywhere — the live collapsed-trigger icon is `/chat_bubble_icon.png`
 which does visually render as a red hardhat+question-mark, matching the task's
 "hardhat/chat icon" description). Left untouched — out of scope of what was
 asked, noted here only so it isn't mistaken for something this pass added.
+
+**Second flag for Reid, not silently resolved:** the item-3 mobile overlap
+above. Needs a decision on which page/component the fix belongs in before
+the next session touches it — do not silently shrink or reposition the
+site-wide trigger to solve a problem that's really about one page's
+narrow-viewport layout.
 
 ---
 
