@@ -24,6 +24,121 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## TEXAS BUILDING-CODE JURISDICTION DIRECTORY — ALL 254 COUNTIES + 226 CITIES (afs-fl-024) — 2026-08-27
+
+First step of a nationwide building-code reference directory (Reid's
+explicit instruction to structure for later state-by-state expansion,
+without assuming other states' county/city authority rules mirror Texas's).
+Per SPEC_ARCHITECTURAL_RESOURCE_CENTER.md's "Building code references"
+content category — not yet wired into the Architect Portal itself, since
+that read surface doesn't exist yet; this pass built the data and an
+admin-only viewer.
+
+**Schema decision:** new table `building_code_jurisdictions`
+(`022_building_code_jurisdictions.sql`), not an extension of `bid_sources`.
+Investigated `bid_sources` first (010_bid_monitor.sql) — it has a few TX
+county/city rows already, but they're procurement portals for the Bid
+Monitor tool (bid-opportunity discovery), a different purpose from
+building-code reference data, and its schema (`source_type`,
+`is_free`/`requires_membership`/`membership_cost_annual`) doesn't fit.
+`jurisdiction_type` ('county'|'city') and a `status` enum
+('verified_link'|'no_code_adopted'|'unresolved') are new to this table.
+RLS: admin-only `FOR ALL`, same as `bid_sources` — this is reference
+content ultimately meant for the Architect Portal, but that read surface
+isn't built, so admin-only is correct until it is.
+
+**Research scale and a real infrastructure constraint hit mid-task:** this
+session's WebSearch tool has a session-wide quota (~200 calls) shared
+across the main session and every subagent spawned from it — not a
+generous per-agent budget as initially assumed. The first wave of 20
+parallel county-research subagents (12-15 counties each) hit that ceiling
+partway through; one subagent legitimately refused to fabricate results
+and reported 0 successful searches rather than inventing county building
+department URLs. Correct call by that subagent — flagged it to Reid rather
+than continuing blind, per the task's explicit anti-fabrication
+instruction. Other subagents in the same wave independently discovered a
+working fallback (WebFetch chain: Wikipedia infobox -> official homepage
+-> department navigation, with a reader-proxy for bot-blocked sites) that
+didn't consume the WebSearch quota, and most of the wave completed with
+real research using that method once search ran dry. The one subagent that
+gave up outright (batch covering San Saba through Sterling counties) was
+individually re-run with the fallback method made explicit in its prompt,
+and completed successfully. All 16 city-research batches used the same
+fallback from the start. Total: ~40 subagents, each doing individual
+web research (search where available, WebFetch-chain navigation
+otherwise) and a real per-URL HTTP fetch before marking any row
+`verified_link`.
+
+**City list derivation:** "incorporated city/town with population >=
+10,000" required reconciling two disagreeing sources — texas-demographics.
+com's current (~2024) estimates include unincorporated CDPs and a military
+installation or two that had to be filtered out (Atascocita, Cinco Ranch,
+Fort Hood, Fort Bliss, and ~16 others — all confirmed as non-incorporated
+via individual lookup, not assumed from the name), while Wikipedia's "List
+of municipalities in Texas" (2020 Census, incorporated-only by definition)
+had its own extraction errors on a first pass (wrong population for
+Pearsall, several cities entirely missing from an alphabetical sweep,
+wrong county for Fort Worth and Rio Grande City) that were caught and
+corrected via a second targeted pass. Cities sitting near the 10,000
+threshold on 2020 Census figures but with current estimates crossing it
+(Bastrop, Elgin, Heath, Liberty Hill, Northlake, Iowa Colony, Manvel) were
+individually verified and added; the reverse case (Vernon, Bridge City,
+Sanger, Commerce, and others sitting just under 10,000 on current
+estimates despite a higher historical figure) were individually checked
+and excluded. Final count: 226, not the ~160 Reid's own instruction
+estimated as a rough expectation — the instruction explicitly said to get
+the real current count rather than assume one, and 226 is what verification
+produced.
+
+**Verified breakdown — Counties (254):** 73 `verified_link`, 179
+`no_code_adopted`, 2 `unresolved` (La Salle — persistent HTTP 500 on the
+official site across repeated attempts; Wichita — official site returns
+HTTP 403 to every request tried, and web search results are dominated by
+Wichita, Kansas rather than the Texas county). Tarrant County — the
+specific example named in Reid's task brief — independently confirmed
+`no_code_adopted`: its Engineering Services department issues only
+infrastructure permits (culvert, floodplain, right-of-way), not building
+permits or codes, for unincorporated areas.
+
+**Verified breakdown — Cities (226):** 224 `verified_link`, 0
+`no_code_adopted`, 2 `unresolved`. No incorporated Texas city of this size
+that could actually be researched turned out to lack its own building
+department — consistent with cities being the primary code-adopting
+authority in Texas, as the task brief noted. The 2 unresolved: Grand
+Prairie (a real, substantive Building Inspections department page was
+found and its content confirmed via a WebSearch result snippet, but the
+entire gptx.org domain blocked both a direct fetch and a reader-proxy
+fetch, so the task's own "make a real HTTP request to confirm the URL
+resolves" requirement couldn't be met — downgraded from a first-pass
+"verified" rather than reported as verified on a snippet alone); San
+Elizario (official site serves an automated bot-verification/CAPTCHA
+challenge to every non-browser request tried: direct fetch, plain HTTP,
+and a reader-proxy).
+
+**What's viewable:** `/admin/building-codes` — admin-only (same
+`requireAdminUser` gate + RLS pattern as every other `/admin/**` page).
+Stat tiles (total/counties/cities/verified/no-code/unresolved), a
+county/city tab, a status filter, and a name/county search across all 480
+rows, each showing its status badge, link (where one exists), and research
+note. `lib/data/building-codes.ts` is the data-access module,
+`components/admin/BuildingCodeDirectory.tsx` the client-side table/filter
+component — same layering as `lib/data/bid-monitor.ts` /
+`BidMonitorSourceDirectory.tsx`. Nav link added to
+`components/layout/AdminShell.tsx` under "Business".
+
+**Gates:** `pnpm tsc --noEmit` — 0 errors. `pnpm build` — clean.
+
+**Not done / explicitly out of scope this pass:** no read access for
+architect/authenticated roles yet (admin-only RLS, matching precedent,
+until the Architect Portal resource-center page that would consume this
+data actually exists — SPEC_ARCHITECTURAL_RESOURCE_CENTER.md's "Building
+code references" bullet has no further elaboration beyond the one line, so
+that page's design is a separate task). No other states yet — schema is
+built to make that a data addition, per Reid's instruction, but no other
+state's data was researched this pass.
+
+---
+
 ## FLASHDRAFT 3D VIEWER: PAINT-FACE REGRESSION FIX — DECAL ARCHITECTURE REPLACED (afs-fl-022) — 2026-08-27
 
 Root-cause build, no workarounds, confined to

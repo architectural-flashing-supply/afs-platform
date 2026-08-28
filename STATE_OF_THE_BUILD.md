@@ -34,6 +34,60 @@ summary, not a replacement for it.
 
 ---
 
+## VERIFIED THIS PASS (2026-08-27, afs-fl-024)
+
+```
+pnpm tsc --noEmit                  0 errors. Exit code 0.
+pnpm build                         Clean. Exit code 0.
+```
+
+New feature, not a fix — first step of a Texas building-code jurisdiction
+directory for SPEC_ARCHITECTURAL_RESOURCE_CENTER.md's "Building code
+references" content category. New table `building_code_jurisdictions`
+(`022_building_code_jurisdictions.sql`), deliberately separate from
+`bid_sources` (010_bid_monitor.sql is procurement/bid-opportunity data, a
+different purpose) and deliberately state-agnostic (a plain `state` column,
+not a Texas-specific schema) so other states are a data addition later, not
+a schema rework — Reid's explicit instruction, since TX's rules (permissive
+county authority, LGC Title 7 Ch. 233; cities are the primary code-adopting
+authority) do not necessarily generalize.
+
+Seeded with real, individually-researched data for all 254 Texas counties
+and all 226 incorporated Texas cities/towns with population >= 10,000 (the
+226-city figure and per-city populations came from reconciling Wikipedia's
+"List of municipalities in Texas" 2020 Census table against
+texas-demographics.com's current estimates, resolving CDP/military
+exclusions and threshold-crossing cities by individual verification — see
+the seed data comment in the migration for the research date). Every
+`verified_link` row's URL was HTTP-fetched and confirmed to resolve before
+being recorded; every `no_code_adopted` row was positively confirmed (not
+assumed from an absence) and links to the jurisdiction's general homepage
+instead.
+
+**Final breakdown — Counties (254):** 73 `verified_link`, 179
+`no_code_adopted`, 2 `unresolved` (La Salle County — official site returns
+persistent HTTP 500; Wichita County — official site returns HTTP 403 to
+every request, and search results are dominated by Wichita, Kansas).
+Tarrant County confirmed `no_code_adopted` as flagged in the task brief
+(Engineering Services issues only infrastructure permits, not building
+permits/codes, for unincorporated areas).
+
+**Final breakdown — Cities (226):** 224 `verified_link`, 0
+`no_code_adopted` (every incorporated city this size that could be
+resolved had a real building/permitting department), 2 `unresolved` (Grand
+Prairie — the entire gptx.org domain blocked both direct fetch and a
+reader-proxy fetch, so a real page found via search snippet could not be
+HTTP-verified per this task's own requirement; San Elizario — official site
+serves an automated bot-verification challenge to every non-browser
+request tried).
+
+Viewable at `/admin/building-codes` (admin-only, same RLS/auth pattern as
+`/admin/bid-monitor`) — stat tiles, county/city tabs, status filter, and
+search across all 480 rows. `SESSION_STATE.md` (this entry) has the
+research-session detail; this file has the outcome summary.
+
+---
+
 ## VERIFIED THIS PASS (2026-08-27, afs-fl-022)
 
 ```

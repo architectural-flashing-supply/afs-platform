@@ -37,6 +37,7 @@ const NAV_SECTIONS: NavSection[] = [
       { label: 'Customers', href: '/admin/customers' },
       { label: 'Credit Apps', href: '/admin/credit-applications' },
       { label: 'Pricing', href: '/admin/pricing' },
+      { label: '📖 Building Codes', href: '/admin/building-codes' },
     ],
   },
   {
