@@ -34,6 +34,119 @@ summary, not a replacement for it.
 
 ---
 
+## NOT REPRODUCIBLE THIS PASS (2026-08-27, afs-fl-025)
+
+Fourth reported `ProfileViewer3D` paint-face/geometry failure in one night
+(afs-fl-018 -> afs-fl-022 -> afs-fl-023 -> afs-fl-025). Reid reported the
+"phantom closing face" afs-fl-023 fixed was still present, and specifically
+flagged that afs-fl-023's own completion report only described checking "a
+hairline cap at leg A's free tip" — singular — when a profile has two.
+
+```
+pnpm tsc --noEmit                  0 errors. Exit code 0.
+```
+
+**What this pass did differently, to close the exact gap named in the
+task.** Rather than eyeballing a rotating render, this pass built a
+temporary `window.__PV3D_DEBUG__` scene-dump hook (same technique
+afs-fl-023 used, deleted before this entry — no debug code was committed)
+and drove the real `/studio/draft` -> Submit Confirmation flow against a
+real `pnpm dev` server with Playwright, for every one of these real,
+independently-constructed profiles, each at both `paintFace` values (`up`
+and `down` — worth noting explicitly: `paintFace` only ever swaps which of
+`outerMesh`/`innerMesh` gets `paintMaterial` vs `edgeMaterial` in the real
+code, it never changes geometry, so the two values are expected to produce
+identical mesh dimensions and did):
+
+1. **2-LEG** — open V, two legs (152mm / 175mm), one interior vertex, 0.125in radius.
+2. **3-LEG** — U-channel coping-cap shape (76.2 / 254 / 76.2mm), two interior vertices, 0.125in radius (mirrors `SubmitConfirmation3DModal.tsx`'s own `PLACEHOLDER_COPING_CAP_BENDS`).
+3. **3-LEG-HOOK** — a tight ~35° return leg only 0.4in long, radius comparable to leg length (stress case for the fillet-clamp math), not a wide-open shape like #2.
+4. **2-LEG-HEMMED-END** — profile #1 with a real `smashed` hem (gap 1/32", kick outside) added at the end tip, to check for overlap between the base sheet's paint walls and the hem's own rails near a tip.
+5. **2-LEG-ORIGINAL-REPRO** — a reconstruction of afs-fl-023's *own* originally-reported shape (two legs ~6-13/16" and ~7" at a ~100° interior angle) at the real default bend radius for painted steel (`defaultBendRadiusIn` = 0.5in, not the smaller 0.125in used in #1/#2) — the closest this pass could get to the exact profile that started this chain of fixes.
+6. **3-LEG-DEFAULT-RADIUS** — profile #2 at that same real 0.5in default radius instead of 0.125in.
+
+Every one of the six meshes the paint branch builds (`outerMesh`,
+`innerMesh`, `startEdgeMesh`, `endEdgeMesh`, `startCapMesh`, `endCapMesh`)
+was dumped by real name, vertex count, bounding box, and material color for
+all six profiles at both paint faces (12 live scene dumps total, each with
+all 6 meshes = 72 individual mesh records). Full data:
+
+```
+2-LEG              / up   outerMesh verts=40 color=#7d231b size=[152.10, 101.30, 304.8]
+                          innerMesh verts=40 color=#b8c4cc size=[152.71, 101.91, 304.8]
+                          startEdgeMesh verts=4 color=#b8c4cc size=[0,    0.61,  304.8]
+                          endEdgeMesh   verts=4 color=#b8c4cc size=[0.61, 0,     304.8]
+                          startCapMesh  verts=22 color=#b8c4cc size=[152.71,101.91,0]
+                          endCapMesh    verts=22 color=#b8c4cc size=[152.71,101.91,0]
+2-LEG              / down (identical sizes; outerMesh<->innerMesh colors swap)
+3-LEG              / up   outerMesh verts=76 color=#7d231b size=[75.90, 253.39, 304.8]
+                          innerMesh verts=76 color=#b8c4cc size=[76.50, 254.61, 304.8]
+                          startEdgeMesh verts=4 size=[0,    0.61, 304.8]
+                          endEdgeMesh   verts=4 size=[0,    0.61, 304.8]
+                          startCapMesh  verts=40 size=[76.50,254.61,0]
+                          endCapMesh    verts=40 size=[76.50,254.61,0]
+3-LEG              / down (identical sizes; colors swap)
+3-LEG-HOOK         / up   outerMesh verts=76 size=[101.30, 7.39, 304.8]
+                          innerMesh verts=76 size=[101.90, 8.61, 304.8]
+                          startEdgeMesh verts=4 size=[0,      0.61,   304.8]
+                          endEdgeMesh   verts=4 size=[0.4313, 0.4313, 304.8]
+                          startCapMesh/endCapMesh verts=40 size=[101.90,8.61,0]
+3-LEG-HOOK         / down (identical sizes; colors swap)
+2-LEG-HEMMED-END   / up+down  same 6 meshes as #1 (unchanged), plus 3 real
+                          hem meshes (outer rail 0.18x12.40mm, inner rail
+                          1.40x13.01mm, tip cap 0.61x0mm) — all hairline-
+                          or hem-length-scale, no oversized mesh
+2-LEG-ORIGINAL-REPRO / up+down  outerMesh/innerMesh size=[203.6,174.8-175.5,304.8],
+                          startEdgeMesh=[0,0.61,304.8], endEdgeMesh=[0.60,0.11,304.8],
+                          caps=[204.2,175.5,0] — same clean pattern at the real profile scale
+3-LEG-DEFAULT-RADIUS / up+down  identical to 3-LEG (0.5in radius doesn't
+                          move this rectangular shape's bbox — verified
+                          separately with a pure-geometry script that a 90°
+                          fillet's tangent points never exceed the sharp
+                          corner's own offset extent, so this is correct
+                          math, not evidence radius was silently ignored)
+```
+
+**Classification against the task's own two categories, no exceptions
+found:** `outerMesh`/`innerMesh` are full-rail-length face-color meshes
+(category a) in all 6 profiles. `startEdgeMesh`/`endEdgeMesh` are hairline
+(0–0.61mm) at both genuine free tips, in both leg counts, both paint faces,
+with and without a hem at one end, at both a small and the real default
+bend radius (category b) — the exact afs-fl-023 bug class (an edge mesh
+spanning most of the profile instead of one hairline thickness) did not
+reproduce anywhere. `startCapMesh`/`endCapMesh` are the two flat Z-axis end
+caps of the 1-linear-foot extrusion (looking at the cut end of the piece,
+not a profile-fold "free tip" at all) — full cross-section footprint, zero
+Z-thickness; these exist identically in the un-painted `ExtrudeGeometry`
+branch too (auto-generated there instead of manually built), so they can't
+be the paint-exclusive defect Reid confirmed narrowing to, and are a
+legitimate third mesh category the task's two-category list didn't name.
+Paint-color assignment was also checked directly (not just geometry): only
+one of `outerMesh`/`innerMesh` ever carries `paintColor` at a time, the
+other five meshes stay bare — the afs-fl-022 "both faces painted"
+regression has not recurred either.
+
+**Conclusion — stated plainly per this document's own verification
+standard, not a hopeful summary.** This pass could not reproduce the
+reported artifact in any of 6 real, independently-constructed profiles (72
+individual real mesh records) covering both required leg counts, both
+paint faces, a deliberately narrow/sharp stress case, a hemmed-tip
+interaction case, and the closest reconstruction available of afs-fl-023's
+own original repro shape at its real default fillet radius. No code change
+was made this pass — the file is byte-identical to the afs-fl-023 commit
+(`e410746`) at diff time — because there was no confirmed defect to fix,
+and per this project's own stated standard, a plausible-sounding but
+unverified change would be exactly the failure mode afs-fl-018/afs-fl-022's
+own passes are already documented above as having made. **What would move
+this forward:** a screenshot or exact bend/hem/color values from the
+specific profile Reid is currently seeing the artifact on, or confirmation
+that the browser/dev-server session he tested in was rebuilt/hard-refreshed
+after `e410746` landed — this pass cannot rule out a stale build being what
+was actually observed, only that the current source produces none of the
+above.
+
+---
+
 ## VERIFIED THIS PASS (2026-08-27, afs-fl-023)
 
 ```

@@ -24,6 +24,68 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## FLASHDRAFT 3D VIEWER: afs-fl-025 -- COULD NOT REPRODUCE, BOTH TIPS NOW VERIFIED (2026-08-27)
+
+Fourth reported `ProfileViewer3D` paint-face failure in one night. Reid's
+report explicitly named the exact gap in afs-fl-023's own verification:
+that pass's completion report described checking "a hairline cap at leg
+A's free tip" — one tip, of two — and Reid said the closing artifact was
+still present after that fix shipped.
+
+**What afs-fl-023's verification actually missed, stated plainly (the task
+asked for this explicitly).** The *fix itself* (`buildRibbonOutline`
+reversing a copy of `inner` instead of mutating it in place) was not
+one-tip-specific — it corrected the shared `outer`/`inner` index alignment
+that both `startEdgeGeom` (tip 1) and `endEdgeGeom` (tip 2) read from, so
+the repair was symmetric even though the verification narrative that
+shipped with it wasn't. What was actually missing was *evidence*, not
+*coverage*: afs-fl-023's own before/after mesh dump (`.repro-afs-fl-023/`)
+only exercised one profile shape once, so there was no recorded proof the
+second tip, a second leg count, or a second paint face were ever actually
+checked — only that they should theoretically be fine by construction.
+That gap is exactly why this pass's own standard (below) was to dump real
+data for every combination rather than trust the math.
+
+**This pass's verification, structured specifically to not repeat that
+gap:** built a temporary `window.__PV3D_DEBUG__` scene-dump hook (deleted
+before this entry — no debug code committed, same discipline afs-fl-023
+used), then drove the real `/studio/draft` -> Submit Confirmation flow
+against a real `pnpm dev` server with Playwright for **six** independently-
+constructed real profiles (not one) -- a 2-leg open V, a 3-leg U-channel
+coping-cap shape, a tight sharp 3-leg hook stress case, the 2-leg profile
+with a real hem added at one tip, a reconstruction of afs-fl-023's own
+original reported shape at the real default 0.5in bend radius, and the
+3-leg shape at that same real default radius -- each at **both** paintFace
+values. That's 12 live scene loads, 6 real meshes dumped by name/vertex
+count/bbox/material-color each = 72 individual real mesh records, not a
+single before/after screenshot pair. Full data table is in
+STATE_OF_THE_BUILD.md's afs-fl-025 entry.
+
+**Result: no reproduction.** Every mesh in every one of the 72 records
+classified cleanly — `outerMesh`/`innerMesh` full-rail-length face color,
+`startEdgeMesh`/`endEdgeMesh` hairline (0-0.61mm) at both genuine free
+tips in both leg counts and both paint faces, the afs-fl-022 "both faces
+painted" regression also re-checked directly via material color and not
+present. `startCapMesh`/`endCapMesh` (the flat Z-axis end caps of the
+1-foot extrusion — a different thing entirely from a profile-fold "free
+tip") are real and necessary, exist identically in the un-painted branch's
+auto-generated `ExtrudeGeometry` caps, and so cannot be the paint-exclusive
+defect Reid confirmed narrowing to.
+
+**No code was changed this pass.** `components/studio/ProfileViewer3D.tsx`
+is byte-identical to the afs-fl-023 commit (`e410746`). Per this project's
+own verification standard at the top of this file, shipping a
+plausible-sounding change against no confirmed repro would be the exact
+mistake afs-fl-018 and afs-fl-022 already made. **Not fixed, not
+committed, held open** — this needs either a screenshot / exact
+bend-angle-and-hem values from Reid's actual current profile, or
+confirmation his test session was rebuilt/hard-refreshed after `e410746`
+landed (a stale dev server or cached build is the leading unruled-out
+explanation for a reported symptom this session's real data could not
+reproduce anywhere).
+
+---
+
 ## FLASHDRAFT 3D VIEWER: PHANTOM CLOSING FACE ON OPEN PROFILES (afs-fl-023) — 2026-08-27
 
 Third reported `components/studio/ProfileViewer3D.tsx` failure in one
