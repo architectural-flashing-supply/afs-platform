@@ -3029,7 +3029,25 @@ export default function FlashDraftPage() {
   }
 
   return (
-    <main className="h-[calc(100vh-56px)] bg-afs-bg-base flex flex-col overflow-hidden">
+    // afs-fl-026 mobile fix (partial — see STATE_OF_THE_BUILD.md): the prior
+    // fixed-height + overflow-hidden shell below (still exact/unchanged at
+    // lg+) gave a narrow viewport NO way to scroll at all, which is also why
+    // the canvas panel was being squeezed to ~76px tall on a 375px-wide
+    // screen (see the min-h-[400px] comment below) — a real, separate bug
+    // from the chat-trigger overlap, on top of it. Below `lg`, this page can
+    // now scroll like the rest of the site (`min-h` instead of a hard `h`,
+    // `overflow-visible` instead of `overflow-hidden`). This does NOT, by
+    // itself, eliminate the site-wide chat trigger's overlap with the
+    // sidebar's Save/Clear/Load row flagged in afs-fl-026's second
+    // verification pass — that row's rendered position is unchanged by this
+    // fix (confirmed live: still overlaps at the default/top scroll
+    // position). Reordering the canvas/sidebar was tried and rejected: it
+    // only relocated the same collision onto the Material/Gauge selects
+    // instead, which are used earlier and more often. Eliminating the
+    // overlap entirely needs either a page-specific accommodation in the
+    // shared ChatWidget trigger or a deliberate mobile redesign of this
+    // sidebar — a design call, not something to guess at here.
+    <main className="min-h-[calc(100vh-56px)] lg:h-[calc(100vh-56px)] bg-afs-bg-base flex flex-col overflow-visible lg:overflow-hidden">
       <div className="px-6 py-1 border-b border-afs-chrome-dim flex items-center gap-4 shrink-0">
         <div className="flex items-baseline gap-2">
           <span className="font-label text-afs-crimson text-[10px] tracking-widest uppercase">FlashDraft</span>
@@ -3098,7 +3116,7 @@ export default function FlashDraftPage() {
         </p>
       </div>
 
-      <div className="flex-1 flex flex-col lg:flex-row gap-4 pt-4 px-4 min-h-0">
+      <div className="flex-1 flex flex-col lg:flex-row gap-4 pt-4 px-4 pb-4 lg:pb-0 min-h-0">
         {/* LEFT PANEL */}
         <div className="w-full lg:w-[320px] lg:shrink-0 bg-afs-bg-raised border border-afs-chrome-dim rounded p-3.5 flex flex-col gap-2.5 overflow-y-auto">
           <div className="grid grid-cols-2 gap-3">
@@ -3456,7 +3474,14 @@ export default function FlashDraftPage() {
         </div>
 
         {/* RIGHT PANEL — CANVAS (+ Part 6 split-screen match panel) */}
-        <div className="flex-1 min-w-0 flex flex-col min-h-0">
+        {/* min-h-[400px]: on mobile the row above no longer sits in a fixed-
+            height/overflow-hidden shell (see the `main` comment above), so
+            this flex-1 child would otherwise collapse toward 0 once the
+            sidebar's own natural content height exceeds the viewport —
+            reproduced live at 375px where the canvas measured 76px tall
+            before this fix. A real minimum keeps the canvas usable instead
+            of being squeezed away. Unchanged at lg+ (min-h-0, as before). */}
+        <div className="flex-1 min-w-0 flex flex-col min-h-[400px] lg:min-h-0">
           <div className="flex-1 min-h-0 flex overflow-hidden rounded border border-afs-chrome-dim metal-edge bg-afs-bg-raised">
             <div
               ref={canvasWrapRef}

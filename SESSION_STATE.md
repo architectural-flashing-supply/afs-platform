@@ -24,6 +24,62 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## FLASHDRAFT UI POLISH: afs-fl-026 -- THIRD PASS, MOBILE CANVAS BUG FIXED, CHAT OVERLAP STILL OPEN (2026-08-28)
+
+Same task prompt as the two entries below, run a third time. Checked git
+log first: all six items were already committed (`2e553b5`) and
+independently re-verified live by a second session (`683ed58`) before this
+one started, so nothing about those six was redone — re-verifying identical,
+unchanged code a third time would have been waste, not rigor. This session's
+actual work was narrower: investigate and root-cause the one item the
+second pass left flagged (chat trigger overlapping the mobile sidebar
+footer), per this task's own "root cause only, no workarounds" framing.
+
+**Found a real, separate, previously-undocumented bug while investigating**
+— live Playwright measurement (temporary script, deleted, not committed)
+showed FlashDraft's canvas rendering at just 76px tall on a 375px-wide
+viewport, because the sidebar (stacked full-width above it on mobile) took
+its whole natural ~525px height inside a fixed, non-scrolling
+`h-[calc(100vh-56px)] overflow-hidden` shell, leaving almost nothing for the
+canvas — unusable for drawing, independent of the chat widget entirely.
+Fixed in `app/studio/draft/page.tsx`: below `lg` only, `main` changed from a
+hard height + `overflow-hidden` to `min-h-[calc(100vh-56px)]` +
+`overflow-visible` (page scrolls normally now, like every other page on the
+site), and the canvas panel got `min-h-[400px] lg:min-h-0`. Desktop (`lg+`)
+classes are byte-for-byte unchanged and re-confirmed live (sidebar
+`scrollHeight === clientHeight`, toolbar still right-aligned, 3D button
+still permanently red with the ring indicator). `pnpm tsc --noEmit` — 0
+errors.
+
+**Did not fix the chat-trigger overlap itself — tried one approach, it made
+things worse, reverted it, documented why instead of shipping a partial
+fix silently.** The sidebar's footer row (Save Draft/Clear/Load, Submit)
+still overlaps the trigger's fixed footprint at the default scroll
+position, unchanged from the second pass's finding — the canvas-height fix
+above doesn't touch the sidebar's own size or position. Tried reordering
+canvas above sidebar on mobile via CSS `order`: this DID clear the footer
+row, but pushed the Material/Gauge selects (rendered first once reordered)
+into the identical collision instead — worse, since those are needed
+immediately, not just at save/clear time. Reverted that reorder. Also
+considered reordering fields within the sidebar so the footer isn't last,
+but that would contradict the exact field order specified in this task
+(Material, Gauge, Length, Quantity, Notes, paint-face toggle, Submit —
+Submit last) — rejected without trying. Conclusion: the sidebar's own
+content (~525px, full width) is taller than the trigger's 192px band, so
+some part of it collides with the trigger's fixed screen position wherever
+it's placed in the document — no in-page rearrangement clears it without
+relocating the same problem onto different (often more critical) controls.
+Left unresolved, flagged for Reid same as the second pass, now with
+concrete before/after evidence that a layout-only fix isn't sufficient —
+see STATE_OF_THE_BUILD.md for the full writeup and the two real remaining
+options (a page-specific ChatWidget accommodation, or an intentional mobile
+sidebar redesign).
+
+No other code touched this session — the other five items and their
+verification stand exactly as the second pass (below) documented them.
+
+---
+
 ## FLASHDRAFT UI POLISH: afs-fl-026 -- IMPLEMENTED, UNCONFIRMED (2026-08-28)
 
 Six scoped UI/UX changes: 3D auto-fit camera, lighter 3D background, chat

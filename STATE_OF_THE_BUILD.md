@@ -34,6 +34,76 @@ summary, not a replacement for it.
 
 ---
 
+## FLASHDRAFT UI POLISH: afs-fl-026 THIRD PASS -- MOBILE CANVAS BUG FIXED, CHAT-TRIGGER OVERLAP STILL UNRESOLVED (2026-08-28)
+
+Third session on the same afs-fl-026 task (identical prompt to the two
+prior passes below). All six original items were already committed
+(`2e553b5`) and independently re-verified live (`683ed58`) before this
+session started — nothing about those six was redone here. This session's
+only real work: investigating the one flagged regression from the second
+pass (site-wide chat trigger overlapping FlashDraft's mobile sidebar
+footer) and root-causing it, per this session's own "root cause only, no
+workarounds" instruction.
+
+**Found a second, separate, previously-undocumented bug while
+investigating: the mobile canvas was unusable, independent of the chat
+widget.** At a 375x812 viewport, `app/studio/draft/page.tsx`'s `<main>` was
+`h-[calc(100vh-56px)] overflow-hidden` (still is, at `lg+`) — a fixed-height,
+non-scrolling shell. Below `lg`, the sidebar (full width, stacked above the
+canvas) took its full natural content height (~525px) because nothing
+constrained it, leaving the canvas panel exactly 76px tall (confirmed via
+`getBoundingClientRect`) — not a usable drawing surface on any phone, with
+or without the chat trigger. **Fixed:** below `lg`, `main` is now
+`min-h-[calc(100vh-56px)] overflow-visible` instead of a hard height with
+clipping (unchanged at `lg+`), and the canvas panel now carries
+`min-h-[400px] lg:min-h-0`. The mobile page now scrolls normally (like the
+homepage) and the canvas renders at a real, usable size instead of being
+silently squeezed away. `pnpm tsc --noEmit` — 0 errors. Confirmed live via
+a temporary Playwright script (deleted after use, not committed): canvas
+height 76px -> 400px+ at 375px width; `main`'s rendered height grows from a
+fixed 756px to 1096px (page genuinely scrolls); desktop (1440x900)
+unchanged in every measurement re-checked (sidebar `scrollHeight ===
+clientHeight` still 736/736, sidebar still left of canvas, toolbar still
+right-aligned, 3D button still permanently `bg-afs-crimson` with the ring
+indicator on whichever button is active).
+
+**The originally-flagged chat-trigger overlap itself is NOT fixed by this
+change, and a second approach was tried and rejected — flagging this
+plainly rather than claiming it's resolved.** The sidebar's own footer row
+(Save Draft / Clear / Load, plus Submit for Quote) renders at the same
+absolute position on screen regardless of the canvas-height fix above
+(that fix only affects the canvas, not the sidebar's own height or
+starting position), so it still measures as overlapping the chat trigger's
+fixed 192x192 footprint at the default (top) scroll position — identical to
+what the second pass found. Reordering the canvas to render above the
+sidebar on mobile (via CSS `order`) was tried live: it does move the
+Save/Clear/Load row out from under the trigger, but pushes the sidebar's
+*first* row (Material/Gauge selects) into the exact same collision instead
+— confirmed via the same bounding-box method. That trade made things worse.
+Reordering fields *within* the sidebar to put the footer first was also
+considered and rejected: it would contradict the field order Reid specified
+in this task itself (Material, Gauge, Length, Quantity, Notes, paint-face
+toggle, Submit — Submit last). No in-page rearrangement was found that
+clears the trigger's footprint without relocating the same problem onto
+different, often more-critical controls, because the sidebar's own content
+(~525px) is taller than the trigger's 192px band and spans its full width —
+some part of it will coincide with the trigger's fixed screen position at
+some default scroll offset no matter where in the document it's placed.
+**This still needs the same design decision the second pass already
+flagged** — genuinely resolving it requires either a page-specific
+accommodation in the shared `ChatWidget` trigger (e.g. hiding/shrinking it
+specifically on `/studio/draft` at narrow widths) or a deliberate,
+intentional mobile redesign of this sidebar (e.g. collapsing the footer
+buttons into a menu) — not a padding/reorder trick layered on top of the
+existing layout. Left unresolved on purpose, same as the prior pass, now
+with concrete evidence for *why* a code-only nudge doesn't fully solve it.
+
+No other application code changed this session. See the two prior passes
+below for the full six-item breakdown and live-verification detail — this
+entry only supersedes their item-3 status.
+
+---
+
 ## FLASHDRAFT UI POLISH: IMPLEMENTED, UNCONFIRMED -- ONE CONFIRMED REGRESSION FOUND (2026-08-28, afs-fl-026)
 
 Six scoped UI/UX changes to FlashDraft (`app/studio/draft/page.tsx`,
