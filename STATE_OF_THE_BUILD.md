@@ -34,6 +34,23 @@ summary, not a replacement for it.
 
 ---
 
+## VERIFIED THIS PASS (2026-08-27, afs-fl-023)
+
+```
+pnpm tsc --noEmit                  0 errors. Exit code 0.
+```
+
+`pnpm build` was not re-run this pass (not requested; the task's own
+mandatory-verification requirement was a live root-cause repro plus a
+visual before/after comparison, done below, not a production build).
+Third reported `ProfileViewer3D` paint-face/geometry failure in one night
+(afs-fl-018 -> afs-fl-022 -> afs-fl-023) — see the afs-fl-023 entry below
+for what this pass did differently in its own verification process, given
+the first two both self-reported "confirmed fixed via live Playwright
+verification" and were later found still broken.
+
+---
+
 ## VERIFIED THIS PASS (2026-08-27, afs-fl-024)
 
 ```
@@ -243,6 +260,113 @@ pnpm tsc --noEmit                  0 errors. Exit code 0.
 confirmation of the visual behavior yet — see the "Not confirmed" note
 under afs-fl-015 below. Held as IMPLEMENTED, UNCONFIRMED per this file's
 verification standard.
+
+---
+
+## FLASHDRAFT 3D VIEWER: PHANTOM CLOSING FACE ON OPEN PROFILES FIXED (afs-fl-023): IMPLEMENTED, UNCONFIRMED — 2026-08-27
+
+Third reported `components/studio/ProfileViewer3D.tsx` paint-face/geometry
+failure in one night (afs-fl-018 -> afs-fl-022 -> afs-fl-023). New bug,
+same file, different root cause than either prior fix.
+
+**What Reid reported:** a simple real profile (two straight legs, ~6 13/16"
+and ~7", rising from a shared bottom vertex at a ~99-102° interior angle,
+both leg tops genuinely free/open — a 3-point open polyline, no hems, Kynar
+500 painted steel) rendered in the Submit Confirmation 3D modal with an
+extra flat plane bridging across the open top, visually connecting the two
+free leg tips as if the shape were a closed loop — physically wrong for a
+folded sheet-metal profile, none of which are closed tubes/boxes.
+
+**Why this pass's verification is written up differently than
+afs-fl-018/afs-fl-022's.** Both prior fixes to this same file reported
+"confirmed fixed via live Playwright verification" and were later found,
+by Reid, still broken — afs-fl-022 was itself a regression introduced by
+afs-fl-018's own "confirmed" fix. Re-reading both prior write-ups (still
+below, unmodified) against that outcome, the actual failure wasn't a
+missing verification step — both passes DID run Playwright against a real
+dev server and DID take real screenshots. **The failure was scope:** both
+prior passes verified the paint-color boundary (does the fold line between
+painted/bare faces look clean, does a color leak across it) because that
+was the specific symptom reported each time — neither pass independently
+re-derived the actual 3D geometry from first principles (bounding boxes,
+vertex coordinates, per-mesh triangle data) to check for defects outside
+the specific symptom being chased. A visually "clean-looking" screenshot at
+one rotation angle was treated as sufficient; it wasn't checked against the
+underlying mesh data, and a different, unrelated defect (this one) was
+already latent in the same function neither prior pass had reason to
+inspect.
+
+**What this pass did differently, specifically to avoid repeating that:**
+1. Reproduced the exact reported shape as a real `AutosaveState` injected
+   into `localStorage['afs-flashdraft-autosave']` before loading
+   `/studio/draft` against a running `pnpm dev` server — Playwright driving
+   the real page, real component, not a synthetic test harness — so the
+   real `bendAngleAt`/`computeProfilePoints`/`buildRibbonOutline` code path
+   ran unmodified, not a hand-approximation of it.
+2. Added a temporary debug hook (`window.__PV3D_DEBUG__`, removed before
+   this commit — see `git show` for the final diff, it contains no debug
+   code) that dumped every mesh's actual vertex positions and bounding box
+   out of the live `THREE.Scene`, not just a rendered pixel screenshot.
+   This is what actually found the bug: `startEdgeMesh`/`endEdgeMesh` (the
+   two small end-cap strips meant to cap a single free tip's sheet
+   thickness) had a measured width of **225mm** — should be ~0.6mm,
+   matching material thickness. A pixel screenshot alone would have shown
+   "a plane where there shouldn't be one" without pinpointing which mesh or
+   why; the raw vertex data pinpointed the exact corrupted array.
+3. Traced that 225mm span to `buildRibbonOutline`'s `return { outline:
+   [...outer, ...inner.reverse()], outer, inner }` —
+   `Array.prototype.reverse()` mutates its receiver in place, so reversing
+   `inner` to build the closed `outline` loop also silently reversed the
+   separately-returned `inner` field itself. `outer[i]`/`inner[i]` are
+   supposed to be the same cross-section point offset in opposite
+   directions (index-aligned); after the mutation, `outer` stayed in
+   forward (leg-A-tip -> leg-B-tip) order while `inner` was silently in
+   reversed (leg-B-tip -> leg-A-tip) order. `startEdgeGeom = [outer[0],
+   inner[0]]` — meant to pair "leg A's outer offset" with "leg A's inner
+   offset" — actually paired "leg A's outer offset" with "leg B's inner
+   offset," producing a quad spanning the entire open shape instead of a
+   hairline cap. `endEdgeGeom` had the mirrored version of the same bug.
+   This bug is specific to the paint-face branch (`outerWallGeom`/
+   `innerWallGeom`/`startEdgeGeom`/`endEdgeGeom`, all added in afs-fl-022);
+   the non-painted `else` branch only ever consumes the (correctly built)
+   `outline`/`shape`, never the separately-returned `outer`/`inner`
+   fields, so it was never affected.
+4. **Before/after visual confirmation, both under identical static camera
+   conditions** — not a rotating/settling shot. `ROTATE_DURATION_MS`
+   (`lib/utils/paint-appearance.ts`) auto-rotates the camera for 10s on
+   modal open; screenshots taken mid-rotation are not a fair before/after
+   comparison (a rotating camera can make two different bugs, or a bug and
+   no-bug, look superficially similar). This pass waited out the full 10.8s
+   auto-rotate window before every comparison screenshot, then captured the
+   same shape from the same End and Top camera presets with the bug present
+   (temporarily reverted) and with the fix applied. The End-view before
+   screenshot shows a visible diagonal gray plane cutting across the open
+   V's interior from near the bottom vertex toward the upper-left leg tip —
+   exactly Reid's "extra flat plane bridging across the top" description.
+   The Top-view before screenshot shows the entire cross-section filled
+   with a uniform gray plane spanning the full width. Both artifacts are
+   completely absent from the after screenshots, which show a clean open V
+   in both views, matching the source 2D drawing exactly. Screenshots were
+   saved locally for this session's review (not committed — this is a
+   generated-artifact, not application state).
+
+**Fix:** `buildRibbonOutline` now reverses a copy
+(`[...inner].reverse()`) when building the closed `outline` loop, leaving
+the returned `outer`/`inner` fields correctly index-aligned. One function,
+one file, `components/studio/ProfileViewer3D.tsx` — ribbon-offset geometry
+is a different piece of code than the bend-sequence reconstruction
+algorithm `GEOMETRY_AUDIT.md` already audited for duplication, and does not
+appear in `BendSequenceDiagram.tsx`, which never builds a ribbon (it draws
+a stroked SVG centerline, not a thickness-aware solid).
+
+**Gates:** `pnpm tsc --noEmit` — 0 errors. `pnpm build` not re-run this
+pass (not requested).
+
+**Not confirmed — held to this project's stated verification standard:** no
+live Reid walkthrough of the real `/studio/draft` Submit Confirmation flow
+with this exact profile yet. Given this file's specific history (three
+reported failures in one night), the bar here is Reid's own eyes on the
+real flow, not another session's screenshot claim.
 
 ---
 

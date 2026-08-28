@@ -24,6 +24,131 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## FLASHDRAFT 3D VIEWER: PHANTOM CLOSING FACE ON OPEN PROFILES (afs-fl-023) — 2026-08-27
+
+Third reported `components/studio/ProfileViewer3D.tsx` failure in one
+night (afs-fl-018 -> afs-fl-022 -> afs-fl-023), and the task that finally
+prompted an honest look at *why* the first two "confirmed fixed" claims
+didn't hold up. Recorded here in full because the process matters as much
+as the fix, per the task's explicit instruction.
+
+**The bug:** Reid drew a real 3-point open profile (two legs, ~6 13/16"
+and ~7", meeting at one bottom vertex, ~99-102° interior angle, both leg
+tops genuinely free — no hems — Kynar 500 painted steel). The Submit
+Confirmation 3D view rendered an extra flat plane bridging across the open
+top, connecting the two free leg tips as if the shape were closed. Real
+flashing profiles are never closed tubes/boxes; this was physically wrong.
+
+**What went wrong in afs-fl-018 and afs-fl-022's verification — stated
+plainly, since the task asked for this explicitly.** Both of those passes
+really did run Playwright against a real `pnpm dev` server, really did
+load real painted profiles through the real Submit Confirmation flow, and
+really did take real screenshots — this was not a fabricated verification
+claim either time. The actual gap was **scope, not rigor**: both passes
+verified exactly the symptom that had been reported to them (a paint-color
+boundary looking clean across several rotation angles) and stopped there.
+Neither pass pulled the actual `THREE.Scene` mesh data — vertex positions,
+bounding boxes, per-mesh geometry — to check the underlying construction
+independent of how it happened to render at whatever angles were checked.
+afs-fl-022's fix (replacing a single coincident decal surface with six
+separate, non-coincident meshes: `outerWallGeom`, `innerWallGeom`,
+`startEdgeGeom`, `endEdgeGeom`, `startCapGeom`, `endCapGeom`) was real
+architectural progress on the bug it was aimed at — but it introduced this
+new bug in the same commit, in the same function, and nothing about either
+pass's verification method would have caught it, because it doesn't
+manifest as a paint-color boundary problem at all. A "screenshot looks
+clean" check is fundamentally weaker than "the actual mesh geometry is
+what it should be" — this pass treated that as the standard to meet, not
+just a nice-to-have.
+
+**Diagnosis, in order, before any code was touched:**
+1. Reproduced the *exact* reported shape for real — not an approximation.
+   `app/studio/draft/page.tsx`'s existing autosave-restore mechanism
+   (`localStorage['afs-flashdraft-autosave']`, read on mount if present)
+   was used to inject a real `AutosaveState` (points, material, gauge,
+   color, `hemStart`/`hemEnd: null`) matching Reid's description exactly,
+   then loaded `/studio/draft` fresh against a running `pnpm dev` server
+   with Playwright — so every step (`bendAngleAt` -> `viewerBends` ->
+   `computeProfilePoints` -> `filletPolyline` -> `buildRibbonOutline`) ran
+   as the real unmodified app code, not a hand-written stand-in for it.
+2. Before touching the running app, hand-traced the math in a throwaway
+   Node script using the real `three` package to check whether
+   `THREE.ShapeGeometry`'s triangulation of the ribbon outline (a plausible
+   suspect — "does earcut mis-triangulate a thin non-convex ribbon
+   polygon") could be the cause. It measured out clean — total
+   triangulated cap area matched the expected thin-ribbon area almost
+   exactly, both with and without the fillet radius applied. This ruled out
+   the triangulation theory with real numbers instead of a guess, and
+   pointed at something specific to the live app's actual data rather than
+   the shape math in isolation.
+3. Added a temporary debug hook (`window.__PV3D_DEBUG__`, deleted before
+   the commit — the committed diff contains no debug code) that dumped
+   every mesh's real vertex positions and bounding box straight out of the
+   live scene graph. This is what actually surfaced the bug:
+   `startEdgeMesh`/`endEdgeMesh` — meant to be ~0.6mm hairline caps at each
+   free tip's cut edge — measured **225mm wide**, spanning nearly the
+   entire shape.
+4. Traced that to `buildRibbonOutline`'s `return { outline: [...outer,
+   ...inner.reverse()], outer, inner }` in
+   `components/studio/ProfileViewer3D.tsx`. `Array.prototype.reverse()`
+   mutates its receiver in place. Reversing `inner` to build the closed
+   `outline` loop (needed so the ribbon polygon closes correctly) also
+   silently reversed the *separately-returned* `inner` field in the same
+   object literal — a classic in-place-mutation-aliasing bug. `outer[i]`
+   and `inner[i]` are supposed to be the same cross-section point offset in
+   opposite directions (index-aligned); after the mutation, `outer` stayed
+   in forward order (leg-A-tip -> leg-B-tip) while `inner` was silently
+   reversed (leg-B-tip -> leg-A-tip). `startEdgeGeom = [outer[0],
+   inner[0]]` — meant to pair leg A's outer offset with leg A's own inner
+   offset — actually paired leg A's outer offset with leg B's inner offset,
+   producing a quad spanning the whole open shape instead of a hairline
+   cap; `endEdgeGeom` had the mirrored version of the same bug. This is
+   specific to afs-fl-022's paint-face branch (the only code that consumes
+   the separately-returned `outer`/`inner` fields); the non-painted `else`
+   branch only ever uses the correctly-built `outline`/`shape`, so it was
+   never affected — consistent with the bug only being reported for a
+   painted profile.
+
+**Fix:** one line changed in `buildRibbonOutline` — reverse a copy
+(`[...inner].reverse()`) for the closed `outline` loop, leaving the
+returned `outer`/`inner` fields index-aligned as every caller assumes.
+
+**Verification — before/after, both under identical static camera
+conditions, not a rotating shot.** `ROTATE_DURATION_MS`
+(`lib/utils/paint-appearance.ts`) auto-rotates the modal's camera for 10s
+on open; a screenshot taken mid-rotation is not a fair comparison, since a
+rotating camera can make two different states look superficially similar.
+This pass waited out the full 10.8s auto-rotate window before every
+comparison screenshot. With the bug temporarily reverted, the End-camera
+screenshot shows a visible diagonal gray plane cutting across the open V's
+interior from near the bottom vertex toward the upper-left leg tip —
+matching Reid's "flat plane bridging across the top" description exactly —
+and the Top-camera screenshot shows the entire cross-section filled with a
+uniform gray plane spanning the full width. With the fix applied, both
+artifacts are completely gone in the same two camera angles: a clean open
+V matching the source 2D drawing, with the correct painted/bare face split
+visible on each leg and no bridging geometry anywhere. The raw mesh data
+was also re-checked numerically after the fix: `startEdgeMesh`/
+`endEdgeMesh` width dropped from 225mm to 0.61mm, matching the profile's
+actual material thickness. Screenshots and the scene-graph JSON dump were
+kept locally for this session's own review, not committed (generated
+diagnostic artifacts, not application state).
+
+**Gates:** `pnpm tsc --noEmit` — 0 errors. `pnpm build` not re-run this
+pass (not requested).
+
+**Not confirmed — held to this project's own stated verification
+standard, doubly so here.** No live Reid walkthrough of the real
+`/studio/draft` Submit Confirmation flow with this exact profile yet.
+Given this is the third reported failure on this same file in one night,
+and the first two were each reported "confirmed" and weren't, this entry
+is explicit that the evidence above is this session's own diagnostic work
+— real, reproducible, numerically checked against the live scene graph —
+and still not a substitute for Reid independently viewing the real flow
+himself.
+
+---
+
 ## TEXAS BUILDING-CODE JURISDICTION DIRECTORY — ALL 254 COUNTIES + 226 CITIES (afs-fl-024) — 2026-08-27
 
 First step of a nationwide building-code reference directory (Reid's
