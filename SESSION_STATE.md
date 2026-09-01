@@ -24,6 +24,46 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## SUBMIT CONFIRMATION 3D MODAL: afs-fl-028 -- CLIPPED HEADER, BACK NAV, BROWSER BACK BUTTON (2026-09-01)
+
+Root-cause-only task, three related reports in
+`SubmitConfirmation3DModal.tsx` (opens from "Submit for Quote" on
+`/studio/draft`). Diagnosed each live with a temporary Playwright script
+(deleted after use, not committed) against both the dev server and the
+production build, not assumed from code reading. `pnpm tsc --noEmit` — 0
+errors. `pnpm run build` — succeeds. Full detail in
+STATE_OF_THE_BUILD.md's afs-fl-028 entry; summary:
+
+1. **Clipped header** — real bug, but not the z-index/afs-fl-026/027
+   interaction the task asked me to check first: it was the modal's own
+   box (~684px of fixed content, including a hardcoded 500px 3D canvas)
+   having no `max-height`/scroll handling, so any viewport under ~730px
+   tall clipped both the header and the buttons off-screen with no way to
+   scroll to them. Confirmed the chat trigger and FlashDraft toolbar don't
+   actually intersect this. Fixed with `max-h-[90vh] overflow-y-auto` on
+   the modal box.
+2. **"Go back and edit"** — confirmed live it already existed and worked;
+   it was just unreachable on short viewports because of bug #1. Fixing #1
+   restored it. Did not add a second back control — checked first per the
+   task's instruction, and no real gap remained.
+3. **Browser back button** — was exiting to whatever page preceded
+   `/studio/draft` because the modal was conditionally mounted and never
+   pushed history state. Reused ColorPickerModal.tsx's/VariantPicker.tsx's
+   already-proven always-mounted, `isOpen`-gated history push/popstate
+   pattern (no new logic), including the specific shape that avoids the
+   React Strict Mode double-invoke race VariantPicker's own doc comment
+   describes. Verified live with `page.goBack()`: returns to
+   `/studio/draft` itself with the modal closed and the same drawn profile
+   still on the FlashDraft 2D canvas underneath (not a fresh page, not the
+   `/studio` hub).
+
+Marked **IMPLEMENTED, UNCONFIRMED** in STATE_OF_THE_BUILD.md per this
+project's verification standard — this session's own Playwright evidence
+(dev + prod builds) is not a substitute for the user independently checking
+the actual behavior.
+
+---
+
 ## CHAT WIDGET RESIZE: afs-fl-027 -- 192px -> 115px, FLASHDRAFT MOBILE OVERLAP IMPROVED, NOT RESOLVED (2026-09-01)
 
 Root-cause-only task, one change: `components/ai/ChatWidget.tsx`'s

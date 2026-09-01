@@ -34,6 +34,71 @@ summary, not a replacement for it.
 
 ---
 
+## SUBMIT CONFIRMATION 3D MODAL: afs-fl-028 -- CLIPPED HEADER, BACK NAVIGATION, BROWSER BACK BUTTON -- IMPLEMENTED, UNCONFIRMED (2026-09-01)
+
+Root-cause-only task covering three related reports in
+`components/studio/SubmitConfirmation3DModal.tsx` (opens from "Submit for
+Quote" on `/studio/draft`). `pnpm tsc --noEmit` — 0 errors. `pnpm run
+build` — succeeds. Two files changed: `SubmitConfirmation3DModal.tsx` and
+`app/studio/draft/page.tsx`.
+
+**1. Clipped header text — diagnosed live, root cause confirmed, fixed.**
+Live Playwright measurement at 1440x900 first showed the header rendering
+correctly — the initial "cut off" read on a scaled-down screenshot was a
+compression artifact, not a real bug at that size. Testing shorter viewport
+heights (a real-world laptop scenario, not a contrived one) reproduced it
+cleanly: at 620–680px tall, the modal's own box (~684px of fixed content —
+padding + header + a hardcoded 500px-tall 3D canvas + buttons) exceeded the
+viewport, and the box had no `max-height`/scroll handling, only `flex
+items-center justify-center` — so it overflowed equally off both the top
+(clipping the header) and bottom (clipping the buttons) edges with no way to
+scroll to either. **Confirmed unrelated to afs-fl-026/027**: the chat
+trigger (`z-index: 99999`, bottom-right) and the FlashDraft toolbar (`z-20`
+at most, behind the modal's `z-50` overlay) don't intersect this — the
+modal's own missing overflow handling is the sole cause. Fix: added
+`max-h-[90vh] overflow-y-auto` to the modal box. Re-verified live at
+620–680px — header and buttons both fully visible/reachable, scrolling
+within the box when needed.
+
+**2. Back navigation within the modal — confirmed pre-existing, not missing.**
+"Go back and edit" already existed and worked before this session; it was
+only unreachable on short viewports because of the #1 overflow bug. Fixing
+#1 restored full reachability — verified live (scrolled to it, clicked it,
+modal closed). No second/redundant back control was added, per the task's
+explicit instruction not to build one unless a real gap remained after the
+overflow fix — it didn't.
+
+**3. Browser back button now closes the modal instead of exiting the page.**
+Root cause: the modal was conditionally mounted in the parent
+(`{show3DConfirm && <SubmitConfirmation3DModal .../>}`), so it never pushed
+any history state — the OS/browser Back button fell through to whatever
+page actually preceded `/studio/draft`. Fixed by adopting the same
+always-mounted, `isOpen`-gated history push/popstate pattern already proven
+in `components/quote/ColorPickerModal.tsx` and
+`components/studio/VariantPicker.tsx` (no new logic invented), including
+the always-mounted shape that specifically avoids the React Strict Mode
+double-invoke race VariantPicker's own doc comment describes (an async
+`history.back()` from a first mount's cleanup racing a second mount's fresh
+`popstate` listener). Verified live: opened the modal, pressed the browser
+Back button, and confirmed via `page.url()` that it returned to
+`/studio/draft` itself (not `/studio`, the hub) with the modal closed and
+the FlashDraft 2D canvas underneath fully intact — the drawn profile
+(`Bend Count: 1`) was still present, confirming this is the same draft
+session, not a fresh page load. Re-ran this same check against the
+production build (`pnpm run build` + `pnpm start`), not dev server alone.
+Also verified the modal does not self-close from the Strict Mode
+double-invoke race (stayed open 1s after opening, dev server, Strict Mode
+on by Next.js default).
+
+**Status: IMPLEMENTED, UNCONFIRMED per this file's verification standard.**
+All three fixes are backed by this session's own live Playwright evidence
+(dev and prod builds) — real `getBoundingClientRect()` measurements and a
+real `page.goBack()` navigation test, not code-pattern inference alone. Per
+the standard above, that is evidence for the user to check, not a
+substitute for the user's own confirmation.
+
+---
+
 ## CHAT WIDGET RESIZE: afs-fl-027 -- 192px REDUCED TO 115px, FLASHDRAFT MOBILE OVERLAP IMPROVED BUT NOT RESOLVED (2026-09-01)
 
 Root-cause-only follow-up to afs-fl-026's third pass (below), which left the
