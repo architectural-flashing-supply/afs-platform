@@ -4014,21 +4014,23 @@ export default function FlashDraftPage() {
         </div>
       )}
 
-      {show3DConfirm && (
-        <SubmitConfirmation3DModal
-          bends={viewerBends}
-          blankWidthMm={viewerBlankWidthMm}
-          material={material}
-          gauge={gauge}
-          thicknessMm={gaugeToThicknessMm(gauge)}
-          color={color}
-          initialPaintFace={paintFace}
-          hemStart={hemStart}
-          hemEnd={hemEnd}
-          onCancel={() => setShow3DConfirm(false)}
-          onConfirm={handle3DConfirmed}
-        />
-      )}
+      {/* Always mounted, toggled via isOpen — see the doc comment on
+          SubmitConfirmation3DModal for why conditional mount/unmount here
+          would break under React Strict Mode's dev-only double-effect. */}
+      <SubmitConfirmation3DModal
+        isOpen={show3DConfirm}
+        bends={viewerBends}
+        blankWidthMm={viewerBlankWidthMm}
+        material={material}
+        gauge={gauge}
+        thicknessMm={gaugeToThicknessMm(gauge)}
+        color={color}
+        initialPaintFace={paintFace}
+        hemStart={hemStart}
+        hemEnd={hemEnd}
+        onCancel={() => setShow3DConfirm(false)}
+        onConfirm={handle3DConfirmed}
+      />
 
       {/* PART 6 — [→ View in 3D] on the split-screen match panel */}
       {showMatched3DView && matches[0] && (
