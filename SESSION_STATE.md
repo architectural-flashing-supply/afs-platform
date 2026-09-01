@@ -24,6 +24,40 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## CHAT WIDGET RESIZE: afs-fl-027 -- 192px -> 115px, FLASHDRAFT MOBILE OVERLAP IMPROVED, NOT RESOLVED (2026-09-01)
+
+Root-cause-only task, one change: `components/ai/ChatWidget.tsx`'s
+collapsed trigger `width`/`height` reduced from 192px (afs-fl-026's 3x) to
+115px (1.8x the original 64px — Reid's exact target, a 40% cut off the
+192px size). `pnpm tsc --noEmit` — 0 errors.
+
+Verified live with a temporary Playwright script (deleted, not committed),
+same method as afs-fl-026's own passes — real bounding-box measurements on
+homepage and FlashDraft, desktop (1440x900) and mobile (375x812):
+
+- Trigger measures 115x115 everywhere, confirming the resize applied
+  correctly site-wide (both pages, both viewports).
+- Homepage and FlashDraft desktop: clean, no overlap, both before and after.
+- **FlashDraft mobile 375px — the overlap afs-fl-026's second and third
+  passes both flagged and left open: improved but not resolved.** Save
+  Draft now fully clears the trigger (was covered at 192px). Clear has a
+  ~1px sliver overlap (negligible). **Load is still substantially
+  overlapped — its full height and nearly its full width sit under the
+  trigger.** Screenshot confirms the hard-hat icon visually covers the Load
+  button.
+
+Root cause is unchanged from afs-fl-026's finding: the trigger is
+fixed-position and independent of the sidebar footer's on-screen position,
+so shrinking it only reduces its footprint — it doesn't address why the two
+collide. Reporting this plainly rather than as resolved, matching how the
+prior two sessions handled the same finding. Real fix still needs one of
+the two options afs-fl-026 already identified: a FlashDraft-specific
+accommodation for the shared trigger, or a deliberate mobile redesign of
+the sidebar footer. Not attempted here per this task's explicit "no
+workarounds" scope.
+
+---
+
 ## FLASHDRAFT UI POLISH: afs-fl-026 -- THIRD PASS, MOBILE CANVAS BUG FIXED, CHAT OVERLAP STILL OPEN (2026-08-28)
 
 Same task prompt as the two entries below, run a third time. Checked git

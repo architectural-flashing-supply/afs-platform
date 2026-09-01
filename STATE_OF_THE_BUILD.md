@@ -34,6 +34,54 @@ summary, not a replacement for it.
 
 ---
 
+## CHAT WIDGET RESIZE: afs-fl-027 -- 192px REDUCED TO 115px, FLASHDRAFT MOBILE OVERLAP IMPROVED BUT NOT RESOLVED (2026-09-01)
+
+Root-cause-only follow-up to afs-fl-026's third pass (below), which left the
+site-wide chat trigger at 192px (3x its original 64px) and flagged its
+overlap with FlashDraft's mobile sidebar footer (Save Draft/Clear/Load) as
+unresolved. This session's only change: `components/ai/ChatWidget.tsx`'s
+collapsed-trigger `<button>` and `<img>` — `width`/`height` changed from
+`192px` to `115px` (1.8x the original 64px, per Reid's exact target — a 40%
+reduction off the 192px afs-fl-026 size). No other code touched.
+`pnpm tsc --noEmit` — 0 errors.
+
+**Verified live via a temporary Playwright script (deleted after use, not
+committed), matching afs-fl-026's own verification method** — real
+`getBoundingClientRect()` measurements, not visual inspection alone:
+
+- Trigger footprint on every page checked: `115x115` (confirmed homepage
+  desktop 1440x900, homepage mobile 375x812, FlashDraft desktop 1440x900,
+  FlashDraft mobile 375x812) — matches the target exactly, down from 192x192.
+- Homepage, both viewports: no overlap with any page content (hero CTAs
+  clear of the trigger at 375px).
+- FlashDraft desktop (1440x900): no overlap with Save Draft/Clear/Load —
+  unchanged from prior passes.
+- **FlashDraft mobile (375x812) — the specific overlap flagged by two prior
+  sessions: improved, not resolved.** At the default (top) scroll position,
+  trigger box `{x:236, y:673, w:115, h:115}` vs. the footer row at
+  `y:667, h:38`. Save Draft (`x:31-130`) now clears the trigger entirely (0px
+  overlap — previously covered under the 192px trigger). Clear
+  (`x:138-237`) has a 1px horizontal sliver overlap, functionally
+  negligible. **Load (`x:245-344`) still overlaps fully — 99px of its 99px
+  width and its full 38px height fall inside the trigger's footprint.**
+  Screenshot confirms the hard-hat icon visually sits on top of the Load
+  button.
+
+**Root cause, unchanged from afs-fl-026's finding:** the trigger is
+fixed-position (`bottom:24px, right:24px`) and the sidebar footer row's
+on-screen position doesn't depend on the trigger's size at all — shrinking
+the trigger only shrinks its own footprint, which happens to now clear two
+of the three buttons instead of zero, by coincidence of where the row sits
+in the current layout, not because the underlying collision was addressed.
+The same two real options identified in afs-fl-026 remain the only ways to
+fully resolve this: a page-specific FlashDraft accommodation for the shared
+trigger, or a deliberate mobile redesign of the sidebar footer. Neither
+attempted here per this session's "root cause only, no workarounds"
+instruction — reporting the real, partial-improvement state rather than
+claiming resolution.
+
+---
+
 ## FLASHDRAFT UI POLISH: afs-fl-026 THIRD PASS -- MOBILE CANVAS BUG FIXED, CHAT-TRIGGER OVERLAP STILL UNRESOLVED (2026-08-28)
 
 Third session on the same afs-fl-026 task (identical prompt to the two

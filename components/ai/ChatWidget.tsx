@@ -281,10 +281,9 @@ export default function ChatWidget() {
   if (!mounted) return null;
 
   if (!expanded) {
-    // afs-fl-026: trigger icon at 3x its prior 64px size (site-wide, per
-    // Reid) — 24px inset from the corner is kept as-is; at 192px square it
-    // still clears typical mobile viewport widths (e.g. 375px) with room to
-    // spare on both axes.
+    // afs-fl-027: trigger icon reduced from afs-fl-026's 192px (3x) to 115px
+    // (1.8x its original 64px), per Reid — 24px inset from the corner is
+    // kept as-is.
     return (
       <button
         onClick={() => setExpanded(true)}
@@ -298,15 +297,15 @@ export default function ChatWidget() {
           border: 'none',
           padding: 0,
           cursor: 'pointer',
-          width: '192px',
-          height: '192px'
+          width: '115px',
+          height: '115px'
         }}
         aria-label="Open FlashChat"
       >
         <img
           src="/chat_bubble_icon.png"
           alt="FlashChat"
-          style={{ width: '192px', height: '192px', objectFit: 'contain' }}
+          style={{ width: '115px', height: '115px', objectFit: 'contain' }}
         />
       </button>
     );
