@@ -95,16 +95,17 @@ export default function SubmitConfirmation3DModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-6">
-      <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded metal-edge p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto flex flex-col items-center gap-4">
-        <div className="text-center">
-          <p className="font-label text-afs-crimson text-xs tracking-widest uppercase mb-1">Confirm Before Submitting</p>
-          <h2 className="font-heading text-2xl text-afs-chrome-high">
-            {isPainted ? 'Please confirm your painted side' : 'Confirm Your Profile'}
-          </h2>
-        </div>
-
-        <div style={{ width: 600, maxWidth: '100%', height: 500 }} className="bg-afs-bg-dim rounded overflow-hidden">
+    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+      {/*
+       * afs-fl-029: the canvas is the primary element here, not the button
+       * row — a near-fullscreen modal with controls in a side rail (instead
+       * of the old max-w-2xl / fixed-height-500 canvas / bottom button row)
+       * gives the 3D view the large majority of the modal's area. flex-col
+       * on mobile stacks the rail below the canvas; md:flex-row puts it
+       * beside it.
+       */}
+      <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded metal-edge w-full h-full max-w-[1800px] flex flex-col md:flex-row overflow-hidden">
+        <div className="relative flex-1 min-h-[320px] min-w-0 bg-afs-bg-dim">
           <ProfileViewer3D
             bends={bends}
             blankWidth={blankWidthMm}
@@ -122,33 +123,42 @@ export default function SubmitConfirmation3DModal({
           />
         </div>
 
-        {isPainted && (
-          <button
-            type="button"
-            onClick={() => setPaintFace((f) => (f === 'up' ? 'down' : 'up'))}
-            className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label text-xs font-semibold px-4 py-2 rounded transition-colors"
-          >
-            Flip Paint Side
-          </button>
-        )}
+        <div className="w-full md:w-80 shrink-0 border-t md:border-t-0 md:border-l border-afs-chrome-dim p-6 flex flex-col gap-4 overflow-y-auto">
+          <div className="text-center md:text-left">
+            <p className="eyebrow-label text-xs tracking-widest mb-1">Confirm Before Submitting</p>
+            <h2 className="font-heading text-2xl text-afs-chrome-high">
+              {isPainted ? 'Please confirm your painted side' : 'Confirm Your Profile'}
+            </h2>
+          </div>
 
-        <div className="flex gap-3 justify-center w-full pt-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={submitting}
-            className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label text-sm font-semibold px-5 py-2.5 rounded transition-colors disabled:opacity-50"
-          >
-            Go back and edit
-          </button>
-          <button
-            type="button"
-            onClick={() => onConfirm(isPainted ? paintFace : null)}
-            disabled={submitting}
-            className="bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label font-semibold px-6 py-2.5 rounded text-sm transition-colors disabled:opacity-50"
-          >
-            {submitting ? 'Submitting…' : 'Looks correct — Submit Quote'}
-          </button>
+          {isPainted && (
+            <button
+              type="button"
+              onClick={() => setPaintFace((f) => (f === 'up' ? 'down' : 'up'))}
+              className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label text-xs font-semibold px-4 py-2 rounded transition-colors"
+            >
+              Flip Paint Side
+            </button>
+          )}
+
+          <div className="flex flex-col gap-3 mt-auto pt-2">
+            <button
+              type="button"
+              onClick={() => onConfirm(isPainted ? paintFace : null)}
+              disabled={submitting}
+              className="bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label font-semibold px-6 py-2.5 rounded text-sm transition-colors disabled:opacity-50"
+            >
+              {submitting ? 'Submitting…' : 'Looks correct — Submit Quote'}
+            </button>
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={submitting}
+              className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label text-sm font-semibold px-5 py-2.5 rounded transition-colors disabled:opacity-50"
+            >
+              Go back and edit
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -34,6 +34,107 @@ summary, not a replacement for it.
 
 ---
 
+## SUBMIT CONFIRMATION 3D MODAL: afs-fl-029 -- CANVAS MAXIMIZED, HEADER COLOR, BACKGROUND LIGHTENED AGAIN -- IMPLEMENTED, UNCONFIRMED (2026-09-01)
+
+Root-cause-only follow-up to afs-fl-028 (below), covering four related
+reports live in `SubmitConfirmation3DModal.tsx` after afs-fl-028's clipped-
+header fix landed. `pnpm tsc --noEmit` — 0 errors. Two files changed:
+`components/studio/SubmitConfirmation3DModal.tsx` and
+`components/studio/ProfileViewer3D.tsx`. Verified live with a temporary
+Playwright script (deleted after use, not committed) against the dev
+server, comparing the pre-fix and post-fix code directly (via `git stash`)
+rather than trusting a single before/after impression.
+
+**1. Canvas maximized — real before/after dimensions measured.** Replaced
+the old `max-w-2xl` modal (`p-6`, a hardcoded `600x500` canvas div, and a
+bottom button row) with a near-fullscreen modal (`w-full h-full`, no
+`max-h-[90vh]`/scroll) split into the 3D canvas (`flex-1`, taking all
+remaining space) and a `w-80` side rail holding the header, Flip Paint
+Side, and the two action buttons — `flex-col` on mobile (rail below
+canvas), `md:flex-row` on desktop (rail beside canvas). Measured at a
+1366x768 viewport: canvas area went from a fixed **600x500px** (35% of
+viewport height) to **1012x734px** (96% of viewport height) — the canvas is
+now the dominant visual element, not modestly trimmed. Re-verified at
+390x844 (mobile, stacked layout): canvas renders at 356x591px, still the
+majority of the screen, rail readable below it.
+
+**2. Cropped/uncentered profile — confirmed a SYMPTOM of #1's layout, not a
+new bounding-sphere fit bug. Root cause found live, not assumed.** Per the
+task's instruction, fixed #1 first, then re-checked live before writing any
+new camera-fit logic. Direct measurement (`getBoundingClientRect()` on the
+modal's canvas container, `ProfileViewer3D`'s own wrapper div, and the real
+`<canvas>` element, pre-fix code via `git stash`) at a 1366x600 viewport
+found: the modal's canvas container (inline `style={{ height: 500 }}`, a
+flex child of a `flex-col` box with default `flex-shrink: 1`) had actually
+shrunk to **356px** of real rendered height under vertical space pressure —
+but `ProfileViewer3D`'s own top-level wrapper carries a *separate* `style=
+{{ minHeight: 500 }}` (a sizing fallback for its other, non-modal call
+sites — `app/upload/page.tsx`, the machine-library match view, the shared
+profile-viewer page — where it can't rely on a parent giving it real
+height) that kept forcing the wrapper, and the real `<canvas>` element
+sized off it via `ResizeObserver`, to stay a full **500px** tall regardless
+of what its shrunk parent actually had room for. The parent container's
+`overflow-hidden` then clipped the bottom 144px of that 500px canvas.
+`computeFitCamera` (afs-fl-026) was centering the profile correctly against
+the full 500px canvas it was told about — the crop was pure CSS overflow
+clipping downstream of #1's layout bug, not a fit-math failure on a small
+profile or any other new edge case. With #1's layout fix (no more
+fixed-height flex-shrinkable container, no `overflow-hidden` mismatch), the
+outer container, `ProfileViewer3D`'s wrapper, and the canvas all now report
+identical heights at every viewport tested (768px down to a deliberately
+extreme 480px) — re-verified live on the profile described in the task (a
+real 2-leg profile, 4 9/16" and 2 1/2" legs, 124° bend angle, drawn and set
+via FlashDraft's own angle input) that the profile renders fully visible
+and centered, not cropped, at every size tested. **No new camera-fit code
+was written** — none was needed once the real cause (a CSS layout mismatch,
+not the fit math) was confirmed live.
+
+**3. Header color — value was already correct; the problem was a known
+rendering-legibility issue, not a wrong hex.** `getComputedStyle().color`
+on "Confirm Before Submitting" was `rgb(192, 0, 26)` (`--afs-crimson`,
+`#C0001A`) both before and after this change — byte-identical to the
+Submit button's background color. The "barely discernible" report matches
+an issue this codebase's own `app/globals.css` already documents and has a
+standing fix for (the `.eyebrow-label` class, used at 9 other call sites):
+small, uppercase, regular-weight (400) crimson text visibly desaturates
+under antialiasing compared to solid crimson shapes at the same size —
+Reid confirmed this via DevTools on a prior task, and `--afs-crimson`
+itself was left untouched there too. Root-cause fix: swapped the header's
+`font-label text-afs-crimson ... uppercase` utility combination for this
+codebase's existing `.eyebrow-label` class (adds `font-weight: 600` and a
+crimson text-shadow glow via the already-defined `--afs-crimson-glow`
+token) — the same treatment already applied elsewhere, not an invented new
+shade. Confirmed visually via screenshot: the header now reads as a bold,
+vivid red matching the Submit button, versus a faint, smeared-looking red
+before.
+
+**4. Background lightened again — dome `#565656` → `#787878`, clear color
+`#6A6A6A` → `#8A8A8A` (both in `ProfileViewer3D.tsx`), a second pass on top
+of afs-fl-026's own first lightening pass.** Verified live against a light
+material (Stainless Steel, `metalness: 0.95, roughness: 0.15`) and a real
+dark material (Kynar 500 Painted Steel in "Matte Black", `#1E2028` from the
+McElroy chart, `metalness: 0, roughness: 0.85`). Matte Black stayed
+clearly, consistently dark against the lighter background at every camera
+angle tested — no washing out, no need to back off the lightening.
+Stainless Steel's rendering swings between near-black and a bright
+specular white streak depending on camera angle — confirmed via multiple
+rotation angles this is a pre-existing characteristic of a very
+high-metalness/low-roughness `MeshStandardMaterial` with no environment map
+(physically-based metals render primarily from reflected environment
+light; without one, only direct specular highlights show), unrelated to
+and unaffected by this session's background color change, and out of this
+task's scope. At every angle tested, both materials remained clearly
+distinguishable from the new `#787878`/`#8A8A8A` background.
+
+**Status: IMPLEMENTED, UNCONFIRMED per this file's verification standard.**
+All four fixes are backed by this session's own live Playwright evidence
+(dimension measurements, DOM rect comparisons via `git stash` between old
+and new code, and screenshots) — real measurements, not code-pattern
+inference. Per the standard above, that is evidence for the user to check,
+not a substitute for the user's own confirmation.
+
+---
+
 ## SUBMIT CONFIRMATION 3D MODAL: afs-fl-028 -- CLIPPED HEADER, BACK NAVIGATION, BROWSER BACK BUTTON -- IMPLEMENTED, UNCONFIRMED (2026-09-01)
 
 Root-cause-only task covering three related reports in

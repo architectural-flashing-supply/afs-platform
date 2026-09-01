@@ -507,10 +507,13 @@ export default function ProfileViewer3D({
     // facing sphere) gives contrast for both light metals (aluminum,
     // stainless) and dark ones (painted steel, vintage) — a solid black
     // background washed out the light metals and made the dark ones vanish.
-    // (afs-fl-026: lightened from #3A3A3A — still dark enough to stay well
-    // below vintage's ~#7A6B5A fold color so it doesn't disappear.)
+    // (afs-fl-026: lightened from #3A3A3A to #565656. afs-fl-029: lightened
+    // again to #787878 — Reid reported the profile still blended into the
+    // background at some angles. Still dark enough to stay below Matte
+    // Black's ~#1E2028 paint color and vintage's ~#7A6B5A bare-metal color,
+    // so both dark materials stay visually distinct from the background.)
     const domeGeometry = new THREE.SphereGeometry(2000, 32, 16);
-    const domeMaterial = new THREE.MeshBasicMaterial({ color: '#565656', side: THREE.BackSide });
+    const domeMaterial = new THREE.MeshBasicMaterial({ color: '#787878', side: THREE.BackSide });
     const dome = new THREE.Mesh(domeGeometry, domeMaterial);
     scene.add(dome);
 
@@ -532,7 +535,7 @@ export default function ProfileViewer3D({
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setClearColor('#6A6A6A', 1); // afs-fl-026: lightened from #4A4A4A, see domeMaterial comment above
+    renderer.setClearColor('#8A8A8A', 1); // afs-fl-029: lightened from #6A6A6A (afs-fl-026's value), see domeMaterial comment above
     renderer.shadowMap.enabled = true;
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;

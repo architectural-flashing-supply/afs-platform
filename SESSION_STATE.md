@@ -24,6 +24,58 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## SUBMIT CONFIRMATION 3D MODAL: afs-fl-029 -- CANVAS MAXIMIZED, HEADER COLOR, BACKGROUND LIGHTENED AGAIN (2026-09-01)
+
+Root-cause-only follow-up to afs-fl-028, four related reports in
+`SubmitConfirmation3DModal.tsx`. Diagnosed each live with a temporary
+Playwright script (deleted after use, not committed), comparing pre-fix and
+post-fix code directly via `git stash` rather than trusting a single
+before/after impression. `pnpm tsc --noEmit` — 0 errors. Full detail in
+STATE_OF_THE_BUILD.md's afs-fl-029 entry; summary:
+
+1. **Canvas maximized** — replaced the `max-w-2xl` modal (hardcoded
+   600x500 canvas + bottom button row) with a near-fullscreen modal: canvas
+   as a `flex-1` region, controls moved to a `w-80` side rail (stacks below
+   the canvas on mobile). Measured: canvas area went from 600x500px (35% of
+   a 1366x768 viewport) to 1012x734px (96%).
+2. **Cropped/uncentered profile — confirmed a SYMPTOM of #1, not a new
+   fit-math bug.** Fixed #1 first, then re-checked live per the task's
+   instruction before touching camera code. Direct DOM measurement found
+   the real cause: the old canvas container's inline `height: 500` could
+   flex-shrink (down to 356px measured at a 1366x600 viewport), but
+   `ProfileViewer3D`'s own wrapper carries a separate `minHeight: 500`
+   (needed as a fallback for its other, non-modal call sites) that kept
+   forcing the actual `<canvas>` to render at a full 500px regardless —
+   `overflow-hidden` on the shrunk parent then clipped the bottom 144px.
+   `computeFitCamera` (afs-fl-026) was centering correctly against the full
+   500px canvas it was told about; the crop was pure CSS clipping, not a
+   fit-math edge case. Re-verified live on the task's own profile (4 9/16"
+   / 2 1/2" legs, 124° bend) at viewport heights from 768px down to an
+   extreme 480px — fully visible, centered, not cropped. No new camera-fit
+   code was written.
+3. **Header color** — the value was already correct (`#C0001A`, byte-
+   identical to the Submit button, before AND after). The dimness was the
+   known small-text-antialiasing legibility issue `app/globals.css`
+   already documents and has a standing fix for (`.eyebrow-label`, used at
+   9 other call sites: adds font-weight 600 + a crimson text-shadow glow,
+   doesn't touch the base color). Swapped the header onto that existing
+   class instead of inventing a new shade. Confirmed visually: bold vivid
+   red now, versus a faint smear before.
+4. **Background lightened again** — dome `#565656`→`#787878`, clear color
+   `#6A6A6A`→`#8A8A8A` (second pass on afs-fl-026's own first pass).
+   Verified against Matte Black (Kynar 500, `#1E2028`) — stayed clearly
+   dark at every angle, no need to back off. Also checked Stainless Steel;
+   its near-black/near-white swing by camera angle is a pre-existing
+   metalness/no-envMap rendering characteristic, confirmed unrelated to
+   this background change and out of this task's scope.
+
+Marked **IMPLEMENTED, UNCONFIRMED** in STATE_OF_THE_BUILD.md per this
+project's verification standard — this session's own Playwright evidence
+is not a substitute for the user independently checking the actual
+behavior.
+
+---
+
 ## SUBMIT CONFIRMATION 3D MODAL: afs-fl-028 -- CLIPPED HEADER, BACK NAV, BROWSER BACK BUTTON (2026-09-01)
 
 Root-cause-only task, three related reports in
