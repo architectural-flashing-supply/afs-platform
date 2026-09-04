@@ -24,7 +24,43 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
-## HAILVIEW PHASE 2 (afs-hv-002): HALTED AT STEP 0, NO CODE WRITTEN (2026-09-03)
+## HAILVIEW PHASE 2 (afs-hv-002): DONE — REAL SECTION 5 FORMULAS IMPLEMENTED (2026-09-04)
+
+Re-run of afs-hv-002 now that `SPEC_HAILVIEW.md` exists in the repo (added
+during afs-hv-004, see that entry below). Step 0 re-confirmed the same
+finding the halted passes below already documented: `app/api/hailview/
+test-pipeline/route.ts` still does not exist — it was never built in Phase
+1. The real Phase 1 endpoint is `app/api/hailview/storm-history/route.ts`,
+and its callees (`geocode.ts`, `storm-history.ts`, `wind.ts`) were read
+directly to confirm real data shapes before writing any scoring code. Two
+data-shape discrepancies vs. the spec's predictions were found and are
+documented in `STATE_OF_THE_BUILD.md`'s matching entry: a missing
+`countrycodes=us` Nominatim param, and Open-Meteo using different field
+names/a different (already-resolved, paid) endpoint than the spec guessed.
+Neither affects `replacement-score.ts`'s inputs, so neither was changed.
+
+`lib/hailview/replacement-score.ts` was rewritten in full against Section 5,
+replacing afs-hv-001's self-admitted guessed placeholder: real asphalt
+shingle formula (3-tab/architectural subtype, +8 bonus, banded age
+multiplier with lifespan-ratio bonus, escalating frequency weight), a
+genuinely distinct metal formula (flat 1.5" onset, separately-derived
+additive age term, no multiplier), a genuinely distinct TPO/PVC formula
+(effective-onset shift from thickness + age), and a genuinely distinct wood
+shake formula (real Haag Engineering graduated tier table). `pnpm tsc
+--noEmit` passes (0 errors), `pnpm run build` succeeds, and 22 new unit
+tests (`lib/hailview/replacement-score.test.ts`, via newly-added `vitest` —
+no unit test runner existed in the repo before this pass) prove the four
+materials score distinctly and tier correctly against identical storm
+history, not just that the functions run without throwing. Full detail,
+including the two interpretive numeric choices the spec's prose didn't
+fully pin down (documented rather than silently guessed), is in
+`STATE_OF_THE_BUILD.md`'s matching entry. Committed as `afs-hv-002`.
+
+**Original halted entry below, preserved for history:**
+
+---
+
+## HAILVIEW PHASE 2 (afs-hv-002) — ORIGINAL ENTRY, SUPERSEDED ABOVE: HALTED AT STEP 0, NO CODE WRITTEN (2026-09-03)
 
 afs-hv-002 requires reading `app/api/hailview/test-pipeline/route.ts` (Phase
 1's real committed output) and `SPEC_HAILVIEW.md` Section 5 before writing

@@ -34,7 +34,106 @@ summary, not a replacement for it.
 
 ---
 
-## HAILVIEW PHASE 2 (afs-hv-002): BLOCKED — PHASE 1 DEVIATED FROM ITS OWN SPEC, NO WORK DONE THIS PASS (2026-09-03)
+## HAILVIEW PHASE 2 (afs-hv-002): DONE — REAL SECTION 5 FORMULAS IMPLEMENTED, PLACEHOLDER ENGINE REPLACED (2026-09-04)
+
+**Both gates met this pass:** `pnpm tsc --noEmit` — 0 errors. `pnpm run
+build` — succeeded (ran directly this pass, not assumed). 22/22 unit tests
+pass (`pnpm test:unit`, added this pass — no unit test runner existed in
+the repo before now; `vitest` was added as a devDependency and scoped via
+`vitest.config.mts` to `lib/**/*.test.ts` only, so it does not collide with
+the existing Playwright e2e suite under `tests/e2e/**`).
+
+**Step 0 finding — the prompt's named file does not exist, confirmed again
+this pass:** `app/api/hailview/test-pipeline/route.ts` still does not exist
+anywhere in the repo. This is the same discrepancy the afs-hv-002/003/004/005
+entries below already documented: afs-hv-001 never built the scoped
+"bare internal test endpoint" and instead committed production-shaped
+`app/api/hailview/storm-history/route.ts`. That route (not the named,
+nonexistent `test-pipeline` route) is the real Phase 1 entry point, and its
+real response shape was read directly from `geocode.ts`, `storm-history.ts`,
+and `wind.ts` this pass:
+- Nominatim (`geocode.ts`): matches the spec's predicted shape (`[0].lat`,
+  `[0].lon`, `[0].display_name`), one param difference — real code omits
+  `countrycodes=us` (sends `addressdetails=0` instead). Not touched this
+  pass; out of scope for the scoring engine.
+- IEM LSR feed (`storm-history.ts`): the real `StormEvent` shape
+  (`id`/`sizeIn`/`validAt`) that this phase's scoring functions actually
+  consume is stable and matches what Section 5 assumes. The *fetch*
+  mechanism differs from spec 4.2's prediction (no server-side report-type
+  filter param; hail/non-hail split happens client-side post-fetch via
+  regex on `typetext`) but this doesn't affect scoring inputs.
+- Open-Meteo (`wind.ts`): Section 4.3 flagged commercial-use licensing as
+  "UNRESOLVED, MUST BE VERIFIED" — Phase 1 had *already* resolved this (contrary
+  to the afs-hv-004 entry below, which said it "has not been checked or
+  documented anywhere in this repo" — that read of `wind.ts` was incomplete).
+  The real code uses the paid `customer-archive-api.open-meteo.com` endpoint
+  gated behind `OPEN_METEO_API_KEY`, with real field names
+  (`wind_gusts_10m`/`wind_direction_10m`) differing from the spec's guessed
+  `windspeed_10m`/`winddirection_10m`. None of this affects the deterministic
+  score — wind data explicitly never feeds `replacement-score.ts` (see that
+  file's own DETERMINISM CONTRACT comment) — so no code change was needed here.
+
+**What was built — `lib/hailview/replacement-score.ts` rewritten in full**
+against the real `SPEC_HAILVIEW.md` Section 5 (now confirmed present and
+read in full this pass), replacing afs-hv-001's self-admitted from-scratch
+guess:
+- **5.1 Asphalt shingle:** added the missing 3-tab/architectural
+  `shingleType` input, `HAIL_TIERS` point table (0.75"→0.5, 1.0"→1.5,
+  1.25"→4, 1.75"→7), the +8 flat 3-tab bonus, the banded 1.0x/1.2x/1.45x/1.7x
+  age multiplier with a lifespan-ratio bonus (17.5yr/27.5yr typical
+  lifespans) capped at 2.0x total, and the escalating (+15%/event, capped
+  2.5x) frequency weight gated on age >=10yr. Two numeric bridges the spec's
+  prose doesn't fully pin down were resolved with a documented, defensible
+  choice rather than silently guessed — both called out in the file's own
+  header comment: (1) the "unbounded" top hail-size tier has no stated
+  numeric threshold — used 2.00" (next standard NWS report-size increment
+  above 1.75"); (2) the spec names an "age subscore (0-56, additive)" as a
+  term separate from the age multiplier but gives only one age-derived
+  formula — the age subscore is derived from that same multiplier, scaled
+  so the multiplier's own 1.0x-2.0x range maps onto the subscore's own 0-56
+  range.
+- **5.2 Metal:** flat 1.5" onset (gauge is not even accepted as a scoring
+  parameter — display-only, matching Reid's confirmation), age applied as
+  its own separately-derived ADDITIVE subscore (not the shingle multiplier
+  curve), since denting is not amplified by age the way granule loss is.
+- **5.3 TPO/PVC:** 1.75" onset (UL 2218 Class 4) shifted by membrane
+  thickness (45/60/80mil) and roof age independently, modeled as an
+  effective-onset shift applied to each event's size before the tier
+  lookup rather than a multiplier on a computed severity number.
+- **5.4 Wood shake:** real graduated Haag Engineering tier table
+  (1.25"=hairline onset, 1.5"=~50% damage rate, 1.75"+=~90% damage rate),
+  proportioned onto the shared 60-point severity ceiling (30/60=50%,
+  54/60=90%), with its own age multiplier curve (same *conceptual* shape as
+  shingles per spec 5.4, separately-derived constants — wood shake has no
+  stated typical-lifespan figure to build a lifespan-ratio bonus from).
+- Tiers (Low <35 / Moderate 35-64 / High >=65) applied uniformly across all
+  four materials, matching Section 5.1's stated breakpoints.
+- `lib/hailview/explanation.ts` and `app/api/hailview/storm-history/route.ts`
+  were updated as a necessary consequence (new `MaterialScoreFactors` shape,
+  new `shingleType` request field, `roofAgeYears` now passed for every
+  material instead of asphalt-only) — required for `pnpm tsc --noEmit` to
+  pass, not scope creep.
+
+**Verification — real test output, not just "runs without throwing":**
+`lib/hailview/replacement-score.test.ts` (new, 22 tests) proves each
+material scores distinctly and tiers correctly against identical storm
+history — including a direct same-input, four-material comparison
+(`asphalt (3-tab,12yr)=60/Moderate`, `metal_r_panel=77/High`,
+`tpo_pvc_membrane(60mil)=44/Moderate`, `wood_shake=70/High` against the same
+1.0"/1.5"/2.0" event set), tier-boundary tests at both ends (0 events -> Low,
+severe repeated history on an old roof -> High), and material-specific
+behavioral assertions (3-tab > architectural at equal age; older roofs score
+higher; thinner TPO/PVC scores higher than thicker; frequency escalation
+only engages once age >=10yr). All 22 pass. Full command output is in the
+session transcript for this pass.
+
+**Original blocked entry below, preserved for history — root cause is now
+resolved (`SPEC_HAILVIEW.md` exists and Section 5 has been implemented
+against it):**
+
+---
+
+## HAILVIEW PHASE 2 (afs-hv-002) — ORIGINAL BLOCKED ENTRY, SUPERSEDED ABOVE: BLOCKED — PHASE 1 DEVIATED FROM ITS OWN SPEC, NO WORK DONE THIS PASS (2026-09-03)
 
 **No code was written this pass.** The afs-hv-002 prompt's own Step 0 is
 mandatory and could not be completed, so nothing downstream of it was
