@@ -34,6 +34,99 @@ summary, not a replacement for it.
 
 ---
 
+## HAILVIEW PERSISTENT FULL-BLEED MAP BACKGROUND (afs-hv-007): IMPLEMENTED, UNCONFIRMED — MAP IS NOW THE PAGE'S PERSISTENT BACKGROUND, ADDRESS/MATERIAL FORM IS A FLOATING OVERLAY PANEL (2026-09-04)
+
+**Both gates met this pass, run directly, not assumed:** `pnpm tsc --noEmit`
+— 0 errors. `pnpm run build` — succeeded (exit 0); route summary confirms
+`○ /hailview` builds clean at 5.4 kB.
+
+**Read `app/hailview/page.tsx` and `components/hailview/HailViewMap.tsx`
+directly before changing anything**, per this pass's own instructions,
+rather than assuming structure — confirmed the map previously rendered only
+inside a "Storm Map" card in the results view (afs-hv-006), mounted via
+`next/dynamic` only after `result` existed.
+
+**What was actually changed this pass:**
+- `components/hailview/HailViewMap.tsx` — `address`/`lat`/`lon`/`hailEvents`
+  props are now all optional. With none supplied it renders a default
+  service-area view (`DEFAULT_CENTER [31.5, -97.0]`, `DEFAULT_ZOOM 5` — the
+  same real Southwest-US framing already established in
+  `DeliveryTrackingMap.tsx`'s `SERVICE_AREA_CENTER`, reused for consistency
+  rather than inventing a new default) with no markers. The address marker
+  only renders once `lat`/`lon` exist. `FitToMarkers` (unchanged afs-hv-006
+  logic) no-ops when `points` is empty, so the same live map instance stays
+  on the default view until real data arrives, then re-fits to it. The
+  marker icons, pulse animation/keyframe, popups, and bounds-fit logic
+  itself are byte-for-byte unchanged from afs-hv-006.
+- `app/hailview/page.tsx` — restructured so `HailViewMap` mounts once,
+  persistently, as a `fixed`/`absolute inset-0` full-bleed background
+  (positioned below the site's fixed `NavBar` via `top-14`, matching the
+  `pt-14` convention every other non-portal page already uses —
+  `AppChrome.tsx`'s chrome wrapper). The address/material form (and, after
+  submit, the score/timeline/explanation/email-report results — one overlay
+  panel, not two, since duplicating the header across two panels added
+  nothing) now renders as a single fixed-width (`420px` on `sm+`) floating
+  card docked top-left, each card inside it using `bg-afs-bg-raised
+  border-afs-border`. The old inline "Storm Map" card was removed from the
+  results view since the map is now always visible behind the panel.
+  `result?.address/lat/lon/hailEvents` are passed straight through to the
+  same persistent `HailViewMap` instance on submit, which re-fits itself via
+  its own unchanged `FitToMarkers`.
+
+**Bug found and fixed this pass, not present in the original ask:** the
+floating overlay panel initially rendered invisible — present in the DOM
+with correct geometry and background color (confirmed via
+`getComputedStyle`), but painted behind the map. Root cause: Leaflet's own
+CSS gives `.leaflet-container` `position: relative` with no `z-index`, so it
+never establishes its own stacking context; its internal panes/controls
+(tile pane 200, marker pane 600, popup pane 700, `.leaflet-top`/
+`.leaflet-bottom` zoom controls 1000) leaked past the map's wrapper `div`
+and painted above the panel's `z-10`. Fixed by adding `isolate` (CSS
+`isolation: isolate`) to the map's wrapper `div` in `page.tsx`, containing
+Leaflet's internal stacking — a standard, documented Leaflet/React
+integration fix, not a z-index arms-race workaround.
+
+**Live verification, run directly this pass against a real dev server, not
+assumed from tsc/build alone (per this file's VERIFICATION STANDARD, none of
+what follows is sufficient on its own to mark this DONE — see status above):**
+- Playwright against **3701 W Interstate 40, Amarillo, TX** (the same real,
+  already-verified-to-have-storm-history address used in afs-hv-006's own
+  live verification).
+- Before any address entered: `hailview-map`'s bounding box is `{x:0,
+  y:56, width:1400, height:844}` at a 1400×900 viewport — full-bleed below
+  the 56px nav, confirmed by a real loaded OSM tile
+  (`.leaflet-tile-loaded`) becoming visible. The form's bounding box is
+  `{x:16, y:254, width:420, height:275}` — a compact 420px-wide card, not a
+  full-width block.
+- On submit: 2 total `.leaflet-marker-icon` elements (1 address + 1 real
+  IEM LSR storm event, matching this address's known real event count),
+  exactly 1 `[data-testid="hailview-map-address-marker"]`, map visibly
+  re-fit to street level around the real geocoded address (screenshot:
+  Amarillo streets, I-40/Purple Heart Trail, real score 31/100, Low tier).
+- Pulse animation: `getComputedStyle(ring).animationName ===
+  'hailview-address-pulse'` on the live rendered marker. Reduced motion
+  (`page.emulateMedia({ reducedMotion: 'reduce' })`): same ring reports
+  `animationName === 'none'` with `opacity: 0.35` — a real static ring, not
+  "no crash." Both exactly matching afs-hv-006's already-verified values,
+  confirming this pass's layout change did not touch the map's own
+  internals.
+- Screenshots taken this pass were written to a gitignored scratch
+  directory and deleted after this run — not committed, not claimed as
+  permanent evidence.
+
+**Marked IMPLEMENTED, UNCONFIRMED**, per this file's own VERIFICATION
+STANDARD at the top: everything above is this session's own Playwright/
+screenshot evidence, not Reid's independent confirmation of the actual
+rendered layout (map genuinely reading as a background, panel genuinely
+reading as compact and legible against real map tiles, no regression in the
+pulse/reduced-motion behavior to a human eye) — that confirmation has not
+happened yet.
+
+**Commit:** `feat: HailView persistent full-bleed map background with
+overlay form panel (afs-hv-007)`.
+
+---
+
 ## NAVBAR HEADER/LOGO OVERLAP + ACCOUNT MENU SIGN OUT + HAILVIEW NAV LINK (afs-fl-033): IMPLEMENTED, UNCONFIRMED — HEADER NO LONGER RENDERS UNDER THE LOGO, SIGN OUT LIVES IN THE ACCOUNT MENU, HAILVIEW IS IN THE MAIN NAV (2026-09-04)
 
 **Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —

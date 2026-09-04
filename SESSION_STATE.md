@@ -24,6 +24,60 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## HAILVIEW PERSISTENT FULL-BLEED MAP BACKGROUND (afs-hv-007): IMPLEMENTED, UNCONFIRMED — VERIFIED LIVE AGAINST A REAL AMARILLO, TX ADDRESS, NOT YET REID-CONFIRMED (2026-09-04)
+
+`pnpm tsc --noEmit`: 0 errors. `pnpm run build`: succeeded, `○ /hailview`
+5.4 kB.
+
+Read `app/hailview/page.tsx` and `components/hailview/HailViewMap.tsx`
+directly first, per this pass's own instructions — confirmed the map
+(afs-hv-006) previously rendered only inside the results view, not before a
+lookup. Restructured `app/hailview/page.tsx` so `HailViewMap` mounts once as
+a persistent, full-bleed background (visible immediately on page load,
+default-centered on the same Southwest-US service-area framing already used
+by `DeliveryTrackingMap.tsx`), with the address/material form (and, after
+submit, the results) as a single floating `420px` overlay panel docked
+top-left, using `afs-bg-raised`/`afs-border` per the task. Positioned below
+the fixed `NavBar` via `top-14`, matching the `pt-14` convention every other
+non-portal page already uses, rather than the chrome-less pattern `/track`
+uses. `components/hailview/HailViewMap.tsx`'s `address`/`lat`/`lon`/
+`hailEvents` props are now optional — with none supplied it shows the
+default view with no markers; the marker icons, pulse animation, popups,
+and `FitToMarkers` bounds-fit logic are byte-for-byte unchanged from
+afs-hv-006.
+
+**Real bug found and root-caused this pass:** the overlay panel initially
+rendered invisible — present in the DOM with correct geometry/background
+(confirmed via `getComputedStyle`) but painted behind the map tiles. Cause:
+Leaflet's `.leaflet-container` sets `position: relative` with no
+`z-index`, so it never forms its own stacking context — its internal panes
+(z-index up to 1000 for zoom controls) leaked past the map wrapper and
+painted over the panel's `z-10`. Fixed with `isolate` (`isolation:
+isolate`) on the map's wrapper `div` — the standard Leaflet/React
+integration fix, not a z-index escalation.
+
+Verified live via Playwright against **3701 W Interstate 40, Amarillo, TX**
+(same real address, with real storm history, used in afs-hv-006's own
+verification): map full-bleed and tile-loaded before any address entered
+(`{x:0,y:56,w:1400,h:844}` at 1400×900 viewport, below the 56px nav); form
+compact at `{x:16,y:254,w:420,h:275}`, not full-width; on submit, map
+re-fit to Amarillo street level with exactly 1 address marker + 1 real
+storm-event marker (matching this address's known real event count), score
+31/100 rendered in the panel; pulse animation
+(`getComputedStyle(ring).animationName === 'hailview-address-pulse'`) and
+reduced-motion fallback (`animationName === 'none'`, `opacity: 0.35`) both
+confirmed unchanged from afs-hv-006. Screenshots taken this pass were in a
+gitignored scratch directory, deleted after the run — not committed.
+
+**Marked IMPLEMENTED, UNCONFIRMED per this file's VERIFICATION STANDARD** —
+this is this session's own Playwright evidence, not Reid's independent
+confirmation of how the layout actually reads.
+
+**Commit:** `feat: HailView persistent full-bleed map background with
+overlay form panel (afs-hv-007)`.
+
+---
+
 ## NAVBAR HEADER/LOGO OVERLAP, ACCOUNT MENU SIGN OUT, HAILVIEW NAV LINK (afs-fl-033): IMPLEMENTED, UNCONFIRMED — VERIFIED LIVE AGAINST A REAL TEST ACCOUNT, NOT YET REID-CONFIRMED (2026-09-04)
 
 `pnpm tsc --noEmit`: 0 errors.

@@ -12,6 +12,15 @@
 // Loaded exclusively via next/dynamic({ ssr: false }) from page.tsx — Leaflet
 // touches `window`/`document` at import time and breaks under Next's SSR
 // pass otherwise.
+//
+// afs-hv-007 — this is now mounted once, persistently, as the page's
+// full-bleed background (app/hailview/page.tsx), rather than only after a
+// lookup completes. address/lat/lon/hailEvents are therefore optional: with
+// none supplied it renders the default service-area view below with no
+// markers; once a real lookup resolves, page.tsx passes the real values in
+// and FitToMarkers (already-verified afs-hv-006 logic, unchanged) re-fits
+// the same live map instance to them. The marker icons, pulse animation, and
+// popups below are untouched from afs-hv-006.
 
 import { useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
@@ -20,11 +29,19 @@ import 'leaflet/dist/leaflet.css';
 import type { StormEvent } from '@/lib/hailview/types';
 
 interface HailViewMapProps {
-  address: string;
-  lat: number;
-  lon: number;
-  hailEvents: StormEvent[];
+  address?: string;
+  lat?: number;
+  lon?: number;
+  hailEvents?: StormEvent[];
 }
+
+// Default view before any address has been looked up — the same real AFS
+// shop location and broader Southwest service-area framing already
+// established in components/track/DeliveryTrackingMap.tsx's
+// SERVICE_AREA_CENTER, reused here for consistency rather than inventing a
+// new default.
+const DEFAULT_CENTER: [number, number] = [31.5, -97.0];
+const DEFAULT_ZOOM = 5;
 
 // Leaflet's default pin icon resolves its image paths against the app's own
 // origin, not the leaflet package, and 404s under Next.js's bundler unless
@@ -93,19 +110,20 @@ function FitToMarkers({ points }: { points: [number, number][] }) {
 }
 
 export default function HailViewMap({ address, lat, lon, hailEvents }: HailViewMapProps) {
+  const hasAddress = lat !== undefined && lon !== undefined;
+  const events = hailEvents ?? [];
+
   const points = useMemo<[number, number][]>(() => {
-    const eventPoints = hailEvents.map((e): [number, number] => [e.lat, e.lon]);
+    if (lat === undefined || lon === undefined) return [];
+    const eventPoints = events.map((e): [number, number] => [e.lat, e.lon]);
     return [[lat, lon], ...eventPoints];
-  }, [lat, lon, hailEvents]);
+  }, [lat, lon, events]);
 
   return (
-    <div
-      className="w-full h-[420px] rounded overflow-hidden border border-afs-border"
-      data-testid="hailview-map"
-    >
+    <div className="w-full h-full" data-testid="hailview-map">
       <MapContainer
-        center={[lat, lon]}
-        zoom={13}
+        center={DEFAULT_CENTER}
+        zoom={DEFAULT_ZOOM}
         scrollWheelZoom={false}
         style={{ width: '100%', height: '100%' }}
       >
@@ -115,11 +133,13 @@ export default function HailViewMap({ address, lat, lon, hailEvents }: HailViewM
         />
         <FitToMarkers points={points} />
 
-        <Marker position={[lat, lon]} icon={ADDRESS_MARKER_ICON}>
-          <Popup>{address}</Popup>
-        </Marker>
+        {hasAddress && (
+          <Marker position={[lat as number, lon as number]} icon={ADDRESS_MARKER_ICON}>
+            <Popup>{address}</Popup>
+          </Marker>
+        )}
 
-        {hailEvents.map((event) => (
+        {events.map((event) => (
           <Marker key={event.id} position={[event.lat, event.lon]} icon={stormMarkerIcon(event.sizeIn)}>
             <Popup>
               {event.validAt.slice(0, 10)} &mdash; {event.sizeIn}&Prime; hail

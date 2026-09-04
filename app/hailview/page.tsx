@@ -36,9 +36,13 @@ import type { MaterialCategory, MembraneMilThickness, MetalGauge, ReplacementTie
 // afs-hv-006 — Leaflet touches window/document at import time, so the map
 // is loaded client-only via next/dynamic({ ssr: false }); Next's SSR pass
 // would otherwise throw trying to evaluate the leaflet module on the server.
+//
+// afs-hv-007 — now mounted once as the page's persistent full-bleed
+// background (see the return block below), so the loading fallback also
+// fills the viewport rather than a fixed-height card.
 const HailViewMap = dynamic(() => import('@/components/hailview/HailViewMap'), {
   ssr: false,
-  loading: () => <div className="w-full h-[420px] rounded border border-afs-border bg-afs-bg-overlay animate-pulse" />,
+  loading: () => <div className="absolute inset-0 bg-afs-bg-overlay animate-pulse" />,
 });
 
 type TopLevelMaterial = 'asphalt_shingle' | 'metal' | 'tpo_pvc_membrane' | 'wood_shake';
@@ -280,14 +284,42 @@ export default function HailViewPage() {
   }
 
   return (
-    <div className="min-h-screen bg-afs-bg-base px-4 py-12">
-      <div className="max-w-2xl mx-auto">
-        <p className="font-label text-xs tracking-widest uppercase text-afs-crimson mb-2">HailView</p>
-        <h1 className="font-heading text-4xl font-bold text-afs-chrome-high mb-2">Roof Replacement-Probability Lookup</h1>
-        <p className="font-body text-sm text-afs-chrome-dim mb-8">
-          Enter your address and roofing material to see a data-backed replacement-probability score, built from real
-          storm history near your property.
-        </p>
+    <div className="fixed inset-x-0 top-14 bottom-0 overflow-hidden bg-afs-bg-base">
+      {/* afs-hv-007 — persistent full-bleed map background. Mounted once with
+          no address, showing HailViewMap's own default service-area view;
+          once `result` exists, the real geocoded address + real storm event
+          markers are passed straight through and the same live map instance
+          re-fits to them (components/hailview/HailViewMap.tsx's already-
+          verified afs-hv-006 FitToMarkers logic, untouched). */}
+      {/* isolate — Leaflet's own CSS gives .leaflet-container `position:
+          relative` with no z-index, so it never forms its own stacking
+          context; its internal panes/controls (tile/marker/popup panes,
+          zoom control) carry z-index values up to 1000 that would otherwise
+          leak past this wrapper and paint over the z-10 overlay panel below.
+          `isolate` contains them so the overlay panel's z-10 wins as
+          expected. */}
+      <div className="absolute inset-0 isolate">
+        <HailViewMap
+          address={result?.address}
+          lat={result?.lat}
+          lon={result?.lon}
+          hailEvents={result?.hailEvents}
+        />
+      </div>
+
+      {/* Floating overlay panel — docked left, fixed width on sm+, full width
+          (minus margins) on mobile. Scrolls internally so a long results
+          panel never pushes past the viewport or grows the (non-scrolling)
+          page underneath it. */}
+      <div className="absolute top-4 bottom-4 left-4 right-4 sm:right-auto sm:w-[420px] z-10 overflow-y-auto space-y-6">
+        <div className="bg-afs-bg-raised border border-afs-border rounded metal-edge p-4">
+          <p className="font-label text-xs tracking-widest uppercase text-afs-crimson mb-2">HailView</p>
+          <h1 className="font-heading text-2xl font-bold text-afs-chrome-high mb-2">Roof Replacement-Probability Lookup</h1>
+          <p className="font-body text-sm text-afs-chrome-dim">
+            Enter your address and roofing material to see a data-backed replacement-probability score, built from real
+            storm history near your property.
+          </p>
+        </div>
 
         {!result && (
           <form
@@ -431,11 +463,6 @@ export default function HailViewPage() {
               <Badge variant={TIER_BADGE_VARIANT[result.tier]} size="md">
                 <span data-testid="hailview-tier">{result.tier} Replacement Probability</span>
               </Badge>
-            </div>
-
-            <div className="bg-afs-bg-raised border border-afs-border rounded metal-edge p-6">
-              <h2 className="font-heading text-2xl font-semibold text-afs-chrome-high mb-4">Storm Map</h2>
-              <HailViewMap address={result.address} lat={result.lat} lon={result.lon} hailEvents={result.hailEvents} />
             </div>
 
             <div className="bg-afs-bg-raised border border-afs-border rounded metal-edge p-6">
