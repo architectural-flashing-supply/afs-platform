@@ -34,6 +34,270 @@ summary, not a replacement for it.
 
 ---
 
+## HAILVIEW PHASE 2 (afs-hv-002): BLOCKED — PHASE 1 DEVIATED FROM ITS OWN SPEC, NO WORK DONE THIS PASS (2026-09-03)
+
+**No code was written this pass.** The afs-hv-002 prompt's own Step 0 is
+mandatory and could not be completed, so nothing downstream of it was
+attempted — writing scoring formulas from guesswork would have violated
+this project's "root-cause only, no workarounds" / "state discrepancies,
+don't paper over them" standard, not satisfied it.
+
+**What Step 0 required and what was actually found, via direct file read
+and `git show --stat` on `ecc3f3a` (the afs-hv-001 commit):**
+
+1. `SPEC_HAILVIEW.md` — **does not exist anywhere in the repo**, tracked
+   or untracked, working tree or history. The afs-hv-001 prompt in
+   `FORGE/projects/afs-website/queue.yaml` (line 1785) explicitly said:
+   *"Read SPEC_HAILVIEW.md (in the repo root, added by this prompt if not
+   already present — if it's not there, ask Reid for it rather than
+   proceeding without it)."* afs-hv-001 did not create it and did not halt
+   — it proceeded anyway.
+2. `app/api/hailview/test-pipeline/route.ts` — **does not exist.** This was
+   the one deliverable route afs-hv-001 was scoped to build ("bare internal
+   test endpoint," "no scoring, no UI, no agent in this phase"). It was
+   never committed.
+3. What afs-hv-001 committed instead (`ecc3f3a`, 8 files, 959 lines):
+   production-shaped `app/api/hailview/storm-history/route.ts` and
+   `app/api/hailview/email-report/route.ts`, plus
+   `lib/hailview/replacement-score.ts` (a full 4-material scoring engine)
+   and `lib/hailview/explanation.ts` (an agentic explanation layer) — all
+   explicitly out of scope for Phase 1 per its own prompt ("No scoring, no
+   UI, no agent in this phase — those are separate, later prompts").
+   `lib/hailview/geocode.ts`, `storm-history.ts`, and `wind.ts` do match
+   Phase 1's real scope (Nominatim, IEM LSR feed, Open-Meteo).
+4. `replacement-score.ts`'s own header comment (lines 16–26) admits its
+   constants are **not** Reid's real e4roofing formula: *"the original
+   source was not available to read directly in this session, so the exact
+   constants below are a new, from-scratch implementation... If Reid's real
+   constants differ, only the tier arrays and the few named constants
+   below need to change."* This is a guessed placeholder, not "Reid's
+   original e4roofing formula exactly as documented in Section 5.1" that
+   afs-hv-002 was asked to implement — and Section 5.1 doesn't exist to
+   check it against.
+5. afs-hv-001 also skipped its own required governance update — no
+   HailView entry existed in this file or `SESSION_STATE.md` before this
+   pass, despite the prompt requiring one.
+
+**Root cause:** afs-hv-001 did not honor its own explicit halt condition
+when `SPEC_HAILVIEW.md` was missing, and built ahead of scope (Phases
+2 and 4 material) using fabricated placeholder constants instead of
+stopping to ask for the real formula. afs-hv-002 cannot build "Reid's
+original e4roofing formula exactly as documented in Section 5.1" of a
+document that was never written, and adapting to Phase 1's "real data
+shape" (this prompt's actual Step 0 ask) is moot when the one file that
+shape was supposed to live in (`test-pipeline/route.ts`) was never built.
+
+**What's needed to unblock:** either (a) Reid supplies the real
+`SPEC_HAILVIEW.md` (or the real e4roofing formula constants directly), or
+(b) explicit direction to treat the existing `replacement-score.ts`
+constants as provisional-but-final and proceed from there — which is a
+product decision, not something to assume silently in code.
+
+`lib/hailview/geocode.ts`, `storm-history.ts`, and `wind.ts` remain good,
+in-scope Phase 1 work and were not touched this pass.
+
+---
+
+## HAILVIEW PHASE 3 (afs-hv-003): BLOCKED — SAME ROOT CAUSE AS afs-hv-002, NO WORK DONE THIS PASS (2026-09-03)
+
+**No code was written this pass.** afs-hv-003 asks for `app/hailview/page.tsx`,
+a results view built from "Phase 1 (data) + Phase 2 (scoring)," and requires
+reading `SPEC_HAILVIEW.md` Sections 3 and 7 first. Re-verified directly this
+pass, not assumed from the prior HailView Phase 2 entry above:
+
+1. `SPEC_HAILVIEW.md` — **still does not exist anywhere in the repo**
+   (checked working tree and history again). Sections 3 and 7 cannot be read.
+2. `git log` shows no commit after `ecc3f3a` (afs-hv-001) touching
+   `app/hailview`, `app/api/hailview`, or `lib/hailview` — afs-hv-002 halted
+   at its own Step 0 with no code written (see its entry above and
+   `SESSION_STATE.md`), so there is no Phase-2-scoped scoring code to read.
+3. The only scoring engine in the repo is `lib/hailview/replacement-score.ts`,
+   written out-of-scope by afs-hv-001. Its own header comment (lines 16–26,
+   unchanged this pass) still states its constants are a from-scratch
+   reconstruction of Reid's e4roofing formula structure, not a byte-for-byte
+   port — i.e. explicitly not confirmed real.
+
+**Root cause:** identical to the afs-hv-002 blocker above — afs-hv-001 built
+ahead of its own scope using guessed constants instead of halting when
+`SPEC_HAILVIEW.md` was missing, and that gap was never closed. afs-hv-003's
+own instructions ask for a results view showing "the real score, tier" —
+labeling `replacement-score.ts`'s self-admitted guessed output as "real" in
+a UI a user will screenshot as verification would compound the deviation
+rather than root-cause it, so `app/hailview/page.tsx` was not built this
+pass.
+
+**What's needed to unblock:** the same two options as afs-hv-002 — (a) Reid
+supplies the real `SPEC_HAILVIEW.md` (or the real e4roofing formula
+constants), or (b) explicit direction to treat `replacement-score.ts` as
+provisional-but-final, plus how the Phase 3 UI should represent that
+provisionality (e.g. a visible "preliminary formula" label) rather than
+presenting it as final.
+
+---
+
+## HAILVIEW PHASE 4 (afs-hv-004): HALTED — REAL SPEC LOCATED AND ADDED, BUT PHASE 2/3 STILL DON'T MATCH IT, NO PHASE 4 CODE WRITTEN (2026-09-03)
+
+**Process note first:** this prompt's text is byte-for-byte identical to
+`afs-hv-004` in `FORGE/projects/afs-website/queue.yaml` (line 1972 on), but
+it was run directly in a Claude Code session rather than via `forge.ps1`,
+contrary to this file's own governing document, `CLAUDE.md`'s "FORGE
+LAUNCH — CANONICAL" section: *"No session may execute queue.yaml prompts
+through Claude Code directly."* Flagging this so it doesn't read as
+`forge.ps1` output when it wasn't.
+
+**What Step 0 required:** read `SPEC_HAILVIEW.md` Section 6. Re-checked
+directly this pass — the file still did not exist anywhere in the repo
+(working tree or history), same as the afs-hv-002 and afs-hv-003 findings
+above. This time it was located outside the repo, at
+`C:\Users\manag\Downloads\Recent Downloads\SPEC_HAILVIEW.md` (a `.docx` of
+the same name sits alongside it). Read in full and copied into the repo
+root this pass — `SPEC_HAILVIEW.md` now exists and is tracked going
+forward.
+
+**Section 6, read in full, confirmed:** *"The agent NEVER decides,
+computes, or alters the numeric score or tier. It only receives an
+already-final score/tier/sub-factor breakdown and writes a coherent,
+readable explanation from it. ... Enforce this in code, not just by
+convention (e.g. the agent's response type should not even have a numeric
+field available to accidentally wire up)."* Model: `claude-sonnet-4-6`,
+"per this project's existing AI-call convention."
+
+**What's already in the repo (`lib/hailview/explanation.ts`, committed in
+`ecc3f3a`, out-of-scope Phase-1 work) genuinely satisfies this, structurally
+verified by reading the code back:**
+- Calls `anthropic.messages.create({ model: 'claude-sonnet-4-6', ... })`
+  via the shared `lib/anthropic/client.ts` singleton — the same real
+  pattern used by `app/api/chat/route.ts` (the FlashChat/chatbot
+  integration `SPEC_AI_CHATBOT.md` describes) and
+  `app/api/recommendations/material/route.ts`. Not a new convention.
+- `generateHailViewExplanation(input: ExplanationInput): Promise<string>`
+  — the return type is a bare `string`. There is no numeric field on the
+  response type anywhere in the function signature or its call site
+  (`app/api/hailview/storm-history/route.ts` lines 129-144) for a score to
+  be accidentally wired back through — `response.score` is assigned
+  directly from `computeReplacementScore()`'s output and is never touched
+  by `narrative`. This satisfies Section 6's type-system requirement as
+  written.
+- Its own header comment already states the same non-negotiable rule in
+  its own words, independently of this prompt.
+
+**Why afs-hv-004 still could not proceed this pass — same root cause as
+afs-hv-002 and afs-hv-003, now confirmed against the real spec instead of
+its absence:**
+1. **Phase 2 was never really built.** `lib/hailview/replacement-score.ts`
+   is Phase 1's out-of-scope, self-admitted guess (see its own header,
+   unchanged). Checked against the real Section 5 now available, it
+   diverges in specific, material ways, not just constants:
+   - **5.1 Asphalt shingle:** spec requires a 3-tab/architectural subtype
+     input, a flat +8 "3-tab" risk bonus, and a four-term formula (age
+     subscore 0-56 + shingle bonus 0/8 + hail severity subscore 0-60
+     age-multiplied + frequency subscore 0-20). Current code has no
+     shingle-subtype input, no +8 bonus, and uses a different
+     largest-event/cumulative/frequency weighting scheme entirely (`LARGEST_EVENT_WEIGHT`/`CUMULATIVE_WEIGHT_PER_EVENT` constants that
+     don't correspond to anything in Section 5.1).
+   - **5.2 Metal:** spec requires an age-additive factor (metal-specific
+     curve, not the shingle curve). Current code applies no age
+     adjustment to metal at all — `shingleAgeMultiplier` is asphalt-only.
+   - **5.3 TPO/PVC:** spec requires both a thickness modifier AND an age
+     modifier. Current code has thickness only (`membraneThicknessMultiplier`) — no age modifier exists for this
+     material.
+   - **5.4 Wood shake:** spec requires age modulation "the same conceptual
+     way as shingles." Current code has no age adjustment for wood shake.
+   - Tiers (Low/Moderate/High at the same 35/65 breakpoints) do happen to
+     match Section 5.1's asphalt tiers, but that's the one point of
+     coincidental agreement, not confirmation the rest is right.
+   - Section 4.3's Open-Meteo commercial-use licensing question is marked
+     "UNRESOLVED, MUST BE VERIFIED BEFORE USE" in the spec and has not
+     been checked or documented anywhere in this repo.
+2. **Phase 3 was never built.** `app/hailview/page.tsx` still does not
+   exist (re-verified this pass) — there is no "Phase 3 placeholder
+   template string" for afs-hv-004 to replace, and no UI to render the
+   real explanation in even if the Phase 4 code were written.
+
+Writing the agentic layer's UI wiring now, on top of a scoring engine
+already known to diverge from the real formula and a page that doesn't
+exist, would launder a still-wrong score behind a fluent, confident
+AI-written narrative — making it read as more credible, not less. That
+compounds the exact deviation afs-hv-002 and afs-hv-003 already halted to
+avoid. **No Phase 4 application code was written this pass.**
+
+**What's needed to unblock:** re-run `afs-hv-002` (rebuild the four
+Section 5 formulas exactly, including the missing age modifiers for
+metal/TPO/wood-shake and the shingle subtype/bonus, and resolve the
+Open-Meteo licensing question) and `afs-hv-003` (build the real
+`app/hailview/page.tsx` with a placeholder explanation string), in order,
+via `forge.ps1` — now that `SPEC_HAILVIEW.md` is actually in the repo for
+those prompts to read. Once both are genuinely done, afs-hv-004's own
+work (wiring `generateHailViewExplanation` into that real page, which the
+existing `lib/hailview/explanation.ts` already supports) is close to a
+mechanical last step.
+
+---
+
+## HAILVIEW PHASE 5 (afs-hv-005): HALTED — SAME ROOT CAUSE AS afs-hv-002/003/004, NO APPLICATION CODE WRITTEN (2026-09-03)
+
+**No page code was written this pass.** afs-hv-005 asks for "a simple form
+on the HailView results page." Re-verified directly this pass, not assumed
+from the Phase 4 entry above:
+
+1. `app/hailview/page.tsx` — **still does not exist.** There is no
+   "HailView results page" anywhere in the repo for a form to be added to.
+   Phase 3 (afs-hv-003), which was scoped to build it, halted at Step 0 and
+   never wrote it; nothing since has changed that.
+2. `lib/hailview/replacement-score.ts` still diverges materially from the
+   real `SPEC_HAILVIEW.md` Section 5 (missing shingle subtype/+8 bonus,
+   missing age modifiers for metal/TPO-PVC/wood-shake, different frequency
+   formula shape) — unchanged since the afs-hv-004 entry above. Even if a
+   results page existed, the score it would display is still the
+   self-admitted guessed placeholder, not the real formula.
+3. What Section 8 actually asks for is a capture form on the *results
+   page*, taking the lookup result (address, material, score, tier,
+   narrative) as its input — by construction it has no independent
+   existence apart from that page. Building a freestanding email-capture
+   form disconnected from a real results view, or bolting it onto a
+   fabricated stand-in page invented for this pass, would not satisfy
+   Section 8 — it would fabricate scope exactly the way afs-hv-001 did,
+   which afs-hv-002/003/004 each halted rather than compound.
+
+**What already exists and is genuinely reusable once Phases 2/3 are real
+(unchanged this pass, verified by direct read):**
+- `app/api/hailview/email-report/route.ts` (committed in `ecc3f3a`,
+  out-of-scope Phase-1 work) — a working POST endpoint: validates the
+  request body and email format, calls `sendEmail()` from
+  `lib/resend/send.ts`, and returns `{ sent: false, reason:
+  'not_configured', message: "Email delivery isn't live yet — you can
+  screenshot or print this page to save your results." }` when Resend
+  isn't configured, or `{ sent: true }` on a real successful send. This
+  already matches Section 8's "degrade gracefully, don't error" ask and
+  this codebase's standing Resend-degrade pattern (`lib/resend/send.ts`
+  returns a soft `{ success: false }` rather than throwing when
+  `RESEND_API_KEY`/`RESEND_FROM_EMAIL` are unset).
+- **Resend configuration, checked directly this pass:** `.env.local` has
+  **no `RESEND_API_KEY` or `RESEND_FROM_EMAIL` entry at all** (`grep -n
+  RESEND .env.local` returns no match). Resend is **not configured** in
+  this environment, consistent with the known Phase 4 credential-blocker
+  status in `CLAUDE.md`'s DATA BLOCKERS table. The route above already
+  handles this correctly — no code change was needed to make the
+  degrade-gracefully behavior real, only a real page to mount the form on.
+
+**Root cause:** identical to afs-hv-002/003/004 — afs-hv-001 built
+`email-report/route.ts` out of scope before `app/hailview/page.tsx`
+existed, so every later phase that depends on "the results page" keeps
+hitting the same missing prerequisite. Phase 5 cannot honestly be the
+phase that "completes all 5 HailView phases" while Phases 2 and 3 were
+never actually built to spec.
+
+**What's needed to unblock:** re-run `afs-hv-002` (rebuild the four
+Section 5 formulas for real) and `afs-hv-003` (build the real
+`app/hailview/page.tsx`) in order, then re-run `afs-hv-004` (wire the
+already-correct `lib/hailview/explanation.ts` into that real page) and
+`afs-hv-005` (add the email form to that real page — `email-report/
+route.ts` needs no changes to support it). None of these were run this
+pass; this entry only re-confirms the blocker and the current, unchanged
+Resend-configuration state.
+
+---
+
 ## ADMIN NAV RESTRUCTURING: afs-fl-031 -- ICONS REMOVED, DEEP-LINKS REMOVED, SHOP VIEW PROMOTED, QUICKBOOKS/EMPLOYEE FOLDED, GBP RELOCATED, INVOICES FOLDED INTO ORDERS -- IMPLEMENTED, UNCONFIRMED (2026-09-03)
 
 Root-cause-only restructuring of `components/layout/AdminShell.tsx`'s left
