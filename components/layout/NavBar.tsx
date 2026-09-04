@@ -7,7 +7,10 @@ import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
 const LOGO_WIDTH = 200;
-const LOGO_HEIGHT = 80;
+// Exported so any full-width fixed/absolute element anchored near the top of
+// the viewport (e.g. app/hailview/page.tsx's map background) can clear the
+// logo's real footprint instead of the header's shorter 56px height.
+export const LOGO_HEIGHT = 80;
 
 const TOP_NAV_LINKS = [
   { label: 'Products', href: '/products' },

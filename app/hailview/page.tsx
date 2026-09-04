@@ -30,6 +30,7 @@ import dynamic from 'next/dynamic';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Badge, { type BadgeVariant } from '@/components/ui/Badge';
+import { LOGO_HEIGHT } from '@/components/layout/NavBar';
 import type { HailViewLookupResponse } from '@/app/api/hailview/storm-history/route';
 import type { MaterialCategory, MembraneMilThickness, MetalGauge, ReplacementTier } from '@/lib/hailview/types';
 
@@ -284,7 +285,10 @@ export default function HailViewPage() {
   }
 
   return (
-    <div className="fixed inset-x-0 top-14 bottom-0 overflow-hidden bg-afs-bg-base">
+    <div
+      className="fixed inset-x-0 bottom-0 overflow-hidden bg-afs-bg-base"
+      style={{ top: LOGO_HEIGHT }}
+    >
       {/* afs-hv-007 — persistent full-bleed map background. Mounted once with
           no address, showing HailViewMap's own default service-area view;
           once `result` exists, the real geocoded address + real storm event
