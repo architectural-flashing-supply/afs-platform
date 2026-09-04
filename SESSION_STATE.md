@@ -24,6 +24,79 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## HAILVIEW PHASE 4 (afs-hv-004): DONE — REAL AGENT NARRATIVE WIRED INTO THE UI, SCORE/TIER IMMUTABILITY VERIFIED (2026-09-04)
+
+`pnpm tsc --noEmit`: 0 errors.
+
+Root cause, found by reading the actual code rather than trusting the old
+halted afs-hv-004 entry below (preserved further down, now stale): the
+agentic explanation layer (`lib/hailview/explanation.ts`, a real
+`anthropic.messages.create({ model: 'claude-sonnet-4-6' })` call via the
+shared `lib/anthropic/client.ts`, the same convention `SPEC_AI_CHATBOT.md`'s
+FlashChat integration uses) already existed and was already being called by
+`app/api/hailview/storm-history/route.ts`, which already returned a real
+`narrative` field. Phase 3 built the page but *deliberately chose not to
+read that field*, rendering a local deterministic
+`buildPlaceholderExplanation()` template instead with a visible "Phase 4
+pending" badge — exactly as Phase 3's own header comment said it would,
+reserving the real wiring for this prompt. So this pass was narrower than
+"build the agent layer": it was (1) wire the page to `result.narrative`, (2)
+give it a real fallback instead of silently rendering blank text if the
+agent call fails, and (3) close two real gaps against Section 6's input
+contract found by reading `ExplanationInput` directly — it had no
+`roofAgeYears` or material sub-detail fields (shingle type / gauge / mil),
+despite the spec listing roof age and material sub-details as required
+agent inputs.
+
+What changed: `lib/hailview/explanation.ts` gained `roofAgeYears`/
+`shingleType`/`metalGauge`/`membraneMilThickness` on `ExplanationInput`,
+surfaced in the prompt; `app/api/hailview/storm-history/route.ts` passes them
+through; `app/hailview/page.tsx` now renders `result.narrative ||
+buildFallbackExplanation(result)` (the old placeholder function, renamed and
+repurposed as the graceful-degrade path — the route's own try/catch already
+sets `narrative = ''` on any agent failure, so this is where "never show
+nothing" actually lands), with the badge now conditional on the fallback
+actually being in use. `tests/e2e/hailview.spec.ts` updated — it previously
+hard-asserted the placeholder label was always visible, which is no longer
+true now that the real narrative is the default path.
+
+Type-system enforcement (Section 6's non-negotiable rule) verified by
+reading the integration code back: `generateHailViewExplanation` returns a
+bare `Promise<string>` — no numeric field anywhere on it. In the route,
+`score`/`tier` are assigned from `computeReplacementScore()` before the
+agent is even called; `narrative` is a separate field never read back into
+either.
+
+Live-verified against a real dev server (port 3001 — 3000 was already in
+use) with the real Anthropic key configured locally: two real
+`POST /api/hailview/storm-history` calls (asphalt shingle/architectural/16yr
+→ score 25/Low; metal standing seam/24ga/20yr → score 15/Low) each returned
+a real multi-paragraph narrative correctly citing that exact score, tier,
+age, and material sub-detail. First live pass caught the model defaulting to
+Markdown (`##` headers, `**bold**`) that rendered as literal characters in
+the page's plain-text `<p>` tag — fixed by adding an explicit
+no-Markdown instruction to the system prompt, re-verified clean on the
+second call. `pnpm exec playwright test tests/e2e/hailview.spec.ts` against
+that same dev server: 4/4 material-type tests pass. Screenshot
+(`test-results/hailview-asphalt-shingle.png`, gitignored) visually confirms
+clean prose, no placeholder badge, no blank panel. Per this file's own
+working-style note above: this is the session's own testing, evidence to
+bring to Reid, not a substitute for his own confirmation of the live page.
+
+Still open, unchanged by this pass: Open-Meteo commercial licensing
+(Section 4.3) — `OPEN_METEO_API_KEY` not configured here, so both live test
+calls above correctly reported wind data as unavailable rather than
+fabricating it. Phase 5 (email capture UI, afs-hv-005) still not built.
+
+Committed as `afs-hv-004`: `feat: HailView Phase 4 -- agentic explanation
+synthesis, score/tier immutability enforced in the type system (afs-hv-004)`.
+
+**Original halted entry preserved for history further below — its finding
+(Phase 2/3 didn't exist yet) is now stale; both were rebuilt for real before
+this pass started.**
+
+---
+
 ## HAILVIEW PHASE 3 (afs-hv-003): DONE — REAL UI WIRED TO PHASE 1+2, PLACEHOLDER EXPLANATION (2026-09-04)
 
 Built `app/hailview/page.tsx` against the real, already-committed Phase 1
@@ -152,7 +225,7 @@ that provisionality to whoever uses it).
 
 ---
 
-## HAILVIEW PHASE 4 (afs-hv-004): HALTED, SPEC NOW LOCATED AND ADDED, BUT PHASE 2/3 STILL DON'T MATCH IT (2026-09-03)
+## HAILVIEW PHASE 4 (afs-hv-004) — ORIGINAL ENTRY, SUPERSEDED ABOVE: HALTED, SPEC NOW LOCATED AND ADDED, BUT PHASE 2/3 STILL DON'T MATCH IT (2026-09-03)
 
 Also flagging: this prompt's text matches `afs-hv-004` in
 `FORGE/projects/afs-website/queue.yaml` verbatim but ran directly in Claude

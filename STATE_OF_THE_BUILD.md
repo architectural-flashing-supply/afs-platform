@@ -34,6 +34,116 @@ summary, not a replacement for it.
 
 ---
 
+## HAILVIEW PHASE 4 (afs-hv-004): DONE — REAL AGENT NARRATIVE WIRED INTO THE UI, SCORE/TIER IMMUTABILITY VERIFIED (2026-09-04)
+
+**Both gates met this pass, run directly, not assumed:** `pnpm tsc --noEmit`
+— 0 errors.
+
+**Root-cause finding before writing any code — read this before assuming the
+prior halted-afs-hv-004 entry below still describes the repo:** that entry
+(2026-09-03) found Phase 2/3 didn't exist yet and halted. Phase 2 and Phase 3
+were subsequently rebuilt for real (see their own DONE entries below) and
+Phase 3's own page (`app/hailview/page.tsx`) was found, on inspection this
+pass, to already receive a real `narrative` field from
+`app/api/hailview/storm-history/route.ts` — that route has called
+`generateHailViewExplanation()` (`lib/hailview/explanation.ts`, a genuine
+`anthropic.messages.create({ model: 'claude-sonnet-4-6' })` call, wired ahead
+of schedule back in afs-hv-001) since Phase 3 was built. **Phase 3 deliberately
+chose not to read that field** — it called a local, deterministic
+`buildPlaceholderExplanation(result)` instead and rendered a "Temporary
+placeholder — Phase 4 pending" badge, exactly as its own header comment says,
+reserving the real wiring for this prompt. So the actual Phase 4 gap was
+narrower than "build the agent layer" (it already existed) — it was: (1) wire
+`app/hailview/page.tsx` to actually read `result.narrative`, (2) give that
+wiring a real graceful-degrade path instead of silently rendering an empty
+string on agent failure, and (3) close two real gaps against Section 6's
+input contract that a direct code read found: `ExplanationInput` had no
+`roofAgeYears` or material sub-detail fields (shingle type / metal gauge /
+membrane mil), even though the spec explicitly lists "roof age" and "material
+type and sub-details" as required agent inputs, and the route never passed
+them.
+
+**What was actually changed this pass:**
+- `lib/hailview/explanation.ts` — added `roofAgeYears`, `shingleType`,
+  `metalGauge`, `membraneMilThickness` to `ExplanationInput`, surfaced via a
+  new `formatSubDetails()` line in the prompt. Also added an explicit
+  "plain prose only, no Markdown" instruction to the system prompt — live
+  testing this pass (see below) showed the model defaulting to `##` headers
+  and `**bold**` asterisks, which rendered as literal characters in the
+  page's plain `<p>` tag (there is no Markdown renderer in this component).
+  Not a hypothetical: this was caught by testing the real output, not
+  inferred from reading the code.
+- `app/api/hailview/storm-history/route.ts` — passes the new fields through
+  to `generateHailViewExplanation()`, gated by material (e.g. `shingleType`
+  only sent for `asphalt_shingle`).
+- `app/hailview/page.tsx` — the explanation panel now renders
+  `result.narrative || buildFallbackExplanation(result)`. Renamed
+  `buildPlaceholderExplanation` to `buildFallbackExplanation` to describe
+  what it now is: the graceful-degrade path when the agent call fails
+  server-side (the route's own try/catch around `generateHailViewExplanation`
+  sets `narrative = ''` on any error — network, API, malformed response —
+  never throws it up to the client), not the default rendering path. The
+  "Phase 4 pending" badge is now conditional (`!result.narrative`) and reads
+  "Automated summary — written explanation unavailable," shown only when the
+  fallback is actually in use.
+- `tests/e2e/hailview.spec.ts` — updated the header comment and the asphalt
+  shingle test's assertions, which previously hard-asserted the placeholder
+  label was always visible and the text always contained the literal
+  `scored ${score}` template phrase — both false now that the real narrative
+  is the primary path. Now asserts `hailview-explanation` is visible and
+  non-empty, true under either the real-narrative or fallback path.
+
+**Type-system enforcement (Section 6's non-negotiable rule), verified by
+reading the integration code back, not assumed:**
+`generateHailViewExplanation(input: ExplanationInput): Promise<string>` — the
+return type is a bare `string`, with no object/numeric field anywhere on the
+signature for a score to travel back through. In
+`app/api/hailview/storm-history/route.ts`, `score` and `tier` are destructured
+from `computeReplacementScore()`'s return value and assigned to the response
+object *before* `generateHailViewExplanation()` is even called; the
+`narrative` variable populated by that call is a wholly separate field on the
+response object and is never read back into `score` or `tier` anywhere in
+this file. The client-side fallback (`buildFallbackExplanation` in
+`app/hailview/page.tsx`) reads `result.score`/`result.tier`/`result.factors`
+to build its sentences but never writes to them. There is no code path, in
+either direction, by which agent output could alter the deterministic score.
+
+**Real end-to-end verification, run directly against the dev server on
+`localhost:3001` (port 3000 was already in use), not assumed from a code
+read:**
+- `POST /api/hailview/storm-history` for `1500 Marilla St, Dallas, TX 75201`,
+  `asphalt_shingle`/`architectural`/16yr roof age → real response:
+  `score: 25, tier: "Low"`, 0 qualifying hail events, 8 non-hail reports, and
+  a real multi-paragraph agent narrative correctly citing the 25/100 score,
+  the Low tier, the 16-year roof age, the architectural shingle type, the
+  1.45x age-severity multiplier, and the absence of hail events — all pulled
+  from the passed-in factors, not invented.
+- Same address, `metal_standing_seam`/24ga/20yr roof age → `score: 15, tier:
+  "Low"`, narrative correctly attributes the entire score to age-related wear
+  (zero hail severity/frequency), correctly describes 24-gauge standing seam
+  impact resistance, and never mentions a dollar figure.
+- `pnpm exec playwright test tests/e2e/hailview.spec.ts` against that same
+  dev server — 4/4 material-type tests pass (asphalt shingle, metal R-panel,
+  TPO/PVC membrane, wood shake), each hitting the real Nominatim/IEM
+  pipeline and the real agent call.
+- Screenshot (`test-results/hailview-asphalt-shingle.png`, gitignored, not
+  committed) visually confirmed: the real narrative renders as clean prose
+  paragraphs (no literal `##`/`**` after the Markdown-suppression prompt
+  change), no "placeholder" badge, no blank panel.
+
+**Commit:** `feat: HailView Phase 4 -- agentic explanation synthesis,
+score/tier immutability enforced in the type system (afs-hv-004)`.
+
+**Still open, unchanged by this pass, tracked separately:** Section 4.3's
+Open-Meteo commercial-licensing question — `OPEN_METEO_API_KEY` is not
+configured in this environment, so `wind` was `null` in both live test
+calls above and the narrative correctly said wind data was unavailable
+rather than fabricating it. Phase 5 (email capture UI, afs-hv-005) is still
+not built — `app/hailview/page.tsx` has no call to
+`app/api/hailview/email-report/route.ts` yet.
+
+---
+
 ## HAILVIEW PHASE 3 (afs-hv-003): DONE — REAL UI WIRED TO PHASE 1+2, PLACEHOLDER EXPLANATION (2026-09-04)
 
 **Both gates met this pass, run directly, not assumed:** `pnpm tsc --noEmit`
@@ -337,7 +447,7 @@ presenting it as final.
 
 ---
 
-## HAILVIEW PHASE 4 (afs-hv-004): HALTED — REAL SPEC LOCATED AND ADDED, BUT PHASE 2/3 STILL DON'T MATCH IT, NO PHASE 4 CODE WRITTEN (2026-09-03)
+## HAILVIEW PHASE 4 (afs-hv-004) — ORIGINAL HALTED ENTRY, SUPERSEDED ABOVE: HALTED — REAL SPEC LOCATED AND ADDED, BUT PHASE 2/3 STILL DON'T MATCH IT, NO PHASE 4 CODE WRITTEN (2026-09-03)
 
 **Process note first:** this prompt's text is byte-for-byte identical to
 `afs-hv-004` in `FORGE/projects/afs-website/queue.yaml` (line 1972 on), but
