@@ -143,6 +143,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       narrative = await generateHailViewExplanation({
         address: geocoded.displayName,
         material: body.material,
+        roofAgeYears: body.roofAgeYears,
+        shingleType: body.material === 'asphalt_shingle' ? body.shingleType : undefined,
+        metalGauge: body.material === 'metal_r_panel' || body.material === 'metal_standing_seam' ? body.metalGauge : undefined,
+        membraneMilThickness: body.material === 'tpo_pvc_membrane' ? body.membraneMilThickness : undefined,
         score,
         tier,
         factors,

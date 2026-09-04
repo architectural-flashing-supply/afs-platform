@@ -1,7 +1,8 @@
 'use client';
 
-// HailView Phase 3 (afs-hv-003) — real UI wired to the real, already-committed
-// Phase 1 (afs-hv-001) data pipeline and Phase 2 (afs-hv-002) scoring engine.
+// HailView Phase 4 (afs-hv-004) — real UI wired to the real, already-committed
+// Phase 1 (afs-hv-001) data pipeline, Phase 2 (afs-hv-002) scoring engine, and
+// Phase 3 (afs-hv-003) results page.
 //
 // This calls app/api/hailview/storm-history/route.ts directly. There is no
 // separate app/api/hailview/test-pipeline/route.ts — SPEC_HAILVIEW.md Section
@@ -12,14 +13,17 @@
 // here just to match the spec's original name would be a workaround, not a
 // fix — this page calls the real thing.
 //
-// SPEC_HAILVIEW.md Section 9 also scopes the written explanation to Phase 4
-// (the agentic synthesis layer, lib/hailview/explanation.ts). The API
-// response already includes a `narrative` field (that field was wired ahead
-// of schedule in afs-hv-001) — this page deliberately does NOT read
-// `result.narrative`. Instead, buildPlaceholderExplanation() below builds a
-// plain deterministic string from the same score/tier/factors data. Replace
-// this function's call site with `result.narrative` when afs-hv-004 (Phase 4)
-// is run for real.
+// SPEC_HAILVIEW.md Section 6 scopes the written explanation to the agentic
+// synthesis layer, lib/hailview/explanation.ts, called server-side from
+// app/api/hailview/storm-history/route.ts. This page now reads
+// `result.narrative` (the real agent-generated text) as the primary source.
+// buildFallbackExplanation() below is kept as the graceful degrade path —
+// used ONLY when `result.narrative` comes back empty (the route's own
+// try/catch sets it to '' if the agent call fails for any reason) — so the
+// tool never renders a blank explanation panel. It builds a plain
+// deterministic string from the same score/tier/factors data that is already
+// rendered elsewhere on this page — nothing about the fallback can affect the
+// score either.
 
 import { useState } from 'react';
 import Button from '@/components/ui/Button';
@@ -69,13 +73,12 @@ const selectClass =
 const optionClass = 'bg-afs-bg-overlay text-afs-chrome-high';
 const labelClass = 'font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-2 block';
 
-// TEMPORARY PLACEHOLDER — SPEC_HAILVIEW.md Section 9, Phase 4. Deliberately
-// a plain template string, not a model call, so the deterministic score
-// this page renders is never mixed up with agent-generated prose while
-// Phase 4 is still unbuilt. Replace the call site below with
-// `result.narrative` (already returned by the API — see file header) once
-// afs-hv-004 wires lib/hailview/explanation.ts in for real.
-function buildPlaceholderExplanation(result: HailViewLookupResponse): string {
+// Fallback-only explanation — rendered when `result.narrative` is empty
+// (the agent call failed server-side; see file header). A plain deterministic
+// template string built from the same score/tier/factors data already shown
+// elsewhere on this page, so the tool degrades gracefully instead of ever
+// showing a blank explanation panel.
+function buildFallbackExplanation(result: HailViewLookupResponse): string {
   const { score, tier, factors, hailEvents, nonHailEventCount } = result;
   const qualifying = factors.qualifyingEventCount;
   const eventWord = qualifying === 1 ? 'event' : 'events';
@@ -381,12 +384,17 @@ export default function HailViewPage() {
             <div className="bg-afs-bg-raised border border-afs-border rounded metal-edge p-6">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="font-heading text-2xl font-semibold text-afs-chrome-high">Explanation</h2>
-                <span className="font-label text-xs uppercase tracking-wide text-afs-amber" data-testid="hailview-explanation-placeholder-label">
-                  Temporary placeholder &mdash; Phase 4 pending
-                </span>
+                {!result.narrative && (
+                  <span
+                    className="font-label text-xs uppercase tracking-wide text-afs-amber"
+                    data-testid="hailview-explanation-fallback-label"
+                  >
+                    Automated summary &mdash; written explanation unavailable
+                  </span>
+                )}
               </div>
-              <p className="font-body text-sm leading-relaxed text-afs-chrome-mid" data-testid="hailview-explanation">
-                {buildPlaceholderExplanation(result)}
+              <p className="font-body text-sm leading-relaxed text-afs-chrome-mid whitespace-pre-line" data-testid="hailview-explanation">
+                {result.narrative || buildFallbackExplanation(result)}
               </p>
             </div>
 
