@@ -210,6 +210,12 @@ export default function RegisterPage() {
           Sign in
         </Link>
       </p>
+      <p className="text-center font-body text-xs text-afs-chrome-dim mt-4">
+        Applying for net terms?{' '}
+        <Link href="/account/credit-application" className="text-afs-chrome-mid hover:text-afs-crimson underline">
+          Apply for a credit account
+        </Link>
+      </p>
     </div>
   );
 }

@@ -24,6 +24,48 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## ROLE-BASED LOGIN REDIRECT + CREDIT APPLICATION DISCOVERABILITY (afs-fl-038): IMPLEMENTED, UNCONFIRMED (2026-09-04)
+
+Task brief claimed no role-based login redirect existed anywhere. Investigation
+found that was already false for the *password* login path — `app/(auth)/
+login/page.tsx` and `middleware.ts` already redirect admins to `/admin`
+correctly, and this was confirmed live this session (see below), not just
+by reading the code. The real, still-live gap was the **magic-link** path:
+`app/auth/callback/route.ts` always redirected to `/account` regardless of
+role. Fixed it to look up `profiles.role` and force `/admin` for admins,
+mirroring the password-login pattern exactly.
+
+Added a "Applying for net terms? Apply for a credit account" CTA linking
+to `/account/credit-application` on both `app/(auth)/login/page.tsx` and
+`app/(auth)/register/page.tsx` (existing footer-link style). The page
+itself already requires login (and the `credit_applications` table's RLS
+requires a real `auth.uid()`, so a truly anonymous submission was never
+possible) — `middleware.ts`'s existing account-route gate already carries
+a logged-out click through `/login?redirect=...` back to the form, so no
+new redirect-preservation code was needed.
+
+`pnpm tsc --noEmit`: 0 errors. Two real throwaway accounts (admin +
+contractor role) were created directly via Supabase's admin API — the
+public `/api/auth/register` route was tried first but hit Supabase's email
+rate limit mid-session — and logged in through the real `/login` page in a
+live Playwright browser: **admin → `/admin`, customer → `/account`**,
+confirmed correct. Credit-application CTA confirmed visible and clickable
+from a logged-out state on both `/register` and `/login`. Both test
+accounts deleted afterward and confirmed removed from `auth.users` and
+`profiles`.
+
+**Still open:** the magic-link fix itself could not be click-tested with a
+real received email (no test inbox in this environment; Supabase's
+admin-generated link uses the implicit flow, not the PKCE `?code=` flow the
+real client uses, so it doesn't exercise the new code path the same way).
+Logic mirrors the already-verified password-login pattern and compiles
+clean, but per this file's verification standard that's evidence, not
+confirmation — left **IMPLEMENTED, UNCONFIRMED** for that one path.
+Next session or Reid: click-test an actual magic-link sign-in as an admin
+and confirm it lands on `/admin`.
+
+---
+
 ## LOGO/HEADER FULL-WIDTH BACKGROUND CLEARANCE (afs-fl-037): IMPLEMENTED, UNCONFIRMED — HAILVIEW MAP BACKGROUND NOW CLEARS THE LOGO'S REAL 80PX HEIGHT (2026-09-04)
 
 Root cause behind afs-fl-033's still-standing complaint: the logo

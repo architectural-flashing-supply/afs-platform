@@ -34,6 +34,96 @@ summary, not a replacement for it.
 
 ---
 
+## ROLE-BASED LOGIN REDIRECT + CREDIT APPLICATION DISCOVERABILITY (afs-fl-038): IMPLEMENTED, UNCONFIRMED — MAGIC-LINK ADMIN REDIRECT FIXED; PASSWORD-LOGIN REDIRECT WAS ALREADY WORKING (2026-09-04)
+
+Task brief's "confirmed real fact" was that `AccountShell.tsx` has no
+role-based logic (true — it still doesn't, by design, see below) and that
+"every authenticated user sees the identical generic customer dashboard,
+with no path into /admin except typing the URL directly." That second half
+no longer matches the committed code: `app/(auth)/login/page.tsx`'s
+password sign-in (`handlePasswordSubmit`) already reads `profiles.role`
+after `signInWithPassword` and routes admins to `/admin` unconditionally,
+customers to `redirectParam || '/account'` — and `middleware.ts` already
+has an `isAuthEntryRoute` block that bounces an already-authenticated user
+away from `/login`/`/register` toward `/admin` or `/account` by role, plus
+its own independent `role !== 'admin'` gate on every `/admin/**` request
+(`getUserRole` via the service-role client, deliberately not the
+session-scoped client — see that file's own comment, added by a prior
+"fix: middleware admin routing bug" commit). `app/admin/layout.tsx` also
+calls `requireAdminUser()` (`lib/admin/auth.ts`) as a third independent
+layer. None of that was touched this session because it was already
+correct and already committed — verified live below.
+
+**The actual live gap:** the *magic-link* sign-in path had no role check
+at all. `handleMagicLinkSubmit` always set `emailRedirectTo`'s `next` to
+`redirectParam || '/account'`, and `app/auth/callback/route.ts` blindly
+redirected to whatever `next` it was given after `exchangeCodeForSession`.
+An admin signing in via magic link (no explicit `redirect` param) landed on
+`/account` — the exact symptom described, just from one specific entry
+point rather than a structural absence of role logic. Fixed
+`app/auth/callback/route.ts` to look up `profiles.role` for the
+now-authenticated user and force `/admin` for admins, otherwise use the
+requested `next` — an exact mirror of the password-login pattern in
+`app/(auth)/login/page.tsx`, same `role === 'admin'` check, same
+`own_profile`/`admin_all_profiles` RLS already in place on `profiles`
+(SCHEMA.md line ~122). `AccountShell.tsx` itself was deliberately left with
+no role branching — the redirect is enforced upstream (login, callback,
+middleware, `requireAdminUser`), not by the customer shell component
+guessing at role.
+
+**Credit Application discoverability (FIX 2).**
+`app/account/credit-application/page.tsx` already exists, works, and is
+reachable from `AccountShell`'s nav — but only after login, and it
+`redirect('/login')`s any unauthenticated visitor (the `credit_applications`
+table's own `INSERT` RLS policy requires `auth.uid() = user_id`, so an
+anonymous/no-account prospect cannot submit one regardless — an account is
+a real prerequisite, not just a UI gap). Added a one-line CTA — "Applying
+for net terms? Apply for a credit account" — linking to
+`/account/credit-application`, placed in the existing footer-link style on
+**both** `app/(auth)/login/page.tsx` and `app/(auth)/register/page.tsx`
+(both render inside the shared `AuthShell`). Chose both rather than one:
+a returning customer who forgot they had access and a brand-new prospect
+can each land on either page first. `middleware.ts`'s existing
+`isAccountRoute` gate already sends a logged-out click on that link to
+`/login?redirect=%2Faccount%2Fcredit-application`, so intent is preserved
+through sign-in/registration for free — no new redirect-preservation logic
+was needed.
+
+**Verification.** `pnpm tsc --noEmit`: 0 errors. Per this file's
+verification standard, real live testing was done this session (not
+assumed): the actual `/api/auth/register` route was tried first but hit
+Supabase's own email-send rate limit mid-session, so two real throwaway
+accounts (`role='admin'` and `role='contractor'`) were created directly via
+Supabase's admin REST API instead — same `auth.users` + `profiles` tables,
+same schema, a real account either way, not fabricated data. Logged into
+each through the actual `/login` page in a real Playwright browser against
+the running dev server: **admin landed on `/admin`, customer landed on
+`/account`** — confirming the password-login path (already-existing code,
+not touched this session) genuinely works end to end, contrary to the task
+brief's premise. Confirmed live in the same browser session that the
+credit-application CTA is visible and clickable on both `/register` and
+`/login` while logged out, and that clicking it redirects to
+`/login?redirect=%2Faccount%2Fcredit-application`. Both test accounts
+deleted afterward via the admin API and confirmed gone from both
+`auth.users` and `profiles`.
+
+**Not verified this session — the one open gap:** the magic-link fix
+itself (`app/auth/callback/route.ts`'s new role lookup) could not be
+click-tested end to end. Supabase's admin `generate_link` endpoint (the
+only email-free way to obtain a valid link in this environment, no test
+inbox available) returns an **implicit-flow** link (`#access_token=...`
+fragment straight to `/`), not the **PKCE** `?code=...` link the real
+browser client produces via `createBrowserClient`'s default `signInWithOtp`
+— so it never actually exercises `exchangeCodeForSession` the way a real
+clicked email link would. The new code is a direct, deliberate mirror of
+the already-verified-live password-login logic and `pnpm tsc --noEmit`
+passes, but per this file's standard that is evidence, not confirmation.
+Left as **IMPLEMENTED, UNCONFIRMED** for the magic-link path specifically,
+pending either Reid's own click-through or a future session with real
+inbox access.
+
+---
+
 ## LOGO/HEADER FULL-WIDTH BACKGROUND CLEARANCE (afs-fl-037): IMPLEMENTED, UNCONFIRMED — HAILVIEW MAP BACKGROUND NOW CLEARS THE LOGO'S REAL 80PX HEIGHT (2026-09-04)
 
 afs-fl-033 fixed the header bar's own left offset (starts at `x:200`, correctly
