@@ -34,6 +34,89 @@ summary, not a replacement for it.
 
 ---
 
+## HAILVIEW PHASE 5 (afs-hv-005): DONE — CONSENT-BASED EMAIL-MY-RESULTS FORM WIRED TO THE REAL RESULTS PAGE, GRACEFUL RESEND DEGRADATION VERIFIED LIVE — ALL 5 HAILVIEW PHASES NOW COMPLETE (2026-09-04)
+
+**Both gates met this pass, run directly, not assumed:** `pnpm tsc --noEmit`
+— 0 errors. `pnpm run build` — succeeded (exit 0) after clearing a stale
+`.next/trace` EPERM lock left by orphaned `next dev` processes from earlier
+in this same session (killed, `.next` removed, rebuilt clean — an
+environment artifact of this session's own process handling, not a code
+defect); route summary confirms `○ /hailview` built at 4.38 kB alongside
+every other route.
+
+**Root-cause check before writing any code:** the prior halted afs-hv-005
+entry below (2026-09-03) was correct at the time — `app/hailview/page.tsx`
+did not exist yet. It does now: `git log` shows `afs-hv-003` (`0397103`)
+built the real page and `afs-hv-004` (`8160d24`) wired the real agent
+narrative into it, both already marked DONE above/below with live
+verification. This pass re-confirmed `app/hailview/page.tsx` is the real,
+already-wired results page (not a stand-in) before adding Section 8's form
+to it.
+
+**What was actually changed this pass:**
+- `app/hailview/page.tsx` — added a "Email Me This Result" section to the
+  results view: an email input + submit button that POSTs
+  `{ email, address, material, score, tier, narrative }` (the same
+  already-rendered lookup result, nothing else) to
+  `app/api/hailview/email-report/route.ts`, and renders whichever real
+  outcome that route returns (`sent`, `not_configured`, or an error). This
+  is the single-user, consent-based pattern SPEC_HAILVIEW.md Section 8
+  describes, explicitly distinct from Section 2's excluded
+  geo-triangulation/marketing-list concept — no other user's data is ever
+  read or transmitted, and the route this posts to takes no address/contact
+  input beyond what the user just looked up for themselves.
+- `app/api/hailview/email-report/route.ts` — **not modified.** This route
+  was committed out-of-scope back in `ecc3f3a` (Phase 1) and, read closely
+  this pass, already correctly implements Section 8's contract end to end:
+  validates the email format server-side, calls `sendEmail()`
+  (`lib/resend/send.ts`), and returns `{ sent: false, reason:
+  'not_configured', message: "Email delivery isn't live yet — you can
+  screenshot or print this page to save your results." }` when Resend
+  is unconfigured, or `{ sent: true }` on a real successful send. No
+  workaround or shim was needed — the pre-existing route was simply never
+  called from a UI before this pass.
+- `tests/e2e/hailview.spec.ts` — added a live e2e test for the new form.
+
+**Resend configuration status, checked directly this pass, not assumed from
+the DATA BLOCKERS table:** `grep -i RESEND .env.local` returns no match, and
+`process.env.RESEND_API_KEY` / `process.env.RESEND_FROM_EMAIL` are both
+unset in this environment's process environment. **Resend is not
+configured.** This is the real, current state of the known Phase 4
+credential blocker — not changed by this pass.
+
+**Real end-to-end verification, run directly against a clean dev server
+(`localhost:4100`), not assumed from a code read:**
+- `POST /api/hailview/email-report` with a real email + a real computed
+  result body → real response: `{"sent":false,"reason":"not_configured",
+  "message":"Email delivery isn't live yet — you can screenshot or print
+  this page to save your results."}`. This is the actual graceful
+  degradation Section 8 asks for, observed live — not fabricated and not a
+  "sent" claim this environment cannot back up.
+- Same endpoint with an invalid email (`"not-an-email"`) → real `400`
+  response: `{"error":"Enter a valid email address."}`.
+- `npx playwright test tests/e2e/hailview.spec.ts -g "email-my-result"` —
+  passed. The test drives a real browser through the real pipeline (address
+  → real Nominatim/IEM/scoring round trip, ~14s) to a real rendered score,
+  then fills and submits the new email form and asserts the real
+  `not_configured` message renders in the UI — not mocked at any layer.
+
+**Commit:** `feat: HailView Phase 5 -- consent-based email-my-results
+capture, graceful Resend degradation (afs-hv-005)`.
+
+**This completes all 5 phases of SPEC_HAILVIEW.md Section 9's phased build
+plan** (Phase 1 data pipeline, Phase 2 scoring engine, Phase 3 UI, Phase 4
+agentic synthesis, Phase 5 email capture), each independently verified live
+against real external data as it was built. **Still open, unchanged by this
+pass:** Section 4.3's Open-Meteo commercial-licensing question
+(`OPEN_METEO_API_KEY` unset, wind data degrades to `null` as already
+documented in the afs-hv-004 entry below) and the Resend credential itself —
+when `RESEND_API_KEY`/`RESEND_FROM_EMAIL` are eventually set, the existing
+`sendEmail()`/route/UI code exercises the real `{ sent: true }` path with no
+code changes required; that path has not been live-tested against a real
+Resend account in this environment because no real key is available here.
+
+---
+
 ## HAILVIEW PHASE 4 (afs-hv-004): DONE — REAL AGENT NARRATIVE WIRED INTO THE UI, SCORE/TIER IMMUTABILITY VERIFIED (2026-09-04)
 
 **Both gates met this pass, run directly, not assumed:** `pnpm tsc --noEmit`
@@ -546,7 +629,7 @@ mechanical last step.
 
 ---
 
-## HAILVIEW PHASE 5 (afs-hv-005): HALTED — SAME ROOT CAUSE AS afs-hv-002/003/004, NO APPLICATION CODE WRITTEN (2026-09-03)
+## HAILVIEW PHASE 5 (afs-hv-005) — ORIGINAL HALTED ENTRY, SUPERSEDED ABOVE: HALTED — SAME ROOT CAUSE AS afs-hv-002/003/004, NO APPLICATION CODE WRITTEN (2026-09-03)
 
 **No page code was written this pass.** afs-hv-005 asks for "a simple form
 on the HailView results page." Re-verified directly this pass, not assumed

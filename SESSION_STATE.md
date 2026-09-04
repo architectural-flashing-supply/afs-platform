@@ -259,7 +259,46 @@ meaningfully run.
 
 ---
 
-## HAILVIEW PHASE 5 (afs-hv-005): HALTED, SAME ROOT CAUSE, NO CODE WRITTEN (2026-09-03)
+## HAILVIEW PHASE 5 (afs-hv-005): DONE — EMAIL-MY-RESULTS FORM ADDED TO THE REAL RESULTS PAGE, ALL 5 HAILVIEW PHASES COMPLETE (2026-09-04)
+
+The prior halted entry below (2026-09-03) was correct at the time: the
+results page didn't exist. It does now — `afs-hv-003`/`afs-hv-004` built and
+wired it for real since (see this file's matching entries and
+`STATE_OF_THE_BUILD.md`). This pass re-confirmed that directly (`git log`,
+direct file read) before adding anything, then added a small "Email Me This
+Result" form to `app/hailview/page.tsx` that posts the already-rendered
+lookup result (address/material/score/tier/narrative — the user's own data,
+nothing else) to the pre-existing `app/api/hailview/email-report/route.ts`.
+That route was committed out-of-scope back in Phase 1 (`ecc3f3a`) and, on
+inspection, already correctly implements Section 8's contract — no route
+changes were needed, only the UI to actually call it.
+
+**Verification requirement answered directly:** Resend is confirmed **not
+configured** in this environment — `grep -i RESEND .env.local` returns no
+match, and `RESEND_API_KEY`/`RESEND_FROM_EMAIL` are unset in the process
+environment (checked directly this pass). Real observed behavior: `curl
+POST /api/hailview/email-report` with a real result body returned
+`{"sent":false,"reason":"not_configured","message":"Email delivery isn't
+live yet — you can screenshot or print this page to save your
+results."}` — the real graceful-degradation path, not a fabricated "sent"
+claim. A live Playwright test (`tests/e2e/hailview.spec.ts`, new
+`email-my-result form degrades gracefully...` case) drove a real browser
+through the real address→score pipeline and confirmed that same message
+renders in the UI. `pnpm tsc --noEmit` (0 errors) and `pnpm run build`
+(succeeded) both pass.
+
+Committed as `afs-hv-005`: `feat: HailView Phase 5 -- consent-based
+email-my-results capture, graceful Resend degradation (afs-hv-005)`.
+
+**This completes all 5 HailView phases** per `SPEC_HAILVIEW.md` Section 9.
+Still open: the Open-Meteo licensing question (unchanged, see afs-hv-004
+entry) and a real Resend send, which cannot be exercised until a real
+`RESEND_API_KEY`/`RESEND_FROM_EMAIL` is configured in this environment —
+the code path for it already exists and needs no changes when that happens.
+
+---
+
+## HAILVIEW PHASE 5 (afs-hv-005) — ORIGINAL HALTED ENTRY, SUPERSEDED ABOVE: HALTED, SAME ROOT CAUSE, NO CODE WRITTEN (2026-09-03)
 
 afs-hv-005 asks for a consent-based email-capture form "on the HailView
 results page." Re-verified this pass: `app/hailview/page.tsx` still does
