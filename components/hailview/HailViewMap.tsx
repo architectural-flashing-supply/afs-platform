@@ -35,13 +35,19 @@ interface HailViewMapProps {
   hailEvents?: StormEvent[];
 }
 
-// Default view before any address has been looked up — the same real AFS
-// shop location and broader Southwest service-area framing already
-// established in components/track/DeliveryTrackingMap.tsx's
-// SERVICE_AREA_CENTER, reused here for consistency rather than inventing a
-// new default.
-const DEFAULT_CENTER: [number, number] = [31.5, -97.0];
-const DEFAULT_ZOOM = 5;
+// Default view before any address has been looked up. HailView's real
+// service area is physical roofing-bid prospecting out of the Burnet, TX
+// shop — Central Texas only (Austin/Waco/Killeen/northern San Antonio),
+// not the nationwide flashing-shipping footprint described in
+// lib/chatbot/knowledge/afs-company.ts's company-service-area entry. This
+// is deliberately NOT DeliveryTrackingMap's SERVICE_AREA_CENTER — that
+// component's [31.5, -97.0]/zoom 5 is a rounded, whole-US framing
+// calibrated for nationwide delivery tracking, a different purpose than
+// this tool's much narrower dispatch radius (afs-hv-008). The coordinate
+// below is the real shop location, matching afs-company.ts's shop
+// coordinates exactly.
+const DEFAULT_CENTER: [number, number] = [30.737075730063307, -98.23321342395246];
+const DEFAULT_ZOOM = 8;
 
 // Leaflet's default pin icon resolves its image paths against the app's own
 // origin, not the leaflet package, and 404s under Next.js's bundler unless
@@ -100,7 +106,9 @@ function FitToMarkers({ points }: { points: [number, number][] }) {
   useEffect(() => {
     if (points.length === 0) return;
     if (points.length === 1) {
-      map.setView(points[0], 13);
+      // afs-hv-008 — loosened from 13 to leave visible room around the pin
+      // for future nearby-area hail-triangulation markers (not built yet).
+      map.setView(points[0], 11);
       return;
     }
     map.fitBounds(L.latLngBounds(points), { padding: [48, 48] });

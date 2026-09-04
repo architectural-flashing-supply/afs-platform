@@ -24,6 +24,48 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## HAILVIEW DEFAULT MAP VIEW + POST-SUBMIT ZOOM CORRECTED (afs-hv-008): IMPLEMENTED, UNCONFIRMED — DEFAULT VIEW NOW REAL CENTRAL TEXAS SERVICE AREA, POST-SUBMIT ZOOM LOOSENED (2026-09-04)
+
+`pnpm tsc --noEmit`: 0 errors.
+
+Root cause: `HailViewMap.tsx`'s `DEFAULT_CENTER [31.5, -97.0]` / `ZOOM 5`
+(afs-hv-007) was a rounded value reused from `DeliveryTrackingMap.tsx`'s
+nationwide-delivery-tracking framing — never actually calibrated for
+HailView's own purpose. HailView's real service area, confirmed by Reid,
+is physical roofing-bid prospecting dispatched out of the Burnet, TX shop
+— Central Texas only, not the nationwide flashing-shipping footprint
+`afs-company.ts`'s `company-service-area` entry describes; dispatching a
+crew to a Dallas roof from Burnet isn't realistic.
+
+Changed `DEFAULT_CENTER` to the real Burnet shop coordinate
+(`30.737075730063307, -98.23321342395246`, matching `afs-company.ts`'s
+shop-coordinates entry exactly) and `DEFAULT_ZOOM` to `8` — confirmed by
+live screenshot to frame Austin, Waco, Killeen, and San Antonio's
+northern edge around Burnet, not the whole US, not a single city. Loosened
+`FitToMarkers`'s single-point `setView` zoom from `13` to `11` — confirmed
+by live screenshot to leave visible room around the post-submit pin for
+future nearby-area hail-triangulation markers (not built yet) while
+keeping the pin easy to locate.
+
+Verified live via Playwright against a real dev server: default view
+screenshot shows Austin/Round Rock/Georgetown/Killeen/Fort Hood/Waco/
+San Antonio's northern edge all on-screen together; post-submit lookup
+for **209 Sure Cast Drive, Burnet, TX 78611** (the real AFS shop address)
+shows the pin with several surrounding streets, the local creek, and
+nearby named landmarks in frame — not a tight single-block crop.
+Screenshots written to an untracked scratch directory, deleted after the
+run — not committed.
+
+**Marked IMPLEMENTED, UNCONFIRMED per this file's VERIFICATION STANDARD**
+— this is this session's own Playwright evidence, not Reid's independent
+confirmation of how the two zoom levels read to a human eye.
+
+**Commit:** `fix: HailView default map view corrected to real Central
+Texas service area, post-submit zoom loosened for future triangulation
+markers (afs-hv-008)`.
+
+---
+
 ## ROLE-BASED LOGIN REDIRECT + CREDIT APPLICATION DISCOVERABILITY (afs-fl-038): IMPLEMENTED, UNCONFIRMED (2026-09-04)
 
 Task brief claimed no role-based login redirect existed anywhere. Investigation

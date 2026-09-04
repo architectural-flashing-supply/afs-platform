@@ -34,6 +34,68 @@ summary, not a replacement for it.
 
 ---
 
+## HAILVIEW DEFAULT MAP VIEW + POST-SUBMIT ZOOM CORRECTED (afs-hv-008): IMPLEMENTED, UNCONFIRMED — DEFAULT VIEW NOW THE REAL CENTRAL TEXAS SERVICE AREA, POST-SUBMIT ZOOM LOOSENED (2026-09-04)
+
+**Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
+0 errors.
+
+**Root cause:** `components/hailview/HailViewMap.tsx`'s `DEFAULT_CENTER
+[31.5, -97.0]` / `DEFAULT_ZOOM 5` (afs-hv-007) was a rounded value reused
+byte-for-byte from `DeliveryTrackingMap.tsx`'s `SERVICE_AREA_CENTER` — a
+framing calibrated for nationwide delivery tracking, not for HailView's
+actual purpose. HailView's real service area, per Reid, is physical
+roofing-bid prospecting dispatched out of the Burnet, TX shop — Central
+Texas only (dispatching a crew to bid a roof in, e.g., Dallas from Burnet
+is not realistic), which is narrower than and distinct from the
+nationwide flashing-shipping footprint `lib/chatbot/knowledge/
+afs-company.ts`'s `company-service-area` entry describes. The old default
+rendered the whole continental US at first paint — nowhere near that real
+radius.
+
+**What changed, both in `components/hailview/HailViewMap.tsx`:**
+- `DEFAULT_CENTER` → `[30.737075730063307, -98.23321342395246]`, the real
+  Burnet, TX shop coordinate — matches `afs-company.ts`'s shop-coordinates
+  entry exactly (already used as the delivery-tracking origin point
+  there), not a rounded/reused value.
+- `DEFAULT_ZOOM` → `8`, chosen and confirmed by live screenshot (below),
+  not assumed. `5` was whole-continental-US scale; `8` comfortably frames
+  Austin, Waco, Killeen, and San Antonio's northern edge around Burnet
+  without going wider than that region.
+- `FitToMarkers`'s single-point case (`map.setView(points[0], 13)`, the
+  post-submit view for one address with no other markers yet) loosened to
+  zoom `11`, confirmed by live screenshot — leaves visible room around the
+  pin for future nearby-area hail-triangulation markers (not built yet)
+  without the pin becoming hard to locate.
+
+**Live verification, run directly this pass, not assumed from tsc alone
+(per this file's VERIFICATION STANDARD, none of what follows is
+sufficient on its own to mark this DONE — see status above):** Playwright
+against a real dev server, screenshotting `/hailview` before any address
+entered (`DEFAULT_CENTER`/`DEFAULT_ZOOM 8`) and after submitting a real
+lookup for **209 Sure Cast Drive, Burnet, TX 78611** (the real AFS shop
+address itself, chosen so the post-submit pin sits exactly at the shop).
+Default view: Austin, Round Rock, Georgetown, Killeen, Fort Hood, Waco,
+and San Antonio's northern edge all visibly labeled on-screen at once —
+genuinely regional, not whole-US, not a single-city close-up. Post-submit
+view at zoom 11: address pin clearly visible with several surrounding
+streets, the local creek, and named nearby landmarks (Burnet Municipal
+Airport, Ascension Seton Highland Lakes Hospital) in frame — comfortable
+room around the pin, not a tight single-block crop, pin still easy to
+locate. Screenshots taken this pass were written to an untracked scratch
+directory and deleted after this run — not committed, not claimed as
+permanent evidence.
+
+**Marked IMPLEMENTED, UNCONFIRMED**, per this file's own VERIFICATION
+STANDARD at the top: everything above is this session's own Playwright/
+screenshot evidence, not Reid's independent confirmation that the two
+zoom levels read correctly to a human eye.
+
+**Commit:** `fix: HailView default map view corrected to real Central
+Texas service area, post-submit zoom loosened for future triangulation
+markers (afs-hv-008)`.
+
+---
+
 ## ROLE-BASED LOGIN REDIRECT + CREDIT APPLICATION DISCOVERABILITY (afs-fl-038): IMPLEMENTED, UNCONFIRMED — MAGIC-LINK ADMIN REDIRECT FIXED; PASSWORD-LOGIN REDIRECT WAS ALREADY WORKING (2026-09-04)
 
 Task brief's "confirmed real fact" was that `AccountShell.tsx` has no
