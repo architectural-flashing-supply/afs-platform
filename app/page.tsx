@@ -1,8 +1,12 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import HeroDrawingOverlay from '@/components/home/HeroDrawingOverlay';
+import PhotoCategoryGrid from '@/components/home/PhotoCategoryGrid';
+import ProjectGallery from '@/components/home/ProjectGallery';
 
 export default function HomePage() {
   return (
+    <>
     <main
       className="relative overflow-hidden bg-afs-bg-dim"
       style={{ height: '100vh' }}
@@ -32,6 +36,11 @@ export default function HomePage() {
           pointerEvents: 'none',
         }}
       />
+
+      {/* afs-fl-034 — "drawing to steel" accent: a supporting visual element
+          only, layered over the existing photo/triangle. Does not touch the
+          headline, copy, or hero photo above. */}
+      <HeroDrawingOverlay />
 
       <div
         className="absolute z-10"
@@ -73,5 +82,9 @@ export default function HomePage() {
         </div>
       </div>
     </main>
+
+    <PhotoCategoryGrid />
+    <ProjectGallery />
+    </>
   );
 }

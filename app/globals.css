@@ -187,3 +187,49 @@ body {
     opacity: 0.35;
   }
 }
+
+/* Homepage hero "drawing to steel" accent (afs-fl-034,
+   components/home/HeroDrawingOverlay.tsx) — a one-time line-draw of a
+   flashing bend profile that settles into a static overlay, not an
+   infinite loop like the two pulse animations above. stroke-dasharray is
+   set well above every path's real length on purpose (see track-dot-pulse
+   comment style precedent) so the "on" dash always covers the full path
+   regardless of its exact geometry. */
+.hero-sketch-line {
+  stroke-dasharray: 500;
+  stroke-dashoffset: 500;
+  animation: hero-sketch-draw-in 1.8s ease-out forwards;
+}
+
+.hero-sketch-line-delay1 {
+  animation-delay: 0.3s;
+}
+
+.hero-sketch-fade {
+  opacity: 0;
+  animation: hero-sketch-fade-in 0.4s ease-out forwards;
+  animation-delay: 1.6s;
+}
+
+.hero-sketch-line-delay2 {
+  animation-delay: 1.9s;
+}
+
+@keyframes hero-sketch-draw-in {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes hero-sketch-fade-in {
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-sketch-line {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .hero-sketch-fade {
+    animation: none;
+    opacity: 1;
+  }
+}
