@@ -24,6 +24,44 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## LOGO/HEADER FULL-WIDTH BACKGROUND CLEARANCE (afs-fl-037): IMPLEMENTED, UNCONFIRMED — HAILVIEW MAP BACKGROUND NOW CLEARS THE LOGO'S REAL 80PX HEIGHT (2026-09-04)
+
+Root cause behind afs-fl-033's still-standing complaint: the logo
+(`LOGO_HEIGHT=80`) is taller than the header bar (`h-14`=56px) it sits next
+to, and both are `fixed` at `top:0`, so the logo's bottom 24px hangs below
+the header. afs-fl-033 already fixed the header bar's own left offset
+correctly — this is a separate defect, only visible where a genuinely
+full-width fixed/absolute element spans underneath the logo's `x:0`–`200`
+footprint.
+
+Audited the whole codebase (grep for `top-14`/`pt-14`/`top-16`/`pt-16`/
+`fixed`+`inset-0`/`inset-x-0`). Found exactly one real instance: HailView's
+persistent map background, `app/hailview/page.tsx` (`fixed inset-x-0 top-14
+bottom-0`), the one named in the task brief as confirmed. Fixed it to use
+`style={{ top: LOGO_HEIGHT }}`, importing `LOGO_HEIGHT` newly-exported from
+`components/layout/NavBar.tsx`, instead of a second hardcoded `80`.
+
+Everything else the grep found was checked and left alone on purpose:
+`AccountShell`/`AdminShell` are on portal routes that never render the
+public logo at all; `AppChrome`'s own `pt-14` wrapper (used by almost every
+public page), the products page, both architects pages, and the FlashDraft
+studio page all use normal-flow padding/height, not `fixed`/`absolute`, so
+they scroll clear of the logo instead of staying pinned under it —
+`ResourcesBrowser`'s `sticky top-14` category headers are the same
+reasoning (noted as a borderline case, not touched). One more `fixed
+inset-0` full-viewport page was found —
+`app/studio/profile-viewer/[profileId]/page.tsx`, a deliberate full-screen
+share-link viewer at the same z-40 as the logo — but it paints *over* the
+nav by DOM order, the opposite problem from this bug, and wasn't touched.
+
+`pnpm tsc --noEmit`: 0 errors. Verified live with a real Playwright
+screenshot against the dev server at `/hailview` — logo no longer overlaps
+the map/panel. Per this file's verification standard above, that's evidence
+for Reid, not a substitute for his own check — left as **IMPLEMENTED,
+UNCONFIRMED** until he confirms it himself.
+
+---
+
 ## LEGACY SITE PHOTOGRAPHY LIBRARY (afs-fl-036): DONE (2026-09-04)
 
 Built `public/legacy-site-photos/` — a real, organized library of AFS's own

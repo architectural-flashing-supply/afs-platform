@@ -34,6 +34,65 @@ summary, not a replacement for it.
 
 ---
 
+## LOGO/HEADER FULL-WIDTH BACKGROUND CLEARANCE (afs-fl-037): IMPLEMENTED, UNCONFIRMED — HAILVIEW MAP BACKGROUND NOW CLEARS THE LOGO'S REAL 80PX HEIGHT (2026-09-04)
+
+afs-fl-033 fixed the header bar's own left offset (starts at `x:200`, correctly
+clearing the logo's 200px width) but left a separate defect standing: the
+logo (`components/layout/NavBar.tsx`'s `LOGO_WIDTH=200`/`LOGO_HEIGHT=80`) is
+80px tall while the header bar itself is only 56px tall (`h-14`), and both
+are `fixed` at `top:0`. The logo's bottom 24px hangs below the header's
+bottom edge. That only visually matters for a genuinely full-width
+fixed/absolute-positioned element that spans underneath the logo's own
+`x:0`–`200` footprint — content that already starts to the right of `x:200`
+(like the header's own nav links) is unaffected.
+
+**Audit.** Grepped the codebase for `top-14`/`pt-14`/`top-16`/`pt-16` and for
+`fixed` combined with `inset-0`/`inset-x-0` near the top of the viewport.
+Found exactly one genuinely full-width fixed-position instance: the
+persistent map background on `app/hailview/page.tsx` (`fixed inset-x-0
+top-14 bottom-0`, afs-hv-007) — the confirmed real instance named in the
+task brief. Fixed by dropping the hardcoded `top-14` class in favor of
+`style={{ top: LOGO_HEIGHT }}`, importing the newly-exported `LOGO_HEIGHT`
+constant from `components/layout/NavBar.tsx` (now `export const LOGO_HEIGHT
+= 80`) so the map background and the logo's real height can't drift apart
+again.
+
+Everything else the grep surfaced was reviewed and confirmed to **not** need
+this fix, for one of two reasons:
+- **Already scoped past x:200, not full-width:** `AccountShell.tsx`
+  (`ml-[220px] pt-16`), `AdminShell.tsx` (`ml-[240px] pt-16`) — moot anyway,
+  since `/account` and `/admin` are in `AppChrome.tsx`'s `PORTAL_PREFIXES`
+  and never render the public NavBar/logo at all.
+- **Not fixed/absolute — normal document flow, not a persistent overlay:**
+  `AppChrome.tsx`'s own `pt-14` wrapper (used by nearly every public page),
+  `app/(public)/products/page.tsx`'s `pt-14`, `app/(public)/architects/
+  {cad-library,finish-palette}/page.tsx`'s `pt-16` (inside `ArchitectShell`),
+  `app/studio/draft/page.tsx`'s `min-h-[calc(100vh-56px)]` main. These
+  scroll away immediately rather than staying pinned under the fixed logo
+  for the life of the page — the specific pattern afs-hv-007 has and that
+  this fix was scoped to. `components/resources/ResourcesBrowser.tsx`'s
+  `sticky top-14` category headers are `position: sticky` (z-10, lower than
+  the logo's z-40) not `fixed`; same reasoning applies, though noted as a
+  borderline case (a stuck header's top ~24px could still sit behind the
+  logo mid-scroll) — left untouched as out of this fix's defined scope.
+
+One more `fixed inset-0` full-viewport instance was found and deliberately
+left alone: `app/studio/profile-viewer/[profileId]/page.tsx`'s share-link
+viewer uses `fixed inset-0 ... z-40` — the *same* z-index as the logo/header,
+so by DOM order it paints on top of them, not underneath. That's a distinct,
+pre-existing pattern (a deliberate full-screen "focus mode" page that covers
+the nav) with the opposite failure mode from this bug. Not fixed here — out
+of scope, not requested.
+
+**Verification.** `pnpm tsc --noEmit` — 0 errors. Live-verified with a real
+Playwright screenshot against the dev server at `/hailview`: the logo's
+bottom edge now sits flush above the white lookup panel and the map, no
+overlap. Per this file's verification standard above, a session's own
+screenshot is evidence to bring to Reid, not a substitute for his own
+confirmation — marked **IMPLEMENTED, UNCONFIRMED** pending that.
+
+---
+
 ## LEGACY SITE PHOTOGRAPHY LIBRARY (afs-fl-036): DONE (2026-09-04)
 
 Built a real, organized library of AFS's own legitimate photography from the
