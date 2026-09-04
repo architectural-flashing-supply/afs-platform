@@ -34,6 +34,59 @@ summary, not a replacement for it.
 
 ---
 
+## ISTOCK LEGACY PHOTO AUDIT (afs-fl-035): CLEAN — NO REFERENCES FOUND ANYWHERE SEARCHED (2026-09-04)
+
+Reid flagged that two specific iStock-licensed photos used on the old
+WordPress site (IDs `1434931160` and `1354157446`, separately licensed and
+not confirmed cleared for this site) must not exist anywhere in this
+codebase or connected storage. Four searches were run, in order, against
+the real live systems — not assumed clean:
+
+1. **Repo-wide grep**, all file types (not just `.ts`/`.tsx`), for `istock`
+   case-insensitive and for both specific IDs. **No matches.**
+2. **`public/` directory**, listed recursively (`public/home_page_images/`,
+   `public/home_page_images/gallery/`, `Metal Color Charts/`, all PWA
+   manifest/icon files) — every filename checked against `istock` and both
+   IDs. **No matches.** The homepage gallery images are
+   `home_page_images/gallery/afs-1.jpg` through `afs-39.jpg`, matching the
+   `Architectural-Flashing-Supply-{N}.jpg` set independently verified and
+   downloaded/viewed in the afs-fl-034 entry above — not iStock filenames.
+3. **Supabase Storage**, both real buckets on the live project
+   (`blueprints`, `documents` — confirmed via `NEXT_PUBLIC_SUPABASE_URL` in
+   `.env.local`, project ref `lxfiziwsqezjjybeguqq`), walked recursively via
+   the Storage REST API using the service-role key (40 objects total:
+   customer-uploaded blueprint PDFs/order-sheet PNGs and field-photo JPGs
+   with device-generated numeric filenames). **No matches** on `istock` or
+   either ID in any object path. Note: the Supabase MCP connector available
+   in this session only has access to three unrelated projects (`tarritrix`,
+   `tarritrix-audit`, `hail-intel-resurrected`) — same limitation already
+   on record in the migration-013 entry below. This check went around that
+   gap by hitting the real project's Storage REST API directly with the
+   service-role key from `.env.local`, not by trusting the MCP tool's
+   project list.
+4. **Media-tracking DB tables** on the same real live project —
+   `order_attachments` (filename, storage_key), `gbp_photo_queue`
+   (storage_key, caption), `takeoff_uploads` (file_name, storage_key),
+   `cad_library_files` (filename, storage_key, preview_image_key), and
+   `vault_documents` (filename, original_filename, storage_key,
+   description) — queried directly via PostgREST (`ilike '%istock%'` and
+   both IDs). **No matches** in any column of any table.
+
+**No file, object, or row was found matching either the `istock` string or
+the two specific IDs anywhere searched — nothing was deleted because there
+was nothing to delete.** No code changes resulted from this pass.
+`pnpm tsc --noEmit` was re-run as a baseline check regardless (0 errors,
+already true before this pass since nothing changed).
+
+Not swept into this pass: `git add -A` was deliberately not used to commit
+this doc update — the working tree has several untracked, task-unrelated
+paths (`.repro-afs-fl-023/`, `.repro-afs-fl-025/`, `.repro-afs-fl-029/`,
+`EMAIL PROSPECT LISTS/`, `supabase/.temp/`), one of which (`EMAIL PROSPECT
+LISTS/`) looks like it may hold sensitive data — only this file and
+`SESSION_STATE.md` were staged by name.
+
+---
+
 ## HOMEPAGE "DRAWING TO STEEL" HERO ACCENT + REAL PHOTO CATEGORY GRID + PROJECT GALLERY (afs-fl-034): IMPLEMENTED, UNCONFIRMED (2026-09-04)
 
 A prior prompt (afs-fl-032) had incorrectly assumed SPEC_HOMEPAGE.md's hero

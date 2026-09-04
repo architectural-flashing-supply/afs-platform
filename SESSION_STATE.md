@@ -24,6 +24,39 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## ISTOCK LEGACY PHOTO AUDIT (afs-fl-035): CLEAN — NO REFERENCES FOUND (2026-09-04)
+
+Root-cause search requested by Reid for two specific iStock-licensed photo
+IDs (`1434931160`, `1354157446`) from the old WordPress site, never
+confirmed cleared for this site. Four searches run in order, each against
+real live state, not assumed:
+
+1. Repo-wide grep (all file types) for `istock` case-insensitive and both
+   IDs — **no matches found in the repo.**
+2. `public/` recursive directory listing, every filename checked — **no
+   matches found.**
+3. Supabase Storage, both real buckets (`blueprints`, `documents`) on the
+   actual live project (`lxfiziwsqezjjybeguqq`, from `.env.local`), walked
+   recursively via the Storage REST API with the service-role key — **no
+   matches found** among the 40 real objects present. The Supabase MCP
+   connector in this session again only exposed unrelated projects
+   (`tarritrix`, `tarritrix-audit`, `hail-intel-resurrected`); this check
+   used direct REST calls against the real project instead, so the
+   MCP-scope gap didn't block it this time.
+4. Media-tracking tables (`order_attachments`, `gbp_photo_queue`,
+   `takeoff_uploads`, `cad_library_files`, `vault_documents`) queried
+   directly via PostgREST for the same terms across every filename/
+   storage_key/caption/description column — **no matches found.**
+
+**Full detail in the matching `STATE_OF_THE_BUILD.md` entry.** Nothing was
+deleted — no real match existed to delete. No code changed, `pnpm tsc
+--noEmit` re-confirmed at 0 errors. This doc and `STATE_OF_THE_BUILD.md`
+were committed by explicit filename, not `git add -A` — the working tree
+has unrelated untracked paths including one (`EMAIL PROSPECT LISTS/`) that
+looks sensitive and was left alone.
+
+---
+
 ## HOMEPAGE "DRAWING TO STEEL" HERO ACCENT, REAL PHOTO CATEGORY GRID, PROJECT GALLERY (afs-fl-034): IMPLEMENTED, UNCONFIRMED BY REID (2026-09-04)
 
 Corrected re-scope of a task a prior prompt (afs-fl-032) halted on: that
