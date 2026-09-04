@@ -24,6 +24,48 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## HAILVIEW DEFAULT ZOOM RE-CORRECTED, 8 → 9 (afs-hv-009): IMPLEMENTED, UNCONFIRMED — afs-hv-008's ZOOM 8 WAS STILL TOO WIDE ON REAL DESKTOP VIEWPORTS (2026-09-04)
+
+`pnpm tsc --noEmit`: 0 errors.
+
+Root cause: afs-hv-008 (below) picked `DEFAULT_ZOOM 8` and claimed live
+screenshots confirmed it framed Central Texas "without going wider than
+that region." Re-running that same check this session (Playwright,
+1440x900 and 1366x768) showed that claim was incomplete — Houston,
+Galveston, Sugar Land, The Woodlands, Tyler, and Longview were also
+visible in frame at zoom 8, well outside Central Texas. The previous
+session correctly spotted the right cities but didn't check for wrong
+ones also being present. Contributing factor: the overlay panel
+(afs-hv-007) docks left over the map's upper portion, so the visible,
+unobstructed area at a given zoom is skewed right of the true geographic
+center — a wide zoom's right-side bleed is easy to undercount if you're
+only checking "are Austin/Waco/Killeen/San Antonio there," not also
+"is anything else there that shouldn't be."
+
+Changed `DEFAULT_ZOOM` `8` → `9` in `HailViewMap.tsx`. Re-verified live at
+both viewports: Burnet now actually labeled (wasn't at zoom 8), plus Waco,
+Killeen/Fort Hood, Georgetown, Round Rock, Austin, and San Antonio's Hill
+Country approach (Fredericksburg, Boerne, Comfort, Kerrville) — no East
+Texas/Gulf Coast bleed at either size. Also re-checked (not just carried
+forward) afs-hv-008's `FitToMarkers` zoom-11 post-submit view against the
+same real 209 Sure Cast Drive, Burnet, TX 78611 lookup — still correct,
+no change made there.
+
+Screenshots written to an untracked scratch path, deleted after the run
+— not committed.
+
+**Marked IMPLEMENTED, UNCONFIRMED per this file's VERIFICATION STANDARD**
+— same caveat as afs-hv-008 below, and worth weighting more heavily this
+time: afs-hv-008 was also marked IMPLEMENTED, UNCONFIRMED and needed a
+correction on its very next check. This should not be treated as settled
+until Reid has looked at it directly.
+
+**Commit:** `fix: HailView default zoom re-corrected 8 to 9 after live
+verification showed East Texas/Gulf Coast cities in frame at zoom 8
+(afs-hv-009)`.
+
+---
+
 ## HAILVIEW DEFAULT MAP VIEW + POST-SUBMIT ZOOM CORRECTED (afs-hv-008): IMPLEMENTED, UNCONFIRMED — DEFAULT VIEW NOW REAL CENTRAL TEXAS SERVICE AREA, POST-SUBMIT ZOOM LOOSENED (2026-09-04)
 
 `pnpm tsc --noEmit`: 0 errors.

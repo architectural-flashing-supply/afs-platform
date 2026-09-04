@@ -46,8 +46,18 @@ interface HailViewMapProps {
 // this tool's much narrower dispatch radius (afs-hv-008). The coordinate
 // below is the real shop location, matching afs-company.ts's shop
 // coordinates exactly.
+//
+// Zoom 9, not 8: the overlay panel (app/hailview/page.tsx) docks left over
+// the map's upper portion, so at common desktop viewports (checked live at
+// 1440x900 and 1366x768) the geographic center sits well right-of-center
+// in the unobstructed area. Zoom 8's wider span put Houston, Galveston, and
+// Tyler/Longview in frame past that offset — genuinely outside the Central
+// Texas radius this default is supposed to represent. Zoom 9 keeps
+// Burnet/Waco/Killeen/Fort Hood/Georgetown/Round Rock/Austin and San
+// Antonio's Hill Country approach (Fredericksburg/Boerne/Comfort) in frame
+// without the East Texas/Gulf Coast bleed.
 const DEFAULT_CENTER: [number, number] = [30.737075730063307, -98.23321342395246];
-const DEFAULT_ZOOM = 8;
+const DEFAULT_ZOOM = 9;
 
 // Leaflet's default pin icon resolves its image paths against the app's own
 // origin, not the leaflet package, and 404s under Next.js's bundler unless

@@ -34,6 +34,71 @@ summary, not a replacement for it.
 
 ---
 
+## HAILVIEW DEFAULT ZOOM RE-CORRECTED, 8 → 9 (afs-hv-009): IMPLEMENTED, UNCONFIRMED — afs-hv-008's ZOOM 8 WAS STILL TOO WIDE ON REAL DESKTOP VIEWPORTS; POST-SUBMIT ZOOM 11 RE-VERIFIED AND CONFIRMED CORRECT (2026-09-04)
+
+**Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
+0 errors.
+
+**Root cause:** afs-hv-008 (below) chose `DEFAULT_ZOOM 8` and claimed live
+screenshot confirmation that it "comfortably frames Austin, Waco, Killeen,
+and San Antonio's northern edge... without going wider than that region."
+That claim was incomplete, not fabricated: it correctly identified those
+cities were visible, but didn't catch that **Houston, Galveston, Sugar
+Land, The Woodlands, Nacogdoches, Tyler, and Longview were also in frame
+at the same time** — all East Texas/Gulf Coast, well outside the intended
+Central Texas radius, and a materially wider view than "not the whole
+state" describes. This session re-ran the exact same live-screenshot
+verification afs-hv-008 claimed to have done (Playwright, real dev
+server, `/hailview`, no address entered) at two real desktop viewports
+(1440x900, 1366x768) and the extraneous cities were plainly visible on
+first look. Contributing factor, not an excuse: `app/hailview/page.tsx`'s
+overlay panel docks left over the map's upper portion (afs-hv-007), so
+the geographic center at a given zoom sits well right-of-center in the
+unobstructed viewing area — a wide zoom's *right* half extends much
+further than its hidden left half suggests, which is easy to undercount
+when eyeballing a screenshot for "are the right cities present" without
+also checking "are there wrong cities present."
+
+**What changed, in `components/hailview/HailViewMap.tsx`:**
+- `DEFAULT_ZOOM`: `8` → `9`. Re-verified live at both viewports above:
+  Burnet (now actually labeled, unlike at zoom 8), Waco, Killeen/Fort
+  Hood, Georgetown, Round Rock, and Austin all in frame, plus Hill
+  Country towns on San Antonio's northern approach (Fredericksburg,
+  Johnson City, Boerne, Comfort, Kerrville) — genuinely Central Texas,
+  no East Texas or Gulf Coast bleed at either viewport size.
+- `FitToMarkers`'s single-point zoom (`11`, set in afs-hv-008) was
+  re-verified this pass, not just carried forward on faith — screenshotted
+  again against a real lookup for 209 Sure Cast Drive, Burnet, TX 78611.
+  Confirmed correct: pin clearly visible with surrounding streets, the
+  local creek, and named landmarks (Burnet Municipal Airport, Ascension
+  Seton Highland Lakes Hospital) in frame. No change needed here.
+- Added an inline comment on `DEFAULT_ZOOM` documenting the overlay-panel
+  interaction above, so a future zoom change doesn't repeat the same
+  screenshot-reading miss.
+
+**Live verification, run directly this pass:** Playwright against a real
+dev server. Default view checked at 1440x900 and 1366x768 — both show the
+Central Texas cluster with no distant-city bleed. Post-submit view
+re-checked at 1440x900 against the same real Burnet address used in
+afs-hv-008 — pin and surrounding area still read correctly at zoom 11.
+Screenshots written to an untracked scratch path and deleted after this
+run — not committed, not claimed as permanent evidence, per this file's
+own VERIFICATION STANDARD.
+
+**Marked IMPLEMENTED, UNCONFIRMED**, per this file's VERIFICATION
+STANDARD at the top: everything above is this session's own Playwright/
+screenshot evidence, not Reid's independent confirmation that zoom 9 (or
+the re-confirmed zoom 11) reads correctly to a human eye. Given afs-hv-008
+itself was IMPLEMENTED, UNCONFIRMED and turned out to need a correction on
+its very next check, this item should not be treated as settled until
+Reid has looked at it directly.
+
+**Commit:** `fix: HailView default zoom re-corrected 8 to 9 after live
+verification showed East Texas/Gulf Coast cities in frame at zoom 8
+(afs-hv-009)`.
+
+---
+
 ## HAILVIEW DEFAULT MAP VIEW + POST-SUBMIT ZOOM CORRECTED (afs-hv-008): IMPLEMENTED, UNCONFIRMED — DEFAULT VIEW NOW THE REAL CENTRAL TEXAS SERVICE AREA, POST-SUBMIT ZOOM LOOSENED (2026-09-04)
 
 **Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
