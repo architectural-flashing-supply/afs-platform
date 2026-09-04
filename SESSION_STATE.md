@@ -24,6 +24,78 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## NAVBAR HEADER/LOGO OVERLAP, ACCOUNT MENU SIGN OUT, HAILVIEW NAV LINK (afs-fl-033): IMPLEMENTED, UNCONFIRMED — VERIFIED LIVE AGAINST A REAL TEST ACCOUNT, NOT YET REID-CONFIRMED (2026-09-04)
+
+`pnpm tsc --noEmit`: 0 errors.
+
+Three fixes to `components/layout/NavBar.tsx`, requested together this
+pass. Read the real current file first per this pass's own instructions
+(not assumed from the task description) and found all three already
+present as **uncommitted working-tree changes** — not authored this pass.
+This pass's actual work was: confirm the existing diff genuinely solved
+each described problem, verify all three live against a running dev
+server and a real test account, then commit.
+
+**FIX 1 — header/logo overlap.** The task description's "currently"
+state (logo `fixed` `z-50` over a full-width `fixed` header at `z-40`
+using `paddingLeft: 210` to manually clear it) matches the last
+*committed* version (see `git log -p -- components/layout/NavBar.tsx`,
+commits `nav: double AFS logo size...` and `fix: compact top nav to
+56px...`), not the working tree. The uncommitted diff already redesigned
+it: the header is now `left: LOGO_WIDTH` (200px, a named constant, not a
+magic number) instead of `left: 0` + `right: 0` + `paddingLeft: 210`;
+both logo and header dropped to the same `z-40` (irrelevant now, since
+they no longer occupy overlapping screen space at all). Confirmed live
+via Playwright bounding boxes, both logged out and logged in:
+`LOGO_BOX {x:0,width:200}`, `HEADER_BOX {x:200}` — the header's own
+background genuinely starts at the logo's right edge, not hidden beneath
+it.
+
+**FIX 2 — Sign Out moved into account menu.** Already a `role="menu"`
+dropdown under a "My Account" toggle button (`accountMenuOpen` state,
+click-outside-to-close via a `mousedown` listener), containing an
+"Account" link and a "Sign Out" `menuitem` button. `handleSignOut`'s body
+(`supabase.auth.signOut()` then `window.location.href = '/login'`) is
+byte-for-byte unchanged from the prior standalone-button version — only
+its UI placement moved, confirmed by diff.
+
+**FIX 3 — HailView added to nav.** `TOP_NAV_LINKS` gained `{ label:
+'HailView', href: '/hailview' }`, placed second (right after Products) —
+chosen because HailView, like Products, is a customer-facing lookup tool
+used before any account/quote relationship exists, so it belongs with the
+top-level discovery links rather than nearer Contact/FAQ.
+
+**Live verification, run directly this pass, not assumed:**
+- Started a fresh `pnpm dev`, confirmed reachable.
+- Created a real, throwaway Supabase Auth test user via the admin REST
+  API (`SUPABASE_SERVICE_ROLE_KEY`, `email_confirm: true`) — no
+  `E2E_TEST_EMAIL`/`PASSWORD` exist in this repo per `tests/e2e/README.md`,
+  and none were fabricated into a committed file. A scratch, uncommitted
+  Playwright spec (deleted after the run) then, against the real dev
+  server: loaded `/`, asserted the no-overlap bounding-box relationship
+  logged out, clicked "HailView" in the nav and landed on `/hailview`,
+  logged in with the real test account, re-asserted no-overlap while
+  authenticated, opened the "My Account" menu, asserted no standalone
+  top-level "Sign Out" link/button exists anywhere on the page, clicked
+  the menu's "Sign Out" item, confirmed redirect to `/login`, then
+  confirmed the session was actually gone (`/account` also redirected to
+  `/login` rather than rendering). Screenshots captured at each stage
+  (gitignored, not committed).
+- The throwaway test user was deleted via the same admin API immediately
+  after the run. The scratch spec file and screenshots were deleted; no
+  test artifacts were committed.
+
+**Commit:** `fix: NavBar header/logo overlap, Sign Out moved to account
+menu, HailView added to navigation (afs-fl-033)`.
+
+**Marked IMPLEMENTED, UNCONFIRMED, not DONE**, per this file's
+verification standard above — this pass's own Playwright runs and
+screenshots are evidence to bring to Reid, not a substitute for him
+independently loading the site and confirming the header/logo layout,
+the account-menu sign-out, and the HailView nav link himself.
+
+---
+
 ## HAILVIEW MAP (afs-hv-006): IMPLEMENTED, UNCONFIRMED — LEAFLET/OSM MAP, PULSATING ADDRESS MARKER, REAL STORM EVENT MARKERS (2026-09-04)
 
 `pnpm tsc --noEmit`: 0 errors. `pnpm run build`: exit 0, `/hailview` builds
