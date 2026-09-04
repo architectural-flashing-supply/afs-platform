@@ -4,7 +4,7 @@ import { fetchStormHistory } from '@/lib/hailview/storm-history';
 import { fetchWindContextForDate } from '@/lib/hailview/wind';
 import { computeReplacementScore } from '@/lib/hailview/replacement-score';
 import { generateHailViewExplanation } from '@/lib/hailview/explanation';
-import type { MaterialCategory, MembraneMilThickness, MetalGauge, ReplacementTier, StormEvent } from '@/lib/hailview/types';
+import type { MaterialCategory, MembraneMilThickness, MetalGauge, ReplacementTier, ShingleType, StormEvent } from '@/lib/hailview/types';
 import type { MaterialScoreFactors } from '@/lib/hailview/replacement-score';
 import type { WindContext } from '@/lib/hailview/wind';
 
@@ -19,11 +19,13 @@ const MATERIAL_CATEGORIES: MaterialCategory[] = [
 const R_PANEL_GAUGES: MetalGauge[] = ['29ga', '26ga', '24ga'];
 const STANDING_SEAM_GAUGES: MetalGauge[] = ['26ga', '24ga', '22ga'];
 const MEMBRANE_THICKNESSES: MembraneMilThickness[] = [45, 60, 80];
+const SHINGLE_TYPES: ShingleType[] = ['3-tab', 'architectural'];
 
 interface HailViewLookupRequestBody {
   address: string;
   material: MaterialCategory;
   roofAgeYears?: number;
+  shingleType?: ShingleType;
   metalGauge?: MetalGauge;
   membraneMilThickness?: MembraneMilThickness;
 }
@@ -33,6 +35,7 @@ export interface HailViewLookupResponse {
   lat: number;
   lon: number;
   material: MaterialCategory;
+  shingleType?: ShingleType;
   metalGauge?: MetalGauge;
   membraneMilThickness?: MembraneMilThickness;
   roofAgeYears?: number;
@@ -52,12 +55,16 @@ function isValidBody(body: unknown): body is HailViewLookupRequestBody {
   if (typeof v.address !== 'string' || v.address.trim().length === 0) return false;
   if (typeof v.material !== 'string' || !MATERIAL_CATEGORIES.includes(v.material as MaterialCategory)) return false;
   if (v.roofAgeYears !== undefined && typeof v.roofAgeYears !== 'number') return false;
+  if (v.shingleType !== undefined && typeof v.shingleType !== 'string') return false;
   if (v.metalGauge !== undefined && typeof v.metalGauge !== 'string') return false;
   if (v.membraneMilThickness !== undefined && typeof v.membraneMilThickness !== 'number') return false;
   return true;
 }
 
 function validateMaterialOptions(body: HailViewLookupRequestBody): string | null {
+  if (body.material === 'asphalt_shingle' && body.shingleType && !SHINGLE_TYPES.includes(body.shingleType)) {
+    return `Invalid shingle type. Expected one of: ${SHINGLE_TYPES.join(', ')}.`;
+  }
   if (body.material === 'metal_r_panel' && body.metalGauge && !R_PANEL_GAUGES.includes(body.metalGauge)) {
     return `Invalid R-panel gauge. Expected one of: ${R_PANEL_GAUGES.join(', ')}.`;
   }
@@ -112,7 +119,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         .filter((e) => e.sizeIn !== null)
         .map((e) => ({ id: e.id, sizeIn: e.sizeIn as number, validAt: e.validAt })),
       {
-        roofAgeYears: body.material === 'asphalt_shingle' ? body.roofAgeYears : undefined,
+        // roofAgeYears feeds every material's formula now (asphalt: age
+        // subscore + severity multiplier; metal: additive age subscore;
+        // tpo_pvc_membrane: onset threshold shift; wood_shake: severity
+        // multiplier) — see lib/hailview/replacement-score.ts Section 5.
+        roofAgeYears: body.roofAgeYears,
+        shingleType: body.material === 'asphalt_shingle' ? body.shingleType : undefined,
         membraneMilThickness: body.material === 'tpo_pvc_membrane' ? body.membraneMilThickness : undefined,
       }
     );
@@ -148,6 +160,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       lat: geocoded.lat,
       lon: geocoded.lon,
       material: body.material,
+      shingleType: body.shingleType,
       metalGauge: body.metalGauge,
       membraneMilThickness: body.membraneMilThickness,
       roofAgeYears: body.roofAgeYears,

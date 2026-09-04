@@ -11,6 +11,7 @@ export type ReplacementTier = 'Low' | 'Moderate' | 'High';
 
 export type MetalGauge = '29ga' | '26ga' | '24ga' | '22ga';
 export type MembraneMilThickness = 45 | 60 | 80;
+export type ShingleType = '3-tab' | 'architectural';
 
 export interface StormEvent {
   id: string;

@@ -53,16 +53,33 @@ export async function generateHailViewExplanation(input: ExplanationInput): Prom
     ? `On the date of the largest hail event (${input.wind.sampledDate}), the recorded max wind gust was ${input.wind.maxGustMph} mph from the ${input.wind.directionAtMaxGust}.`
     : 'Wind speed/direction data was not available for this report.';
 
+  const factorLines: string[] = [
+    `- Hail severity subscore: ${input.factors.hailSeveritySubscore.toFixed(1)} points from ${input.factors.qualifyingEventCount} qualifying event(s)${input.factors.largestQualifyingEvent ? `, largest was ${input.factors.largestQualifyingEvent.sizeIn}" hail on ${input.factors.largestQualifyingEvent.validAt.slice(0, 10)}` : ' (none found)'}`,
+    `- Frequency subscore: ${input.factors.frequencySubscore.toFixed(1)} points${input.factors.frequencyEscalationApplied ? ' (escalated for repeated qualifying events on an older roof)' : ''}`,
+  ];
+  if (input.factors.ageSubscore > 0) {
+    factorLines.push(`- Age subscore: ${input.factors.ageSubscore.toFixed(1)} points`);
+  }
+  if (input.factors.metalAgeSubscore > 0) {
+    factorLines.push(`- Age-related wear subscore: ${input.factors.metalAgeSubscore.toFixed(1)} points`);
+  }
+  if (input.factors.ageMultiplierApplied !== null) {
+    factorLines.push(`- Age severity multiplier applied to hail damage: ${input.factors.ageMultiplierApplied.toFixed(2)}x`);
+  }
+  if (input.factors.materialBonus > 0) {
+    factorLines.push(`- ${input.factors.materialBonusLabel ?? 'Material risk bonus'}: +${input.factors.materialBonus} points`);
+  }
+  if (input.factors.effectiveOnsetShiftIn !== null) {
+    factorLines.push(`- Effective hail-damage onset threshold shifted by ${input.factors.effectiveOnsetShiftIn.toFixed(2)}" (thickness + age)`);
+  }
+
   const userPrompt = `Property: ${input.address}
 Material: ${materialLabel}
 
 COMPUTED SCORE (final, do not alter): ${input.score}/100 — ${input.tier} replacement probability
 
 Score factors:
-- Largest single hail event contribution: ${input.factors.largestEventContribution.toFixed(1)} points${input.factors.largestEvent ? ` (${input.factors.largestEvent.sizeIn}" hail on ${input.factors.largestEvent.validAt.slice(0, 10)})` : ' (no qualifying hail event found)'}
-- Cumulative wear from ${input.factors.cumulativeQualifyingCount} additional qualifying event(s): ${input.factors.cumulativeContribution.toFixed(1)} points
-- Frequency escalation bonus (${input.factors.qualifyingEventCount} total qualifying events): ${input.factors.frequencyBonus} points
-${input.factors.multiplierLabel ? `- ${input.factors.multiplierLabel}: ${input.factors.multiplierApplied.toFixed(2)}x` : ''}
+${factorLines.join('\n')}
 
 Hail history (within 1 mile, last 5 years):
 ${formatHailEventsForPrompt(input.hailEvents)}
