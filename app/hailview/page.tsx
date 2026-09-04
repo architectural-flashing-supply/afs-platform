@@ -118,6 +118,26 @@ interface HailViewRequestBody {
   membraneMilThickness?: MembraneMilThickness;
 }
 
+// SPEC_HAILVIEW.md Section 8 — consent-based "email me my own result" capture.
+// Posts to app/api/hailview/email-report/route.ts, which has existed since
+// afs-hv-001 and already implements this exact contract (email + the
+// already-computed score/tier/narrative for this one lookup, nothing else).
+// That route calls lib/resend/send.ts's sendEmail(), which returns
+// { success: false, error: 'Resend is not configured.' } instead of throwing
+// when RESEND_API_KEY/RESEND_FROM_EMAIL are unset — the route reflects that
+// as reason:'not_configured' in a normal 200 response. This form renders
+// whichever real outcome comes back; it does not assume either one.
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+type EmailReportStatus = 'idle' | 'sending' | 'sent' | 'not_configured' | 'error';
+
+interface EmailReportResponse {
+  sent?: boolean;
+  reason?: 'not_configured' | 'send_failed';
+  message?: string;
+  error?: string;
+}
+
 export default function HailViewPage() {
   const [address, setAddress] = useState('');
   const [materialType, setMaterialType] = useState<TopLevelMaterial | ''>('');
@@ -129,6 +149,11 @@ export default function HailViewPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<HailViewLookupResponse | null>(null);
+
+  const [reportEmail, setReportEmail] = useState('');
+  const [emailReportStatus, setEmailReportStatus] = useState<EmailReportStatus>('idle');
+  const [emailReportError, setEmailReportError] = useState<string | null>(null);
+  const [emailReportMessage, setEmailReportMessage] = useState<string | null>(null);
 
   const gaugeOptions = metalSubtype === 'metal_standing_seam' ? STANDING_SEAM_GAUGES : R_PANEL_GAUGES;
 
@@ -196,6 +221,53 @@ export default function HailViewPage() {
   function startNewLookup() {
     setResult(null);
     setError(null);
+    setReportEmail('');
+    setEmailReportStatus('idle');
+    setEmailReportError(null);
+    setEmailReportMessage(null);
+  }
+
+  async function handleEmailReport(e: React.FormEvent) {
+    e.preventDefault();
+    setEmailReportError(null);
+
+    if (!result) return;
+    const trimmedEmail = reportEmail.trim();
+    if (!EMAIL_PATTERN.test(trimmedEmail)) {
+      setEmailReportError('Enter a valid email address.');
+      return;
+    }
+
+    setEmailReportStatus('sending');
+    try {
+      const res = await fetch('/api/hailview/email-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: trimmedEmail,
+          address: result.address,
+          material: result.material,
+          score: result.score,
+          tier: result.tier,
+          narrative: result.narrative || buildFallbackExplanation(result),
+        }),
+      });
+      const data = (await res.json().catch(() => null)) as EmailReportResponse | null;
+      if (!res.ok) {
+        setEmailReportStatus('error');
+        setEmailReportError((data && data.error) || 'Could not send the report. Please try again.');
+        return;
+      }
+      if (data?.sent) {
+        setEmailReportStatus('sent');
+        return;
+      }
+      setEmailReportStatus(data?.reason === 'not_configured' ? 'not_configured' : 'error');
+      setEmailReportMessage(data?.message ?? null);
+    } catch {
+      setEmailReportStatus('error');
+      setEmailReportError('Could not reach the server right now. Try again shortly.');
+    }
   }
 
   return (
@@ -396,6 +468,56 @@ export default function HailViewPage() {
               <p className="font-body text-sm leading-relaxed text-afs-chrome-mid whitespace-pre-line" data-testid="hailview-explanation">
                 {result.narrative || buildFallbackExplanation(result)}
               </p>
+            </div>
+
+            <div className="bg-afs-bg-raised border border-afs-border rounded metal-edge p-6">
+              <h2 className="font-heading text-2xl font-semibold text-afs-chrome-high mb-2">Email Me This Result</h2>
+              <p className="font-body text-sm text-afs-chrome-dim mb-4">
+                Send a copy of this lookup to your own inbox. We only use this to deliver your result.
+              </p>
+
+              {emailReportStatus === 'sent' ? (
+                <p className="font-body text-sm text-afs-accent-green" data-testid="hailview-email-report-sent">
+                  Sent — check {reportEmail.trim()} for your report.
+                </p>
+              ) : emailReportStatus === 'not_configured' ? (
+                <p className="font-body text-sm text-afs-amber" data-testid="hailview-email-report-not-configured">
+                  {emailReportMessage ??
+                    "Your email was received, but delivery isn't live yet — you can screenshot or print this page to save your results."}
+                </p>
+              ) : (
+                <form onSubmit={handleEmailReport} className="flex flex-col sm:flex-row gap-3">
+                  <div className="flex-1">
+                    <Input
+                      id="hailview-email"
+                      type="email"
+                      placeholder="you@example.com"
+                      value={reportEmail}
+                      onChange={(e) => setReportEmail(e.target.value)}
+                      disabled={emailReportStatus === 'sending'}
+                      data-testid="hailview-email-input"
+                    />
+                  </div>
+                  <Button
+                    type="submit"
+                    disabled={emailReportStatus === 'sending'}
+                    data-testid="hailview-email-submit"
+                  >
+                    {emailReportStatus === 'sending' ? 'Sending…' : 'Email My Result'}
+                  </Button>
+                </form>
+              )}
+
+              {emailReportError && (
+                <p className="font-body text-sm text-afs-crimson mt-3" data-testid="hailview-email-report-error">
+                  {emailReportError}
+                </p>
+              )}
+              {emailReportStatus === 'error' && emailReportMessage && (
+                <p className="font-body text-sm text-afs-crimson mt-3" data-testid="hailview-email-report-error">
+                  {emailReportMessage}
+                </p>
+              )}
             </div>
 
             <Button variant="secondary" onClick={startNewLookup} data-testid="hailview-new-lookup" className="w-full">

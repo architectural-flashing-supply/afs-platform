@@ -45,6 +45,27 @@ test.describe('HailView — real address, real scoring, all four material types'
     await page.screenshot({ path: 'test-results/hailview-asphalt-shingle.png', fullPage: true });
   });
 
+  // afs-hv-005 — SPEC_HAILVIEW.md Section 8's consent-based "email me my own
+  // result" form. This environment has no RESEND_API_KEY/RESEND_FROM_EMAIL
+  // set (verified directly, not assumed), so lib/resend/send.ts's sendEmail()
+  // returns { success: false, error: 'Resend is not configured.' } and
+  // app/api/hailview/email-report/route.ts reflects that as reason:
+  // 'not_configured'. This test asserts the real degrade path renders —
+  // it does not fabricate a "sent" assertion this environment cannot produce.
+  test('email-my-result form degrades gracefully when Resend is not configured', async ({ page }) => {
+    await page.goto('/hailview');
+    await page.locator('#hailview-address').fill(TEST_ADDRESS);
+    await page.locator('#hailview-material').selectOption('asphalt_shingle');
+    await page.locator('#hailview-roof-age').fill('15');
+    await submitAndWaitForResult(page);
+
+    await page.getByTestId('hailview-email-input').fill('test-user@example.com');
+    await page.getByTestId('hailview-email-submit').click();
+
+    await expect(page.getByTestId('hailview-email-report-not-configured')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('hailview-email-report-not-configured')).toContainText("isn't live yet");
+  });
+
   test('metal roofing (R-panel, 26ga) produces a real, in-range computed score', async ({ page }) => {
     await page.goto('/hailview');
     await page.locator('#hailview-address').fill(TEST_ADDRESS);
