@@ -24,6 +24,72 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## HOMEPAGE "DRAWING TO STEEL" HERO ACCENT, REAL PHOTO CATEGORY GRID, PROJECT GALLERY (afs-fl-034): IMPLEMENTED, UNCONFIRMED BY REID (2026-09-04)
+
+Corrected re-scope of a task a prior prompt (afs-fl-032) halted on: that
+prompt had wrongly assumed SPEC_HOMEPAGE.md's hero copy was already live
+and referenced `AFS_WEBSITE_CONTENT_AUDIT.md`, a photo-category document
+that turned out to exist only in a separate Claude.ai project-knowledge
+store, not this repo — it correctly stopped rather than guess. This pass's
+instructions were explicit that the live headline/copy and hero photo must
+not change at all, and that any photo-category mapping had to come from
+actually viewing the photos, not from the inaccessible prior document.
+Both constraints were followed: `app/page.tsx`'s hero JSX (headline,
+sub-copy, hero photo, rooftop-triangle image) is untouched other than one
+new sibling element added after the triangle image.
+
+Independently re-verified the photo URLs rather than trusting the prior
+session's claim: ran real HTTP requests against all 40
+`Architectural-Flashing-Supply-{N}.jpg` URLs — confirmed 1-39 = 200, 40 =
+404, matching the prior claim but not assumed from it. Downloaded and
+personally viewed all 39 images (none skipped), then grouped them by what
+is actually depicted — there was no existing mapping anywhere in this repo
+to start from. Photo #29 (a wood glulam trellis, no visible flashing/metal
+work) didn't fit any category and was left out rather than forced in.
+Copied all 39 into `public/home_page_images/gallery/` as local static
+assets instead of hotlinking the WordPress host.
+
+Built three new pieces: `components/home/HeroDrawingOverlay.tsx` (a thin
+red/chrome SVG line-drawing accent over the hero photo's top-right corner,
+in FlashDraft's own CANVAS_COLORS visual language, with a one-time CSS
+draw-in animation and a static `prefers-reduced-motion` fallback matching
+the `hailview-address-marker-ring` precedent), `PhotoCategoryGrid.tsx` (4
+categories: roofing, wall/window flashing, gutters & roof accessories,
+custom fabrication), and `ProjectGallery.tsx` (a curated, genuinely varied
+8-photo spread). Category/gallery data and every photo's alt text live in
+the new `lib/home/portfolio-photos.ts`. No customer-facing pricing added
+anywhere (CRITICAL RULE #1) — both sections are browse-only.
+
+`pnpm tsc --noEmit`: 0 errors. `pnpm build`: succeeded. Both run directly
+this pass, not assumed.
+
+Per this file's own verification standard, did not stop at the build/tsc
+pass: started a fresh `pnpm dev`, confirmed via `curl` that the served HTML
+still contains the unchanged headline text and the unchanged hero photo
+path, then drove the real running app with `npx playwright screenshot` and
+visually confirmed from the actual screenshots — headline and hero photo
+pixel-identical to before, the new sketch accent rendering cleanly in the
+hero's corner, "Fabrication Categories" rendering with 4 correctly
+thumbnailed tiles, and "Project Gallery" rendering all 8 curated photos
+with no broken-image icons. Screenshots and the throwaway Playwright script
+were scratch verification artifacts (`.repro-afs-fl-034/`), deleted before
+committing — nothing test-only was committed.
+
+Committed as `feat: Drawing to Steel hero addition, real photo category
+grid and project gallery -- current homepage copy unchanged (afs-fl-034)`
+(`app/globals.css`, `app/page.tsx`, `components/home/`, `lib/home/`,
+`public/home_page_images/gallery/` only — this repo currently has several
+unrelated untracked paths at its root, including what appears to be a
+prospect-email-list folder; `git add -A` was deliberately not used so
+those wouldn't get swept into this commit).
+
+**IMPLEMENTED, UNCONFIRMED, not DONE** — this pass's own screenshots are
+evidence to bring to Reid, not a substitute for him loading the homepage
+himself and confirming the hero is genuinely unchanged and both new
+sections look right.
+
+---
+
 ## NAVBAR HEADER/LOGO OVERLAP, ACCOUNT MENU SIGN OUT, HAILVIEW NAV LINK (afs-fl-033): RE-VERIFIED THIS PASS, NO CODE CHANGES NEEDED, STILL UNCONFIRMED BY REID (2026-09-04)
 
 Same task re-issued this pass. Read the real `components/layout/NavBar.tsx`

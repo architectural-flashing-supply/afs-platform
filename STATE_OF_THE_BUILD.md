@@ -34,6 +34,86 @@ summary, not a replacement for it.
 
 ---
 
+## HOMEPAGE "DRAWING TO STEEL" HERO ACCENT + REAL PHOTO CATEGORY GRID + PROJECT GALLERY (afs-fl-034): IMPLEMENTED, UNCONFIRMED (2026-09-04)
+
+A prior prompt (afs-fl-032) had incorrectly assumed SPEC_HOMEPAGE.md's hero
+copy was already live and referenced `AFS_WEBSITE_CONTENT_AUDIT.md`, a
+photo-category document that does not exist anywhere in this repo — it only
+ever existed in a separate Claude.ai project-knowledge store this build
+agent has no access to. That prompt correctly halted rather than build on a
+false premise. This pass did not repeat either mistake: the live homepage
+headline/copy ("TEXAS CRAFTED. NATIONALLY DELIVERED." / "Precision Metal
+Flashing Fabrication", `app/page.tsx`, `f70b3cf`) and its existing hero
+photo (`public/home_page_images/2.jpg`) were left completely untouched —
+confirmed via a real screenshot at the end of this pass, not assumed.
+
+**Photo verification, done fresh rather than trusted from a prior claim.**
+A prior session had claimed
+`architecturalflashingsupply.com/wp-content/uploads/2024/03/
+Architectural-Flashing-Supply-{1-39}.jpg` return HTTP 200 and `-40.jpg`
+returns 404. This pass re-ran real HTTP requests against all 40 URLs
+directly (not assumed): confirmed 1-39 = 200, 40 = 404. All 39 photos were
+then downloaded and individually viewed (not category-guessed) and copied
+into this repo as local static assets at
+`public/home_page_images/gallery/afs-{1-39}.jpg` — deliberately not
+hotlinked from the WordPress host, so the homepage doesn't depend on that
+site staying up. Categorization and per-photo alt text live in the new
+`lib/home/portfolio-photos.ts`. Photo #29 (a wood glulam arched
+trellis/pergola with no visible flashing or metal fabrication) was
+deliberately left out of every category and the gallery — it doesn't
+clearly depict AFS's fabrication work.
+
+**What was built, below the unchanged hero:**
+- `components/home/HeroDrawingOverlay.tsx` — a thin red/chrome-line SVG
+  "drawing to steel" accent (FlashDraft's own CANVAS_COLORS visual
+  language: crimson profile lines, crimson joints, a bend-angle arc +
+  label) layered over the top-right corner of the existing hero
+  photo/rooftop-triangle, masked to fade toward the bottom so it reads as
+  the sketch dissolving into the real photo rather than a separate layer.
+  One-time CSS keyframe draw-in animation (`app/globals.css`), with a
+  static fully-drawn `prefers-reduced-motion` fallback, matching the
+  `hailview-address-marker-ring` precedent.
+- `components/home/PhotoCategoryGrid.tsx` — 4 categories built from what
+  was actually viewed: Standing Seam & Copper Roofing (20 photos), Wall
+  Panels & Window Flashing (10), Gutters, Eaves & Roof Accessories (3),
+  Custom Fabrication (5).
+- `components/home/ProjectGallery.tsx` — a curated 8-photo spread
+  (`PORTFOLIO_GALLERY_IDS` in `lib/home/portfolio-photos.ts`), deliberately
+  varied subject matter (a copper dome, an interior fireplace surround,
+  arched window flashing, a pavilion roof, a sculptural copper accent, a
+  full-house exterior, a flat-lock roof detail, a range hood) rather than
+  near-duplicate roof angles.
+
+No customer-facing pricing was added anywhere in this pass (CRITICAL RULE
+#1) — both new sections are browse-only real photography, no dollar
+amounts, no CTAs to buy.
+
+`pnpm tsc --noEmit`: 0 errors, run directly this pass. `pnpm build`:
+succeeded, run directly this pass.
+
+**Live verification performed this pass:** started a fresh `pnpm dev`,
+confirmed the served HTML contains the unchanged headline text and the
+unchanged `/home_page_images/2.jpg` hero photo reference, then drove the
+real running app with Playwright (`npx playwright screenshot`) and visually
+confirmed via real screenshots — not assumed from the build/tsc pass alone
+— that: the hero headline and hero photo are pixel-identical to before, the
+new sketch overlay renders in the hero's top-right corner without
+disturbing the existing layout, "Fabrication Categories" renders below the
+hero with four correctly-thumbnailed tiles, and "Project Gallery" renders
+below that with all 8 curated photos loading (no broken-image icons).
+Screenshots were scratch verification artifacts, not committed.
+
+Per this file's verification standard, a session's own screenshot is
+evidence brought to Reid, not a substitute for his confirmation — marked
+**IMPLEMENTED, UNCONFIRMED**, not DONE, pending Reid independently loading
+the homepage and confirming the hero is unchanged and both new sections
+look right to him.
+
+Committed as `feat: Drawing to Steel hero addition, real photo category
+grid and project gallery -- current homepage copy unchanged (afs-fl-034)`.
+
+---
+
 ## NAVBAR HEADER/LOGO OVERLAP + ACCOUNT MENU SIGN OUT + HAILVIEW NAV LINK (afs-fl-033): IMPLEMENTED, UNCONFIRMED — RE-VERIFIED LIVE INDEPENDENTLY THIS PASS, NO CODE CHANGES NEEDED, STILL NOT REID-CONFIRMED (2026-09-04)
 
 This pass re-ran the afs-fl-033 task (see the original entry below). Per
