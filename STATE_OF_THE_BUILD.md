@@ -34,6 +34,109 @@ summary, not a replacement for it.
 
 ---
 
+## HAILVIEW PHASE 3 (afs-hv-003): DONE — REAL UI WIRED TO PHASE 1+2, PLACEHOLDER EXPLANATION (2026-09-04)
+
+**Both gates met this pass, run directly, not assumed:** `pnpm tsc --noEmit`
+— 0 errors. `pnpm run build` — succeeded (exit 0); route summary confirms
+`○ /hailview` built as a static route alongside the existing
+`ƒ /api/hailview/storm-history` and `ƒ /api/hailview/email-report` routes.
+
+**Environment note for future sessions in this repo:** the first `pnpm run
+build` attempt this pass failed with `EPERM: operation not permitted, open
+'.next\trace'`. Root cause: an earlier `pnpm dev` background task had been
+stopped via the task-stop mechanism, but its actual `next dev`/
+`start-server.js` child processes kept running (unlike the wrapping shell,
+they were not killed) and continued holding a lock on `.next`. A second,
+now-orphaned `next build` from a retried attempt was also still alive,
+stalled behind the same lock. Killing both leftover PIDs directly
+(`Stop-Process -Force`) unblocked the build immediately. Stopping a
+`pnpm dev`/`pnpm run build` background task in this environment does not
+reliably kill its child Next.js processes — check
+`Get-CimInstance Win32_Process -Filter "Name='node.exe'"` filtered to the
+project path before assuming a prior dev server or build is actually gone.
+
+**Step 0, done before writing any UI code:** read `SPEC_HAILVIEW.md`
+Sections 3 and 7 (present in the repo since afs-hv-004 added it 2026-09-03),
+and read the real, already-committed Phase 1 (`lib/hailview/geocode.ts`,
+`storm-history.ts`, `wind.ts`, `types.ts`) and Phase 2
+(`lib/hailview/replacement-score.ts`, now the real Section-5 implementation
+per the afs-hv-002 entry above) code directly — exact exported function
+signatures and the `HailViewLookupResponse` shape were confirmed from
+`app/api/hailview/storm-history/route.ts` itself, not assumed from the spec's
+predicted shape.
+
+**Continuing the test-pipeline discrepancy already documented above (not a
+new problem, not silently worked around):** `app/api/hailview/
+test-pipeline/route.ts` still does not exist. `app/hailview/page.tsx` calls
+`POST /api/hailview/storm-history` directly — the real, production Phase 1
+entry point every HailView entry since afs-hv-002 has already confirmed is
+the actual working route. Building a differently-named wrapper route just to
+match the spec's original Section 9 naming would have been a workaround, not
+a fix, so this page calls the real thing and the page's own header comment
+records why.
+
+**What was built:**
+- `app/hailview/page.tsx` — address input, a 4-option material-type selector
+  (Asphalt Shingle / Metal Roofing / TPO-PVC Membrane / Wood Shake, matching
+  the "four material types" the prompt's own verification step names),
+  conditional sub-inputs (metal adds a Panel Type selector — R-Panel vs
+  Standing Seam, since the API's `MaterialCategory` has no generic `'metal'`
+  value — plus a gauge dropdown scoped to that panel type; TPO/PVC adds a
+  45/60/80mil dropdown; all four show a roof-age input, per spec Section 7),
+  and a results view (score, tier badge, a storm-history timeline built from
+  the response's real `hailEvents`, and an explanation section).
+- The explanation section is a deliberate, explicitly-labeled **placeholder**
+  — `buildPlaceholderExplanation()` builds a plain template string
+  client-side from the real `score`/`tier`/`factors`/`hailEvents` in the API
+  response (e.g. "Your roof scored X (tier), based on Y qualifying hail
+  events..."), matching the prompt's required phrasing. The API response
+  already includes a `narrative` field (the Phase 4 agent explanation was
+  wired ahead of schedule back in afs-hv-001) — this page deliberately does
+  **not** read `result.narrative`. A `TEMPORARY PLACEHOLDER — PHASE 4
+  PENDING` label renders next to the explanation in the UI itself, not just
+  in code comments, so this is visible to anyone looking at the live page,
+  not only someone reading the source.
+- Design tokens only: `afs-crimson`, `afs-chrome-*`, `afs-bg-*`, `.metal-edge`
+  / `.metal-edge-red` per `DESIGN_TOKENS.md` — no images, video, or any asset
+  carried over from e4roofing. `/hailview` is not in `AppChrome.tsx`'s
+  `NO_CHROME_PREFIXES`/`PORTAL_PREFIXES` lists, so it gets the standard
+  public `NavBar`/`Footer`/`ChatWidget` automatically.
+- `tests/e2e/hailview.spec.ts` — a new Playwright spec, not part of the
+  prompt's literal commit instruction but written and committed separately
+  to satisfy the prompt's own live-verification requirement durably (this
+  repo's standing convention per `CLAUDE.md`: "Playwright ... required gate
+  on every UI prompt").
+
+**Live verification — real dev server, real address, all four material
+types, not simulated:** ran `pnpm dev`, then
+`pnpm exec playwright test tests/e2e/hailview.spec.ts` against it with a
+real address ("1500 Marilla St, Dallas, TX 75201" — Dallas City Hall, chosen
+for reliable Nominatim geocoding in a real hail-active region). Result: 4/4
+material types produced a real, in-range (0-100), correctly rendered score
+and tier. One run (asphalt shingle, first attempt) hit Playwright's 30s
+timeout waiting on the API response — root cause confirmed as Next.js dev
+mode's on-demand route compilation on the very first hit of
+`/api/hailview/storm-history` in that process, not application logic; the
+automatic retry completed in 20.4s against the same code path. Two
+screenshots were captured (`test-results/hailview-asphalt-shingle.png`,
+`test-results/hailview-metal-r-panel.png`, gitignored — not committed) and
+visually confirm: a real geocoded address ("Dallas City Hall, 1500, Marilla
+Street..."), genuinely distinct scores for the same address/age across
+materials (asphalt shingle scored 25/Low with a 25.2pt age subscore; metal
+R-panel scored 10/Low with a 10.0pt age-related-wear subscore — same
+address, same 0 qualifying hail events, different formulas producing
+different numbers, matching the determinism afs-hv-002's unit tests already
+proved), a real storm-history timeline section (0 hail events / 8 non-hail
+reports actually found by the IEM feed for that specific address and
+radius), and the placeholder-explanation label rendering correctly.
+
+**Commits:** `feat: HailView Phase 3 -- real UI wiring data + scoring,
+placeholder explanation text (afs-hv-003)` (page) and
+`test: HailView Phase 3 -- Playwright e2e spec, verified live against real
+address + all four material types (afs-hv-003)` (spec).
+
+---
+
 ## HAILVIEW PHASE 2 (afs-hv-002): DONE — REAL SECTION 5 FORMULAS IMPLEMENTED, PLACEHOLDER ENGINE REPLACED (2026-09-04)
 
 **Both gates met this pass:** `pnpm tsc --noEmit` — 0 errors. `pnpm run
@@ -197,7 +300,7 @@ in-scope Phase 1 work and were not touched this pass.
 
 ---
 
-## HAILVIEW PHASE 3 (afs-hv-003): BLOCKED — SAME ROOT CAUSE AS afs-hv-002, NO WORK DONE THIS PASS (2026-09-03)
+## HAILVIEW PHASE 3 (afs-hv-003) — ORIGINAL BLOCKED ENTRY, SUPERSEDED ABOVE: BLOCKED — SAME ROOT CAUSE AS afs-hv-002, NO WORK DONE THIS PASS (2026-09-03)
 
 **No code was written this pass.** afs-hv-003 asks for `app/hailview/page.tsx`,
 a results view built from "Phase 1 (data) + Phase 2 (scoring)," and requires

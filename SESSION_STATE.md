@@ -24,6 +24,58 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## HAILVIEW PHASE 3 (afs-hv-003): DONE — REAL UI WIRED TO PHASE 1+2, PLACEHOLDER EXPLANATION (2026-09-04)
+
+Built `app/hailview/page.tsx` against the real, already-committed Phase 1
+(`lib/hailview/geocode.ts`/`storm-history.ts`/`wind.ts`) and Phase 2
+(`lib/hailview/replacement-score.ts`, the real afs-hv-002 Section 5 engine)
+code — exact exported signatures confirmed by reading those files directly,
+not assumed. Read `SPEC_HAILVIEW.md` Sections 3 and 7 first, per the
+prompt's own Step 0. `pnpm tsc --noEmit`: 0 errors. `pnpm run build`:
+succeeded, `○ /hailview` listed in the route summary.
+
+Continues the same test-pipeline discrepancy every HailView entry since
+afs-hv-002 has documented: `app/api/hailview/test-pipeline/route.ts` still
+doesn't exist, so the page calls the real Phase 1 endpoint,
+`app/api/hailview/storm-history/route.ts`, directly — building a
+differently-named wrapper route to match the spec's original naming would
+be a workaround, not a fix. Flow: address input, a 4-option material-type
+selector (Asphalt Shingle / Metal / TPO-PVC / Wood Shake), conditional
+sub-inputs (metal gets its own Panel Type selector plus a scoped gauge
+dropdown, since the API's `MaterialCategory` has no generic `'metal'`
+value; TPO/PVC gets a mil dropdown; all four get a roof-age input), then a
+results view (score, tier, a real storm-history timeline from the response's
+actual `hailEvents`). Design tokens only (`afs-crimson`/`afs-chrome-*`/
+`afs-bg-*`/`.metal-edge`) — no e4roofing assets.
+
+The explanation section is a deliberate, UI-visible-labeled placeholder:
+`buildPlaceholderExplanation()` builds a plain deterministic template
+string from the real `score`/`tier`/`factors` — the page intentionally does
+**not** read the API response's `narrative` field (the Phase 4 agent
+explanation was wired ahead of schedule back in afs-hv-001), reserving that
+for afs-hv-004. A `TEMPORARY PLACEHOLDER — PHASE 4 PENDING` badge renders
+next to it live, not just in a code comment.
+
+Live-verified with a real dev server and a new Playwright spec
+(`tests/e2e/hailview.spec.ts`, committed) against a real address (Dallas
+City Hall) for all four material types: each produced a real, in-range
+score with the address, materials, and 0-hail/8-non-hail storm counts
+genuinely coming from the live Nominatim/IEM APIs — not fabricated. Two
+screenshots captured confirm asphalt shingle (25/Low) and metal R-panel
+(10/Low) score differently for the identical address/age, matching the
+determinism afs-hv-002's unit tests already proved. Per this file's own
+working-style note above: this is a session's self-reported Playwright/
+screenshot verification, not the user's own confirmation of the live page —
+still worth bringing to Reid before calling the visual result itself
+"confirmed." Full detail in `STATE_OF_THE_BUILD.md`'s matching entry.
+Committed as `afs-hv-003` (page + spec, two commits).
+
+**Original halted entry preserved for history further below — root cause is
+now resolved (`SPEC_HAILVIEW.md` exists, and Phase 2's real scoring engine
+now exists to build against).**
+
+---
+
 ## HAILVIEW PHASE 2 (afs-hv-002): DONE — REAL SECTION 5 FORMULAS IMPLEMENTED (2026-09-04)
 
 Re-run of afs-hv-002 now that `SPEC_HAILVIEW.md` exists in the repo (added
@@ -79,7 +131,7 @@ the existing placeholder scoring code, before afs-hv-002 can proceed.
 
 ---
 
-## HAILVIEW PHASE 3 (afs-hv-003): HALTED, SAME ROOT CAUSE AS afs-hv-002, NO CODE WRITTEN (2026-09-03)
+## HAILVIEW PHASE 3 (afs-hv-003) — ORIGINAL ENTRY, SUPERSEDED ABOVE: HALTED, SAME ROOT CAUSE AS afs-hv-002, NO CODE WRITTEN (2026-09-03)
 
 afs-hv-003 requires reading `SPEC_HAILVIEW.md` Sections 3 and 7, and reading
 committed "Phase 1 and Phase 2" code, before writing the results-view UI.
