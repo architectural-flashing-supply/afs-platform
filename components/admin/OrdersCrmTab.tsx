@@ -4,13 +4,19 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Badge from '@/components/ui/Badge';
 import EmptyState from '@/components/ui/EmptyState';
+import InvoicesCrmTab from '@/components/admin/InvoicesCrmTab';
 import { STATUS_LABEL, STATUS_VARIANT } from '@/lib/admin/orderStages';
-import type { CrmOrderRow, OperatorRow } from '@/lib/data/command-center-crm';
+import type { CrmInvoiceRow, CrmOrderRow, OperatorRow } from '@/lib/data/command-center-crm';
 
 interface OrdersCrmTabProps {
   orders: CrmOrderRow[];
   operators: OperatorRow[];
+  invoices: CrmInvoiceRow[];
 }
+
+const ORDERS_VIEWS = ['orders', 'invoices'] as const;
+type OrdersView = (typeof ORDERS_VIEWS)[number];
+const ORDERS_VIEW_LABEL: Record<OrdersView, string> = { orders: 'Orders', invoices: 'Invoices' };
 
 const STATUS_FILTERS = ['all', 'packaged', 'out_for_delivery', 'delivered'] as const;
 type StatusFilter = (typeof STATUS_FILTERS)[number];
@@ -37,8 +43,9 @@ function toDateInputValue(iso: string | null): string {
   return iso.slice(0, 10);
 }
 
-export default function OrdersCrmTab({ orders: initialOrders, operators }: OrdersCrmTabProps) {
+export default function OrdersCrmTab({ orders: initialOrders, operators, invoices }: OrdersCrmTabProps) {
   const router = useRouter();
+  const [view, setView] = useState<OrdersView>('orders');
   const [orders, setOrders] = useState(initialOrders);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [driverFilter, setDriverFilter] = useState<string>('all');
@@ -126,6 +133,27 @@ export default function OrdersCrmTab({ orders: initialOrders, operators }: Order
 
   return (
     <div>
+      <div className="flex items-center gap-1 mb-4 border border-afs-border rounded w-fit overflow-hidden">
+        {ORDERS_VIEWS.map((v) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => setView(v)}
+            className={`font-label text-xs px-4 py-2 transition-colors ${
+              view === v
+                ? 'bg-afs-crimson text-white'
+                : 'bg-afs-bg-overlay text-afs-chrome-mid hover:text-afs-chrome-high'
+            }`}
+          >
+            {ORDERS_VIEW_LABEL[v]}
+          </button>
+        ))}
+      </div>
+
+      {view === 'invoices' ? (
+        <InvoicesCrmTab invoices={invoices} />
+      ) : (
+        <>
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <select
           value={statusFilter}
@@ -346,6 +374,8 @@ export default function OrdersCrmTab({ orders: initialOrders, operators }: Order
             </div>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

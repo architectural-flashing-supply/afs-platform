@@ -313,7 +313,7 @@ export default function CommandCenterDashboard({
           <MachineBridgeStatusDot />
         </div>
         <Link
-          href="/admin/command-center?tab=gbp"
+          href="/admin/gbp-photos"
           className="bg-afs-bg-raised border border-afs-border rounded p-4 text-center hover:bg-afs-bg-surface transition-colors"
         >
           <p className="font-heading text-2xl text-afs-crimson">{gbpPendingCount}</p>

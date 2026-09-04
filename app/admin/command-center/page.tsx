@@ -8,29 +8,27 @@ import {
   getCrmOrders,
   getOperators,
   getCrmInvoices,
-  getGbpPhotos,
   type CrmOrderRow,
   type OperatorRow,
 } from '@/lib/data/command-center-crm';
 import { getOrderStatusCounts, getGbpPendingCount, getRecentQuoteRequests } from '@/lib/data/command-center-dashboard';
 import { getBidDocuments } from '@/lib/data/bid-documents';
-import { isGbpConfigured } from '@/lib/integrations/google-business';
 import EmptyState from '@/components/ui/EmptyState';
 import CommandCenterJobCard from '@/components/admin/CommandCenterJobCard';
 import PendingQuoteRequestCard from '@/components/admin/PendingQuoteRequestCard';
 import MachineBridgeStatusDot from '@/components/admin/MachineBridgeStatusDot';
 import CustomersCrmTab from '@/components/admin/CustomersCrmTab';
 import OrdersCrmTab from '@/components/admin/OrdersCrmTab';
-import InvoicesCrmTab from '@/components/admin/InvoicesCrmTab';
-import GbpPhotosTab from '@/components/admin/GbpPhotosTab';
 import BidsCrmTab from '@/components/admin/BidsCrmTab';
 import CommandCenterDashboard, { type QueueItem } from '@/components/admin/CommandCenterDashboard';
 
 // Machine-queue tabs (pending/sent/completed) come from CommandCenterTab
-// (lib/data/machine-jobs.ts) — the 5 new CRM tabs below are a distinct,
-// wider set of admin tools sharing this same page/URL per d-005, so the
-// page's own tab union extends that type rather than editing it.
-type CrmTab = 'customers' | 'orders' | 'invoices' | 'gbp' | 'bids';
+// (lib/data/machine-jobs.ts) — the CRM tabs below are a distinct, wider set
+// of admin tools sharing this same page/URL per d-005, so the page's own tab
+// union extends that type rather than editing it. Invoices was folded into
+// the Orders tab's own view (afs-fl-031) and GBP Photos moved to its own
+// route (/admin/gbp-photos) — neither is a `?tab=` value here anymore.
+type CrmTab = 'customers' | 'orders' | 'bids';
 type PageTab = CommandCenterTab | CrmTab;
 
 const MACHINE_TABS: { value: CommandCenterTab; label: string }[] = [
@@ -42,8 +40,6 @@ const MACHINE_TABS: { value: CommandCenterTab; label: string }[] = [
 const CRM_TABS: { value: CrmTab; label: string }[] = [
   { value: 'customers', label: 'Customers' },
   { value: 'orders', label: 'Orders' },
-  { value: 'invoices', label: 'Invoices' },
-  { value: 'gbp', label: 'GBP Photos' },
   { value: 'bids', label: 'Bids' },
 ];
 
@@ -204,13 +200,14 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
   ]);
 
   const emptyCrmOrdersData: [CrmOrderRow[], OperatorRow[]] = [[], []];
-  const [crmCustomers, crmOrdersData, crmInvoices, crmGbpPhotos, crmBids] = await Promise.all([
+  const [crmCustomers, crmOrdersData, crmInvoices, crmBids] = await Promise.all([
     activeTab === 'customers' ? getCrmCustomers(supabase) : Promise.resolve([]),
     activeTab === 'orders'
       ? Promise.all([getCrmOrders(supabase), getOperators(supabase)])
       : Promise.resolve(emptyCrmOrdersData),
-    activeTab === 'invoices' ? getCrmInvoices(supabase) : Promise.resolve([]),
-    activeTab === 'gbp' ? getGbpPhotos(supabase) : Promise.resolve([]),
+    // Invoices is folded into the Orders tab's own view (afs-fl-031), not a
+    // separate `?tab=` value — fetched alongside orders, not on its own.
+    activeTab === 'orders' ? getCrmInvoices(supabase) : Promise.resolve([]),
     activeTab === 'bids' ? getBidDocuments(supabase) : Promise.resolve([]),
   ]);
   const [crmOrders, crmOperators] = crmOrdersData;
@@ -227,7 +224,7 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
           </h1>
           <p className="font-body text-sm text-afs-chrome-mid mt-1">
             {isCrmTab(activeTab)
-              ? 'Customers, orders, invoices, Google Business photos, and GC bid pricing in one place.'
+              ? 'Customers, orders (with invoicing), and GC bid pricing in one place.'
               : 'Review and approve fabrication jobs before they go to the Thalmann.'}
           </p>
         </div>
@@ -278,12 +275,13 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
         <Link href="/admin/profile-library" className={PROFILE_LIBRARY_NAV_LINK_CLASSNAME}>
           Profile Library
         </Link>
+        <Link href="/admin/shop-view" className={PROFILE_LIBRARY_NAV_LINK_CLASSNAME}>
+          Shop View
+        </Link>
       </div>
 
       {activeTab === 'customers' && <CustomersCrmTab customers={crmCustomers} />}
-      {activeTab === 'orders' && <OrdersCrmTab orders={crmOrders} operators={crmOperators} />}
-      {activeTab === 'invoices' && <InvoicesCrmTab invoices={crmInvoices} />}
-      {activeTab === 'gbp' && <GbpPhotosTab photos={crmGbpPhotos} gbpConfigured={isGbpConfigured()} />}
+      {activeTab === 'orders' && <OrdersCrmTab orders={crmOrders} operators={crmOperators} invoices={crmInvoices} />}
       {activeTab === 'bids' && <BidsCrmTab bids={crmBids} currentUserId={adminUser.id} />}
 
       {isMachineTab &&

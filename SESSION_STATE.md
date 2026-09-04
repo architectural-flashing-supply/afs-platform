@@ -24,6 +24,58 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## ADMIN NAV RESTRUCTURING: afs-fl-031 -- SHOP VIEW PROMOTED, QUICKBOOKS/EMPLOYEE FOLDED, GBP RELOCATED, INVOICES FOLDED INTO ORDERS (2026-09-03)
+
+Root-cause-only follow-up to afs-fl-030's audit (treated as settled facts,
+not re-verified). Two files restructured: `components/layout/AdminShell.tsx`
+and `app/admin/command-center/page.tsx`, plus one new file,
+`app/admin/gbp-photos/page.tsx`, and one component change,
+`components/admin/OrdersCrmTab.tsx`. `pnpm tsc --noEmit` — 0 errors, `pnpm
+build` — succeeds. Full detail in STATE_OF_THE_BUILD.md's afs-fl-031 entry;
+summary:
+
+1. **Left nav** — emoji stripped from all remaining labels; Deliveries/GBP
+   Photos/Bids removed (were pure Command Center `?tab=` deep-links);
+   Shop View promoted to a top-level Operations item; Employee App folded
+   into Operations; QuickBooks folded into Settings. Final: **13 items / 3
+   sections** (Operations 7, Business 4, Settings 2). Profile Library
+   deliberately NOT added, per Reid's standing instruction.
+2. **Judgment call, flagged for Reid:** Settings section now holds
+   "General" (was "Settings," renamed only to avoid "Settings > Settings"
+   reading redundantly — still points at `/admin/settings`) and
+   "QuickBooks."
+3. **GBP review relocated, not deleted.** Moved off Command Center's tab
+   bar entirely to a new standalone route, `/admin/gbp-photos`, reusing
+   `GbpPhotosTab.tsx` and the existing approve/reject API routes unchanged.
+   **Judgment call, flagged for Reid:** reachable via Command Center
+   dashboard's existing "GBP Photo Queue" stat card (href repointed from
+   `?tab=gbp`), not a new tab or nav item. Verified end-to-end against the
+   real Supabase project with two seeded test photos (deleted after): both
+   Approve and Reject hit the real API routes, persisted to the database,
+   and rendered the correct status on a fresh reload.
+4. **Invoices folded into Orders, not deleted.** `OrdersCrmTab.tsx` gained
+   a real Orders/Invoices toggle that mounts the actual, unchanged
+   `InvoicesCrmTab` component with real data — not a stub. Verified live:
+   the real Total Outstanding/Overdue/Paid summary and invoice table
+   render inside the Orders tab.
+5. **Shop View/Profile Library visibility bug fixed** — both links now
+   render in the same position across every `?tab=...` view, not just the
+   bare dashboard. Verified live across 5 different views.
+6. **Pre-existing bug found, NOT fixed (out of this task's scope):**
+   `/admin/consultations` 404s — no page exists at that route. Confirmed
+   via `git log` this predates this session, not a regression.
+
+Verified live with a real admin session (Playwright driving a genuine
+Supabase magic-link login for the existing `role='admin'` account) against
+the real dev server — every remaining/moved nav link resolves, both tab
+bars render consistently, and the GBP approve/reject flow was exercised
+against real database rows, not mocked. Marked **IMPLEMENTED, UNCONFIRMED**
+in STATE_OF_THE_BUILD.md per this project's verification standard — this
+session's own Playwright evidence is not a substitute for Reid
+independently checking the actual behavior.
+
+---
+
 ## SUBMIT CONFIRMATION 3D MODAL: afs-fl-029 -- CANVAS MAXIMIZED, HEADER COLOR, BACKGROUND LIGHTENED AGAIN (2026-09-01)
 
 Root-cause-only follow-up to afs-fl-028, four related reports in
@@ -5007,10 +5059,19 @@ ad8b812  docs: record FlashDraft whole-profile move affordance and rationale (af
 
 ## OPEN ITEMS FOR THE NEXT SESSION
 
-1. **FlashDraft leg-body grab cursor** — unconfirmed by the user. Fix is
+1. **Admin nav restructuring (afs-fl-031)** — unconfirmed by the user, and
+   two judgment calls need a yes/no: (a) the Settings item renamed
+   "Settings" → "General" to avoid reading as "Settings > Settings" under
+   the Settings section header — say if a different label is wanted; (b)
+   GBP Photo Queue review relocated to `/admin/gbp-photos`, reachable only
+   via the existing dashboard stat card (not a tab, not a left-nav item) —
+   confirm that placement is right. Also surfaced but explicitly NOT
+   fixed: `/admin/consultations` 404s (pre-existing, predates this
+   session per `git log`).
+2. **FlashDraft leg-body grab cursor** — unconfirmed by the user. Fix is
    pushed (`a551366`); needs Reid to hover a leg body on the live canvas and
    confirm the grab hand now appears immediately on hover.
-2. **FlashDraft hem system (glyph-scales-with-length, Gap re-added, Kick
+3. **FlashDraft hem system (glyph-scales-with-length, Gap re-added, Kick
    direction, mid-leg removal, teardrop retighten, leg-shrink bug)** —
    unconfirmed by the user. Do not do another silent rewrite pass; get
    Reid to look at the live canvas and confirm: increasing Hem Length
@@ -5021,26 +5082,26 @@ ad8b812  docs: record FlashDraft whole-profile move affordance and rationale (af
    reads as tight, not round; dragging mid-leg does nothing (no
    hem-creation gesture left); and that leg 1 shrinks the same as any
    other leg now.
-3. ~~Mid-leg hem removal~~ — **DONE** as of the 2026-08-14 session above.
+4. ~~Mid-leg hem removal~~ — **DONE** as of the 2026-08-14 session above.
    No longer an open item.
-4. **FlashDraft 3D view renders no hems** — newly identified this session.
+5. **FlashDraft 3D view renders no hems** — newly identified this session.
    `ProfileViewer3D` has no hem-related props at all. Needs real scoping
    as its own task (prop plumbing plus a design decision on how to
    represent `kick`/`lengthIn` in 3D) — not a quick prop pass-through.
-5. **FlashDraft template rebuild (Pass 1–4)** — not started. 20-item
+6. **FlashDraft template rebuild (Pass 1–4)** — not started. 20-item
    template list + Coping Cap/Valley variant pickers + PAC-CLAD "Painted
    Color" picker, all locked with the user, zero implementation.
-6. **Canvas/sidebar UI** — not started. Lighter gray canvas background,
+7. **Canvas/sidebar UI** — not started. Lighter gray canvas background,
    compact sidebar redesign.
-7. **PathfinderEdge** — blocked on AMS Controls (Seth Oliver) providing
+8. **PathfinderEdge** — blocked on AMS Controls (Seth Oliver) providing
    server-side logs to root-cause the 401s on the freshly rotated API key.
    Do not guess at request/response shapes in `lib/integrations/pathfinder-edge.ts`
    without a real documented API surface — it drives a physical bending
    machine.
-8. **Credential rotation** — deliberately deferred to one pass immediately
+9. **Credential rotation** — deliberately deferred to one pass immediately
    before DNS cutover, per standing user instruction. Not an open action
    item for the current build phase; do not re-raise it as a gap.
-9. **Shop View focus-mode rework (afs-cv-004)** — unconfirmed by the user.
+10. **Shop View focus-mode rework (afs-cv-004)** — unconfirmed by the user.
    Needs Reid to open `/admin/shop-view` and confirm: the focus panel and
    geometry render correctly at full size, the numbered queue strip switches
    focus on click without a reload, overdue chips render in the crimson

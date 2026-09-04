@@ -25,10 +25,9 @@ const NAV_SECTIONS: NavSection[] = [
       { label: 'Quote Requests', href: '/admin/quote-requests' },
       { label: 'Production Queue', href: '/admin/orders' },
       { label: 'Consultations', href: '/admin/consultations' },
-      { label: '📡 Bid Monitor', href: '/admin/bid-monitor' },
-      { label: '🚚 Deliveries', href: '/admin/command-center?tab=orders' },
-      { label: '📸 GBP Photos', href: '/admin/command-center?tab=gbp' },
-      { label: '📋 Bids', href: '/admin/command-center?tab=bids' },
+      { label: 'Bid Monitor', href: '/admin/bid-monitor' },
+      { label: 'Shop View', href: '/admin/shop-view' },
+      { label: 'Employee App', href: '/employee', openInNewTab: true },
     ],
   },
   {
@@ -37,20 +36,15 @@ const NAV_SECTIONS: NavSection[] = [
       { label: 'Customers', href: '/admin/customers' },
       { label: 'Credit Apps', href: '/admin/credit-applications' },
       { label: 'Pricing', href: '/admin/pricing' },
-      { label: '📖 Building Codes', href: '/admin/building-codes' },
+      { label: 'Building Codes', href: '/admin/building-codes' },
     ],
   },
   {
-    title: 'Integrations',
-    items: [{ label: 'QuickBooks', href: '/admin/quickbooks' }],
-  },
-  {
     title: 'Settings',
-    items: [{ label: 'Settings', href: '/admin/settings' }],
-  },
-  {
-    title: 'Employee',
-    items: [{ label: '📱 Employee App', href: '/employee', openInNewTab: true }],
+    items: [
+      { label: 'General', href: '/admin/settings' },
+      { label: 'QuickBooks', href: '/admin/quickbooks' },
+    ],
   },
 ];
 

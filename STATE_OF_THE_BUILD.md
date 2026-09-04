@@ -34,6 +34,98 @@ summary, not a replacement for it.
 
 ---
 
+## ADMIN NAV RESTRUCTURING: afs-fl-031 -- ICONS REMOVED, DEEP-LINKS REMOVED, SHOP VIEW PROMOTED, QUICKBOOKS/EMPLOYEE FOLDED, GBP RELOCATED, INVOICES FOLDED INTO ORDERS -- IMPLEMENTED, UNCONFIRMED (2026-09-03)
+
+Root-cause-only restructuring of `components/layout/AdminShell.tsx`'s left
+nav and `app/admin/command-center/page.tsx`'s tab bar, following afs-fl-030's
+audit (that audit's findings were treated as settled facts, not
+re-verified). `pnpm tsc --noEmit` — 0 errors. `pnpm build` — succeeds, new
+route `/admin/gbp-photos` present in the manifest. Verified live against the
+real dev server with a real admin session (Playwright driving a genuine
+Supabase magic-link session for the existing `role='admin'` account, not a
+mock) — evidence for the user to confirm independently, per this file's
+verification standard, not a substitute for that confirmation.
+
+**FIX 1 — `components/layout/AdminShell.tsx`, `NAV_SECTIONS` restructured:**
+- Emoji prefixes stripped from Bid Monitor, Building Codes, Employee App —
+  all items now plain text, matching every item that never had one.
+- Deliveries, GBP Photos, and Bids removed as separate left-nav items —
+  confirmed by afs-fl-030 as pure `?tab=` deep-links into Command Center,
+  which already sits above them in the same section.
+- Shop View promoted to a top-level Operations item (`/admin/shop-view`),
+  out from being reachable only inside Command Center's own tab bar — per
+  the task, this is Steve's primary daily-use screen.
+- Employee App folded into Operations; its own single-item "Employee"
+  section header removed.
+- QuickBooks folded into Settings; its own single-item "Integrations"
+  section header removed. Settings now has two items. **Judgment call
+  (flagged per the task):** renamed the existing "Settings" item to
+  "General" so the section header and the item label don't read as
+  redundant ("Settings > Settings") — the item still points at
+  `/admin/settings`, only the nav label changed. Reid should redirect this
+  if "General" isn't the label he wants.
+- Profile Library deliberately NOT added to the left nav, per Reid's
+  explicit standing instruction — it stays reachable only from Command
+  Center's own page.
+- Final structure: **13 left-nav items** across 3 sections — Operations (7:
+  Command Center, Quote Requests, Production Queue, Consultations, Bid
+  Monitor, Shop View, Employee App), Business (4: Customers, Credit Apps,
+  Pricing, Building Codes, unchanged besides the icon strip), Settings (2:
+  General, QuickBooks). Confirmed via Playwright text extraction of the
+  real rendered nav, not just reading the source array.
+
+**FIX 2 — `app/admin/command-center/page.tsx`:**
+- `'gbp'` removed from `CRM_TABS` entirely — no GBP tab in Command Center's
+  header.
+- **GBP review relocated, not deleted.** `GbpPhotosTab.tsx`'s real
+  approve/reject UI (unchanged component) now lives at a new standalone
+  route, `app/admin/gbp-photos/page.tsx`, calling the same
+  `getGbpPhotos`/`isGbpConfigured` data functions and the same unchanged
+  `app/api/admin/gbp/[id]/approve|reject` routes. **Judgment call (flagged
+  per the task):** reachable from Command Center's dashboard via the
+  existing "GBP Photo Queue" stat card in the bottom strip
+  (`components/admin/CommandCenterDashboard.tsx`) — its href was simply
+  repointed from `?tab=gbp` to `/admin/gbp-photos`; no new tab, no new
+  left-nav item, same card position and styling Reid already had. Verified
+  end-to-end with two seeded `gbp_photo_queue` rows against the real
+  Supabase project (cleaned up after): clicking Approve on one and Reject
+  on the other hit the real API routes, persisted `status`/`reviewed_at`/
+  `reviewed_by` in the database, and rendered correctly (`Approved` /
+  `Rejected` badges, "Post to Google Business" appearing on the approved
+  card) on a fresh page load.
+- **Invoices folded into the Orders tab, not deleted.** `'invoices'`
+  removed from `CRM_TABS`. `OrdersCrmTab.tsx` gained a real
+  Orders/Invoices toggle (two buttons, `useState`) — the toggle mounts the
+  actual, unchanged `InvoicesCrmTab` component (same real
+  `getCrmInvoices` data, same Send Invoice / Mark Paid actions hitting the
+  same real API routes) inline, not a placeholder. `command-center/page.tsx`
+  now fetches `getCrmInvoices` alongside orders data when `activeTab ===
+  'orders'` and passes it through as a new `invoices` prop. Verified live:
+  toggling to "Invoices" inside the Orders tab renders the real Total
+  Outstanding / Total Overdue / Paid This Month summary cards and invoice
+  table.
+- **Shop View / Profile Library plain-link visibility bug fixed.** The
+  non-dashboard (`?tab=...`) render branch was missing the Shop View link
+  present on the bare-dashboard branch — added it in the same position,
+  same `PROFILE_LIBRARY_NAV_LINK_CLASSNAME`. Verified live across 5 views
+  (dashboard, `?tab=customers`, `?tab=orders`, `?tab=bids`, `?tab=pending`)
+  that both links render identically in every one.
+
+**Pre-existing issue found during verification, NOT part of this task's
+scope and NOT fixed here:** `/admin/consultations` (the "Consultations"
+nav item, left untouched by FIX 1) returns a 404 — there is no
+`app/admin/consultations/page.tsx`. Confirmed via `git log` that this href
+predates this session's changes; it is not a regression from afs-fl-031.
+Flagging for a future task, not fixing under a "root-cause only" nav
+restructuring task that didn't ask for it.
+
+No database migration was needed — every relocated/folded piece of
+functionality (GBP approve/reject, invoice send/mark-paid) already existed
+and was reused unchanged; only its presentation (route, tab membership,
+nav entry) moved.
+
+---
+
 ## SUBMIT CONFIRMATION 3D MODAL: afs-fl-029 -- CANVAS MAXIMIZED, HEADER COLOR, BACKGROUND LIGHTENED AGAIN -- IMPLEMENTED, UNCONFIRMED (2026-09-01)
 
 Root-cause-only follow-up to afs-fl-028 (below), covering four related
