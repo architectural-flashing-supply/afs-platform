@@ -34,6 +34,51 @@ summary, not a replacement for it.
 
 ---
 
+## NAVBAR HEADER/LOGO OVERLAP + ACCOUNT MENU SIGN OUT + HAILVIEW NAV LINK (afs-fl-033): IMPLEMENTED, UNCONFIRMED — RE-VERIFIED LIVE INDEPENDENTLY THIS PASS, NO CODE CHANGES NEEDED, STILL NOT REID-CONFIRMED (2026-09-04)
+
+This pass re-ran the afs-fl-033 task (see the original entry below). Per
+this pass's own instructions, `components/layout/NavBar.tsx` was read
+directly first rather than trusting the task description's "currently"
+state or the prior session's governance-doc claims. All three fixes were
+already present and already committed (`f5178a8`) — no diff was made to
+`NavBar.tsx`. `pnpm tsc --noEmit`: 0 errors, run directly this pass.
+
+Because the prior session's own live verification is, per this file's
+verification standard, evidence brought to Reid and not a substitute for
+his confirmation, this pass performed its own independent live
+verification rather than reusing the prior claim: started a fresh `pnpm
+dev`, created a new real throwaway Supabase Auth test user via the admin
+REST API (`email_confirm: true`, deleted immediately after), and drove
+the real running app with a scratch Playwright script (deleted after the
+run; nothing test-only committed):
+
+- **Header/logo:** `LOGO_BOX {x:0,y:0,width:200,height:80}`,
+  `HEADER_BOX {x:200,y:0,width:1240,height:56}`, logged out and logged
+  in — zero pixel overlap in either state. Screenshot confirms the
+  header's dark background genuinely begins at the logo's right edge;
+  the logo sits free-floating in its corner at full natural size, not
+  shrunk to the header's height.
+- **HailView nav link:** visible and clickable in the header on both `/`
+  and `/products`; clicking it from `/` navigates to `/hailview`.
+- **Sign Out placement:** zero standalone top-level "Sign Out" elements
+  found on the page; "My Account" toggle opens a `role="menu"` dropdown
+  containing "Account" and "Sign Out"; screenshot confirms the dropdown
+  renders correctly. Clicking "Sign Out" redirected to `/login`, and a
+  follow-up visit to `/account` redirected to
+  `/login?redirect=%2Faccount` rather than rendering — the session was
+  genuinely ended, not just the UI updated.
+
+No root-cause issues found — the existing implementation already
+satisfies all three fixes as specified. **Still marked IMPLEMENTED,
+UNCONFIRMED, not DONE**: two independent Claude Code sessions' Playwright
+evidence is not a substitute for Reid independently loading the site and
+confirming the header/logo layout, the account-menu sign-out, and the
+HailView nav link himself.
+
+No new commit — nothing in the working tree changed.
+
+---
+
 ## HAILVIEW PERSISTENT FULL-BLEED MAP BACKGROUND (afs-hv-007): IMPLEMENTED, UNCONFIRMED — MAP IS NOW THE PAGE'S PERSISTENT BACKGROUND, ADDRESS/MATERIAL FORM IS A FLOATING OVERLAY PANEL (2026-09-04)
 
 **Both gates met this pass, run directly, not assumed:** `pnpm tsc --noEmit`

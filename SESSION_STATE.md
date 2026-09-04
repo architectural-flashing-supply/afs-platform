@@ -24,6 +24,45 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## NAVBAR HEADER/LOGO OVERLAP, ACCOUNT MENU SIGN OUT, HAILVIEW NAV LINK (afs-fl-033): RE-VERIFIED THIS PASS, NO CODE CHANGES NEEDED, STILL UNCONFIRMED BY REID (2026-09-04)
+
+Same task re-issued this pass. Read the real `components/layout/NavBar.tsx`
+directly first, per this pass's own instructions, instead of trusting the
+task description's stale "currently" state or the previous session's
+governance-doc entry (below). Found all three fixes already committed in
+`f5178a8` — `git status --short` showed no diff on `NavBar.tsx`,
+`STATE_OF_THE_BUILD.md`, or this file at the start of this pass. No code
+was changed. `pnpm tsc --noEmit`: 0 errors, run directly.
+
+Since this file's own verification standard treats a prior session's
+"verified live" claim as evidence, not confirmation, this pass did not
+reuse the prior run's result — it performed a fresh, independent live
+verification: new `pnpm dev`, a new real throwaway Supabase Auth test user
+via the admin REST API (`email_confirm: true`, deleted after), driven with
+a scratch Playwright script (deleted after the run, nothing committed)
+against the real running app.
+
+Results, matching the prior session's: `LOGO_BOX {x:0,width:200,height:80}`
+/ `HEADER_BOX {x:200,width:1240,height:56}` with zero overlap logged out and
+logged in (screenshots confirm the header's background genuinely starts at
+the logo's right edge); HailView link visible and clickable from the nav on
+both `/` and `/products`, landing on `/hailview`; zero standalone top-level
+Sign Out elements; "My Account" opens a dropdown containing "Account" and
+"Sign Out" (screenshot confirms); clicking "Sign Out" redirected to
+`/login` and a subsequent `/account` visit redirected to
+`/login?redirect=%2Faccount`, confirming the session was actually
+terminated, not just the UI changed.
+
+No root-cause issues found. **Still IMPLEMENTED, UNCONFIRMED, not DONE**
+— this is the second independent session to reach this same result via
+Playwright; neither substitutes for Reid loading the site himself and
+confirming the header/logo layout, the account-menu sign-out, and the
+HailView nav link.
+
+No new commit — the working tree had nothing to commit.
+
+---
+
 ## HAILVIEW PERSISTENT FULL-BLEED MAP BACKGROUND (afs-hv-007): IMPLEMENTED, UNCONFIRMED — VERIFIED LIVE AGAINST A REAL AMARILLO, TX ADDRESS, NOT YET REID-CONFIRMED (2026-09-04)
 
 `pnpm tsc --noEmit`: 0 errors. `pnpm run build`: succeeded, `○ /hailview`
