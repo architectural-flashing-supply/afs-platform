@@ -34,6 +34,94 @@ summary, not a replacement for it.
 
 ---
 
+## LEGACY SITE PHOTOGRAPHY LIBRARY (afs-fl-036): DONE (2026-09-04)
+
+Built a real, organized library of AFS's own legitimate photography from the
+live legacy WordPress site at `public/legacy-site-photos/`, for reuse across
+the new platform — while explicitly excluding both iStock photos flagged in
+afs-fl-035 and any other licensed stock photography discovered along the way.
+
+**Crawl.** Fetched raw HTML for every remaining real page not yet checked
+(`/about/`, `/products/`, `/materials/`, `/equipment/`, `/suppliers/`,
+`/contact/`, and all seven `/product/*/` category pages), extracting every
+`src`/`data-src`/`srcset` image reference. That crawl was then superseded by
+a more authoritative source: the legacy site's own WordPress REST API
+(`/wp-json/wp/v2/media?per_page=100`), which returned all **91** media
+library items in one call — a complete, page-crawl-independent inventory
+that made "did I miss a page" moot. Every one of the 91 items was
+individually classified; the classification was reconciled programmatically
+against the full list to confirm zero were left uncategorized.
+
+**Classification, done by actually opening each image, not by filename:**
+- 2 already-flagged iStock photos (both the bb-plugin cached crop and the
+  full-size original of each — 4 files, 2 source photos) — excluded, never
+  downloaded.
+- 3 more stock photos surfaced by this pass, identifiable by the `-utc`
+  timestamp suffix stock-download services append (e.g. Envato Elements):
+  `engineer-s-tools-on-the-table-...-utc.jpg`, `tile-roofing-worker-...-utc.jpg`,
+  `green-tiles-roof-background-...-utc.jpg`.
+- **Correction to the prior prompt's premise:** the task brief described 13
+  homepage category images (`metal-roof-4.jpg`, `flashing-1.jpg`, etc.) as
+  "confirmed real, no stock-photo naming pattern." Opening each one showed
+  that was only true for 3 of them. `metal-roof-4.jpg` and `metal-roof3.jpg`
+  are **pixel-identical re-crops** of the two `-utc`-suffixed stock photos
+  above, just re-uploaded under an innocuous filename with the timestamp
+  suffix stripped. The other 8 (`metal-walls.jpg`, `metal-walls-2.jpg`,
+  `customfab.jpg`, `customfab1.jpg`, `siding1.jpg`, `siding2.jpg`,
+  `door-and-window1.jpg`, `door-and-window2.jpg`) are shallow-depth-of-field
+  studio product photography (one is an unrelated airport payphone bank) —
+  stylistically identical to the confirmed stock photos and inconsistent
+  with every genuine AFS photo found in this pass. All 10 were excluded.
+  Filename-pattern matching alone is not sufficient to clear an image as
+  genuine; this project's stock photos are not reliably named to signal
+  that they're stock.
+- 14 third-party supplier logos (Englert, Drexel, PAC-CLAD, Revere, Unimet,
+  McElroy Metal — both `/suppliers/` page and homepage supplier strip
+  variants) and 2 third-party manufacturer equipment catalog photos
+  (`schlebach_quadro_plus*.png`, a Schlebach folding machine studio shot)
+  — excluded as not AFS's own photography.
+- 4 AFS brand assets (`afs-logo*.png`, `afs-white.png`) and 8 non-photo
+  design/UI assets (abstract background graphics, a solid-color block, a
+  broken-image placeholder icon, an email illustration, a decorative
+  mountain-circle icon) — excluded as out of scope for a photography library.
+- 13 stale WordPress media-library records that 404 on fetch (the site's
+  image optimizer converted these to `.jpg` at the same base filename;
+  the DB kept the dead `.png` attachment record) — no action needed, the
+  live `.jpg` versions are covered under whichever bucket above they
+  belong to.
+- 2 Beaver Builder cache crops on `/about/` — resized duplicates of gallery
+  photos #14 and #37, already covered at full size.
+
+**New, previously-unknown real photos found this pass:** 4 candid job-site
+photos on the homepage — `2012-06-20-09.35.33.jpg`, `DSC00028.jpeg`,
+`DSC01403.jpeg`, `DSC01549.jpeg` — three still carrying their default
+camera filenames. Not on the prior prompt's known list; surfaced by the
+WordPress media API, then visually confirmed as genuine (two are alternate
+angles of structures already in the "our-work" gallery). No other new pages
+or images beyond these 4 were found — the "13 homepage category images" and
+"39 our-work gallery photos" the prior prompt already knew about were the
+only other content on the newly-crawled pages, all sourced from that same
+media library.
+
+**Delivered:** `public/legacy-site-photos/` with three subfolders
+(`our-work-gallery/` — 39 images, `homepage-categories/` — 3 images,
+`additional-project-photos/` — 4 images; **46 genuine photos total**) and
+`MANIFEST.md` documenting every file's original source URL, source page,
+and a real description written after opening the image, plus the full
+excluded-image accounting above. `pnpm tsc --noEmit`: 0 errors (this pass
+added only static assets and a markdown manifest, no application code).
+
+Not addressed by this pass: these 46 files are not yet wired into any page
+or component — this was a library-building pass, not a UI-integration one.
+Note also that `public/home_page_images/gallery/afs-1.jpg` through
+`afs-39.jpg` (built in afs-fl-034) is a **separate, pre-existing copy** of
+the same 39 our-work-gallery source photos, already in active use on the
+homepage — this pass did not touch or duplicate-check against that
+directory beyond confirming (per afs-fl-035's audit) that its files are the
+genuine `Architectural-Flashing-Supply-{N}.jpg` set, not iStock.
+
+---
+
 ## ISTOCK LEGACY PHOTO AUDIT (afs-fl-035): CLEAN — NO REFERENCES FOUND ANYWHERE SEARCHED (2026-09-04)
 
 Reid flagged that two specific iStock-licensed photos used on the old

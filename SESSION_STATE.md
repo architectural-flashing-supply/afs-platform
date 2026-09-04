@@ -24,6 +24,64 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## LEGACY SITE PHOTOGRAPHY LIBRARY (afs-fl-036): DONE (2026-09-04)
+
+Built `public/legacy-site-photos/` — a real, organized library of AFS's own
+legitimate photography pulled from the live legacy WordPress site, for
+reuse across the new platform, explicitly excluding both iStock photos
+flagged in afs-fl-035 plus every other licensed stock photo found along
+the way. Full detail in the matching `STATE_OF_THE_BUILD.md` entry; summary
+here.
+
+Crawled every remaining real page (`/about/`, `/products/`, `/materials/`,
+`/equipment/`, `/suppliers/`, `/contact/`, all 7 `/product/*/` category
+pages), then went further and pulled the legacy site's WordPress REST API
+media library directly (`/wp-json/wp/v2/media`) — 91 items total, a
+complete inventory independent of which pages happened to reference which
+image. Every item was opened and classified by eye, not by filename.
+
+**Important correction to this prompt's own starting premise:** the brief
+described 13 homepage category images as "confirmed real, no stock-photo
+naming pattern." Actually opening them showed only 3 are genuine —
+`metal-roof-4.jpg` and `metal-roof3.jpg` are pixel-identical re-crops of
+two stock photos also found in the media library (`tile-roofing-worker-...
+-utc.jpg`, `green-tiles-roof-background-...-utc.jpg`), just re-uploaded
+under an innocuous name with the stock-service `-utc` timestamp suffix
+stripped off. The other 8 (`metal-walls.jpg`, `metal-walls-2.jpg`,
+`customfab.jpg`, `customfab1.jpg`, `siding1.jpg`, `siding2.jpg`,
+`door-and-window1.jpg`, `door-and-window2.jpg`) are studio-lit macro
+product shots — one is literally an unrelated airport payphone bank —
+stylistically identical to the confirmed stock photos and unlike every
+genuine AFS photo in this library. All 10 were excluded despite matching
+the prior "confirmed real" list; **filename pattern alone is not a
+reliable signal on this site.**
+
+New real photos found that weren't on the prior known list: 4 candid
+job-site photos on the homepage (`2012-06-20-09.35.33.jpg`, `DSC00028.jpeg`,
+`DSC01403.jpeg`, `DSC01549.jpeg`, three still under their default camera
+filenames), surfaced via the WP media API and visually confirmed genuine.
+No other new pages or images turned up beyond these 4.
+
+**Result: 46 genuine photos downloaded** — 39 in `our-work-gallery/`
+(the full `/our-work/` portfolio), 3 in `homepage-categories/`
+(`flashing-1.jpg`, `flashing-2.jpg`, the Thalmann folder-machine equipment
+photo `tz-long-folder.jpg`), 4 in `additional-project-photos/` (the newly
+found homepage photos). `MANIFEST.md` documents every file's source URL,
+source page, and a real look-at-it description, plus the full excluded-image
+accounting (2 iStock source photos / 4 files, 3 more `-utc` stock photos,
+the 10 stock homepage images above, 14 supplier logos, 2 manufacturer
+equipment catalog photos, 4 AFS brand assets, 8 non-photo design/UI assets,
+13 dead duplicate media records, 2 duplicate cache crops). **Neither iStock
+URL was fetched at any point.** `pnpm tsc --noEmit`: 0 errors.
+
+Not done this pass: wiring these 46 files into any page — this was a
+library-building pass only. Also worth knowing: `public/home_page_images/
+gallery/afs-1.jpg`–`afs-39.jpg` (from afs-fl-034) is a separate,
+already-in-use copy of the same 39 our-work-gallery photos; this pass left
+it untouched.
+
+---
+
 ## ISTOCK LEGACY PHOTO AUDIT (afs-fl-035): CLEAN — NO REFERENCES FOUND (2026-09-04)
 
 Root-cause search requested by Reid for two specific iStock-licensed photo
