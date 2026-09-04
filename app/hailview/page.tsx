@@ -26,11 +26,20 @@
 // score either.
 
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Badge, { type BadgeVariant } from '@/components/ui/Badge';
 import type { HailViewLookupResponse } from '@/app/api/hailview/storm-history/route';
 import type { MaterialCategory, MembraneMilThickness, MetalGauge, ReplacementTier } from '@/lib/hailview/types';
+
+// afs-hv-006 — Leaflet touches window/document at import time, so the map
+// is loaded client-only via next/dynamic({ ssr: false }); Next's SSR pass
+// would otherwise throw trying to evaluate the leaflet module on the server.
+const HailViewMap = dynamic(() => import('@/components/hailview/HailViewMap'), {
+  ssr: false,
+  loading: () => <div className="w-full h-[420px] rounded border border-afs-border bg-afs-bg-overlay animate-pulse" />,
+});
 
 type TopLevelMaterial = 'asphalt_shingle' | 'metal' | 'tpo_pvc_membrane' | 'wood_shake';
 type MetalSubtype = 'metal_r_panel' | 'metal_standing_seam';
@@ -422,6 +431,11 @@ export default function HailViewPage() {
               <Badge variant={TIER_BADGE_VARIANT[result.tier]} size="md">
                 <span data-testid="hailview-tier">{result.tier} Replacement Probability</span>
               </Badge>
+            </div>
+
+            <div className="bg-afs-bg-raised border border-afs-border rounded metal-edge p-6">
+              <h2 className="font-heading text-2xl font-semibold text-afs-chrome-high mb-4">Storm Map</h2>
+              <HailViewMap address={result.address} lat={result.lat} lon={result.lon} hailEvents={result.hailEvents} />
             </div>
 
             <div className="bg-afs-bg-raised border border-afs-border rounded metal-edge p-6">

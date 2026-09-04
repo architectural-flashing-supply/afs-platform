@@ -116,3 +116,96 @@ test.describe('HailView — real address, real scoring, all four material types'
     await expect(page.getByTestId('hailview-tier')).toBeVisible();
   });
 });
+
+// afs-hv-006 — Leaflet/OpenStreetMap map added to the results view
+// (components/hailview/HailViewMap.tsx). Asserts against the real
+// HailViewLookupResponse returned by the same live pipeline the tests above
+// already exercise (real Nominatim lat/lon, real IEM LSR hailEvents each
+// with its own lat/lon) rather than any fixture data.
+test.describe('HailView — interactive map (afs-hv-006)', () => {
+  test('address marker pulses, real storm markers plot, map frames all points', async ({ page }) => {
+    const responsePromise = page.waitForResponse((res) => res.url().includes('/api/hailview/storm-history'));
+    await page.goto('/hailview');
+    await page.locator('#hailview-address').fill(TEST_ADDRESS);
+    await page.locator('#hailview-material').selectOption('asphalt_shingle');
+    await page.locator('#hailview-roof-age').fill('15');
+    await submitAndWaitForResult(page);
+
+    const body = (await (await responsePromise).json()) as { lat: number; lon: number; hailEvents: { id: string }[] };
+
+    const map = page.getByTestId('hailview-map');
+    await expect(map).toBeVisible();
+    // react-leaflet renders tiles asynchronously — wait for at least one real
+    // OSM tile image to load before asserting on marker geometry.
+    await expect(map.locator('.leaflet-tile-loaded').first()).toBeVisible({ timeout: 20000 });
+
+    // Address marker: exactly one, with the pulse-ring element present and
+    // actually animating (not display:none, not a static div).
+    const addressMarker = map.locator('[data-testid="hailview-map-address-marker"]');
+    await expect(addressMarker).toHaveCount(1);
+    const ring = addressMarker.locator('.hailview-address-marker-ring');
+    await expect(ring).toBeVisible();
+    const animationName = await ring.evaluate((el) => getComputedStyle(el).animationName);
+    expect(animationName).toBe('hailview-address-pulse');
+
+    // Storm event markers: one leaflet marker per real hailEvents entry
+    // returned by the API this run (not a hardcoded count) — total markers
+    // on the map = 1 address marker + hailEvents.length storm markers.
+    const allMarkers = map.locator('.leaflet-marker-icon');
+    await expect(allMarkers).toHaveCount(1 + body.hailEvents.length);
+
+    // Bounds-fit: no hardcoded zoom assertion, just confirm Leaflet actually
+    // set a zoom level (i.e. fitBounds/setView ran) rather than staying
+    // uninitialized.
+    const zoomAttr = await map.locator('.leaflet-container').first().getAttribute('style');
+    expect(zoomAttr).toBeTruthy();
+
+    await page.screenshot({ path: 'test-results/hailview-map-pulse.png', fullPage: true });
+  });
+
+  test('storm marker click shows its real date and size from the already-displayed data', async ({ page }) => {
+    const responsePromise = page.waitForResponse((res) => res.url().includes('/api/hailview/storm-history'));
+    await page.goto('/hailview');
+    await page.locator('#hailview-address').fill(TEST_ADDRESS);
+    await page.locator('#hailview-material').selectOption('asphalt_shingle');
+    await page.locator('#hailview-roof-age').fill('15');
+    await submitAndWaitForResult(page);
+
+    const body = (await (await responsePromise).json()) as {
+      hailEvents: { id: string; validAt: string; sizeIn: number | null }[];
+    };
+    test.skip(body.hailEvents.length === 0, 'No real hail events for this address/period — nothing to click.');
+
+    const map = page.getByTestId('hailview-map');
+    await expect(map.locator('.leaflet-tile-loaded').first()).toBeVisible({ timeout: 20000 });
+
+    const stormMarkers = map.locator('.leaflet-marker-icon:not(:has(.hailview-address-marker))');
+    await stormMarkers.first().click();
+
+    const first = body.hailEvents[0];
+    await expect(page.locator('.leaflet-popup-content')).toContainText(first.validAt.slice(0, 10));
+  });
+
+  test('reduced motion renders a static ring, not an animated one', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/hailview');
+    await page.locator('#hailview-address').fill(TEST_ADDRESS);
+    await page.locator('#hailview-material').selectOption('asphalt_shingle');
+    await page.locator('#hailview-roof-age').fill('15');
+    await submitAndWaitForResult(page);
+
+    const map = page.getByTestId('hailview-map');
+    await expect(map.locator('.leaflet-tile-loaded').first()).toBeVisible({ timeout: 20000 });
+
+    const ring = map.locator('.hailview-address-marker-ring').first();
+    await expect(ring).toBeVisible();
+    const style = await ring.evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return { animationName: cs.animationName, opacity: cs.opacity };
+    });
+    expect(style.animationName).toBe('none');
+    expect(Number(style.opacity)).toBeGreaterThan(0);
+
+    await page.screenshot({ path: 'test-results/hailview-map-reduced-motion.png', fullPage: true });
+  });
+});

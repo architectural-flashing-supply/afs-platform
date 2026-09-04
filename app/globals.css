@@ -157,3 +157,33 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* HailView interactive map (app/hailview/page.tsx via components/hailview/
+   HailViewMap.tsx) — pulsating geocoded-address marker. Leaflet divIcon
+   markup is static HTML handed to L.divIcon(), so it can't consume
+   afs-crimson through Tailwind's normal class pipeline the way real JSX
+   can — Tailwind's content scanner is regex-based over file text and does
+   pick up classes inside template-literal strings, so bg-afs-crimson etc.
+   still resolve; this block only supplies the keyframe itself, which
+   Tailwind has no utility for (matches the existing track-dot-pulse /
+   truckPulse precedent above and in DeliveryTrackingMap.tsx). The
+   prefers-reduced-motion block below is a deliberate static ring, not a
+   reliance on the global animation-duration:0.01ms override above — a
+   near-zero-duration infinite animation still freezes on an arbitrary
+   in-between frame, which is not the same as an intentional steady glow. */
+@keyframes hailview-address-pulse {
+  0%   { transform: scale(0.7); opacity: 0.55; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+
+.hailview-address-marker-ring {
+  animation: hailview-address-pulse 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hailview-address-marker-ring {
+    animation: none;
+    transform: scale(1.5);
+    opacity: 0.35;
+  }
+}

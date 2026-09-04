@@ -24,6 +24,92 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## HAILVIEW MAP (afs-hv-006): IMPLEMENTED, UNCONFIRMED — LEAFLET/OSM MAP, PULSATING ADDRESS MARKER, REAL STORM EVENT MARKERS (2026-09-04)
+
+`pnpm tsc --noEmit`: 0 errors. `pnpm run build`: exit 0, `/hailview` builds
+clean.
+
+Extends the already-complete 5-phase HailView build (Phases 1–5, all DONE)
+with a map view that was outside SPEC_HAILVIEW.md Section 9's original
+scope — requested directly this session, not derived from the spec.
+
+Read the real, already-committed code first (`app/hailview/page.tsx`,
+`app/api/hailview/storm-history/route.ts`, `lib/hailview/types.ts`,
+`lib/hailview/geocode.ts`, `lib/hailview/storm-history.ts`) before writing
+any map code, per this pass's own instructions — confirmed
+`HailViewLookupResponse.lat`/`.lon` (real Nominatim geocode) and each
+`StormEvent.lat`/`.lon` (real IEM LSR `geometry.coordinates`) were already
+present on data the page already receives. No new fetch, no assumed field
+names.
+
+New `components/hailview/HailViewMap.tsx`: `leaflet`+`react-leaflet` v4
+(v4, not v5 — this repo is on React 18, v5 needs React 19), real OSM tiles,
+no Mapbox/Google key. Both marker types use `L.divIcon` (no default Leaflet
+pin image asset, so the usual webpack-breaks-the-marker-icon problem never
+comes up). Address marker: expanding/fading afs-crimson ring (CSS keyframe
+`hailview-address-pulse` in `app/globals.css`) behind a solid afs-crimson
+dot. Storm markers: flat, unanimated, sized/colored by real `sizeIn`
+(afs-amber/afs-copper/afs-crimson-hover buckets) — deliberately distinct
+from the address marker by motion and size, not just color. Bounds-fit via
+`map.fitBounds()` for 2+ points or `map.setView(point, 13)` for a single
+point, mirroring the same split `components/track/DeliveryTrackingMap.tsx`
+already uses for exactly this problem — no hardcoded zoom. Reduced-motion:
+a dedicated `@media (prefers-reduced-motion: reduce)` block sets
+`animation: none` on the ring with a fixed opacity — a deliberate static
+ring, not reliance on this file's pre-existing global
+`animation-duration: 0.01ms !important` catch-all, which would just freeze
+the ring on an arbitrary in-between animation frame instead of a clean
+static state. `app/hailview/page.tsx` loads the map via
+`next/dynamic(..., { ssr: false })` — Leaflet touches `window` at import
+time and breaks under Next's SSR pass without that.
+
+**Verification standard note applies below exactly as it does above:**
+this session's own Playwright runs and screenshots are evidence brought to
+Reid, not a substitute for him independently confirming the pulse, marker
+placement, and reduced-motion fallback himself. Marked **IMPLEMENTED,
+UNCONFIRMED**, not DONE.
+
+What was actually run, live, this pass:
+- Found port 3000 already held by an orphaned `node` process from a prior
+  session (started 2026-09-03, serving stale pre-afs-hv-006 code — that's
+  why the first `curl /hailview` came back a `/login` redirect that the
+  current `middleware.ts` doesn't actually contain). Killed it, started a
+  fresh `pnpm start` against the real current build before testing anything.
+- `tests/e2e/hailview.spec.ts` gained 3 tests under "HailView — interactive
+  map (afs-hv-006)". Two passed live against the real dev server: the
+  address-marker test asserts a real `getComputedStyle(ring).animationName
+  === 'hailview-address-pulse'` on the actual DOM element (not a
+  screenshot-only check) and that total Leaflet marker count equals
+  `1 + hailEvents.length` pulled from the real API response; the
+  reduced-motion test asserts `animationName === 'none'` with `opacity > 0`
+  under `page.emulateMedia({ reducedMotion: 'reduce' })`. The third test
+  (click a storm marker, assert its popup) self-skipped for a real reason,
+  not a bug: this spec's committed `TEST_ADDRESS` (1500 Marilla St, Dallas,
+  TX) has zero real hail events in its 1mi/5yr IEM LSR window, confirmed via
+  the live API response captured mid-test — nothing to click there.
+- Because the committed address has no hail events, storm-marker plotting
+  itself was verified separately with a throwaway (deleted after the run,
+  not committed) spec against **3701 W Interstate 40, Amarillo, TX**, which
+  does have one: a real 2023-12-23, 0.88in hail report 0.56mi away, at its
+  own real lat/lon (35.18, -101.94). The marker rendered there; clicking it
+  opened a popup reading `2023-12-23 — 0.88″ hail`, matching the Storm
+  History Timeline list rendered from the same data below it on the page.
+- Screenshots taken (gitignored under `/test-results/`, not committed —
+  reproducible via the commands in the matching STATE_OF_THE_BUILD.md
+  entry): `hailview-map-pulse.png`, `hailview-map-reduced-motion.png`,
+  `hailview-map-real-storm-events.png`.
+
+**Commit:** `feat: HailView interactive map with pulsating address marker
+and real storm event locations (afs-hv-006)`.
+
+**Next session should NOT re-mark this DONE from this entry alone** — it
+needs Reid's own look at the rendered map (ideally at
+`http://localhost:3000/hailview` with a real address that has storm
+history, e.g. the Amarillo address above) before this becomes DONE in
+either governance doc.
+
+---
+
 ## HAILVIEW PHASE 4 (afs-hv-004): DONE — REAL AGENT NARRATIVE WIRED INTO THE UI, SCORE/TIER IMMUTABILITY VERIFIED (2026-09-04)
 
 `pnpm tsc --noEmit`: 0 errors.
