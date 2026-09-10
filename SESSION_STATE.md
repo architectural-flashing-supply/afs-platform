@@ -24,6 +24,57 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## DESIGNSTUDIOHUB — FIVE-METHOD SELECTOR + /design-studio ROUTE (hp-006): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+`pnpm tsc --noEmit`: 0 errors. Branch: `feat/homepage-redesign`. Commit
+`4fa1228`.
+
+Read CLAUDE.md, DESIGN_TOKENS.md, SITEMAP.md, and COMPONENT_MAP.md first,
+then resolved the five method routes against the real `app/` tree rather
+than trusting COMPONENT_MAP.md verbatim — it found one stale claim:
+COMPONENT_MAP.md says `app/studio/page.tsx`'s Photo to Quote tab links to
+`/upload?tab=photos`; the real file (checked directly) links to plain
+`/upload`, which has no photo mode at all (grepped `app/upload/page.tsx`
+for `photo`/`mode=`/`PhotoUploadZone` — zero matches). The real photo-to-
+quote flow is `/field/contractor` (`ContractorCameraQuoteForm`, anonymous
+camera-to-quote, already linked from hp-005's `FieldAppStory.tsx` for the
+same reason) — that's what `DesignStudioHub` links to. Final route
+mapping: Scan Plans → `/upload`, Photo to Quote → `/field/contractor`,
+FlashDraft → `/studio/draft`, Configurator → `/configure`, Quick Quote →
+`/quote`.
+
+Built `app/components/home/DesignStudioHub.tsx` — `id="design-studio"`
+(the anchor `CredibilityStrip.tsx` already links to), ARIA tabs pattern:
+`role="tablist"`/`role="tab"` cards with `aria-selected` and roving
+`tabIndex` (selected card = 0, rest = -1), one `role="tabpanel"` below
+showing description/"Best for"/a `Start` button (real `Link` to the
+resolved route). Arrow Left/Right/Up/Down move both selection and DOM
+focus; Home/End jump to first/last. Card row: `overflow-x-auto snap-x
+snap-mandatory` below `sm:`, 5-column grid at `sm:` and up — always above
+the detail panel. Default selection: FlashDraft (index 2), per the
+prompt.
+
+Created `app/design-studio/page.tsx` — did not exist before this pass.
+Server component, `title: 'Design Studio | AFS Architectural Flashing
+Supply'`, renders `DesignStudioHub` full-width in a `<main>`. No manual
+NavBar/Footer — `/design-studio` isn't in `AppChrome.tsx`'s
+`NO_CHROME_PREFIXES`/`PORTAL_PREFIXES`, so it gets the standard site
+chrome automatically. This resolves the 404 hp-003 flagged: `HeroSection
+.tsx`'s "Start a Quote" CTA already pointed at `/design-studio` before
+this route existed.
+
+**Left open, not silently fixed:** `components/layout/NavBar.tsx`'s
+"Design Studio" nav link still points to the older `/studio` 4-tab
+landing page, not `/design-studio` — reconciling the two wasn't in this
+prompt's scope. `DesignStudioHub` is not yet imported into `app/
+page.tsx` — deferred to `hp-019` same as hp-002 through hp-005. No
+Playwright checkpoint run this pass (not requested); Reid has not looked
+at this component yet.
+
+Marked IMPLEMENTED, UNCONFIRMED per this file's verification standard.
+
+---
+
 ## FIELDAPPSTORY — PHOTO-TO-QUOTE FIELD APP STORY SECTION (hp-005): IMPLEMENTED, UNCONFIRMED (2026-09-10)
 
 `pnpm tsc --noEmit`: 0 errors. Branch: `feat/homepage-redesign`. Commit

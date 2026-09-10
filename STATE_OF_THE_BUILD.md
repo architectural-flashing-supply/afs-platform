@@ -34,6 +34,80 @@ summary, not a replacement for it.
 
 ---
 
+## DESIGNSTUDIOHUB — FIVE-METHOD SELECTOR + /design-studio ROUTE (hp-006): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+**Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
+0 errors. Commit `4fa1228`.
+
+**What exists now, on `feat/homepage-redesign`, not yet on `main`:**
+`app/components/home/DesignStudioHub.tsx` — a client component, `id=
+"design-studio"` (the anchor `CredibilityStrip.tsx`'s "5 Ways to Start"
+item already links to). Five method cards implement the ARIA tabs
+pattern: `role="tablist"` container, each card `role="tab"` with
+`aria-selected`, roving `tabIndex` (0 on the selected card, -1 on the
+rest), and a single `role="tabpanel"` below showing the selected
+method's description, a "Best for" line, and a `Start` button (`Link`,
+`aria-label="Start {title}"`) to that method's real route. Arrow
+Left/Right/Up/Down move selection and DOM focus together (Home/End jump
+to first/last), matching the roving-tabindex + arrow-key pattern the
+prompt asked for. Card row is `flex overflow-x-auto snap-x snap-
+mandatory` below `sm:` and a 5-column grid at `sm:` and up — the
+scroll-snap row sits above the detail panel at every width, per the
+prompt. Default selection is FlashDraft (index 2), per the prompt.
+
+**Route resolution — read from `app/` and SITEMAP.md directly, not
+invented, per the prompt's own instruction:**
+
+```
+Scan Plans     -> /upload            (SITEMAP.md: Blueprint Takeoff AI)
+Photo to Quote -> /field/contractor  (see correction below)
+FlashDraft     -> /studio/draft      (SITEMAP.md + app/studio/page.tsx)
+Configurator   -> /configure         (SITEMAP.md + app/studio/page.tsx)
+Quick Quote    -> /quote             (SITEMAP.md: Quote Request Wizard)
+```
+
+**Correction to COMPONENT_MAP.md's Photo to Quote route:** that file's
+LAYER 12 entry for `app/studio/page.tsx` claims Photo to Quote links to
+`/upload?tab=photos`. A direct read of the real
+`app/studio/page.tsx` (this session) shows its "Photo to Quote" tab
+actually links to plain `/upload` — and `app/upload/page.tsx` itself has
+no photo-specific mode, no query-param branch, no `PhotoUploadZone`
+usage at all (grepped directly, zero matches). Neither of those is the
+real field-contractor "Photo to Quote" flow the prompt described. The
+actual flow is `/field/contractor`
+(`app/field/contractor/page.tsx` → `ContractorCameraQuoteForm`) — a real,
+already-shipped anonymous camera-to-quote route (SPEC_PHOTO_TO_QUOTE_AI.md,
+CURRENT_STATE.md's "PWA / FIELD APPS" section) that `FieldAppStory.tsx`
+(hp-005) already links to for the exact same reason. `DesignStudioHub`
+links there too, not to `/upload`. COMPONENT_MAP.md itself was not
+edited in this pass — flagging the staleness here rather than silently
+carrying it forward.
+
+**`app/design-studio/page.tsx` created (did not exist before this
+pass):** a server component, `title: 'Design Studio | AFS Architectural
+Flashing Supply'`, renders `DesignStudioHub` full-width inside `<main>`.
+Gets the real site chrome automatically — `/design-studio` matches
+neither `AppChrome.tsx`'s `NO_CHROME_PREFIXES` nor `PORTAL_PREFIXES`, so
+`NavBar`/`Footer`/`ChatWidget` render around it same as any public page.
+This resolves hp-003's flagged gap: `HeroSection.tsx`'s "Start a Quote"
+CTA already pointed at `/design-studio` before this route existed (a
+confirmed 404 at the time hp-003 shipped) — it now resolves.
+
+**Not fixed here, still open, flagged not silently carried forward:**
+`components/layout/NavBar.tsx`'s "Design Studio" nav link still points to
+`/studio` (the older 4-tab landing page), not `/design-studio` — this
+prompt only asked for the new hub + route, not a NavBar edit, so the two
+Design-Studio destinations now coexist un-reconciled. `/studio` itself
+was not touched or deprecated. Also not done: `DesignStudioHub` is not
+yet imported into `app/page.tsx` — consistent with hp-002 through
+hp-005, real-homepage assembly is deferred to `hp-019`.
+
+**Marked IMPLEMENTED, UNCONFIRMED per this file's verification standard**
+— compile gate passing is not a substitute for Reid's own look, and no
+Playwright checkpoint was run this pass (the prompt didn't ask for one).
+
+---
+
 ## FIELDAPPSTORY — PHOTO-TO-QUOTE FIELD APP STORY SECTION (hp-005): IMPLEMENTED, UNCONFIRMED — NOT WIRED INTO ANY REAL PAGE (2026-09-10)
 
 **Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
