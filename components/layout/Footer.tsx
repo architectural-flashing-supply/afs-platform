@@ -55,6 +55,7 @@ export default function Footer() {
                 { label: 'Request a Quote', href: '/quote' },
                 { label: 'Architect Portal', href: '/architects' },
                 { label: 'Track an Order', href: '/account/orders' },
+                { label: 'FAQ', href: '/faq' },
               ].map(item => (
                 <li key={item.label}>
                   <Link href={item.href} className="font-body text-sm text-afs-chrome-base hover:text-afs-chrome-mid transition-colors">
