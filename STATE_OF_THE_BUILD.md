@@ -34,6 +34,76 @@ summary, not a replacement for it.
 
 ---
 
+## PROFILEPASSPORTEXPLAINER — DESIGN/SAVE/REORDER FLOW + PASSPORT CARD (hp-010): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+**Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
+0 errors. Commit `0567093`.
+
+**What exists now, on `feat/homepage-redesign`, not yet on `main`:**
+`app/components/home/ProfilePassportExplainer.tsx` (`id="profile-passport"`)
+— an async server component. A three-panel Design → Save → Reorder flow
+(chevron connectors between cards, same crimson-circle icon-badge pattern
+as `CustomerPathways.tsx`), a stylized "Profile Passport" card built
+entirely in CSS/Tailwind (no image asset), and a CTA that branches on the
+real session: `await createClient()` from `lib/supabase/server.ts` +
+`supabase.auth.getUser()` — the same server-side auth pattern already used
+in `app/admin/command-center/page.tsx` — to decide between "Create your
+account" and "View My Profiles".
+
+**The prompt's factual claim about the data model did not hold up and was
+corrected, not carried forward — same standard applied by hp-005's
+photo-to-quote correction, hp-006's route correction, and hp-009's
+SITEMAP.md-staleness correction:**
+- **No `custom_profiles` table exists anywhere in `SCHEMA.md`.** The real
+  table behind this feature is `saved_configurations`
+  (`SPEC_CUSTOM_PROFILE_LIBRARY.md`'s "Saved Custom Profile Library"),
+  whose actual columns are `name`, `profile_id`, `material_id`,
+  `gauge_id`, `finish_id`, and a `dimensions` JSONB blob — no
+  `afs_number`, `drawing`, `3d_model`, or `bend_schedule` column exists on
+  it, or on any table in `SCHEMA.md`.
+- **"AFS number" is a real concept, but not on a saved profile** — it's
+  `orders.order_number` / `quotes.quote_number` (`AFS-2026-XXXXX` /
+  `AFS-Q-2026-XXXXX`), an order/quote identifier assigned after a
+  submission is priced, not a field stored against a saved custom
+  profile.
+- The flow copy and the passport card's field list (Profile Type,
+  Material, Gauge, Finish, Dimensions) use `saved_configurations`' real
+  columns instead of the prompt's invented ones.
+
+**Route corrections, resolved against `app/` and `SITEMAP.md` directly,
+not assumed from the prompt:**
+- Signup: the real route is `/register` (`app/(auth)/register/page.tsx`
+  — also what `app/(auth)/login/page.tsx`'s own "Create one" link points
+  to), not `/signup`.
+- "View My Profiles": `/account/profiles` does not exist. The real
+  saved/custom-profile list page is `/architects/custom-profiles`
+  (`SITEMAP.md`: auth required, any role — matches "already authenticated
+  visitor, any role").
+- Design step routes: FlashDraft `/studio/draft`, Configurator
+  `/configure` — same two routes hp-006's `DesignStudioHub.tsx` already
+  resolved and linked.
+
+**Passport card field values are illustrative example content** (Coping
+Cap / Galvanized Steel / 24 GA / Mill Finish / 12"W × 4"H) — a marketing
+section rendered for every visitor, not a live query against a signed-in
+user's actual rows; vocabulary matches real terms already used elsewhere
+in this codebase (e.g. `SCHEMA.md`'s `bid_documents.spec_text` example,
+`24 GA GALV, 12" girth, mill finish`).
+
+**Not yet wired into `app/page.tsx`** — consistent with hp-002 through
+hp-009, real-homepage assembly is deferred to `hp-019`. No Playwright
+checkpoint run this pass (not requested); the session helper's
+authenticated-CTA branch was not visually exercised against a real logged-
+in session.
+
+**Marked IMPLEMENTED, UNCONFIRMED per this file's verification standard**
+— compile gate passing is not a substitute for Reid's own look, and Reid
+should also confirm the `custom_profiles` → `saved_configurations`
+substitution documented above is the right call rather than a sign the
+prompt intended a not-yet-built table.
+
+---
+
 ## CUSTOMERPATHWAYS — THREE-ROLE PATHWAY CARDS (hp-009): IMPLEMENTED, UNCONFIRMED (2026-09-10)
 
 **Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —

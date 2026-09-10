@@ -24,6 +24,64 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## PROFILEPASSPORTEXPLAINER — DESIGN/SAVE/REORDER FLOW + PASSPORT CARD (hp-010): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+`pnpm tsc --noEmit`: 0 errors. Branch: `feat/homepage-redesign`. Commit
+`0567093`.
+
+Read CLAUDE.md, DESIGN_TOKENS.md, and `specs/SPEC_SAVED_PROJECT_TEMPLATES.md`
+first per the prompt, then went to `SCHEMA.md` to find the "custom_profiles
+table" the prompt described — it does not exist. No table of that name
+appears anywhere in `SCHEMA.md`. The real feature this section describes is
+`saved_configurations` (`SPEC_CUSTOM_PROFILE_LIBRARY.md`'s "Saved Custom
+Profile Library", not the Saved Project Templates spec, which covers
+`quote_templates` — multi-item quote packages, a different feature).
+`saved_configurations`' real columns are `name`, `profile_id`,
+`material_id`, `gauge_id`, `finish_id`, `dimensions` (JSONB) — no
+`afs_number`, `drawing`, `3d_model`, or `bend_schedule` field exists on it
+or anywhere in `SCHEMA.md`. "AFS number" is real, but as
+`orders.order_number` / `quotes.quote_number` (`AFS-2026-XXXXX` /
+`AFS-Q-2026-XXXXX`) — an order/quote identifier, not a saved-profile
+field. Built the flow copy and the passport card's field list (Profile
+Type, Material, Gauge, Finish, Dimensions) against the real columns
+instead of the prompt's invented ones — same correction pattern hp-005,
+hp-006, and hp-009 already applied to other stale/invented prompt claims
+this session.
+
+Also corrected two routes against the real `app/` tree and `SITEMAP.md`:
+signup is `/register` (`app/(auth)/register/page.tsx`, and what
+`login/page.tsx`'s own "Create one" link uses), not `/signup`; the
+authenticated "View My Profiles" destination is `/architects/custom-
+profiles` (`SITEMAP.md`: auth required, any role), not `/account/profiles`,
+which doesn't exist. Design-step routes reuse `/studio/draft` and
+`/configure`, the same two hp-006's `DesignStudioHub.tsx` already resolved.
+
+Built `app/components/home/ProfilePassportExplainer.tsx`
+(`id="profile-passport"`) — an async server component. Three-panel
+Design → Save → Reorder flow with chevron connectors between cards (same
+icon-badge pattern as `CustomerPathways.tsx`), a stylized passport card
+built entirely in CSS/Tailwind (no image asset, field values are
+illustrative example content — Coping Cap / Galvanized Steel / 24 GA /
+Mill Finish / 12"W × 4"H, vocabulary matching `SCHEMA.md`'s own
+`bid_documents.spec_text` example), and a CTA that branches on
+`await createClient()` (`lib/supabase/server.ts`) +
+`supabase.auth.getUser()` — the same server-side session-check pattern
+`app/admin/command-center/page.tsx` already uses — between "Create your
+account" (`/register`) and "View My Profiles" (`/architects/custom-
+profiles`).
+
+Not yet wired into `app/page.tsx` — deferred to `hp-019` same as
+hp-002/hp-003/hp-004/hp-005/hp-006/hp-008/hp-009. No Playwright checkpoint
+run this pass (not requested); the authenticated-CTA branch has not been
+exercised against a real logged-in session, and Reid has not looked at
+this component yet.
+
+Marked IMPLEMENTED, UNCONFIRMED per this file's verification standard —
+Reid should also confirm the `custom_profiles` → `saved_configurations`
+substitution above is the right call.
+
+---
+
 ## CUSTOMERPATHWAYS — THREE-ROLE PATHWAY CARDS (hp-009): IMPLEMENTED, UNCONFIRMED (2026-09-10)
 
 `pnpm tsc --noEmit`: 0 errors. Branch: `feat/homepage-redesign`. Commit
