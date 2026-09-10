@@ -34,6 +34,50 @@ summary, not a replacement for it.
 
 ---
 
+## CREDIBILITYSTRIP — FIVE-ITEM CAPABILITY NAV (hp-004): IMPLEMENTED, UNCONFIRMED — NOT WIRED INTO ANY REAL PAGE (2026-09-10)
+
+**Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
+0 errors. Commit `024c554`.
+
+**What exists now, on `feat/homepage-redesign`, not yet on `main`:**
+`app/components/home/CredibilityStrip.tsx` — a server component rendering
+a `<nav aria-label="Key capabilities">` containing the five items "5 Ways
+to Start", "9 Materials", "Custom Profiles", "SMACNA Standards
+Compliant", "Nationwide Delivery" as links, each condensed uppercase
+(`font-heading`) on an `afs-bg-surface` background (DESIGN_TOKENS.md §7's
+"Section alt" token). Desktop (`sm:` and up) lays the five out in one row
+with a `&middot;` separator between each pair; mobile stacks them 2-up via
+`grid-cols-2`, with the fifth item (`SMACNA Standards Compliant`)
+`col-span-2` since five doesn't divide evenly into two columns.
+
+**Link targets, resolved against the current `app/` tree and
+SITEMAP.md rather than guessed:** "5 Ways to Start" → `#design-studio`,
+"Custom Profiles" → `#profile-passport`, and "Nationwide Delivery" →
+`#nationwide` per the prompt's explicit instruction (none of these
+section ids exist on any page yet — same as HeroSection's own
+`#profile-explorer` link in hp-003, to be resolved when the homepage
+sections are actually assembled in `hp-019`). "9 Materials" links to
+`/architects/finish-palette` — the real, publicly browsable materials/
+finish page (`app/(public)/architects/finish-palette/page.tsx`, SITEMAP.md
+line 46, queries the live `materials`/`finishes` tables), not the
+`#profile-explorer` fallback the prompt allowed for. "SMACNA Standards
+Compliant" links to `/architects/guides` — the real resource-center page:
+its own component is literally named `ArchitecturalResourceCenterPage`
+and its on-page eyebrow reads "Architectural Resource Center"
+(SITEMAP.md line 50, fully public per line 231), a more precise match
+than `/resources` ("Industry Resources," a different, separately-existing
+page also mentioning SMACNA).
+
+**Not done in this pass, by design:** not imported into `app/page.tsx` —
+consistent with hp-002/hp-003, assembly into the real homepage is
+deferred to `hp-019`. No Playwright checkpoint was run this pass (the
+prompt didn't ask for one) — Reid has not looked at this component.
+
+**Marked IMPLEMENTED, UNCONFIRMED per this file's verification standard**
+— compile gate passing is not a substitute for Reid's own look.
+
+---
+
 ## HEROSECTION — FULL-BLEED VIDEO HERO WITH PROFILEROTATION (hp-003): IMPLEMENTED, UNCONFIRMED — BUILT AND VERIFIED IN A TEMP PREVIEW ROUTE, NOT WIRED INTO ANY REAL PAGE (2026-09-10)
 
 **Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —

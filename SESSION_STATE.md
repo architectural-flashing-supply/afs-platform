@@ -24,6 +24,42 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## CREDIBILITYSTRIP — FIVE-ITEM CAPABILITY NAV (hp-004): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+`pnpm tsc --noEmit`: 0 errors. Branch: `feat/homepage-redesign`. Commit
+`024c554`.
+
+Built `app/components/home/CredibilityStrip.tsx` — a `<nav aria-
+label="Key capabilities">` with five condensed-uppercase (`font-heading`)
+links on an `afs-bg-surface` background: "5 Ways to Start", "9
+Materials", "Custom Profiles", "SMACNA Standards Compliant", "Nationwide
+Delivery". Desktop is a single centered row with `&middot;` separators
+between items; mobile is a `grid-cols-2` 2-up stack, with the fifth item
+(`SMACNA Standards Compliant`) `col-span-2` since 5 doesn't split evenly
+across 2 columns.
+
+Link targets: "5 Ways to Start" → `#design-studio`, "Custom Profiles" →
+`#profile-passport`, "Nationwide Delivery" → `#nationwide`, per the
+prompt's explicit instruction (none of these ids exist on any page yet —
+same open state as HeroSection's `#profile-explorer` from hp-003, to
+resolve when `hp-019` assembles the real homepage sections). "9
+Materials" → `/architects/finish-palette`, the real public materials/
+finish page (queries the live `materials`/`finishes` tables) — so the
+prompt's `#profile-explorer` fallback wasn't needed. "SMACNA Standards
+Compliant" → `/architects/guides`, the real resource-center page (its
+component is named `ArchitecturalResourceCenterPage`, on-page eyebrow
+"Architectural Resource Center", fully public per SITEMAP.md) — chosen
+over `/resources` ("Industry Resources"), a separate page that also
+mentions SMACNA but isn't the resource-center page.
+
+Not imported into `app/page.tsx` — deferred to `hp-019`, same as hp-002/
+hp-003. No Playwright checkpoint run this pass (not requested by the
+prompt); Reid has not looked at this component yet.
+
+Marked IMPLEMENTED, UNCONFIRMED per this file's verification standard.
+
+---
+
 ## HEROSECTION — FULL-BLEED VIDEO HERO WITH PROFILEROTATION (hp-003): IMPLEMENTED, UNCONFIRMED (2026-09-10)
 
 `pnpm tsc --noEmit`: 0 errors. Branch: `feat/homepage-redesign`.
