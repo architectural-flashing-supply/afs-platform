@@ -34,6 +34,63 @@ summary, not a replacement for it.
 
 ---
 
+## NATIONWIDEMAP — CONTINENTAL US HQ + DELIVERY-RADIUS MAP (hp-013): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+**Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
+0 errors.
+
+**Built:** `app/components/home/NationwideMap.tsx` (`id="nationwide"`, the
+section export), `app/components/home/NationwideMapLeaflet.tsx` (the actual
+Leaflet rendering, dynamic-imported with `ssr: false`), and
+`app/components/home/nationwide-locations.ts` (shared location data so the
+map and its fallback list can't drift apart).
+
+**Map stack reused, not reinvented:** Leaflet + OpenStreetMap, the same
+setup already verified in `components/hailview/HailViewMap.tsx` — same
+`divIcon` workaround for Leaflet's default-marker-image 404 under Next's
+bundler, same OSM tile URL/attribution. No new map dependency was added, no
+API key is required — `SPEC_GOOGLE_MAPS_INTEGRATION.md`'s Google Maps setup
+is unrelated to this component.
+
+**HQ pin coordinates:** `30.737075730063307, -98.23321342395246`, sourced
+from `lib/chatbot/knowledge/afs-company.ts`'s `company-delivery-tracking`
+entry (itself grounded in the real Burnet, TX address from `CLAUDE.md`/
+`components/layout/Footer.tsx`: 209 Sure Cast Drive, Burnet, TX 78611) — the
+same coordinate pair already used by `DeliveryTrackingMap.tsx`'s
+`AFS_SHOP_POSITION` and `HailViewMap.tsx`'s `DEFAULT_CENTER`, reused a
+third time here rather than re-geocoded.
+
+**No project pins plotted — investigated, not skipped.** `CaseStudies.tsx`
+(hp-011) has four cards: three legacy-photo cards (Copper Dome,
+Arched-Window Flashing, Standing-Seam Detail) with no location anywhere in
+their copy or in `lib/home/portfolio-photos.ts`, and one NASA Johnson Space
+Center credential card. JSC's real-world location (Houston, TX) is public
+knowledge, but no address or city/state is actually stated in `specs/`,
+legacy-site content, or this file — `CaseStudies.tsx`'s own comment
+confirms that badge text was typed in "per the prompt's explicit
+instruction," not sourced from a geocoded project record. Per this prompt's
+explicit instruction not to invent locations, the map renders only the HQ
+pin plus a "Nationwide delivery" radius ring (a visual ~2,000mi circle, not
+a literal service boundary) — no fake pins. `CaseStudies.tsx` also has no
+`id` on its `<section>` and no per-card anchors yet, so "pin tooltips link
+to the matching CaseStudies card anchor" has nothing to wire up to until
+that's added — noted here rather than inventing anchors that don't exist.
+
+**Fixed height / responsive / accessible list:** the map container is
+`h-[320px] md:h-[420px]`; `NationwideMap.tsx` renders a visible (not
+`sr-only`) keyboard-reachable list of the same `ALL_LOCATIONS` beneath the
+map, sourced from the same `nationwide-locations.ts` array the map itself
+reads, so the two can't independently go stale.
+
+**Not wired into `app/page.tsx`.** Matching the pattern already established
+by hp-010/011/012 (`ProfilePassportExplainer`, `CaseStudies`,
+`ShopFloorProof` — none of which are imported into `app/page.tsx` either),
+this component was built standalone per this prompt's scope, which asked
+only for the component file. Assembly into the live homepage is a separate,
+not-yet-issued step.
+
+---
+
 ## SHOPFLOORPROOF — VIDEO-BACKED PROOF STATS SECTION (hp-012): IMPLEMENTED, UNCONFIRMED (2026-09-10)
 
 **Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —

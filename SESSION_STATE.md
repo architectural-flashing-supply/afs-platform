@@ -24,6 +24,30 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## NATIONWIDEMAP — CONTINENTAL US HQ + DELIVERY-RADIUS MAP (hp-013): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+**Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
+0 errors.
+
+Built `app/components/home/NationwideMap.tsx` (`id="nationwide"`),
+`NationwideMapLeaflet.tsx` (dynamic-imported, `ssr: false`), and
+`nationwide-locations.ts`. Reused the already-verified Leaflet/OpenStreetMap
+setup from `components/hailview/HailViewMap.tsx` — no new map dependency,
+no API key. HQ pin at `30.737075730063307, -98.23321342395246` (Burnet, TX —
+same coordinate pair as `DeliveryTrackingMap.tsx`/`HailViewMap.tsx`,
+sourced from `lib/chatbot/knowledge/afs-company.ts`). No project pins: none
+of `CaseStudies.tsx`'s four cards have a real, documented location in
+specs/, legacy-site content, or this file's own history (the NASA Johnson
+Space Center card names a real institution but no address/city was ever
+stated) — per this prompt's instruction not to invent locations, rendered
+the HQ pin plus a "Nationwide delivery" radius ring instead, full detail in
+`STATE_OF_THE_BUILD.md`. Not wired into `app/page.tsx`, matching the
+standalone pattern already set by hp-010/011/012.
+
+Full detail in `STATE_OF_THE_BUILD.md`'s NationwideMap entry.
+
+---
+
 ## SHOPFLOORPROOF — VIDEO-BACKED PROOF STATS SECTION (hp-012): IMPLEMENTED, UNCONFIRMED (2026-09-10)
 
 `pnpm tsc --noEmit`: 0 errors. Branch: `feat/homepage-redesign`.
