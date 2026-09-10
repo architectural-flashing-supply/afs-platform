@@ -24,6 +24,50 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## DESIGNTODELIVERY — FIVE-STEP CAPTURE-TO-DELIVERY SEQUENCE (hp-008): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+`pnpm tsc --noEmit`: 0 errors. Branch: `feat/homepage-redesign`. Commit
+`c90c8aa`.
+
+Read CLAUDE.md, DESIGN_TOKENS.md, and SPEC_PRODUCTION_TIMELINE.md first,
+then checked `package.json` before writing any code — neither
+`lucide-react` nor `framer-motion` is a dependency, so icons are five
+hand-authored inline SVGs and the progress rail uses CSS transitions only,
+no new package.
+
+Built `app/components/home/DesignToDelivery.tsx` — five steps (Capture →
+Convert → Verify → Fabricate → Track), each with an icon, title, and
+two-line description. Copy is grounded in the real platform flow rather
+than generic labels: Convert's "dimensions are always confirmed by you,
+never guessed from a photo" deliberately mirrors the correction
+`FieldAppStory.tsx` (hp-005) already made against SPEC_PHOTO_TO_QUOTE_AI.md
+(the AI never extracts dimensions from a photo); Verify/Fabricate reflect
+estimator review and the Thalmann DS2801 shop floor; Track reflects
+production-stage updates and delivery per SPEC_PRODUCTION_TIMELINE.md.
+
+Progress rail: one `IntersectionObserver` (threshold 0.5) watches each
+step's `data-step-index` and unobserves once triggered, raising a
+`visibleCount` state that drives `fillPercent = (visibleCount / 5) * 100`.
+Desktop shows a `hidden md:block` horizontal rail, mobile a `md:hidden`
+vertical rail, both reading the same `fillPercent` for `width`/`height`
+respectively, transitioned via Tailwind's `transition-[width]`/
+`transition-[height] duration-700`.
+
+`prefers-reduced-motion`: a `matchMedia` listener sets `visibleCount` to
+the full step count immediately instead of waiting on the observer, so the
+rail renders fully filled with no scroll-driven animation. Actual
+transition suppression already comes from `globals.css`'s existing global
+reduced-motion block (`transition-duration: 0.01ms !important`) — nothing
+extra was needed per-component for that half of it.
+
+Not imported into `app/page.tsx` — deferred to `hp-019`, same as
+hp-002/hp-003/hp-004/hp-005/hp-006. No Playwright checkpoint run this pass
+(not requested by the prompt); Reid has not looked at this component yet.
+
+Marked IMPLEMENTED, UNCONFIRMED per this file's verification standard.
+
+---
+
 ## DESIGNSTUDIOHUB — FIVE-METHOD SELECTOR + /design-studio ROUTE (hp-006): IMPLEMENTED, UNCONFIRMED (2026-09-10)
 
 `pnpm tsc --noEmit`: 0 errors. Branch: `feat/homepage-redesign`. Commit

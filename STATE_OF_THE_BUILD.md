@@ -34,6 +34,60 @@ summary, not a replacement for it.
 
 ---
 
+## DESIGNTODELIVERY — FIVE-STEP CAPTURE-TO-DELIVERY SEQUENCE (hp-008): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+**Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
+0 errors. Commit `c90c8aa`.
+
+**What exists now, on `feat/homepage-redesign`, not yet on `main`:**
+`app/components/home/DesignToDelivery.tsx` — a client component rendering
+five steps (Capture → Convert → Verify → Fabricate → Track), each with an
+inline SVG icon (hand-authored, not the `lucide-react` package — grepped
+`package.json` and the repo first; it is not a dependency), a title, and a
+two-line description.
+
+**Copy grounded in the real platform flow, not generic step labels, per
+the prompt:** Capture covers both blueprint upload and jobsite photos.
+Convert's copy — "Dimensions are always confirmed by you, never guessed
+from a photo" — deliberately matches SPEC_PHOTO_TO_QUOTE_AI.md's rule that
+the AI never estimates dimensions from a photo, the same correction
+`FieldAppStory.tsx` (hp-005) already made against a literal prompt claim
+that would have overstated the AI's capability. Verify and Fabricate
+reflect estimator review and the Thalmann DS2801 shop floor (CLAUDE.md's
+Pillar 1 and MACHINE INTEGRATION section). Track reflects Pillar 3
+(production stage updates, pre-ship photos, delivery) as specified in
+SPEC_PRODUCTION_TIMELINE.md.
+
+**Progress rail:** a single `IntersectionObserver` (threshold 0.5, one
+observer entry per step's `data-step-index`, unobserved once triggered)
+drives a `visibleCount` state; the rail fill (`height` on mobile, `width`
+on desktop) is set to `(visibleCount / 5) * 100%` via inline style with a
+Tailwind `transition-[height]`/`transition-[width] duration-700` class.
+Desktop renders a `hidden md:block` horizontal rail; mobile renders a
+`md:hidden` vertical rail — both driven off the same `fillPercent`, not
+two separate state values. No animation dependency was added —
+`framer-motion` is not in `package.json` (checked before starting), so
+this uses CSS transitions only, per the prompt.
+
+**`prefers-reduced-motion`:** a `matchMedia` listener sets `visibleCount`
+to the full step count immediately (not via the observer) when reduced
+motion is preferred, so the rail renders fully filled with no scroll-
+driven fill-in. The actual transition suppression (`transition-duration:
+0.01ms !important`) is already handled globally by `globals.css`'s
+existing `@media (prefers-reduced-motion: reduce)` block — no per-
+component override was needed for that part.
+
+**Not done in this pass, by design:** not imported into `app/page.tsx` —
+consistent with hp-002 through hp-006, real-homepage assembly is deferred
+to `hp-019`. No Playwright checkpoint was run this pass (not requested).
+
+**Marked IMPLEMENTED, UNCONFIRMED per this file's verification standard**
+— compile gate passing is not a substitute for Reid's own look, and the
+rail's actual scroll-triggered fill behavior has not been visually
+confirmed.
+
+---
+
 ## DESIGNSTUDIOHUB — FIVE-METHOD SELECTOR + /design-studio ROUTE (hp-006): IMPLEMENTED, UNCONFIRMED (2026-09-10)
 
 **Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
