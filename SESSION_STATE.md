@@ -24,6 +24,64 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## SHOPFLOORPROOF — VIDEO-BACKED PROOF STATS SECTION (hp-012): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+`pnpm tsc --noEmit`: 0 errors. Branch: `feat/homepage-redesign`.
+
+Read CLAUDE.md and DESIGN_TOKENS.md per the prompt. Checked
+`public/videos/` and `public/images/` before touching ffmpeg — hp-001
+(commit `764b0da`) already produced `shop-floor-loop.mp4`/`.webm` and
+`shop-floor-poster.jpg`, so no new encode was needed. Confirmed the poster
+is a real 1920×1080 JPEG via `ffprobe` rather than assuming the file was
+valid just because it existed.
+
+Copied the reduced-motion video pattern directly from
+`app/components/hero/HeroSection.tsx` (also used by `FieldAppStory.tsx`):
+a `matchMedia` check on `prefers-reduced-motion` gates whether `<source>`
+tags are ever attached, so with reduced motion the `<video>` element never
+fetches or plays anything and the `poster` image is the only thing that
+renders — this satisfies "reduced-motion shows poster only" without extra
+branching logic.
+
+The prompt required omitting any stat that couldn't be sourced from the
+codebase. Searched governance docs for three candidate stats before writing
+copy:
+- Materials: CLAUDE.md's "copper, aluminum, galvanized steel, stainless,
+  and Galvalume" (5) is repeated verbatim in `specs/SPEC_DRAWING_TOOL.md`
+  and `specs/SPEC_PHOTO_TO_QUOTE_AI.md` — consistent across three
+  independent docs, used as-is. Deliberately did not use
+  `CredibilityStrip.tsx`'s "9 Materials" figure — that links to
+  `/architects/finish-palette` and counts coated-color finishes, a
+  different concept from base fabrication materials.
+- Profile library: `SCHEMA.md`'s CANONICAL PROFILE LIBRARY TABLE section
+  gives 25 as the count of the public `canonical_profiles` table. The
+  MACHINE INTEGRATION TABLES section a few hundred lines later has a much
+  bigger number (911 machine profiles) but explicitly says only 70 of those
+  are public and the rest are the shop's real customer job history — using
+  25 avoids surfacing that private data as a marketing stat.
+- Delivery footprint: `lib/chatbot/knowledge/afs-company.ts`'s
+  `company-service-area` entry states AFS "ships nationwide within North
+  America." Also read the nearby `SESSION_STATE.md` afs-hv-008 entry, which
+  flags a past bug where HailView's map defaulted to this same nationwide
+  framing when it should have been Central-Texas-only — confirmed that
+  correction was scoped to HailView's hail-prospecting radius, not the
+  flashing-shipping claim, so it doesn't invalidate "Nationwide" here.
+
+No stat was invented; all three cite a real file, and one candidate number
+(machine profile count) was deliberately rejected for privacy, not for lack
+of a source.
+
+Built `app/components/home/ShopFloorProof.tsx`: `min-h-[60svh]` section,
+shop-floor video background with dark overlay, centered heading "Where
+precision meets production," two lines of copy about Thalmann CNC folding
+and in-house fabrication in Burnet, Texas, and a three-stat `<dl>` row.
+
+Not wired into `app/page.tsx` or any route — same as every other
+`app/components/home/*` section before it; the prompt asked only to build
+the component.
+
+---
+
 ## CASESTUDIES — THREE PROJECT PHOTO CARDS + NASA CREDENTIAL CARD (hp-011): IMPLEMENTED, UNCONFIRMED (2026-09-10)
 
 `pnpm tsc --noEmit`: 0 errors. Branch: `feat/homepage-redesign`. Commit

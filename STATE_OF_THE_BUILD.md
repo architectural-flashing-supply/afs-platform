@@ -34,6 +34,57 @@ summary, not a replacement for it.
 
 ---
 
+## SHOPFLOORPROOF — VIDEO-BACKED PROOF STATS SECTION (hp-012): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+**Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
+0 errors.
+
+**Video/poster assets reused from hp-001, not regenerated.**
+`public/videos/shop-floor-loop.mp4`/`.webm` and
+`public/images/shop-floor-poster.jpg` already existed (commit `764b0da`,
+hp-001) — checked via `ls` before reaching for ffmpeg. Poster confirmed a
+real, non-empty JPEG (`ffprobe`: 1920×1080). No new asset production was
+needed.
+
+**Reduced-motion pattern matches `HeroSection.tsx`/`FieldAppStory.tsx`
+exactly:** a `matchMedia('(prefers-reduced-motion: reduce)')` check gates
+whether `<source>` tags are ever attached to the `<video>` element. With
+reduced motion, the video never receives a source and the `poster` attribute
+is the only thing that ever paints — satisfies the prompt's "reduced-motion
+shows poster only" requirement without a separate conditional render branch.
+
+**Three proof stats, each sourced from an existing governance doc, not
+invented:**
+- **5 Materials Fabricated** — CLAUDE.md's fabrication list (copper,
+  aluminum, galvanized steel, stainless, Galvalume), repeated identically in
+  `specs/SPEC_DRAWING_TOOL.md` and `specs/SPEC_PHOTO_TO_QUOTE_AI.md`.
+- **25 Standard Profiles** — `SCHEMA.md`'s CANONICAL PROFILE LIBRARY TABLE
+  (`canonical_profiles`, migration 006): "25 hand-crafted, mathematically
+  correct flashing profiles," explicitly a public resource. Deliberately
+  did **not** use the machine-profile-library numbers (911 profiles, 46
+  categories) from `SCHEMA.md`'s MACHINE INTEGRATION TABLES section — those
+  are the Thalmann shop's real job history, only 70 of 911 rows are public,
+  and the rest are real customer/project names that must not appear in
+  marketing copy.
+- **Nationwide Delivery Footprint** — `lib/chatbot/knowledge/afs-company.ts`'s
+  `company-service-area` entry: "ships nationwide within North America."
+  Cross-checked against `SESSION_STATE.md`'s HailView afs-hv-008 entry, which
+  flags that HailView's own default map view was wrongly calibrated to this
+  same nationwide framing before being corrected to Central Texas — that
+  correction is about HailView's hail-prospecting radius specifically, not
+  AFS's flashing-shipping footprint, so "Nationwide" here is unaffected by
+  it.
+
+No number was invented where a real source wasn't found — all three stats
+trace to an existing file.
+
+**Not wired into a page route** — same as `CaseStudies.tsx`,
+`CustomerPathways.tsx`, `DesignToDelivery.tsx`, `ProfilePassportExplainer.tsx`,
+and `FieldAppStory.tsx` before it, this component exists standalone in
+`app/components/home/` and is not yet imported by `app/page.tsx`.
+
+---
+
 ## CASESTUDIES — THREE PROJECT PHOTO CARDS + NASA CREDENTIAL CARD (hp-011): IMPLEMENTED, UNCONFIRMED (2026-09-10)
 
 **Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
