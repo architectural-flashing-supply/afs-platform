@@ -34,6 +34,41 @@ summary, not a replacement for it.
 
 ---
 
+## FINALCTA — FOUR-ACTION CLOSING SECTION (hp-014): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+**Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
+0 errors. Commit `5bf3638`.
+
+**Built:** `app/components/home/FinalCTA.tsx` — four equal-weight action
+buttons (`grid-cols-2` on mobile, `grid-cols-4` at `md:`), the tagline
+"Texas Crafted. Nationally Delivered." beneath them, on a full-bleed
+`bg-afs-bg-dim` section with `py-24 md:py-32`.
+
+**Routes resolved against a direct read of `app/`, not invented or from
+SITEMAP.md alone** (SITEMAP.md is stale here — it has no `/hailview` or
+`/design-studio` entries at all, same staleness pattern already flagged for
+`/field/**` in `CustomerPathways.tsx`, hp-008):
+- **Start a Quote** → `/design-studio` (`app/design-studio/page.tsx`,
+  real) — styled primary: `bg-afs-crimson` / `metal-edge-red` /
+  `shadow-crimson`, the one loud element in the section per
+  `DESIGN_TOKENS.md`'s "one loud element per viewport" rule.
+- **Explore Profiles** → `#profile-explorer` — the same in-page anchor
+  `HeroSection.tsx` (hp-003) already links to; not a new anchor.
+- **Check Hail Impact** → `/hailview` (`app/hailview/page.tsx`, real,
+  already-shipped HailView tool).
+- **Talk to AFS** → `/contact` (`app/(public)/contact/page.tsx`, real) —
+  the footer contact-anchor fallback this prompt allowed for wasn't
+  needed since a real page route exists.
+
+**Not wired into `app/page.tsx`.** Same standalone pattern already set by
+hp-010 through hp-013 (`ProfilePassportExplainer`, `CaseStudies`,
+`ShopFloorProof`, `NationwideMap`) — this prompt's scope was the component
+file only. `queue.yaml`'s later homepage-assembly prompt (after hp-015)
+is the step that imports all of these into `app/page.tsx` and retires the
+current hero/`ProductCategoryGrid`/`ProjectGallery`.
+
+---
+
 ## NATIONWIDEMAP — CONTINENTAL US HQ + DELIVERY-RADIUS MAP (hp-013): IMPLEMENTED, UNCONFIRMED (2026-09-10)
 
 **Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —

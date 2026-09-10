@@ -24,6 +24,25 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## FINALCTA — FOUR-ACTION CLOSING SECTION (hp-014): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+**Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
+0 errors. Commit `5bf3638`.
+
+Built `app/components/home/FinalCTA.tsx` — four equal action buttons
+(2x2 on mobile, one row at `md:`) on a full-bleed `bg-afs-bg-dim` section:
+Start a Quote → `/design-studio` (primary, crimson), Explore Profiles →
+`#profile-explorer` (same anchor `HeroSection.tsx` already targets), Check
+Hail Impact → `/hailview`, Talk to AFS → `/contact` — all four resolved
+against a direct read of `app/` since SITEMAP.md doesn't list `/hailview`
+or `/design-studio` at all. Tagline "Texas Crafted. Nationally Delivered."
+sits beneath the button grid. Not wired into `app/page.tsx`, matching the
+standalone pattern already set by hp-010 through hp-013.
+
+Full detail in `STATE_OF_THE_BUILD.md`'s FinalCTA entry.
+
+---
+
 ## NATIONWIDEMAP — CONTINENTAL US HQ + DELIVERY-RADIUS MAP (hp-013): IMPLEMENTED, UNCONFIRMED (2026-09-10)
 
 **Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
