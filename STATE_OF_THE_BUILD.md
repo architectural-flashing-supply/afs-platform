@@ -34,6 +34,137 @@ summary, not a replacement for it.
 
 ---
 
+## HOMEPAGE REDESIGN — RELEASE CANDIDATE GOVERNANCE AUDIT (hp-024): NOT AN ASSEMBLED HOMEPAGE (2026-09-10)
+
+**Read this entry first — it corrects what "release candidate" means for
+this branch.** This pass did not touch application code. It re-audited
+every hp-001 through hp-020 claim below directly against the live
+codebase (not from memory or prior summaries), corrected two governance
+docs found stale, and wrote `HOMEPAGE_VERIFICATION.md` for Reid's browser
+walkthrough. One finding changes what that walkthrough can actually cover:
+
+**`app/page.tsx` — the real, live homepage — has never been touched by
+this branch.** It still renders exactly what `afs-fl-034` shipped: the
+full-bleed shop-floor photo hero with `HeroDrawingOverlay.tsx` +
+`PhotoCategoryGrid.tsx` + `ProjectGallery.tsx` (all three live in the
+project's one established `components/home/` directory at the repo
+root). Confirmed by reading `app/page.tsx` directly and by grepping every
+`.tsx` file under `app/` for each hp- component's name — zero imports
+outside the components' own files, with one exception below. Every
+single hp-002 through hp-014 and hp-020 entry in this file already says
+so explicitly ("Not wired into `app/page.tsx`," "deferred to `hp-019`")
+— this entry is not a new discovery, it's confirmation that it's *still*
+true and a flag that **`hp-019` — the "assemble everything into the real
+homepage" prompt every one of those entries names — was never run.**
+`git log` has no `hp-016` through `hp-019` commits at all; the sequence
+jumps `hp-015` (halted) → `hp-020` (NavBar/Footer, a real but separate
+scope). Neither the committed `queue.yaml` nor the modified-but-uncommitted
+copy sitting in the working tree (see QUEUE.YAML below) has ever
+contained a single `hp-` entry — this branch's entire prompt sequence was
+run by direct instruction, not through `queue.yaml`/`forge.ps1`, so there
+is no queue record of `hp-019` being skipped versus never scheduled.
+
+**Practical consequence for verification:** pushing this branch gives
+Vercel a preview deployment whose `/` is **byte-for-byte the current
+production homepage** — none of `HeroSection`/`ProfileRotation`
+(hp-002/003), `CredibilityStrip` (hp-004), `FieldAppStory` (hp-005),
+`DesignToDelivery` (hp-008), `CustomerPathways` (hp-009),
+`ProfilePassportExplainer` (hp-010), `CaseStudies` (hp-011),
+`ShopFloorProof` (hp-012), `NationwideMap` (hp-013), or `FinalCTA`
+(hp-014) render anywhere a browser can reach. **The one exception:**
+`DesignStudioHub` (hp-006) is wired into a real, standalone route,
+`app/design-studio/page.tsx` — reachable today, with normal site chrome.
+`HOMEPAGE_VERIFICATION.md` is written around this reality: a checklist
+for what's actually reachable (`/design-studio`, plus the still-live old
+homepage), not a walkthrough of sections that don't render anywhere yet.
+
+**Structural finding, new this pass:** the hp- components live in
+`app/components/hero/` and `app/components/home/` — a directory that did
+not exist before this branch and sits **parallel to**, not inside, this
+project's one established `components/` tree (`components/home/`,
+`components/layout/`, `components/account/`, etc. — every other layer in
+`COMPONENT_MAP.md` lives there, confirmed via direct directory listing).
+`hp-020` correctly edited the real `components/layout/NavBar.tsx`/
+`Footer.tsx` — no duplicate exists for those two — but every hero/home
+section instead started a second tree. This isn't necessarily wrong (it
+may be deliberate staging before a real assembly pass moves or merges
+them), but no hp- entry says so explicitly, and a future session reading
+`COMPONENT_MAP.md` cold would not know `app/components/` exists at all.
+Documented in `COMPONENT_MAP.md`'s LAYER 3 rewrite below; not resolved
+(moving files is an assembly-pass decision, out of scope for a docs pass).
+
+**PROFILE PASSPORT (hp-015) — re-confirmed, not re-litigated.** Still
+exactly as its own entry below states: schema file written
+(`023_profile_passport.sql`), **not applied to the live database**, RLS
+unverified. This pass additionally confirmed there is **no application
+layer at all** — grepped `app/api/` and `app/account/` for any
+passport/custom-profile route: none exists. The only UI presence
+anywhere in the codebase is `ProfilePassportExplainer.tsx`, a marketing
+explainer section (see its own hp-010 entry) that is itself one of the
+components not wired into any route. **The "save → My Profiles →
+reorder" flow Reid was asked to verify does not exist as working
+software** — there is no save action, no `/account/profiles` or
+`/architects/custom-profiles`-backed passport list scoped to this
+feature, and no reorder UI. `HOMEPAGE_VERIFICATION.md` says this
+directly rather than listing steps that would 404.
+
+**Governance docs corrected this pass, from direct re-reads, not
+carried forward:**
+- **`COMPONENT_MAP.md`** — LAYER 2's `NavBar.tsx` entry described a
+  192px left-rail architecture the real file has never matched (already
+  flagged, not fixed, by hp-020's own entry below); corrected to the real
+  fixed-logo-box + 56px header + Resources dropdown + mobile hamburger
+  shape. LAYER 3 ("HOMEPAGE") described components
+  (`TrustBar.tsx`, `ThreePillarsSection.tsx`, `AIQuoteTeaser.tsx`,
+  `HowItWorksSection.tsx`, `StatSection.tsx`, `ArchitectCTASection.tsx`,
+  `TestimonialsSection.tsx`, `FinalCTASection.tsx`) that were never real
+  — grepped the whole repo, zero matches for any of those filenames; this
+  section was spec-fiction predating even `afs-fl-034`. Rewritten to
+  inventory the real, currently-live `components/home/` trio plus the
+  full standalone `app/components/hero/` + `app/components/home/` set,
+  each marked with its actual wiring status.
+- **`SITEMAP.md`** — added `/design-studio`, `/faq`, `/resources`,
+  `/hailview`, none of which had entries despite being real routes
+  (already independently flagged stale by hp-013/hp-014/hp-020's own
+  entries below; fixed here since this pass's scope is governance docs).
+- **`SCHEMA.md`** — reviewed against `supabase/migrations/`; already
+  accurate (migration 023 already correctly marked "FILE ONLY, not
+  applied live" in both the migration table and the `orders` table
+  entry). No changes needed.
+
+**QUEUE.YAML — flagged, deliberately not touched or committed.** The
+working tree has an **unrelated, pre-existing modification** to
+`queue.yaml` (present before this session started): a full rewrite from
+the committed `p0-`/`p1-`.../`p8-` scaffold-phase format to a different
+`afs-001`...`afs-024` format. Diffed both against `git show HEAD:queue.yaml`
+and against `git log --all -- queue.yaml` (single commit, `5c0d33f`,
+predates every `hp-` commit): **neither version, committed or
+working-tree, has ever contained an `hp-` entry.** This modification is
+unrelated to the homepage redesign, was not made by this pass, and is
+left unstaged — bundling an unrelated ~600-line rewrite of the project's
+master prompt queue into a homepage-docs commit would obscure it, not
+preserve it. Reid should look at this separately; per `CLAUDE.md`'s FORGE
+section, any real replacement belongs in `FORGE\projects\afs-website\queue.yaml`
+with a `.bak-<date>` backup, not a silent working-tree edit.
+
+**Other pre-existing untracked working-tree items, also deliberately
+excluded from this pass's commit** (none created by this session, none
+related to the homepage redesign): `EMAIL PROSPECT LISTS/` (TBAE
+architect/ID/LA roster spreadsheets — real names/contact data, no
+business belonging in this repo's git history), `.repro-afs-fl-023/`,
+`.repro-afs-fl-025/`, `.repro-afs-fl-029/` (bug-repro screenshot/debug
+artifacts from unrelated prior tickets), and `supabase/.temp/` (Supabase
+CLI local cache — the kind of local/raw data this repo's own
+`.gitignore` already excludes elsewhere, e.g. `machine-data/`,
+`diagnostics/`). None of these are referenced by any hp- component or
+this verification pass.
+
+**Gate this pass:** `pnpm tsc --noEmit` — 0 errors (docs-only pass; no
+application code touched, so this reconfirms the tree still compiles
+clean, it doesn't test anything new).
+
+---
+
 ## NAVBAR + FOOTER — RESOURCES DROPDOWN, MOBILE MENU, START A QUOTE CTA (hp-020): IMPLEMENTED, UNCONFIRMED (2026-09-10)
 
 **Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
@@ -8907,6 +9038,23 @@ HailView:                              IMPLEMENTED, UNCONFIRMED. All 5 spec
                                         already needed one live-caught
                                         correction after being called
                                         "confirmed."
+
+Homepage Redesign (feat/homepage-       COMPONENT LIBRARY BUILT, NOT
+redesign, hp-001 through hp-020):       ASSEMBLED. Eleven real, compiling
+                                        section components plus a new
+                                        NavBar/Footer (hp-001 through
+                                        hp-014, hp-020) — none of the
+                                        eleven sections render on any live
+                                        route; the real `app/page.tsx` is
+                                        unchanged from afs-fl-034. Only
+                                        `DesignStudioHub` (hp-006) is
+                                        reachable, via its own standalone
+                                        `/design-studio` route. Profile
+                                        Passport (hp-015) is schema+RLS
+                                        only, not applied live, no API or
+                                        UI. The planned assembly prompt
+                                        (`hp-019`) never ran. See hp-024
+                                        above and `HOMEPAGE_VERIFICATION.md`.
 ```
 
 ---
@@ -8914,28 +9062,35 @@ HailView:                              IMPLEMENTED, UNCONFIRMED. All 5 spec
 ## RECENT COMMITS (verified via `git log --oneline -15`, most recent first)
 
 ```
-2528909  hp-002: ProfileRotation Three.js hero animation
-764b0da  hp-001: Hero and shop-floor video assets from real fabrication footage
-57b3f69  fix: HailView default zoom re-corrected 8 to 9 after live verification showed East Texas/Gulf Coast cities in frame at zoom 8 (afs-hv-009)
-7a70589  fix: HailView default map view corrected to real Central Texas service area, post-submit zoom loosened for future triangulation markers (afs-hv-008)
-ab2f924  feat: role-based login redirect (admin to /admin), surfaced Credit Application access for new customers (afs-fl-038)
-cab2947  docs: afs-fl-037 governance update -- HailView logo/header clearance fix, full codebase audit results, marked IMPLEMENTED UNCONFIRMED pending Reid's own check
-07ecdf1  fix: full-width fixed backgrounds now clear the logo's real 80px height, not the header's shorter 56/64px clearance (afs-fl-037)
-52a6b2b  chore: import real, verified AFS legacy site photography, explicitly excluding stock/supplier-logo imagery (afs-fl-036)
-c2aa29c  chore: remove any remaining legacy iStock photo references (afs-fl-035)
-9cdd602  docs: afs-fl-034 governance update -- Drawing to Steel hero accent, real photo category grid and project gallery, marked IMPLEMENTED UNCONFIRMED pending Reid's own check
-a342feb  feat: Drawing to Steel hero addition, real photo category grid and project gallery -- current homepage copy unchanged (afs-fl-034)
-fb123bd  docs: afs-fl-033 re-verification -- NavBar header/logo, account menu sign out, HailView nav link independently re-confirmed live, no code changes needed, still unconfirmed by Reid
-e55e03c  feat: HailView persistent full-bleed map background with overlay form panel (afs-hv-007)
-399c16c  docs: afs-fl-033 governance update -- NavBar header/logo, account menu sign out, HailView nav link verified live, marked IMPLEMENTED UNCONFIRMED pending Reid's own check
-f5178a8  fix: NavBar header/logo overlap, Sign Out moved to account menu, HailView added to navigation (afs-fl-033)
+72eef46  docs: hp-020 governance update -- NavBar/Footer, flagged SITEMAP/COMPONENT_MAP staleness
+a2b5e8c  hp-020: Navigation and footer updates
+5954af9  hp-015: Profile Passport schema and RLS (HALTED -- not applied live)
+9f29dea  docs: hp-014 governance update -- FinalCTA routes and standalone-component status
+5bf3638  hp-014: FinalCTA
+4279c51  hp-013: NationwideMap
+6ee85ed  docs: hp-012 governance update -- ShopFloorProof stats sourcing, marked IMPLEMENTED UNCONFIRMED pending Reid's own check
+f99952d  hp-012: ShopFloorProof
+8796c57  docs: hp-011 governance update -- CaseStudies photo identification, marked IMPLEMENTED UNCONFIRMED pending Reid's own check
+fa7878b  hp-011: CaseStudies with NASA credential card
+0478dfd  docs: hp-010 governance update -- ProfilePassportExplainer Design/Save/Reorder flow, marked IMPLEMENTED UNCONFIRMED pending Reid's own check
+0567093  hp-010: ProfilePassport explainer
+6b46e61  docs: hp-009 governance update -- CustomerPathways three-role pathway cards, marked IMPLEMENTED UNCONFIRMED pending Reid's own check
+52b2b58  hp-009: CustomerPathways
+2b847b7  docs: hp-008 governance update -- DesignToDelivery five-step sequence, marked IMPLEMENTED UNCONFIRMED pending Reid's own check
 ```
 
-Both `hp-001` and `hp-002` are on `feat/homepage-redesign` only, not yet
-on `main` — this branch has not been merged. The FlashDraft hem-system
-commit history previously listed here (`3fa8c70` and earlier) is still
-real and still accurate; see `git log --oneline -30` for that fuller
-history, trimmed here to keep this table to the most recent 15.
+`hp-001` through `hp-020` are all on `feat/homepage-redesign` only, not
+yet on `main` — this branch has not been merged (this pass's own
+`HOMEPAGE_VERIFICATION.md`/hp-024 commit adds one more on top, tagged
+`homepage-v1-rc`). Note the gap: `hp-016` through `hp-019` do not exist
+in `git log` at all — the sequence jumps `hp-015` (halted) straight to
+`hp-020`; see the HOMEPAGE REDESIGN — RELEASE CANDIDATE GOVERNANCE AUDIT
+(hp-024) entry at the top of this file for what that means for this
+branch's actual preview-ability. The FlashDraft hem-system commit history
+previously listed here (`3fa8c70` and earlier) and the HailView/afs-fl-0xx
+history are still real and still accurate; see `git log --oneline -40`
+for that fuller history, trimmed here to keep this table to the homepage
+branch's own commits.
 
 ---
 
@@ -8967,6 +9122,17 @@ mobile apps, Bid Documents, Building Codes, or Command Center's
 PathfinderEdge-routing switch at all. Superseded list, current as of
 afs-hv-009 (top of this file):*
 
+0. **Homepage redesign (`feat/homepage-redesign`) — decide on the
+   assembly pass before treating this branch as mergeable.** Per this
+   file's own hp-024 entry at the top: eleven real section components
+   plus a new NavBar/Footer exist and compile, but `app/page.tsx` is
+   unchanged and none of the eleven sections render anywhere except
+   `DesignStudioHub` at its own `/design-studio` route. `HOMEPAGE_VERIFICATION.md`
+   reflects only what's actually reachable today. Reid needs to decide:
+   run the deferred assembly pass (build what `hp-019` would have been)
+   before merging, or merge this as infrastructure/prep and treat
+   assembly as a separate follow-on branch. Either is reasonable — it
+   just needs to be a decision, not a default.
 1. **PathfinderEdge bend-angle verification matrix — highest-priority
    open item touching the physical machine.** Reid has never run the
    4-case matrix (sharp V, W-profile mixed angles, near-90° regression,

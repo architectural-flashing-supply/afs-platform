@@ -161,23 +161,36 @@ AppChrome.tsx
   See ARCHITECTURE.md's "AppChrome Portal Exclusion Pattern" for the full
   pattern and the afs-036 double-nav bug this fixed.
 
-NavBar.tsx
-  NOT a single top bar — an L-shaped chrome rendered as two fixed elements:
-    Left rail: fixed top-0 left-0 bottom-0 w-48 (192px), bg-afs-bg-dim,
-      logo, then a vertical link list (Home, Products, Request a Quote,
-      Configure, Upload Drawing, Design Studio, Architects, My Account/
-      Sign In, Sign Out if authenticated), "Est. Texas" footer line.
-    Top header: fixed top-0 left-48 right-0 h-11 (44px), bg-afs-bg-raised,
-      horizontal desktop-only (md:flex) link row duplicating the same 6
-      content links (Products through Architects).
+NavBar.tsx  [corrected hp-024 — the entry below this one had described an
+  L-shaped rail/header chrome the real file has never matched; that
+  staleness was independently flagged, not fixed, by hp-020's own
+  governance entry, and is corrected here from a direct read of the
+  current file]
+  A fixed 200x80px logo box top-left, plus a single fixed h-14 (56px)
+  header to its right — no left rail. Header link row (hidden md:flex):
+  Products, Request a Quote, Configure, Upload Drawing, Design Studio
+  (-> /studio, a separate destination from hp-006's /design-studio — the
+  two coexist un-reconciled), Architects, a Resources dropdown (added
+  hp-020: Resources + HailView links, opens on click, closes on outside-
+  click/Escape, same useRef pattern as the account-menu dropdown), the
+  account-menu dropdown (Sign In or My Account/Sign Out), and a crimson
+  "Start a Quote" CTA (-> /design-studio, added hp-020, rendered outside
+  the hidden md:flex wrapper so it's visible at every width).
+  Mobile (added hp-020, did not exist before): a hamburger toggle
+  (md:hidden) opens a slide-down panel positioned at top: LOGO_HEIGHT
+  (80px, not the header's 56px — the established convention for any
+  full-width fixed element, matching app/hailview/page.tsx's map
+  background) listing every link above (Resources flattened, not
+  nested) plus the Start a Quote CTA again at the bottom.
   Only rendered by AppChrome for non-portal, non-auth routes — see
-  AppChrome.tsx above. The ml-48 pt-11 wrapper AppChrome applies to
-  {children} exists specifically to clear this rail+header combination.
+  AppChrome.tsx above.
 
 Footer.tsx
   bg-afs-bg-raised border-t border-[var(--afs-border)]
   Max-width 1280px, px-6 gutters, py-16
   4 columns: Brand | Products | Resources | Company
+  Resources column includes FAQ (added hp-020); Company column already
+  had Contact before hp-020 touched this file.
   Bottom bar: copyright, Privacy, Terms
   All text: text-afs-chrome-dim text-sm
   Column headings: font-label font-semibold text-afs-chrome-mid text-sm tracking-wider uppercase
@@ -225,72 +238,138 @@ ArchitectShell.tsx
 
 ---
 
-## LAYER 3 — HOMEPAGE (`components/home/`)
+## LAYER 3 — HOMEPAGE
+
+**Rewritten in full, hp-024.** Every entry below this heading before this
+pass (`HeroSection.tsx`/`HeroVisual.tsx`/`TrustBar.tsx`/
+`ThreePillarsSection.tsx`/`PillarCard.tsx`/`AIQuoteTeaser.tsx`/
+`HowItWorksSection.tsx`/`HowItWorksStep.tsx`/`StatSection.tsx`/
+`StatBlock.tsx`/`ProductCategoryGrid.tsx`/`CategoryCard.tsx`/
+`ArchitectCTASection.tsx`/`ProjectGallery.tsx` as previously described/
+`TestimonialsSection.tsx`/`TestimonialCard.tsx`/`FinalCTASection.tsx`)
+described components that were never real — grepped every filename
+across the whole repo this pass, zero matches for any of them. This
+predates even the `afs-fl-034` homepage pass, let alone the current
+redesign branch; it looks like it was never reconciled against a real
+build at all. Replaced with an inventory of what actually exists, split
+into what's live today and what isn't.
+
+### LIVE — rendered by `app/page.tsx` today (`components/home/`, repo root)
 
 ```
-HeroSection.tsx
-  Full viewport, two-column (60/40) desktop, stacked mobile
-  Left: eyebrow + H1 (Bebas Neue 7rem) + subheadline + CTA group
-  Right: HeroVisual.tsx (animated CSS mockup — no external assets)
+HeroDrawingOverlay.tsx  (afs-fl-034)
+  "Drawing to steel" supporting visual layered over the photo hero and
+  rooftop-triangle PNG. Does not touch headline/copy/hero photo.
 
-HeroVisual.tsx
-  Animated mockup of upload interface / takeoff results
-  Pure CSS — no images, no video, no external dependencies
-  Shows simplified TakeoffResultsTable preview
-  Items animate in with staggered fade-up
+PhotoCategoryGrid.tsx  (afs-fl-034)
+  Real AFS legacy-site photography grid, sourced via lib/home/portfolio-
+  photos.ts (afs-{1-39}.jpg under public/home_page_images/gallery/).
 
-TrustBar.tsx
-  Full-width band, separator-divided trust signals
-  "SMACNA Standards Compliant | Custom Fabrication In-House | Ships Nationwide | AI-Powered Quoting"
-
-ThreePillarsSection.tsx
-  Three PillarCard.tsx in a row
-
-PillarCard.tsx
-  Props: icon | heading | body | ctaText | ctaHref | accentColor ('crimson'|'copper')
-
-AIQuoteTeaser.tsx
-  Two-column: left text + feature list, right ProcessingStatusPanel mockup (static CSS)
-
-HowItWorksSection.tsx
-  Four HowItWorksStep.tsx components with connector lines
-
-HowItWorksStep.tsx
-  Props: number | icon | title | body | isLast
-
-StatSection.tsx
-  Three StatBlock.tsx — "48HR", "2MIN", "50+"
-
-StatBlock.tsx
-  Props: value | label
-  value: font-display text-8xl text-afs-chrome-high
-
-ProductCategoryGrid.tsx
-  3×2 grid of CategoryCard.tsx
-
-CategoryCard.tsx
-  CSS gradient placeholder until photography received
-  Profile name in Bebas Neue, crimson arrow icon
-  Link to /products/[category-slug]
-
-ArchitectCTASection.tsx
-  Full-width with copper left border accent
-  Targets architect audience specifically
-
-ProjectGallery.tsx
-  Masonry-style image grid
-  CSS gradient placeholders until photography received
-
-TestimonialsSection.tsx
-  Three TestimonialCard.tsx
-
-TestimonialCard.tsx
-  Props: quote | attribution
-
-FinalCTASection.tsx
-  bg-afs-crimson full-width
-  Two CTAs: white bg crimson text | white border white text
+ProjectGallery.tsx  (afs-fl-034)
+  Masonry-style grid of the same real photo catalog, PORTFOLIO_GALLERY_IDS
+  subset, rendered below PhotoCategoryGrid.
 ```
+
+`app/page.tsx` itself: full-bleed photo hero (`/home_page_images/2.jpg`),
+gradient overlay, rooftop-triangle PNG, `HeroDrawingOverlay`, H1 "TEXAS
+CRAFTED. NATIONALLY DELIVERED.", two CTAs (both -> `/studio`), then
+`PhotoCategoryGrid` + `ProjectGallery`. Unchanged by `feat/homepage-redesign`.
+
+### NOT LIVE — built on `feat/homepage-redesign` (hp-001 through hp-014),
+### standalone, not imported by any route except where noted
+
+**Directory note:** these live in `app/components/hero/` and
+`app/components/home/` — a tree that did not exist before this branch and
+is parallel to, not inside, the `components/` root every other layer in
+this file lives in. `hp-020`'s NavBar/Footer work correctly edited the
+real `components/layout/` files (no duplicate there); the sections below
+are the exception. Not resolved — likely a decision for whatever pass
+eventually assembles these into `app/page.tsx`.
+
+```
+app/components/hero/HeroSection.tsx  (hp-003)
+  Full-bleed <video> hero (hero-metal-fabrication.mp4/.webm, poster
+  fallback, paused under prefers-reduced-motion), ProfileRotation.tsx
+  on the right (md:flex-row), H1 "SHOW US THE DETAIL. WE'LL FORM IT."
+  CTAs: "Start a Quote" -> /design-studio, "Explore Profiles" ->
+  #profile-explorer (anchor does not exist on any real page yet).
+
+app/components/hero/ProfileRotation.tsx  (hp-002)
+  Three.js decorative Z-flashing profile: 8s seamless unfold/re-fold
+  loop, brushed-metal material, one shadow-casting light. Static single
+  frame under prefers-reduced-motion. Consumed via next/dynamic(ssr:false).
+
+app/components/home/CredibilityStrip.tsx  (hp-004)
+  Five-item capability nav: 5 Ways to Start (#design-studio), 9 Materials
+  (/architects/finish-palette), Custom Profiles (#profile-passport),
+  SMACNA Standards Compliant (/architects/guides), Nationwide Delivery
+  (#nationwide). Three of five link targets are in-page anchors that
+  don't exist on any real page yet.
+
+app/components/home/FieldAppStory.tsx  (hp-005)
+  Two-column: CSS phone-frame device with looped video (trimmed 0-7s of
+  the hero asset), three-step photo-to-quote flow. CTAs -> /field/contractor.
+
+app/components/home/DesignStudioHub.tsx  (hp-006)
+  Five-method selector (Scan Plans/Photo to Quote/FlashDraft/Configurator/
+  Quick Quote), ARIA tabs pattern. THE ONE COMPONENT ON THIS LIST THAT IS
+  LIVE — rendered at the real, standalone /design-studio route
+  (app/design-studio/page.tsx, gets normal NavBar/Footer/ChatWidget chrome).
+
+app/components/home/DesignToDelivery.tsx  (hp-008)
+  Five-step Capture -> Convert -> Verify -> Fabricate -> Track sequence,
+  scroll-driven progress rail (IntersectionObserver), full frame
+  immediately under prefers-reduced-motion.
+
+app/components/home/CustomerPathways.tsx  (hp-009)
+  Three role cards: Contractors -> /field/contractor, Architects ->
+  /architects, Purchasing -> /account/credit-application.
+
+app/components/home/ProfilePassportExplainer.tsx  (hp-010)
+  Design -> Save -> Reorder three-panel flow + illustrative "Profile
+  Passport" card (CSS only, example data, not a live query). Auth-aware
+  CTA (createClient() + getUser()) branches Create your account vs. View
+  My Profiles -> /architects/custom-profiles. NOT the same as the
+  Profile Passport schema below — this component predates and does not
+  depend on custom_profiles/profile_revisions; its real backing table
+  (per its own governance entry) is the existing saved_configurations.
+
+app/components/home/CaseStudies.tsx  (hp-011)
+  Three real-photo project cards (Copper Dome #22, Arched-Window
+  Flashing #34, Standing-Seam Detail #19 — lib/home/portfolio-photos.ts)
+  plus a NASA Johnson Space Center credential card ($500K Project badge,
+  typographic pill, no logo asset used).
+
+app/components/home/ShopFloorProof.tsx  (hp-012)
+  Video-backed stats section, hero-loop video reused: 5 Materials
+  Fabricated, 25 Standard Profiles (canonical_profiles, not the private
+  911-row machine-profile library), Nationwide Delivery Footprint.
+
+app/components/home/NationwideMap.tsx + NationwideMapLeaflet.tsx +
+nationwide-locations.ts  (hp-013)
+  Leaflet/OSM map (same stack as components/hailview/HailViewMap.tsx),
+  HQ pin only (Burnet, TX) + nationwide delivery radius ring — no project
+  pins, since no CaseStudies card has a real documented location.
+
+app/components/home/FinalCTA.tsx  (hp-014)
+  Four-action closing band: Start a Quote (/design-studio) | Explore
+  Profiles (#profile-explorer) | Check Hail Impact (/hailview) | Talk to
+  AFS (/contact). Tagline "Texas Crafted. Nationally Delivered."
+```
+
+**Assembly status:** none of the eleven components above are imported by
+`app/page.tsx`. Every one of their own governance entries in
+`STATE_OF_THE_BUILD.md` names `hp-019` as the deferred assembly step;
+`hp-019` was never run (see that file's hp-024 entry). See
+`HOMEPAGE_VERIFICATION.md` for what's actually reachable in a browser
+today.
+
+**Profile Passport (hp-015) — schema only, separate from the components
+above:** `supabase/migrations/023_profile_passport.sql`
+(`custom_profiles`, `profile_revisions`, `orders.custom_profile_id`) —
+written, RLS included, **not applied to the live database**, no API
+route or page anywhere in the codebase. See SCHEMA.md and this file's own
+hp-024 governance entry.
 
 ---
 

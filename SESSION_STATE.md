@@ -24,6 +24,61 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## HOMEPAGE REDESIGN — RELEASE CANDIDATE GOVERNANCE AUDIT (hp-024): NOT AN ASSEMBLED HOMEPAGE (2026-09-10)
+
+Docs-only pass. Re-audited every `hp-001`–`hp-020` claim directly against
+the live codebase, wrote `HOMEPAGE_VERIFICATION.md`, and corrected two
+stale governance docs. Headline finding, already flagged piecemeal by
+every hp- entry below but worth stating plainly once: **`app/page.tsx`
+has never been changed by this branch.** It's byte-for-byte the
+`afs-fl-034` homepage (`HeroDrawingOverlay`/`PhotoCategoryGrid`/
+`ProjectGallery`, the project's one established root `components/home/`).
+None of `HeroSection`/`ProfileRotation`/`CredibilityStrip`/
+`FieldAppStory`/`DesignToDelivery`/`CustomerPathways`/
+`ProfilePassportExplainer`/`CaseStudies`/`ShopFloorProof`/`NationwideMap`/
+`FinalCTA` render on any route — the one exception is `DesignStudioHub`
+(hp-006), live at its own standalone `/design-studio`. The planned
+assembly prompt every one of those entries defers to (`hp-019`) was never
+run — `git log` has no `hp-016` through `hp-019` at all. Pushing this
+branch gives Vercel a preview whose `/` looks identical to production.
+
+**Structural note, new this pass:** the hp- components live in a new
+`app/components/hero/` + `app/components/home/` tree, parallel to (not
+inside) this project's one established root `components/` tree that
+every other layer of the app actually uses. `hp-020` correctly edited the
+real `components/layout/NavBar.tsx`/`Footer.tsx` — no duplicate exists
+there — but the hero/home sections started a second tree. Not resolved
+here; likely an assembly-pass decision.
+
+**Profile Passport (hp-015), re-confirmed:** schema file only, not
+applied live (unchanged), and this pass additionally confirmed **zero
+application code** — no API route, no `/account/profiles` or
+passport-specific page, nothing beyond the marketing
+`ProfilePassportExplainer.tsx` (itself unwired). The "save → My Profiles
+→ reorder" flow does not exist as working software.
+
+**Docs corrected this pass:** `COMPONENT_MAP.md` (NavBar's stale
+left-rail description, and LAYER 3 replaced — it described components
+like `TrustBar.tsx`/`ThreePillarsSection.tsx` that were never real,
+zero matches anywhere in the repo) and `SITEMAP.md` (`/design-studio`,
+`/faq`, `/resources`, `/hailview` added, all previously missing).
+`SCHEMA.md` reviewed, already accurate — no change needed.
+
+**`queue.yaml` — flagged, not touched.** The working tree has an
+unrelated, pre-existing rewrite of `queue.yaml` (committed format:
+`p0-`/`p1-`.../`p8-`; working-tree format: `afs-001`...`afs-024`) that
+predates this session and has nothing to do with the homepage redesign —
+confirmed neither version has ever had an `hp-` entry. Left unstaged and
+uncommitted; flagged for Reid to look at separately, not bundled into
+this docs commit. Also left out of this commit, for the same
+not-this-branch's-business reason: `EMAIL PROSPECT LISTS/` (real roster
+spreadsheets, not repo material), `.repro-afs-fl-023/025/029/` (unrelated
+bug-repro artifacts), `supabase/.temp/` (local CLI cache).
+
+Full detail in `STATE_OF_THE_BUILD.md`'s matching hp-024 entry.
+
+---
+
 ## NAVBAR + FOOTER — RESOURCES DROPDOWN, MOBILE MENU, START A QUOTE CTA (hp-020): IMPLEMENTED, UNCONFIRMED (2026-09-10)
 
 **Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —

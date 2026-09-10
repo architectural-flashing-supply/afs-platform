@@ -221,6 +221,22 @@ Route Pattern                Auth Required   Role           Notes
                                                              as /studio/profile-viewer/[id] below
 /studio/profile-viewer/[id]  Partial        —              Public profile: anyone. Private
                                                              profile: admin only (404s otherwise)
+/design-studio                No             —              Public. hp-006, feat/homepage-redesign
+                                                             only, not yet on main. Renders
+                                                             DesignStudioHub full-width; normal
+                                                             NavBar/Footer/ChatWidget chrome. A
+                                                             second, un-reconciled "Design Studio"
+                                                             destination alongside /studio.
+/faq                          No             —              Public. Missing from this matrix
+                                                             before hp-024 despite being a real
+                                                             route (app/(public)/faq/page.tsx).
+/resources                    No             —              Public. Same as /faq — real route,
+                                                             was missing from this matrix before
+                                                             hp-024 (app/(public)/resources/page.tsx).
+/hailview                     No             —              Public. HailView tool (afs-hv-001
+                                                             through afs-hv-009) — was missing
+                                                             from this matrix before hp-024
+                                                             (app/hailview/page.tsx).
 /track/[id]                  No             —              Email verify
 /architects                  No             —              Public
 /architects/spec-writer      Yes            architect|admin
