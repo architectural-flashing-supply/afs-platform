@@ -24,6 +24,60 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## PROFILE EXPLORER — HOMEPAGE PROFILE BROWSER SECTION (hpa-002) — 2026-09-10
+
+Established fact carried in from the prior pass: no component named
+"Profile Explorer" exists — the real profile browser is
+`components/studio/ProfileLibraryBrowser.tsx` (live at `/studio/library`).
+Built `app/components/home/ProfileExplorer.tsx`, a new
+`<section id="profile-explorer">` giving the hero's and `FinalCTA.tsx`'s
+existing `#profile-explorer` links a real target. It composes
+`ProfileLibraryBrowser` directly (imports and renders it, no forked
+internals) rather than duplicating its card/filter logic.
+
+Extended `ProfileLibraryBrowser.tsx` with three optional props, each
+defaulting to the exact prior behavior so `/studio/library` is unchanged:
+`compact` (category chips + no sidebar/compare, for a homepage-style
+layout), `limit` (caps the grid post-filter), `show3DToggle` (per-card
+"View in 3D" button, hidden when a card has no bend data, swaps the
+`BendSequenceDiagram` thumbnail for an inline `next/dynamic(ssr:false)`
+`ProfileViewer3D`). The shared modal/detail-view markup was factored into
+one internal `ProfileLibraryModal` component so compact and full layouts
+don't carry two copies.
+
+`ProfileExplorer.tsx` fetches the same public+active `machine_profiles`
+data source the library page uses (service-role client, same RLS
+rationale), derives category chips from the real distinct category names
+in that data (no hardcoded list, unlike the library page's own curated
+vocabulary), caps to the first 12 profiles *after* filtering, and links
+to `/studio/library` for the rest. Real `Suspense` loading skeleton,
+empty state, and error state included (not exercised live — the real
+dataset returned successfully every check this pass).
+
+**Verified this pass, session-run (not yet Reid-confirmed — see the
+WORKING STYLE NOTE above):** `pnpm tsc --noEmit` — 0 errors. Mounted on a
+temporary `app/dev/explorer-preview/page.tsx` route, ran `pnpm dev`, drove
+it with a throwaway Playwright script (both deleted afterward, not part
+of the commit) at 375×800 and 1440×900: category chips genuinely filter
+the underlying profile set (e.g. "Fascia & Rake" → exactly 3 real cards,
+not a stale slice of 12), the "View in 3D" toggle mounts a real
+`<canvas>`, zero console/page errors. Re-checked `/studio/library`
+afterward — sidebar search, 71 Compare buttons, and zero "View in 3D"
+instances confirm the new props' defaults left it untouched.
+
+**Not done — still open, consistent with hp-024's finding below, not a
+regression from it:** `ProfileExplorer` is not wired into `app/page.tsx`.
+The `#profile-explorer` anchor now has a real component to resolve to,
+but only once the deferred homepage-assembly pass actually runs it into
+the live page. Also flagged: `LibraryProfileCardData` has no
+material/gauge fields, so the inline 3D previews render bare-metal
+default appearance rather than each profile's real finish — a real data
+gap, not a bug, and it doesn't affect the bend geometry shown.
+
+Full detail in `STATE_OF_THE_BUILD.md`'s matching hpa-002 entry.
+
+---
+
 ## HOMEPAGE REDESIGN — RELEASE CANDIDATE GOVERNANCE AUDIT (hp-024): NOT AN ASSEMBLED HOMEPAGE (2026-09-10)
 
 Docs-only pass. Re-audited every `hp-001`–`hp-020` claim directly against

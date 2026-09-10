@@ -34,6 +34,96 @@ summary, not a replacement for it.
 
 ---
 
+## PROFILE EXPLORER — HOMEPAGE PROFILE BROWSER SECTION (hpa-002): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+**Established fact carried in from the prior pass (hpa-001, not previously
+written up in this file): there is no component named "Profile Explorer"
+anywhere in the codebase.** The real profile-browsing component is
+`components/studio/ProfileLibraryBrowser.tsx` (search, category,
+blank-width and bend-count filters, `BendSequenceDiagram` cards, real
+`machine_profiles` data) — already live at `/studio/library`. The hero's
+"Explore Profiles" CTA (`app/components/hero/HeroSection.tsx`) and
+`FinalCTA.tsx` both already link to `#profile-explorer`, an anchor that
+did not exist on any real page.
+
+**Built this pass:** `app/components/home/ProfileExplorer.tsx` — a new
+`<section id="profile-explorer">`, so that anchor now has a real target
+component to render. It **composes** `ProfileLibraryBrowser` (imports and
+renders it — no fork, no copied card/filter internals) rather than
+duplicating its logic, per this pass's own instructions. Server component:
+fetches the same public+active `machine_profiles` + `machine_profile_bends`
+data source `/studio/library` uses (`app/studio/library/page.tsx`),
+service-role client, same RLS rationale (machine_profiles RLS requires
+`auth.uid() IS NOT NULL` even on `is_public` rows, which would break
+anonymous homepage visitors) — but always the public-only view, no
+admin/private-row branch (the homepage is never the admin view). Category
+chips are derived from the real distinct `categoryName` values in the
+fetched data (`Array.from(new Set(...)).sort()`) — **no hardcoded
+category list**, unlike the library page's own curated
+`AFS_PRODUCT_CATEGORIES` vocabulary. Capped to the first 12 profiles
+*after* category filtering (confirmed live: "Fascia & Rake" correctly
+shows 3 cards, not a stale slice of an unfiltered 12), with a "See the
+full library" link to `/studio/library`. Real loading skeleton (React
+`Suspense` around the async fetch — chip-row + card-grid pulse
+placeholders), empty state ("No profiles are published yet"), and error
+state (fetch/query error branch, distinct from the empty-result branch) —
+none of these three were exercised live this pass since the real dataset
+returned successfully every time; verified by reading the branches, not
+by forcing each one.
+
+**`components/studio/ProfileLibraryBrowser.tsx` extended, not forked** —
+three new optional props, all defaulting to values that leave
+`/studio/library`'s existing behavior byte-for-byte unchanged:
+- `compact` (default `false`) — renders category filter chips above the
+  grid instead of the full sidebar (search/category-select/width/bend
+  inputs are hidden), and hides the Compare button + comparison tray.
+- `limit` (default `undefined` = unlimited) — caps the grid to the first
+  N profiles *after* filtering.
+- `show3DToggle` (default `false`) — adds a per-card "View in 3D" button
+  (hidden on any card with zero bend/geometry data) that swaps the card's
+  `BendSequenceDiagram` thumbnail for an inline, `next/dynamic(ssr:false)`
+  `ProfileViewer3D` of that profile's real bend geometry. The modal
+  (click-to-open detail view) and the "Load into FlashDraft" action were
+  factored into a shared internal `ProfileLibraryModal` component so the
+  compact and full layouts render identical modal markup from one place,
+  not two copies.
+- **Known data gap, not a bug:** `LibraryProfileCardData` carries no
+  material/gauge fields, so the inline 3D viewer's `material`/`gauge`
+  props are passed as empty strings and `thicknessMm` as `0` (triggers
+  `ProfileViewer3D`'s own `thicknessMm || 0.6` fallback) — every homepage
+  3D preview renders in the generic bare-metal default appearance, not
+  the profile's real material finish. Real bend geometry (leg lengths,
+  angles, radii) is unaffected — only the material color/roughness is a
+  placeholder.
+
+**Verification this pass (session-run, not yet Reid-confirmed — see this
+file's VERIFICATION STANDARD above):**
+- `pnpm tsc --noEmit` — 0 errors.
+- Mounted on a temporary `app/dev/explorer-preview/page.tsx` route, ran
+  `pnpm dev`, and drove it with a throwaway Playwright script (both
+  deleted after the check, not part of the commit): at 375×800 and
+  1440×900, the category chips genuinely filter the underlying profile
+  set (e.g. clicking "Fascia & Rake" shows exactly `DOWNSPOUTS`,
+  `GUTTER1`, `GUTTER2` — 3 cards, not a stale 12), the "View in 3D"
+  toggle mounts a real `<canvas>` element, and zero console/page errors
+  were logged in either viewport.
+- Re-verified `/studio/library` is unchanged: sidebar search input still
+  present, 71 "Compare" buttons still render, zero "View in 3D" toggles
+  appear (confirming `show3DToggle`'s default-`false` scope).
+
+**Not done this pass, still open:** `ProfileExplorer` is **not** wired
+into `app/page.tsx`. This is consistent with, not a regression from,
+hp-024's finding directly below — the real homepage assembly pass is
+still deferred, so `#profile-explorer` now has a real component to
+resolve to, but only once that assembly pass runs; today the anchor still
+resolves to nothing on the live site. `ProfileExplorer.tsx` was placed in
+`app/components/home/`, the same parallel-to-`components/` tree hp-024
+flags below (not the project's one established root `components/home/`).
+
+**Gate:** `pnpm tsc --noEmit` — 0 errors.
+
+---
+
 ## HOMEPAGE REDESIGN — RELEASE CANDIDATE GOVERNANCE AUDIT (hp-024): NOT AN ASSEMBLED HOMEPAGE (2026-09-10)
 
 **Read this entry first — it corrects what "release candidate" means for
@@ -9040,21 +9130,30 @@ HailView:                              IMPLEMENTED, UNCONFIRMED. All 5 spec
                                         "confirmed."
 
 Homepage Redesign (feat/homepage-       COMPONENT LIBRARY BUILT, NOT
-redesign, hp-001 through hp-020):       ASSEMBLED. Eleven real, compiling
-                                        section components plus a new
-                                        NavBar/Footer (hp-001 through
-                                        hp-014, hp-020) — none of the
-                                        eleven sections render on any live
-                                        route; the real `app/page.tsx` is
-                                        unchanged from afs-fl-034. Only
-                                        `DesignStudioHub` (hp-006) is
-                                        reachable, via its own standalone
-                                        `/design-studio` route. Profile
-                                        Passport (hp-015) is schema+RLS
-                                        only, not applied live, no API or
-                                        UI. The planned assembly prompt
-                                        (`hp-019`) never ran. See hp-024
-                                        above and `HOMEPAGE_VERIFICATION.md`.
+redesign, hp-001 through hp-024,        ASSEMBLED. Twelve real, compiling
+hpa-002):                              section components (hp-001 through
+                                        hp-014, hpa-002's `ProfileExplorer`)
+                                        plus a new NavBar/Footer (hp-020) —
+                                        none of the twelve sections render
+                                        on any live route; the real
+                                        `app/page.tsx` is unchanged from
+                                        afs-fl-034. Only `DesignStudioHub`
+                                        (hp-006) is reachable, via its own
+                                        standalone `/design-studio` route.
+                                        `ProfileExplorer` (hpa-002) gives
+                                        the hero/FinalCTA's existing
+                                        `#profile-explorer` anchor a real
+                                        target component, composing the
+                                        already-live `ProfileLibraryBrowser`
+                                        — still not assembled into
+                                        `app/page.tsx`, so the anchor still
+                                        resolves nowhere on the live site.
+                                        Profile Passport (hp-015) is
+                                        schema+RLS only, not applied live,
+                                        no API or UI. The planned assembly
+                                        prompt (`hp-019`) never ran. See
+                                        hp-024 above, hpa-002 further above,
+                                        and `HOMEPAGE_VERIFICATION.md`.
 ```
 
 ---
@@ -9062,6 +9161,8 @@ redesign, hp-001 through hp-020):       ASSEMBLED. Eleven real, compiling
 ## RECENT COMMITS (verified via `git log --oneline -15`, most recent first)
 
 ```
+b0c4351  hp-007: ProfileExplorer section composing ProfileLibraryBrowser  (queue id hpa-002)
+55ecaa7  hp-024: Homepage redesign RC -- governance current, verification checklist
 72eef46  docs: hp-020 governance update -- NavBar/Footer, flagged SITEMAP/COMPONENT_MAP staleness
 a2b5e8c  hp-020: Navigation and footer updates
 5954af9  hp-015: Profile Passport schema and RLS (HALTED -- not applied live)
