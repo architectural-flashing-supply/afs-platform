@@ -24,6 +24,50 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## NAVBAR + FOOTER — RESOURCES DROPDOWN, MOBILE MENU, START A QUOTE CTA (hp-020): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+**Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
+0 errors. Commit `a2b5e8c`.
+
+Added a crimson "Start a Quote" CTA (→ `/design-studio`, always visible,
+rightmost, also repeated in the mobile menu) and a new Resources dropdown
+(HailView moved into it, since no dropdown component existed anywhere in
+this codebase before this pass) to `NavBar.tsx`; removed FAQ/Contact/
+HailView from the flat top-level link list. **Built a mobile hamburger
+menu that did not exist before this pass** — the header's entire link row
+was `hidden md:flex` with zero mobile fallback (confirmed by grep before
+building, not assumed). The new mobile panel is positioned at
+`top: LOGO_HEIGHT` (80px), following the same already-established
+full-width-fixed-element-clears-the-logo convention `app/hailview/page.tsx`
+uses — `LOGO_HEIGHT`/`LOGO_WIDTH`, `AppChrome.tsx`, and `middleware.ts`
+were not touched. The existing account-menu dropdown (`accountMenuOpen`)
+was left completely unmodified per this prompt's explicit instruction; the
+mobile panel reuses its already-computed `accountLink`/`isAuthenticated`/
+`handleSignOut` values as a plain link + button, not a nested dropdown.
+
+Added FAQ to Footer's Resources column. Contact was already present in
+the Company column — verified by reading the file, not added again.
+
+Both `SITEMAP.md` (no `/design-studio`, `/faq`, `/resources`, `/hailview`
+entries — same staleness already flagged in hp-013/hp-014) and
+`COMPONENT_MAP.md` (still describes a left-rail NavBar architecture the
+real file has never matched) were read per this prompt's instruction and
+found stale; not corrected in this pass since it was scoped to
+`NavBar.tsx`/`Footer.tsx`, not the governance docs' architecture
+descriptions — flagged so a future session doesn't build against either
+doc's description cold.
+
+Every nav/footer link's target file confirmed to exist via a direct `app/`
+filesystem check this pass — no 404s. **Not yet confirmed:** real
+interactive behavior (dropdown open/close, mobile toggle, Escape-to-close,
+touch tap) at desktop and mobile widths — no Playwright run, no user
+confirmation. Stays IMPLEMENTED, UNCONFIRMED per this doc's verification
+standard until the user checks it themselves.
+
+Full detail in `STATE_OF_THE_BUILD.md`'s NAVBAR + FOOTER entry.
+
+---
+
 ## PROFILE PASSPORT — SCHEMA + RLS (hp-015): HALTED — NOT APPLIED LIVE (2026-09-10)
 
 **Prompt did not complete — halted per its own instruction.** Wrote

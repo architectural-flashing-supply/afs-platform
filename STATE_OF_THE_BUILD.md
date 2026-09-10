@@ -34,6 +34,103 @@ summary, not a replacement for it.
 
 ---
 
+## NAVBAR + FOOTER — RESOURCES DROPDOWN, MOBILE MENU, START A QUOTE CTA (hp-020): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+**Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
+0 errors. Commit `a2b5e8c`.
+
+**Read before editing, per this prompt's own instruction:** `CLAUDE.md`,
+`DESIGN_TOKENS.md`, `SITEMAP.md`, `COMPONENT_MAP.md`, and the full current
+`NavBar.tsx`/`Footer.tsx`. Both governance docs turned out to be
+significantly stale against the real files — flagged rather than trusted:
+- `COMPONENT_MAP.md` describes `NavBar.tsx` as an L-shaped chrome (a
+  192px left rail with a vertical link list, plus an 44px top header) —
+  the real file has never matched that: it's a fixed 200×80px logo box
+  top-left plus a single `h-14` (56px) header to its right, no left rail
+  at all. Not corrected in this pass (out of scope — this prompt edits
+  `NavBar.tsx`/`Footer.tsx`, not `COMPONENT_MAP.md`'s architecture
+  description), but flagged here since a future session reading that doc
+  cold would build against a rail that doesn't exist.
+- `SITEMAP.md` has no entries for `/design-studio`, `/faq`, `/resources`,
+  or `/hailview` at all — same staleness already flagged in hp-013/hp-014.
+  All four are real routes (verified via direct `app/` filesystem checks,
+  not the doc): `app/design-studio/page.tsx`, `app/(public)/faq/page.tsx`,
+  `app/(public)/resources/page.tsx`, `app/hailview/page.tsx`.
+
+**Built:**
+- **Start a Quote CTA** — `bg-afs-crimson`/`hover:bg-afs-crimson-hover`/
+  `shadow-crimson`, rightmost in the header, rendered outside the
+  `hidden md:flex` desktop-links wrapper so it's always visible on both
+  desktop and mobile (not hidden behind the hamburger toggle), and
+  additionally repeated inside the opened mobile menu panel per the
+  prompt's explicit "also in the mobile menu" instruction. Routes to
+  `/design-studio` — a real, separate route from the existing "Design
+  Studio" nav link (`/studio`); both exist independently and this prompt
+  didn't unify them, matching the same `/design-studio` target FinalCTA
+  (hp-014) already resolved for its own "Start a Quote" button.
+- **Resources dropdown** — did not exist before this pass (`COMPONENT_MAP.md`
+  independently confirms "no dropdown/submenu component exists in this
+  codebase"), so it was hand-built inline in `NavBar.tsx`, mirroring the
+  existing account-menu dropdown's own pattern (`useRef` + outside-`mousedown`-
+  closes effect) rather than inventing a new one. Added an `Escape`-closes
+  effect (returns focus to the trigger button) which the existing account
+  dropdown does not have — the prompt explicitly required Escape-to-close
+  for this new dropdown, not for the pre-existing one, which was left
+  untouched. Contains "Resources" (`/resources`) and "HailView"
+  (`/hailview`, moved out of the flat top-level link list per this
+  prompt's instruction).
+- **Removed from top-level links:** FAQ, Contact, HailView (HailView moved
+  into the new dropdown per above; FAQ/Contact were dropped per this
+  prompt's explicit instruction, not replaced anywhere in the header).
+- **Mobile menu — did not exist before this pass.** Investigated first
+  rather than assumed present: the pre-existing header wrapped its entire
+  link row in `hidden md:flex` with no mobile fallback anywhere in the
+  codebase (grepped for `mobileMenu`/`hamburger`/`MobileNav`/`isMenuOpen`/
+  `navOpen` across every `.tsx` file — zero matches). Below `md`, mobile
+  visitors had no navigation at all except the logo. Built a hamburger
+  toggle button (`md:hidden`, open/close SVG swap) and a slide-down panel
+  listing all top-level links, the Resources links (flattened, not
+  nested), the existing `accountLink`/`isAuthenticated`/`handleSignOut`
+  state (reused as-is, not modified — see below), and the Start a Quote
+  CTA again at the bottom.
+- **Logo/header clearance preserved, not touched.** The mobile panel is a
+  full-width fixed element, so per the existing convention documented in
+  `NavBar.tsx`'s own `LOGO_HEIGHT` export comment ("any full-width
+  fixed/absolute element ... can clear the logo's real footprint instead
+  of the header's shorter height"), it's positioned at `top: LOGO_HEIGHT`
+  (80px) rather than the header's 56px — the same convention
+  `app/hailview/page.tsx`'s map background already follows. `LOGO_WIDTH`/
+  `LOGO_HEIGHT` themselves, `AppChrome.tsx`'s `pt-14` content wrapper, and
+  `middleware.ts` were not touched.
+
+**Account menu explicitly not touched, per this prompt's instruction.**
+The existing `accountMenuOpen`/`accountMenuRef` dropdown and its
+click-outside effect are unmodified. The mobile menu and the new
+Resources dropdown are new, separate state (`mobileMenuOpen`,
+`resourcesMenuOpen`) — the mobile panel reuses `accountLink`/
+`isAuthenticated`/`handleSignOut` values (already computed for the
+desktop dropdown) to render a plain link + Sign Out button, not a nested
+dropdown, so no existing account-menu code path was changed.
+
+**Footer:** Added `{ label: 'FAQ', href: '/faq' }` to the Resources
+column's link array. Contact was not added — `Footer.tsx` already had a
+working `/contact` link in the Company column before this pass; verified
+by reading the file rather than assumed from the prompt's phrasing.
+
+**Checkpoint verified this pass:** every nav/footer link's target
+`page.tsx` confirmed to exist via a direct filesystem check (`/products`,
+`/studio`, `/track`, `/architects`, `/resources`, `/hailview`, `/faq`,
+`/contact`, `/design-studio`, `/login` via the `(auth)` route group,
+`/account`, `/about`, `/legal/privacy`, `/legal/terms`, `/quote`,
+`/upload`, `/account/orders`) — no 404s. **Not verified this pass:**
+actual rendered/interactive behavior — dropdown open/close, mobile menu
+toggle, keyboard Escape handling, touch-tap behavior on a real device or
+Playwright run. Per this doc's verification standard, this stays
+**IMPLEMENTED, UNCONFIRMED** until the user has independently checked the
+real behavior at both desktop and mobile widths.
+
+---
+
 ## PROFILE PASSPORT — SCHEMA + RLS (hp-015): HALTED — NOT APPLIED LIVE (2026-09-10)
 
 **This prompt did not complete.** Per its own instruction ("If neither is
