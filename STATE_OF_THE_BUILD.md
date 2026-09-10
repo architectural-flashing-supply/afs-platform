@@ -34,6 +34,58 @@ summary, not a replacement for it.
 
 ---
 
+## HOMEPAGE HERO + SHOP-FLOOR VIDEO ASSETS FROM REAL FABRICATION FOOTAGE (hp-001): IMPLEMENTED, UNCONFIRMED — ASSET PRODUCTION ONLY, NOT WIRED INTO ANY PAGE (2026-09-10)
+
+**Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
+0 errors.
+
+**What exists now, all on `feat/homepage-redesign`, none of it committed
+to `main`:**
+- `public/videos/hero-metal-fabrication.mp4` (18.2s, 1920x1080, 30fps,
+  silent, H.264, 3.7MB) + matching `.webm` (VP9, 7.6MB) — feed → bend →
+  release montage, 0.4s crossfades between segments.
+- `public/videos/shop-floor-loop.mp4` (25.0s, same specs, 8.8MB) +
+  `.webm` (12.7MB) — single steady wide angle, soft loop point.
+- `public/images/hero-poster.jpg` and `shop-floor-poster.jpg` (1920x1080,
+  q85).
+- `scripts/video-review/README.md` — clip-by-clip editorial rationale
+  (which real clips/timestamps went into each output, why the 120fps
+  clip was slowed 1.75x for the bend, why 5 vertical phone clips were
+  excluded rather than upscaled).
+
+**None of this is wired into any page yet** — `grep` for the filenames
+above across `app/` and `components/` returns nothing. This prompt was
+asset production only; homepage integration is separate, later work.
+
+**Source footage note — this queue prompt's own instructions were wrong
+about the source, worth flagging so it isn't repeated:** the prompt
+described "5 sources... `public/videos/metal-fab-1.mp4` through
+`metal-fab-5.mp4`." The real footage is 8 clips
+(`metal-fab-1.mp4`–`metal-fab-8.mp4`, all real 1920x1080 phone footage of
+the actual Thalmann machine and an operator, mixed 30fps/120fps, shot
+2026-09-08 and 2026-08-14) living outside the repo at
+`C:\Users\manag\Downloads\Recent Downloads\` — never in
+`public/videos/`. This session found the encoded outputs above already
+present in the working tree, uncommitted, from an earlier pass that used
+the real 8-clip set correctly; this session verified that work rather
+than redoing it from the (incorrect) 5-clip premise the prompt described:
+`ffprobe`-checked all 8 source clips' real duration/resolution/frame rate
+against the README's specific claims (all matched, including the 120fps
+clip), and visually inspected 4 extracted frames directly — all
+genuinely show the Thalmann machine, an operator, and consistent
+shop-floor branding, not placeholder or generic footage. This session's
+own concrete additions: the two `.webm` encodes (missing before this
+pass), `.gitignore` rules for the raw `metal-fab-*.mp4` source pattern
+and `scripts/video-review/*.jpg` review frames (neither is committed —
+raw phone footage stays out of git history per repo convention), and this
+entry.
+
+**Marked IMPLEMENTED, UNCONFIRMED per this file's verification standard**
+— Reid has not looked at these assets himself, and they are not yet
+visible on any real page for him to look at.
+
+---
+
 ## HAILVIEW DEFAULT ZOOM RE-CORRECTED, 8 → 9 (afs-hv-009): IMPLEMENTED, UNCONFIRMED — afs-hv-008's ZOOM 8 WAS STILL TOO WIDE ON REAL DESKTOP VIEWPORTS; POST-SUBMIT ZOOM 11 RE-VERIFIED AND CONFIRMED CORRECT (2026-09-04)
 
 **Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
@@ -7749,29 +7801,51 @@ built now; data populates the existing structure when received.
 | Pricing cost basis and margin rules | #22–23, #26 | Pricing engine activation |
 | Supplier price history | Internal records | Trend projection accuracy |
 | Production stage names (shop language) | #39 | Timeline labels, notification triggers |
-| AFS address, phone, hours | #5, #6 | Contact page, freight origin, email footer |
+| AFS hours of operation | #6 | Contact page, footer — address/phone/email are RESOLVED (see note below), hours specifically is not |
 | Tax nexus states | #31 | TaxJar configuration |
 | Carrier / freight method | #27–28, #80 | Freight calculation |
 | Industry certifications | #8 | Trust badges, spec language |
 | Logo vector file (SVG) | #1 | Asset quality — PNG in use as fallback |
-| Photography | #9 | Product and gallery images |
+| Per-SKU product catalog photography | #9 | Product detail-page images — homepage/gallery photography is RESOLVED (see note below), catalog-item-level photography is not |
 | CAD/BIM library files (DWG/DXF/Revit) | SPEC_CAD_BIM_LIBRARY.md | `/architects/cad-library` content — code path is complete, zero rows exist because zero files have been received |
-| Privacy Policy | #65 | Legal — launch blocker |
+| Privacy Policy | #65 | Legal — launch blocker. A route exists (`app/(public)/legal/privacy/page.tsx`) but its content is a literal "coming soon" placeholder, not a real policy |
 
-*Not independently re-verified in this pass; carried forward from the last
-codebase audit that specifically checked each row. If a client deliverable
-listed here has since arrived, confirm against the code before trusting
-this table.*
+**Two rows resolved since the last full check, confirmed by direct code
+read this pass (2026-09-05), not carried forward on faith:**
+- **AFS address, phone, email** (Checklist #5) are real and wired
+  throughout the codebase: `209 Sure Cast Drive, Burnet, TX 78611`,
+  `(512) 372-4900`, `trica@`/`steve@architecturalflashingsupply.com` — see
+  `lib/chatbot/knowledge/afs-company.ts`, and the same coordinate feeds
+  `DeliveryTrackingMap.tsx`'s service-area origin and HailView's
+  `DEFAULT_CENTER`. **Hours specifically were not found anywhere** in that
+  file or elsewhere — still open, narrower than the old row implied.
+- **Photography** (Checklist #9) has a real, catalogued library now:
+  `public/legacy-site-photos/` (46 genuine AFS photos, non-stock,
+  individually verified — afs-fl-035/036) plus a separate 39-photo
+  homepage gallery copy already live on the homepage (afs-fl-034). This
+  closes the general "no real AFS photography exists" gap. What remains
+  open is narrower: per-SKU/per-catalog-item product photography for the
+  product catalog pages specifically (`app/(public)/products/**`) — not
+  audited or sourced by afs-fl-034/035/036, which were homepage-scoped.
+
+*Every other row above is carried forward from the last codebase audit
+that specifically checked it, not independently re-verified in this pass
+— confirm against the code directly before trusting a row that matters to
+your task.*
 
 ---
 
 ## BUILD PHASE STATUS
 
-*Carried forward from the last full-codebase audit (not re-verified route
-by route in this documentation pass). Believed accurate as of the commits
-in RECENT COMMITS below; if in doubt, verify a specific route or feature
-directly rather than trusting this table blind — that is exactly the
-failure mode this rewrite exists to correct.*
+*Refreshed 2026-09-05 against a direct read of every entry in this file
+(all the way to afs-hv-009 at the top) plus targeted current-code checks
+(grep/read) — see CURRENT_STATE.md for the full per-subsystem breakdown
+this table summarizes. Phases 0–8 themselves were NOT re-verified
+route-by-route this pass (that would mean re-auditing all 83 SITEMAP.md
+routes); everything built on top of them since 2026-08-11 (FlashDraft's
+many follow-on sessions, HailView, the /field mobile apps, Bid Documents'
+correction, Building Codes, Command Center/PathfinderEdge routing) HAS
+been re-read and cross-checked against real code/git this pass.*
 
 ```
 Phase 0 — Scaffold + Design System:    BUILT
@@ -7780,7 +7854,12 @@ Phase 2 — Quote Request System:        BUILT (app/quote, app/configure, app/ap
 Phase 3 — Product Catalog + Auth:      BUILT (app/(public)/products, app/(auth)/**, app/checkout)
 Phase 4 — Customer Portal:             BUILT (app/account/**)
 Phase 5 — Architect Portal:            BUILT (app/(public)/architects/**)
-Phase 6 — Admin + Operations:          BUILT (app/admin/**)
+Phase 6 — Admin + Operations:          BUILT (app/admin/**). Command Center's
+                                        approval pipeline now pushes real jobs
+                                        to PathfinderEdge (delivery_method
+                                        defaults to 'pathfinder_edge', changed
+                                        from 'machine_bridge' — re-verified in
+                                        the current route this pass).
 Phase 7 — AI Layer:                    BUILT — chatbot, product finder/cross-sell/
                                         material recs, installation advisor
 Phase 8 — Integrations + Deploy:       BUILT. QuickBooks is a CONDITIONAL,
@@ -7788,25 +7867,73 @@ Phase 8 — Integrations + Deploy:       BUILT. QuickBooks is a CONDITIONAL,
                                         confirmation, zero real QBO API calls).
                                         Supabase integration functional.
                                         Vercel deploy prep done (vercel.json,
-                                        .env.example).
+                                        .env.example). Resend: confirmed NOT
+                                        configured (no key in .env.local or
+                                        process env) — every email send path
+                                        degrades gracefully, none actually
+                                        sends. Twilio: optional, no stub built.
+                                        Google Business Profile: fully wired
+                                        code-wise, blocked only on real OAuth
+                                        credentials.
 
 Design Studio (beyond the original 9-phase queue):
-  Thalmann machine profile import:     Migration + import script built;
-                                        migration NOT yet applied to the
-                                        live Supabase project (confirm
-                                        before assuming machine_profiles
-                                        rows exist in production).
-  PathfinderEdge integration:          BLOCKED — see PATHFINDEREDGE
-                                        MACHINE INTEGRATION above.
-  FlashDraft + Design Studio UI:       Core two-panel canvas tool BUILT.
-                                        Hem geometry UNRESOLVED (2D canvas
-                                        implemented, UNCONFIRMED by Reid;
-                                        3D view renders no hems at all —
-                                        NOT STARTED), mid-leg hems DELETED,
-                                        template rebuild NOT STARTED,
-                                        canvas/sidebar UI changes NOT
-                                        STARTED — see the dedicated
-                                        FlashDraft sections above.
+  Thalmann machine profile import:     Migration + import script built long
+                                        before this file's 2026-08-11 rewrite
+                                        (pre-dates it) — NOT re-verified this
+                                        pass; confirm live-apply status via
+                                        information_schema before assuming
+                                        machine_profiles rows exist in
+                                        production (this project's live DB has
+                                        no migration ledger — see the
+                                        PathfinderEdge note below).
+  PathfinderEdge integration:          Real, live API integration is DONE
+                                        (2026-08-18, superseding an earlier
+                                        complete stub) — hems now push as real
+                                        OpenHem/ClosedHem/TearDropHem features.
+                                        Bend-angle formula (4th revision,
+                                        signed interior angle) is OPEN/PARKED
+                                        (afs-sv-000) — Reid's 4-case
+                                        verification matrix has never been
+                                        run; do not trust non-90° bend angles
+                                        pushed to the real machine until it
+                                        is. This project's live Supabase DB
+                                        has no migration ledger — any
+                                        migration's live-apply status must be
+                                        re-verified via information_schema
+                                        each time it matters.
+  FlashDraft + Design Studio UI:       Core two-panel canvas tool BUILT. Hem
+                                        geometry (2D AND 3D) IMPLEMENTED,
+                                        UNCONFIRMED by Reid — 3D hem rendering
+                                        was added afs-fl-018 and is real code
+                                        today (re-verified this pass:
+                                        ProfileViewer3D.tsx has hemStart/
+                                        hemEnd handling), which supersedes the
+                                        "3D view renders no hems — NOT
+                                        STARTED" entry elsewhere in this file.
+                                        Mid-leg hems DELETED (by design, confirmed
+                                        geometrically impossible to fabricate).
+                                        Template list (20 items + Coping
+                                        Cap/Valley variants) IS BUILT
+                                        (afs-fl-020, re-verified this pass:
+                                        PROFILE_TEMPLATES exists in
+                                        app/studio/draft/page.tsx) — every
+                                        item's geometry is explicit
+                                        PLACEHOLDER (not real fabrication
+                                        dimensions), which is the real
+                                        remaining gap, not "not started." This
+                                        corrects the "FLASHDRAFT TEMPLATE
+                                        REBUILD (Pass 1–4): NOT STARTED" entry
+                                        that still appears verbatim elsewhere
+                                        in this file, left in place as
+                                        historical record per this file's
+                                        append-only convention but now
+                                        superseded — see CURRENT_STATE.md.
+                                        Canvas/sidebar UI changes (afs-fl-019,
+                                        -026 through -029) DONE/re-verified
+                                        live in later sessions, except one
+                                        confirmed-unresolved regression: the
+                                        site-wide chat trigger still overlaps
+                                        FlashDraft's mobile "Load" button.
 
 Machine Bridge + Command Center:       afs-machine-bridge (separate repo)
                                         last audited 2026-07-13: running on
@@ -7815,16 +7942,61 @@ Machine Bridge + Command Center:       afs-machine-bridge (separate repo)
                                         deployed app but failing auth (401,
                                         likely AFS_BRIDGE_SECRET mismatch);
                                         zero .ds1 files ever generated as a
-                                        result. Not re-verified in this
-                                        documentation pass — if this is
-                                        being relied on, re-check
-                                        afs-machine-bridge's own logs
-                                        directly rather than trusting this
-                                        line.
+                                        result. NOT re-verified since —
+                                        re-check afs-machine-bridge's own logs
+                                        directly if this is being relied on.
+                                        Note this is now a secondary path in
+                                        practice: Command Center's own
+                                        approval pipeline (see Phase 6 above)
+                                        defaults new quote-request approvals
+                                        to PathfinderEdge routing instead of
+                                        Machine Bridge.
 
 3D Profile Configurator:               BUILT — Three.js viewer integrated
                                         into FlashDraft, upload results, and
                                         a standalone shareable route.
+
+Bid Documents:                         DONE. Built 2026-07-31 (predates this
+                                        file's rewrite) — a 2026-08-27
+                                        correction (afs-fl-021) confirmed the
+                                        full claim-lock/pricing/PDF/Resend/
+                                        Command-Center pipeline is real, wired
+                                        code, correcting an earlier session's
+                                        mistaken "unbuilt" claim. Never
+                                        exercised end-to-end against a live
+                                        row (no DB access in-session) — the
+                                        remaining step is one real click-
+                                        through, not a rebuild.
+
+Building Code Directory:               IMPLEMENTED, UNCONFIRMED (afs-fl-024).
+                                        All 254 TX counties + 226 cities
+                                        >=10,000 population seeded at
+                                        /admin/building-codes with verified
+                                        links or honest no-code-adopted/
+                                        unresolved status (4 rows genuinely
+                                        unresolved). Not yet Reid-confirmed
+                                        live.
+
+/field mobile apps (contractor +       IMPLEMENTED, UNCONFIRMED (afs-fl-000
+shop):                                 through afs-fl-014). Role-gating,
+                                        camera-to-quote, shop job completion,
+                                        and job-completion automation
+                                        (delivery date + invoice email) are
+                                        all real and wired; three scoped PWA
+                                        install manifests exist. None of it
+                                        has been checked on a real
+                                        Android/iOS device yet — the actual
+                                        gate to DONE, per this file's own
+                                        repeated note.
+
+HailView:                              IMPLEMENTED, UNCONFIRMED. All 5 spec
+                                        phases plus an interactive map are
+                                        complete (afs-hv-001 through
+                                        afs-hv-009). Zero Reid confirmation
+                                        yet — the default zoom alone has
+                                        already needed one live-caught
+                                        correction after being called
+                                        "confirmed."
 ```
 
 ---
@@ -7875,39 +8047,89 @@ When migrating DNS to the live domain, these must be updated BEFORE go-live:
 
 ## NEXT ACTION
 
-1. **New:** Get the user's own confirmation of the three PWA install sets
-   (afs-fl-010, see entry above) on a real Android and iOS device —
-   correct name/icon per route, red/black/white baked backgrounds actually
-   render (not a default OS fill), and `/field/contractor` still installs
-   and opens with no login prompt. Also run `pnpm build` once, not yet
-   done this pass.
-2. Get the user's own confirmation on the FlashDraft hem system (geometry,
-   Hem Length glyph scaling, Gap re-added and now actually wired to the
-   glyph, Outside/Inside Kick rebuilt as a true mirror, mid-leg removal,
-   leg-shrink fix, Teardrop now sized from material thickness) against his
-   reference sketch/photos — do not mark it complete until that happens,
-   regardless of how many rendering passes have been made. Specific items
-   still needing his judgment: whether `hem.kick === 'inside'` is the
-   correct condition for `mirror: true` (one line to flip if backwards —
-   see the "OPEN FOLD-DIRECTION BUG FIXED..." entry above — this session
-   re-confirmed the mirror itself renders correctly either way, just not
-   which label is physically correct), `HEM_GLYPH_LENGTH_SCALE`'s default
-   of `1.0`, and whether Teardrop's new `TEARDROP_THICKNESS_TO_R` proportion
-   (see the newest FlashDraft entry above) actually matches his reference
-   photos' tightness once seen live.
-2. ~~Mid-leg hem removal~~ — done 2026-08-14, see the consolidated
-   FlashDraft hem-system entry above.
-3. FlashDraft 3D view does not render hems — newly identified this
-   session, needs real scoping (not a quick prop pass-through), see the
-   dedicated NOT STARTED entry above.
-4. FlashDraft template rebuild (Pass 1–4) — not started, needs scoping into
-   actual FORGE prompts against the locked 20-item list + PAC-CLAD picker.
-5. Canvas/sidebar UI changes (afs-fl-019) — implemented this pass, needs
-   Reid's live confirmation of the lighter canvas gray and the more
-   compact Length/Quantity fields in `/studio/draft`.
-6. PathfinderEdge — blocked on AMS Controls (Seth Oliver) providing
-   server-side logs for the 401 root cause; no code work possible until a
-   real, documented API surface is confirmed.
+*Rewritten in full 2026-09-05 — the version of this section below (items
+1–6, dated to an 2026-08-14/2026-08-27 snapshot) had fallen well behind
+the top of this file: it still listed the FlashDraft template rebuild and
+3D hem rendering as "not started" after both had since been built
+(afs-fl-020, afs-fl-018), and it never mentioned HailView, the /field
+mobile apps, Bid Documents, Building Codes, or Command Center's
+PathfinderEdge-routing switch at all. Superseded list, current as of
+afs-hv-009 (top of this file):*
+
+1. **PathfinderEdge bend-angle verification matrix — highest-priority
+   open item touching the physical machine.** Reid has never run the
+   4-case matrix (sharp V, W-profile mixed angles, near-90° regression,
+   hairpin/hem-adjacent) against the current signed-interior-angle formula
+   (afs-sv-000, OPEN/PARKED since 2026-08-20). Command Center approvals now
+   default to routing through PathfinderEdge, not Machine Bridge, so a
+   wrong bend angle on a non-90° profile reaches the real Thalmann. Do not
+   treat this as a documentation nicety — it's a shop-floor correctness
+   risk.
+2. **Reid's own confirmation, across everything shipped since the last
+   time he looked:** HailView (afs-hv-001–009, zero confirmation so far —
+   the default zoom alone already needed one live-caught correction after
+   being called "confirmed"), the FlashDraft hem/paint/template system,
+   the admin nav restructure (afs-fl-031, including the two explicit
+   judgment calls it flagged — the "General" rename and GBP's
+   dashboard-card-only reachability), the homepage additions (afs-fl-034),
+   and the magic-link login redirect fix (afs-fl-038, could not be
+   click-tested in this environment).
+3. **FlashDraft chat-widget/mobile-Load-button overlap (afs-fl-027)** —
+   confirmed regression, still unresolved. Needs a real design decision
+   (page-specific chat accommodation vs. a mobile sidebar redesign), not
+   another trigger-size tweak.
+4. **FlashDraft template geometry is placeholder, not real.** The
+   mechanism (20-item list + VariantPicker) is done; every shape is a
+   generic 2–8 point placeholder. Swapping in real fabrication dimensions
+   is a pure data change to `PROFILE_TEMPLATES` once Reid supplies
+   physical reference images — do not fabricate dimensions from memory in
+   the meantime, per his standing constraint.
+5. **Three PWA install sets and both `/field` mobile flows (afs-fl-010,
+   -002, -003) have never been checked on a real Android/iOS device** —
+   the actual gate to DONE for all of them.
+6. **Bid Documents (DONE per afs-fl-021) has never been exercised
+   end-to-end against a live row** — one real claim → price → preview →
+   send click-through would close this out, not a rebuild.
+7. **Credentials still blocking real sends, unchanged:** Resend
+   (`RESEND_API_KEY`/`RESEND_FROM_EMAIL` unset — every email path degrades
+   gracefully but nothing actually sends: HailView's email-my-results,
+   shop-job-completion's invoice email, Bid Documents' delivery email, etc.
+   all affected), Google Business Profile OAuth (code is fully wired,
+   `isGbpConfigured()` returns false), PathfinderEdge's own prior 401s
+   (resolved by finding a stale key — no longer blocking, but worth noting
+   credential staleness is exactly the kind of thing this file's
+   verification standard exists to catch).
+8. **Building Code Directory (afs-fl-024)** — complete except 4 genuinely
+   `unresolved` jurisdictions (2 counties, 2 cities whose sites block
+   automated verification) and Reid's own live look at `/admin/building-codes`.
+9. Privacy Policy (`app/(public)/legal/privacy/page.tsx`) is a real route
+   but its content is a literal "coming soon" placeholder — still a launch
+   blocker per CLAUDE.md's DATA BLOCKERS table.
+
+*Superseded items 1–6 (2026-08-14/2026-08-27 snapshot), kept for
+history — do not action these, they are outdated or already resolved:*
+
+1. ~~Get the user's own confirmation of the three PWA install sets on a
+   real device~~ — still genuinely open, folded into item 5 above.
+2. ~~Get the user's own confirmation on the FlashDraft hem system~~ —
+   still open in substance, folded into item 2 above; the specific
+   sub-questions this item raised (`hem.kick === 'inside'` mapping,
+   `HEM_GLYPH_LENGTH_SCALE`, `TEARDROP_THICKNESS_TO_R`) were superseded by
+   later fixes (`3fa8c70` and after) — see the FlashDraft hem-chain entries
+   above for the current state of each.
+3. ~~FlashDraft 3D view does not render hems, needs scoping~~ — **done**,
+   afs-fl-018 added real 3D hem geometry. No longer accurate.
+4. ~~FlashDraft template rebuild — not started~~ — **done** (with
+   placeholder geometry), afs-fl-020. No longer accurate — see item 4 in
+   the current list above for what's actually still open.
+5. ~~Canvas/sidebar UI changes (afs-fl-019) — needs Reid's live
+   confirmation~~ — re-verified live by later sessions (afs-fl-026/027);
+   still not Reid-confirmed, folded into item 2 above.
+6. ~~PathfinderEdge — blocked on AMS Controls server-side logs~~ —
+   **resolved**: the 401s were a stale local API key, not a server-side
+   issue; real API integration has been DONE since 2026-08-18. See item 1
+   above for what's actually still open on PathfinderEdge today (the
+   bend-angle verification matrix, unrelated to the old 401 blocker).
 
 ---
 

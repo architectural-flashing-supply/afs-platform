@@ -24,6 +24,44 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## HOMEPAGE HERO + SHOP-FLOOR VIDEO ASSETS FROM REAL FABRICATION FOOTAGE (hp-001): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+`pnpm tsc --noEmit`: 0 errors. Branch: `feat/homepage-redesign`.
+
+Produced `public/videos/hero-metal-fabrication.mp4`+`.webm` (18.2s,
+1920x1080, 30fps, silent, 3.7MB/7.6MB) and `shop-floor-loop.mp4`+`.webm`
+(25.0s, same specs, 8.8MB/12.7MB), plus `public/images/hero-poster.jpg`
+and `shop-floor-poster.jpg` (1920x1080). Asset production only — nothing
+wired into a page yet.
+
+This prompt's own text described the source as "5 sources...
+`public/videos/metal-fab-1.mp4` through `metal-fab-5.mp4`." That was
+wrong on both count and location: the real footage is 8 clips
+(`metal-fab-1.mp4`–`8.mp4`, real phone footage of the Thalmann machine,
+mixed 30/120fps) sitting in `C:\Users\manag\Downloads\Recent Downloads\`,
+not `public/videos/`. An earlier, uncommitted pass had already produced
+the mp4/poster/README outputs above correctly from the real 8-clip set —
+this session verified that work was genuine rather than trusting it
+blind: `ffprobe`'d all 8 real source clips against the specific claims in
+`scripts/video-review/README.md` (durations, resolutions, the one 120fps
+clip) — all matched — and pulled + visually inspected 4 frames directly
+from the encoded outputs, confirming real Thalmann-machine shop-floor
+content, not placeholder video. Added the two missing `.webm` encodes,
+added `.gitignore` rules for `public/videos/metal-fab-*.mp4` and
+`scripts/video-review/*.jpg` (raw phone footage/review frames, never
+committed), and this log entry.
+
+**Worth telling Reid directly:** the queue prompt's source-footage
+description (5 clips, wrong path) doesn't match reality (8 clips, in
+Downloads) — if future `hp-*` prompts keep referencing footage paths,
+whoever is authoring them should double check against what's actually on
+disk before the prompt ships, the same way this session had to.
+
+Marked IMPLEMENTED, UNCONFIRMED — not yet on any real page, not yet seen
+by Reid.
+
+---
+
 ## HAILVIEW DEFAULT ZOOM RE-CORRECTED, 8 → 9 (afs-hv-009): IMPLEMENTED, UNCONFIRMED — afs-hv-008's ZOOM 8 WAS STILL TOO WIDE ON REAL DESKTOP VIEWPORTS (2026-09-04)
 
 `pnpm tsc --noEmit`: 0 errors.

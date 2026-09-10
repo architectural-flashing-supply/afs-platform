@@ -42,3 +42,10 @@ AFS CREDENTIALS.txt
 # PATHFINDER_DEBUG_CAPTURE=1 output — real outgoing PathfinderEdge POST
 # bodies (real profile geometry), diagnostic-only, never committed.
 diagnostics/
+
+# Raw shop-floor source footage for the homepage hero/shop-floor-loop
+# videos (real, unedited phone footage of the Thalmann machine) and the
+# review frames pulled from it — never committed, only the encoded
+# public/videos/*.mp4 + *.webm outputs are.
+public/videos/metal-fab-*.mp4
+scripts/video-review/*.jpg
