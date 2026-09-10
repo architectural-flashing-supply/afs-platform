@@ -34,6 +34,79 @@ summary, not a replacement for it.
 
 ---
 
+## CASESTUDIES — THREE PROJECT PHOTO CARDS + NASA CREDENTIAL CARD (hp-011): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+**Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
+0 errors. Commit `fa7878b`.
+
+**Photo identification, resolved against the already-verified catalog, not
+a fresh read of the raw manifest:** the prompt pointed at
+`public/legacy-site-photos/` and its `MANIFEST.md`, but this repo already
+has a more authoritative source for these same 39 "our-work" photos —
+`lib/home/portfolio-photos.ts` (built for afs-fl-034, `PhotoCategoryGrid.tsx`
+/ `ProjectGallery.tsx`), where every photo was individually viewed and
+described once already, copied locally to
+`public/home_page_images/gallery/afs-{1-39}.jpg`. Reused that catalog
+instead of writing a second, potentially-divergent description of the same
+files.
+
+The prompt's candidate-photo sentence ("the first four below-the-fold
+legacy photos, the entryway-with-tree-trunks photo, and the stove
+vent-a-hood photo") maps directly onto that file once read: "below-the-fold
+legacy photos" is `PORTFOLIO_GALLERY_IDS` (the `ProjectGallery.tsx` section,
+which renders below `PhotoCategoryGrid.tsx` on the homepage) —
+`[22, 9, 34, 19, 14, 38, 7, 30]`. Its first four are `22, 9, 34, 19`. Photo
+`#19`'s own catalog description — "Standing-seam copper pavilion roof over
+a wood-beamed porch, oak trees framing the view" — is itself "the
+entryway-with-tree-trunks photo," so it's the same photo, not a fifth one.
+"The stove vent-a-hood photo" (`#30`, a range hood) is in the candidate
+pool but doesn't depict any of the three required subjects (copper dome /
+arched-window flashing / standing-seam), so it isn't used on this card set.
+
+All three photo cards are **direct, high-confidence matches**, not
+closest-available substitutes — no low-confidence placeholder note is
+needed:
+- **Copper Dome** → photo `#22`, catalog alt "Aerial close-up of a
+  fabricated copper dome roof, Texas hill country in the distance."
+- **Arched-Window Flashing** → photo `#34`, catalog alt "Copper arched
+  window head flashing above three arched windows on a blue building."
+- **Standing-Seam Detail** → photo `#19`, catalog alt "Standing-seam copper
+  pavilion roof over a wood-beamed porch, oak trees framing the view."
+
+Real intrinsic dimensions (`600×450`, all three) were read directly from
+the files via `System.Drawing.Image` (PowerShell), not assumed — `next/
+image` in `CaseStudies.tsx` uses those literal `width`/`height` values, not
+`fill`.
+
+**No stock photography used.** Material/finish lines and one-sentence
+outcome copy are descriptive marketing copy grounded in what's actually
+visible in each verified photo (e.g. "Standing-Seam Copper · Pavilion
+Roof") — not a real client's confirmed project data, since no
+project-specific cost basis or client-confirmed outcome exists in this
+repo for any of these three photos (`CLAUDE.md`'s DATA BLOCKERS: pricing
+rules/cost basis and supplier records are unreceived). Same placeholder-
+copy standard `SPEC_HOMEPAGE.md` §4 already applies to `TestimonialsSection`
+elsewhere on the homepage.
+
+**NASA credential card:** built as specified — title, subheading, `$500K
+Project` badge (a project-scale credential, not a customer-facing price;
+does not match the homepage's own "no prices" Playwright regex,
+`/\$[\d,]+\.\d{2}/`, since it carries no decimal cents), and the exact copy
+given in the prompt. `public/images/nasa-jsc-logo.svg` does not exist in
+this repo (checked via glob before building) — "NASA Johnson Space Center"
+is rendered as a typographic badge (a bordered pill with the full text),
+not a downloaded or drawn insignia, per the prompt's explicit instruction.
+
+**Not wired into a page route** — same as `CustomerPathways.tsx`,
+`DesignToDelivery.tsx`, `ProfilePassportExplainer.tsx`, and
+`FieldAppStory.tsx` before it (hp-005/008/009/010), this component exists
+standalone in `app/components/home/` and is not yet imported by
+`app/page.tsx` or any other route. The prompt asked only to build the
+component, not to assemble it into the live homepage — assembly appears to
+be a later, separate step in this branch's build sequence.
+
+---
+
 ## PROFILEPASSPORTEXPLAINER — DESIGN/SAVE/REORDER FLOW + PASSPORT CARD (hp-010): IMPLEMENTED, UNCONFIRMED (2026-09-10)
 
 **Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —

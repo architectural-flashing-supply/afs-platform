@@ -24,6 +24,74 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## CASESTUDIES — THREE PROJECT PHOTO CARDS + NASA CREDENTIAL CARD (hp-011): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+`pnpm tsc --noEmit`: 0 errors. Branch: `feat/homepage-redesign`. Commit
+`fa7878b`.
+
+Read CLAUDE.md, DESIGN_TOKENS.md, and `specs/SPEC_HOMEPAGE.md` first per the
+prompt, then the prompt sent me to `public/legacy-site-photos/MANIFEST.md`
+to identify real photos for a copper dome, arched-window flashing, and
+standing-seam card. Before doing that from scratch, checked whether this
+repo already had a verified mapping for these same photos — it does:
+`lib/home/portfolio-photos.ts` (afs-fl-034), already used by
+`PhotoCategoryGrid.tsx` and `ProjectGallery.tsx`, with every one of the 39
+"our-work" photos individually viewed and described once already, and
+copied locally to `public/home_page_images/gallery/`. Used that catalog as
+the source of truth instead of re-describing the manifest's JPGs a second
+time.
+
+The prompt's photo-selection sentence was confusing on first read — "the
+first four below-the-fold legacy photos, the entryway-with-tree-trunks
+photo, and the stove vent-a-hood photo" doesn't obviously map onto the raw
+manifest's three folders. It resolves cleanly once you read
+`portfolio-photos.ts`: `PORTFOLIO_GALLERY_IDS` (the below-the-fold
+`ProjectGallery.tsx` list) is `[22, 9, 34, 19, 14, 38, 7, 30]`; its first
+four are `22, 9, 34, 19`; and photo `#19`'s own real description
+("Standing-seam copper pavilion roof over a wood-beamed porch, oak trees
+framing the view") *is* the entryway-with-tree-trunks photo — same photo,
+not a separate fifth one. The "stove vent-a-hood photo" (`#30`) was in the
+candidate pool the prompt described but doesn't match any of the three
+required card subjects, so it wasn't used. Final mapping, all high-
+confidence direct matches (no "closest available" fallback needed for any
+of the three): Copper Dome → `#22`, Arched-Window Flashing → `#34`,
+Standing-Seam Detail → `#19`.
+
+Verified real intrinsic dimensions of all three source files directly
+(`System.Drawing.Image` via PowerShell: `600×450` for all three) rather
+than guessing an aspect ratio, and used literal `width`/`height` props on
+`next/image` instead of `fill`.
+
+Confirmed `public/images/nasa-jsc-logo.svg` does not exist (glob, before
+writing the card) — built the NASA credential card's "NASA Johnson Space
+Center" as a typographic badge per the prompt's fallback instruction, not
+an insignia. `$500K Project` badge copy checked against the homepage's own
+"no prices" Playwright assertion (`/\$[\d,]+\.\d{2}/`) — no match, since it
+carries no decimal cents.
+
+Built `app/components/home/CaseStudies.tsx` — four cards, `grid-cols-1
+sm:grid-cols-2` (2×2 desktop, stacked mobile). Reused
+`PORTFOLIO_PHOTOS[id].src`/`.alt` from `lib/home/portfolio-photos.ts`
+directly rather than hardcoding new `src`/`alt` strings, to keep one source
+of truth for these photos across `PhotoCategoryGrid.tsx`,
+`ProjectGallery.tsx`, and this new component.
+
+Not wired into `app/page.tsx` or any route — same as `CustomerPathways.tsx`,
+`DesignToDelivery.tsx`, `ProfilePassportExplainer.tsx`, and
+`FieldAppStory.tsx`, this is a standalone component per the prompt's own
+scope (build the component; it doesn't ask for page assembly).
+
+**Next session:** if/when a prompt assembles these standalone
+`app/components/home/*` sections (`CredibilityStrip`, `CustomerPathways`,
+`DesignToDelivery`, `ProfilePassportExplainer`, `CaseStudies`, etc.) into
+`app/page.tsx`, decide the final section order against `SPEC_HOMEPAGE.md`
+§2 and the real hero/`PhotoCategoryGrid`/`ProjectGallery` sections already
+live there — `SPEC_HOMEPAGE.md`'s own section list is already stale
+against what's actually built (no `ThreePillarsSection`, `StatSection`,
+etc. exist under those names in `app/`).
+
+---
+
 ## PROFILEPASSPORTEXPLAINER — DESIGN/SAVE/REORDER FLOW + PASSPORT CARD (hp-010): IMPLEMENTED, UNCONFIRMED (2026-09-10)
 
 `pnpm tsc --noEmit`: 0 errors. Branch: `feat/homepage-redesign`. Commit
