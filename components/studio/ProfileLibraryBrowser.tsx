@@ -169,11 +169,13 @@ export default function ProfileLibraryBrowser({
   });
 
   const categoryChips = compact && (
-    <div className="flex flex-wrap gap-2 mb-6">
+    <div className="flex flex-wrap gap-2 mb-6" data-testid="profile-library-chips">
       {['all', ...categories].map((c) => (
         <button
           key={c}
           type="button"
+          data-testid="profile-library-chip"
+          data-category={c}
           onClick={() => setCategory(c)}
           className={`font-label text-xs font-semibold px-4 py-2 rounded-full border transition-colors ${
             category === c
@@ -191,7 +193,11 @@ export default function ProfileLibraryBrowser({
     visible.length === 0 ? (
       <p className="font-body text-sm text-afs-chrome-mid py-12 text-center">No profiles match these filters.</p>
     ) : (
-      <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+      <div
+        className="grid gap-4"
+        data-testid="profile-library-grid"
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}
+      >
         {visible.map((p) => {
           const isComparing = compareIds.includes(p.id);
           const hasGeometry = p.bendCount > 0;
@@ -199,6 +205,7 @@ export default function ProfileLibraryBrowser({
           return (
             <div
               key={p.id}
+              data-testid="profile-library-card"
               onClick={() => setModalProfile(p)}
               className="bg-afs-bg-raised border border-afs-chrome-dim rounded metal-edge p-4 flex flex-col gap-2 cursor-pointer hover:border-afs-crimson transition-colors"
             >
@@ -234,6 +241,7 @@ export default function ProfileLibraryBrowser({
                 {show3DToggle && hasGeometry && (
                   <button
                     type="button"
+                    data-testid="profile-library-3d-toggle"
                     onClick={(e) => {
                       e.stopPropagation();
                       toggle3D(p.id);

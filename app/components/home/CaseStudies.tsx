@@ -80,6 +80,7 @@ export default function CaseStudies() {
             return (
               <div
                 key={study.key}
+                id={`case-study-${study.key}`}
                 className="flex flex-col overflow-hidden rounded border border-[var(--afs-border)] bg-afs-bg-raised metal-edge"
               >
                 <div className="relative aspect-[4/3] w-full overflow-hidden">
@@ -108,7 +109,10 @@ export default function CaseStudies() {
               photo. "NASA Johnson Space Center" is rendered as a
               typographic badge, not a downloaded or drawn insignia --
               public/images/nasa-jsc-logo.svg does not exist in this repo. */}
-          <div className="flex flex-col overflow-hidden rounded border border-[var(--afs-border)] bg-afs-bg-raised metal-edge">
+          <div
+            id="case-study-nasa-jsc"
+            className="flex flex-col overflow-hidden rounded border border-[var(--afs-border)] bg-afs-bg-raised metal-edge"
+          >
             <div className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-3 bg-afs-bg-dim px-6 text-center">
               <span className="font-label text-[0.65rem] font-semibold uppercase tracking-widest text-afs-chrome-dim">
                 Trusted by
@@ -123,7 +127,7 @@ export default function CaseStudies() {
                   Mission-Critical Precision
                 </h3>
                 <span className="flex-none rounded bg-afs-crimson px-2.5 py-1 font-label text-xs font-bold uppercase tracking-wider text-white">
-                  $500K Project
+                  Zero-Defect Delivery
                 </span>
               </div>
               <p className="mt-3 font-body text-sm text-afs-chrome-mid">

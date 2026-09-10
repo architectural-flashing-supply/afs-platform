@@ -45,32 +45,37 @@ function FitToContinentalUS() {
 
 export default function NationwideMapLeaflet() {
   return (
-    <MapContainer
-      center={[HQ_LOCATION.lat, HQ_LOCATION.lon]}
-      zoom={4}
-      scrollWheelZoom={false}
-      style={{ width: '100%', height: '100%' }}
-      data-testid="nationwide-map"
-    >
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-      <FitToContinentalUS />
-
-      <Circle
+    // react-leaflet's MapContainer doesn't spread unrecognized props (like
+    // data-testid) onto its underlying DOM node, so the test hook lives on a
+    // wrapping div instead -- same pattern already established by
+    // components/hailview/HailViewMap.tsx's own "hailview-map" testid.
+    <div className="h-full w-full" data-testid="nationwide-map">
+      <MapContainer
         center={[HQ_LOCATION.lat, HQ_LOCATION.lon]}
-        radius={NATIONWIDE_RADIUS_METERS}
-        pathOptions={{ color: '#C0001A', fillColor: '#C0001A', fillOpacity: 0.05, opacity: 0.25 }}
+        zoom={4}
+        scrollWheelZoom={false}
+        style={{ width: '100%', height: '100%' }}
       >
-        <Tooltip direction="top" permanent>
-          Nationwide delivery
-        </Tooltip>
-      </Circle>
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+        <FitToContinentalUS />
 
-      <Marker position={[HQ_LOCATION.lat, HQ_LOCATION.lon]} icon={HQ_MARKER_ICON}>
-        <Popup>{HQ_LOCATION.name}</Popup>
-      </Marker>
-    </MapContainer>
+        <Circle
+          center={[HQ_LOCATION.lat, HQ_LOCATION.lon]}
+          radius={NATIONWIDE_RADIUS_METERS}
+          pathOptions={{ color: '#C0001A', fillColor: '#C0001A', fillOpacity: 0.05, opacity: 0.25 }}
+        >
+          <Tooltip direction="top" permanent>
+            Nationwide delivery
+          </Tooltip>
+        </Circle>
+
+        <Marker position={[HQ_LOCATION.lat, HQ_LOCATION.lon]} icon={HQ_MARKER_ICON}>
+          <Popup>{HQ_LOCATION.name}</Popup>
+        </Marker>
+      </MapContainer>
+    </div>
   );
 }

@@ -1,90 +1,82 @@
-import Image from 'next/image';
-import Link from 'next/link';
-import HeroDrawingOverlay from '@/components/home/HeroDrawingOverlay';
-import PhotoCategoryGrid from '@/components/home/PhotoCategoryGrid';
-import ProjectGallery from '@/components/home/ProjectGallery';
+import dynamic from 'next/dynamic';
+import HomeSection from '@/app/components/home/HomeSection';
+import HeroSection from '@/app/components/hero/HeroSection';
+import CredibilityStrip from '@/app/components/home/CredibilityStrip';
+import FieldAppStory from '@/app/components/home/FieldAppStory';
+import DesignStudioHub from '@/app/components/home/DesignStudioHub';
+import DesignToDelivery from '@/app/components/home/DesignToDelivery';
+import CustomerPathways from '@/app/components/home/CustomerPathways';
+import ProfilePassportExplainer from '@/app/components/home/ProfilePassportExplainer';
+import CaseStudies from '@/app/components/home/CaseStudies';
+import ShopFloorProof from '@/app/components/home/ShopFloorProof';
+import FinalCTA from '@/app/components/home/FinalCTA';
+
+// ProfileExplorer (Supabase-backed profile grid, optional inline 3D viewer)
+// and NationwideMap (Leaflet map) are the two heaviest sections below the
+// fold. `ssr: false` isn't legal here -- this file has no 'use client', and
+// Next disallows `dynamic(..., { ssr: false })` in Server Components -- so
+// this is a plain code-split (ssr stays on). Each component already
+// defers its own genuinely client-only piece internally via its own
+// `dynamic(..., { ssr: false })` inside a 'use client' module: ProfileRotation
+// inside HeroSection, ProfileViewer3D inside ProfileLibraryBrowser (used by
+// ProfileExplorer), and NationwideMapLeaflet inside NationwideMap.
+const ProfileExplorer = dynamic(() => import('@/app/components/home/ProfileExplorer'));
+const NationwideMap = dynamic(() => import('@/app/components/home/NationwideMap'));
 
 export default function HomePage() {
   return (
-    <>
-    <main
-      className="relative overflow-hidden bg-afs-bg-dim"
-      style={{ height: '100vh' }}
-    >
-      <Image
-        src="/home_page_images/2.jpg"
-        alt="Shop floor with workers and fabricated flashing"
-        fill
-        priority
-        sizes="100vw"
-        className="object-cover"
-        style={{ objectPosition: 'center center' }}
-      />
-      <div className="absolute inset-0 bg-gradient-to-br from-afs-bg-dim/70 via-afs-bg-dim/45 to-afs-bg-dim/60" />
+    <main>
+      <HomeSection slug="hero">
+        <HeroSection />
+      </HomeSection>
 
-      {/* Rooftop triangle — pre-composited PNG with the diagonal cut baked into its alpha channel */}
-      <img
-        src="/home_page_images/rooftop-triangle.png"
-        alt=""
-        style={{
-          position: 'absolute',
-          bottom: 0,
-          right: 0,
-          width: '55%',
-          height: '70%',
-          zIndex: 2,
-          pointerEvents: 'none',
-        }}
-      />
+      <HomeSection slug="credibility">
+        <CredibilityStrip />
+      </HomeSection>
 
-      {/* afs-fl-034 — "drawing to steel" accent: a supporting visual element
-          only, layered over the existing photo/triangle. Does not touch the
-          headline, copy, or hero photo above. */}
-      <HeroDrawingOverlay />
+      <HomeSection slug="field-app">
+        <FieldAppStory />
+      </HomeSection>
 
-      <div
-        className="absolute z-10"
-        style={{ left: '7%', top: '50%', transform: 'translateY(-50%)' }}
-      >
-        <h1
-          className="font-display text-afs-chrome-high"
-          style={{
-            fontSize: 'clamp(3rem, 5vw, 5.5rem)',
-            lineHeight: 1.0,
-          }}
-        >
-          TEXAS CRAFTED.<br />
-          NATIONALLY DELIVERED.
-        </h1>
+      {/* DesignStudioHub already sets id="design-studio" on its own root
+          section -- the same anchor also reachable at the standalone
+          /design-studio route -- so withId is off here to avoid a
+          duplicate id in the DOM. */}
+      <HomeSection slug="design-studio" withId={false}>
+        <DesignStudioHub />
+      </HomeSection>
 
-        <div className="my-[18px] h-[3px] w-[80px] bg-afs-crimson shadow-crimson" />
+      <HomeSection slug="profile-explorer" withId={false}>
+        <ProfileExplorer />
+      </HomeSection>
 
-        <p
-          className="font-heading font-medium tracking-[0.08em] text-afs-chrome-high"
-          style={{ fontSize: 'clamp(1rem, 1.8vw, 1.35rem)' }}
-        >
-          Precision Metal Flashing Fabrication
-        </p>
+      <HomeSection slug="design-to-delivery">
+        <DesignToDelivery />
+      </HomeSection>
 
-        <div className="mt-9 flex gap-4">
-          <Link
-            href="/studio"
-            className="rounded border border-transparent bg-afs-crimson px-9 py-3.5 font-label text-sm font-semibold tracking-[1px] text-afs-chrome-high cursor-pointer"
-          >
-            Submit a Drawing
-          </Link>
-          <Link
-            href="/studio"
-            className="rounded border border-afs-chrome-high/45 bg-transparent px-9 py-3.5 font-label text-sm font-semibold tracking-[1px] text-afs-chrome-high cursor-pointer"
-          >
-            Start in Design Studio
-          </Link>
-        </div>
-      </div>
+      <HomeSection slug="pathways">
+        <CustomerPathways />
+      </HomeSection>
+
+      <HomeSection slug="profile-passport" withId={false}>
+        <ProfilePassportExplainer />
+      </HomeSection>
+
+      <HomeSection slug="case-studies">
+        <CaseStudies />
+      </HomeSection>
+
+      <HomeSection slug="shop-floor">
+        <ShopFloorProof />
+      </HomeSection>
+
+      <HomeSection slug="nationwide" withId={false}>
+        <NationwideMap />
+      </HomeSection>
+
+      <HomeSection slug="final-cta">
+        <FinalCTA />
+      </HomeSection>
     </main>
-
-    <PhotoCategoryGrid />
-    <ProjectGallery />
-    </>
   );
 }
