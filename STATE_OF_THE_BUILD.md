@@ -34,6 +34,62 @@ summary, not a replacement for it.
 
 ---
 
+## FIELDAPPSTORY — PHOTO-TO-QUOTE FIELD APP STORY SECTION (hp-005): IMPLEMENTED, UNCONFIRMED — NOT WIRED INTO ANY REAL PAGE (2026-09-10)
+
+**Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
+0 errors. Commit `fe5a917`.
+
+**What exists now, on `feat/homepage-redesign`, not yet on `main`:**
+`app/components/home/FieldAppStory.tsx` — a two-column client component.
+Left: a CSS-only phone device frame (bezel, notch, and screen built from
+styled `div`s — no third-party device-frame image) with a `<video>`
+playing a muted, looping cut of `public/videos/hero-metal-fabrication.mp4`/
+`.webm` (the same asset HeroSection uses), trimmed to 0-7s in the browser
+via a `timeupdate` handler that resets `currentTime` to 0 rather than a
+separate pre-cut asset, `poster="/images/hero-poster.jpg"` as the fallback,
+and paused when `prefers-reduced-motion` is set (same pattern as
+HeroSection). Right: heading "Photo to Quote from the jobsite" and a
+three-step numbered flow.
+
+**Step 2 copy deliberately diverges from the prompt's literal text, per
+SPEC_PHOTO_TO_QUOTE_AI.md.** The prompt supplied "AI extracts the profile
+and dimensions" as the second step's copy. SPEC_PHOTO_TO_QUOTE_AI.md §1
+and §4 state directly that the photo-analysis AI **never** extracts
+dimensions from a photo (`dimensionVisible`/`visibleWidth` default to
+`false`/`null`; the system prompt itself says "Never estimate dimensions
+from photos") — dimensions are always entered manually from site
+measurements. Shipping the prompt's literal copy would have put a false
+capability claim on the homepage, so the component instead reads "AI
+identifies the profile and material," which matches what the spec's AI
+step actually does.
+
+**Link targets, verified against the real `app/` tree before linking, not
+guessed:** both the "Open the Field App" primary CTA and the "Install as
+an app" secondary text link point to `/field/contractor`
+(`app/field/contractor/page.tsx` — confirmed to exist, no auth/role gate
+per its own code comment, and its `metadata.manifest` already points at a
+route-scoped `/field-contractor-manifest.json` PWA manifest, so no new
+install wiring was needed).
+
+**Background accent:** `flashing-1.jpg` from
+`public/legacy-site-photos/homepage-categories/`, rendered at 8% opacity
+under an `afs-bg-base/90` scrim. `public/legacy-site-photos/MANIFEST.md`
+identifies it as a genuine jobsite installation-detail photo ("angled
+receiver/counterflashing bracket fastened over a metal roof panel against
+a stucco wall — real installation detail, not a staged product shot"),
+not stock photography, so the prompt's "otherwise no photo" fallback
+wasn't needed.
+
+**Not done in this pass, by design:** not imported into `app/page.tsx` —
+consistent with hp-002/hp-003/hp-004, assembly into the real homepage is
+deferred to `hp-019`. No Playwright checkpoint was run this pass (the
+prompt didn't ask for one) — Reid has not looked at this component.
+
+**Marked IMPLEMENTED, UNCONFIRMED per this file's verification standard**
+— compile gate passing is not a substitute for Reid's own look.
+
+---
+
 ## CREDIBILITYSTRIP — FIVE-ITEM CAPABILITY NAV (hp-004): IMPLEMENTED, UNCONFIRMED — NOT WIRED INTO ANY REAL PAGE (2026-09-10)
 
 **Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —

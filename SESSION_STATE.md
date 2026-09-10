@@ -24,6 +24,52 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## FIELDAPPSTORY — PHOTO-TO-QUOTE FIELD APP STORY SECTION (hp-005): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+`pnpm tsc --noEmit`: 0 errors. Branch: `feat/homepage-redesign`. Commit
+`fe5a917`.
+
+Built `app/components/home/FieldAppStory.tsx` — a two-column section: a
+CSS-only phone device frame (bezel/notch built from styled `div`s, no
+third-party device-frame image) on the left, playing a muted, looping 0-7s
+cut of `public/videos/hero-metal-fabrication.mp4`/`.webm` (same source
+HeroSection uses, trimmed client-side via a `timeupdate` handler that
+resets `currentTime` to 0 at 7s — no separate trimmed asset), poster
+`/images/hero-poster.jpg` as fallback, and paused under
+`prefers-reduced-motion` (same pattern as HeroSection). Right column:
+heading "Photo to Quote from the jobsite" and a three-step numbered flow.
+
+**Step 2 copy corrected against SPEC_PHOTO_TO_QUOTE_AI.md, not shipped as
+prompted.** The prompt's literal copy — "AI extracts the profile and
+dimensions" — contradicts the spec directly: §1 and §4's system prompt are
+explicit that dimensions are never extracted from photos
+(`dimensionVisible`/`visibleWidth` default false/null; "Never estimate
+dimensions from photos") and must always be entered from site
+measurements. Shipped as "AI identifies the profile and material" instead,
+which is what the spec's AI step actually does.
+
+CTA "Open the Field App" and secondary text link "Install as an app" both
+route to `/field/contractor` — confirmed as a real, existing route
+(`app/field/contractor/page.tsx`, no auth/role gate, its own
+`/field-contractor-manifest.json` PWA manifest already wired via that
+page's route-scoped `metadata.manifest`) before linking, not assumed from
+the prompt.
+
+Background accent: `flashing-1.jpg` from
+`public/legacy-site-photos/homepage-categories/`, at 8% opacity behind an
+`afs-bg-base/90` scrim — the manifest there confirms it as a real jobsite
+installation-detail photo ("angled receiver/counterflashing bracket
+fastened over a metal roof panel against a stucco wall — real installation
+detail, not a staged product shot"), not stock.
+
+Not imported into `app/page.tsx` — deferred to `hp-019`, same as
+hp-002/hp-003/hp-004. No Playwright checkpoint run this pass (not
+requested by the prompt); Reid has not looked at this component yet.
+
+Marked IMPLEMENTED, UNCONFIRMED per this file's verification standard.
+
+---
+
 ## CREDIBILITYSTRIP — FIVE-ITEM CAPABILITY NAV (hp-004): IMPLEMENTED, UNCONFIRMED (2026-09-10)
 
 `pnpm tsc --noEmit`: 0 errors. Branch: `feat/homepage-redesign`. Commit
