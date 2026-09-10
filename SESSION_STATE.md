@@ -24,6 +24,57 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## HEROSECTION — FULL-BLEED VIDEO HERO WITH PROFILEROTATION (hp-003): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+`pnpm tsc --noEmit`: 0 errors. Branch: `feat/homepage-redesign`.
+
+Built `app/components/hero/HeroSection.tsx`, combining hp-001's video
+asset and hp-002's `ProfileRotation` component. Full-bleed
+`hero-metal-fabrication.webm`/`.mp4` background video (`autoPlay muted
+loop playsInline preload="metadata"`, `poster="/images/hero-
+poster.jpg"`), `afs-bg-dim` gradient overlay reusing the same stops as
+`app/page.tsx`'s current hero, `min-h-[100svh]` layout — text left /
+`ProfileRotation` right on desktop, stacked with a shorter
+`ProfileRotation` on mobile. Exact H1 copy: "SHOW US THE DETAIL. WE'LL
+FORM IT." Primary CTA "Start a Quote" → `/design-studio`; secondary
+"Explore Profiles" → `#profile-explorer`. `ProfileRotation` consumed via
+`next/dynamic(..., { ssr: false })`, same pattern as `HailViewMap`.
+
+LCP/reduced-motion handling: `<video>`'s `<source>` children are only
+rendered after mount, once a `matchMedia('prefers-reduced-motion:
+reduce')` check (with a live `change` listener) has run — so the
+`poster` always paints first, and reduced-motion users never get a
+video source at all.
+
+Verified per the prompt's checkpoint: mounted on a temporary
+`app/hp-003-preview/page.tsx`, ran `pnpm dev`, drove it with a
+throwaway Playwright script (no `chromium-cli` in this environment) at
+375px/768px/1440px. Results: no layout shift (H1 bounding box identical
+across a 500ms delay at every width), video confirmed muted and
+playing (`currentTime` advancing) at every width, zero console errors,
+`flexDirection` on the layout wrapper confirmed `column` at 375px and
+`row` at 768px/1440px (mobile-stacked vs. desktop side-by-side, as
+asked), and both CTA `href`s confirmed correct via the DOM. Screenshots
+at all three widths were visually reviewed. The temp route and check
+script were deleted after verification; only `HeroSection.tsx` is
+committed.
+
+**Flag for Reid, not fixed in this pass:** the prompt's own instructions
+name `/design-studio` as the primary CTA target, but that route doesn't
+exist yet — the live `NavBar`'s "Design Studio" label currently points
+to `/studio`, and there's no `app/design-studio/` directory. That CTA
+will 404 until `/design-studio` exists (new route, or an alias/redirect
+from `/studio`) — needs a decision before `hp-019` wires this component
+into the real homepage.
+
+**Not wired into `app/page.tsx`.** Per the prompt's own instructions,
+assembly into the real homepage happens in `hp-019`.
+
+Marked IMPLEMENTED, UNCONFIRMED per this file's verification standard —
+Reid has not looked at this hero himself yet.
+
+---
+
 ## PROFILEROTATION — THREE.JS HERO ANIMATION COMPONENT (hp-002): IMPLEMENTED, UNCONFIRMED (2026-09-10)
 
 `pnpm tsc --noEmit`: 0 errors. Branch: `feat/homepage-redesign`. Commit

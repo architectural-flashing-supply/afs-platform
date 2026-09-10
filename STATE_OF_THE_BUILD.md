@@ -34,6 +34,68 @@ summary, not a replacement for it.
 
 ---
 
+## HEROSECTION — FULL-BLEED VIDEO HERO WITH PROFILEROTATION (hp-003): IMPLEMENTED, UNCONFIRMED — BUILT AND VERIFIED IN A TEMP PREVIEW ROUTE, NOT WIRED INTO ANY REAL PAGE (2026-09-10)
+
+**Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
+0 errors.
+
+**What exists now, on `feat/homepage-redesign`, not yet on `main`:**
+`app/components/hero/HeroSection.tsx` — a client component assembling
+hp-001's video asset and hp-002's `ProfileRotation` into one hero:
+full-bleed `<video>` (`hero-metal-fabrication.webm`/`.mp4`, `autoPlay
+muted loop playsInline preload="metadata"`, `poster="/images/hero-
+poster.jpg"`), an `afs-bg-dim`-tinted gradient overlay (same
+`from/via/to` opacity stops already used for `app/page.tsx`'s current
+hero, reused here for consistency rather than inventing new values),
+`min-h-[100svh]` two-column layout (text left / `ProfileRotation` right
+on desktop via `md:flex-row`, stacked with a shorter `ProfileRotation`
+on mobile), the exact H1 copy "SHOW US THE DETAIL. WE'LL FORM IT.", one
+sub-copy sentence, and two CTAs. `ProfileRotation` is consumed via
+`next/dynamic(..., { ssr: false })`, same pattern as `HailViewMap` in
+`app/hailview/page.tsx`.
+
+**Reduced-motion / LCP handling:** `<source>` elements are only
+attached to the `<video>` after mount, once a `matchMedia
+('prefers-reduced-motion: reduce')` check has run (with a live `change`
+listener, matching `ProfileRotation`'s own pattern) — so the `poster`
+image is always what paints first (nothing competes with it for LCP),
+and a user with reduced motion enabled never gets a `<source>` at all,
+only the static poster.
+
+**Checkpoint performed this session:** mounted on a temporary
+`app/hp-003-preview/page.tsx`, ran `pnpm dev`, drove it with a
+throwaway Playwright script (no `chromium-cli` in this environment) at
+375px/768px/1440px — H1 bounding box unchanged across a 500ms delay
+(no layout shift) at all three widths, `<video>` confirmed `muted:
+true`, `paused: false`, and `currentTime` advancing at all three
+widths, zero `console` errors, and computed `flexDirection` on the
+column wrapper confirmed `column` at 375px vs. `row` at 768px/1440px
+(Tailwind's `md:` breakpoint, matching the mobile/desktop split the
+prompt asked for). CTA `href`s confirmed via the DOM: "Start a Quote" →
+`/design-studio`, "Explore Profiles" → `#profile-explorer`. Screenshots
+at all three widths were visually reviewed. The temporary route and
+check script were deleted after verification, per the prompt's own
+instructions — only `HeroSection.tsx` is committed.
+
+**Flag, not fixed here — `/design-studio` does not exist as a route
+today:** this prompt's own instructions name `/design-studio` as the
+primary CTA's destination, so that's what was built, but the current
+`NavBar` (`components/layout/NavBar.tsx`) has a "Design Studio" label
+pointing at `/studio`, and no `app/design-studio/` directory exists in
+this repo. Until `/design-studio` is created (or aliased/redirected
+from `/studio`), that CTA 404s. Not resolved in this pass since it's
+outside this prompt's scope — worth resolving before `hp-019` wires
+this component into the real homepage.
+
+**Not done in this pass, by design:** not imported into `app/page.tsx`
+— the prompt's own instructions defer assembly to `hp-019`.
+
+**Marked IMPLEMENTED, UNCONFIRMED per this file's verification standard**
+— this session's own Playwright pass is evidence to bring to Reid, not a
+substitute for him looking at it.
+
+---
+
 ## PROFILEROTATION — THREE.JS HERO ANIMATION COMPONENT (hp-002): IMPLEMENTED, UNCONFIRMED — BUILT AND VERIFIED IN A TEMP PREVIEW ROUTE, NOT WIRED INTO ANY REAL PAGE (2026-09-10)
 
 **Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
