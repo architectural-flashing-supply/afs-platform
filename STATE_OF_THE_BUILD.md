@@ -34,6 +34,101 @@ summary, not a replacement for it.
 
 ---
 
+## PROFILE PASSPORT — SCHEMA + RLS (hp-015): HALTED — NOT APPLIED LIVE (2026-09-10)
+
+**This prompt did not complete.** Per its own instruction ("If neither is
+possible, HALT this prompt and write the exact blocker to
+STATE_OF_THE_BUILD.md — do not mark the schema complete"), the migration
+file was written and committed, but it has **not** been applied to the
+live Supabase database and has **not** been verified via
+`information_schema`. Do not treat this as done.
+
+**Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
+0 errors (this prompt is SQL-only; no application code was touched).
+
+**Built:** `supabase/migrations/023_profile_passport.sql` — `custom_profiles`
+(one row per saved custom flashing profile, `customer_id` → `profiles(id)`,
+`afs_number`/`title`/`material`/`gauge`/`finish`/`drawing_url`/
+`model_3d_url`/`bend_schedule`/`thumbnail_url`/`is_approved`), 
+`profile_revisions` (versioned change log, `profile_id` → `custom_profiles(id)`
+cascade, `UNIQUE(profile_id, revision_number)`, `created_by_user_id` →
+`auth.users(id)`), and `orders.custom_profile_id` (nullable FK to
+`custom_profiles`). RLS on both new tables, an `updated_at` trigger on
+`custom_profiles`. Full DDL and reasoning in SCHEMA.md's new PROFILE
+PASSPORT TABLES section.
+
+**Verified first, per this prompt's own instruction, that no
+`custom_profiles` table already existed in any form** — grepped SCHEMA.md
+and every file under `supabase/migrations/` for `custom_profile`: no
+match. `shop_profile_library` (migration 016) was the only similarly-named
+table and is confirmed unrelated — an admin-only shop production-queue
+record with a free-text `customer_name`, not a customer-scoped saved-
+profile table.
+
+**`customer_id` FK target corrected against the real schema, not assumed
+from the prompt text.** The prompt asked to reference "the real
+customers/companies table used by orders... the same FK target as
+orders.customer_id" — but `orders` has no column named `customer_id`.
+Grepped `SCHEMA.md` and every migration file for `customer_id`: zero
+matches anywhere in this codebase. There is no `customers` table. `orders`
+identifies its owner via `user_id UUID NOT NULL REFERENCES profiles(id)`;
+`companies` is a separate optional grouping reached only through
+`profiles.company_id`, which `orders` never references directly. Read the
+prompt's phrase as referring to whichever column on `orders` actually
+identifies the customer (`user_id`) and its FK target (`profiles(id)`) —
+`custom_profiles.customer_id` targets `profiles(id)`, matching every other
+user-scoped table in this schema (`projects`, `quote_requests`,
+`takeoff_uploads`, `vault_documents`).
+
+**RLS "membership pattern" also corrected against the real policies, not
+assumed.** The prompt asked to mirror "the same membership pattern the
+orders policies use" — but `orders`' actual policy (`users_own_orders`,
+migration 001) is a direct `auth.uid() = user_id` match, not a
+companies-membership `EXISTS` join (that join pattern exists elsewhere,
+e.g. `companies`' own `company_members` policy, but `orders` itself
+doesn't use it). `custom_profiles`' policies mirror what `orders` actually
+does: direct `auth.uid() = customer_id`, plus `is_admin()` for staff —
+matching the codebase's existing `is_admin()` convention (established in
+migration 001, reused unmodified in 006/010/013/016/020) rather than
+`022_building_code_jurisdictions.sql`'s newer, inconsistent
+`auth.jwt() ->> 'role' = 'admin'` variant.
+
+**THE BLOCKER — why this was not applied:**
+1. The repo is **not linked** to any Supabase project: no
+   `supabase/config.toml`, no `supabase/.temp/project-ref`.
+2. `.env.local` has **no `SUPABASE_ACCESS_TOKEN`** — confirmed via direct
+   grep, zero matches.
+3. A `supabase link --project-ref lxfiziwsqezjjybeguqq` attempt (the ref
+   parsed out of `.env.local`'s `NEXT_PUBLIC_SUPABASE_URL`) was tried
+   anyway in this session and **failed outright**: `failed to parse
+   environment file: .env.local (unexpected character '\n' in variable
+   name)`. No `config.toml` was created.
+4. Independently, `pnpm supabase projects list` shows the CLI's
+   already-authenticated account only has access to three unrelated
+   projects (`tarritrix`, `tarritrix-audit`, `hail-intel-resurrected`,
+   org `vlipoynwopxlkdbnwpug`) — none is the AFS project
+   (`lxfiziwsqezjjybeguqq`). Even a working `.env.local` parse would not
+   have granted access to the right project under this CLI session.
+
+Per SPEC_SUPABASE_INTEGRATION.md §5, the two supported apply paths are
+`supabase db push` against a linked project, or the Supabase Dashboard SQL
+Editor (manual, human-run — not something this session can do). Neither
+is available to this session. **Someone with real AFS project access
+needs to either set a valid `SUPABASE_ACCESS_TOKEN` in `.env.local` and
+fix the `.env.local` parse error, or paste
+`supabase/migrations/023_profile_passport.sql` into the Supabase Dashboard
+SQL Editor directly**, then this schema's live-apply status needs a fresh
+`information_schema` verification (tables, columns, `relrowsecurity`,
+policies) before it can be marked DONE anywhere in these docs.
+
+**Not verified: `information_schema` query against the live database.**
+Could not run — no live connection available (see blocker above). The
+`CREATE TABLE`/RLS SQL was manually reviewed against SCHEMA.md's
+established conventions instead, but that is not a substitute for a real
+post-apply check.
+
+---
+
 ## FINALCTA — FOUR-ACTION CLOSING SECTION (hp-014): IMPLEMENTED, UNCONFIRMED (2026-09-10)
 
 **Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —

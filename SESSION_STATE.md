@@ -24,6 +24,37 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## PROFILE PASSPORT — SCHEMA + RLS (hp-015): HALTED — NOT APPLIED LIVE (2026-09-10)
+
+**Prompt did not complete — halted per its own instruction.** Wrote
+`supabase/migrations/023_profile_passport.sql` (`custom_profiles`,
+`profile_revisions`, `orders.custom_profile_id`) and updated SCHEMA.md,
+but could **not** apply it to the live Supabase database: the repo isn't
+linked (`supabase/config.toml`/`project-ref` absent), `.env.local` has no
+`SUPABASE_ACCESS_TOKEN`, an on-the-spot `supabase link` attempt failed on
+an `.env.local` parse error, and separately the CLI's authenticated
+account has no access to the AFS project ref (`lxfiziwsqezjjybeguqq`) at
+all — its `projects list` shows three unrelated projects under a
+different org. Not verified via `information_schema`. Do not mark this
+schema complete anywhere until a human with real project access applies
+`023_profile_passport.sql` (link + `supabase db push`, or paste into the
+Supabase Dashboard SQL Editor) and the tables/RLS are freshly confirmed.
+
+Two things in the original prompt text didn't match the real schema and
+were corrected rather than followed literally — full reasoning in
+STATE_OF_THE_BUILD.md's PROFILE PASSPORT entry:
+- `orders.customer_id` doesn't exist (grepped, zero matches anywhere in
+  this codebase) — `orders` uses `user_id → profiles(id)`. So
+  `custom_profiles.customer_id` targets `profiles(id)`, not `companies`.
+- `orders`' RLS isn't a companies-membership join — it's a direct
+  `auth.uid() = user_id` match (`users_own_orders`, migration 001) — so
+  `custom_profiles`' user policy mirrors that shape directly, plus
+  `is_admin()` for staff.
+
+Full detail in `STATE_OF_THE_BUILD.md`'s PROFILE PASSPORT entry.
+
+---
+
 ## FINALCTA — FOUR-ACTION CLOSING SECTION (hp-014): IMPLEMENTED, UNCONFIRMED (2026-09-10)
 
 **Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
