@@ -24,6 +24,57 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## PROFILEROTATION — THREE.JS HERO ANIMATION COMPONENT (hp-002): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+`pnpm tsc --noEmit`: 0 errors. Branch: `feat/homepage-redesign`. Commit
+`2528909`.
+
+Built `app/components/hero/ProfileRotation.tsx` — a client component
+rendering a folded Z-flashing profile (ExtrudeGeometry from a 2D bend
+centerline, same offset-polyline ribbon technique as
+`components/studio/ProfileViewer3D.tsx`, duplicated locally since this is
+decorative geometry, not FlashDraft's CAD pipeline), brushed-metal
+`MeshStandardMaterial`, a `RoomEnvironment`/`PMREMGenerator` environment
+map, one shadow-casting light plus a `ShadowMaterial` ground plane
+(transparent canvas except for the soft shadow). 8-second seamless loop:
+continuous Y rotation (full 360 in the first 4s, held 4–6s, another full
+turn 6–8s back to exactly 0), an `easeInOutCubic` X-scale "unfold" 3.5–6s,
+and `afs-crimson` bend-line bars that fade/slide in 4.0–5.5s.
+`prefers-reduced-motion` renders one static folded frame and never starts
+the render loop (live `matchMedia` change listener, not just a
+mount-time check). Follows `ProfileViewer3D`'s scene-setup/dispose
+pattern: devicePixelRatio capped at 2, `ResizeObserver` resize, full
+geometry/material/renderer disposal on unmount. Default export, meant to
+be consumed via `next/dynamic(..., { ssr: false })` — same pattern
+already used for `ChatWidget` in `components/layout/AppChrome.tsx`.
+
+Verified per the prompt's checkpoint: mounted on a temporary
+`app/dev/hero-preview/page.tsx`, ran `pnpm dev`, drove it with a
+throwaway Playwright script (no `chromium-cli` in this environment) —
+canvas rendered, rotation/unfold/re-fold all progressed correctly across
+sampled frames 500ms apart, ~7.5s-apart screenshots matched (consistent
+with a true 8s loop), zero `pageerror`s. One real console warning was
+caught and fixed during this pass: `renderer.shadowMap.type =
+THREE.PCFSoftShadowMap` is deprecated in this project's three@0.185 and
+silently falls back with a warning — removed in favor of the default
+`PCFShadowMap` (which is what `ProfileViewer3D` already uses, unchanged)
+plus `light.shadow.radius` for the soft edge instead. Separately
+confirmed the reduced-motion path with
+`page.emulateMedia({ reducedMotion: 'reduce' })` — static, no animation,
+zero page errors. The temp route and check scripts were deleted after
+verification; only `ProfileRotation.tsx` is committed.
+
+**Not wired into any real page.** `HeroVisual.tsx` (the current homepage
+hero visual, per `COMPONENT_MAP.md`) is untouched and still the pure-CSS
+mockup it always was. Integrating `ProfileRotation` into the actual
+homepage — and reconciling it with hp-001's video assets, also unwired —
+is separate follow-up work, not done here.
+
+Marked IMPLEMENTED, UNCONFIRMED per this file's verification standard —
+Reid has not looked at this animation himself yet.
+
+---
+
 ## HOMEPAGE HERO + SHOP-FLOOR VIDEO ASSETS FROM REAL FABRICATION FOOTAGE (hp-001): IMPLEMENTED, UNCONFIRMED (2026-09-10)
 
 `pnpm tsc --noEmit`: 0 errors. Branch: `feat/homepage-redesign`.

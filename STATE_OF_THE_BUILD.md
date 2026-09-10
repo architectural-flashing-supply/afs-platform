@@ -34,6 +34,66 @@ summary, not a replacement for it.
 
 ---
 
+## PROFILEROTATION — THREE.JS HERO ANIMATION COMPONENT (hp-002): IMPLEMENTED, UNCONFIRMED — BUILT AND VERIFIED IN A TEMP PREVIEW ROUTE, NOT WIRED INTO ANY REAL PAGE (2026-09-10)
+
+**Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
+0 errors.
+
+**What exists now, on `feat/homepage-redesign`, not yet on `main`:**
+`app/components/hero/ProfileRotation.tsx` — a client component (`'use
+client'`) exporting a default-export Three.js scene: a Z-flashing profile
+(two-bend centerline extruded into a ribbon solid via the same
+offset-polyline technique `components/studio/ProfileViewer3D.tsx` uses,
+duplicated locally rather than imported since this is decorative geometry,
+not FlashDraft's CAD-precision bend-record pipeline), brushed-metal
+`MeshStandardMaterial`, a `PMREMGenerator`/`RoomEnvironment` image-based
+environment map for reflections, one shadow-casting `DirectionalLight`
+plus a `THREE.ShadowMaterial` ground plane so the canvas background stays
+transparent except for the soft shadow itself. An 8-second seamless loop
+(continuous `rotation.y` so `t=8` lands exactly back on `t=0` mod 2π, an
+`easeInOutCubic` X-scale unfold 3.5–5.0s / hold / re-fold 5.5–6.0s, and
+`afs-crimson`-colored bend-line bars that fade+slide in 4.0–5.5s) drives
+the animation; `prefers-reduced-motion` (checked via `matchMedia`, with a
+live `change` listener) renders one static folded frame instead and never
+starts `requestAnimationFrame`. Follows `ProfileViewer3D`'s established
+scene-setup/resize/dispose conventions (devicePixelRatio capped at 2,
+`ResizeObserver`-driven resize, full geometry/material/renderer disposal
+on unmount). No OrbitControls — rotation is driven directly on a mesh
+group for exact timeline control, not user interaction, since this is a
+decorative hero loop, not an inspector.
+
+**Checkpoint performed this session:** mounted on a temporary
+`app/dev/hero-preview/page.tsx` route (imported via `next/dynamic` +
+`ssr: false`, matching this component's own intended consumption
+pattern), verified with `pnpm dev` + a throwaway Playwright script (no
+`chromium-cli` available in this environment) — canvas rendered
+visibly, rotation and the unfold/re-fold both progressed correctly across
+sampled frames, screenshots ~7.5s apart matched (consistent with a true
+8s loop), zero `pageerror`s, and zero component-caused `console`
+warnings (one real one was caught and fixed: `renderer.shadowMap.type =
+THREE.PCFSoftShadowMap` triggers a deprecation warning in this project's
+three@0.185 — removed in favor of the default `PCFShadowMap` plus
+`light.shadow.radius` for softness, matching `ProfileViewer3D`'s own
+choice not to set `shadowMap.type` at all). Separately confirmed with
+`page.emulateMedia({ reducedMotion: 'reduce' })`: static frame, no
+animation, zero page errors. The temporary route and check scripts were
+deleted after verification, per the prompt's own instructions — only
+`ProfileRotation.tsx` is committed.
+
+**Not done in this pass, by design:** the component is not imported by
+`HeroVisual.tsx` or any real route — `COMPONENT_MAP.md`'s existing
+`HeroVisual.tsx` entry ("Pure CSS — no images, no video, no external
+dependencies") is still accurate today and was not touched. Wiring this
+into the actual homepage hero, and reconciling it with `COMPONENT_MAP.md`
+and the two video assets from hp-001 (also not yet wired in), is separate
+follow-up work.
+
+**Marked IMPLEMENTED, UNCONFIRMED per this file's verification standard**
+— this session's own Playwright pass is evidence to bring to Reid, not a
+substitute for him looking at it.
+
+---
+
 ## HOMEPAGE HERO + SHOP-FLOOR VIDEO ASSETS FROM REAL FABRICATION FOOTAGE (hp-001): IMPLEMENTED, UNCONFIRMED — ASSET PRODUCTION ONLY, NOT WIRED INTO ANY PAGE (2026-09-10)
 
 **Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
@@ -8004,27 +8064,28 @@ HailView:                              IMPLEMENTED, UNCONFIRMED. All 5 spec
 ## RECENT COMMITS (verified via `git log --oneline -15`, most recent first)
 
 ```
-3fa8c70  fix: correct Open hem fold direction, rebuild kick as a true mirror, wire real gap through to the glyph
-2471830  fix: hem length now scales the glyph itself, Gap returns as editable, add inward/outward kick
-2a47bdd  fix: FlashDraft hem system overhaul — Gap replaced by Hem Length, mid-leg hems deleted, teardrop retightened, leg-shrink bug resolved
-a9d729b  docs: record hem line-weight/teardrop tightening fix in governance docs, mark UNCONFIRMED
-e9b5060  fix: match hem glyph line weight to leg stroke, tighten teardrop loop proportions
-27e3cbd  docs: record connecting-line/glyph-size hem fix in governance docs, mark UNCONFIRMED
-171f88c  fix: restore leg-to-fold hem connecting line, fix glyph size to fixed on-screen radius
-f6f5889  docs: record duplicate hem geometry deletion in governance docs, mark UNCONFIRMED
-440d047  fix: delete duplicate hand-coded hem geometry, canvas now draws only the validated glyph
-a9c299d  docs: record hem glyph geometry rebuild in governance docs, mark UNCONFIRMED
-7de79db  fix: replace hem glyph geometry with validated SMACNA hem construction
-7bc1841  docs: record hem-menu trigger offset fix in governance docs
-e5eb3a7  fix: offset hem-menu double-click hit-test past true leg endpoint
-18cc3d9  docs: record auto-fit-view-after-length-entry fix in governance docs
-b9a8d54  fix: auto-fit view after manual segment length entry
-11c20ea  docs: record leg-body grab cursor fix in governance docs
-a551366  fix: leg-body hover shows grab cursor immediately, not just on drag
+2528909  hp-002: ProfileRotation Three.js hero animation
+764b0da  hp-001: Hero and shop-floor video assets from real fabrication footage
+57b3f69  fix: HailView default zoom re-corrected 8 to 9 after live verification showed East Texas/Gulf Coast cities in frame at zoom 8 (afs-hv-009)
+7a70589  fix: HailView default map view corrected to real Central Texas service area, post-submit zoom loosened for future triangulation markers (afs-hv-008)
+ab2f924  feat: role-based login redirect (admin to /admin), surfaced Credit Application access for new customers (afs-fl-038)
+cab2947  docs: afs-fl-037 governance update -- HailView logo/header clearance fix, full codebase audit results, marked IMPLEMENTED UNCONFIRMED pending Reid's own check
+07ecdf1  fix: full-width fixed backgrounds now clear the logo's real 80px height, not the header's shorter 56/64px clearance (afs-fl-037)
+52a6b2b  chore: import real, verified AFS legacy site photography, explicitly excluding stock/supplier-logo imagery (afs-fl-036)
+c2aa29c  chore: remove any remaining legacy iStock photo references (afs-fl-035)
+9cdd602  docs: afs-fl-034 governance update -- Drawing to Steel hero accent, real photo category grid and project gallery, marked IMPLEMENTED UNCONFIRMED pending Reid's own check
+a342feb  feat: Drawing to Steel hero addition, real photo category grid and project gallery -- current homepage copy unchanged (afs-fl-034)
+fb123bd  docs: afs-fl-033 re-verification -- NavBar header/logo, account menu sign out, HailView nav link independently re-confirmed live, no code changes needed, still unconfirmed by Reid
+e55e03c  feat: HailView persistent full-bleed map background with overlay form panel (afs-hv-007)
+399c16c  docs: afs-fl-033 governance update -- NavBar header/logo, account menu sign out, HailView nav link verified live, marked IMPLEMENTED UNCONFIRMED pending Reid's own check
+f5178a8  fix: NavBar header/logo overlap, Sign Out moved to account menu, HailView added to navigation (afs-fl-033)
 ```
 
-Local `main` is in sync with `origin/main` (0 ahead / 0 behind) as of this
-pass.
+Both `hp-001` and `hp-002` are on `feat/homepage-redesign` only, not yet
+on `main` — this branch has not been merged. The FlashDraft hem-system
+commit history previously listed here (`3fa8c70` and earlier) is still
+real and still accurate; see `git log --oneline -30` for that fuller
+history, trimmed here to keep this table to the most recent 15.
 
 ---
 
