@@ -34,6 +34,88 @@ summary, not a replacement for it.
 
 ---
 
+## CUSTOMERPATHWAYS — THREE-ROLE PATHWAY CARDS (hp-009): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+**Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
+0 errors. Commit `52b2b58`.
+
+**What exists now, on `feat/homepage-redesign`, not yet on `main`:**
+`app/components/home/CustomerPathways.tsx` — a server component (no
+client-side state needed), three static cards in a `grid-cols-1
+md:grid-cols-3` layout (stacked on mobile, per the prompt). Each card:
+a role icon (inline SVG, same pattern as `DesignToDelivery.tsx`'s
+`Icon` components — no `lucide-react` dependency exists in this repo,
+checked directly), a one-sentence value line, three bullet capabilities,
+and a crimson CTA button (`metal-edge-red`, matching the existing
+homepage CTA styling).
+
+**Route resolution — read from `app/` directly, not invented, per the
+prompt's own instruction (SITEMAP.md was cross-checked but is stale on
+one of these):**
+
+```
+Contractors -> /field/contractor        (app/field/contractor/page.tsx ->
+                                          ContractorCameraQuoteForm — real,
+                                          anonymous camera-to-quote route,
+                                          already linked from hp-005's
+                                          FieldAppStory.tsx and hp-006's
+                                          DesignStudioHub.tsx for the same
+                                          reason)
+Architects  -> /architects              (app/(public)/architects/page.tsx —
+                                          portal landing per
+                                          SPEC_ARCHITECT_PORTAL.md §2,
+                                          links out to spec-writer,
+                                          cad-library, finish-palette)
+Purchasing  -> /account/credit-application (app/account/credit-application/
+                                          page.tsx -> CreditApplicationForm,
+                                          per SPEC_ONLINE_CREDIT_APPLICATION.md;
+                                          auth-required, redirects to /login
+                                          if not signed in — same as every
+                                          other /account/** route)
+```
+
+**SITEMAP.md staleness flagged, not silently carried forward:** SITEMAP.md's
+route tree has no `/field/**` entry at all — this document's own prior
+audits (hp-005, hp-006) already found and relied on `/field/contractor` as
+a real file under `app/field/contractor/page.tsx`, confirmed again this
+pass with a direct `Glob`. SITEMAP.md itself was not edited in this pass.
+
+**Copper accent rule respected:** SPEC_ARCHITECT_PORTAL.md §3 restricts
+copper accents to `/architects/**` routes only ("DO NOT use copper
+outside /architects/** routes"). `CustomerPathways.tsx` lives on the
+homepage, not under `/architects`, so its Architects card uses the same
+crimson accent as the other two cards — copper was deliberately not
+applied here despite the card's subject matter.
+
+**Bullet content grounded in real, shipped capabilities, not generic
+copy:**
+- Contractors: photo-to-quote AI (SPEC_PHOTO_TO_QUOTE_AI.md), guest/no-
+  account submission (`ContractorCameraQuoteForm`'s guest-email flow, same
+  pattern as `/upload`), PWA install (afs-fl-010's route-scoped manifest/
+  icons on `app/field/contractor/page.tsx`).
+- Architects: AI spec writer, CAD/BIM library, finish palette — the same
+  three of `SPEC_ARCHITECT_PORTAL.md`'s four landing-page cards that are
+  fully public/no-account-required to browse (Custom Profiles, the
+  fourth, requires an account and was left out to keep the bullet list to
+  capabilities any visitor can act on immediately).
+- Purchasing: net-30/60 credit application (`CreditApplicationForm`),
+  team member roles (`app/account/team/page.tsx`'s real
+  `owner/admin/estimator/pm/accounting/viewer` roles), and PO numbers —
+  a real field already collected on quote/configure/checkout submissions
+  (grepped `purchaseOrder`/`poNumber` across `app/`), not a dedicated PO
+  management page, phrased accordingly ("every quote and order carries
+  your purchase order number," not "manage your POs").
+
+**Not done, flagged not silently carried forward:** `CustomerPathways` is
+not yet imported into `app/page.tsx` — consistent with hp-002 through
+hp-008, real-homepage assembly is deferred to `hp-019`. No Playwright
+checkpoint run this pass (not requested).
+
+**Marked IMPLEMENTED, UNCONFIRMED per this file's verification standard**
+— compile gate passing is not a substitute for Reid's own look.
+
+---
+
 ## DESIGNTODELIVERY — FIVE-STEP CAPTURE-TO-DELIVERY SEQUENCE (hp-008): IMPLEMENTED, UNCONFIRMED (2026-09-10)
 
 **Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —

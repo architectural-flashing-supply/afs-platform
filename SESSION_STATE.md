@@ -24,6 +24,54 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## CUSTOMERPATHWAYS — THREE-ROLE PATHWAY CARDS (hp-009): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+`pnpm tsc --noEmit`: 0 errors. Branch: `feat/homepage-redesign`. Commit
+`52b2b58`.
+
+Read CLAUDE.md, DESIGN_TOKENS.md, SITEMAP.md, SPEC_ARCHITECT_PORTAL.md, and
+SPEC_ONLINE_CREDIT_APPLICATION.md first, then resolved all three routes
+against the real `app/` tree rather than SITEMAP.md alone — SITEMAP.md's
+route tree has no `/field/**` entry at all (a staleness hp-005 and hp-006
+already flagged and worked around), so `/field/contractor` was re-confirmed
+with a direct `Glob` this pass. Final route mapping: Contractors ->
+`/field/contractor` (`ContractorCameraQuoteForm`, anonymous camera-to-
+quote), Architects -> `/architects` (portal landing), Purchasing ->
+`/account/credit-application` (`CreditApplicationForm`, auth required).
+
+Built `app/components/home/CustomerPathways.tsx` — a server component
+(static content, no interactivity needed), three cards in a `grid-cols-1
+md:grid-cols-3` layout per the prompt's stacked-on-mobile/3-column
+requirement. Each card: an inline-SVG role icon (same pattern as
+`DesignToDelivery.tsx`, no `lucide-react` in this repo — checked
+directly), a one-sentence value line, three bullets naming capabilities
+that exist today, and a crimson `metal-edge-red` CTA button.
+
+Deliberately did **not** apply copper to the Architects card:
+SPEC_ARCHITECT_PORTAL.md §3 restricts the copper accent to `/architects/**`
+routes only, and this component lives on the homepage. All three cards
+use the same crimson accent as the rest of the homepage.
+
+Bullets grounded in real features, not generic copy: Contractors —
+photo-to-quote AI, guest/no-account submission, PWA install. Architects —
+AI spec writer, CAD/BIM library, finish palette (the three of
+`SPEC_ARCHITECT_PORTAL.md`'s four landing cards that are public/browsable
+without an account; Custom Profiles needs one, left out). Purchasing —
+net-30/60 credit application, `/account/team`'s real member roles, and
+PO numbers (a real field collected on quote/configure/checkout, per a
+direct grep — phrased as "every quote and order carries your purchase
+order number," not as a dedicated PO-management feature that doesn't
+exist).
+
+**Left open, not silently fixed:** `CustomerPathways` is not yet imported
+into `app/page.tsx` — deferred to `hp-019` same as hp-002 through hp-008.
+No Playwright checkpoint run this pass (not requested); Reid has not
+looked at this component yet.
+
+Marked IMPLEMENTED, UNCONFIRMED per this file's verification standard.
+
+---
+
 ## DESIGNTODELIVERY — FIVE-STEP CAPTURE-TO-DELIVERY SEQUENCE (hp-008): IMPLEMENTED, UNCONFIRMED (2026-09-10)
 
 `pnpm tsc --noEmit`: 0 errors. Branch: `feat/homepage-redesign`. Commit
