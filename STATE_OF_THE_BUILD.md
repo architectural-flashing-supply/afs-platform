@@ -34,6 +34,102 @@ summary, not a replacement for it.
 
 ---
 
+## PLAYWRIGHT HOMEPAGE SUITE (hpa-004): DONE — AND THE HOMEPAGE ASSEMBLY IS NOW REALLY COMMITTED (2026-09-10)
+
+**Corrects hp-024/hpa-002 below: `app/page.tsx` is no longer the old
+homepage.** Both entries below state, accurately as of when they were
+written, that `app/page.tsx` had never been touched on this branch and
+that the twelve-section assembly sitting in the working tree was
+uncommitted. This prompt's own instruction was `git add tests/e2e/
+homepage.spec.ts app` — and since `app/page.tsx`'s twelve-section
+assembly was sitting modified-but-uncommitted in the working tree when
+this prompt started, that `git add app` swept it into this pass's commit.
+Confirmed directly, not assumed: `git log --oneline -- app/page.tsx`
+shows this pass's commit (`083ed7d`, "hp-021: Playwright homepage suite")
+immediately after `a342feb` (afs-fl-034, the old shop-floor-photo hero) —
+no commit in between ever touched the file. So as of `083ed7d`, `/` on
+`feat/homepage-redesign` really does render the twelve `HomeSection`-
+wrapped components (hero through final-cta), not the old homepage. This
+is a real, `git log`-verified state change, not a documentation claim.
+
+**Built:** `tests/e2e/homepage.spec.ts`, parameterized across three
+viewports (375×812, 768×1024, 1440×900) via a `VIEWPORTS` loop, plus two
+viewport-independent describe blocks (nav/footer structure, link
+integrity). 29 tests total, all passing; the pre-existing `setup` project
+(`auth.setup.ts`) still skips itself with no test credentials configured
+— unrelated to and unaffected by this suite, since every homepage
+assertion runs against the public, unauthenticated view. Run directly
+this pass: `npx playwright test tests/e2e/homepage.spec.ts` — 29 passed,
+1 skipped, 0 failed. `pnpm tsc --noEmit` — 0 errors.
+
+Covers: all twelve `data-section` elements present and in DOM order; hero
+video's mp4 `<source>` + poster; `ProfileRotation`'s canvas mounting with
+zero console errors (collected via `page.on('console'/'pageerror')`,
+asserted empty after `networkidle`); `DesignStudioHub`'s five tabs each
+updating the detail panel and each method's real "Start" href resolving
+200; `ProfileExplorer`'s category-chip filter genuinely reducing the
+visible card count against live `machine_profiles` data (not hardcoded to
+a specific category name, since that data can change) and its "View in
+3D" toggle mounting a real canvas; `NationwideMap`'s HQ marker; the
+existing `PRICE_PATTERN` regex from `tests/e2e/checkout.spec.ts` asserted
+absent site-wide; reduced-motion emulation (hero video never attaches a
+`<source>`/never plays, `ProfileRotation` renders one static frame —
+verified by diffing two canvas screenshots taken 600ms apart); nav
+structure (Start a Quote visible, HailView inside the Resources menu,
+mobile hamburger open/close); FAQ/Contact in the footer; and a full
+internal-link sweep (every unique `a[href]` reachable from the homepage,
+including the Resources dropdown's contents, requested via
+`page.request.get` and asserted `.ok()` — redirects like unauthenticated
+`/account/*` → `/login` are followed transparently and pass, since the
+final response is a real 200 page, not a break).
+
+**Two real product bugs found by this suite and fixed, not worked
+around:**
+1. `app/components/home/CaseStudies.tsx`'s NASA Johnson Space Center
+   credential card rendered a literal **"$500K Project"** badge — a
+   customer-facing dollar amount, a direct CLAUDE.md rule #1 violation
+   that predates this pass (not introduced by it). Caught by this
+   suite's own price-pattern assertion. Fixed by replacing the badge text
+   with "Zero-Defect Delivery" — no dollar figure, same card layout.
+2. `app/components/home/NationwideMapLeaflet.tsx` passed
+   `data-testid="nationwide-map"` directly as a prop to react-leaflet's
+   `<MapContainer>`, which does not forward unrecognized props onto its
+   underlying DOM node — so the testid never actually rendered anywhere,
+   making the live map unselectable by any test or tooling despite
+   looking correct by eye. Fixed by wrapping `<MapContainer>` in a plain
+   `<div data-testid="nationwide-map">`, the same pattern
+   `components/hailview/HailViewMap.tsx`'s own `"hailview-map"` testid
+   already establishes elsewhere in this codebase.
+
+**`components/studio/ProfileLibraryBrowser.tsx` — test-hook attributes
+added, no behavior change:** `data-testid` on the compact category-chip
+row and each chip (`profile-library-chips`/`profile-library-chip`, plus
+a `data-category` attribute), the card grid (`profile-library-grid`),
+each card (`profile-library-card`), and the "View in 3D" toggle button
+(`profile-library-3d-toggle`). All additive; `/studio/library`'s existing
+markup and behavior are unchanged (re-confirmed by `pnpm tsc --noEmit`
+passing and the homepage suite's own `ProfileExplorer` test exercising
+these same hooks against live data end to end).
+
+**Environment note for future sessions, not an application bug:** at the
+start of this pass, port 3000 was held by a `next dev` process for a
+completely unrelated project (`benavora`, returning 500s — its own
+`.next` build output was missing). Separately, several orphaned `next
+dev`/`next build` processes for *this* project were already running
+concurrently from earlier sessions; their file-lock contention on
+`.next/cache` was silently hanging this project's own dev server
+indefinitely at "✓ Starting..." (zero CPU, TCP connections accepted but
+never answered) with no error printed. Killed all stray nodes, started
+one clean `pnpm dev`, tests then ran normally. If a future session sees
+`pnpm dev` hang at "Starting..." with no follow-up log line, check for
+duplicate `next dev`/`next build` processes before assuming a code
+regression.
+
+**Gate:** `pnpm tsc --noEmit` — 0 errors. `npx playwright test tests/e2e/
+homepage.spec.ts` — 29 passed, 1 skipped, 0 failed.
+
+---
+
 ## PROFILE EXPLORER — HOMEPAGE PROFILE BROWSER SECTION (hpa-002): IMPLEMENTED, UNCONFIRMED (2026-09-10)
 
 **Established fact carried in from the prior pass (hpa-001, not previously

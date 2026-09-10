@@ -24,6 +24,58 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## PLAYWRIGHT HOMEPAGE SUITE (hpa-004) — 2026-09-10
+
+Wrote `tests/e2e/homepage.spec.ts`: parameterized over 375×812, 768×1024,
+1440×900, plus two viewport-independent describe blocks (nav/footer
+structure, link integrity). 29 tests, all passing this session
+(`npx playwright test tests/e2e/homepage.spec.ts` — 29 passed, 1 skipped
+[the pre-existing `auth.setup.ts`, no test credentials configured —
+unrelated to this suite]). `pnpm tsc --noEmit` — 0 errors.
+
+**Important correction to hp-024/hpa-002's finding, below and in
+STATE_OF_THE_BUILD.md:** those entries correctly said `app/page.tsx` had
+never been touched on this branch — the twelve-section assembly was
+sitting modified-but-uncommitted in the working tree. This prompt's own
+instruction (`git add tests/e2e/homepage.spec.ts app`) swept that
+already-modified `app/page.tsx` into this pass's commit along with the
+new test file. Verified via `git log --oneline -- app/page.tsx`: this
+pass's commit `083ed7d` immediately follows `a342feb` (afs-fl-034, the
+old homepage) with nothing in between. **As of this commit, `/` on
+`feat/homepage-redesign` is really the twelve-section redesign, not the
+old homepage** — a real, `git log`-confirmed state change, not a
+documentation update.
+
+**Two real product bugs found and fixed (not hp-024/hpa-002 regressions —
+both predate this pass):**
+- `CaseStudies.tsx`'s NASA credential card showed a literal "$500K
+  Project" badge — a customer-facing price, CLAUDE.md rule #1. Caught by
+  this suite's price-pattern assertion (reused `checkout.spec.ts`'s
+  `PRICE_PATTERN`). Replaced with "Zero-Defect Delivery".
+- `NationwideMapLeaflet.tsx` put `data-testid="nationwide-map"` directly
+  on react-leaflet's `<MapContainer>`, which doesn't forward unknown
+  props to its DOM node — the testid never rendered. Fixed by wrapping in
+  a plain div, matching `HailViewMap.tsx`'s already-established
+  `"hailview-map"` pattern.
+
+Added `data-testid` hooks to `components/studio/ProfileLibraryBrowser.tsx`
+(chips row/each chip + `data-category`, grid, each card, 3D toggle) —
+additive only, `/studio/library`'s existing behavior unchanged.
+
+**Environment gotcha worth remembering:** this session's port 3000 was
+initially held by an unrelated project's broken dev server, and separately
+several orphaned `next dev`/`next build` processes for *this* project
+were already running and file-lock-contending on `.next/cache`, which
+hung this project's own `pnpm dev` indefinitely at "✓ Starting..." with
+zero CPU and no error. Killing all stray node processes and starting one
+clean `pnpm dev` fixed it. Check for duplicate processes first if this
+recurs.
+
+**Gate:** `pnpm tsc --noEmit` — 0 errors. Playwright — 29 passed, 1
+skipped, 0 failed.
+
+---
+
 ## PROFILE EXPLORER — HOMEPAGE PROFILE BROWSER SECTION (hpa-002) — 2026-09-10
 
 Established fact carried in from the prior pass: no component named
