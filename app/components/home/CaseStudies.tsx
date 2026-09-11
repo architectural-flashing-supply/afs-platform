@@ -96,7 +96,7 @@ export default function CaseStudies() {
                   <h3 className="font-heading text-xl font-semibold text-afs-chrome-high">
                     {study.title}
                   </h3>
-                  <p className="mt-1 font-label text-xs uppercase tracking-wider text-afs-chrome-dim">
+                  <p className="mt-1 font-label text-xs uppercase tracking-wider text-afs-chrome-mid">
                     {study.materialFinish}
                   </p>
                   <p className="mt-3 font-body text-sm text-afs-chrome-mid">{study.outcome}</p>
@@ -114,7 +114,7 @@ export default function CaseStudies() {
             className="flex flex-col overflow-hidden rounded border border-[var(--afs-border)] bg-afs-bg-raised metal-edge"
           >
             <div className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-3 bg-afs-bg-dim px-6 text-center">
-              <span className="font-label text-[0.65rem] font-semibold uppercase tracking-widest text-afs-chrome-dim">
+              <span className="font-label text-[0.65rem] font-semibold uppercase tracking-widest text-afs-chrome-mid">
                 Trusted by
               </span>
               <span className="rounded-full border border-afs-chrome-mid px-5 py-2 font-label text-sm font-semibold uppercase tracking-widest text-afs-chrome-high">

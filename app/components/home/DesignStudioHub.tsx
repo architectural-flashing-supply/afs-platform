@@ -132,7 +132,7 @@ export default function DesignStudioHub() {
                 }`}
               >
                 <span className="font-heading text-lg text-afs-chrome-high">{method.title}</span>
-                <span className="mt-1 font-body text-xs text-afs-chrome-dim">{method.description}</span>
+                <span className="mt-1 font-body text-xs text-afs-chrome-mid">{method.description}</span>
               </button>
             );
           })}
@@ -146,7 +146,7 @@ export default function DesignStudioHub() {
         >
           <h3 className="font-heading text-2xl text-afs-chrome-high">{selected.title}</h3>
           <p className="mt-3 max-w-2xl font-body text-base text-afs-chrome-mid">{selected.description}</p>
-          <p className="mt-3 font-label text-sm font-semibold uppercase tracking-wide text-afs-chrome-dim">
+          <p className="mt-3 font-label text-sm font-semibold uppercase tracking-wide text-afs-chrome-mid">
             {selected.bestFor}
           </p>
           <Link

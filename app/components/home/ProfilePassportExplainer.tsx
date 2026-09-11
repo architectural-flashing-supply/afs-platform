@@ -170,7 +170,7 @@ export default async function ProfilePassportExplainer() {
             <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4">
               {PASSPORT_FIELDS.map((field) => (
                 <div key={field.label}>
-                  <dt className="font-label text-[10px] font-semibold uppercase tracking-widest text-afs-chrome-dim">
+                  <dt className="font-label text-[10px] font-semibold uppercase tracking-widest text-afs-chrome-mid">
                     {field.label}
                   </dt>
                   <dd className="mt-1 font-data text-sm text-afs-chrome-high">{field.value}</dd>

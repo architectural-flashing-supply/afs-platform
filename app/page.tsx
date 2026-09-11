@@ -26,6 +26,12 @@ const NationwideMap = dynamic(() => import('@/app/components/home/NationwideMap'
 export default function HomePage() {
   return (
     <main>
+      {/* Hoisted into <head> by Next.js (Server Component <link> tags are
+          moved there automatically) so the hero poster — the LCP element —
+          starts downloading immediately instead of waiting on the video
+          element to be discovered during hydration. */}
+      <link rel="preload" as="image" href="/images/hero-poster.jpg" fetchPriority="high" />
+
       <HomeSection slug="hero">
         <HeroSection />
       </HomeSection>

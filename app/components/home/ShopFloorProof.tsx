@@ -19,14 +19,17 @@ const STATS = [
 ] as const;
 
 export default function ShopFloorProof() {
+  const sectionRef = useRef<HTMLElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [videoEnabled, setVideoEnabled] = useState(false);
+  const [isNearViewport, setIsNearViewport] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const videoEnabled = isNearViewport && !reducedMotion;
 
   useEffect(() => {
     const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
 
     const applyPreference = (reduceMotion: boolean) => {
-      setVideoEnabled(!reduceMotion);
+      setReducedMotion(reduceMotion);
       if (reduceMotion) videoRef.current?.pause();
     };
 
@@ -36,8 +39,28 @@ export default function ShopFloorProof() {
     return () => motionQuery.removeEventListener('change', handleChange);
   }, []);
 
+  // Below-the-fold section -- defer attaching the video <source> tags
+  // (below) until it scrolls near the viewport so this byte download never
+  // competes with the hero's LCP poster or other above-the-fold requests.
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (!section) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setIsNearViewport(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '200px' }
+    );
+    observer.observe(section);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <section className="relative min-h-[60svh] w-full overflow-hidden bg-afs-bg-dim">
+    <section ref={sectionRef} className="relative min-h-[60svh] w-full overflow-hidden bg-afs-bg-dim">
       <video
         ref={videoRef}
         className="absolute inset-0 h-full w-full object-cover"
@@ -81,7 +104,7 @@ export default function ShopFloorProof() {
         <dl className="grid w-full max-w-3xl grid-cols-1 gap-8 sm:grid-cols-3">
           {STATS.map((stat) => (
             <div key={stat.label} className="flex flex-col items-center">
-              <dt className="order-2 mt-2 font-label text-xs font-medium uppercase tracking-widest text-afs-chrome-dim">
+              <dt className="order-2 mt-2 font-label text-xs font-medium uppercase tracking-widest text-afs-chrome-mid">
                 {stat.label}
               </dt>
               <dd className="order-1 font-display text-5xl leading-none text-afs-chrome-high md:text-6xl">

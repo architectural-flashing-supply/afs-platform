@@ -29,14 +29,17 @@ const STEPS = [
 ];
 
 export default function FieldAppStory() {
+  const sectionRef = useRef<HTMLElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [videoEnabled, setVideoEnabled] = useState(false);
+  const [isNearViewport, setIsNearViewport] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const videoEnabled = isNearViewport && !reducedMotion;
 
   useEffect(() => {
     const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
 
     const applyPreference = (reduceMotion: boolean) => {
-      setVideoEnabled(!reduceMotion);
+      setReducedMotion(reduceMotion);
       if (reduceMotion) videoRef.current?.pause();
     };
 
@@ -44,6 +47,27 @@ export default function FieldAppStory() {
     const handleChange = (e: MediaQueryListEvent) => applyPreference(e.matches);
     motionQuery.addEventListener('change', handleChange);
     return () => motionQuery.removeEventListener('change', handleChange);
+  }, []);
+
+  // This section sits below the fold -- the video's <source> tags (below)
+  // are only rendered once it scrolls near the viewport, so the byte
+  // download never competes with the hero's LCP poster or other above-the-
+  // fold requests.
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (!section) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setIsNearViewport(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '200px' }
+    );
+    observer.observe(section);
+    return () => observer.disconnect();
   }, []);
 
   const handleTimeUpdate = () => {
@@ -54,7 +78,7 @@ export default function FieldAppStory() {
   };
 
   return (
-    <section className="relative overflow-hidden bg-afs-bg-base py-20 md:py-28">
+    <section ref={sectionRef} className="relative overflow-hidden bg-afs-bg-base py-20 md:py-28">
       {/* Real jobsite installation detail (flashing-1.jpg, per
           public/legacy-site-photos/MANIFEST.md: "angled receiver/counterflashing
           bracket fastened over a metal roof panel against a stucco wall -- real

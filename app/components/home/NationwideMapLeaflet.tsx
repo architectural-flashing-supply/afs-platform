@@ -11,6 +11,7 @@
 // same already-verified HailViewMap.tsx, not a new map dependency.
 
 import { MapContainer, TileLayer, Marker, Popup, Circle, Tooltip, useMap } from 'react-leaflet';
+import type { LeafletEvent } from 'leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { HQ_LOCATION, NATIONWIDE_RADIUS_METERS } from './nationwide-locations';
@@ -43,6 +44,17 @@ function FitToContinentalUS() {
   return null;
 }
 
+// A divIcon marker gets Leaflet's own role="button"/tabindex="0" for
+// keyboard interactivity but no accessible name (unlike an L.Icon image
+// marker, a div has no `alt`) -- axe/Lighthouse's aria-command-name audit
+// flags this. eventHandlers.add is the reliable hook for this (unlike a
+// ref + mount effect on the parent, which fires before MapContainer has
+// finished creating the map instance and actually attached the marker's
+// DOM element -- too early for getElement() to return anything).
+function setMarkerAriaLabel(e: LeafletEvent) {
+  e.target.getElement()?.setAttribute('aria-label', HQ_LOCATION.name);
+}
+
 export default function NationwideMapLeaflet() {
   return (
     // react-leaflet's MapContainer doesn't spread unrecognized props (like
@@ -62,6 +74,12 @@ export default function NationwideMapLeaflet() {
         />
         <FitToContinentalUS />
 
+        {/* Leaflet's pathOptions prop takes a plain style object read by its
+            own SVG renderer, not JSX/CSS -- it can't consume Tailwind
+            classes or CSS custom properties, same documented exception as
+            the CANVAS_COLORS/WebGL material patterns in
+            DESIGN_TOKENS.md §10. Literal value mirrors afs-crimson
+            (#C0001A). */}
         <Circle
           center={[HQ_LOCATION.lat, HQ_LOCATION.lon]}
           radius={NATIONWIDE_RADIUS_METERS}
@@ -72,7 +90,11 @@ export default function NationwideMapLeaflet() {
           </Tooltip>
         </Circle>
 
-        <Marker position={[HQ_LOCATION.lat, HQ_LOCATION.lon]} icon={HQ_MARKER_ICON}>
+        <Marker
+          position={[HQ_LOCATION.lat, HQ_LOCATION.lon]}
+          icon={HQ_MARKER_ICON}
+          eventHandlers={{ add: setMarkerAriaLabel }}
+        >
           <Popup>{HQ_LOCATION.name}</Popup>
         </Marker>
       </MapContainer>

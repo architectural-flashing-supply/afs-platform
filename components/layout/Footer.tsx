@@ -34,7 +34,7 @@ export default function Footer() {
 
           {/* Products */}
           <div>
-            <h4 className="font-label text-xs text-afs-chrome-mid uppercase tracking-widest mb-4">Products</h4>
+            <h3 className="font-label text-xs text-afs-chrome-mid uppercase tracking-widest mb-4">Products</h3>
             <ul className="space-y-2">
               {['Coping Caps','Base Flashing','Drip Edge','Gravel Stop','Custom Profiles'].map(item => (
                 <li key={item}>
@@ -48,7 +48,7 @@ export default function Footer() {
 
           {/* Resources */}
           <div>
-            <h4 className="font-label text-xs text-afs-chrome-mid uppercase tracking-widest mb-4">Resources</h4>
+            <h3 className="font-label text-xs text-afs-chrome-mid uppercase tracking-widest mb-4">Resources</h3>
             <ul className="space-y-2">
               {[
                 { label: 'Upload a Drawing', href: '/upload' },
@@ -68,7 +68,7 @@ export default function Footer() {
 
           {/* Company */}
           <div>
-            <h4 className="font-label text-xs text-afs-chrome-mid uppercase tracking-widest mb-4">Company</h4>
+            <h3 className="font-label text-xs text-afs-chrome-mid uppercase tracking-widest mb-4">Company</h3>
             <ul className="space-y-2">
               {[
                 { label: 'About', href: '/about' },

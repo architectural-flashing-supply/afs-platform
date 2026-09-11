@@ -43,20 +43,20 @@ function ProfileLibraryModal({ profile, onClose }: { profile: LibraryProfileCard
         <BendSequenceDiagram bends={profile.bends} className="w-[500px] h-[400px] max-w-full bg-afs-bg-dim rounded mx-auto mb-4" />
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
-            <p className="font-label text-xs uppercase tracking-wide text-afs-chrome-dim mb-1">Blank Width</p>
+            <p className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1">Blank Width</p>
             <p className="font-data text-sm text-afs-chrome-high">
               {profile.blankWidthIn != null ? `${profile.blankWidthIn.toFixed(3)}"` : '—'}
               {profile.blankWidthMm != null ? ` / ${profile.blankWidthMm.toFixed(1)}mm` : ''}
             </p>
           </div>
           <div>
-            <p className="font-label text-xs uppercase tracking-wide text-afs-chrome-dim mb-1">Bend Count</p>
+            <p className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1">Bend Count</p>
             <p className="font-data text-sm text-afs-chrome-high">{profile.bendCount}</p>
           </div>
         </div>
         {profile.bends.length > 0 && (
           <div className="mb-4">
-            <p className="font-label text-xs uppercase tracking-wide text-afs-chrome-dim mb-2">Bend Sequence</p>
+            <p className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-2">Bend Sequence</p>
             <div className="flex flex-col gap-1 max-h-48 overflow-y-auto">
               {profile.bends.map((b, i) => (
                 <p key={i} className="font-data text-xs text-afs-chrome-mid">
@@ -68,7 +68,7 @@ function ProfileLibraryModal({ profile, onClose }: { profile: LibraryProfileCard
             </div>
           </div>
         )}
-        <p className="font-body text-sm text-afs-chrome-dim mb-6">
+        <p className="font-body text-sm text-afs-chrome-mid mb-6">
           Fabricated {profile.fabricatedCount} time{profile.fabricatedCount === 1 ? '' : 's'} in shop history
         </p>
         <div className="flex gap-3 justify-end">
@@ -180,7 +180,7 @@ export default function ProfileLibraryBrowser({
           className={`font-label text-xs font-semibold px-4 py-2 rounded-full border transition-colors ${
             category === c
               ? 'bg-afs-crimson border-afs-crimson text-white'
-              : 'border-afs-border bg-afs-bg-overlay text-afs-chrome-mid hover:bg-afs-bg-surface'
+              : 'border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface'
           }`}
         >
           {c === 'all' ? 'All' : c}
@@ -215,7 +215,7 @@ export default function ProfileLibraryBrowser({
                 <BendSequenceDiagram bends={p.bends} className="w-[240px] h-[180px] bg-afs-bg-dim rounded mx-auto" />
               )}
               <h3 className="font-heading text-base text-afs-chrome-high leading-tight">{p.nameEn}</h3>
-              <p className="font-data text-xs text-afs-chrome-dim">
+              <p className="font-data text-xs text-afs-chrome-mid">
                 #{p.profileNumber} · {p.categoryName}
               </p>
               <div className="font-body text-xs text-afs-chrome-mid flex items-center justify-between">
@@ -227,7 +227,7 @@ export default function ProfileLibraryBrowser({
                   {p.bendCount} bend{p.bendCount === 1 ? '' : 's'}
                 </span>
               </div>
-              <p className="font-body text-[11px] text-afs-chrome-dim">
+              <p className="font-body text-[11px] text-afs-chrome-mid">
                 Fabricated {p.fabricatedCount} time{p.fabricatedCount === 1 ? '' : 's'}
               </p>
               <div className="flex flex-wrap gap-2 mt-1">

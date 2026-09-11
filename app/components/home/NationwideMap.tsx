@@ -12,6 +12,15 @@
 // `window`/`document` at import time and breaks Next's SSR pass otherwise;
 // this file must stay a Client Component for next/dynamic's `ssr: false` to
 // be legal at all (disallowed from Server Components).
+//
+// hpa-005 — deliberately NOT gated behind an IntersectionObserver the way
+// FieldAppStory/ShopFloorProof's videos are: tests/e2e/homepage.spec.ts's
+// "NationwideMap renders the HQ marker" test asserts the map and its tile
+// layer are visible right after page.goto('/'), with no scroll -- viewport-
+// gating this mount would leave [data-testid="nationwide-map"] out of the
+// DOM for that test and fail it. next/dynamic's ssr:false already keeps
+// Leaflet out of the server bundle and off the main chunk, which is the
+// lazy-loading available here without breaking that contract.
 
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
@@ -41,7 +50,7 @@ export default function NationwideMap() {
             map above, reachable without pointer interaction with the map
             (Leaflet markers/popups are not reliably keyboard-operable). */}
         <div className="mt-6">
-          <h3 className="font-label text-xs font-semibold uppercase tracking-widest text-afs-chrome-dim">
+          <h3 className="font-label text-xs font-semibold uppercase tracking-widest text-afs-chrome-mid">
             Locations
           </h3>
           <ul className="mt-3 space-y-2">

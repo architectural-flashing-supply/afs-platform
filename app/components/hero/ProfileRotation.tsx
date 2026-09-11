@@ -321,5 +321,9 @@ export default function ProfileRotation({ className }: ProfileRotationProps) {
     };
   }, []);
 
-  return <div ref={containerRef} className={`h-full w-full ${className ?? ''}`} />;
+  // Decorative — the same "SHOW US THE DETAIL. WE'LL FORM IT." message the
+  // hero H1/copy already conveys in text, so hidden from assistive tech
+  // rather than given a redundant label (same treatment as the hero/
+  // shop-floor background videos' aria-hidden attribute).
+  return <div ref={containerRef} aria-hidden="true" className={`h-full w-full ${className ?? ''}`} />;
 }

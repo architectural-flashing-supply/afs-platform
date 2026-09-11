@@ -154,11 +154,13 @@ function ProfileExplorerSkeleton() {
 
 export default function ProfileExplorer() {
   return (
-    <section id="profile-explorer" className="bg-afs-bg-base py-20 px-6">
+    <section id="profile-explorer" className="bg-afs-bg-base py-20 px-6 md:py-28">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-10">
-          <h2 className="font-display text-5xl text-afs-chrome-high leading-none mb-3">Explore our profiles</h2>
-          <p className="font-body text-afs-chrome-mid text-sm max-w-xl mx-auto">
+          <h2 className="font-display text-4xl leading-none text-afs-chrome-high sm:text-5xl md:text-6xl">
+            Explore our profiles
+          </h2>
+          <p className="mt-4 font-body text-base text-afs-chrome-mid md:text-lg max-w-xl mx-auto">
             Real profiles from our machine library — filter by category and preview any shape in 3D.
           </p>
         </div>
