@@ -24,6 +24,32 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## HERO — PROFILEROTATION REMOVED (hpd-001) — 2026-09-11
+
+Reid's decision: the rotating 3D profile in the hero is removed entirely;
+the full-bleed shop-floor video is the hero visual. Full detail in
+STATE_OF_THE_BUILD.md's matching entry (top of file) — summary here for
+handoff:
+
+- `HeroSection.tsx` no longer imports/mounts `ProfileRotation` — text
+  block (H1/sub-copy/CTAs) is now a single left-aligned `max-w-3xl` column
+  over the full-bleed video, bottom-aligned above the fold on mobile.
+  `ProfileRotation.tsx` and `scripts/video-review/profile-rotation-
+  comparison.jpg` deleted. `three` dependency kept (still used by
+  FlashDraft's `ProfileViewer3D`).
+- `tests/e2e/homepage.spec.ts` updated: ProfileRotation canvas assertions
+  replaced with a "no canvas in hero" assertion.
+- `COMPONENT_MAP.md`'s `ProfileRotation.tsx` entry removed.
+- `pnpm tsc --noEmit` — 0 errors. `pnpm run build` — passes. `npx
+  playwright test tests/e2e/homepage.spec.ts` — 31 passed, 1 skipped
+  (pre-existing auth-setup skip). Hero visually checked at 375px/1440px —
+  text readable over the video both times.
+
+Committed as `d30b19c` ("hpd-001: Remove ProfileRotation from hero;
+footage is the hero visual").
+
+---
+
 ## WORKING-TREE HYGIENE + PUSH ATTEMPT (hpb-001) — 2026-09-10
 
 Full detail in STATE_OF_THE_BUILD.md's matching entry (top of file) —

@@ -34,6 +34,49 @@ summary, not a replacement for it.
 
 ---
 
+## HERO — PROFILEROTATION REMOVED, SHOP-FLOOR FOOTAGE IS THE SOLE HERO VISUAL (hpd-001): IMPLEMENTED, UNCONFIRMED (2026-09-11)
+
+Reid's decision: the rotating 3D profile in the hero is removed entirely;
+the full-bleed shop-floor video is the only hero visual — nothing replaces
+the removed column.
+
+- `app/components/hero/HeroSection.tsx`: removed the `ProfileRotation`
+  `next/dynamic` import/loader and its `md:w-1/2` column. Layout is now a
+  single left-aligned `max-w-3xl` text block (H1, sub-copy, two CTAs) over
+  the full-bleed video, bottom-aligned above the fold on mobile
+  (`justify-end` / `md:justify-center`). Poster-first paint and the
+  `prefers-reduced-motion` video-pause behavior are unchanged.
+- `app/components/hero/ProfileRotation.tsx` and
+  `scripts/video-review/profile-rotation-comparison.jpg` deleted (`git
+  rm`). `three`/`RoomEnvironment` kept — confirmed still imported by
+  `components/studio/ProfileViewer3D.tsx` (grepped before deleting, per
+  instruction). No other file existed solely to support `ProfileRotation`:
+  `public/images/hero-profile.png` is referenced only in a code comment
+  (the real-photo measurements `ProfileRotation`'s geometry was built
+  from) and was never imported/loaded by any component, so it was left in
+  place — not in scope of this removal.
+- `tests/e2e/homepage.spec.ts`: replaced the "ProfileRotation mounts a
+  canvas" test with a "hero renders with zero console errors and no canvas
+  element" assertion (`toHaveCount(0)` on `[data-section="hero"]
+  canvas`); the reduced-motion test's canvas-screenshot-stability
+  assertion (only meaningful for ProfileRotation's static-frame branch)
+  was removed.
+- `COMPONENT_MAP.md`: removed the `ProfileRotation.tsx` entry; updated
+  `HeroSection.tsx`'s entry to describe the new single-column layout.
+
+Verified this session: `pnpm tsc --noEmit` — 0 errors. `pnpm run build` —
+passes. `npx playwright test tests/e2e/homepage.spec.ts` — 31 passed (1
+pre-existing auth-setup skip, no test credentials), run against a `pnpm
+start` production server. Hero screenshotted at 375x812 and 1440x900 —
+text reads clearly over the video at both, no dead space where the removed
+column used to be.
+
+Per this file's verification standard (above): the gates are met and this
+is this session's own screenshot evidence, not yet independently confirmed
+by Reid — marked **IMPLEMENTED, UNCONFIRMED** pending that.
+
+---
+
 ## WORKING-TREE HYGIENE + PUSH ATTEMPT (hpb-001): PUSH BLOCKED — HYGIENE DONE, TYPECHECK CLEAN (2026-09-10)
 
 Working-tree cleanup: `queue.yaml`'s accidental uncommitted modification
