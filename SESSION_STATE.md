@@ -24,6 +24,32 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## WORKING-TREE HYGIENE + PUSH ATTEMPT (hpb-001) — 2026-09-10
+
+Full detail in STATE_OF_THE_BUILD.md's matching entry (top of file) —
+summary here for handoff:
+
+- Restored the accidentally-modified `queue.yaml`, added `EMAIL PROSPECT
+  LISTS/`, `.repro-*/`, and `supabase/.temp/` to `.gitignore`, committed
+  as `cbb585e` ("hpb-001: launch-rule clarification, gitignore PII and
+  debug folders, hero-profile asset").
+- **`feat/homepage-redesign` is still not on `origin`.** Tried HTTPS (3x,
+  tuned buffer/protocol/timeout settings) — timeout, HTTP 408, timeout.
+  Tried SSH — blocked because `gh ssh-key add` needs the
+  `admin:public_key` token scope, which the current `gh auth` session
+  doesn't have, and granting it requires an interactive browser login this
+  run couldn't start.
+- `homepage-v1-rc` untouched — never reached because neither push attempt
+  succeeded.
+- `pnpm tsc --noEmit`: 0 errors.
+- **Handoff ask:** either Reid runs `gh auth refresh -h github.com -s
+  admin:public_key` once interactively, or push manually from a
+  connection that can sustain the HTTPS transfer. The consistent
+  mid-transfer 408/timeout on 3 separate tries suggests it's worth
+  checking repo/pack size rather than re-tuning HTTP knobs further.
+
+---
+
 ## NASA JSC CARD IMAGE + EXPLORE OUR PROFILES REMOVED (hpc-003) — 2026-09-10
 
 Two content decisions from Reid. Full detail in STATE_OF_THE_BUILD.md's

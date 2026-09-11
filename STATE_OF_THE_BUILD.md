@@ -34,6 +34,47 @@ summary, not a replacement for it.
 
 ---
 
+## WORKING-TREE HYGIENE + PUSH ATTEMPT (hpb-001): PUSH BLOCKED — HYGIENE DONE, TYPECHECK CLEAN (2026-09-10)
+
+Working-tree cleanup: `queue.yaml`'s accidental uncommitted modification
+reverted (`git checkout -- queue.yaml`, confirmed Reid-caused outside any
+build). `.gitignore` now covers `EMAIL PROSPECT LISTS/`, `.repro-*/`, and
+`supabase/.temp/` — confirmed via `git status` that none of those paths
+show as untracked. `public/images/hero-profile.png` was already tracked
+(no action needed); `CLAUDE.md` was already committed as-is at session
+start (no diff to stage). Committed as `cbb585e`.
+
+**PUSH BLOCKED.** `feat/homepage-redesign` (commit `cbb585e`) is **not**
+on `origin` — `git status -sb` shows no upstream tracking configured, i.e.
+neither push attempt below ever completed.
+
+- **Attempt A (HTTPS, tuned)** — `http.postBuffer 524288000`,
+  `http.version HTTP/1.1`, `http.lowSpeedLimit 1000`, `http.lowSpeedTime
+  900` applied, then `git push -u origin feat/homepage-redesign` x3:
+  try 1 timed out at 2 min, try 2 failed `HTTP 408` ("RPC failed;
+  unexpected disconnect while reading sideband packet"), try 3 timed out
+  at 3 min. Large-object upload appears to be dying mid-transfer against
+  this remote regardless of buffer/protocol tuning.
+- **Attempt B (SSH)** — `gh auth status` succeeded (account `Reid64`,
+  scopes `gist, read:org, repo, workflow`). No local ed25519 key existed;
+  generated one (`~/.ssh/id_ed25519`, no passphrase). `gh ssh-key add`
+  failed: `HTTP 404` — "This API operation needs the `admin:public_key`
+  scope" (`gh auth refresh -s admin:public_key` would fix this but that
+  starts an interactive browser login flow, which this run does not do).
+  Blocked here per instruction — remote origin was never changed from
+  HTTPS, so no URL restore was needed.
+
+`homepage-v1-rc` was never touched (both attempts require attempt A or B
+to succeed first). `pnpm tsc --noEmit` passes with 0 errors on the current
+tree. **Next session needs either**: Reid to run `gh auth refresh -h
+github.com -s admin:public_key` interactively once (so a future session's
+SSH key add succeeds), or a manual `git push` from a connection that can
+sustain the HTTPS transfer, or investigation into why the HTTPS RPC is
+dying (repo size / large binary in history is the likely suspect given
+the consistent mid-transfer timeout/408 pattern across 3 tries).
+
+---
+
 ## NASA JSC CARD IMAGE + EXPLORE OUR PROFILES REMOVED (hpc-003): DONE (2026-09-10)
 
 Two content decisions from Reid, both closed out this session.
