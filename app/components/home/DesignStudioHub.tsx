@@ -16,8 +16,8 @@ interface DesignMethod {
 // (/upload, /quote). Photo to Quote is NOT /upload — that route has no
 // photo-specific mode; the real field-contractor camera-to-quote flow is
 // /field/contractor (app/field/contractor/page.tsx, already linked from
-// FieldAppStory.tsx). FlashDraft and Configurator are /studio/draft and
-// /configure, both confirmed live in app/studio/page.tsx's own tab links.
+// FieldAppStory.tsx). FlashDraft is /studio/draft, confirmed live in
+// app/studio/page.tsx's own tab links.
 const METHODS: DesignMethod[] = [
   {
     id: 'scan-plans',
@@ -42,13 +42,6 @@ const METHODS: DesignMethod[] = [
       'Draw your exact profile on a canvas and specify dimensions precisely. Matched against our machine library for instant fabrication.',
     bestFor: "Best for custom or unusual profiles that don't match a standard catalog shape.",
     href: '/studio/draft',
-  },
-  {
-    id: 'configurator',
-    title: 'Configurator',
-    description: 'Pick a standard profile and enter exact dimensions. A live diagram updates as you type.',
-    bestFor: 'Best for standard profiles where you already know the exact dimensions.',
-    href: '/configure',
   },
   {
     id: 'quick-quote',
@@ -97,7 +90,7 @@ export default function DesignStudioHub() {
       <div className="mx-auto max-w-6xl px-6">
         <div className="text-center">
           <h2 className="font-display text-4xl leading-none text-afs-chrome-high sm:text-5xl md:text-6xl">
-            Five Ways to Start
+            Four Ways to Start
           </h2>
           <p className="mt-4 font-body text-base text-afs-chrome-mid md:text-lg">
             Pick the method that fits what you have. Every path leads to a formal AFS quote.
@@ -107,7 +100,7 @@ export default function DesignStudioHub() {
         <div
           role="tablist"
           aria-label="Design Studio methods"
-          className="mt-12 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 sm:grid sm:grid-cols-5 sm:gap-4 sm:overflow-visible sm:pb-0"
+          className="mt-12 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 sm:grid sm:grid-cols-4 sm:gap-4 sm:overflow-visible sm:pb-0"
         >
           {METHODS.map((method, index) => {
             const isSelected = index === selectedIndex;

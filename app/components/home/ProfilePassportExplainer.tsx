@@ -50,9 +50,9 @@ interface FlowStep {
   Icon: (props: SVGProps<SVGSVGElement>) => JSX.Element;
 }
 
-// "Design" routes are the two real profile-building tools already linked
-// from DesignStudioHub.tsx (hp-006) -- FlashDraft is /studio/draft,
-// Configurator is /configure -- re-confirmed here rather than assumed.
+// "Design" route is the profile-building tool linked from DesignStudioHub.tsx
+// (hp-006) -- FlashDraft is /studio/draft -- re-confirmed here rather than
+// assumed.
 //
 // The prompt's "(AFS number, material, gauge, finish, drawing, 3D model,
 // bend schedule)" field list does not match any real table. SCHEMA.md has
@@ -72,7 +72,7 @@ const STEPS: FlowStep[] = [
   {
     key: 'design',
     title: 'Design',
-    description: 'Build your profile in FlashDraft or the Configurator.',
+    description: 'Build your profile in FlashDraft.',
     Icon: DesignIcon,
   },
   {

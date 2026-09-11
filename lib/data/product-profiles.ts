@@ -33,7 +33,7 @@ export async function getProfileStockLengths(supabase: SupabaseClient): Promise<
   }));
 }
 
-// app/configure/page.tsx's ProfileType is a 16-member slug union built for FlashDraft
+// lib/utils/profile-svg.ts's ProfileType is a 16-member slug union built for FlashDraft
 // geometry — only 5 values are real product_profiles.slugs. Exact slug match; no row
 // (or a NULL standard_length_ft, e.g. scupper/custom-profile) resolves to null.
 export function resolveStockLengthBySlug(profiles: ProfileStockLength[], slug: string): number | null {

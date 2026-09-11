@@ -3,8 +3,6 @@ import type { CatalogProduct } from '@/lib/data/catalog';
 import StockBadge from './StockBadge';
 
 export default function ProductCard({ product }: { product: CatalogProduct }) {
-  const configureHref = product.profileType ? `/configure?profile=${product.profileType}` : '/configure';
-
   return (
     <div className="group bg-afs-bg-raised border border-afs-chrome-dim rounded metal-edge overflow-hidden hover:border-afs-chrome-base transition-colors flex flex-col">
       <div className="p-5 flex flex-col flex-1">
@@ -42,10 +40,10 @@ export default function ProductCard({ product }: { product: CatalogProduct }) {
             Request a Quote
           </Link>
           <Link
-            href={configureHref}
+            href="/studio/draft"
             className="border border-afs-border text-afs-chrome-mid hover:bg-afs-bg-surface hover:text-afs-chrome-high text-center font-label text-sm px-4 py-2.5 rounded transition-colors"
           >
-            Configure
+            Design in FlashDraft
           </Link>
         </div>
       </div>

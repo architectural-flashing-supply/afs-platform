@@ -168,7 +168,7 @@ NavBar.tsx  [corrected hp-024 — the entry below this one had described an
   current file]
   A fixed 200x80px logo box top-left, plus a single fixed h-14 (56px)
   header to its right — no left rail. Header link row (hidden md:flex):
-  Products, Request a Quote, Configure, Upload Drawing, Design Studio
+  Products, Request a Quote, Upload Drawing, Design Studio
   (-> /studio, a separate destination from hp-006's /design-studio — the
   two coexist un-reconciled), Architects, a Resources dropdown (added
   hp-020: Resources + HailView links, opens on click, closes on outside-
@@ -330,8 +330,10 @@ app/components/home/FieldAppStory.tsx  (hp-005) -- data-section="field-app"
   the hero asset), three-step photo-to-quote flow. CTAs -> /field/contractor.
 
 app/components/home/DesignStudioHub.tsx  (hp-006) -- data-section="design-studio"
-  Five-method selector (Scan Plans/Photo to Quote/FlashDraft/Configurator/
-  Quick Quote), ARIA tabs pattern. Sets id="design-studio" on its own root
+  Four-method selector (Scan Plans/Photo to Quote/FlashDraft/Quick Quote —
+  was five methods through hpd-002, when the Configurator method was
+  eliminated as redundant with FlashDraft), ARIA tabs pattern. Sets
+  id="design-studio" on its own root
   section (HomeSection wraps it with withId={false} on the homepage to
   avoid a duplicate id — see HomeSection.tsx above). Rendered in two
   places: embedded on the homepage as of hpa-003, and at its own
@@ -578,31 +580,24 @@ MultiItemBar.tsx
 
 ---
 
-## LAYER 6 — FLASHING CONFIGURATOR (`components/configurator/`)
+## LAYER 6 — FLASHING CONFIGURATOR — ELIMINATED (hpd-002, 2026-09-11)
 
-```
-ConfiguratorShell.tsx
-  Two-panel desktop, tabbed mobile
-  Left: ConfiguratorControls (480px)
-  Right: ConfiguratorPreview (flex-1)
-
-ConfiguratorControls.tsx
-  Sections: Profile | Material | Gauge | Finish | Dimensions | Length+Qty | Notes
-  "Submit for Quote" primary button
-  "Save Configuration" link (auth)
-  "Add to Quote Request" link
-
-ConfiguratorPreview.tsx
-  ProfileDiagramSVG (live)
-  SpecSummaryPanel (text summary, font-data)
-  Disclaimer: "Estimated CAD preview — for reference only"
-  No price display
-
-SavedConfigCard.tsx
-  Used in /architects/custom-profiles
-  Left: ProfileDiagramSVG scaled
-  Right: profile details, dimensions (font-data), reorder/edit buttons
-```
+Reid's decision: the Configurator was redundant with FlashDraft and was
+eliminated from the site. `components/configurator/` as speculatively
+described in earlier versions of this doc (`ConfiguratorShell.tsx`,
+`ConfiguratorControls.tsx`, `ConfiguratorPreview.tsx`) never existed as
+real files — the real implementation was always a single self-contained
+`app/configure/page.tsx` (34KB, same single-file pattern as FlashDraft's
+`app/studio/draft/page.tsx`), confirmed by a fresh directory listing
+before deletion. That file is now `git rm`'d; `/configure` and
+`/configurator` permanently redirect to `/studio/draft` (`next.config.js`
+`redirects()`). `SavedConfigCard.tsx` and `SavedProfilesBrowser.tsx` (real,
+`components/architects/`, not `components/configurator/` as this doc
+previously implied, used by `/architects/custom-profiles` — not otherwise
+documented elsewhere in this file) survive: `SavedConfigCard.tsx` lost only
+its "Edit" button (`/configure?saved=` no longer resolves to an editable
+page, "Reorder" is unaffected); `SavedProfilesBrowser.tsx`'s empty-state CTA
+now points at FlashDraft (`/studio/draft`) instead of `/configure`.
 
 ---
 
@@ -622,14 +617,16 @@ ProductCard.tsx
   No price. No "From $X" anywhere.
   Category badge, SKU (if exists), name (font-heading), material + gauge
   Stock badge: "In Stock" | "Made to Order" | "Special Order"
-  CTA: "Request a Quote" | "Configure"
+  CTA: "Request a Quote" | "Design in FlashDraft" (hpd-002 — was "Configure",
+  linking to the now-eliminated /configure)
 
 ProductDetailPage.tsx
   Two-column: ProfileDiagramSVG + ProductDetailInfo
   No price display
   MaterialOptions | GaugeSelector | FinishSelector | DimensionReference
   CTA primary: "Request a Quote for This Product"
-  CTA secondary: "Configure Custom Dimensions"
+  CTA secondary: "Design in FlashDraft" (hpd-002 — was "Configure Custom
+  Dimensions", linking to the now-eliminated /configure)
   Tabs: Overview | Specifications | Installation | Documents
 
 GaugeSelector.tsx (shared with quote components)
@@ -987,13 +984,12 @@ ProfileLibraryBrowser.tsx (components/studio/ — NEW, afs-038)
 
 app/studio/page.tsx
   Design Studio landing — 4 tab cards (grid-cols-1 sm:grid-cols-2
-  lg:grid-cols-4, widened from a 3-column grid): Scan to Quote
-  (→ /upload), Photo to Quote (→ /upload?tab=photos), FlashDraft
-  (→ /studio/draft), and Custom Configurator (→ /configure, added
-  afs-cs-002) — the last links to the existing standalone Configurator
-  route unchanged; no route moved, no state shared between the two
-  tools. afs-038 added a banner card below the tile grid linking to
-  /studio/library.
+  lg:grid-cols-4): Scan to Quote (→ /upload), Photo to Quote
+  (→ /upload), FlashDraft (→ /studio/draft), and Quick Quote
+  (→ /quote). A fifth card, Custom Configurator (→ /configure, added
+  afs-cs-002), was eliminated hpd-002 — redundant with FlashDraft; the
+  grid was 5 columns before that removal. afs-038 added a banner card
+  below the tile grid linking to /studio/library.
 
 --- FlashDraft (`app/studio/draft/page.tsx`) — a 12-file `useReducer`
     rewrite (`lib/flashdraft/` + `components/studio/flashdraft/`) was

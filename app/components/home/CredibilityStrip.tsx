@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 const ITEMS: { label: string; href: string }[] = [
-  { label: '5 Ways to Start', href: '#design-studio' },
+  { label: '4 Ways to Start', href: '#design-studio' },
   { label: '9 Materials', href: '/architects/finish-palette' },
   { label: 'Custom Profiles', href: '#profile-passport' },
   { label: 'SMACNA Standards Compliant', href: '/architects/guides' },

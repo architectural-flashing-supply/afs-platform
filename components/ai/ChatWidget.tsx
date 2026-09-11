@@ -32,9 +32,6 @@ interface RoutingLink {
 
 function getRoutingLinks(content: string): RoutingLink[] {
   const links: RoutingLink[] = [];
-  if (content.includes('/configure')) {
-    links.push({ label: 'Open Configurator →', href: '/configure' });
-  }
   if (content.includes('/studio/draft')) {
     links.push({ label: 'Open FlashDraft →', href: '/studio/draft' });
   } else if (content.includes('/studio')) {

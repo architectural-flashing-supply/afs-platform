@@ -141,7 +141,7 @@ export const FAQ_CATEGORIES: FaqCategory[] = [
       },
       {
         q: 'What are the five ways to submit a quote request to AFS?',
-        a: `(1) Scan to Quote — upload PDF, DWG, or DXF construction drawings; AI extracts profiles automatically. (2) Photo to Quote — photograph existing flashing in the field; AI identifies profile and material. (3) FlashDraft — draw your exact custom profile on our canvas tool. (4) Custom Configurator — select a standard profile and enter dimensions with live diagram preview. (5) Quick Quote — describe what you need in plain language for simple requests.`,
+        a: `(1) Scan to Quote — upload PDF, DWG, or DXF construction drawings; AI extracts profiles automatically. (2) Photo to Quote — photograph existing flashing in the field; AI identifies profile and material. (3) FlashDraft — draw your exact custom profile on our canvas tool, standard or custom. (4) Quick Quote — describe what you need in plain language for simple requests.`,
       },
       {
         q: 'When should I engage AFS on a project?',

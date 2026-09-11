@@ -25,8 +25,7 @@ export interface ProfileSVGParams {
   /**
    * Opt-in dimension-label size multiplier (afs-fl-017) — omitted (the
    * default) renders byte-for-byte identical to before this option existed.
-   * Every existing caller (app/configure/page.tsx,
-   * components/product/ProductDetailView.tsx,
+   * Every existing caller (components/product/ProductDetailView.tsx,
    * components/architects/SavedConfigCard.tsx, the architect specs page)
    * omits it and is unaffected. Only buildGeometrySvg in
    * app/api/admin/command-center/approve-quote-request/route.ts passes it,

@@ -69,9 +69,9 @@ export default async function CustomProfilesPage() {
         {configs.length === 0 ? (
           <EmptyState
             title="No custom profiles saved yet"
-            description="Configure a profile and save it — or place a custom order. Both appear here for easy reordering."
-            actionLabel="Configure a Profile"
-            actionHref="/configure"
+            description="Design a profile in FlashDraft and save it — or place a custom order. Both appear here for easy reordering."
+            actionLabel="Design a Profile"
+            actionHref="/studio/draft"
             accent="copper"
           />
         ) : (

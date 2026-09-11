@@ -110,8 +110,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const notes = typeof body.notes === 'string' ? body.notes : null;
     // Selected color name from the McElroy/PAC-CLAD color chart, or (for
     // Anodized aluminum, until a PAC-CLAD anodized chart exists) free text,
-    // set by the ColorField/FinishColorField flow on the Configurator,
-    // Quote Builder, FlashDraft, and Blueprint Takeoff AI surfaces when the
+    // set by the ColorField/FinishColorField flow on the Quote Builder,
+    // FlashDraft, and Blueprint Takeoff AI surfaces when the
     // request's material requires one (afs-cv-002). Written into
     // quote_requests.color (migration 017).
     const color = typeof body.color === 'string' && body.color.trim() ? body.color.trim() : null;
@@ -144,9 +144,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // approve-quote-request/route.ts to seed machine_jobs.due_date.
     const requestedDelivery =
       typeof body.requestedDelivery === 'string' && body.requestedDelivery.trim() ? body.requestedDelivery.trim() : null;
-    // Every real front-end submission path (FlashDraft, the Configurator,
-    // the Quote Builder, the Blueprint Takeoff AI upload flow) sends its own
-    // token here — see lib/data/quote-request-source-tool.ts for the full
+    // Every real front-end submission path (FlashDraft, the Quote Builder,
+    // the Blueprint Takeoff AI upload flow) sends its own token here — the
+    // Configurator did too before its elimination (hpd-002); its historical
+    // token is still recognized, see lib/data/quote-request-source-tool.ts
+    // for the full
     // list. Anything missing or unrecognized falls back to 'unknown' rather
     // than trusting an arbitrary client-supplied string into the column.
     const sourceTool = isSourceTool(body.sourceTool) ? body.sourceTool : 'unknown';

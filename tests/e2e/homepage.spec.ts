@@ -37,7 +37,6 @@ const DESIGN_STUDIO_METHODS = [
   { title: 'Scan Plans', href: '/upload' },
   { title: 'Photo to Quote', href: '/field/contractor' },
   { title: 'FlashDraft', href: '/studio/draft' },
-  { title: 'Configurator', href: '/configure' },
   { title: 'Quick Quote', href: '/quote' },
 ];
 

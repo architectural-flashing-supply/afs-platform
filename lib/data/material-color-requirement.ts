@@ -1,12 +1,13 @@
 /**
- * Maps each material label as it actually appears on the three real
- * material-selection surfaces — app/configure/page.tsx (Custom Flashing
- * Configurator), app/quote/page.tsx (Quote Builder), and
+ * Maps each material label as it actually appears on the two real
+ * material-selection surfaces — app/quote/page.tsx (Quote Builder) and
  * app/studio/draft/page.tsx via lib/data/catalog.ts's ALL_MATERIALS
  * (FlashDraft) — to the real `materials.category` value it corresponds to
- * in supabase/migrations/002_seed_afs_data.sql.
+ * in supabase/migrations/002_seed_afs_data.sql. (A third surface,
+ * app/configure/page.tsx's Custom Flashing Configurator, was eliminated
+ * hpd-002 — its labels are no longer part of this mapping.)
  *
- * None of the three surfaces query the live `materials` table directly;
+ * Neither of the two surfaces query the live `materials` table directly;
  * each renders its own local string array, and those local labels differ
  * slightly in wording from the seeded `materials.name` values (e.g.
  * "Galvanized Galvalume" here vs. "Galvalume Steel" in the DB, "Kynar 500
@@ -107,12 +108,12 @@ export function colorPaletteForMaterial(
       // "Anodized always means free text" rule — so the moment a future
       // prompt adds real { name, hex } entries to that array (mirroring
       // `pacclad`), this starts returning 'pacclad_anodized' automatically
-      // and every one of the four wired surfaces (Quote Builder,
-      // Configurator, FlashDraft, Blueprint Takeoff AI) — all of which
+      // and every one of the three wired surfaces (Quote Builder,
+      // FlashDraft, Blueprint Takeoff AI) — all of which
       // render components/quote/FinishColorField.tsx rather than
       // reimplementing this branch themselves — switches from the
       // free-text input to a real ColorField/ColorPickerModal picker with
-      // NO changes needed at any of those four call sites.
+      // NO changes needed at any of those three call sites.
       return pacclad_anodized.length > 0 ? 'pacclad_anodized' : null;
     }
   }

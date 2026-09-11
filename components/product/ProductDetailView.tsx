@@ -35,10 +35,6 @@ export default function ProductDetailView({
     [product.profileType]
   );
 
-  const configureHref = product.profileType
-    ? `/configure?profile=${product.profileType}&material=${encodeURIComponent(selectedMaterial)}`
-    : '/configure';
-
   return (
     <div className="max-w-[1400px] mx-auto px-6 pb-16">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 pt-4">
@@ -167,7 +163,7 @@ export default function ProductDetailView({
               ))}
             </dl>
             <p className="font-body text-xs text-afs-chrome-dim mt-3">
-              Reference ranges only — use the configurator to submit exact custom dimensions.
+              Reference ranges only — use FlashDraft to submit exact custom dimensions.
             </p>
           </div>
 
@@ -179,10 +175,10 @@ export default function ProductDetailView({
               Request a Quote for This Product
             </Link>
             <Link
-              href={configureHref}
+              href="/studio/draft"
               className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface text-center font-label font-semibold px-6 py-3.5 rounded text-sm transition-colors"
             >
-              Configure Custom Dimensions
+              Design in FlashDraft
             </Link>
           </div>
         </div>

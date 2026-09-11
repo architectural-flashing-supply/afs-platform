@@ -6,7 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 // (afs-fl-002) — deliberately NOT the shared app/api/quote-requests/route.ts,
 // which hard-rejects a submission with zero line items (isValidItem/
 // rawItems.length checks). This flow is photo-only by design: a two-tap
-// capture-and-send with no configurator/drawing-tool item entry, so
+// capture-and-send with no drawing-tool item entry, so
 // quote_requests.line_items is inserted as an explicit `[]` (the column is
 // NOT NULL). An AFS estimator adds real line items once they open the photo.
 //
