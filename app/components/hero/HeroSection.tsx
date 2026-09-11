@@ -1,16 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import dynamic from 'next/dynamic';
 import Link from 'next/link';
-
-// ProfileRotation is a Three.js/WebGL scene (app/components/hero/ProfileRotation.tsx)
-// that touches the canvas/window at import time — same reason HailViewMap is loaded
-// this way (app/hailview/page.tsx) — so it must be client-only.
-const ProfileRotation = dynamic(() => import('@/app/components/hero/ProfileRotation'), {
-  ssr: false,
-  loading: () => <div className="h-full w-full animate-pulse bg-afs-bg-overlay" />,
-});
 
 export default function HeroSection() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -56,8 +47,8 @@ export default function HeroSection() {
 
       <div className="absolute inset-0 bg-gradient-to-br from-afs-bg-dim/70 via-afs-bg-dim/45 to-afs-bg-dim/60" />
 
-      <div className="relative z-10 mx-auto flex min-h-[100svh] max-w-7xl flex-col justify-center gap-12 px-6 py-28 md:flex-row md:items-center md:justify-between md:px-10">
-        <div className="flex flex-col justify-center md:w-1/2">
+      <div className="relative z-10 mx-auto flex min-h-[100svh] max-w-7xl flex-col justify-end px-6 pb-16 pt-28 md:justify-center md:px-10 md:pb-28">
+        <div className="flex max-w-3xl flex-col justify-center">
           <h1 className="font-display leading-none text-afs-chrome-high text-5xl sm:text-6xl md:text-7xl lg:text-[7rem]">
             SHOW US THE DETAIL. WE&apos;LL FORM IT.
           </h1>
@@ -81,10 +72,6 @@ export default function HeroSection() {
               See How It&apos;s Made
             </Link>
           </div>
-        </div>
-
-        <div className="h-[260px] w-full md:h-[480px] md:w-1/2">
-          <ProfileRotation className="h-full w-full" />
         </div>
       </div>
     </section>

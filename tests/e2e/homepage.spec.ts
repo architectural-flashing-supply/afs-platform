@@ -76,11 +76,11 @@ for (const viewport of VIEWPORTS) {
       await expect(mp4Source).toHaveAttribute('src', '/videos/hero-metal-fabrication.mp4');
     });
 
-    test('ProfileRotation mounts a canvas with zero console errors', async ({ page }) => {
+    test('hero renders with zero console errors and no canvas element', async ({ page }) => {
       const consoleErrors = await collectConsoleErrors(page);
       await page.goto('/');
       const canvas = page.locator('[data-section="hero"] canvas');
-      await expect(canvas).toBeVisible();
+      await expect(canvas).toHaveCount(0);
       // Give below-the-fold async work (NationwideMap's tile requests) a
       // chance to settle before asserting zero errors — a real error firing
       // after first paint would otherwise be missed.
@@ -134,7 +134,7 @@ for (const viewport of VIEWPORTS) {
     });
 
     test.describe('reduced motion', () => {
-      test('hero video never autoplays; ProfileRotation renders a static frame', async ({ page }) => {
+      test('hero video never autoplays', async ({ page }) => {
         // Explicit emulateMedia() call rather than the `reducedMotion`
         // context option -- same pattern tests/e2e/hailview.spec.ts already
         // uses, and the one that reliably lands before HeroSection's mount
@@ -147,16 +147,6 @@ for (const viewport of VIEWPORTS) {
         await expect(heroVideo.locator('source')).toHaveCount(0);
         const isPaused = await heroVideo.evaluate((el) => (el as HTMLVideoElement).paused);
         expect(isPaused).toBe(true);
-
-        const canvas = page.locator('[data-section="hero"] canvas');
-        await expect(canvas).toBeVisible();
-        // ProfileRotation's own reduced-motion branch renders exactly one
-        // static frame and never starts its requestAnimationFrame loop — two
-        // screenshots taken apart in time should be byte-identical.
-        const first = await canvas.screenshot();
-        await page.waitForTimeout(600);
-        const second = await canvas.screenshot();
-        expect(second.equals(first)).toBe(true);
       });
     });
   });

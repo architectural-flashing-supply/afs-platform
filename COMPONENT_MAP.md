@@ -309,18 +309,15 @@ would be a separate, larger diff than this assembly pass's scope.
 ```
 app/components/hero/HeroSection.tsx  (hp-003) -- data-section="hero"
   Full-bleed <video> hero (hero-metal-fabrication.mp4/.webm, poster
-  fallback, paused under prefers-reduced-motion), ProfileRotation.tsx
-  on the right (md:flex-row), H1 "SHOW US THE DETAIL. WE'LL FORM IT."
-  CTAs: "Start a Quote" -> /design-studio, "See How It's Made" ->
-  #shop-floor (retargeted hpc-003 — was "Explore Profiles" -> #profile-
-  explorer, dropped when the Explore Our Profiles section was removed
-  from the homepage render order, see the ProfileExplorer entry below).
-
-app/components/hero/ProfileRotation.tsx  (hp-002)
-  Three.js decorative Z-flashing profile: 8s seamless unfold/re-fold
-  loop, brushed-metal material, one shadow-casting light. Static single
-  frame under prefers-reduced-motion. Consumed via next/dynamic(ssr:false)
-  from inside HeroSection.tsx above.
+  fallback, paused under prefers-reduced-motion) is the hero visual —
+  no rotating 3D profile (ProfileRotation.tsx removed, hpd-001). Text
+  block (H1 "SHOW US THE DETAIL. WE'LL FORM IT.", sub-copy, CTAs)
+  left-aligned in a max-w-3xl column over the video, bottom-aligned
+  above the fold on mobile. CTAs: "Start a Quote" -> /design-studio,
+  "See How It's Made" -> #shop-floor (retargeted hpc-003 — was "Explore
+  Profiles" -> #profile-explorer, dropped when the Explore Our Profiles
+  section was removed from the homepage render order, see the
+  ProfileExplorer entry below).
 
 app/components/home/CredibilityStrip.tsx  (hp-004) -- data-section="credibility"
   Five-item capability nav: 5 Ways to Start (#design-studio), 9 Materials
