@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
+// Without this, Next statically prerenders the GET handler at build time —
+// createAdminClient() then runs with no request context and fails the build
+// (found via `vercel build` while chasing an unrelated preview-deploy issue,
+// hpb-002). Same fix/rationale as app/api/invoices/statement/route.ts.
+export const dynamic = 'force-dynamic';
+
 interface LibraryProfileRow {
   id: string;
   name_en: string;
