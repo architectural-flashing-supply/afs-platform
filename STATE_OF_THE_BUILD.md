@@ -34,6 +34,93 @@ summary, not a replacement for it.
 
 ---
 
+## HERO PROFILEROTATION — REBUILT FROM THE REAL PROFILE PHOTO (hpc-002): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+Reid rejected the prior `ProfileRotation.tsx` (built hp-002) on four
+points, verbatim in substance: it spins too fast, the loop is too short,
+the cross-section is illogically thick ("flashing is not a quarter inch
+thick"), and the shape was invented rather than traced from
+`public/images/hero-profile.png`. This pass rebuilds the component's
+geometry, material, and motion timeline from scratch against that photo.
+Per the VERIFICATION STANDARD above, this is **IMPLEMENTED, UNCONFIRMED**
+— a session's own screenshot comparison is evidence, not a substitute for
+Reid confirming the rendered piece against the photo himself.
+
+**Geometry — read from the photo, not invented:** cropped the source PNG
+(PIL, `x:150-750,y:500-1000` for a pure-metal color sample; separate crops
+of the cut end and the far tip) rather than trusting the single full-frame
+view. Read as a 5-leg / 4-bend profile — two main pans joined by a real
+~35° dihedral fold, with a shallow stiffening rib (the photo's two
+close parallel crease lines) riding on top of that fold, plus a standing
+edge flange on the far leg. Leg ratios (of total developed width) and bend
+angles are documented as a comment block at the top of
+`app/components/hero/ProfileRotation.tsx`. The point the piece appears to
+taper to at the photo's far end is perspective (a constant-width profile
+shot end-on, its two long edges converging toward the vanishing point) —
+confirmed by cropping and inspecting that region directly — not a hemmed
+leg; the model reproduces the same effect via camera framing plus a
+static group tilt, not by inventing a hem.
+
+**Thickness:** `THICKNESS = min(0.006 * developedWidth, shortestLeg / 40)`
+— computed, not hand-tuned, and documented in-file. Bends are radiused via
+a generic `filletPolyline()` (4-6 point arcs, tangent tangent-length
+derived from the desired radius), not sharp miters.
+
+**Material:** bare galvanized/galvalume (MeshPhysicalMaterial, metalness
+0.9, roughness 0.42, clearcoat 0.1), base color `#8D97A5` sampled directly
+from the photo's pure-metal crop (median RGB), plus a procedural
+canvas-generated roughness/normal map pair for the anisotropic brushed
+look — no external texture download. A rim light (separate from the
+existing keyLight/ambient/RoomEnvironment PMREM setup, which is otherwise
+unchanged) was added so edges catch light while rotating.
+
+**Motion — retimed per spec:** one full revolution = 14s (constant
+~25.7°/s, verified by construction — `computeRotationY(t) = (t/14) * 2π`
+is linear, so it can never exceed that rate). Loop = 28s (exactly 2
+revolutions, so rotation lands back on its start angle with no jump at
+the loop boundary): 0-12s slow rotation; 12-16s unfold to the flat
+developed blank (`easeInOutCubic`, real per-vertex interpolation between
+the folded and flattened centerlines — not the previous file's cheap
+`scale.x` fake); 16-18s four bend lines draw in sequentially in
+`afs-crimson`; 18-20s refold; 20-28s rotation continues to the loop point.
+prefers-reduced-motion, DPR cap 2, full three.js disposal on unmount, and
+the component's `{ className }`-only prop contract are all unchanged from
+the prior file.
+
+**Verification performed this session:** mounted on a temporary route
+(`app/dev-profile-rotation-preview`, deleted before commit — confirmed
+gone from the working tree, never appeared in any commit), screenshotted
+at rest pose via Playwright, and compared side-by-side against
+`public/images/hero-profile.png`. Two real rounds of iteration: round 1
+found the two main pans were geometrically coplanar (the bend angles
+canceled out), so the piece read as one flat surface with a bead rather
+than two distinct lit faces — fixed by giving the bend sequence a real
+net dihedral. Round 1 also ran badly overexposed (blown specular
+highlights, no galvanized blue-gray tone) — fixed by lowering
+key/rim-light intensity and `envMapIntensity`, raising roughness
+slightly, and cooling the base color. Round 2's comparison is the
+committed image: `scripts/video-review/profile-rotation-comparison.jpg`
+(80KB, under the 400KB limit). **Note:** that path matches an existing
+`.gitignore` rule (`scripts/video-review/*.jpg`, added for the hero-video
+review-frame cut and unrelated to this file) — this one file was
+force-added (`git add -f`) per this prompt's explicit instruction to keep
+it in the commit; the ignore rule itself was not changed, so future
+`*.jpg` drops in that directory still won't be picked up by accident.
+
+**Gates run this session:** `pnpm tsc --noEmit` — 0 errors. `npx
+playwright test tests/e2e/homepage.spec.ts -g "ProfileRotation"` — 6
+passed (the suite's canvas-mount/zero-console-errors and reduced-motion
+static-frame checks, across all three viewports).
+
+**What still needs Reid's own check, not just this session's:** whether
+the rebuilt shape reads as recognizably the same physical piece (this
+session judged its own comparison image "close" — that is not the same
+as Reid's sign-off), and whether the 14s/28s timing feels right in the
+actual hero section at real size rather than in an isolated 900×900
+preview box.
+
+---
+
 ## PLAYWRIGHT HOMEPAGE SUITE (hpa-004): DONE — AND THE HOMEPAGE ASSEMBLY IS NOW REALLY COMMITTED (2026-09-10)
 
 **Corrects hp-024/hpa-002 below: `app/page.tsx` is no longer the old

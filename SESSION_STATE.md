@@ -24,6 +24,41 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## HERO PROFILEROTATION REBUILD (hpc-002) — 2026-09-10
+
+Rebuilt `app/components/hero/ProfileRotation.tsx` in response to Reid's
+rejection of the hp-002 version (too fast, loop too short, cross-section
+too thick, shape invented rather than traced from the reference photo).
+Full detail in STATE_OF_THE_BUILD.md's matching entry (top of file) —
+summary here for handoff:
+
+- Read leg ratios and bend angles directly off crops of
+  `public/images/hero-profile.png` (PIL crops of the cut end, the far tip,
+  and a pure-metal color-sample region) rather than inventing a shape.
+  Documented as a comment block at the top of the component.
+- Thickness/bend-radius are computed from the measured geometry
+  (`0.6% of developed width, capped at 1/40 of the shortest leg`), not
+  hand-tuned.
+- Motion retimed to 14s/revolution, 28s loop, with a real per-vertex
+  fold/unfold interpolation (not the old file's `scale.x` fake) and
+  sequential crimson bend-line draw-in at 16-18s.
+- Verified via a temporary route + Playwright screenshot compared against
+  the reference photo, iterated twice (fixed a coplanar-bend bug and an
+  overexposed/wrong-tone material on round 1), final comparison image
+  committed at `scripts/video-review/profile-rotation-comparison.jpg`
+  (80KB) — force-added since that directory has an unrelated `.gitignore`
+  rule for hero-video review frames.
+- `pnpm tsc --noEmit` 0 errors; `npx playwright test tests/e2e/
+  homepage.spec.ts -g "ProfileRotation"` — 6 passed.
+
+**Per the verification standard above: this is this session's own
+judgment that the rebuilt shape/material/timing are correct, not Reid's
+confirmation.** Next session/Reid should look at the actual hero section
+(not just the isolated comparison image) and the real 28s loop before
+this is marked DONE.
+
+---
+
 ## PLAYWRIGHT HOMEPAGE SUITE (hpa-004) — 2026-09-10
 
 Wrote `tests/e2e/homepage.spec.ts`: parameterized over 375×812, 768×1024,
