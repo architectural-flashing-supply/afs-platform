@@ -49,3 +49,8 @@ diagnostics/
 # public/videos/*.mp4 + *.webm outputs are.
 public/videos/metal-fab-*.mp4
 scripts/video-review/*.jpg
+
+# Prospect list PII and local repro/debug scratch dirs — never committed.
+EMAIL PROSPECT LISTS/
+.repro-*/
+supabase/.temp/
