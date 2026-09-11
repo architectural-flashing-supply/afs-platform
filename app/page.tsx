@@ -11,16 +11,12 @@ import CaseStudies from '@/app/components/home/CaseStudies';
 import ShopFloorProof from '@/app/components/home/ShopFloorProof';
 import FinalCTA from '@/app/components/home/FinalCTA';
 
-// ProfileExplorer (Supabase-backed profile grid, optional inline 3D viewer)
-// and NationwideMap (Leaflet map) are the two heaviest sections below the
-// fold. `ssr: false` isn't legal here -- this file has no 'use client', and
-// Next disallows `dynamic(..., { ssr: false })` in Server Components -- so
-// this is a plain code-split (ssr stays on). Each component already
-// defers its own genuinely client-only piece internally via its own
-// `dynamic(..., { ssr: false })` inside a 'use client' module: ProfileRotation
-// inside HeroSection, ProfileViewer3D inside ProfileLibraryBrowser (used by
-// ProfileExplorer), and NationwideMapLeaflet inside NationwideMap.
-const ProfileExplorer = dynamic(() => import('@/app/components/home/ProfileExplorer'));
+// NationwideMap (Leaflet map) is the heaviest section below the fold.
+// `ssr: false` isn't legal here -- this file has no 'use client', and Next
+// disallows `dynamic(..., { ssr: false })` in Server Components -- so this
+// is a plain code-split (ssr stays on). It defers its own genuinely
+// client-only piece internally via its own `dynamic(..., { ssr: false })`
+// inside a 'use client' module: NationwideMapLeaflet inside NationwideMap.
 const NationwideMap = dynamic(() => import('@/app/components/home/NationwideMap'));
 
 export default function HomePage() {
@@ -50,10 +46,6 @@ export default function HomePage() {
           duplicate id in the DOM. */}
       <HomeSection slug="design-studio" withId={false}>
         <DesignStudioHub />
-      </HomeSection>
-
-      <HomeSection slug="profile-explorer" withId={false}>
-        <ProfileExplorer />
       </HomeSection>
 
       <HomeSection slug="design-to-delivery">

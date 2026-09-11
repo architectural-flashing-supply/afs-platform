@@ -105,21 +105,23 @@ export default function CaseStudies() {
             );
           })}
 
-          {/* NASA credential card -- the credential is the proof, so no
-              photo. "NASA Johnson Space Center" is rendered as a
-              typographic badge, not a downloaded or drawn insignia --
-              public/images/nasa-jsc-logo.svg does not exist in this repo. */}
+          {/* NASA credential card -- Reid supplied
+              public/images/NASA_Johnson_Space_Center.png (the NASA insignia
+              + "Trusted by NASA Johnson Space Center" lockup over a Space
+              Center Houston exterior), so the typographic badge that used to
+              stand in for it is gone. object-top crops out the lower part of
+              the image, which has generation artifacts (mirrored signage). */}
           <div
             id="case-study-nasa-jsc"
             className="flex flex-col overflow-hidden rounded border border-[var(--afs-border)] bg-afs-bg-raised metal-edge"
           >
-            <div className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-3 bg-afs-bg-dim px-6 text-center">
-              <span className="font-label text-[0.65rem] font-semibold uppercase tracking-widest text-afs-chrome-mid">
-                Trusted by
-              </span>
-              <span className="rounded-full border border-afs-chrome-mid px-5 py-2 font-label text-sm font-semibold uppercase tracking-widest text-afs-chrome-high">
-                NASA Johnson Space Center
-              </span>
+            <div className="relative aspect-[4/3] w-full overflow-hidden">
+              <Image
+                src="/images/NASA_Johnson_Space_Center.png"
+                alt="Trusted by NASA Johnson Space Center"
+                fill
+                className="object-cover object-top"
+              />
             </div>
             <div className="flex flex-1 flex-col p-6">
               <div className="flex items-start justify-between gap-3">

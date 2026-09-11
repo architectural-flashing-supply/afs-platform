@@ -1,7 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 
-// Real homepage assembly (app/page.tsx) composing the twelve hp-001..hp-014 /
-// hpa-002 section components behind the same NavBar/Footer chrome
+// Real homepage assembly (app/page.tsx) composing the eleven hp-001..hp-014
+// section components (hpa-002's ProfileExplorer removed from the render
+// order as of hpc-003) behind the same NavBar/Footer chrome
 // (components/layout/AppChrome.tsx) every other public page uses. No
 // E2E_TEST_EMAIL/E2E_TEST_PASSWORD gate is needed here — every assertion in
 // this file runs against the fully public, unauthenticated view (NavBar's
@@ -12,14 +13,14 @@ import { test, expect, type Page } from '@playwright/test';
 const PRICE_PATTERN = /\$[\d,]+(\.\d{2})?/;
 
 // Document order asserted by app/page.tsx's own <HomeSection slug="..."> wrapper
-// sequence — the twelve real sections, not the eleven-or-so any single
-// component's own governance entry might suggest in isolation.
+// sequence — eleven real sections as of hpc-003 (was twelve at hpa-003;
+// profile-explorer was removed from the render order — the Explore Our
+// Profiles section is no longer used as a sample, per Reid).
 const SECTION_SLUGS = [
   'hero',
   'credibility',
   'field-app',
   'design-studio',
-  'profile-explorer',
   'design-to-delivery',
   'pathways',
   'profile-passport',
@@ -59,7 +60,7 @@ for (const viewport of VIEWPORTS) {
   test.describe(`Homepage — ${viewport.name}`, () => {
     test.use({ viewport: { width: viewport.width, height: viewport.height } });
 
-    test('renders all twelve data-section elements, in document order', async ({ page }) => {
+    test('renders all eleven data-section elements, in document order', async ({ page }) => {
       await page.goto('/');
       const slugs = await page.locator('main > [data-section]').evaluateAll((nodes) =>
         nodes.map((n) => n.getAttribute('data-section'))
@@ -80,10 +81,9 @@ for (const viewport of VIEWPORTS) {
       await page.goto('/');
       const canvas = page.locator('[data-section="hero"] canvas');
       await expect(canvas).toBeVisible();
-      // Give below-the-fold async work (ProfileExplorer's Supabase fetch,
-      // NationwideMap's tile requests) a chance to settle before asserting
-      // zero errors — a real error firing after first paint would otherwise
-      // be missed.
+      // Give below-the-fold async work (NationwideMap's tile requests) a
+      // chance to settle before asserting zero errors — a real error firing
+      // after first paint would otherwise be missed.
       await page.waitForLoadState('networkidle');
       expect(consoleErrors).toEqual([]);
     });
@@ -108,43 +108,16 @@ for (const viewport of VIEWPORTS) {
       }
     });
 
-    test('ProfileExplorer: a category chip reduces the visible set; the 3D toggle mounts a canvas', async ({
+    test('NASA JSC case-study card renders the supplied photo with the expected alt text', async ({
       page,
     }) => {
       await page.goto('/');
-      const section = page.locator('[data-section="profile-explorer"]');
-      const cards = section.locator('[data-testid="profile-library-card"]');
-      await expect(cards.first()).toBeVisible();
-
-      const chips = section.locator('[data-testid="profile-library-chip"]');
-      const chipCount = await chips.count();
-      // 'All' plus at least one real category derived from live machine_profiles
-      // data (app/components/home/ProfileExplorer.tsx) — if this ever drops to
-      // 1, there is no real category to filter by, a real regression worth
-      // failing loudly on rather than skipping past.
-      expect(chipCount).toBeGreaterThan(1);
-
-      const allCount = await cards.count();
-      let reduced = false;
-      for (let i = 1; i < chipCount; i++) {
-        await chips.nth(i).click();
-        const filteredCount = await cards.count();
-        if (filteredCount < allCount) {
-          reduced = true;
-          break;
-        }
-        await chips.nth(0).click(); // reset to "All" before trying the next chip
-      }
-      expect(reduced, 'expected at least one category chip to reduce the visible card count').toBe(true);
-
-      // Reset to "All" and exercise the 3D toggle on whichever card has one
-      // (cards with zero bend geometry don't render the toggle at all).
-      await chips.nth(0).click();
-      const toggle = section.locator('[data-testid="profile-library-3d-toggle"]').first();
-      await expect(toggle).toBeVisible();
-      const card = toggle.locator('xpath=ancestor::*[@data-testid="profile-library-card"]');
-      await toggle.click();
-      await expect(card.locator('canvas')).toBeVisible();
+      const card = page.locator('#case-study-nasa-jsc');
+      const image = card.locator('img[alt="Trusted by NASA Johnson Space Center"]');
+      await expect(image).toBeVisible();
+      await expect(image).toHaveAttribute('src', /NASA_Johnson_Space_Center/);
+      // The old typographic badge is gone — the lockup is baked into the photo now.
+      await expect(card.getByText('Trusted by', { exact: true })).toHaveCount(0);
     });
 
     test('NationwideMap renders the HQ marker', async ({ page }) => {
@@ -227,6 +200,29 @@ test.describe('Homepage navigation and footer', () => {
     await page.getByRole('button', { name: 'Close menu' }).click();
     await expect(menu).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Open menu' })).toHaveAttribute('aria-expanded', 'false');
+  });
+});
+
+test.describe('Homepage CTAs retargeted off the removed profile-explorer section (hpc-003)', () => {
+  test('hero secondary CTA points at #shop-floor, which resolves on the page', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const heroCTA = page.locator('[data-section="hero"]').getByRole('link', { name: "See How It's Made" });
+    await expect(heroCTA).toHaveAttribute('href', '#shop-floor');
+    await expect(page.locator('#shop-floor')).toHaveCount(1);
+  });
+
+  test('final-CTA "Custom Profiles" button points at /architects/custom-profiles, which returns 200', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const finalCTA = page
+      .locator('[data-section="final-cta"]')
+      .getByRole('link', { name: 'Custom Profiles' });
+    await expect(finalCTA).toHaveAttribute('href', '/architects/custom-profiles');
+    const response = await page.request.get('/architects/custom-profiles', { timeout: 60_000 });
+    expect(response.ok(), `/architects/custom-profiles returned ${response.status()}`).toBe(true);
   });
 });
 

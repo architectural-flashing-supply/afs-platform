@@ -5,6 +5,9 @@ import Link from 'next/link';
 // (hp-013). /hailview: real, already-shipped route (app/hailview/page.tsx).
 // /contact: real route (app/(public)/contact/page.tsx) -- the footer
 // contact-anchor fallback this prompt allowed for wasn't needed.
+// /architects/custom-profiles: real route (app/(public)/architects/
+// custom-profiles/page.tsx), retargeted here (hpc-003) now that the
+// Explore Our Profiles homepage section it used to point at is gone.
 interface CTAAction {
   key: string;
   label: string;
@@ -14,7 +17,7 @@ interface CTAAction {
 
 const ACTIONS: CTAAction[] = [
   { key: 'quote', label: 'Start a Quote', href: '/design-studio', primary: true },
-  { key: 'profiles', label: 'Explore Profiles', href: '#profile-explorer' },
+  { key: 'profiles', label: 'Custom Profiles', href: '/architects/custom-profiles' },
   { key: 'hail', label: 'Check Hail Impact', href: '/hailview' },
   { key: 'contact', label: 'Talk to AFS', href: '/contact' },
 ];

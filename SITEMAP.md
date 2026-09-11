@@ -33,7 +33,17 @@ as real files.**
 app/
 │
 ├── (public)/                        No auth required (route group — no URL segment)
-│   ├── page.tsx                     / — Homepage
+│   ├── page.tsx                     / — Homepage. Assembled hpa-003, eleven
+│                                     sections as of hpc-003 (profile-
+│                                     explorer removed): app/components/
+│                                     {hero,home}/ sections via
+│                                     HomeSection.tsx wrapper, in order
+│                                     (hero, credibility, field-app,
+│                                     design-studio, design-to-delivery,
+│                                     pathways, profile-passport,
+│                                     case-studies, shop-floor, nationwide,
+│                                     final-cta).
+│                                     See COMPONENT_MAP.md LAYER 3.
 │   ├── products/
 │   │   ├── page.tsx                 /products — catalog, no prices
 │   │   └── [category]/
@@ -209,7 +219,8 @@ still speculative), and `/api/webhooks/twilio`.
 ```
 Route Pattern                Auth Required   Role           Notes
 ───────────────────────────────────────────────────────────────────
-/                            No             —              Public
+/                            No             —              Public. Assembled hpa-003 --
+                                                             see COMPONENT_MAP.md LAYER 3
 /products/**                 No             —              Public — no prices
 /quote                       No             —              Public
 /configure                   No             —              Public

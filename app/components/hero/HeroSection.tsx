@@ -75,10 +75,10 @@ export default function HeroSection() {
               Start a Quote
             </Link>
             <Link
-              href="#profile-explorer"
+              href="#shop-floor"
               className="rounded border border-[var(--afs-border)] px-8 py-4 font-label text-sm font-semibold text-afs-chrome-mid transition-colors hover:bg-afs-bg-surface"
             >
-              Explore Profiles
+              See How It&apos;s Made
             </Link>
           </div>
         </div>

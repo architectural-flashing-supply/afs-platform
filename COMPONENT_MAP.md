@@ -240,92 +240,133 @@ ArchitectShell.tsx
 
 ## LAYER 3 — HOMEPAGE
 
-**Rewritten in full, hp-024.** Every entry below this heading before this
-pass (`HeroSection.tsx`/`HeroVisual.tsx`/`TrustBar.tsx`/
-`ThreePillarsSection.tsx`/`PillarCard.tsx`/`AIQuoteTeaser.tsx`/
-`HowItWorksSection.tsx`/`HowItWorksStep.tsx`/`StatSection.tsx`/
-`StatBlock.tsx`/`ProductCategoryGrid.tsx`/`CategoryCard.tsx`/
-`ArchitectCTASection.tsx`/`ProjectGallery.tsx` as previously described/
-`TestimonialsSection.tsx`/`TestimonialCard.tsx`/`FinalCTASection.tsx`)
-described components that were never real — grepped every filename
-across the whole repo this pass, zero matches for any of them. This
-predates even the `afs-fl-034` homepage pass, let alone the current
-redesign branch; it looks like it was never reconciled against a real
-build at all. Replaced with an inventory of what actually exists, split
-into what's live today and what isn't.
+**Assembled into the real `app/page.tsx`, hpa-003 — this is what `hp-019`
+was always deferred to.** Every entry below this heading before this pass
+(`HeroSection.tsx`/`HeroVisual.tsx`/`TrustBar.tsx`/`ThreePillarsSection.tsx`/
+`PillarCard.tsx`/`AIQuoteTeaser.tsx`/`HowItWorksSection.tsx`/
+`HowItWorksStep.tsx`/`StatSection.tsx`/`StatBlock.tsx`/
+`ProductCategoryGrid.tsx`/`CategoryCard.tsx`/`ArchitectCTASection.tsx`/
+`ProjectGallery.tsx` as previously described/`TestimonialsSection.tsx`/
+`TestimonialCard.tsx`/`FinalCTASection.tsx`) described components that
+were never real — grepped every filename across the whole repo, zero
+matches for any of them. This predates even the `afs-fl-034` homepage
+pass; it looks like it was never reconciled against a real build at all.
 
-### LIVE — rendered by `app/page.tsx` today (`components/home/`, repo root)
+### RETIRED FROM THE HOMEPAGE — files left in place, no longer imported by
+### `app/page.tsx` (`components/home/`, repo root)
 
 ```
 HeroDrawingOverlay.tsx  (afs-fl-034)
   "Drawing to steel" supporting visual layered over the photo hero and
-  rooftop-triangle PNG. Does not touch headline/copy/hero photo.
+  rooftop-triangle PNG. Superseded by app/components/hero/HeroSection.tsx's
+  video hero. File untouched; unused on homepage as of hpa-003.
 
 PhotoCategoryGrid.tsx  (afs-fl-034)
   Real AFS legacy-site photography grid, sourced via lib/home/portfolio-
-  photos.ts (afs-{1-39}.jpg under public/home_page_images/gallery/).
+  photos.ts (afs-{1-39}.jpg under public/home_page_images/gallery/). File
+  untouched; unused on homepage as of hpa-003 — CaseStudies.tsx (hp-011)
+  now carries the homepage's real-photo case-study cards from the same
+  photo catalog.
 
 ProjectGallery.tsx  (afs-fl-034)
   Masonry-style grid of the same real photo catalog, PORTFOLIO_GALLERY_IDS
-  subset, rendered below PhotoCategoryGrid.
+  subset, previously rendered below PhotoCategoryGrid. File untouched;
+  unused on homepage as of hpa-003.
 ```
 
-`app/page.tsx` itself: full-bleed photo hero (`/home_page_images/2.jpg`),
-gradient overlay, rooftop-triangle PNG, `HeroDrawingOverlay`, H1 "TEXAS
-CRAFTED. NATIONALLY DELIVERED.", two CTAs (both -> `/studio`), then
-`PhotoCategoryGrid` + `ProjectGallery`. Unchanged by `feat/homepage-redesign`.
+`app/page.tsx` prior to hpa-003: full-bleed photo hero
+(`/home_page_images/2.jpg`), gradient overlay, rooftop-triangle PNG,
+`HeroDrawingOverlay`, H1 "TEXAS CRAFTED. NATIONALLY DELIVERED.", two CTAs
+(both -> `/studio`), then `PhotoCategoryGrid` + `ProjectGallery`. That
+entire tree is gone from the live route as of hpa-003 — see LIVE below.
 
-### NOT LIVE — built on `feat/homepage-redesign` (hp-001 through hp-014),
-### standalone, not imported by any route except where noted
+### LIVE — assembled into `app/page.tsx`, hpa-003, eleven sections as of
+### hpc-003 (was twelve at hpa-003 — `profile-explorer` removed from the
+### render order, see the ProfileExplorer entry below), each wrapped in
+### `app/components/home/HomeSection.tsx`
 
-**Directory note:** these live in `app/components/hero/` and
-`app/components/home/` — a tree that did not exist before this branch and
-is parallel to, not inside, the `components/` root every other layer in
-this file lives in. `hp-020`'s NavBar/Footer work correctly edited the
-real `components/layout/` files (no duplicate there); the sections below
-are the exception. Not resolved — likely a decision for whatever pass
-eventually assembles these into `app/page.tsx`.
+**`HomeSection.tsx` (NEW, hpa-003)** — the shared wrapper every section
+below renders inside: `<div data-section={slug} id={slug}>{children}</div>`.
+`data-section` is always stamped (the hpa-003 Playwright checkpoint asserted
+all twelve `data-section` elements exist, in order — hpc-003 dropped this to
+eleven, see below). `id` is stamped by default too, **except** for
+`design-studio`, `profile-passport`, and `nationwide` (`withId={false}` at
+each of those call sites in `app/page.tsx`) — those section components
+already set that exact id on their own root element (see each entry below),
+so the wrapper skips it there to avoid a duplicate DOM id. Every in-page
+anchor referenced anywhere on the site (`#design-studio`, `#profile-passport`,
+`#nationwide`) now resolves on the live homepage.
+
+**Directory note (still applies):** these live in `app/components/hero/`
+and `app/components/home/` — a tree that did not exist before
+`feat/homepage-redesign` and is parallel to, not inside, the `components/`
+root every other layer in this file lives in. `hp-020`'s NavBar/Footer work
+correctly edited the real `components/layout/` files (no duplicate there);
+the sections below remain the exception. hpa-003 assembled them from where
+they already were rather than moving them — a relocation into `components/`
+would be a separate, larger diff than this assembly pass's scope.
 
 ```
-app/components/hero/HeroSection.tsx  (hp-003)
+app/components/hero/HeroSection.tsx  (hp-003) -- data-section="hero"
   Full-bleed <video> hero (hero-metal-fabrication.mp4/.webm, poster
   fallback, paused under prefers-reduced-motion), ProfileRotation.tsx
   on the right (md:flex-row), H1 "SHOW US THE DETAIL. WE'LL FORM IT."
-  CTAs: "Start a Quote" -> /design-studio, "Explore Profiles" ->
-  #profile-explorer (anchor does not exist on any real page yet).
+  CTAs: "Start a Quote" -> /design-studio, "See How It's Made" ->
+  #shop-floor (retargeted hpc-003 — was "Explore Profiles" -> #profile-
+  explorer, dropped when the Explore Our Profiles section was removed
+  from the homepage render order, see the ProfileExplorer entry below).
 
 app/components/hero/ProfileRotation.tsx  (hp-002)
   Three.js decorative Z-flashing profile: 8s seamless unfold/re-fold
   loop, brushed-metal material, one shadow-casting light. Static single
-  frame under prefers-reduced-motion. Consumed via next/dynamic(ssr:false).
+  frame under prefers-reduced-motion. Consumed via next/dynamic(ssr:false)
+  from inside HeroSection.tsx above.
 
-app/components/home/CredibilityStrip.tsx  (hp-004)
+app/components/home/CredibilityStrip.tsx  (hp-004) -- data-section="credibility"
   Five-item capability nav: 5 Ways to Start (#design-studio), 9 Materials
   (/architects/finish-palette), Custom Profiles (#profile-passport),
   SMACNA Standards Compliant (/architects/guides), Nationwide Delivery
-  (#nationwide). Three of five link targets are in-page anchors that
-  don't exist on any real page yet.
+  (#nationwide). All five link targets resolve as of hpa-003.
 
-app/components/home/FieldAppStory.tsx  (hp-005)
+app/components/home/FieldAppStory.tsx  (hp-005) -- data-section="field-app"
   Two-column: CSS phone-frame device with looped video (trimmed 0-7s of
   the hero asset), three-step photo-to-quote flow. CTAs -> /field/contractor.
 
-app/components/home/DesignStudioHub.tsx  (hp-006)
+app/components/home/DesignStudioHub.tsx  (hp-006) -- data-section="design-studio"
   Five-method selector (Scan Plans/Photo to Quote/FlashDraft/Configurator/
-  Quick Quote), ARIA tabs pattern. THE ONE COMPONENT ON THIS LIST THAT IS
-  LIVE — rendered at the real, standalone /design-studio route
-  (app/design-studio/page.tsx, gets normal NavBar/Footer/ChatWidget chrome).
+  Quick Quote), ARIA tabs pattern. Sets id="design-studio" on its own root
+  section (HomeSection wraps it with withId={false} on the homepage to
+  avoid a duplicate id — see HomeSection.tsx above). Rendered in two
+  places: embedded on the homepage as of hpa-003, and at its own
+  standalone /design-studio route (app/design-studio/page.tsx, normal
+  NavBar/Footer/ChatWidget chrome) — unreconciled duplication, not new to
+  this pass.
 
-app/components/home/DesignToDelivery.tsx  (hp-008)
+app/components/home/ProfileExplorer.tsx  (hp-007, queue id hpa-002) --
+UNUSED ON HOMEPAGE as of hpc-003 (Reid: those are no longer used as
+samples) -- was data-section="profile-explorer"
+  No longer imported by app/page.tsx (hpc-003 removed its dynamic() import
+  and its <HomeSection slug="profile-explorer"> call entirely — file left
+  in place, untouched, per hpc-003's instructions, in case a future pass
+  wants it back). Was live from hpa-003 through hpa-005: a server component
+  that set id="profile-explorer" on its own root section (same
+  withId={false} reasoning as DesignStudioHub above), composing the
+  existing components/studio/ProfileLibraryBrowser.tsx (compact mode,
+  limit=12, show3DToggle) over the same public+active machine_profiles
+  data /studio/library uses, service-role client (machine_profiles RLS
+  requires auth.uid() even on is_public rows). Built under hp-007 (commit
+  b0c4351, queue id hpa-002).
+
+app/components/home/DesignToDelivery.tsx  (hp-008) -- data-section="design-to-delivery"
   Five-step Capture -> Convert -> Verify -> Fabricate -> Track sequence,
   scroll-driven progress rail (IntersectionObserver), full frame
   immediately under prefers-reduced-motion.
 
-app/components/home/CustomerPathways.tsx  (hp-009)
+app/components/home/CustomerPathways.tsx  (hp-009) -- data-section="pathways"
   Three role cards: Contractors -> /field/contractor, Architects ->
   /architects, Purchasing -> /account/credit-application.
 
-app/components/home/ProfilePassportExplainer.tsx  (hp-010)
+app/components/home/ProfilePassportExplainer.tsx  (hp-010) -- data-section="profile-passport"
   Design -> Save -> Reorder three-panel flow + illustrative "Profile
   Passport" card (CSS only, example data, not a live query). Auth-aware
   CTA (createClient() + getUser()) branches Create your account vs. View
@@ -333,36 +374,65 @@ app/components/home/ProfilePassportExplainer.tsx  (hp-010)
   Profile Passport schema below — this component predates and does not
   depend on custom_profiles/profile_revisions; its real backing table
   (per its own governance entry) is the existing saved_configurations.
+  Sets id="profile-passport" on its own root section (same withId={false}
+  reasoning as DesignStudioHub above).
 
-app/components/home/CaseStudies.tsx  (hp-011)
+app/components/home/CaseStudies.tsx  (hp-011) -- data-section="case-studies"
   Three real-photo project cards (Copper Dome #22, Arched-Window
   Flashing #34, Standing-Seam Detail #19 — lib/home/portfolio-photos.ts)
-  plus a NASA Johnson Space Center credential card ($500K Project badge,
-  typographic pill, no logo asset used).
+  plus a NASA Johnson Space Center credential card (Zero-Defect Delivery
+  chip; its visual is public/images/NASA_Johnson_Space_Center.png, Reid-
+  supplied, as of hpc-003 — object-cover object-top so the NASA insignia
+  and lockup show and the image's lower-region generation artifacts stay
+  cropped out; the earlier typographic "NASA Johnson Space Center" badge
+  is gone). Section id comes from the
+  HomeSection wrapper; each card additionally carries its own anchor id
+  (added hpa-003 — id={`case-study-${study.key}`} on the three photo
+  cards, id="case-study-nasa-jsc" on the credential card) so
+  NationwideMap tooltips and future links can target a specific card.
 
-app/components/home/ShopFloorProof.tsx  (hp-012)
+app/components/home/ShopFloorProof.tsx  (hp-012) -- data-section="shop-floor"
   Video-backed stats section, hero-loop video reused: 5 Materials
   Fabricated, 25 Standard Profiles (canonical_profiles, not the private
   911-row machine-profile library), Nationwide Delivery Footprint.
 
 app/components/home/NationwideMap.tsx + NationwideMapLeaflet.tsx +
-nationwide-locations.ts  (hp-013)
+nationwide-locations.ts  (hp-013) -- data-section="nationwide"
   Leaflet/OSM map (same stack as components/hailview/HailViewMap.tsx),
   HQ pin only (Burnet, TX) + nationwide delivery radius ring — no project
-  pins, since no CaseStudies card has a real documented location.
+  pins, since no CaseStudies card has a real documented location. Sets
+  id="nationwide" on its own root section (same withId={false} reasoning
+  as DesignStudioHub above). Imported into app/page.tsx via next/dynamic
+  (code-splitting only — page.tsx is a Server Component, where
+  `ssr: false` isn't legal) — its own internal NationwideMapLeaflet
+  dynamic(ssr:false) import is what actually keeps Leaflet out of the
+  server bundle.
 
-app/components/home/FinalCTA.tsx  (hp-014)
-  Four-action closing band: Start a Quote (/design-studio) | Explore
-  Profiles (#profile-explorer) | Check Hail Impact (/hailview) | Talk to
-  AFS (/contact). Tagline "Texas Crafted. Nationally Delivered."
+app/components/home/FinalCTA.tsx  (hp-014) -- data-section="final-cta"
+  Four-action closing band: Start a Quote (/design-studio) | Custom
+  Profiles (/architects/custom-profiles) | Check Hail Impact (/hailview) |
+  Talk to AFS (/contact). Tagline "Texas Crafted. Nationally Delivered."
+  ("Custom Profiles" retargeted hpc-003 — was "Explore Profiles" ->
+  #profile-explorer, dropped along with the removed section above.)
 ```
 
-**Assembly status:** none of the eleven components above are imported by
-`app/page.tsx`. Every one of their own governance entries in
-`STATE_OF_THE_BUILD.md` names `hp-019` as the deferred assembly step;
-`hp-019` was never run (see that file's hp-024 entry). See
-`HOMEPAGE_VERIFICATION.md` for what's actually reachable in a browser
-today.
+**Assembly status (hpa-003 — this is what `hp-019` was always deferred
+to):** eleven components above are now imported by `app/page.tsx`, in the
+order listed, each wrapped in `HomeSection.tsx` — twelve at hpa-003,
+reduced to eleven by hpc-003's removal of ProfileExplorer from the render
+order (Reid: those are no longer used as samples). `pnpm tsc --noEmit`
+and `pnpm run build` both pass. The assembly was sitting modified-but-
+uncommitted when hpa-004 started and was swept into that pass's commit
+(`083ed7d`) alongside the new Playwright suite — there is no standalone
+`hpa-003` commit or governance entry; see `STATE_OF_THE_BUILD.md`'s
+hpa-004 entry for the real commit hash and the Playwright checkpoint
+results across 375/768/1440px. hpa-005 (commit `f9fd61d`) layered a11y/
+contrast/lazy-load polish on top — see that file's hpa-005 entry. hpc-003
+removed the Explore Our Profiles section, put the NASA JSC photo (Reid-
+supplied) on CaseStudies.tsx's credential card in place of its typographic
+badge, and retargeted the two CTAs that pointed at #profile-explorer (see
+HeroSection.tsx and FinalCTA.tsx entries above) — see that file's hpc-003
+entry.
 
 **Profile Passport (hp-015) — schema only, separate from the components
 above:** `supabase/migrations/023_profile_passport.sql`
