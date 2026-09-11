@@ -34,6 +34,210 @@ summary, not a replacement for it.
 
 ---
 
+## CONFIGURATOR ELIMINATED — ALL ENTRY POINTS REMOVED, /configure REDIRECTS TO FLASHDRAFT (hpd-002): DONE (2026-09-11)
+
+Reid's decision: the Custom Flashing Configurator is redundant with
+FlashDraft and is eliminated from the site. Every path a visitor could
+take to it is gone; `/configure` and `/configurator` permanently redirect
+to `/studio/draft` so nothing indexed/bookmarked 404s.
+
+### CONFIGURATOR ELIMINATION — INVENTORY
+
+Case-insensitive `grep` for `configur` across `app/`, `components/`,
+`lib/`, `middleware.ts`, `next.config.*`, `SITEMAP.md`, `COMPONENT_MAP.md`,
+and `tests/` before any change, plus a literal-route grep for `/configure`
+and `/configurator`, found:
+
+- **The route itself:** `app/configure/page.tsx` (34KB single-file
+  implementation — same pattern as FlashDraft's `app/studio/draft/
+  page.tsx`, not the multi-file `components/configurator/` shape
+  `COMPONENT_MAP.md` had speculatively described; that directory never
+  existed on disk). No `app/configurator/` directory existed.
+- **Real entry points (UI links/buttons/cards):**
+  `app/components/home/DesignStudioHub.tsx` (homepage card, 1 of 5
+  methods), `app/components/home/CredibilityStrip.tsx` ("5 Ways to
+  Start" label), `app/components/home/ProfilePassportExplainer.tsx`
+  ("FlashDraft or the Configurator" copy), `app/studio/page.tsx` (Design
+  Studio landing tab, 1 of 5), `app/design-studio/page.tsx` (metadata
+  copy only — renders `DesignStudioHub`), `app/(public)/architects/
+  custom-profiles/page.tsx` (empty-state CTA), `components/architects/
+  SavedProfilesBrowser.tsx` (empty-state CTA), `components/architects/
+  SavedConfigCard.tsx` ("Edit" button → `/configure?saved=`),
+  `components/product/ProductCard.tsx` and `ProductDetailView.tsx`
+  ("Configure" / "Configure Custom Dimensions" CTAs),
+  `components/ai/ChatWidget.tsx` (dynamic "Open Configurator →" routing
+  link). **NavBar.tsx and Footer.tsx had no Configurator link** — a direct
+  read of both real files found none (COMPONENT_MAP.md's NavBar entry
+  describing one was already stale before this pass, independently of
+  Configurator — see the LAYER 2 correction below).
+- **AI/system-prompt routing:** `app/api/chat/route.ts`'s
+  `CHATBOT_SYSTEM_PROMPT` routing rule, `lib/chatbot/knowledge/
+  spec-files.ts` (2 dedicated knowledge chunks + 1 chunk needing edits),
+  `lib/chatbot/knowledge/afs-company.ts` (3 chunks), `lib/chatbot/
+  knowledge/afs-profiles.ts` (header comment + 20 of 21 profile entries'
+  ordering guidance).
+- **Comments referencing the route/tool (no behavior change needed, just
+  accuracy):** `app/api/admin/command-center/approve-quote-request/
+  route.ts` (3 comments), `app/api/quote-requests/route.ts` (2 comments),
+  `app/upload/page.tsx` (2 comments), `app/field/contractor/page.tsx` (1),
+  `app/api/field/quote-request/route.ts` (1), `components/quote/
+  FinishColorField.tsx` (1), `lib/data/material-color-requirement.ts`
+  (2), `lib/utils/profile-svg.ts` (1), `lib/data/product-profiles.ts` (1),
+  `lib/data/catalog.ts` (2), `lib/data/faq.ts` (1 FAQ answer), `lib/admin/
+  pricing.ts` (2), `lib/flashdraft/draw-profile-scene.ts` (1).
+- **Data-provenance code (kept, see SHARED CODE section below):**
+  `lib/data/quote-request-source-tool.ts`'s `'afs-configurator'`
+  `SourceTool` literal and label.
+- **Governance docs:** `SITEMAP.md` (route tree entry, protection matrix
+  row, `/studio` description, query-param note, page-count numbers,
+  header route count), `COMPONENT_MAP.md` (LAYER 6 entirely, the LAYER 12
+  `app/studio/page.tsx` entry, the LAYER 3 `DesignStudioHub.tsx` entry,
+  two LAYER 7 product-CTA descriptions, one LAYER 2 NavBar.tsx line).
+- **Tests:** `tests/e2e/homepage.spec.ts` (`DESIGN_STUDIO_METHODS` fixture
+  had a Configurator entry).
+- **False positives excluded** (generic English "configure/configured/
+  configuration/misconfiguration" unrelated to the AFS tool — left
+  untouched): `app/admin/bid-monitor/page.tsx`, `app/admin/gbp-photos/
+  page.tsx`, `app/admin/settings/page.tsx`, `app/api/gbp/post/[id]/
+  route.ts`, `app/api/hailview/email-report/route.ts`,
+  `components/admin/BidMonitorSourceDirectory.tsx`,
+  `components/admin/GbpPhotosTab.tsx`, `components/studio/
+  ProfileViewer3D.tsx`, `components/track/DeliveryTrackingMap.tsx`,
+  `lib/bid-monitor/alerts.ts`, `lib/field/auth.ts`, `lib/hailview/
+  wind.ts`, `lib/integrations/{google-business,pathfinder-edge,
+  quickbooks}.ts`, `lib/resend/{client,send}.ts`, `lib/twilio/sms.ts`,
+  `tests/e2e/{auth.setup,hailview,README}`.
+
+### WHAT CHANGED
+
+1. **Route deleted.** `git rm app/configure/page.tsx`. Nothing else
+   imported from it (`grep` for `from '@/app/configure` across the repo
+   returned zero hits) and no other file was importable-only-by it — no
+   further deletions were needed.
+2. **Redirects added.** `next.config.js` `redirects()` (new — the config
+   had none before): `/configure`, `/configure/:path*`, `/configurator`,
+   `/configurator/:path*` → `/studio/draft`, all `permanent: true` (308).
+   Verified live against a `pnpm start` production server: all four
+   return `308` with `location: /studio/draft`.
+3. **Every entry point above updated** — cards/buttons/links removed or
+   (where the CTA's function transfers cleanly) repointed to
+   `/studio/draft` under a "Design in FlashDraft" / "Design a Profile"
+   label: `DesignStudioHub.tsx` now lists 4 methods ("Four Ways to
+   Start", `sm:grid-cols-4`, `DEFAULT_INDEX` unchanged at 2/FlashDraft
+   since it was already left of the removed card); `CredibilityStrip.tsx`
+   now reads "4 Ways to Start"; `app/studio/page.tsx` now has 4 tab cards
+   (`lg:grid-cols-4`) and "Four ways to spec your flashing" copy;
+   `ProfilePassportExplainer.tsx`'s Design step now reads "Build your
+   profile in FlashDraft."; the custom-profiles empty-states and
+   `SavedProfilesBrowser.tsx` now CTA to `/studio/draft`;
+   `SavedConfigCard.tsx` lost its "Edit" button (no FlashDraft equivalent
+   for loading a `saved_configurations` row into an editable form —
+   "Reorder" still submits a fresh quote request from the saved spec, so
+   is unaffected and unchanged); `ProductCard.tsx`/`ProductDetailView.tsx`
+   now CTA "Design in FlashDraft" → `/studio/draft` (dropped the
+   `?profile=`/`?material=` query params — FlashDraft doesn't consume
+   them; `?profile={id}` has no remaining caller anywhere in the repo,
+   confirmed by grep); `ChatWidget.tsx`'s dynamic Configurator routing
+   link removed entirely (only the FlashDraft/Design Studio links
+   remain); `app/api/chat/route.ts`'s routing rule merged into one
+   FlashDraft rule covering both standard and custom profiles.
+4. **Chatbot knowledge base rewritten**, not just relabeled:
+   `spec-files.ts`'s two Configurator-dedicated chunks deleted outright;
+   its Custom Profile Library chunk now says designs are "saved from
+   FlashDraft" and profiles are reordered "directly" (dropped the
+   "open it in the Configurator to edit" clause — no longer true).
+   `afs-company.ts`: the capabilities chunk now says standard profiles
+   are ordered "directly through FlashDraft"; the quote-process chunk is
+   "four ways" (Scan to Quote, Photo to Quote, FlashDraft, Quick Quote);
+   the Design Studio chunk dropped its `/configure` bullet. `afs-
+   profiles.ts`: all 20 profile entries that previously said "standard
+   sizes are Custom Configurator items; custom/unusual cases need
+   FlashDraft" were rewritten so FlashDraft alone handles both — no
+   entry tells a customer to go anywhere that no longer exists.
+5. **Tests.** `tests/e2e/homepage.spec.ts`'s `DESIGN_STUDIO_METHODS`
+   fixture dropped its Configurator row (now matches the real 4-tab
+   list). New `tests/e2e/no-configurator.spec.ts`: asserts `/configure`,
+   `/configure/:path`, `/configurator`, `/configurator/:path` all return
+   a `308` to `/studio/draft` (redirects not followed) and that following
+   `/configure` lands on a real `200` at `/studio/draft`; sweeps `/`,
+   `/studio`, `/design-studio`, and a product detail page
+   (`/products/roofing/valley-flashing`) for any `<a href>` starting with
+   `/configure` or `/configurator` (none found); asserts
+   `DesignStudioHub` renders exactly 4 tabs with none labeled
+   "Configurator".
+
+### CONFIGURATOR — SHARED CODE KEPT FOR STAGE 2
+
+Nothing here is a live entry point to the eliminated tool — each is
+either code shared with FlashDraft/the quote pipeline, or historical
+data-provenance handling for `quote_requests` rows a real customer
+already submitted through the Configurator before this session, which
+still need to render correctly in the admin UI. None of it was deleted.
+
+- **`lib/utils/profile-svg.ts`** (`generateProfileSVG`, `ProfileType`,
+  `slugToProfileType`, `KNOWN_PROFILE_TYPES`) — imported by
+  `app/(public)/architects/specs/[profileSlug]/page.tsx`,
+  `app/api/admin/command-center/approve-quote-request/route.ts`,
+  `components/architects/SavedConfigCard.tsx`,
+  `components/product/ProductDetailView.tsx` (its top diagram, unrelated
+  to the removed CTA), and `lib/data/catalog.ts` (`ProfileType` import).
+  This is FlashDraft/catalog-shared geometry code, not Configurator-only
+  — confirmed by grep that `app/configure/page.tsx` was never its sole
+  importer.
+- **`lib/data/quote-request-source-tool.ts`**'s `'afs-configurator'`
+  `SourceTool` literal and `'Configurator'` label — `quote_requests.
+  source_tool` has no CHECK constraint; historical rows written before
+  this session by the real (now-deleted) Configurator still carry this
+  token, and the admin UI (`app/admin/quote-requests/[id]/page.tsx`,
+  `components/admin/{CommandCenterDashboard,PendingQuoteRequestCard,
+  ProfileLibraryTable,ShopViewBoard}.tsx`) needs `sourceToolLabel()` to
+  keep rendering it as "Configurator" rather than falling through to
+  "Unknown". No new code will ever emit this token going forward.
+- **`app/api/admin/command-center/approve-quote-request/route.ts`** and
+  **`app/api/quote-requests/route.ts`** — both are shared, live
+  processing paths for `quote_requests` from every submission surface
+  (FlashDraft, Quote Builder, Blueprint Takeoff AI); their comments now
+  note that historical Configurator-submitted rows (`profileType` +
+  `width/height/legA/legB`, no `points`) still flow through the same
+  generic "no points → render via `generateProfileSVG`" branch other
+  non-FlashDraft surfaces use — not a Configurator-specific code path,
+  just documented history.
+- **`lib/data/material-color-requirement.ts`** and **`lib/chatbot/
+  knowledge/spec-files.ts`** — header comments were edited to note the
+  Configurator surface/spec source no longer contributes to what they
+  map/summarize, rather than silently going stale.
+
+### VERIFICATION
+
+`pnpm tsc --noEmit` — 0 errors (after `rm -rf .next` to clear a stale
+`.next/types/app/configure/page.ts` reference from before the deletion —
+expected, not a real error). `pnpm run build` — passes, `/configure` does
+not appear anywhere in the route table. Redirects manually verified via
+`curl` against a `pnpm start` production server (`308` + correct
+`location` header for all four patterns). `npx playwright test` (full
+suite, same production server): **46 passed, 13 skipped** (pre-existing
+auth-gated skips — no `E2E_TEST_EMAIL`/`E2E_TEST_PASSWORD` in this
+environment, unrelated to this change), **3 failed** — all three are
+`tests/e2e/homepage.spec.ts`'s "hero renders with zero console errors and
+no canvas element" (one per viewport), timing out on
+`page.waitForLoadState('networkidle')`. This test and the hero video it
+watches were untouched by hpd-002 (confirmed: `git diff` on
+`homepage.spec.ts` shows exactly one line removed — the
+`DESIGN_STUDIO_METHODS` Configurator row — nothing near the failing
+test); it fails identically re-run in isolation and single-worker, so
+it's not cross-test contention. hpd-001 self-reported this same test
+passing (31/31) the session before, but per this file's own verification
+standard that was never independently confirmed by Reid — this session's
+result suggests it does not reliably pass in this environment (the
+autoplaying hero video likely never lets the network go idle). Pre-
+existing, outside hpd-002's scope (no hero/video file was touched this
+session) — flagged for a future session rather than silently worked
+around. Every Configurator-elimination-relevant test (all of
+`no-configurator.spec.ts`, the `DesignStudioHub` card test, the homepage
+link-integrity sweep, the product-detail page sweep) passed.
+
+---
+
 ## HERO — PROFILEROTATION REMOVED, SHOP-FLOOR FOOTAGE IS THE SOLE HERO VISUAL (hpd-001): IMPLEMENTED, UNCONFIRMED (2026-09-11)
 
 Reid's decision: the rotating 3D profile in the hero is removed entirely;

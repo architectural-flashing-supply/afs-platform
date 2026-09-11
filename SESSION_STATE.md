@@ -24,6 +24,49 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## CONFIGURATOR ELIMINATED (hpd-002) — 2026-09-11
+
+Reid's decision: the Custom Flashing Configurator is redundant with
+FlashDraft and is eliminated from the site. Full detail in
+STATE_OF_THE_BUILD.md's matching entry (top of file) — summary here for
+handoff:
+
+- `app/configure/page.tsx` deleted (`git rm`); nothing else imported from
+  it. `next.config.js` gained its first `redirects()` block:
+  `/configure`, `/configure/:path*`, `/configurator`,
+  `/configurator/:path*` → `/studio/draft` (permanent, verified `308`
+  live).
+- Every entry point removed or repointed to FlashDraft: `DesignStudioHub`
+  (5→4 methods, "Four Ways to Start"), `CredibilityStrip` ("4 Ways to
+  Start"), `app/studio/page.tsx` (5→4 tabs), `ProfilePassportExplainer`,
+  the `/architects/custom-profiles` empty-states, `ProductCard`/
+  `ProductDetailView` CTAs (now "Design in FlashDraft"), `ChatWidget`'s
+  dynamic routing link, and the chat system prompt's routing rule.
+  `SavedConfigCard.tsx` lost its "Edit" button (no FlashDraft equivalent
+  for editing a saved configuration) — "Reorder" is unaffected.
+- Chatbot knowledge base rewritten, not just relabeled: `spec-files.ts`'s
+  two Configurator chunks deleted; `afs-company.ts` and `afs-profiles.ts`
+  (20 of 21 profile entries) no longer tell customers to go anywhere
+  that no longer exists.
+- Kept (documented as shared/historical, not live entry points):
+  `lib/utils/profile-svg.ts` (shared FlashDraft/catalog geometry code),
+  `lib/data/quote-request-source-tool.ts`'s `'afs-configurator'` token
+  (labels historical `quote_requests` rows in the admin UI — no new code
+  emits it), and the two shared quote-processing routes' comments.
+- `pnpm tsc --noEmit` — 0 errors. `pnpm run build` — passes, no
+  `/configure` route in the output. `npx playwright test` (full suite) —
+  46 passed, 13 pre-existing skips, 3 failed — all three are the
+  pre-existing (untouched by this session) hero-video `networkidle`
+  timeout in `homepage.spec.ts`, not a regression from this change; every
+  Configurator-elimination test passed, including the new
+  `tests/e2e/no-configurator.spec.ts`.
+
+Committed as `hpd-002: Configurator eliminated — entry points removed,
+/configure redirected to FlashDraft` (see git log for the real hash —
+this entry is written before that commit lands).
+
+---
+
 ## HERO — PROFILEROTATION REMOVED (hpd-001) — 2026-09-11
 
 Reid's decision: the rotating 3D profile in the hero is removed entirely;
