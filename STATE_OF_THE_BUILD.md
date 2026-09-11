@@ -34,6 +34,67 @@ summary, not a replacement for it.
 
 ---
 
+## NASA JSC CARD IMAGE + EXPLORE OUR PROFILES REMOVED (hpc-003): DONE (2026-09-10)
+
+Two content decisions from Reid, both closed out this session.
+
+**A. NASA card image.** Reid supplied `public/images/NASA_Johnson_Space_
+Center.png` (1402×1122, the NASA insignia + "Trusted by NASA Johnson
+Space Center" lockup over a Space Center Houston exterior — the file was
+found at `public/images/NASA Johnson Space Center.png`, untracked, and
+renamed to the underscored filename before use). `CaseStudies.tsx`'s NASA
+credential card now renders this file via `next/image` (`fill`,
+`object-cover object-top`) in the same visual slot the three photo cards
+use, replacing the typographic "NASA Johnson Space Center" badge — the
+lockup is baked into the photo now. `object-top` anchors the crop to the
+top of the image (1.25:1 source into a 4:3 card slot), which is also what
+keeps the source photo's lower-region generation artifacts (mirrored
+signage) out of frame. Alt text: "Trusted by NASA Johnson Space Center".
+Title, "Zero-Defect Delivery" chip, and copy are unchanged. Verified with
+a throwaway Playwright screenshot script (not committed) capturing the
+card at 375/768/1440px — insignia and lockup visible, artifact region
+cropped out, at all three.
+
+**B. Explore Our Profiles section removed.** Reid: those are no longer
+used as samples. `app/page.tsx` no longer imports or renders
+`ProfileExplorer` — the homepage is eleven sections now, not twelve (hero,
+credibility, field-app, design-studio, design-to-delivery, pathways,
+profile-passport, case-studies, shop-floor, nationwide, final-cta).
+`app/components/home/ProfileExplorer.tsx` itself is untouched, left in
+place per this prompt's instruction, and marked "unused on homepage" in
+COMPONENT_MAP.md. The two CTAs that pointed at `#profile-explorer` were
+retargeted: `HeroSection.tsx`'s secondary CTA is now "See How It's Made"
+-> `#shop-floor`; `FinalCTA.tsx`'s second action is now "Custom Profiles"
+-> `/architects/custom-profiles` (real route, confirmed on disk at
+`app/(public)/architects/custom-profiles/page.tsx` — the `/design-studio`
+fallback this prompt allowed for wasn't needed). A repo-wide grep for
+`profile-explorer` / `Explore Profiles` after these edits turns up nothing
+except `ProfileExplorer.tsx` itself and its own internal `id`/heading —
+confirmed no other page or component still points at the removed section.
+
+**Governance updated:** `COMPONENT_MAP.md` (LAYER 3 — ProfileExplorer
+marked unused, section count corrected to eleven, HeroSection/FinalCTA/
+CaseStudies entries updated) and `SITEMAP.md` (homepage route description
+corrected to eleven sections).
+
+**Gates run this session:** `pnpm tsc --noEmit` — 0 errors. `npx
+playwright test tests/e2e/homepage.spec.ts` — 31 passed, 1 skipped (the
+pre-existing `auth.setup.ts`, no test credentials configured), run against
+a locally started `pnpm dev` server (no `webServer` block in
+`playwright.config.ts`, so the dev server has to be started manually
+before this suite will connect). The suite itself was updated: eleven
+sections in `SECTION_SLUGS`, the ProfileExplorer chip/3D-toggle test
+removed, a new test asserting the NASA card's image + alt text, and two
+new tests asserting the retargeted CTAs' hrefs and that they resolve.
+
+Per the VERIFICATION STANDARD above, the compile/build/Playwright gates
+are met, and this is a straightforward content/copy change (no new
+canvas/3D/animation surface) — marked **DONE** rather than "implemented,
+unconfirmed." Reid should still eyeball the live card at least once,
+since the crop was judged by this session's own screenshot comparison.
+
+---
+
 ## HERO PROFILEROTATION — REBUILT FROM THE REAL PROFILE PHOTO (hpc-002): IMPLEMENTED, UNCONFIRMED (2026-09-10)
 
 Reid rejected the prior `ProfileRotation.tsx` (built hp-002) on four

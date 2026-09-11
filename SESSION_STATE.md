@@ -24,6 +24,42 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## NASA JSC CARD IMAGE + EXPLORE OUR PROFILES REMOVED (hpc-003) — 2026-09-10
+
+Two content decisions from Reid. Full detail in STATE_OF_THE_BUILD.md's
+matching entry (top of file) — summary here for handoff:
+
+- `CaseStudies.tsx`'s NASA credential card now shows the Reid-supplied
+  `public/images/NASA_Johnson_Space_Center.png` (renamed from the
+  space-separated filename it was dropped in as) via `next/image`,
+  `object-cover object-top`, replacing the old typographic badge. Alt
+  text "Trusted by NASA Johnson Space Center". Verified at 375/768/1440px
+  with a throwaway Playwright screenshot — insignia/lockup visible,
+  the source photo's lower-region artifacts cropped out at every size.
+- `ProfileExplorer` removed from `app/page.tsx`'s render order (Reid:
+  those are no longer used as samples) — homepage is eleven sections now,
+  not twelve. The component file itself is untouched. The two CTAs that
+  pointed at `#profile-explorer` were retargeted: HeroSection's secondary
+  CTA -> "See How It's Made" / `#shop-floor`; FinalCTA's second action ->
+  "Custom Profiles" / `/architects/custom-profiles` (confirmed real route,
+  didn't need the `/design-studio` fallback). Repo-wide grep confirms no
+  other `profile-explorer`/`Explore Profiles` references remain.
+- COMPONENT_MAP.md and SITEMAP.md updated to reflect eleven sections and
+  ProfileExplorer's unused status.
+- `pnpm tsc --noEmit` — 0 errors. `npx playwright test tests/e2e/
+  homepage.spec.ts` — 31 passed, 1 skipped (pre-existing auth setup, no
+  test credentials). Suite updated: eleven-section `SECTION_SLUGS`,
+  ProfileExplorer test removed, NASA image/alt-text assertion added, two
+  retargeted-CTA assertions added.
+
+**Environment note:** `playwright.config.ts` has no `webServer` block —
+`pnpm dev` has to be started manually (this session ran it in the
+background and polled `curl localhost:3000` until ready) before the
+Playwright suite will connect; a bare `npx playwright test` against a
+cold server fails every test with `ERR_CONNECTION_REFUSED`.
+
+---
+
 ## HERO PROFILEROTATION REBUILD (hpc-002) — 2026-09-10
 
 Rebuilt `app/components/hero/ProfileRotation.tsx` in response to Reid's
