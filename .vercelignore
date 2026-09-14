@@ -1,0 +1,10 @@
+# Mirrors .gitignore intent for deploy uploads, plus untracked working-tree
+# items that must never leave this machine (see STATE_OF_THE_BUILD.md's
+# hp-024 entry) — none of these are referenced by any route or build step.
+EMAIL PROSPECT LISTS/
+.repro-afs-fl-023/
+.repro-afs-fl-025/
+.repro-afs-fl-029/
+supabase/.temp/
+AFS CREDENTIALS.txt
+.env.local.backup

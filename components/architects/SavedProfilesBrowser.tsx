@@ -33,8 +33,8 @@ export default function SavedProfilesBrowser({ configs }: { configs: SavedConfig
         <EmptyState
           title="No custom profiles match your search"
           description="Try a different profile type or material, or clear your search."
-          actionLabel="Configure a Profile"
-          actionHref="/configure"
+          actionLabel="Design a Profile"
+          actionHref="/studio/draft"
           accent="copper"
         />
       ) : (

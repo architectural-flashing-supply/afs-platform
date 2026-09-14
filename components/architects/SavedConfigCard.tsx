@@ -75,12 +75,6 @@ export default function SavedConfigCard({ config }: { config: SavedConfig }) {
           >
             Reorder
           </Link>
-          <Link
-            href={`/configure?saved=${config.id}`}
-            className="flex-1 text-center border border-afs-border text-afs-chrome-mid hover:bg-afs-bg-surface hover:text-afs-chrome-high font-label font-semibold text-sm px-4 py-2.5 rounded transition-colors"
-          >
-            Edit
-          </Link>
         </div>
       </div>
     </div>

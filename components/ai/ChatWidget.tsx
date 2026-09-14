@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import EscalationCard from './EscalationCard';
 
@@ -31,9 +32,6 @@ interface RoutingLink {
 
 function getRoutingLinks(content: string): RoutingLink[] {
   const links: RoutingLink[] = [];
-  if (content.includes('/configure')) {
-    links.push({ label: 'Open Configurator →', href: '/configure' });
-  }
   if (content.includes('/studio/draft')) {
     links.push({ label: 'Open FlashDraft →', href: '/studio/draft' });
   } else if (content.includes('/studio')) {
@@ -302,9 +300,11 @@ export default function ChatWidget() {
         }}
         aria-label="Open FlashChat"
       >
-        <img
+        <Image
           src="/chat_bubble_icon.png"
           alt="FlashChat"
+          width={115}
+          height={115}
           style={{ width: '115px', height: '115px', objectFit: 'contain' }}
         />
       </button>
@@ -319,7 +319,13 @@ export default function ChatWidget() {
       <div className="flex items-start justify-between px-4 py-3 border-b border-afs-border bg-afs-bg-dim">
         <div>
           <div className="flex items-center gap-1.5">
-            <img src="/chat_bubble_icon.png" alt="FlashChat" style={{ width: '20px', height: '20px', objectFit: 'contain' }} />
+            <Image
+              src="/chat_bubble_icon.png"
+              alt="FlashChat"
+              width={20}
+              height={20}
+              style={{ width: '20px', height: '20px', objectFit: 'contain' }}
+            />
             <p className="font-heading font-bold text-white text-lg leading-tight">FlashChat</p>
           </div>
           <p className="eyebrow-label text-xs tracking-widest mt-0.5">

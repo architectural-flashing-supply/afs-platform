@@ -24,6 +24,1000 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## CONFIGURATOR ELIMINATED (hpd-002) — 2026-09-11
+
+Reid's decision: the Custom Flashing Configurator is redundant with
+FlashDraft and is eliminated from the site. Full detail in
+STATE_OF_THE_BUILD.md's matching entry (top of file) — summary here for
+handoff:
+
+- `app/configure/page.tsx` deleted (`git rm`); nothing else imported from
+  it. `next.config.js` gained its first `redirects()` block:
+  `/configure`, `/configure/:path*`, `/configurator`,
+  `/configurator/:path*` → `/studio/draft` (permanent, verified `308`
+  live).
+- Every entry point removed or repointed to FlashDraft: `DesignStudioHub`
+  (5→4 methods, "Four Ways to Start"), `CredibilityStrip` ("4 Ways to
+  Start"), `app/studio/page.tsx` (5→4 tabs), `ProfilePassportExplainer`,
+  the `/architects/custom-profiles` empty-states, `ProductCard`/
+  `ProductDetailView` CTAs (now "Design in FlashDraft"), `ChatWidget`'s
+  dynamic routing link, and the chat system prompt's routing rule.
+  `SavedConfigCard.tsx` lost its "Edit" button (no FlashDraft equivalent
+  for editing a saved configuration) — "Reorder" is unaffected.
+- Chatbot knowledge base rewritten, not just relabeled: `spec-files.ts`'s
+  two Configurator chunks deleted; `afs-company.ts` and `afs-profiles.ts`
+  (20 of 21 profile entries) no longer tell customers to go anywhere
+  that no longer exists.
+- Kept (documented as shared/historical, not live entry points):
+  `lib/utils/profile-svg.ts` (shared FlashDraft/catalog geometry code),
+  `lib/data/quote-request-source-tool.ts`'s `'afs-configurator'` token
+  (labels historical `quote_requests` rows in the admin UI — no new code
+  emits it), and the two shared quote-processing routes' comments.
+- `pnpm tsc --noEmit` — 0 errors. `pnpm run build` — passes, no
+  `/configure` route in the output. `npx playwright test` (full suite) —
+  46 passed, 13 pre-existing skips, 3 failed — all three are the
+  pre-existing (untouched by this session) hero-video `networkidle`
+  timeout in `homepage.spec.ts`, not a regression from this change; every
+  Configurator-elimination test passed, including the new
+  `tests/e2e/no-configurator.spec.ts`.
+
+Committed as `hpd-002: Configurator eliminated — entry points removed,
+/configure redirected to FlashDraft` (see git log for the real hash —
+this entry is written before that commit lands).
+
+---
+
+## HERO — PROFILEROTATION REMOVED (hpd-001) — 2026-09-11
+
+Reid's decision: the rotating 3D profile in the hero is removed entirely;
+the full-bleed shop-floor video is the hero visual. Full detail in
+STATE_OF_THE_BUILD.md's matching entry (top of file) — summary here for
+handoff:
+
+- `HeroSection.tsx` no longer imports/mounts `ProfileRotation` — text
+  block (H1/sub-copy/CTAs) is now a single left-aligned `max-w-3xl` column
+  over the full-bleed video, bottom-aligned above the fold on mobile.
+  `ProfileRotation.tsx` and `scripts/video-review/profile-rotation-
+  comparison.jpg` deleted. `three` dependency kept (still used by
+  FlashDraft's `ProfileViewer3D`).
+- `tests/e2e/homepage.spec.ts` updated: ProfileRotation canvas assertions
+  replaced with a "no canvas in hero" assertion.
+- `COMPONENT_MAP.md`'s `ProfileRotation.tsx` entry removed.
+- `pnpm tsc --noEmit` — 0 errors. `pnpm run build` — passes. `npx
+  playwright test tests/e2e/homepage.spec.ts` — 31 passed, 1 skipped
+  (pre-existing auth-setup skip). Hero visually checked at 375px/1440px —
+  text readable over the video both times.
+
+Committed as `d30b19c` ("hpd-001: Remove ProfileRotation from hero;
+footage is the hero visual").
+
+---
+
+## WORKING-TREE HYGIENE + PUSH ATTEMPT (hpb-001) — 2026-09-10
+
+Full detail in STATE_OF_THE_BUILD.md's matching entry (top of file) —
+summary here for handoff:
+
+- Restored the accidentally-modified `queue.yaml`, added `EMAIL PROSPECT
+  LISTS/`, `.repro-*/`, and `supabase/.temp/` to `.gitignore`, committed
+  as `cbb585e` ("hpb-001: launch-rule clarification, gitignore PII and
+  debug folders, hero-profile asset").
+- **`feat/homepage-redesign` is still not on `origin`.** Tried HTTPS (3x,
+  tuned buffer/protocol/timeout settings) — timeout, HTTP 408, timeout.
+  Tried SSH — blocked because `gh ssh-key add` needs the
+  `admin:public_key` token scope, which the current `gh auth` session
+  doesn't have, and granting it requires an interactive browser login this
+  run couldn't start.
+- `homepage-v1-rc` untouched — never reached because neither push attempt
+  succeeded.
+- `pnpm tsc --noEmit`: 0 errors.
+- **Handoff ask:** either Reid runs `gh auth refresh -h github.com -s
+  admin:public_key` once interactively, or push manually from a
+  connection that can sustain the HTTPS transfer. The consistent
+  mid-transfer 408/timeout on 3 separate tries suggests it's worth
+  checking repo/pack size rather than re-tuning HTTP knobs further.
+
+---
+
+## NASA JSC CARD IMAGE + EXPLORE OUR PROFILES REMOVED (hpc-003) — 2026-09-10
+
+Two content decisions from Reid. Full detail in STATE_OF_THE_BUILD.md's
+matching entry (top of file) — summary here for handoff:
+
+- `CaseStudies.tsx`'s NASA credential card now shows the Reid-supplied
+  `public/images/NASA_Johnson_Space_Center.png` (renamed from the
+  space-separated filename it was dropped in as) via `next/image`,
+  `object-cover object-top`, replacing the old typographic badge. Alt
+  text "Trusted by NASA Johnson Space Center". Verified at 375/768/1440px
+  with a throwaway Playwright screenshot — insignia/lockup visible,
+  the source photo's lower-region artifacts cropped out at every size.
+- `ProfileExplorer` removed from `app/page.tsx`'s render order (Reid:
+  those are no longer used as samples) — homepage is eleven sections now,
+  not twelve. The component file itself is untouched. The two CTAs that
+  pointed at `#profile-explorer` were retargeted: HeroSection's secondary
+  CTA -> "See How It's Made" / `#shop-floor`; FinalCTA's second action ->
+  "Custom Profiles" / `/architects/custom-profiles` (confirmed real route,
+  didn't need the `/design-studio` fallback). Repo-wide grep confirms no
+  other `profile-explorer`/`Explore Profiles` references remain.
+- COMPONENT_MAP.md and SITEMAP.md updated to reflect eleven sections and
+  ProfileExplorer's unused status.
+- `pnpm tsc --noEmit` — 0 errors. `npx playwright test tests/e2e/
+  homepage.spec.ts` — 31 passed, 1 skipped (pre-existing auth setup, no
+  test credentials). Suite updated: eleven-section `SECTION_SLUGS`,
+  ProfileExplorer test removed, NASA image/alt-text assertion added, two
+  retargeted-CTA assertions added.
+
+**Environment note:** `playwright.config.ts` has no `webServer` block —
+`pnpm dev` has to be started manually (this session ran it in the
+background and polled `curl localhost:3000` until ready) before the
+Playwright suite will connect; a bare `npx playwright test` against a
+cold server fails every test with `ERR_CONNECTION_REFUSED`.
+
+---
+
+## HERO PROFILEROTATION REBUILD (hpc-002) — 2026-09-10
+
+Rebuilt `app/components/hero/ProfileRotation.tsx` in response to Reid's
+rejection of the hp-002 version (too fast, loop too short, cross-section
+too thick, shape invented rather than traced from the reference photo).
+Full detail in STATE_OF_THE_BUILD.md's matching entry (top of file) —
+summary here for handoff:
+
+- Read leg ratios and bend angles directly off crops of
+  `public/images/hero-profile.png` (PIL crops of the cut end, the far tip,
+  and a pure-metal color-sample region) rather than inventing a shape.
+  Documented as a comment block at the top of the component.
+- Thickness/bend-radius are computed from the measured geometry
+  (`0.6% of developed width, capped at 1/40 of the shortest leg`), not
+  hand-tuned.
+- Motion retimed to 14s/revolution, 28s loop, with a real per-vertex
+  fold/unfold interpolation (not the old file's `scale.x` fake) and
+  sequential crimson bend-line draw-in at 16-18s.
+- Verified via a temporary route + Playwright screenshot compared against
+  the reference photo, iterated twice (fixed a coplanar-bend bug and an
+  overexposed/wrong-tone material on round 1), final comparison image
+  committed at `scripts/video-review/profile-rotation-comparison.jpg`
+  (80KB) — force-added since that directory has an unrelated `.gitignore`
+  rule for hero-video review frames.
+- `pnpm tsc --noEmit` 0 errors; `npx playwright test tests/e2e/
+  homepage.spec.ts -g "ProfileRotation"` — 6 passed.
+
+**Per the verification standard above: this is this session's own
+judgment that the rebuilt shape/material/timing are correct, not Reid's
+confirmation.** Next session/Reid should look at the actual hero section
+(not just the isolated comparison image) and the real 28s loop before
+this is marked DONE.
+
+---
+
+## PLAYWRIGHT HOMEPAGE SUITE (hpa-004) — 2026-09-10
+
+Wrote `tests/e2e/homepage.spec.ts`: parameterized over 375×812, 768×1024,
+1440×900, plus two viewport-independent describe blocks (nav/footer
+structure, link integrity). 29 tests, all passing this session
+(`npx playwright test tests/e2e/homepage.spec.ts` — 29 passed, 1 skipped
+[the pre-existing `auth.setup.ts`, no test credentials configured —
+unrelated to this suite]). `pnpm tsc --noEmit` — 0 errors.
+
+**Important correction to hp-024/hpa-002's finding, below and in
+STATE_OF_THE_BUILD.md:** those entries correctly said `app/page.tsx` had
+never been touched on this branch — the twelve-section assembly was
+sitting modified-but-uncommitted in the working tree. This prompt's own
+instruction (`git add tests/e2e/homepage.spec.ts app`) swept that
+already-modified `app/page.tsx` into this pass's commit along with the
+new test file. Verified via `git log --oneline -- app/page.tsx`: this
+pass's commit `083ed7d` immediately follows `a342feb` (afs-fl-034, the
+old homepage) with nothing in between. **As of this commit, `/` on
+`feat/homepage-redesign` is really the twelve-section redesign, not the
+old homepage** — a real, `git log`-confirmed state change, not a
+documentation update.
+
+**Two real product bugs found and fixed (not hp-024/hpa-002 regressions —
+both predate this pass):**
+- `CaseStudies.tsx`'s NASA credential card showed a literal "$500K
+  Project" badge — a customer-facing price, CLAUDE.md rule #1. Caught by
+  this suite's price-pattern assertion (reused `checkout.spec.ts`'s
+  `PRICE_PATTERN`). Replaced with "Zero-Defect Delivery".
+- `NationwideMapLeaflet.tsx` put `data-testid="nationwide-map"` directly
+  on react-leaflet's `<MapContainer>`, which doesn't forward unknown
+  props to its DOM node — the testid never rendered. Fixed by wrapping in
+  a plain div, matching `HailViewMap.tsx`'s already-established
+  `"hailview-map"` pattern.
+
+Added `data-testid` hooks to `components/studio/ProfileLibraryBrowser.tsx`
+(chips row/each chip + `data-category`, grid, each card, 3D toggle) —
+additive only, `/studio/library`'s existing behavior unchanged.
+
+**Environment gotcha worth remembering:** this session's port 3000 was
+initially held by an unrelated project's broken dev server, and separately
+several orphaned `next dev`/`next build` processes for *this* project
+were already running and file-lock-contending on `.next/cache`, which
+hung this project's own `pnpm dev` indefinitely at "✓ Starting..." with
+zero CPU and no error. Killing all stray node processes and starting one
+clean `pnpm dev` fixed it. Check for duplicate processes first if this
+recurs.
+
+**Gate:** `pnpm tsc --noEmit` — 0 errors. Playwright — 29 passed, 1
+skipped, 0 failed.
+
+---
+
+## PROFILE EXPLORER — HOMEPAGE PROFILE BROWSER SECTION (hpa-002) — 2026-09-10
+
+Established fact carried in from the prior pass: no component named
+"Profile Explorer" exists — the real profile browser is
+`components/studio/ProfileLibraryBrowser.tsx` (live at `/studio/library`).
+Built `app/components/home/ProfileExplorer.tsx`, a new
+`<section id="profile-explorer">` giving the hero's and `FinalCTA.tsx`'s
+existing `#profile-explorer` links a real target. It composes
+`ProfileLibraryBrowser` directly (imports and renders it, no forked
+internals) rather than duplicating its card/filter logic.
+
+Extended `ProfileLibraryBrowser.tsx` with three optional props, each
+defaulting to the exact prior behavior so `/studio/library` is unchanged:
+`compact` (category chips + no sidebar/compare, for a homepage-style
+layout), `limit` (caps the grid post-filter), `show3DToggle` (per-card
+"View in 3D" button, hidden when a card has no bend data, swaps the
+`BendSequenceDiagram` thumbnail for an inline `next/dynamic(ssr:false)`
+`ProfileViewer3D`). The shared modal/detail-view markup was factored into
+one internal `ProfileLibraryModal` component so compact and full layouts
+don't carry two copies.
+
+`ProfileExplorer.tsx` fetches the same public+active `machine_profiles`
+data source the library page uses (service-role client, same RLS
+rationale), derives category chips from the real distinct category names
+in that data (no hardcoded list, unlike the library page's own curated
+vocabulary), caps to the first 12 profiles *after* filtering, and links
+to `/studio/library` for the rest. Real `Suspense` loading skeleton,
+empty state, and error state included (not exercised live — the real
+dataset returned successfully every check this pass).
+
+**Verified this pass, session-run (not yet Reid-confirmed — see the
+WORKING STYLE NOTE above):** `pnpm tsc --noEmit` — 0 errors. Mounted on a
+temporary `app/dev/explorer-preview/page.tsx` route, ran `pnpm dev`, drove
+it with a throwaway Playwright script (both deleted afterward, not part
+of the commit) at 375×800 and 1440×900: category chips genuinely filter
+the underlying profile set (e.g. "Fascia & Rake" → exactly 3 real cards,
+not a stale slice of 12), the "View in 3D" toggle mounts a real
+`<canvas>`, zero console/page errors. Re-checked `/studio/library`
+afterward — sidebar search, 71 Compare buttons, and zero "View in 3D"
+instances confirm the new props' defaults left it untouched.
+
+**Not done — still open, consistent with hp-024's finding below, not a
+regression from it:** `ProfileExplorer` is not wired into `app/page.tsx`.
+The `#profile-explorer` anchor now has a real component to resolve to,
+but only once the deferred homepage-assembly pass actually runs it into
+the live page. Also flagged: `LibraryProfileCardData` has no
+material/gauge fields, so the inline 3D previews render bare-metal
+default appearance rather than each profile's real finish — a real data
+gap, not a bug, and it doesn't affect the bend geometry shown.
+
+Full detail in `STATE_OF_THE_BUILD.md`'s matching hpa-002 entry.
+
+---
+
+## HOMEPAGE REDESIGN — RELEASE CANDIDATE GOVERNANCE AUDIT (hp-024): NOT AN ASSEMBLED HOMEPAGE (2026-09-10)
+
+Docs-only pass. Re-audited every `hp-001`–`hp-020` claim directly against
+the live codebase, wrote `HOMEPAGE_VERIFICATION.md`, and corrected two
+stale governance docs. Headline finding, already flagged piecemeal by
+every hp- entry below but worth stating plainly once: **`app/page.tsx`
+has never been changed by this branch.** It's byte-for-byte the
+`afs-fl-034` homepage (`HeroDrawingOverlay`/`PhotoCategoryGrid`/
+`ProjectGallery`, the project's one established root `components/home/`).
+None of `HeroSection`/`ProfileRotation`/`CredibilityStrip`/
+`FieldAppStory`/`DesignToDelivery`/`CustomerPathways`/
+`ProfilePassportExplainer`/`CaseStudies`/`ShopFloorProof`/`NationwideMap`/
+`FinalCTA` render on any route — the one exception is `DesignStudioHub`
+(hp-006), live at its own standalone `/design-studio`. The planned
+assembly prompt every one of those entries defers to (`hp-019`) was never
+run — `git log` has no `hp-016` through `hp-019` at all. Pushing this
+branch gives Vercel a preview whose `/` looks identical to production.
+
+**Structural note, new this pass:** the hp- components live in a new
+`app/components/hero/` + `app/components/home/` tree, parallel to (not
+inside) this project's one established root `components/` tree that
+every other layer of the app actually uses. `hp-020` correctly edited the
+real `components/layout/NavBar.tsx`/`Footer.tsx` — no duplicate exists
+there — but the hero/home sections started a second tree. Not resolved
+here; likely an assembly-pass decision.
+
+**Profile Passport (hp-015), re-confirmed:** schema file only, not
+applied live (unchanged), and this pass additionally confirmed **zero
+application code** — no API route, no `/account/profiles` or
+passport-specific page, nothing beyond the marketing
+`ProfilePassportExplainer.tsx` (itself unwired). The "save → My Profiles
+→ reorder" flow does not exist as working software.
+
+**Docs corrected this pass:** `COMPONENT_MAP.md` (NavBar's stale
+left-rail description, and LAYER 3 replaced — it described components
+like `TrustBar.tsx`/`ThreePillarsSection.tsx` that were never real,
+zero matches anywhere in the repo) and `SITEMAP.md` (`/design-studio`,
+`/faq`, `/resources`, `/hailview` added, all previously missing).
+`SCHEMA.md` reviewed, already accurate — no change needed.
+
+**`queue.yaml` — flagged, not touched.** The working tree has an
+unrelated, pre-existing rewrite of `queue.yaml` (committed format:
+`p0-`/`p1-`.../`p8-`; working-tree format: `afs-001`...`afs-024`) that
+predates this session and has nothing to do with the homepage redesign —
+confirmed neither version has ever had an `hp-` entry. Left unstaged and
+uncommitted; flagged for Reid to look at separately, not bundled into
+this docs commit. Also left out of this commit, for the same
+not-this-branch's-business reason: `EMAIL PROSPECT LISTS/` (real roster
+spreadsheets, not repo material), `.repro-afs-fl-023/025/029/` (unrelated
+bug-repro artifacts), `supabase/.temp/` (local CLI cache).
+
+Full detail in `STATE_OF_THE_BUILD.md`'s matching hp-024 entry.
+
+---
+
+## NAVBAR + FOOTER — RESOURCES DROPDOWN, MOBILE MENU, START A QUOTE CTA (hp-020): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+**Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
+0 errors. Commit `a2b5e8c`.
+
+Added a crimson "Start a Quote" CTA (→ `/design-studio`, always visible,
+rightmost, also repeated in the mobile menu) and a new Resources dropdown
+(HailView moved into it, since no dropdown component existed anywhere in
+this codebase before this pass) to `NavBar.tsx`; removed FAQ/Contact/
+HailView from the flat top-level link list. **Built a mobile hamburger
+menu that did not exist before this pass** — the header's entire link row
+was `hidden md:flex` with zero mobile fallback (confirmed by grep before
+building, not assumed). The new mobile panel is positioned at
+`top: LOGO_HEIGHT` (80px), following the same already-established
+full-width-fixed-element-clears-the-logo convention `app/hailview/page.tsx`
+uses — `LOGO_HEIGHT`/`LOGO_WIDTH`, `AppChrome.tsx`, and `middleware.ts`
+were not touched. The existing account-menu dropdown (`accountMenuOpen`)
+was left completely unmodified per this prompt's explicit instruction; the
+mobile panel reuses its already-computed `accountLink`/`isAuthenticated`/
+`handleSignOut` values as a plain link + button, not a nested dropdown.
+
+Added FAQ to Footer's Resources column. Contact was already present in
+the Company column — verified by reading the file, not added again.
+
+Both `SITEMAP.md` (no `/design-studio`, `/faq`, `/resources`, `/hailview`
+entries — same staleness already flagged in hp-013/hp-014) and
+`COMPONENT_MAP.md` (still describes a left-rail NavBar architecture the
+real file has never matched) were read per this prompt's instruction and
+found stale; not corrected in this pass since it was scoped to
+`NavBar.tsx`/`Footer.tsx`, not the governance docs' architecture
+descriptions — flagged so a future session doesn't build against either
+doc's description cold.
+
+Every nav/footer link's target file confirmed to exist via a direct `app/`
+filesystem check this pass — no 404s. **Not yet confirmed:** real
+interactive behavior (dropdown open/close, mobile toggle, Escape-to-close,
+touch tap) at desktop and mobile widths — no Playwright run, no user
+confirmation. Stays IMPLEMENTED, UNCONFIRMED per this doc's verification
+standard until the user checks it themselves.
+
+Full detail in `STATE_OF_THE_BUILD.md`'s NAVBAR + FOOTER entry.
+
+---
+
+## PROFILE PASSPORT — SCHEMA + RLS (hp-015): HALTED — NOT APPLIED LIVE (2026-09-10)
+
+**Prompt did not complete — halted per its own instruction.** Wrote
+`supabase/migrations/023_profile_passport.sql` (`custom_profiles`,
+`profile_revisions`, `orders.custom_profile_id`) and updated SCHEMA.md,
+but could **not** apply it to the live Supabase database: the repo isn't
+linked (`supabase/config.toml`/`project-ref` absent), `.env.local` has no
+`SUPABASE_ACCESS_TOKEN`, an on-the-spot `supabase link` attempt failed on
+an `.env.local` parse error, and separately the CLI's authenticated
+account has no access to the AFS project ref (`lxfiziwsqezjjybeguqq`) at
+all — its `projects list` shows three unrelated projects under a
+different org. Not verified via `information_schema`. Do not mark this
+schema complete anywhere until a human with real project access applies
+`023_profile_passport.sql` (link + `supabase db push`, or paste into the
+Supabase Dashboard SQL Editor) and the tables/RLS are freshly confirmed.
+
+Two things in the original prompt text didn't match the real schema and
+were corrected rather than followed literally — full reasoning in
+STATE_OF_THE_BUILD.md's PROFILE PASSPORT entry:
+- `orders.customer_id` doesn't exist (grepped, zero matches anywhere in
+  this codebase) — `orders` uses `user_id → profiles(id)`. So
+  `custom_profiles.customer_id` targets `profiles(id)`, not `companies`.
+- `orders`' RLS isn't a companies-membership join — it's a direct
+  `auth.uid() = user_id` match (`users_own_orders`, migration 001) — so
+  `custom_profiles`' user policy mirrors that shape directly, plus
+  `is_admin()` for staff.
+
+Full detail in `STATE_OF_THE_BUILD.md`'s PROFILE PASSPORT entry.
+
+---
+
+## FINALCTA — FOUR-ACTION CLOSING SECTION (hp-014): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+**Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
+0 errors. Commit `5bf3638`.
+
+Built `app/components/home/FinalCTA.tsx` — four equal action buttons
+(2x2 on mobile, one row at `md:`) on a full-bleed `bg-afs-bg-dim` section:
+Start a Quote → `/design-studio` (primary, crimson), Explore Profiles →
+`#profile-explorer` (same anchor `HeroSection.tsx` already targets), Check
+Hail Impact → `/hailview`, Talk to AFS → `/contact` — all four resolved
+against a direct read of `app/` since SITEMAP.md doesn't list `/hailview`
+or `/design-studio` at all. Tagline "Texas Crafted. Nationally Delivered."
+sits beneath the button grid. Not wired into `app/page.tsx`, matching the
+standalone pattern already set by hp-010 through hp-013.
+
+Full detail in `STATE_OF_THE_BUILD.md`'s FinalCTA entry.
+
+---
+
+## NATIONWIDEMAP — CONTINENTAL US HQ + DELIVERY-RADIUS MAP (hp-013): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+**Gate met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
+0 errors.
+
+Built `app/components/home/NationwideMap.tsx` (`id="nationwide"`),
+`NationwideMapLeaflet.tsx` (dynamic-imported, `ssr: false`), and
+`nationwide-locations.ts`. Reused the already-verified Leaflet/OpenStreetMap
+setup from `components/hailview/HailViewMap.tsx` — no new map dependency,
+no API key. HQ pin at `30.737075730063307, -98.23321342395246` (Burnet, TX —
+same coordinate pair as `DeliveryTrackingMap.tsx`/`HailViewMap.tsx`,
+sourced from `lib/chatbot/knowledge/afs-company.ts`). No project pins: none
+of `CaseStudies.tsx`'s four cards have a real, documented location in
+specs/, legacy-site content, or this file's own history (the NASA Johnson
+Space Center card names a real institution but no address/city was ever
+stated) — per this prompt's instruction not to invent locations, rendered
+the HQ pin plus a "Nationwide delivery" radius ring instead, full detail in
+`STATE_OF_THE_BUILD.md`. Not wired into `app/page.tsx`, matching the
+standalone pattern already set by hp-010/011/012.
+
+Full detail in `STATE_OF_THE_BUILD.md`'s NationwideMap entry.
+
+---
+
+## SHOPFLOORPROOF — VIDEO-BACKED PROOF STATS SECTION (hp-012): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+`pnpm tsc --noEmit`: 0 errors. Branch: `feat/homepage-redesign`.
+
+Read CLAUDE.md and DESIGN_TOKENS.md per the prompt. Checked
+`public/videos/` and `public/images/` before touching ffmpeg — hp-001
+(commit `764b0da`) already produced `shop-floor-loop.mp4`/`.webm` and
+`shop-floor-poster.jpg`, so no new encode was needed. Confirmed the poster
+is a real 1920×1080 JPEG via `ffprobe` rather than assuming the file was
+valid just because it existed.
+
+Copied the reduced-motion video pattern directly from
+`app/components/hero/HeroSection.tsx` (also used by `FieldAppStory.tsx`):
+a `matchMedia` check on `prefers-reduced-motion` gates whether `<source>`
+tags are ever attached, so with reduced motion the `<video>` element never
+fetches or plays anything and the `poster` image is the only thing that
+renders — this satisfies "reduced-motion shows poster only" without extra
+branching logic.
+
+The prompt required omitting any stat that couldn't be sourced from the
+codebase. Searched governance docs for three candidate stats before writing
+copy:
+- Materials: CLAUDE.md's "copper, aluminum, galvanized steel, stainless,
+  and Galvalume" (5) is repeated verbatim in `specs/SPEC_DRAWING_TOOL.md`
+  and `specs/SPEC_PHOTO_TO_QUOTE_AI.md` — consistent across three
+  independent docs, used as-is. Deliberately did not use
+  `CredibilityStrip.tsx`'s "9 Materials" figure — that links to
+  `/architects/finish-palette` and counts coated-color finishes, a
+  different concept from base fabrication materials.
+- Profile library: `SCHEMA.md`'s CANONICAL PROFILE LIBRARY TABLE section
+  gives 25 as the count of the public `canonical_profiles` table. The
+  MACHINE INTEGRATION TABLES section a few hundred lines later has a much
+  bigger number (911 machine profiles) but explicitly says only 70 of those
+  are public and the rest are the shop's real customer job history — using
+  25 avoids surfacing that private data as a marketing stat.
+- Delivery footprint: `lib/chatbot/knowledge/afs-company.ts`'s
+  `company-service-area` entry states AFS "ships nationwide within North
+  America." Also read the nearby `SESSION_STATE.md` afs-hv-008 entry, which
+  flags a past bug where HailView's map defaulted to this same nationwide
+  framing when it should have been Central-Texas-only — confirmed that
+  correction was scoped to HailView's hail-prospecting radius, not the
+  flashing-shipping claim, so it doesn't invalidate "Nationwide" here.
+
+No stat was invented; all three cite a real file, and one candidate number
+(machine profile count) was deliberately rejected for privacy, not for lack
+of a source.
+
+Built `app/components/home/ShopFloorProof.tsx`: `min-h-[60svh]` section,
+shop-floor video background with dark overlay, centered heading "Where
+precision meets production," two lines of copy about Thalmann CNC folding
+and in-house fabrication in Burnet, Texas, and a three-stat `<dl>` row.
+
+Not wired into `app/page.tsx` or any route — same as every other
+`app/components/home/*` section before it; the prompt asked only to build
+the component.
+
+---
+
+## CASESTUDIES — THREE PROJECT PHOTO CARDS + NASA CREDENTIAL CARD (hp-011): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+`pnpm tsc --noEmit`: 0 errors. Branch: `feat/homepage-redesign`. Commit
+`fa7878b`.
+
+Read CLAUDE.md, DESIGN_TOKENS.md, and `specs/SPEC_HOMEPAGE.md` first per the
+prompt, then the prompt sent me to `public/legacy-site-photos/MANIFEST.md`
+to identify real photos for a copper dome, arched-window flashing, and
+standing-seam card. Before doing that from scratch, checked whether this
+repo already had a verified mapping for these same photos — it does:
+`lib/home/portfolio-photos.ts` (afs-fl-034), already used by
+`PhotoCategoryGrid.tsx` and `ProjectGallery.tsx`, with every one of the 39
+"our-work" photos individually viewed and described once already, and
+copied locally to `public/home_page_images/gallery/`. Used that catalog as
+the source of truth instead of re-describing the manifest's JPGs a second
+time.
+
+The prompt's photo-selection sentence was confusing on first read — "the
+first four below-the-fold legacy photos, the entryway-with-tree-trunks
+photo, and the stove vent-a-hood photo" doesn't obviously map onto the raw
+manifest's three folders. It resolves cleanly once you read
+`portfolio-photos.ts`: `PORTFOLIO_GALLERY_IDS` (the below-the-fold
+`ProjectGallery.tsx` list) is `[22, 9, 34, 19, 14, 38, 7, 30]`; its first
+four are `22, 9, 34, 19`; and photo `#19`'s own real description
+("Standing-seam copper pavilion roof over a wood-beamed porch, oak trees
+framing the view") *is* the entryway-with-tree-trunks photo — same photo,
+not a separate fifth one. The "stove vent-a-hood photo" (`#30`) was in the
+candidate pool the prompt described but doesn't match any of the three
+required card subjects, so it wasn't used. Final mapping, all high-
+confidence direct matches (no "closest available" fallback needed for any
+of the three): Copper Dome → `#22`, Arched-Window Flashing → `#34`,
+Standing-Seam Detail → `#19`.
+
+Verified real intrinsic dimensions of all three source files directly
+(`System.Drawing.Image` via PowerShell: `600×450` for all three) rather
+than guessing an aspect ratio, and used literal `width`/`height` props on
+`next/image` instead of `fill`.
+
+Confirmed `public/images/nasa-jsc-logo.svg` does not exist (glob, before
+writing the card) — built the NASA credential card's "NASA Johnson Space
+Center" as a typographic badge per the prompt's fallback instruction, not
+an insignia. `$500K Project` badge copy checked against the homepage's own
+"no prices" Playwright assertion (`/\$[\d,]+\.\d{2}/`) — no match, since it
+carries no decimal cents.
+
+Built `app/components/home/CaseStudies.tsx` — four cards, `grid-cols-1
+sm:grid-cols-2` (2×2 desktop, stacked mobile). Reused
+`PORTFOLIO_PHOTOS[id].src`/`.alt` from `lib/home/portfolio-photos.ts`
+directly rather than hardcoding new `src`/`alt` strings, to keep one source
+of truth for these photos across `PhotoCategoryGrid.tsx`,
+`ProjectGallery.tsx`, and this new component.
+
+Not wired into `app/page.tsx` or any route — same as `CustomerPathways.tsx`,
+`DesignToDelivery.tsx`, `ProfilePassportExplainer.tsx`, and
+`FieldAppStory.tsx`, this is a standalone component per the prompt's own
+scope (build the component; it doesn't ask for page assembly).
+
+**Next session:** if/when a prompt assembles these standalone
+`app/components/home/*` sections (`CredibilityStrip`, `CustomerPathways`,
+`DesignToDelivery`, `ProfilePassportExplainer`, `CaseStudies`, etc.) into
+`app/page.tsx`, decide the final section order against `SPEC_HOMEPAGE.md`
+§2 and the real hero/`PhotoCategoryGrid`/`ProjectGallery` sections already
+live there — `SPEC_HOMEPAGE.md`'s own section list is already stale
+against what's actually built (no `ThreePillarsSection`, `StatSection`,
+etc. exist under those names in `app/`).
+
+---
+
+## PROFILEPASSPORTEXPLAINER — DESIGN/SAVE/REORDER FLOW + PASSPORT CARD (hp-010): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+`pnpm tsc --noEmit`: 0 errors. Branch: `feat/homepage-redesign`. Commit
+`0567093`.
+
+Read CLAUDE.md, DESIGN_TOKENS.md, and `specs/SPEC_SAVED_PROJECT_TEMPLATES.md`
+first per the prompt, then went to `SCHEMA.md` to find the "custom_profiles
+table" the prompt described — it does not exist. No table of that name
+appears anywhere in `SCHEMA.md`. The real feature this section describes is
+`saved_configurations` (`SPEC_CUSTOM_PROFILE_LIBRARY.md`'s "Saved Custom
+Profile Library", not the Saved Project Templates spec, which covers
+`quote_templates` — multi-item quote packages, a different feature).
+`saved_configurations`' real columns are `name`, `profile_id`,
+`material_id`, `gauge_id`, `finish_id`, `dimensions` (JSONB) — no
+`afs_number`, `drawing`, `3d_model`, or `bend_schedule` field exists on it
+or anywhere in `SCHEMA.md`. "AFS number" is real, but as
+`orders.order_number` / `quotes.quote_number` (`AFS-2026-XXXXX` /
+`AFS-Q-2026-XXXXX`) — an order/quote identifier, not a saved-profile
+field. Built the flow copy and the passport card's field list (Profile
+Type, Material, Gauge, Finish, Dimensions) against the real columns
+instead of the prompt's invented ones — same correction pattern hp-005,
+hp-006, and hp-009 already applied to other stale/invented prompt claims
+this session.
+
+Also corrected two routes against the real `app/` tree and `SITEMAP.md`:
+signup is `/register` (`app/(auth)/register/page.tsx`, and what
+`login/page.tsx`'s own "Create one" link uses), not `/signup`; the
+authenticated "View My Profiles" destination is `/architects/custom-
+profiles` (`SITEMAP.md`: auth required, any role), not `/account/profiles`,
+which doesn't exist. Design-step routes reuse `/studio/draft` and
+`/configure`, the same two hp-006's `DesignStudioHub.tsx` already resolved.
+
+Built `app/components/home/ProfilePassportExplainer.tsx`
+(`id="profile-passport"`) — an async server component. Three-panel
+Design → Save → Reorder flow with chevron connectors between cards (same
+icon-badge pattern as `CustomerPathways.tsx`), a stylized passport card
+built entirely in CSS/Tailwind (no image asset, field values are
+illustrative example content — Coping Cap / Galvanized Steel / 24 GA /
+Mill Finish / 12"W × 4"H, vocabulary matching `SCHEMA.md`'s own
+`bid_documents.spec_text` example), and a CTA that branches on
+`await createClient()` (`lib/supabase/server.ts`) +
+`supabase.auth.getUser()` — the same server-side session-check pattern
+`app/admin/command-center/page.tsx` already uses — between "Create your
+account" (`/register`) and "View My Profiles" (`/architects/custom-
+profiles`).
+
+Not yet wired into `app/page.tsx` — deferred to `hp-019` same as
+hp-002/hp-003/hp-004/hp-005/hp-006/hp-008/hp-009. No Playwright checkpoint
+run this pass (not requested); the authenticated-CTA branch has not been
+exercised against a real logged-in session, and Reid has not looked at
+this component yet.
+
+Marked IMPLEMENTED, UNCONFIRMED per this file's verification standard —
+Reid should also confirm the `custom_profiles` → `saved_configurations`
+substitution above is the right call.
+
+---
+
+## CUSTOMERPATHWAYS — THREE-ROLE PATHWAY CARDS (hp-009): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+`pnpm tsc --noEmit`: 0 errors. Branch: `feat/homepage-redesign`. Commit
+`52b2b58`.
+
+Read CLAUDE.md, DESIGN_TOKENS.md, SITEMAP.md, SPEC_ARCHITECT_PORTAL.md, and
+SPEC_ONLINE_CREDIT_APPLICATION.md first, then resolved all three routes
+against the real `app/` tree rather than SITEMAP.md alone — SITEMAP.md's
+route tree has no `/field/**` entry at all (a staleness hp-005 and hp-006
+already flagged and worked around), so `/field/contractor` was re-confirmed
+with a direct `Glob` this pass. Final route mapping: Contractors ->
+`/field/contractor` (`ContractorCameraQuoteForm`, anonymous camera-to-
+quote), Architects -> `/architects` (portal landing), Purchasing ->
+`/account/credit-application` (`CreditApplicationForm`, auth required).
+
+Built `app/components/home/CustomerPathways.tsx` — a server component
+(static content, no interactivity needed), three cards in a `grid-cols-1
+md:grid-cols-3` layout per the prompt's stacked-on-mobile/3-column
+requirement. Each card: an inline-SVG role icon (same pattern as
+`DesignToDelivery.tsx`, no `lucide-react` in this repo — checked
+directly), a one-sentence value line, three bullets naming capabilities
+that exist today, and a crimson `metal-edge-red` CTA button.
+
+Deliberately did **not** apply copper to the Architects card:
+SPEC_ARCHITECT_PORTAL.md §3 restricts the copper accent to `/architects/**`
+routes only, and this component lives on the homepage. All three cards
+use the same crimson accent as the rest of the homepage.
+
+Bullets grounded in real features, not generic copy: Contractors —
+photo-to-quote AI, guest/no-account submission, PWA install. Architects —
+AI spec writer, CAD/BIM library, finish palette (the three of
+`SPEC_ARCHITECT_PORTAL.md`'s four landing cards that are public/browsable
+without an account; Custom Profiles needs one, left out). Purchasing —
+net-30/60 credit application, `/account/team`'s real member roles, and
+PO numbers (a real field collected on quote/configure/checkout, per a
+direct grep — phrased as "every quote and order carries your purchase
+order number," not as a dedicated PO-management feature that doesn't
+exist).
+
+**Left open, not silently fixed:** `CustomerPathways` is not yet imported
+into `app/page.tsx` — deferred to `hp-019` same as hp-002 through hp-008.
+No Playwright checkpoint run this pass (not requested); Reid has not
+looked at this component yet.
+
+Marked IMPLEMENTED, UNCONFIRMED per this file's verification standard.
+
+---
+
+## DESIGNTODELIVERY — FIVE-STEP CAPTURE-TO-DELIVERY SEQUENCE (hp-008): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+`pnpm tsc --noEmit`: 0 errors. Branch: `feat/homepage-redesign`. Commit
+`c90c8aa`.
+
+Read CLAUDE.md, DESIGN_TOKENS.md, and SPEC_PRODUCTION_TIMELINE.md first,
+then checked `package.json` before writing any code — neither
+`lucide-react` nor `framer-motion` is a dependency, so icons are five
+hand-authored inline SVGs and the progress rail uses CSS transitions only,
+no new package.
+
+Built `app/components/home/DesignToDelivery.tsx` — five steps (Capture →
+Convert → Verify → Fabricate → Track), each with an icon, title, and
+two-line description. Copy is grounded in the real platform flow rather
+than generic labels: Convert's "dimensions are always confirmed by you,
+never guessed from a photo" deliberately mirrors the correction
+`FieldAppStory.tsx` (hp-005) already made against SPEC_PHOTO_TO_QUOTE_AI.md
+(the AI never extracts dimensions from a photo); Verify/Fabricate reflect
+estimator review and the Thalmann DS2801 shop floor; Track reflects
+production-stage updates and delivery per SPEC_PRODUCTION_TIMELINE.md.
+
+Progress rail: one `IntersectionObserver` (threshold 0.5) watches each
+step's `data-step-index` and unobserves once triggered, raising a
+`visibleCount` state that drives `fillPercent = (visibleCount / 5) * 100`.
+Desktop shows a `hidden md:block` horizontal rail, mobile a `md:hidden`
+vertical rail, both reading the same `fillPercent` for `width`/`height`
+respectively, transitioned via Tailwind's `transition-[width]`/
+`transition-[height] duration-700`.
+
+`prefers-reduced-motion`: a `matchMedia` listener sets `visibleCount` to
+the full step count immediately instead of waiting on the observer, so the
+rail renders fully filled with no scroll-driven animation. Actual
+transition suppression already comes from `globals.css`'s existing global
+reduced-motion block (`transition-duration: 0.01ms !important`) — nothing
+extra was needed per-component for that half of it.
+
+Not imported into `app/page.tsx` — deferred to `hp-019`, same as
+hp-002/hp-003/hp-004/hp-005/hp-006. No Playwright checkpoint run this pass
+(not requested by the prompt); Reid has not looked at this component yet.
+
+Marked IMPLEMENTED, UNCONFIRMED per this file's verification standard.
+
+---
+
+## DESIGNSTUDIOHUB — FIVE-METHOD SELECTOR + /design-studio ROUTE (hp-006): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+`pnpm tsc --noEmit`: 0 errors. Branch: `feat/homepage-redesign`. Commit
+`4fa1228`.
+
+Read CLAUDE.md, DESIGN_TOKENS.md, SITEMAP.md, and COMPONENT_MAP.md first,
+then resolved the five method routes against the real `app/` tree rather
+than trusting COMPONENT_MAP.md verbatim — it found one stale claim:
+COMPONENT_MAP.md says `app/studio/page.tsx`'s Photo to Quote tab links to
+`/upload?tab=photos`; the real file (checked directly) links to plain
+`/upload`, which has no photo mode at all (grepped `app/upload/page.tsx`
+for `photo`/`mode=`/`PhotoUploadZone` — zero matches). The real photo-to-
+quote flow is `/field/contractor` (`ContractorCameraQuoteForm`, anonymous
+camera-to-quote, already linked from hp-005's `FieldAppStory.tsx` for the
+same reason) — that's what `DesignStudioHub` links to. Final route
+mapping: Scan Plans → `/upload`, Photo to Quote → `/field/contractor`,
+FlashDraft → `/studio/draft`, Configurator → `/configure`, Quick Quote →
+`/quote`.
+
+Built `app/components/home/DesignStudioHub.tsx` — `id="design-studio"`
+(the anchor `CredibilityStrip.tsx` already links to), ARIA tabs pattern:
+`role="tablist"`/`role="tab"` cards with `aria-selected` and roving
+`tabIndex` (selected card = 0, rest = -1), one `role="tabpanel"` below
+showing description/"Best for"/a `Start` button (real `Link` to the
+resolved route). Arrow Left/Right/Up/Down move both selection and DOM
+focus; Home/End jump to first/last. Card row: `overflow-x-auto snap-x
+snap-mandatory` below `sm:`, 5-column grid at `sm:` and up — always above
+the detail panel. Default selection: FlashDraft (index 2), per the
+prompt.
+
+Created `app/design-studio/page.tsx` — did not exist before this pass.
+Server component, `title: 'Design Studio | AFS Architectural Flashing
+Supply'`, renders `DesignStudioHub` full-width in a `<main>`. No manual
+NavBar/Footer — `/design-studio` isn't in `AppChrome.tsx`'s
+`NO_CHROME_PREFIXES`/`PORTAL_PREFIXES`, so it gets the standard site
+chrome automatically. This resolves the 404 hp-003 flagged: `HeroSection
+.tsx`'s "Start a Quote" CTA already pointed at `/design-studio` before
+this route existed.
+
+**Left open, not silently fixed:** `components/layout/NavBar.tsx`'s
+"Design Studio" nav link still points to the older `/studio` 4-tab
+landing page, not `/design-studio` — reconciling the two wasn't in this
+prompt's scope. `DesignStudioHub` is not yet imported into `app/
+page.tsx` — deferred to `hp-019` same as hp-002 through hp-005. No
+Playwright checkpoint run this pass (not requested); Reid has not looked
+at this component yet.
+
+Marked IMPLEMENTED, UNCONFIRMED per this file's verification standard.
+
+---
+
+## FIELDAPPSTORY — PHOTO-TO-QUOTE FIELD APP STORY SECTION (hp-005): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+`pnpm tsc --noEmit`: 0 errors. Branch: `feat/homepage-redesign`. Commit
+`fe5a917`.
+
+Built `app/components/home/FieldAppStory.tsx` — a two-column section: a
+CSS-only phone device frame (bezel/notch built from styled `div`s, no
+third-party device-frame image) on the left, playing a muted, looping 0-7s
+cut of `public/videos/hero-metal-fabrication.mp4`/`.webm` (same source
+HeroSection uses, trimmed client-side via a `timeupdate` handler that
+resets `currentTime` to 0 at 7s — no separate trimmed asset), poster
+`/images/hero-poster.jpg` as fallback, and paused under
+`prefers-reduced-motion` (same pattern as HeroSection). Right column:
+heading "Photo to Quote from the jobsite" and a three-step numbered flow.
+
+**Step 2 copy corrected against SPEC_PHOTO_TO_QUOTE_AI.md, not shipped as
+prompted.** The prompt's literal copy — "AI extracts the profile and
+dimensions" — contradicts the spec directly: §1 and §4's system prompt are
+explicit that dimensions are never extracted from photos
+(`dimensionVisible`/`visibleWidth` default false/null; "Never estimate
+dimensions from photos") and must always be entered from site
+measurements. Shipped as "AI identifies the profile and material" instead,
+which is what the spec's AI step actually does.
+
+CTA "Open the Field App" and secondary text link "Install as an app" both
+route to `/field/contractor` — confirmed as a real, existing route
+(`app/field/contractor/page.tsx`, no auth/role gate, its own
+`/field-contractor-manifest.json` PWA manifest already wired via that
+page's route-scoped `metadata.manifest`) before linking, not assumed from
+the prompt.
+
+Background accent: `flashing-1.jpg` from
+`public/legacy-site-photos/homepage-categories/`, at 8% opacity behind an
+`afs-bg-base/90` scrim — the manifest there confirms it as a real jobsite
+installation-detail photo ("angled receiver/counterflashing bracket
+fastened over a metal roof panel against a stucco wall — real installation
+detail, not a staged product shot"), not stock.
+
+Not imported into `app/page.tsx` — deferred to `hp-019`, same as
+hp-002/hp-003/hp-004. No Playwright checkpoint run this pass (not
+requested by the prompt); Reid has not looked at this component yet.
+
+Marked IMPLEMENTED, UNCONFIRMED per this file's verification standard.
+
+---
+
+## CREDIBILITYSTRIP — FIVE-ITEM CAPABILITY NAV (hp-004): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+`pnpm tsc --noEmit`: 0 errors. Branch: `feat/homepage-redesign`. Commit
+`024c554`.
+
+Built `app/components/home/CredibilityStrip.tsx` — a `<nav aria-
+label="Key capabilities">` with five condensed-uppercase (`font-heading`)
+links on an `afs-bg-surface` background: "5 Ways to Start", "9
+Materials", "Custom Profiles", "SMACNA Standards Compliant", "Nationwide
+Delivery". Desktop is a single centered row with `&middot;` separators
+between items; mobile is a `grid-cols-2` 2-up stack, with the fifth item
+(`SMACNA Standards Compliant`) `col-span-2` since 5 doesn't split evenly
+across 2 columns.
+
+Link targets: "5 Ways to Start" → `#design-studio`, "Custom Profiles" →
+`#profile-passport`, "Nationwide Delivery" → `#nationwide`, per the
+prompt's explicit instruction (none of these ids exist on any page yet —
+same open state as HeroSection's `#profile-explorer` from hp-003, to
+resolve when `hp-019` assembles the real homepage sections). "9
+Materials" → `/architects/finish-palette`, the real public materials/
+finish page (queries the live `materials`/`finishes` tables) — so the
+prompt's `#profile-explorer` fallback wasn't needed. "SMACNA Standards
+Compliant" → `/architects/guides`, the real resource-center page (its
+component is named `ArchitecturalResourceCenterPage`, on-page eyebrow
+"Architectural Resource Center", fully public per SITEMAP.md) — chosen
+over `/resources` ("Industry Resources"), a separate page that also
+mentions SMACNA but isn't the resource-center page.
+
+Not imported into `app/page.tsx` — deferred to `hp-019`, same as hp-002/
+hp-003. No Playwright checkpoint run this pass (not requested by the
+prompt); Reid has not looked at this component yet.
+
+Marked IMPLEMENTED, UNCONFIRMED per this file's verification standard.
+
+---
+
+## HEROSECTION — FULL-BLEED VIDEO HERO WITH PROFILEROTATION (hp-003): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+`pnpm tsc --noEmit`: 0 errors. Branch: `feat/homepage-redesign`.
+
+Built `app/components/hero/HeroSection.tsx`, combining hp-001's video
+asset and hp-002's `ProfileRotation` component. Full-bleed
+`hero-metal-fabrication.webm`/`.mp4` background video (`autoPlay muted
+loop playsInline preload="metadata"`, `poster="/images/hero-
+poster.jpg"`), `afs-bg-dim` gradient overlay reusing the same stops as
+`app/page.tsx`'s current hero, `min-h-[100svh]` layout — text left /
+`ProfileRotation` right on desktop, stacked with a shorter
+`ProfileRotation` on mobile. Exact H1 copy: "SHOW US THE DETAIL. WE'LL
+FORM IT." Primary CTA "Start a Quote" → `/design-studio`; secondary
+"Explore Profiles" → `#profile-explorer`. `ProfileRotation` consumed via
+`next/dynamic(..., { ssr: false })`, same pattern as `HailViewMap`.
+
+LCP/reduced-motion handling: `<video>`'s `<source>` children are only
+rendered after mount, once a `matchMedia('prefers-reduced-motion:
+reduce')` check (with a live `change` listener) has run — so the
+`poster` always paints first, and reduced-motion users never get a
+video source at all.
+
+Verified per the prompt's checkpoint: mounted on a temporary
+`app/hp-003-preview/page.tsx`, ran `pnpm dev`, drove it with a
+throwaway Playwright script (no `chromium-cli` in this environment) at
+375px/768px/1440px. Results: no layout shift (H1 bounding box identical
+across a 500ms delay at every width), video confirmed muted and
+playing (`currentTime` advancing) at every width, zero console errors,
+`flexDirection` on the layout wrapper confirmed `column` at 375px and
+`row` at 768px/1440px (mobile-stacked vs. desktop side-by-side, as
+asked), and both CTA `href`s confirmed correct via the DOM. Screenshots
+at all three widths were visually reviewed. The temp route and check
+script were deleted after verification; only `HeroSection.tsx` is
+committed.
+
+**Flag for Reid, not fixed in this pass:** the prompt's own instructions
+name `/design-studio` as the primary CTA target, but that route doesn't
+exist yet — the live `NavBar`'s "Design Studio" label currently points
+to `/studio`, and there's no `app/design-studio/` directory. That CTA
+will 404 until `/design-studio` exists (new route, or an alias/redirect
+from `/studio`) — needs a decision before `hp-019` wires this component
+into the real homepage.
+
+**Not wired into `app/page.tsx`.** Per the prompt's own instructions,
+assembly into the real homepage happens in `hp-019`.
+
+Marked IMPLEMENTED, UNCONFIRMED per this file's verification standard —
+Reid has not looked at this hero himself yet.
+
+---
+
+## PROFILEROTATION — THREE.JS HERO ANIMATION COMPONENT (hp-002): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+`pnpm tsc --noEmit`: 0 errors. Branch: `feat/homepage-redesign`. Commit
+`2528909`.
+
+Built `app/components/hero/ProfileRotation.tsx` — a client component
+rendering a folded Z-flashing profile (ExtrudeGeometry from a 2D bend
+centerline, same offset-polyline ribbon technique as
+`components/studio/ProfileViewer3D.tsx`, duplicated locally since this is
+decorative geometry, not FlashDraft's CAD pipeline), brushed-metal
+`MeshStandardMaterial`, a `RoomEnvironment`/`PMREMGenerator` environment
+map, one shadow-casting light plus a `ShadowMaterial` ground plane
+(transparent canvas except for the soft shadow). 8-second seamless loop:
+continuous Y rotation (full 360 in the first 4s, held 4–6s, another full
+turn 6–8s back to exactly 0), an `easeInOutCubic` X-scale "unfold" 3.5–6s,
+and `afs-crimson` bend-line bars that fade/slide in 4.0–5.5s.
+`prefers-reduced-motion` renders one static folded frame and never starts
+the render loop (live `matchMedia` change listener, not just a
+mount-time check). Follows `ProfileViewer3D`'s scene-setup/dispose
+pattern: devicePixelRatio capped at 2, `ResizeObserver` resize, full
+geometry/material/renderer disposal on unmount. Default export, meant to
+be consumed via `next/dynamic(..., { ssr: false })` — same pattern
+already used for `ChatWidget` in `components/layout/AppChrome.tsx`.
+
+Verified per the prompt's checkpoint: mounted on a temporary
+`app/dev/hero-preview/page.tsx`, ran `pnpm dev`, drove it with a
+throwaway Playwright script (no `chromium-cli` in this environment) —
+canvas rendered, rotation/unfold/re-fold all progressed correctly across
+sampled frames 500ms apart, ~7.5s-apart screenshots matched (consistent
+with a true 8s loop), zero `pageerror`s. One real console warning was
+caught and fixed during this pass: `renderer.shadowMap.type =
+THREE.PCFSoftShadowMap` is deprecated in this project's three@0.185 and
+silently falls back with a warning — removed in favor of the default
+`PCFShadowMap` (which is what `ProfileViewer3D` already uses, unchanged)
+plus `light.shadow.radius` for the soft edge instead. Separately
+confirmed the reduced-motion path with
+`page.emulateMedia({ reducedMotion: 'reduce' })` — static, no animation,
+zero page errors. The temp route and check scripts were deleted after
+verification; only `ProfileRotation.tsx` is committed.
+
+**Not wired into any real page.** `HeroVisual.tsx` (the current homepage
+hero visual, per `COMPONENT_MAP.md`) is untouched and still the pure-CSS
+mockup it always was. Integrating `ProfileRotation` into the actual
+homepage — and reconciling it with hp-001's video assets, also unwired —
+is separate follow-up work, not done here.
+
+Marked IMPLEMENTED, UNCONFIRMED per this file's verification standard —
+Reid has not looked at this animation himself yet.
+
+---
+
+## HOMEPAGE HERO + SHOP-FLOOR VIDEO ASSETS FROM REAL FABRICATION FOOTAGE (hp-001): IMPLEMENTED, UNCONFIRMED (2026-09-10)
+
+`pnpm tsc --noEmit`: 0 errors. Branch: `feat/homepage-redesign`.
+
+Produced `public/videos/hero-metal-fabrication.mp4`+`.webm` (18.2s,
+1920x1080, 30fps, silent, 3.7MB/7.6MB) and `shop-floor-loop.mp4`+`.webm`
+(25.0s, same specs, 8.8MB/12.7MB), plus `public/images/hero-poster.jpg`
+and `shop-floor-poster.jpg` (1920x1080). Asset production only — nothing
+wired into a page yet.
+
+This prompt's own text described the source as "5 sources...
+`public/videos/metal-fab-1.mp4` through `metal-fab-5.mp4`." That was
+wrong on both count and location: the real footage is 8 clips
+(`metal-fab-1.mp4`–`8.mp4`, real phone footage of the Thalmann machine,
+mixed 30/120fps) sitting in `C:\Users\manag\Downloads\Recent Downloads\`,
+not `public/videos/`. An earlier, uncommitted pass had already produced
+the mp4/poster/README outputs above correctly from the real 8-clip set —
+this session verified that work was genuine rather than trusting it
+blind: `ffprobe`'d all 8 real source clips against the specific claims in
+`scripts/video-review/README.md` (durations, resolutions, the one 120fps
+clip) — all matched — and pulled + visually inspected 4 frames directly
+from the encoded outputs, confirming real Thalmann-machine shop-floor
+content, not placeholder video. Added the two missing `.webm` encodes,
+added `.gitignore` rules for `public/videos/metal-fab-*.mp4` and
+`scripts/video-review/*.jpg` (raw phone footage/review frames, never
+committed), and this log entry.
+
+**Worth telling Reid directly:** the queue prompt's source-footage
+description (5 clips, wrong path) doesn't match reality (8 clips, in
+Downloads) — if future `hp-*` prompts keep referencing footage paths,
+whoever is authoring them should double check against what's actually on
+disk before the prompt ships, the same way this session had to.
+
+Marked IMPLEMENTED, UNCONFIRMED — not yet on any real page, not yet seen
+by Reid.
+
+---
+
 ## HAILVIEW DEFAULT ZOOM RE-CORRECTED, 8 → 9 (afs-hv-009): IMPLEMENTED, UNCONFIRMED — afs-hv-008's ZOOM 8 WAS STILL TOO WIDE ON REAL DESKTOP VIEWPORTS (2026-09-04)
 
 `pnpm tsc --noEmit`: 0 errors.

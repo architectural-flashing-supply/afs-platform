@@ -33,9 +33,18 @@ TABLE 15 for that finding). Migration 019 is also column-only (adds
 `requested_delivery_date` to `shop_profile_library` only; no new tables;
 see both sections for the `requested_delivery`/`requested_delivery_date`
 naming-asymmetry decision and the retirement of both tables'
-migration-018 `requested_by` columns). 54 is the table count
+migration-018 `requested_by` columns). The PROFILE PASSPORT section adds
+2 more tables — `custom_profiles` and `profile_revisions` — via migration
+023, which also adds `orders.custom_profile_id` (see TABLE 18). **023 is
+FILE ONLY as of this writing — not applied to the live database. The repo
+has no `supabase/config.toml`/`project-ref` (not linked) and `.env.local`
+has no `SUPABASE_ACCESS_TOKEN`, so neither of the two apply paths in
+SPEC_SUPABASE_INTEGRATION.md is available; a `supabase link` attempt in
+this session failed outright. See STATE_OF_THE_BUILD.md's PROFILE
+PASSPORT entry for the full blocker.** 54 is the table count
 `supabase/README.md` should verify against the live database once all 19
-migrations are applied. Migration 018 is **CONFIRMED APPLIED LIVE** (see
+migrations are applied (57 once 023 is also applied). Migration 018 is
+**CONFIRMED APPLIED LIVE** (see
 SESSION_STATE.md's afs-jf-000 entry — Reid verified all five of its new
 `quote_requests` columns directly via `information_schema` in the
 Supabase Dashboard on 2026-08-22). Migration 019 is also **CONFIRMED
@@ -70,6 +79,10 @@ supabase/migrations/
   017_color_and_queue_position.sql        Adds quote_requests.color (see TABLE 15) and shop_profile_library.color/queue_position/completed_at (see SHOP PROFILE LIBRARY TABLE) — no new tables — FILE ONLY, not yet applied live
   018_job_identity_and_finish.sql         Adds client_business_name/client_name/po_number/requested_by/finish to quote_requests (see TABLE 15; po_number pre-existing) and to shop_profile_library (see SHOP PROFILE LIBRARY TABLE, all five new) — no new tables — CONFIRMED APPLIED LIVE 2026-08-22, see SESSION_STATE.md
   019_job_name_and_delivery_date.sql      Adds job_name to quote_requests (see TABLE 15) and job_name/requested_delivery_date to shop_profile_library (see SHOP PROFILE LIBRARY TABLE); retires (documents as dead, does not drop) both tables' migration-018 requested_by columns — no new tables — CONFIRMED APPLIED LIVE 2026-08-23, see SESSION_STATE.md
+  020_completion_events.sql            Adds completion_events (shop-floor "Mark Complete" event log) — CONFIRMED APPLIED LIVE 2026-08-24/26 — not otherwise documented in this file's table sections, see the migration file itself
+  021_gbp_photo_queue_shop_job_link.sql   Adds gbp_photo_queue.shop_profile_library_id (links a delivery photo to its shop job) — no new tables — FILE ONLY, not applied live — not otherwise documented in this file's table sections, see the migration file itself
+  022_building_code_jurisdictions.sql   Building code jurisdiction directory (reference data for the Architect Portal resource center) — not otherwise documented in this file's table sections, see the migration file itself for live-apply status
+  023_profile_passport.sql             Profile Passport — custom_profiles + profile_revisions (see PROFILE PASSPORT TABLES below), adds orders.custom_profile_id (see TABLE 18) — FILE ONLY, not applied live (no linked Supabase project, no SUPABASE_ACCESS_TOKEN; see STATE_OF_THE_BUILD.md)
 ```
 
 Run in numeric order — see `supabase/README.md` for the exact procedure.
@@ -743,6 +756,15 @@ CREATE POLICY "admin_all_line_items" ON quote_line_items
 ---
 
 ## TABLE 18 — orders
+
+**Migration 023 (`023_profile_passport.sql`) adds `custom_profile_id UUID
+REFERENCES custom_profiles(id)`** (nullable, additive `ADD COLUMN IF NOT
+EXISTS`) — an optional link from an order to the Profile Passport record
+(see PROFILE PASSPORT TABLES below) it was reordered from, when applicable.
+Not shown in the `CREATE TABLE` below since it was added after this table
+was originally designed. **FILE ONLY as of this writing — not applied to
+the live Supabase project; see STATE_OF_THE_BUILD.md's PROFILE PASSPORT
+entry for the blocker.**
 
 **Migration 011 (`011_orders_quote_id_unique.sql`) adds
 `UNIQUE (quote_id)`** (not shown in the `CREATE TABLE` below since it was
@@ -1941,6 +1963,101 @@ pattern `machine_jobs` (migration 005) uses, not the operator-inclusive
 pattern `bid_documents` (migration 013) uses — this is an internal shop
 record, not a feature any `operator`-role staff member is named as a user
 of.
+
+---
+
+## PROFILE PASSPORT TABLES (migration 023_profile_passport.sql)
+
+**FILE ONLY — not applied to the live Supabase project.** The repo has no
+`supabase/config.toml`/`project-ref` (not linked) and `.env.local` has no
+`SUPABASE_ACCESS_TOKEN`; a `supabase link --project-ref <afs-ref>` attempt
+in the session that wrote this migration failed outright (`.env.local`
+parse error, and the CLI's already-authenticated account has no access to
+the AFS project ref regardless). Neither apply path in
+SPEC_SUPABASE_INTEGRATION.md §5 is available. See STATE_OF_THE_BUILD.md's
+PROFILE PASSPORT entry for the full detail — do not run `pnpm supabase db
+push` against this assuming it will silently no-op; it will fail for the
+same reason.
+
+Backs SPEC_CUSTOM_PROFILE_LIBRARY.md's `/architects/custom-profiles`
+saved-profile feature with real per-customer records (that spec's page
+currently reads only `saved_configurations` and `order_line_items` — wiring
+it to `custom_profiles` is separate, later work, not part of this
+migration).
+
+**`customer_id` FK target — read this before assuming `orders.customer_id`
+exists, it does not:** there is no `customers` table anywhere in this
+schema, and `orders` (TABLE 18) has no column literally named
+`customer_id` — it identifies its owning customer via `user_id UUID NOT
+NULL REFERENCES profiles(id)`. `companies` (TABLE 2) is a separate,
+optional grouping reached only through `profiles.company_id`; orders does
+not reference `companies` directly. `custom_profiles.customer_id` below
+targets `profiles(id)` — the same FK target orders' own customer-
+identifying column (`user_id`) points to — matching every other
+user-scoped table in this schema (`projects`, `quote_requests`,
+`takeoff_uploads`, `vault_documents` all key off `profiles(id)` directly,
+never `companies(id)`).
+
+```sql
+CREATE TABLE custom_profiles (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  customer_id     UUID NOT NULL REFERENCES profiles(id),
+  afs_number      TEXT NOT NULL,
+  title           TEXT NOT NULL,
+  material        TEXT NOT NULL,
+  gauge           TEXT,
+  finish          TEXT,
+  drawing_url     TEXT,
+  model_3d_url    TEXT,
+  bend_schedule   JSONB,
+  thumbnail_url   TEXT,
+  is_approved     BOOLEAN NOT NULL DEFAULT false,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_custom_profiles_customer ON custom_profiles(customer_id);
+CREATE INDEX idx_custom_profiles_afs_number ON custom_profiles(afs_number);
+
+-- No updated_at trigger function exists anywhere else in this schema
+-- (every other updated_at column is set manually by application code);
+-- this one is scoped to custom_profiles only.
+CREATE TRIGGER trg_custom_profiles_updated_at
+  BEFORE UPDATE ON custom_profiles
+  FOR EACH ROW
+  EXECUTE FUNCTION set_custom_profiles_updated_at();
+
+ALTER TABLE custom_profiles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "users_own_custom_profiles" ON custom_profiles
+  FOR ALL USING (auth.uid() = customer_id) WITH CHECK (auth.uid() = customer_id);
+CREATE POLICY "admin_all_custom_profiles" ON custom_profiles
+  FOR ALL USING (is_admin());
+
+CREATE TABLE profile_revisions (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  profile_id          UUID NOT NULL REFERENCES custom_profiles(id) ON DELETE CASCADE,
+  revision_number     INTEGER NOT NULL,
+  changes             JSONB NOT NULL,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_by_user_id  UUID NOT NULL REFERENCES auth.users(id),
+  UNIQUE (profile_id, revision_number)  -- also serves as the (profile_id, revision_number) index
+);
+
+ALTER TABLE profile_revisions ENABLE ROW LEVEL SECURITY;
+-- No customer_id of its own — scoped through the parent custom_profiles
+-- row, same join-through-parent shape as quote_line_items/order_line_items.
+CREATE POLICY "users_own_profile_revisions" ON profile_revisions
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM custom_profiles WHERE id = profile_id AND customer_id = auth.uid())
+  );
+CREATE POLICY "admin_all_profile_revisions" ON profile_revisions
+  FOR ALL USING (is_admin());
+```
+
+**RLS pattern note:** `users_own_custom_profiles` mirrors orders' actual
+`users_own_orders` policy shape — a direct `auth.uid() = user_id`-style
+match — not a companies-membership `EXISTS` join. Orders itself does not
+use a company-membership pattern, so this migration doesn't invent one.
 
 ---
 

@@ -85,9 +85,10 @@ const MM_PER_INCH = 25.4;
 const DEFAULT_DIMENSIONS_IN = { width: 12, legA: 2, legB: 2 };
 
 // SHARED PathfinderEdge-title fallback (afs-jf-006) for every submission
-// surface that funnels through this route (FlashDraft, Configurator, Quote
-// Builder, Blueprint Takeoff AI upload all push line items through
-// itemBuilds below) — not FlashDraft-specific. Mirrors
+// surface that funnels through this route (FlashDraft, Quote Builder,
+// Blueprint Takeoff AI upload all push line items through itemBuilds below —
+// the Configurator did too before its elimination, hpd-002) — not
+// FlashDraft-specific. Mirrors
 // app/studio/draft/page.tsx's buildFallbackProfileName composition
 // (short-material + gauge, then first-present-of Job Name / Business Name
 // / Client Name, then PO Number as "PO <number>", blanks dropped, no
@@ -343,13 +344,14 @@ function svgToDataUri(svg: string): string {
 //     canvas.toDataURL() snapshot of FlashDraft's own <canvas>, captured
 //     client-side at submit time (page.tsx's submitQuoteRequest) since this
 //     server route has no canvas to read from. Used as-is.
-//   - Everything else (Configurator-submitted items: profileType +
-//     width/height/legA/legB, no points): rendered server-side via
-//     lib/utils/profile-svg.ts's generateProfileSVG — the exact same
-//     function app/configure/page.tsx and app/upload/page.tsx already call
-//     to draw this profile. Wrapped in a data URI so the admin table can
-//     always just <img src={geometry_svg} /> regardless of which branch
-//     produced it.
+//   - Everything else (profileType + width/height/legA/legB, no points —
+//     Quote Builder or Blueprint Takeoff AI items, or historical
+//     Configurator-submitted rows from before its elimination, hpd-002):
+//     rendered server-side via lib/utils/profile-svg.ts's generateProfileSVG
+//     — the exact same function components/product/ProductDetailView.tsx
+//     and the architect specs page already call to draw this profile.
+//     Wrapped in a data URI so the admin table can always just
+//     <img src={geometry_svg} /> regardless of which branch produced it.
 // A profileType this codebase has no known renderer for (e.g. a Quote
 // Builder or Blueprint Takeoff AI item using a free-form label
 // slugToProfileType doesn't recognize) yields null rather than a guessed
@@ -357,8 +359,7 @@ function svgToDataUri(svg: string): string {
 //
 // SHOP_DIAGRAM_LABEL_SCALE (afs-fl-017) is passed to generateProfileSVG ONLY
 // here, for the shop_profile_library-bound copy — every other
-// generateProfileSVG caller (app/configure/page.tsx,
-// components/product/ProductDetailView.tsx,
+// generateProfileSVG caller (components/product/ProductDetailView.tsx,
 // components/architects/SavedConfigCard.tsx, the architect specs page)
 // omits it and renders exactly as before. FlashDraft-drawn items (the
 // item.geometryImage branch above) get the equivalent larger/bold-label

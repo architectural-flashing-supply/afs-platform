@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 
 /**
  * Camera-to-quote flow (afs-fl-002). Strictly photo + optional job-identity
- * fields -- no FlashDraft, no drawing tool, no configurator. See
+ * fields -- no FlashDraft, no drawing tool. See
  * SESSION_STATE.md for the field mapping and photo-storage decision.
  * No auth/role gate (afs-fl-007) -- SPEC_PHOTO_TO_QUOTE_AI.md specifies this
  * flow for anonymous field contractors/superintendents with no AFS account,

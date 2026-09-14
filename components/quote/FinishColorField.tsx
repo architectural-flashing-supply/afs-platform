@@ -17,8 +17,8 @@ interface FinishColorFieldProps {
  * Required Finish choice (Anodized / Painted) + color capture for 'aluminum'
  * category materials (afs-jf-002) — supersedes afs-cv-002's ruling that
  * every aluminum material always shows the PAC-CLAD picker. Rendered by all
- * four wired surfaces (Quote Builder, Configurator, FlashDraft, Blueprint
- * Takeoff AI) in place of a plain ColorField whenever
+ * three wired surfaces (Quote Builder, FlashDraft, Blueprint Takeoff AI) in
+ * place of a plain ColorField whenever
  * requiresFinishChoice(material) is true; the McElroy/painted-steel path is
  * untouched and keeps rendering ColorField directly.
  *

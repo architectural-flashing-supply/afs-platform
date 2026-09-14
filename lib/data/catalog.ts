@@ -256,7 +256,7 @@ export const CATEGORIES: CatalogCategory[] = [
     shortDescription:
       'Full-coverage metal roof panel systems — mechanically double-locked, single-lock, and snap-lock — a distinct product line from trim and flashing, configured by panel width and gauge per project.',
     description:
-      "Roof panels are a different product type from AFS's trim and flashing line: full-coverage roofing, not a bent edge or transition detail. AFS fabricates mechanically double-locked panels (field-seamed with a dedicated seamer, for the highest wind-uplift and slope range), single-lock panels (field-seamed, simpler single-fold leg geometry, more tolerant of minor variation, appropriate for 3:12+ slope with lower wind exposure), and snap-lock panels (factory-formed, no seamer required, hand-engaged bulb/hook leg — a lower wind-uplift rating that makes slope and exposure the deciding factors). Panel width and gauge are project-level configurator choices, not fixed SKUs.",
+      "Roof panels are a different product type from AFS's trim and flashing line: full-coverage roofing, not a bent edge or transition detail. AFS fabricates mechanically double-locked panels (field-seamed with a dedicated seamer, for the highest wind-uplift and slope range), single-lock panels (field-seamed, simpler single-fold leg geometry, more tolerant of minor variation, appropriate for 3:12+ slope with lower wind exposure), and snap-lock panels (factory-formed, no seamer required, hand-engaged bulb/hook leg — a lower wind-uplift rating that makes slope and exposure the deciding factors). Panel width and gauge are project-level choices, not fixed SKUs.",
     applications: [
       'Standing seam metal roofing',
       'Low-slope to steep-slope roof systems',
@@ -588,7 +588,7 @@ export interface StandardPanelWidth {
 // specify one (see app/api/takeoff/route.ts's ROOF PANEL IDENTIFICATION AND
 // QUANTITY rules — extract an explicit width when the drawing states one,
 // otherwise leave width/quantity null rather than assume), and available to
-// the Custom Configurator for the same panel-width choice.
+// FlashDraft for the same panel-width choice.
 export const STANDARD_PANEL_WIDTHS: StandardPanelWidth[] = [
   { widthIn: 12, commonality: 'common' },
   { widthIn: 16, commonality: 'common' },

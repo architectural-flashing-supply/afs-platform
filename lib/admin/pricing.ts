@@ -20,8 +20,8 @@ export function computeLineTotal(unitPrice: number, quantity: number, lengthFt: 
 
 /**
  * Bid document line items (BID_DOCUMENT_SCOPE.md §1.1) are hand-priced
- * qty/spec/unit-price rows, not configurator output — no waste factor, no
- * billed-quantity rounding, just quantity × unit price. Extended, not
+ * qty/spec/unit-price rows, not FlashDraft/Quote Builder output — no waste
+ * factor, no billed-quantity rounding, just quantity × unit price. Extended, not
  * duplicated, per that document's §1.3.
  */
 export function computeExtendedPrice(quantity: number, unitPrice: number): number {
@@ -64,7 +64,7 @@ export interface WeightEstimateResult {
 
 /**
  * `quote_requests.line_items` stores material/gauge as free-text labels, not
- * FK references to `materials`/`gauges` — the configurator, upload flow, and
+ * FK references to `materials`/`gauges` — FlashDraft, the Quote Builder, and
  * AI takeoff path each produce slightly different strings for the same
  * material (e.g. "Kynar 500 (Painted Steel)" vs. seeded "Kynar 500 Painted
  * Steel"). This normalizes both sides the same way before comparing, so

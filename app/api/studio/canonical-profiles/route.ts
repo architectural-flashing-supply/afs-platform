@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
+// See app/api/studio/library-list/route.ts — same build-time prerender
+// failure, same fix.
+export const dynamic = 'force-dynamic';
+
 interface CanonicalProfileRow {
   id: string;
   name: string;

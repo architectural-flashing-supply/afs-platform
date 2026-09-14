@@ -1,19 +1,20 @@
 # SITEMAP.md
 ## AFS — Complete Route Map
-**113 routes (`pnpm run build`'s own route-table row count — see PAGE +
-ROUTE COUNT below for the exact filesystem breakdown: 112 page.tsx/
-route.ts files, 58 pages + 54 route handlers, +1 for Next's synthetic
-`/_not-found` route that has no source file). Re-verified 2026-07-14
-(afs-038) against the actual `app/` directory and a fresh `pnpm run
-build` output after that session added `/studio/library` — the only
-route-count change since the 2026-07-13 audit below. Note: this
-document previously cited "106" for the build-reported count; a fresh,
-reproducible recount (`grep` of the actual route table, not a
-remembered figure) found 113 both before and after accounting for the
-one new route, so 106 appears to have been an error in an earlier
-pass rather than a real prior count — flagged here rather than quietly
-carried forward. Original 2026-07-13 rewrite note preserved below since
-its route-existence findings are still accurate:**
+**112 routes as of hpd-002 (2026-09-11), down from 113 after
+`app/configure/page.tsx` (the eliminated Custom Flashing Configurator)
+was removed — see PAGE + ROUTE COUNT below for the filesystem breakdown:
+111 page.tsx/route.ts files, 57 pages + 54 route handlers, +1 for Next's
+synthetic `/_not-found` route that has no source file. Not re-verified
+against a fresh `pnpm run build` output this session — the prior
+2026-07-14 (afs-038) count is decremented by one to reflect the single
+known removal. Note: this document previously cited "106" for the
+build-reported count; a fresh, reproducible recount (`grep` of the actual
+route table, not a remembered figure) found 113 both before and after
+accounting for the `/studio/library` addition, so 106 appears to have
+been an error in an earlier pass rather than a real prior count —
+flagged here rather than quietly carried forward. Original 2026-07-13
+rewrite note preserved below since its route-existence findings are
+still accurate:**
 **Rewritten from a full audit of the actual `app/` directory on
 2026-07-13 — the previous version of this document described several
 routes that were never built (`/login/magic-sent`, `/account/delivery`,
@@ -33,7 +34,17 @@ as real files.**
 app/
 │
 ├── (public)/                        No auth required (route group — no URL segment)
-│   ├── page.tsx                     / — Homepage
+│   ├── page.tsx                     / — Homepage. Assembled hpa-003, eleven
+│                                     sections as of hpc-003 (profile-
+│                                     explorer removed): app/components/
+│                                     {hero,home}/ sections via
+│                                     HomeSection.tsx wrapper, in order
+│                                     (hero, credibility, field-app,
+│                                     design-studio, design-to-delivery,
+│                                     pathways, profile-passport,
+│                                     case-studies, shop-floor, nationwide,
+│                                     final-cta).
+│                                     See COMPONENT_MAP.md LAYER 3.
 │   ├── products/
 │   │   ├── page.tsx                 /products — catalog, no prices
 │   │   └── [category]/
@@ -69,16 +80,15 @@ app/
 ├── auth/callback/route.ts           /auth/callback — Supabase auth code exchange
 │
 ├── quote/page.tsx                   /quote — Quote Request Wizard, no prices shown
-├── configure/page.tsx               /configure — Custom Flashing Configurator, no prices
 ├── upload/page.tsx                  /upload — Blueprint Takeoff AI, no prices
 ├── track/[orderId]/page.tsx         /track/[orderId] — public tracker, no full auth
 │
 ├── studio/                          Design Studio — primary NavBar destination
-│   ├── page.tsx                     /studio — 4 tab-card landing (Scan/Photo/FlashDraft/
-│   │                                 Custom Configurator, the last added afs-cs-002 —
-│   │                                 links to the existing /configure route, which is
-│   │                                 unchanged and still also linked from NavBar) +
-│   │                                 a banner link to /studio/library
+│   ├── page.tsx                     /studio — 4 tab-card landing (Scan to Quote/Photo to
+│   │                                 Quote/FlashDraft/Quick Quote — was 5 tabs through
+│   │                                 hpd-002, when the Custom Configurator tab and its
+│   │                                 /configure route were eliminated as redundant with
+│   │                                 FlashDraft) + a banner link to /studio/library
 │   ├── draft/page.tsx               /studio/draft — FlashDraft 2D canvas tool (afs-038: hem
 │   │                                 tool, bend-angle circle handles, inline dimension input,
 │   │                                 mandatory 3D submit-confirmation modal — no more
@@ -209,10 +219,10 @@ still speculative), and `/api/webhooks/twilio`.
 ```
 Route Pattern                Auth Required   Role           Notes
 ───────────────────────────────────────────────────────────────────
-/                            No             —              Public
+/                            No             —              Public. Assembled hpa-003 --
+                                                             see COMPONENT_MAP.md LAYER 3
 /products/**                 No             —              Public — no prices
 /quote                       No             —              Public
-/configure                   No             —              Public
 /upload                      No             —              Public
 /studio                      No             —              Public
 /studio/draft                No             —              Public
@@ -221,6 +231,22 @@ Route Pattern                Auth Required   Role           Notes
                                                              as /studio/profile-viewer/[id] below
 /studio/profile-viewer/[id]  Partial        —              Public profile: anyone. Private
                                                              profile: admin only (404s otherwise)
+/design-studio                No             —              Public. hp-006, feat/homepage-redesign
+                                                             only, not yet on main. Renders
+                                                             DesignStudioHub full-width; normal
+                                                             NavBar/Footer/ChatWidget chrome. A
+                                                             second, un-reconciled "Design Studio"
+                                                             destination alongside /studio.
+/faq                          No             —              Public. Missing from this matrix
+                                                             before hp-024 despite being a real
+                                                             route (app/(public)/faq/page.tsx).
+/resources                    No             —              Public. Same as /faq — real route,
+                                                             was missing from this matrix before
+                                                             hp-024 (app/(public)/resources/page.tsx).
+/hailview                     No             —              Public. HailView tool (afs-hv-001
+                                                             through afs-hv-009) — was missing
+                                                             from this matrix before hp-024
+                                                             (app/hailview/page.tsx).
 /track/[id]                  No             —              Email verify
 /architects                  No             —              Public
 /architects/spec-writer      Yes            architect|admin
@@ -273,6 +299,9 @@ Query params:
   ?redirect={url}    Post-login redirect target
   ?mode=             Upload mode: blueprint | photo
   ?quote={id}        Checkout quote reference
+
+  (?profile={id} — pre-select profile in configurator — removed hpd-002
+  along with the Configurator route itself; no remaining caller sends it.)
 ```
 
 ---
@@ -281,10 +310,13 @@ Query params:
 
 Re-verified 2026-07-14 (afs-038) against the actual `app/` directory
 (`find app -name page.tsx` / `find app -name route.ts`) — unchanged
-since 2026-07-13 except the one new page:
+since 2026-07-13 except the one new page. **hpd-002 (2026-09-11) removed
+one page** (`app/configure/page.tsx`, the eliminated Custom Flashing
+Configurator) — counts below updated accordingly, not re-verified from a
+fresh full audit:
 
 ```
-Public pages:        25  (includes Design Studio: /studio, /studio/draft,
+Public pages:        24  (includes Design Studio: /studio, /studio/draft,
                           /studio/library, /studio/profile-viewer/[id])
 Auth pages:            7
 Account pages:        13
@@ -293,21 +325,21 @@ Checkout:              1
 Auth callback route:   1
 API routes:           53
 ─────────────────────
-Total (filesystem):  112  (58 page.tsx + 54 route.ts)
+Total (filesystem):  111  (57 page.tsx + 54 route.ts)
 ```
 
 `pnpm run build`'s own route table (`grep -E '^(├|└|┌).*(○|●|ƒ)'` against
 a fresh build's output — a reproducible count, not a remembered one)
-shows **113 rows**: the 112 real files above, plus Next's synthetic
-`/_not-found` route (no source file). Unlike a prior version of this
-document, the build table does **not** collapse dynamic routes below
+showed **113 rows** before hpd-002: the 112 real files, plus Next's
+synthetic `/_not-found` route (no source file). Unlike a prior version of
+this document, the build table does **not** collapse dynamic routes below
 their file count — each dynamic `page.tsx` (e.g. `/products/[category]`)
 is still exactly one row; only its individually-generated static paths
 (e.g. every category slug) are nested *under* that row, not counted as
-separate top-level rows. **113 is the number to cite as "the route
-count"** going forward — it reconciles cleanly with the filesystem count
-above (112 + 1 synthetic route), which the previously-cited "106" did
-not.
+separate top-level rows. **112 is the number to cite as "the route
+count"** going forward (111 real files + 1 synthetic route) — not
+re-verified against a fresh build output this session, but it reconciles
+cleanly with the filesystem count above.
 
 ---
 

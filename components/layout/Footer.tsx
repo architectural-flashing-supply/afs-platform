@@ -34,7 +34,7 @@ export default function Footer() {
 
           {/* Products */}
           <div>
-            <h4 className="font-label text-xs text-afs-chrome-mid uppercase tracking-widest mb-4">Products</h4>
+            <h3 className="font-label text-xs text-afs-chrome-mid uppercase tracking-widest mb-4">Products</h3>
             <ul className="space-y-2">
               {['Coping Caps','Base Flashing','Drip Edge','Gravel Stop','Custom Profiles'].map(item => (
                 <li key={item}>
@@ -48,13 +48,14 @@ export default function Footer() {
 
           {/* Resources */}
           <div>
-            <h4 className="font-label text-xs text-afs-chrome-mid uppercase tracking-widest mb-4">Resources</h4>
+            <h3 className="font-label text-xs text-afs-chrome-mid uppercase tracking-widest mb-4">Resources</h3>
             <ul className="space-y-2">
               {[
                 { label: 'Upload a Drawing', href: '/upload' },
                 { label: 'Request a Quote', href: '/quote' },
                 { label: 'Architect Portal', href: '/architects' },
                 { label: 'Track an Order', href: '/account/orders' },
+                { label: 'FAQ', href: '/faq' },
               ].map(item => (
                 <li key={item.label}>
                   <Link href={item.href} className="font-body text-sm text-afs-chrome-base hover:text-afs-chrome-mid transition-colors">
@@ -67,7 +68,7 @@ export default function Footer() {
 
           {/* Company */}
           <div>
-            <h4 className="font-label text-xs text-afs-chrome-mid uppercase tracking-widest mb-4">Company</h4>
+            <h3 className="font-label text-xs text-afs-chrome-mid uppercase tracking-widest mb-4">Company</h3>
             <ul className="space-y-2">
               {[
                 { label: 'About', href: '/about' },

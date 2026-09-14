@@ -161,23 +161,36 @@ AppChrome.tsx
   See ARCHITECTURE.md's "AppChrome Portal Exclusion Pattern" for the full
   pattern and the afs-036 double-nav bug this fixed.
 
-NavBar.tsx
-  NOT a single top bar — an L-shaped chrome rendered as two fixed elements:
-    Left rail: fixed top-0 left-0 bottom-0 w-48 (192px), bg-afs-bg-dim,
-      logo, then a vertical link list (Home, Products, Request a Quote,
-      Configure, Upload Drawing, Design Studio, Architects, My Account/
-      Sign In, Sign Out if authenticated), "Est. Texas" footer line.
-    Top header: fixed top-0 left-48 right-0 h-11 (44px), bg-afs-bg-raised,
-      horizontal desktop-only (md:flex) link row duplicating the same 6
-      content links (Products through Architects).
+NavBar.tsx  [corrected hp-024 — the entry below this one had described an
+  L-shaped rail/header chrome the real file has never matched; that
+  staleness was independently flagged, not fixed, by hp-020's own
+  governance entry, and is corrected here from a direct read of the
+  current file]
+  A fixed 200x80px logo box top-left, plus a single fixed h-14 (56px)
+  header to its right — no left rail. Header link row (hidden md:flex):
+  Products, Request a Quote, Upload Drawing, Design Studio
+  (-> /studio, a separate destination from hp-006's /design-studio — the
+  two coexist un-reconciled), Architects, a Resources dropdown (added
+  hp-020: Resources + HailView links, opens on click, closes on outside-
+  click/Escape, same useRef pattern as the account-menu dropdown), the
+  account-menu dropdown (Sign In or My Account/Sign Out), and a crimson
+  "Start a Quote" CTA (-> /design-studio, added hp-020, rendered outside
+  the hidden md:flex wrapper so it's visible at every width).
+  Mobile (added hp-020, did not exist before): a hamburger toggle
+  (md:hidden) opens a slide-down panel positioned at top: LOGO_HEIGHT
+  (80px, not the header's 56px — the established convention for any
+  full-width fixed element, matching app/hailview/page.tsx's map
+  background) listing every link above (Resources flattened, not
+  nested) plus the Start a Quote CTA again at the bottom.
   Only rendered by AppChrome for non-portal, non-auth routes — see
-  AppChrome.tsx above. The ml-48 pt-11 wrapper AppChrome applies to
-  {children} exists specifically to clear this rail+header combination.
+  AppChrome.tsx above.
 
 Footer.tsx
   bg-afs-bg-raised border-t border-[var(--afs-border)]
   Max-width 1280px, px-6 gutters, py-16
   4 columns: Brand | Products | Resources | Company
+  Resources column includes FAQ (added hp-020); Company column already
+  had Contact before hp-020 touched this file.
   Bottom bar: copyright, Privacy, Terms
   All text: text-afs-chrome-dim text-sm
   Column headings: font-label font-semibold text-afs-chrome-mid text-sm tracking-wider uppercase
@@ -225,72 +238,207 @@ ArchitectShell.tsx
 
 ---
 
-## LAYER 3 — HOMEPAGE (`components/home/`)
+## LAYER 3 — HOMEPAGE
+
+**Assembled into the real `app/page.tsx`, hpa-003 — this is what `hp-019`
+was always deferred to.** Every entry below this heading before this pass
+(`HeroSection.tsx`/`HeroVisual.tsx`/`TrustBar.tsx`/`ThreePillarsSection.tsx`/
+`PillarCard.tsx`/`AIQuoteTeaser.tsx`/`HowItWorksSection.tsx`/
+`HowItWorksStep.tsx`/`StatSection.tsx`/`StatBlock.tsx`/
+`ProductCategoryGrid.tsx`/`CategoryCard.tsx`/`ArchitectCTASection.tsx`/
+`ProjectGallery.tsx` as previously described/`TestimonialsSection.tsx`/
+`TestimonialCard.tsx`/`FinalCTASection.tsx`) described components that
+were never real — grepped every filename across the whole repo, zero
+matches for any of them. This predates even the `afs-fl-034` homepage
+pass; it looks like it was never reconciled against a real build at all.
+
+### RETIRED FROM THE HOMEPAGE — files left in place, no longer imported by
+### `app/page.tsx` (`components/home/`, repo root)
 
 ```
-HeroSection.tsx
-  Full viewport, two-column (60/40) desktop, stacked mobile
-  Left: eyebrow + H1 (Bebas Neue 7rem) + subheadline + CTA group
-  Right: HeroVisual.tsx (animated CSS mockup — no external assets)
+HeroDrawingOverlay.tsx  (afs-fl-034)
+  "Drawing to steel" supporting visual layered over the photo hero and
+  rooftop-triangle PNG. Superseded by app/components/hero/HeroSection.tsx's
+  video hero. File untouched; unused on homepage as of hpa-003.
 
-HeroVisual.tsx
-  Animated mockup of upload interface / takeoff results
-  Pure CSS — no images, no video, no external dependencies
-  Shows simplified TakeoffResultsTable preview
-  Items animate in with staggered fade-up
+PhotoCategoryGrid.tsx  (afs-fl-034)
+  Real AFS legacy-site photography grid, sourced via lib/home/portfolio-
+  photos.ts (afs-{1-39}.jpg under public/home_page_images/gallery/). File
+  untouched; unused on homepage as of hpa-003 — CaseStudies.tsx (hp-011)
+  now carries the homepage's real-photo case-study cards from the same
+  photo catalog.
 
-TrustBar.tsx
-  Full-width band, separator-divided trust signals
-  "SMACNA Standards Compliant | Custom Fabrication In-House | Ships Nationwide | AI-Powered Quoting"
-
-ThreePillarsSection.tsx
-  Three PillarCard.tsx in a row
-
-PillarCard.tsx
-  Props: icon | heading | body | ctaText | ctaHref | accentColor ('crimson'|'copper')
-
-AIQuoteTeaser.tsx
-  Two-column: left text + feature list, right ProcessingStatusPanel mockup (static CSS)
-
-HowItWorksSection.tsx
-  Four HowItWorksStep.tsx components with connector lines
-
-HowItWorksStep.tsx
-  Props: number | icon | title | body | isLast
-
-StatSection.tsx
-  Three StatBlock.tsx — "48HR", "2MIN", "50+"
-
-StatBlock.tsx
-  Props: value | label
-  value: font-display text-8xl text-afs-chrome-high
-
-ProductCategoryGrid.tsx
-  3×2 grid of CategoryCard.tsx
-
-CategoryCard.tsx
-  CSS gradient placeholder until photography received
-  Profile name in Bebas Neue, crimson arrow icon
-  Link to /products/[category-slug]
-
-ArchitectCTASection.tsx
-  Full-width with copper left border accent
-  Targets architect audience specifically
-
-ProjectGallery.tsx
-  Masonry-style image grid
-  CSS gradient placeholders until photography received
-
-TestimonialsSection.tsx
-  Three TestimonialCard.tsx
-
-TestimonialCard.tsx
-  Props: quote | attribution
-
-FinalCTASection.tsx
-  bg-afs-crimson full-width
-  Two CTAs: white bg crimson text | white border white text
+ProjectGallery.tsx  (afs-fl-034)
+  Masonry-style grid of the same real photo catalog, PORTFOLIO_GALLERY_IDS
+  subset, previously rendered below PhotoCategoryGrid. File untouched;
+  unused on homepage as of hpa-003.
 ```
+
+`app/page.tsx` prior to hpa-003: full-bleed photo hero
+(`/home_page_images/2.jpg`), gradient overlay, rooftop-triangle PNG,
+`HeroDrawingOverlay`, H1 "TEXAS CRAFTED. NATIONALLY DELIVERED.", two CTAs
+(both -> `/studio`), then `PhotoCategoryGrid` + `ProjectGallery`. That
+entire tree is gone from the live route as of hpa-003 — see LIVE below.
+
+### LIVE — assembled into `app/page.tsx`, hpa-003, eleven sections as of
+### hpc-003 (was twelve at hpa-003 — `profile-explorer` removed from the
+### render order, see the ProfileExplorer entry below), each wrapped in
+### `app/components/home/HomeSection.tsx`
+
+**`HomeSection.tsx` (NEW, hpa-003)** — the shared wrapper every section
+below renders inside: `<div data-section={slug} id={slug}>{children}</div>`.
+`data-section` is always stamped (the hpa-003 Playwright checkpoint asserted
+all twelve `data-section` elements exist, in order — hpc-003 dropped this to
+eleven, see below). `id` is stamped by default too, **except** for
+`design-studio`, `profile-passport`, and `nationwide` (`withId={false}` at
+each of those call sites in `app/page.tsx`) — those section components
+already set that exact id on their own root element (see each entry below),
+so the wrapper skips it there to avoid a duplicate DOM id. Every in-page
+anchor referenced anywhere on the site (`#design-studio`, `#profile-passport`,
+`#nationwide`) now resolves on the live homepage.
+
+**Directory note (still applies):** these live in `app/components/hero/`
+and `app/components/home/` — a tree that did not exist before
+`feat/homepage-redesign` and is parallel to, not inside, the `components/`
+root every other layer in this file lives in. `hp-020`'s NavBar/Footer work
+correctly edited the real `components/layout/` files (no duplicate there);
+the sections below remain the exception. hpa-003 assembled them from where
+they already were rather than moving them — a relocation into `components/`
+would be a separate, larger diff than this assembly pass's scope.
+
+```
+app/components/hero/HeroSection.tsx  (hp-003) -- data-section="hero"
+  Full-bleed <video> hero (hero-metal-fabrication.mp4/.webm, poster
+  fallback, paused under prefers-reduced-motion) is the hero visual —
+  no rotating 3D profile (ProfileRotation.tsx removed, hpd-001). Text
+  block (H1 "SHOW US THE DETAIL. WE'LL FORM IT.", sub-copy, CTAs)
+  left-aligned in a max-w-3xl column over the video, bottom-aligned
+  above the fold on mobile. CTAs: "Start a Quote" -> /design-studio,
+  "See How It's Made" -> #shop-floor (retargeted hpc-003 — was "Explore
+  Profiles" -> #profile-explorer, dropped when the Explore Our Profiles
+  section was removed from the homepage render order, see the
+  ProfileExplorer entry below).
+
+app/components/home/CredibilityStrip.tsx  (hp-004) -- data-section="credibility"
+  Five-item capability nav: 5 Ways to Start (#design-studio), 9 Materials
+  (/architects/finish-palette), Custom Profiles (#profile-passport),
+  SMACNA Standards Compliant (/architects/guides), Nationwide Delivery
+  (#nationwide). All five link targets resolve as of hpa-003.
+
+app/components/home/FieldAppStory.tsx  (hp-005) -- data-section="field-app"
+  Two-column: CSS phone-frame device with looped video (trimmed 0-7s of
+  the hero asset), three-step photo-to-quote flow. CTAs -> /field/contractor.
+
+app/components/home/DesignStudioHub.tsx  (hp-006) -- data-section="design-studio"
+  Four-method selector (Scan Plans/Photo to Quote/FlashDraft/Quick Quote —
+  was five methods through hpd-002, when the Configurator method was
+  eliminated as redundant with FlashDraft), ARIA tabs pattern. Sets
+  id="design-studio" on its own root
+  section (HomeSection wraps it with withId={false} on the homepage to
+  avoid a duplicate id — see HomeSection.tsx above). Rendered in two
+  places: embedded on the homepage as of hpa-003, and at its own
+  standalone /design-studio route (app/design-studio/page.tsx, normal
+  NavBar/Footer/ChatWidget chrome) — unreconciled duplication, not new to
+  this pass.
+
+app/components/home/ProfileExplorer.tsx  (hp-007, queue id hpa-002) --
+UNUSED ON HOMEPAGE as of hpc-003 (Reid: those are no longer used as
+samples) -- was data-section="profile-explorer"
+  No longer imported by app/page.tsx (hpc-003 removed its dynamic() import
+  and its <HomeSection slug="profile-explorer"> call entirely — file left
+  in place, untouched, per hpc-003's instructions, in case a future pass
+  wants it back). Was live from hpa-003 through hpa-005: a server component
+  that set id="profile-explorer" on its own root section (same
+  withId={false} reasoning as DesignStudioHub above), composing the
+  existing components/studio/ProfileLibraryBrowser.tsx (compact mode,
+  limit=12, show3DToggle) over the same public+active machine_profiles
+  data /studio/library uses, service-role client (machine_profiles RLS
+  requires auth.uid() even on is_public rows). Built under hp-007 (commit
+  b0c4351, queue id hpa-002).
+
+app/components/home/DesignToDelivery.tsx  (hp-008) -- data-section="design-to-delivery"
+  Five-step Capture -> Convert -> Verify -> Fabricate -> Track sequence,
+  scroll-driven progress rail (IntersectionObserver), full frame
+  immediately under prefers-reduced-motion.
+
+app/components/home/CustomerPathways.tsx  (hp-009) -- data-section="pathways"
+  Three role cards: Contractors -> /field/contractor, Architects ->
+  /architects, Purchasing -> /account/credit-application.
+
+app/components/home/ProfilePassportExplainer.tsx  (hp-010) -- data-section="profile-passport"
+  Design -> Save -> Reorder three-panel flow + illustrative "Profile
+  Passport" card (CSS only, example data, not a live query). Auth-aware
+  CTA (createClient() + getUser()) branches Create your account vs. View
+  My Profiles -> /architects/custom-profiles. NOT the same as the
+  Profile Passport schema below — this component predates and does not
+  depend on custom_profiles/profile_revisions; its real backing table
+  (per its own governance entry) is the existing saved_configurations.
+  Sets id="profile-passport" on its own root section (same withId={false}
+  reasoning as DesignStudioHub above).
+
+app/components/home/CaseStudies.tsx  (hp-011) -- data-section="case-studies"
+  Three real-photo project cards (Copper Dome #22, Arched-Window
+  Flashing #34, Standing-Seam Detail #19 — lib/home/portfolio-photos.ts)
+  plus a NASA Johnson Space Center credential card (Zero-Defect Delivery
+  chip; its visual is public/images/NASA_Johnson_Space_Center.png, Reid-
+  supplied, as of hpc-003 — object-cover object-top so the NASA insignia
+  and lockup show and the image's lower-region generation artifacts stay
+  cropped out; the earlier typographic "NASA Johnson Space Center" badge
+  is gone). Section id comes from the
+  HomeSection wrapper; each card additionally carries its own anchor id
+  (added hpa-003 — id={`case-study-${study.key}`} on the three photo
+  cards, id="case-study-nasa-jsc" on the credential card) so
+  NationwideMap tooltips and future links can target a specific card.
+
+app/components/home/ShopFloorProof.tsx  (hp-012) -- data-section="shop-floor"
+  Video-backed stats section, hero-loop video reused: 5 Materials
+  Fabricated, 25 Standard Profiles (canonical_profiles, not the private
+  911-row machine-profile library), Nationwide Delivery Footprint.
+
+app/components/home/NationwideMap.tsx + NationwideMapLeaflet.tsx +
+nationwide-locations.ts  (hp-013) -- data-section="nationwide"
+  Leaflet/OSM map (same stack as components/hailview/HailViewMap.tsx),
+  HQ pin only (Burnet, TX) + nationwide delivery radius ring — no project
+  pins, since no CaseStudies card has a real documented location. Sets
+  id="nationwide" on its own root section (same withId={false} reasoning
+  as DesignStudioHub above). Imported into app/page.tsx via next/dynamic
+  (code-splitting only — page.tsx is a Server Component, where
+  `ssr: false` isn't legal) — its own internal NationwideMapLeaflet
+  dynamic(ssr:false) import is what actually keeps Leaflet out of the
+  server bundle.
+
+app/components/home/FinalCTA.tsx  (hp-014) -- data-section="final-cta"
+  Four-action closing band: Start a Quote (/design-studio) | Custom
+  Profiles (/architects/custom-profiles) | Check Hail Impact (/hailview) |
+  Talk to AFS (/contact). Tagline "Texas Crafted. Nationally Delivered."
+  ("Custom Profiles" retargeted hpc-003 — was "Explore Profiles" ->
+  #profile-explorer, dropped along with the removed section above.)
+```
+
+**Assembly status (hpa-003 — this is what `hp-019` was always deferred
+to):** eleven components above are now imported by `app/page.tsx`, in the
+order listed, each wrapped in `HomeSection.tsx` — twelve at hpa-003,
+reduced to eleven by hpc-003's removal of ProfileExplorer from the render
+order (Reid: those are no longer used as samples). `pnpm tsc --noEmit`
+and `pnpm run build` both pass. The assembly was sitting modified-but-
+uncommitted when hpa-004 started and was swept into that pass's commit
+(`083ed7d`) alongside the new Playwright suite — there is no standalone
+`hpa-003` commit or governance entry; see `STATE_OF_THE_BUILD.md`'s
+hpa-004 entry for the real commit hash and the Playwright checkpoint
+results across 375/768/1440px. hpa-005 (commit `f9fd61d`) layered a11y/
+contrast/lazy-load polish on top — see that file's hpa-005 entry. hpc-003
+removed the Explore Our Profiles section, put the NASA JSC photo (Reid-
+supplied) on CaseStudies.tsx's credential card in place of its typographic
+badge, and retargeted the two CTAs that pointed at #profile-explorer (see
+HeroSection.tsx and FinalCTA.tsx entries above) — see that file's hpc-003
+entry.
+
+**Profile Passport (hp-015) — schema only, separate from the components
+above:** `supabase/migrations/023_profile_passport.sql`
+(`custom_profiles`, `profile_revisions`, `orders.custom_profile_id`) —
+written, RLS included, **not applied to the live database**, no API
+route or page anywhere in the codebase. See SCHEMA.md and this file's own
+hp-024 governance entry.
 
 ---
 
@@ -432,31 +580,24 @@ MultiItemBar.tsx
 
 ---
 
-## LAYER 6 — FLASHING CONFIGURATOR (`components/configurator/`)
+## LAYER 6 — FLASHING CONFIGURATOR — ELIMINATED (hpd-002, 2026-09-11)
 
-```
-ConfiguratorShell.tsx
-  Two-panel desktop, tabbed mobile
-  Left: ConfiguratorControls (480px)
-  Right: ConfiguratorPreview (flex-1)
-
-ConfiguratorControls.tsx
-  Sections: Profile | Material | Gauge | Finish | Dimensions | Length+Qty | Notes
-  "Submit for Quote" primary button
-  "Save Configuration" link (auth)
-  "Add to Quote Request" link
-
-ConfiguratorPreview.tsx
-  ProfileDiagramSVG (live)
-  SpecSummaryPanel (text summary, font-data)
-  Disclaimer: "Estimated CAD preview — for reference only"
-  No price display
-
-SavedConfigCard.tsx
-  Used in /architects/custom-profiles
-  Left: ProfileDiagramSVG scaled
-  Right: profile details, dimensions (font-data), reorder/edit buttons
-```
+Reid's decision: the Configurator was redundant with FlashDraft and was
+eliminated from the site. `components/configurator/` as speculatively
+described in earlier versions of this doc (`ConfiguratorShell.tsx`,
+`ConfiguratorControls.tsx`, `ConfiguratorPreview.tsx`) never existed as
+real files — the real implementation was always a single self-contained
+`app/configure/page.tsx` (34KB, same single-file pattern as FlashDraft's
+`app/studio/draft/page.tsx`), confirmed by a fresh directory listing
+before deletion. That file is now `git rm`'d; `/configure` and
+`/configurator` permanently redirect to `/studio/draft` (`next.config.js`
+`redirects()`). `SavedConfigCard.tsx` and `SavedProfilesBrowser.tsx` (real,
+`components/architects/`, not `components/configurator/` as this doc
+previously implied, used by `/architects/custom-profiles` — not otherwise
+documented elsewhere in this file) survive: `SavedConfigCard.tsx` lost only
+its "Edit" button (`/configure?saved=` no longer resolves to an editable
+page, "Reorder" is unaffected); `SavedProfilesBrowser.tsx`'s empty-state CTA
+now points at FlashDraft (`/studio/draft`) instead of `/configure`.
 
 ---
 
@@ -476,14 +617,16 @@ ProductCard.tsx
   No price. No "From $X" anywhere.
   Category badge, SKU (if exists), name (font-heading), material + gauge
   Stock badge: "In Stock" | "Made to Order" | "Special Order"
-  CTA: "Request a Quote" | "Configure"
+  CTA: "Request a Quote" | "Design in FlashDraft" (hpd-002 — was "Configure",
+  linking to the now-eliminated /configure)
 
 ProductDetailPage.tsx
   Two-column: ProfileDiagramSVG + ProductDetailInfo
   No price display
   MaterialOptions | GaugeSelector | FinishSelector | DimensionReference
   CTA primary: "Request a Quote for This Product"
-  CTA secondary: "Configure Custom Dimensions"
+  CTA secondary: "Design in FlashDraft" (hpd-002 — was "Configure Custom
+  Dimensions", linking to the now-eliminated /configure)
   Tabs: Overview | Specifications | Installation | Documents
 
 GaugeSelector.tsx (shared with quote components)
@@ -841,13 +984,12 @@ ProfileLibraryBrowser.tsx (components/studio/ — NEW, afs-038)
 
 app/studio/page.tsx
   Design Studio landing — 4 tab cards (grid-cols-1 sm:grid-cols-2
-  lg:grid-cols-4, widened from a 3-column grid): Scan to Quote
-  (→ /upload), Photo to Quote (→ /upload?tab=photos), FlashDraft
-  (→ /studio/draft), and Custom Configurator (→ /configure, added
-  afs-cs-002) — the last links to the existing standalone Configurator
-  route unchanged; no route moved, no state shared between the two
-  tools. afs-038 added a banner card below the tile grid linking to
-  /studio/library.
+  lg:grid-cols-4): Scan to Quote (→ /upload), Photo to Quote
+  (→ /upload), FlashDraft (→ /studio/draft), and Quick Quote
+  (→ /quote). A fifth card, Custom Configurator (→ /configure, added
+  afs-cs-002), was eliminated hpd-002 — redundant with FlashDraft; the
+  grid was 5 columns before that removal. afs-038 added a banner card
+  below the tile grid linking to /studio/library.
 
 --- FlashDraft (`app/studio/draft/page.tsx`) — a 12-file `useReducer`
     rewrite (`lib/flashdraft/` + `components/studio/flashdraft/`) was

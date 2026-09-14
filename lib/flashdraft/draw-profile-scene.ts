@@ -78,7 +78,7 @@ export const LIVE_CANVAS_LABEL_STYLE: DrawSceneLabelStyle = {
 // Shop-floor-bound snapshots (afs-fl-017) render dimension/angle/hem labels
 // roughly 1.75x larger and bold, so they're legible from a few feet away on
 // the shop floor — mirrors generateProfileSVG's labelScale option for
-// Configurator-submitted items, applied here to FlashDraft's own labels.
+// server-rendered items, applied here to FlashDraft's own labels.
 export const SHOP_SNAPSHOT_LABEL_STYLE: DrawSceneLabelStyle = {
   segmentFontPx: 21,
   angleFontPx: 19,

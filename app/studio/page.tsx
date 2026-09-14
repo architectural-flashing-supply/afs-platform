@@ -4,7 +4,7 @@ import Link from 'next/link';
 export const metadata: Metadata = {
   title: 'Design Studio | AFS Architectural Flashing Supply',
   description:
-    'Five ways to spec your flashing: scan a construction drawing, photograph existing flashing, draw your exact profile with FlashDraft, configure a standard profile with exact dimensions, or build a quick quote.',
+    'Four ways to spec your flashing: scan a construction drawing, photograph existing flashing, draw your exact profile with FlashDraft, or build a quick quote.',
 };
 
 interface StudioTab {
@@ -53,18 +53,6 @@ const TABS: StudioTab[] = [
     ),
   },
   {
-    title: 'Custom Configurator',
-    body: 'Pick a standard profile and enter exact dimensions. Live diagram updates as you type.',
-    ctaLabel: 'Open Configurator',
-    ctaHref: '/configure',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-6 h-6">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5l4.5-4.5 3 3 4.5-6 5 5" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3 20.25h18M6 20.25v-3M12 20.25v-2M17 20.25v-4" />
-      </svg>
-    ),
-  },
-  {
     title: 'Quick Quote',
     body: 'Know what you need? Select profile types, materials, and quantities. We follow up with formal pricing.',
     ctaLabel: 'Build a Quote',
@@ -85,11 +73,11 @@ export default function DesignStudioPage() {
       <div className="px-6 pt-6 pb-10 text-center">
         <h1 className="font-display text-6xl text-afs-chrome-high leading-none mb-4">Design Studio</h1>
         <p className="font-body text-afs-chrome-mid text-base max-w-xl mx-auto">
-          Five ways to spec your flashing. One destination.
+          Four ways to spec your flashing. One destination.
         </p>
       </div>
 
-      <div className="max-w-6xl mx-auto px-6 pb-10 grid grid-cols-1 lg:grid-cols-5 gap-4">
+      <div className="max-w-6xl mx-auto px-6 pb-10 grid grid-cols-1 lg:grid-cols-4 gap-4">
         {TABS.map((tab) => (
           <div
             key={tab.title}

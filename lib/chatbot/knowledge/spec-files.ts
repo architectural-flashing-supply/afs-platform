@@ -1,8 +1,11 @@
 import type { KnowledgeChunk } from './types';
 
-// Customer-facing feature knowledge extracted from specs/SPEC_FLASHING_CONFIGURATOR.md,
+// Customer-facing feature knowledge extracted from
 // specs/SPEC_CUSTOM_PROFILE_LIBRARY.md, specs/SPEC_QUOTE_BUILDER.md,
 // specs/SPEC_PHOTO_TO_QUOTE_AI.md, and specs/SPEC_ARCHITECT_PORTAL.md.
+// (The Custom Flashing Configurator this file previously also drew from,
+// specs/SPEC_FLASHING_CONFIGURATOR.md, was eliminated hpd-002 — redundant
+// with FlashDraft — and its two knowledge chunks removed.)
 //
 // These specs are implementation documents (component names, API routes,
 // TypeScript interfaces, Playwright tests, SQL). None of that belongs in a
@@ -12,30 +15,12 @@ import type { KnowledgeChunk } from './types';
 // CLAUDE.md's RFQ model (no dollar amounts appear anywhere in this file).
 export const specFilesKnowledge: KnowledgeChunk[] = [
   {
-    id: 'spec-configurator-overview',
-    category: 'AFS Platform Features',
-    subcategory: 'Custom Configurator',
-    topic: 'Custom Flashing Configurator — build a profile visually at /configure',
-    content:
-      'The Custom Configurator (/configure) is for contractors and architects who need a profile outside the standard catalog — different leg lengths, an unusual cross-section, or a custom geometry fabricated to exact spec. The customer picks a base profile type, then material, gauge, and finish, then enters exact dimensions (to 1/16" precision) while a live diagram updates on screen to match. No price appears at any point — the value is precision specification speed, not a purchase. When finished, the customer can submit the configuration directly as a quote request, save it to their account for later, or add it as one item in a larger multi-item quote request.',
-    keywords: ['configurator', 'custom configurator', '/configure', 'custom flashing configurator', 'live diagram', 'build a profile'],
-  },
-  {
-    id: 'spec-configurator-save-reorder',
-    category: 'AFS Platform Features',
-    subcategory: 'Custom Configurator',
-    topic: 'Saving and reordering a configuration',
-    content:
-      'A signed-in customer can save a configuration built in the Custom Configurator to their account instead of submitting it immediately. Saved configurations show up in the customer\'s Custom Profiles library, where a "Reorder" button loads the saved profile straight back into the configurator with every field pre-filled, ready to submit again with the same or adjusted specs — useful for repeat orders of a profile that isn\'t in the standard catalog.',
-    keywords: ['save configuration', 'saved configuration', 'reorder', 'saved profiles'],
-  },
-  {
     id: 'spec-custom-profile-library',
     category: 'AFS Platform Features',
     subcategory: 'Custom Profile Library',
     topic: 'Saved Custom Profile Library — past custom designs, searchable and reorderable',
     content:
-      'The Custom Profile Library (/architects/custom-profiles, any signed-in customer or architect) is a personal library of a customer\'s own past custom designs — both configurations they explicitly saved from the Configurator and custom-dimension profiles pulled from their own past orders. Each entry shows a diagram, material and gauge, dimensions, and either "Last ordered" or "Saved" with a date, plus how many times it\'s been ordered if it came from order history. Customers can search and filter by profile type, material, or date range, then reorder a past design or open it in the Configurator to edit before resubmitting — so a unique profile only ever has to be specified once.',
+      'The Custom Profile Library (/architects/custom-profiles, any signed-in customer or architect) is a personal library of a customer\'s own past custom designs — both configurations they explicitly saved from FlashDraft and custom-dimension profiles pulled from their own past orders. Each entry shows a diagram, material and gauge, dimensions, and either "Last ordered" or "Saved" with a date, plus how many times it\'s been ordered if it came from order history. Customers can search and filter by profile type, material, or date range, then reorder a past design directly — so a unique profile only ever has to be specified once.',
     keywords: ['custom profile library', '/architects/custom-profiles', 'past custom designs', 'searchable profiles', 'reorder profile'],
   },
   {

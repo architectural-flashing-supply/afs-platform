@@ -115,7 +115,7 @@ interface CanonicalProfile {
 
 // Maps the takeoff AI's profileType strings to the matching row in
 // canonical_profiles (the same 25-profile reference library FlashDraft's
-// "Load into FlashDraft" browser and the Custom Configurator draw from —
+// "Load into FlashDraft" browser draws from —
 // see scripts/seed-canonical-profiles.ts and
 // components/studio/CanonicalProfileBrowser.tsx) so the 3D preview below
 // renders that profile's real fabricated shape instead of a generic
@@ -832,8 +832,8 @@ export default function UploadPage() {
 
   // quote_requests.color (migration 017) is a single column for the whole
   // request, but this table can hold several items with different
-  // color-requiring materials at once — unlike the single-item Configurator/
-  // Quote Builder/FlashDraft surfaces. Composing one "Profile — Color" entry
+  // color-requiring materials at once — unlike the single-item Quote
+  // Builder/FlashDraft surfaces. Composing one "Profile — Color" entry
   // per item that needs one (joined) preserves every selection instead of
   // silently keeping only the first. materialRequiresColorValue (not
   // colorPaletteForMaterial) is the right gate here: an Anodized aluminum
