@@ -2231,17 +2231,25 @@ export default function FlashDraftPage() {
     if (!Number.isFinite(newLength) || newLength <= 0) return;
     const a = points[selectedSegment];
     const b = points[selectedSegment + 1];
-    // No-op guard: this input has autoFocus, so a leg-body reshape drag
-    // starting while a segment is selected unmounts it mid-gesture (the
-    // input's own render condition hides it once draggingVertexIndex is
-    // set — see segmentInputPos below) — an unmount-while-focused fires a
-    // native blur, invoking this via onBlur with the length UNCHANGED. That
-    // silently pushed a spurious, geometrically-identical entry onto the
-    // undo stack on every reshape/hem drag that started from a selected
-    // segment, corrupting undo (confirmed live: every other Undo click
-    // became a no-op). Skip the commit entirely when the typed length
-    // doesn't actually differ from the segment's current length.
-    if (Math.abs(newLength - dist(a, b)) < 1e-6) return;
+    // No-op guard: this input has autoFocus, so ANY unmount while it's
+    // focused — a leg-body reshape drag starting mid-selection, or simply
+    // clicking a different leg/vertex/blank canvas to change or clear the
+    // selection — fires a native blur, invoking this via onBlur with the
+    // length UNCHANGED. Comparing against the raw, unrounded dist(a, b) was
+    // not enough: the displayed segmentLengthInput is dist(a, b).toFixed(3),
+    // so for any leg whose true length isn't already an exact 3-decimal
+    // value (i.e. almost every leg not drawn perfectly axis-aligned), the
+    // rounded-then-reparsed newLength differs from the exact dist(a, b) by
+    // up to 0.0005" — comfortably over the old 1e-6 tolerance. That false
+    // "edit" was committing a same-leg micro-resize (snapping the leg to its
+    // own rounded length) on every plain click away from a selected
+    // segment, which also re-fit/re-centered the view (see the
+    // computeFitView call below) — a visible geometry/view "jump" on every
+    // leg-to-leg click, confirmed live. Round dist(a, b) the same way before
+    // comparing so a genuine, intentional edit (which changes the rounded
+    // value by a real 0.001"+ step) still commits, but a blur with no real
+    // edit is a true no-op.
+    if (Math.abs(newLength - Number(dist(a, b).toFixed(3))) < 1e-6) return;
     const angleRad = Math.atan2(b.y - a.y, b.x - a.x);
     const newB = { x: a.x + Math.cos(angleRad) * newLength, y: a.y + Math.sin(angleRad) * newLength };
     const delta = { x: newB.x - b.x, y: newB.y - b.y };
