@@ -3311,7 +3311,7 @@ export default function FlashDraftPage() {
                   type="number"
                   min="0"
                   max="11.875"
-                  step="any"
+                  step="0.0625"
                   value={lengthInches}
                   onChange={(e) => setLengthInches(e.target.value)}
                   className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-1.5 font-data text-sm text-afs-chrome-high focus:outline-none focus:border-afs-crimson transition-colors"
