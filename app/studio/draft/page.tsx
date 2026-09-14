@@ -362,13 +362,19 @@ function wrapDeg(deg: number): number {
 // If thetaDeg is within [MIN_BEND_ANGLE_DEG, MAX_BEND_ANGLE_DEG] of refDeg
 // (unsigned), returns it unchanged. Otherwise pulls it back to whichever
 // boundary it crossed — the one-dimensional primitive behind
-// clampDragAngle below.
-function clampAngleAwayFromRef(thetaDeg: number, refDeg: number): number {
+// clampDragAngle below. `guardStraight` (default true) gates only the
+// MAX_BEND_ANGLE_DEG side (mag -> 180°, "fully straightened") — see
+// clampDragAngle's mirrored branch for why point 0's own drag passes
+// false here: unlike every other clamped joint, that check isn't
+// protecting a bend angle point 0 itself owns.
+function clampAngleAwayFromRef(thetaDeg: number, refDeg: number, guardStraight = true): number {
   const delta = wrapDeg(thetaDeg - refDeg);
   const mag = Math.abs(delta);
-  if (mag >= MIN_BEND_ANGLE_DEG && mag <= MAX_BEND_ANGLE_DEG) return thetaDeg;
+  const tooOverlapped = mag < MIN_BEND_ANGLE_DEG;
+  const tooStraight = guardStraight && mag > MAX_BEND_ANGLE_DEG;
+  if (!tooOverlapped && !tooStraight) return thetaDeg;
   const sign = delta < 0 ? -1 : 1;
-  const clampedMag = mag < MIN_BEND_ANGLE_DEG ? MIN_BEND_ANGLE_DEG : MAX_BEND_ANGLE_DEG;
+  const clampedMag = tooOverlapped ? MIN_BEND_ANGLE_DEG : MAX_BEND_ANGLE_DEG;
   return refDeg + sign * clampedMag;
 }
 
@@ -407,7 +413,15 @@ function clampDragAngle(candidate: Point, idx: number, original: Point[]): Point
   const anchorFarNeighbor = mirrored ? original[idx + 2] : original[idx - 2];
   if (anchorFarNeighbor) {
     const phiBefore = (Math.atan2(anchorFarNeighbor.y - anchor.y, anchorFarNeighbor.x - anchor.x) * 180) / Math.PI;
-    theta = clampAngleAwayFromRef(theta, phiBefore);
+    // Point 0 (mirrored) has no leg before it — no bend angle of its own
+    // for this joint to protect. The only real hazard is leg0 folding
+    // exactly back onto leg1 (mag->0, guarded below regardless); a fully
+    // straightened run (leg0 collinear with, and opposite to, leg1) is an
+    // ordinary straight profile, not a degenerate one — and is exactly the
+    // "move point 0 further in/out along the leg" drag. Guarding it here
+    // was pulling that legitimate in/out drag off-axis. Every other
+    // (non-mirrored) vertex still protects its own straightened-joint case.
+    theta = clampAngleAwayFromRef(theta, phiBefore, !mirrored);
   }
   // Joint at idx itself: only applies in the non-mirrored case. It
   // protects the angle between the leg this drag is creating and the
@@ -989,6 +1003,22 @@ export default function FlashDraftPage() {
     downScreenPos: Point;
     towardStart: Point;
   } | null>(null);
+
+  // A pointerdown that lands near the LAST point is ambiguous, same as a
+  // vertex hit or a leg-body hit above: it could be the start of "continue
+  // the line" (drag away to extend), or it could just be a plain click
+  // meaning "select this vertex/segment." Deferring the decision until real
+  // movement is seen (same VERTEX_DRAG_THRESHOLD_PX pattern the two
+  // candidate refs above already use) fixes a real bug — previously this
+  // branch armed isDragDrawing immediately, with no threshold at all, so an
+  // ordinary click with only a few pixels of unavoidable mouse jitter (any
+  // real mouse, not a synthetic zero-movement click) was silently
+  // interpreted as "extend the line," appending a whole new leg the user
+  // never intended to draw. Confirmed live: clicking a leg near its free
+  // end to select it instead silently grew the profile (a second leg
+  // appearing, blank width jumping) with no drag gesture the user was
+  // consciously performing.
+  const continueLineCandidateRef = useRef<{ anchor: Point; downScreenPos: Point; prepend: boolean } | null>(null);
 
   const [material, setMaterial] = useState('');
   const [gauge, setGauge] = useState('');
@@ -1614,6 +1644,7 @@ export default function FlashDraftPage() {
     // gesture leaking in.
     legBodyDragCandidateRef.current = null;
     legReshapeGrabOffsetRef.current = null;
+    continueLineCandidateRef.current = null;
     prependDragRef.current = false;
 
     // Whole-profile move (afs-sv-004) — see the doc comment on
@@ -1688,23 +1719,19 @@ export default function FlashDraftPage() {
       return;
     }
 
-    // A click near the LAST point continues the line — checked before
-    // segment hit-testing, since the last point sits exactly on the last
-    // segment too. Without this, the single most natural drawing action
-    // (starting the next drag from where the pen currently is) would
-    // select that segment instead of extending from it.
+    // A click/drag near the LAST point is ambiguous, same as the vertex and
+    // leg-body hits above: it might be the start of "continue the line"
+    // (drag away to extend), or it might just be a plain click meaning
+    // "select this." Recorded as a deferred candidate (see
+    // continueLineCandidateRef's own comment) rather than committing to
+    // "continue the line" immediately — falls through to the normal
+    // segment hit-testing below, which finds this same segment (the last
+    // point sits exactly on the last segment too), so a plain click here
+    // selects it exactly like clicking anywhere else on the profile.
     const lastScreen = worldToScreen(points[points.length - 1], canvas);
     const distToLast = Math.hypot(screenPos.x - lastScreen.x, screenPos.y - lastScreen.y);
     if (distToLast <= HIT_RADIUS_PX) {
-      setSelectedBendPoint(null);
-      setSelectedSegment(null);
-      const anchor = points[points.length - 1];
-      dragAnchorRef.current = anchor;
-      dragDownScreenRef.current = screenPos;
-      setIsDragDrawing(true);
-      setDragPreview({ point: anchor, length: 0, angleDeg: 0 });
-      setDragScreenPos(screenPos);
-      return;
+      continueLineCandidateRef.current = { anchor: points[points.length - 1], downScreenPos: screenPos, prepend: false };
     }
 
     const segmentHit = hitTestSegmentAt(screenPos, canvas);
@@ -1782,6 +1809,7 @@ export default function FlashDraftPage() {
       isMovingProfile ||
       draggingVertexIndex !== null ||
       legBodyDragCandidateRef.current !== null ||
+      continueLineCandidateRef.current !== null ||
       isDragDrawing;
     if (e.buttons === 0 && dragStateArmed) {
       handlePointerUp();
@@ -1867,6 +1895,38 @@ export default function FlashDraftPage() {
           return { x: op.x + delta.x, y: op.y + delta.y, radius: op.radius };
         })
       );
+      return;
+    }
+
+    if (continueLineCandidateRef.current) {
+      // Resolve once, at the first sign of real movement — same deferred
+      // pattern as the vertex-hit and leg-body candidates. A plain click
+      // (no real movement) leaves this candidate to be discarded in
+      // handlePointerUp, and the segment/vertex selection already made in
+      // handlePointerDown stands as the outcome (see that branch's own
+      // comment) — it never silently appends a new point.
+      const candidate = continueLineCandidateRef.current;
+      const movedPx = Math.hypot(screenPos.x - candidate.downScreenPos.x, screenPos.y - candidate.downScreenPos.y);
+      if (movedPx < VERTEX_DRAG_THRESHOLD_PX) return; // still just a click, not a drag yet
+
+      continueLineCandidateRef.current = null;
+      // A real drag from here always means "continue the line," overriding
+      // whatever selection handlePointerDown made as its click-only guess —
+      // and takes priority over a leg-body-reshape candidate that may have
+      // armed on the very same pointerdown (the last point sits on the
+      // last segment too).
+      legBodyDragCandidateRef.current = null;
+      setSelectedBendPoint(null);
+      setSelectedSegment(null);
+      dragAnchorRef.current = candidate.anchor;
+      dragDownScreenRef.current = candidate.downScreenPos;
+      prependDragRef.current = candidate.prepend;
+      setIsDragDrawing(true);
+      const raw = screenToWorld(screenPos.x, screenPos.y, canvas);
+      const length = dist(candidate.anchor, raw);
+      const angleDeg = (Math.atan2(raw.y - candidate.anchor.y, raw.x - candidate.anchor.x) * 180) / Math.PI;
+      setDragPreview({ point: raw, length, angleDeg });
+      setDragScreenPos(screenPos);
       return;
     }
 
@@ -1971,6 +2031,7 @@ export default function FlashDraftPage() {
   const handlePointerUp = () => {
     legBodyDragCandidateRef.current = null;
     legReshapeGrabOffsetRef.current = null;
+    continueLineCandidateRef.current = null;
     // Read then reset, same pattern as the two refs above — this flag must
     // never survive past the gesture it belongs to, but the isDragDrawing
     // finalize branch below still needs to know which end THIS gesture was
@@ -3250,7 +3311,7 @@ export default function FlashDraftPage() {
                   type="number"
                   min="0"
                   max="11.875"
-                  step="0.125"
+                  step="any"
                   value={lengthInches}
                   onChange={(e) => setLengthInches(e.target.value)}
                   className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-1.5 font-data text-sm text-afs-chrome-high focus:outline-none focus:border-afs-crimson transition-colors"
