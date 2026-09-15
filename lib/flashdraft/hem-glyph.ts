@@ -42,20 +42,19 @@ const HEM_LINE_WIDTH = 2; // px, matches the leg stroke weight in page.tsx
 // hem's own fold material, real material added specifically for the hem
 // (see lib/types/profile.ts's own hemAllowanceIn, which already accounts
 // for exactly this extra material) — not backward over the leg.
-// Construction follows SMACNA/press-brake hem definitions:
+// Construction follows SMACNA/press-brake hem definitions for Open and
+// Smashed; Teardrop is drawn as a stylized icon rather than a literal
+// cross-section (see the type==='teardrop' branch below for why and for
+// the real 3D fold's own, differently-shaped, construction):
 //   Open: a 180-degree bend, U cross-section, with a visible air gap
 //     between the two flanges.
 //   Smashed: the same topology as Open, with the gap collapsed toward
 //     zero (crushed flush).
-//   Teardrop: an OPEN hook/curl, NOT a closed loop — confirmed against
-//     five real photographs of formed teardrop hems on real sheet metal.
-//     The material curves almost all the way around in a tight radius,
-//     then a short free tail continues past the curl WITHOUT closing
-//     back onto itself; a visible gap/opening remains between the tail
-//     and the rest of the curl in every reference photo. (An earlier,
-//     now-deleted construction built a closed tangent-circle loop —
-//     wrong topology, not just wrong proportions; see git history if
-//     that shape is ever needed for reference.)
+//   Teardrop: a closed oval, pointed at the tip and rounded at the free
+//     end — chosen for icon legibility (Reid, 2026-09-15) over an earlier
+//     open-hook/curl construction that more closely matched reference
+//     photos of a real formed teardrop hem. See git history for that
+//     construction if photographic accuracy is ever wanted here again.
 function drawHookGlyph(ctx: CanvasRenderingContext2D, R: number, gapPx: number): void {
   const Lh = R * 1.8; // flat/outward length — long enough to read as "a long piece", not a stub
   const gap = gapPx; // absolute screen px, driven by the real Hem.gapIn — independent of R
@@ -111,75 +110,54 @@ export function drawHemGlyph(
   if (type === 'open' || type === 'smashed') {
     drawHookGlyph(ctx, R, resolvedGapPx);
   } else {
-    // Teardrop — open hook/curl. Previous values (sweepDeg 310 / tailFrac
-    // 0.42 / TAIL_DIVERGE_DEG 20) rendered as an almost-unbroken circular
-    // arc with only a tiny stub past the sweep — confirmed live via
-    // app/studio/hem-debug/page.tsx (this exact function at 15x scale),
-    // where it was indistinguishable from a plain incomplete ring, not a
-    // curled/hooked tail. A short tail is the real problem regardless of
-    // its angle: a straight line already diverges from a circle's own
-    // curvature the longer it runs (a circle keeps bending away from any
-    // single tangent line), so length — not a sharper divergence angle —
-    // is what makes the tail read as its own stroke. Raising
-    // TAIL_DIVERGE_DEG instead (tried first) just aimed a short stub
-    // straight at the circle's center, reading as a stray mark rather than
-    // a tail. The combination below reads as a closed-looking curl with a
-    // distinct short hook of extra material crossing back near the tip —
-    // sweepDeg pulled back from 310 so the gap near the tip is real, not a
-    // sliver, tailFrac roughly doubled so the tail is long enough to
-    // register as a stroke of its own, and TAIL_DIVERGE_DEG left small
-    // (just enough to visibly separate the tail from the arc's own path
-    // near the tip, not to do the work of separating it).
-    const r = R * 0.8; // curl radius
-    const sweepDeg = 325; // how far around the curl sweeps — leaves a real gap near the tip
-    const tailFrac = 0.95; // free tail length as a fraction of r — long enough to read as its own stroke
-    // Stroke weight as a fraction of R, NOT the flat HEM_LINE_WIDTH
-    // Open/Smashed use (2px regardless of R) — at this shape's typical R
-    // (MIN_TEARDROP_R=14 up to ~50+ at higher zoom/thickness) a flat 2px
-    // reads anywhere from too-thick to too-thin depending on R, and at
-    // the large R used for isolated/debug renders it reads as a fat
-    // donut ring instead of a thin strip curling around empty space. A
-    // fixed 1.5px floor keeps it visible at the hem-type popup's small
-    // icon R, where R * factor alone would round to roughly a hairline.
+    // Teardrop — closed oval, pointed at the tip (local origin) and rounded
+    // at the free/outward end. Reid's explicit call (2026-09-15), made
+    // after reviewing this shape side by side against the prior open
+    // hook/curl construction (which was itself a deliberate fix for an
+    // even earlier closed-loop version — see git history for both): as a
+    // TYPE-SELECTOR ICON, a shape that reads instantly as "a teardrop"
+    // was judged more important here than matching the exact fold
+    // topology visible in reference photos of a formed hem. This only
+    // changes the 2D glyph (the popup icon, the hem-debug page, and the
+    // schematic fold annotation drawn on FlashDraft's own 2D canvas) —
+    // components/studio/ProfileViewer3D.tsx's buildTeardropFoldCenterline
+    // still builds the real to-scale 3D fold geometry as an open hook/curl
+    // for physical/material accuracy, which this glyph never drove
+    // directly anyway (see that function's own doc comment); the two are
+    // now intentionally different representations for different purposes,
+    // not a drift bug.
+    //
+    // Built from exact tangent-line-to-circle geometry (not an
+    // approximated bezier) so the point-to-round transition is a real
+    // tangent with no kink: a straight run from the tip to each of the
+    // bulb circle's two tangent points, then the long way around the
+    // circle's far side between them, closing back at the tip.
+    const bulbR = R * 0.55; // rounded end's radius, as a fraction of R
+    const centerDist = R * 1.35; // tip-to-bulb-center distance, as a fraction of R (> bulbR so the tip sits outside the circle)
     const TEARDROP_LINE_WIDTH_FACTOR = 0.11;
-    // How far the tail diverges INWARD (toward the circle's center) past
-    // pure-tangent, on top of the length itself doing most of the work of
-    // reading as a distinct tail (see the block comment above) — a little
-    // inward lean keeps the tail from starting out perfectly flush against
-    // the arc's own wall right at the point they meet.
-    const TAIL_DIVERGE_DEG = 15;
 
-    // Circle center directly above the origin so the curl starts tangent
-    // to the incoming leg direction (smooth transition, no kink).
-    const cx = 0;
-    const cy = r;
-    const thetaStart = (-90 * Math.PI) / 180; // this is the point (0,0)
-    const thetaEnd = thetaStart + (sweepDeg * Math.PI) / 180;
-
-    const arcEndX = cx + r * Math.cos(thetaEnd);
-    const arcEndY = cy + r * Math.sin(thetaEnd);
-    // Tangent direction at the arc's end, in the same increasing-theta
-    // direction the arc was swept in.
-    const tangentX = -Math.sin(thetaEnd);
-    const tangentY = Math.cos(thetaEnd);
-    // Rotate the tangent by TAIL_DIVERGE_DEG toward the circle's center —
-    // rotating a tangent vector +90° (via the standard (x,y) -> (-y,x)
-    // rotation) yields exactly the inward radial direction at that point,
-    // so a partial rotation by TAIL_DIVERGE_DEG (< 90°) moves the tail
-    // partway from pure-tangent toward center, not any other direction.
-    const divergeRad = (TAIL_DIVERGE_DEG * Math.PI) / 180;
-    const tailDirX = tangentX * Math.cos(divergeRad) - tangentY * Math.sin(divergeRad);
-    const tailDirY = tangentX * Math.sin(divergeRad) + tangentY * Math.cos(divergeRad);
-    const tailLen = tailFrac * r;
+    const cosBeta = bulbR / centerDist;
+    const sinBeta = Math.sqrt(Math.max(0, centerDist * centerDist - bulbR * bulbR)) / centerDist;
+    // The two points where a tangent line from the tip (0,0) touches the
+    // bulb circle, symmetric about the local x-axis.
+    const tanUpperX = centerDist - bulbR * cosBeta;
+    const tanUpperY = bulbR * sinBeta;
+    const tanLowerX = tanUpperX;
+    const tanLowerY = -tanUpperY;
+    const thetaUpper = Math.atan2(tanUpperY, tanUpperX - centerDist);
+    const thetaLower = Math.atan2(tanLowerY, tanLowerX - centerDist);
 
     ctx.lineWidth = Math.max(1.5, R * TEARDROP_LINE_WIDTH_FACTOR);
     ctx.beginPath();
     ctx.moveTo(0, 0);
-    ctx.arc(cx, cy, r, thetaStart, thetaEnd, false);
-    ctx.lineTo(arcEndX + tailDirX * tailLen, arcEndY + tailDirY * tailLen);
-    // No closePath — the tail ends in open space and must NOT reconnect
-    // to (0,0) or anywhere else, unlike Open/Smashed and the old
-    // closed-loop Teardrop.
+    ctx.lineTo(tanUpperX, tanUpperY);
+    // anticlockwise=true sweeps thetaUpper -> thetaLower the LONG way,
+    // through the circle's far side (away from the tip) — the short way
+    // would cut across near the tip and pinch the shape instead of
+    // rounding it.
+    ctx.arc(centerDist, 0, bulbR, thetaUpper, thetaLower, true);
+    ctx.lineTo(0, 0);
+    ctx.closePath();
     ctx.stroke();
   }
   ctx.restore();

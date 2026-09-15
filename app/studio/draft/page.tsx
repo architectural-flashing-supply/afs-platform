@@ -26,7 +26,7 @@ import {
 import BendSequenceDiagram from '@/components/studio/BendSequenceDiagram';
 import SubmitConfirmation3DModal, { type PaintFace } from '@/components/studio/SubmitConfirmation3DModal';
 import MatchedProfile3DModal from '@/components/studio/MatchedProfile3DModal';
-import { isPaintedMaterial, resolveSelectedPaintColor } from '@/lib/utils/paint-appearance';
+import { isPaintedMaterial, resolveSelectedPaintColor, BARE_METAL_COLOR } from '@/lib/utils/paint-appearance';
 import ProfileDetailsModal, { type ProfileDetailsFormValues } from '@/components/studio/ProfileDetailsModal';
 import VariantPicker from '@/components/studio/VariantPicker';
 import Toast from '@/components/ui/Toast';
@@ -3580,6 +3580,9 @@ export default function FlashDraftPage() {
                     profileName={profileName}
                     hemStart={hemStart}
                     hemEnd={hemEnd}
+                    paintFace={paintFaceSelectable ? paintFace : undefined}
+                    paintColor={paintFaceSelectable ? resolvedPaintColor : undefined}
+                    bareColor={paintFaceSelectable ? BARE_METAL_COLOR : undefined}
                     className="w-full h-full"
                   />
                 </div>
