@@ -833,10 +833,26 @@ function HemGlyphIcon({ type }: { type: HemType }) {
     canvas.height = HEM_ICON_SIZE * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, HEM_ICON_SIZE, HEM_ICON_SIZE);
-    // angleRad=0 (local +x = screen +x) with the glyph's own -x-only
-    // shapes anchored near the icon's right edge, so the material reads
-    // left-to-right within the square.
-    drawHemGlyph(ctx, { x: HEM_ICON_SIZE * 0.68, y: HEM_ICON_SIZE * 0.5 }, 0, type, HEM_ICON_GLYPH_R);
+    // angleRad=0 (local +x = screen +x). hem-glyph.ts's own coordinate
+    // convention (see its file header) builds every shape spanning FROM
+    // the tip OUTWARD into +x ONLY — confirmed for both branches: the
+    // hook (drawHookGlyph) reaches a max local x of Lh = R*1.8, and the
+    // teardrop reaches centerDist + bulbR = R*1.5 + R*0.6 = R*2.1 (its
+    // bulb circle is centered at local x=R*1.5 with radius R*0.6). Anchor
+    // the tip near the icon's LEFT edge, not the right — this used to
+    // anchor at 0.68 (assuming -x-only shapes, which contradicted
+    // hem-glyph.ts's actual +x convention even before the 2026-09-15
+    // teardrop rework) and silently clipped almost the entire teardrop
+    // bulb off the 34px-wide canvas (circle spanned local x=10.8..25.2,
+    // i.e. canvas x=33.9..48.3 against a 34px-wide box) — the popup
+    // icon rendered as just the two tangent lines (a "<" wedge), not a
+    // teardrop, even though drawHemGlyph's own math was correct.
+    // fitFraction leaves a small margin on both sides for HEM_ICON_GLYPH_R's
+    // worst-case (teardrop) reach of R*2.1: at HEM_ICON_GLYPH_R=12 that's
+    // 25.2px of a 34px-wide canvas, so anchoring the tip at 10% (3.4px)
+    // leaves ~5.4px of margin on the right and ~3.4px on the left.
+    const tipXFraction = 0.1;
+    drawHemGlyph(ctx, { x: HEM_ICON_SIZE * tipXFraction, y: HEM_ICON_SIZE * 0.5 }, 0, type, HEM_ICON_GLYPH_R);
   }, [type]);
   return <canvas ref={iconCanvasRef} width={HEM_ICON_SIZE} height={HEM_ICON_SIZE} style={{ width: HEM_ICON_SIZE, height: HEM_ICON_SIZE }} />;
 }
