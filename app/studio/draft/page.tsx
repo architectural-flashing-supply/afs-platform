@@ -209,6 +209,20 @@ const CANVAS_COLORS = {
   hemLine: '#C0001A', // afs-crimson — hem fold/gap/teardrop rendering (DESIGN_TOKENS.md §10)
 };
 
+// Green "move mode" cursor shown while whole-profile move (afs-sv-004,
+// Alt+drag) is actively dragging — matches the Pathfinder-familiar move
+// affordance Steve expects. CSS `cursor` can't consume Tailwind classes or
+// CSS custom properties any more than a 2D canvas context can, so this is a
+// literal-hex value under the same documented exception as CANVAS_COLORS
+// above (DESIGN_TOKENS.md §10) rather than a new precedent. Inline SVG data
+// URI (a 4-way move-arrows glyph) with a `grabbing` keyword fallback for any
+// browser that can't parse a custom cursor image.
+const MOVE_CURSOR_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">' +
+  '<path d="M12 1 L8.5 5.5 H11 V10.5 H6 V8 L1.5 12 L6 16 V13.5 H11 V18.5 H8.5 L12 23 L15.5 18.5 H13 V13.5 H18 V16 L22.5 12 L18 8 V10.5 H13 V5.5 H15.5 Z" ' +
+  'fill="#00FF00" stroke="#111111" stroke-width="1"/></svg>';
+const MOVE_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(MOVE_CURSOR_SVG)}") 12 12, grabbing`;
+
 const PIXELS_PER_INCH = 20;
 const CANVAS_MIN_WIDTH = 600;
 const CANVAS_MIN_HEIGHT = 440;
@@ -1675,7 +1689,7 @@ export default function FlashDraftPage() {
       hasMovedProfileRef.current = false;
       setSelectedBendPoint(null);
       setSelectedSegment(null);
-      canvas.style.cursor = 'grabbing';
+      canvas.style.cursor = MOVE_CURSOR;
       return;
     }
 
@@ -2078,7 +2092,16 @@ export default function FlashDraftPage() {
       // the undo stack, same no-op guard the vertex-drag/leg-reshape
       // gestures elsewhere in this file already apply.
       if (hasMovedProfileRef.current && moveProfileOriginRef.current) {
-        setPast((p) => [...p, { points: moveProfileOriginRef.current!.points, hemStart, hemEnd }]);
+        // Captured into a plain local BEFORE moveProfileOriginRef.current is
+        // nulled below — setPast's updater callback runs later, during
+        // React's next render/commit, not synchronously here. Reading the
+        // ref directly inside that callback (as this used to) meant it saw
+        // whatever the ref held BY THEN, which was already null (the very
+        // next line nulls it), crashing every real Alt+drag move with
+        // "Cannot read properties of null (reading 'points')" the instant
+        // the drag was released. Confirmed via Playwright.
+        const originalPoints = moveProfileOriginRef.current.points;
+        setPast((p) => [...p, { points: originalPoints, hemStart, hemEnd }]);
         setFuture([]);
       }
       setIsMovingProfile(false);
