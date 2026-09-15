@@ -69,6 +69,19 @@ function drawHookGlyph(ctx: CanvasRenderingContext2D, R: number, gapPx: number):
   ctx.stroke();
 }
 
+// Fallback gap (as a fraction of R) used only when a caller doesn't pass an
+// explicit gapPx — the real canvas draw loop always passes one, computed
+// from the hem's own gapIn (see draw-profile-scene.ts), but preview-only
+// callers with no live hem yet (the type-selector popup icons, the
+// hem-debug page) previously all fell back to the SAME literal (R * 0.7)
+// regardless of type, so Open and Smashed rendered as pixel-identical hooks
+// — the two hem types differ ONLY by how closed their gap is, and a shared
+// default erased that difference entirely. Resolving the fallback per-type
+// here, in the one shared function, means every current and future
+// preview-only call site gets a correct, distinct shape for free.
+const OPEN_DEFAULT_GAP_FACTOR = 0.75; // ample daylight — reads as unmistakably open
+const SMASHED_DEFAULT_GAP_FACTOR = 0.08; // crushed nearly flush, not literally 0 (keeps the fold's rounded cap visible instead of degenerating to a bare line)
+
 export function drawHemGlyph(
   ctx: CanvasRenderingContext2D,
   tip: GlyphPoint,
@@ -76,8 +89,10 @@ export function drawHemGlyph(
   type: HemType,
   R: number = HEM_GLYPH_R,
   mirror: boolean = false,
-  gapPx: number = R * 0.7
+  gapPx?: number
 ): void {
+  const resolvedGapPx =
+    gapPx ?? R * (type === 'smashed' ? SMASHED_DEFAULT_GAP_FACTOR : OPEN_DEFAULT_GAP_FACTOR);
   ctx.save();
   ctx.translate(tip.x, tip.y);
   ctx.rotate(angleRad);
@@ -94,28 +109,45 @@ export function drawHemGlyph(
   ctx.lineCap = 'round';
 
   if (type === 'open' || type === 'smashed') {
-    drawHookGlyph(ctx, R, gapPx);
+    drawHookGlyph(ctx, R, resolvedGapPx);
   } else {
-    // Teardrop — open hook/curl. sweepDeg/tailFrac are Reid-confirmed as
-    // roughly right; TEARDROP_LINE_WIDTH_FACTOR and TAIL_DIVERGE_DEG below
-    // are this pass's fixes, still flagged for live visual tuning against
-    // his reference photos, NOT yet confirmed correct.
+    // Teardrop — open hook/curl. Previous values (sweepDeg 310 / tailFrac
+    // 0.42 / TAIL_DIVERGE_DEG 20) rendered as an almost-unbroken circular
+    // arc with only a tiny stub past the sweep — confirmed live via
+    // app/studio/hem-debug/page.tsx (this exact function at 15x scale),
+    // where it was indistinguishable from a plain incomplete ring, not a
+    // curled/hooked tail. A short tail is the real problem regardless of
+    // its angle: a straight line already diverges from a circle's own
+    // curvature the longer it runs (a circle keeps bending away from any
+    // single tangent line), so length — not a sharper divergence angle —
+    // is what makes the tail read as its own stroke. Raising
+    // TAIL_DIVERGE_DEG instead (tried first) just aimed a short stub
+    // straight at the circle's center, reading as a stray mark rather than
+    // a tail. The combination below reads as a closed-looking curl with a
+    // distinct short hook of extra material crossing back near the tip —
+    // sweepDeg pulled back from 310 so the gap near the tip is real, not a
+    // sliver, tailFrac roughly doubled so the tail is long enough to
+    // register as a stroke of its own, and TAIL_DIVERGE_DEG left small
+    // (just enough to visibly separate the tail from the arc's own path
+    // near the tip, not to do the work of separating it).
     const r = R * 0.8; // curl radius
-    const sweepDeg = 310; // how far around the curl sweeps
-    const tailFrac = 0.42; // free tail length as a fraction of r
+    const sweepDeg = 325; // how far around the curl sweeps — leaves a real gap near the tip
+    const tailFrac = 0.95; // free tail length as a fraction of r — long enough to read as its own stroke
     // Stroke weight as a fraction of R, NOT the flat HEM_LINE_WIDTH
     // Open/Smashed use (2px regardless of R) — at this shape's typical R
     // (MIN_TEARDROP_R=14 up to ~50+ at higher zoom/thickness) a flat 2px
     // reads anywhere from too-thick to too-thin depending on R, and at
     // the large R used for isolated/debug renders it reads as a fat
-    // donut ring instead of a thin strip curling around empty space.
-    const TEARDROP_LINE_WIDTH_FACTOR = 0.09; // within Reid's requested 0.08–0.10 range
+    // donut ring instead of a thin strip curling around empty space. A
+    // fixed 1.5px floor keeps it visible at the hem-type popup's small
+    // icon R, where R * factor alone would round to roughly a hairline.
+    const TEARDROP_LINE_WIDTH_FACTOR = 0.11;
     // How far the tail diverges INWARD (toward the circle's center) past
-    // pure-tangent — a pure-tangent tail is invisible as a separate
-    // element because it blends into the outer curl wall; diverging
-    // inward opens daylight between the tail and the curl, matching the
-    // gap visible in every one of Reid's reference photos.
-    const TAIL_DIVERGE_DEG = 20;
+    // pure-tangent, on top of the length itself doing most of the work of
+    // reading as a distinct tail (see the block comment above) — a little
+    // inward lean keeps the tail from starting out perfectly flush against
+    // the arc's own wall right at the point they meet.
+    const TAIL_DIVERGE_DEG = 15;
 
     // Circle center directly above the origin so the curl starts tangent
     // to the incoming leg direction (smooth transition, no kink).
@@ -140,7 +172,7 @@ export function drawHemGlyph(
     const tailDirY = tangentX * Math.sin(divergeRad) + tangentY * Math.cos(divergeRad);
     const tailLen = tailFrac * r;
 
-    ctx.lineWidth = R * TEARDROP_LINE_WIDTH_FACTOR;
+    ctx.lineWidth = Math.max(1.5, R * TEARDROP_LINE_WIDTH_FACTOR);
     ctx.beginPath();
     ctx.moveTo(0, 0);
     ctx.arc(cx, cy, r, thetaStart, thetaEnd, false);

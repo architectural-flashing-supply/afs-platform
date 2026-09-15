@@ -1945,7 +1945,19 @@ export default function FlashDraftPage() {
 
       legBodyDragCandidateRef.current = null;
 
-      const farVertex = candidate.legIndex + 1;
+      // Every leg's body-drag reshapes it by moving whichever endpoint is
+      // the "loose" one — the one whose own drag doesn't translate the rest
+      // of the chain (see the idx===0 mirrored branch below and
+      // clampDragAngle's own `mirrored` comment). For every leg except the
+      // first, that's the higher-index endpoint (legIndex + 1): point 0 sits
+      // fixed while the tail from there on translates. Leg 0 is the one
+      // exception — point 0 itself is the loose end there, and point 1 is
+      // the shared joint the rest of the chain hangs off, so grabbing leg
+      // 0's body must drag point 0, not point 1. Without this special case,
+      // grabbing anywhere along leg 0 except its exact tip dragged point 1
+      // instead — moving the wrong end and stretching the leg rather than
+      // swinging its free end (afs-sv-003 follow-up).
+      const farVertex = candidate.legIndex === 0 ? 0 : candidate.legIndex + 1;
       const farOriginal = points[farVertex];
       legReshapeGrabOffsetRef.current = { x: candidate.clickPoint.x - farOriginal.x, y: candidate.clickPoint.y - farOriginal.y };
       setSelectedBendPoint(null);
