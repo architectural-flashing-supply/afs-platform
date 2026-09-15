@@ -132,8 +132,8 @@ export function drawHemGlyph(
     // tangent with no kink: a straight run from the tip to each of the
     // bulb circle's two tangent points, then the long way around the
     // circle's far side between them, closing back at the tip.
-    const bulbR = R * 0.55; // rounded end's radius, as a fraction of R
-    const centerDist = R * 1.35; // tip-to-bulb-center distance, as a fraction of R (> bulbR so the tip sits outside the circle)
+    const bulbR = R * 0.6; // rounded end's radius, as a fraction of R
+    const centerDist = R * 1.5; // tip-to-bulb-center distance, as a fraction of R (> bulbR so the tip sits outside the circle)
     const TEARDROP_LINE_WIDTH_FACTOR = 0.11;
 
     const cosBeta = bulbR / centerDist;
@@ -162,3 +162,5 @@ export function drawHemGlyph(
   }
   ctx.restore();
 }
+
+
