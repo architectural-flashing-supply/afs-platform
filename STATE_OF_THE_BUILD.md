@@ -34,6 +34,71 @@ summary, not a replacement for it.
 
 ---
 
+## HOMEPAGE REDESIGN PHASE 3 — SIDEBAR REMOVED, HERO RE-ARCHITECTED, CAROUSEL REDESIGNED (hpd-007): IMPLEMENTED, UNCONFIRMED (2026-09-16)
+
+A follow-up prompt reported the hero, carousel, and header logo were "wrong"
+and specified a different target architecture than hpd-004/hpd-006 shipped:
+no desktop logo sidebar, hero split as shop-floor video (not the phone
+mockup) left / copy right, carousel as a full-width white band with bold
+plain-text client names instead of bordered cards on a dark background, and
+the phone-mockup video back below the fold in `FieldAppStory`. Implemented
+as specified, not treated as a revert of hpd-004/hpd-006 — the client
+carousel and services pages from those passes are unaffected.
+
+**Gates:** `pnpm tsc --noEmit` — 0 errors. `pnpm build` — succeeds, all
+routes compile. `tests/e2e/homepage.spec.ts` updated (`SECTION_SLUGS`
+reordered, hero video assertion repointed at `hero-metal-fabrication.mp4`,
+a new field-app phone-mockup-video assertion added, hero CTA assertions
+repointed at the new "Start Your Project"/"View Our Work" copy) — 34
+passed, 1 skipped (auth-gated), 0 failed.
+
+- **Logo sidebar removed:** `NavBar.tsx`'s fixed 120px full-height left rail
+  (added in hpd-004) is deleted outright, along with its `SIDEBAR_WIDTH`
+  constant and `AppChrome.tsx`'s matching `md:pl-[120px]`. The compact logo
+  Link (previously `md:hidden`, mobile-only) is now unconditional — logo
+  lives only in the header row at every breakpoint, 40x40 mark + "AFS", no
+  tagline. `AfsLogo.tsx`'s `sidebar` variant (mark + "AFS" + tagline,
+  hpd-004/Phase 2 follow-up) is deleted as dead code — it was only ever
+  called from the now-removed rail — and the `variant` prop is dropped
+  entirely since `compact` was the only remaining option.
+- **Hero rewritten again:** `app/components/hero/HeroSection.tsx`'s left
+  column is no longer `PhoneMockupVideo` — it's the raw
+  `hero-metal-fabrication.mp4/.webm` shop-floor footage (the same clip the
+  pre-hpd-004 hero used), `object-cover`, with the same
+  prefers-reduced-motion gate that clip's original hero implementation used
+  (sources only attach post-mount once the media query is checked, so the
+  poster is always the first paint). Right column: new eyebrow/H1/
+  subheading/CTA copy ("Custom Metal Fabrication" / "From Concept to
+  Delivery. Fast." / Start Your Project → `/quote`, View Our Work →
+  `/about/services`).
+- **Carousel redesigned:** `components/home/ClientCarousel.tsx` is now a
+  full-width (`w-full`, no `max-w-*` wrapper) `bg-white` band — the
+  `HomeSection` wrapper it renders inside has no width constraint of its
+  own, so this reaches true viewport edges. Client names render as plain
+  bold Bebas Neue text (no card/border/shadow), alternating
+  `text-afs-crimson`/`text-afs-ink-900` (the two afs-* tokens meant for
+  text on a light surface — the `chrome-*` tokens used elsewhere on this
+  page are near-white and would be invisible here). Marquee duration
+  changed from ~80s (5s × 16 names) to a flat 5s full-cycle per this pass's
+  spec, still a pure-CSS `@keyframes` marquee with pause-on-hover, no
+  client JS.
+- **Phone mockup restored below the fold:** `PhoneMockupVideo` (the
+  `three-step-process` montage) is removed from the hero and re-embedded in
+  `FieldAppStory.tsx` next to the existing 3-step copy, matching its
+  pre-hpd-004 role. Gained a `loop` attribute (previously played once);
+  `object-contain` framing (fixed in the Phase 2 follow-up, 2026-09-16
+  entry above) is unchanged. `app/page.tsx`'s section order changed:
+  `field-app` now sits directly after `client-carousel`, ahead of
+  `credibility` (was hero → carousel → credibility → field-app).
+
+**Not yet done / carried over unresolved:** the `hp 1.mp4`/`hp 2.mp4`/
+`hp 3.mp4` untracked files flagged in the hpd-006 entry below are still
+present and still untouched by this pass — not referenced by any of the
+changes here. No user confirmation yet that the new hero/carousel/header
+render correctly in a real browser — session self-testing only (Playwright
+screenshots at 1440px and 375px), per this file's own verification standard
+above.
+
 ## HOMEPAGE REDESIGN PHASE 2 FOLLOW-UP — VIDEO OBJECT-FIT + LOGO TAGLINE FIXED, NOT REVERTED (2026-09-16)
 
 A follow-up prompt reported "Phase 2 is broken" and asked for a full

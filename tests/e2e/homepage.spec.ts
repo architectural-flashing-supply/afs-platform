@@ -13,14 +13,17 @@ import { test, expect, type Page } from '@playwright/test';
 const PRICE_PATTERN = /\$[\d,]+(\.\d{2})?/;
 
 // Document order asserted by app/page.tsx's own <HomeSection slug="..."> wrapper
-// sequence — twelve real sections as of hpd-004/hpd-006 (was eleven at
-// hpc-003; the split-screen hero redesign added a new client-carousel
-// section right after hero — see ClientCarousel.tsx).
+// sequence — twelve real sections as of hpd-007 (was eleven at hpc-003; the
+// split-screen hero redesign added a new client-carousel section right
+// after hero — see ClientCarousel.tsx). field-app now sits directly after
+// client-carousel (ahead of credibility) so the phone-mockup/three-step
+// story follows straight on from the trust band, per the hero/carousel
+// architecture fix.
 const SECTION_SLUGS = [
   'hero',
   'client-carousel',
-  'credibility',
   'field-app',
+  'credibility',
   'design-studio',
   'design-to-delivery',
   'pathways',
@@ -68,14 +71,28 @@ for (const viewport of VIEWPORTS) {
       expect(slugs).toEqual(SECTION_SLUGS);
     });
 
-    test('hero phone-mockup video declares an mp4 source and a poster', async ({ page }) => {
-      // hpd-004: the hero no longer has a full-bleed background video --
-      // PhoneMockupVideo (the three-step-process montage, moved here from
-      // FieldAppStory) is the only <video> left inside [data-section="hero"].
+    test('hero shop-floor video declares an mp4 source and a poster', async ({ page }) => {
+      // hpd-007: split-screen hero restored -- raw shop-floor fabrication
+      // footage fills the left column, no phone mockup inside the hero.
       await page.goto('/');
       const heroVideo = page.locator('[data-section="hero"] video');
       await expect(heroVideo).toHaveAttribute('poster', '/images/hero-poster.jpg');
       const mp4Source = heroVideo.locator('source[type="video/mp4"]');
+      await expect(mp4Source).toHaveAttribute('src', '/videos/hero-metal-fabrication.mp4');
+    });
+
+    test('field-app phone-mockup video declares an mp4 source, a poster, and loops', async ({ page }) => {
+      // hpd-007: PhoneMockupVideo (three-step-process montage) moved back
+      // below the fold into FieldAppStory, alongside the "Photo to Quote"
+      // steps copy.
+      await page.goto('/');
+      const phoneVideo = page.locator('[data-section="field-app"] video');
+      // Below the fold: PhoneMockupVideo only attaches <source> once its
+      // IntersectionObserver (rootMargin 200px) sees it near the viewport.
+      await phoneVideo.scrollIntoViewIfNeeded();
+      await expect(phoneVideo).toHaveAttribute('poster', '/images/hero-poster.jpg');
+      await expect(phoneVideo).toHaveAttribute('loop', '');
+      const mp4Source = phoneVideo.locator('source[type="video/mp4"]');
       await expect(mp4Source).toHaveAttribute('src', '/videos/three-step-process.mp4');
     });
 
@@ -197,18 +214,19 @@ test.describe('Homepage navigation and footer', () => {
 });
 
 test.describe('Homepage CTAs retargeted off the removed profile-explorer section (hpc-003)', () => {
-  // hpd-004 replaced the old single-CTA full-bleed hero with a split-screen
-  // dual-CTA design -- "See How It's Made" / #shop-floor no longer exists.
-  test('hero dual CTAs resolve to /studio/draft and /quote', async ({ page }) => {
+  // hpd-007 restored the split-screen hero's dual CTAs as "Start Your
+  // Project" / "View Our Work" -- "Design Your Profile" / "Request a Quote"
+  // no longer exist inside the hero.
+  test('hero dual CTAs resolve to /quote and /about/services', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
     const hero = page.locator('[data-section="hero"]');
 
-    const primaryCTA = hero.getByRole('link', { name: 'Design Your Profile' });
-    await expect(primaryCTA).toHaveAttribute('href', '/studio/draft');
+    const primaryCTA = hero.getByRole('link', { name: 'Start Your Project' });
+    await expect(primaryCTA).toHaveAttribute('href', '/quote');
 
-    const secondaryCTA = hero.getByRole('link', { name: 'Request a Quote' });
-    await expect(secondaryCTA).toHaveAttribute('href', '/quote');
+    const secondaryCTA = hero.getByRole('link', { name: 'View Our Work' });
+    await expect(secondaryCTA).toHaveAttribute('href', '/about/services');
   });
 
   test('final-CTA "Custom Profiles" button points at /architects/custom-profiles, which returns 200', async ({

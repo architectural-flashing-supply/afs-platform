@@ -24,6 +24,35 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## HOMEPAGE REDESIGN PHASE 3 (hpd-007) — 2026-09-16
+
+Follow-up prompt specified a different target than hpd-004/hpd-006 shipped
+for the hero/carousel/header. Full detail in STATE_OF_THE_BUILD.md's
+matching entry (top of file) — summary here for handoff:
+
+- Deleted `NavBar.tsx`'s fixed 120px desktop logo sidebar (from hpd-004)
+  and `AppChrome.tsx`'s matching `md:pl-[120px]`. Logo lives only in the
+  header row now, at every breakpoint — compact mark + "AFS", no tagline.
+  `AfsLogo.tsx`'s now-unused `sidebar` variant (and the `variant` prop
+  itself) deleted.
+- `HeroSection.tsx`'s left column is the raw `hero-metal-fabrication`
+  shop-floor video again (not `PhoneMockupVideo`), same
+  prefers-reduced-motion gating the pre-hpd-004 hero used. Right column:
+  new copy + CTAs (Start Your Project → `/quote`, View Our Work →
+  `/about/services`).
+- `ClientCarousel.tsx` redesigned as a full-width `bg-white` band — bold
+  plain-text names (no cards/borders), alternating crimson/ink-900, 5s
+  marquee cycle.
+- `PhoneMockupVideo` moved back out of the hero into `FieldAppStory.tsx`
+  (below the fold, next to the 3-step copy), gained a `loop` attribute.
+  `app/page.tsx` section order: `field-app` now follows `client-carousel`
+  directly, ahead of `credibility`.
+- `tests/e2e/homepage.spec.ts` updated to match (section order, hero video
+  src, new field-app video assertion, new hero CTA copy/hrefs) — 34
+  passed, 1 skipped, 0 failed.
+- Same as every entry above: gates pass, but no user has confirmed the
+  actual behavior live yet — IMPLEMENTED, UNCONFIRMED.
+
 ## HOMEPAGE REDESIGN PHASE 2 FOLLOW-UP — 2026-09-16
 
 A "Phase 2 is broken, revert all 7 commits" request turned out, on
