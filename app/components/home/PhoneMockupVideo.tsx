@@ -90,33 +90,37 @@ export default function PhoneMockupVideo({
 
   return (
     <div ref={wrapRef} className="flex w-full justify-center">
-      {/* CSS-only phone device frame -- no third-party image asset */}
-      <div className="relative aspect-[9/19.5] w-[260px] rounded-[2.5rem] border-[6px] border-afs-bg-overlay bg-afs-bg-dim p-2 shadow-raised metal-edge">
+      {/* CSS-only phone device frame -- no third-party image asset. No
+          padding between the border and the video (a previous p-2 bezel +
+          separate inner rounded div left a visible gap all the way around
+          the video, reading as a small box floating inside the frame) --
+          the border itself is the only thing between the video and the
+          frame edge, and overflow-hidden clips the video to the same
+          rounded corners as the border. */}
+      <div className="relative aspect-[9/19.5] w-[260px] overflow-hidden rounded-[2.5rem] border-[6px] border-afs-bg-overlay bg-afs-bg-dim shadow-raised metal-edge">
         <div className="absolute left-1/2 top-3 z-10 h-[6px] w-[70px] -translate-x-1/2 rounded-full bg-afs-bg-dim" />
-        <div className="relative h-full w-full overflow-hidden rounded-[1.9rem] bg-afs-bg-dim">
-          <video
-            ref={videoRef}
-            // object-cover is safe here (no crop trade-off): the -portrait
-            // source's own canvas aspect already matches this frame almost
-            // exactly (1080x2340 vs. this container's 9:19.5), so there's
-            // nothing left to crop.
-            className="absolute inset-0 h-full w-full object-cover"
-            poster="/images/hero-poster.jpg"
-            autoPlay
-            muted
-            loop
-            playsInline
-            preload="metadata"
-            aria-hidden="true"
-          >
-            {videoEnabled && (
-              <>
-                <source src={videoSources.webm} type="video/webm" />
-                <source src={videoSources.mp4} type="video/mp4" />
-              </>
-            )}
-          </video>
-        </div>
+        <video
+          ref={videoRef}
+          // object-cover is safe here (no crop trade-off): the -portrait
+          // source's own canvas aspect already matches this frame almost
+          // exactly (1080x2340 vs. this container's 9:19.5), so there's
+          // nothing left to crop.
+          className="absolute inset-0 h-full w-full object-cover"
+          poster="/images/hero-poster.jpg"
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          aria-hidden="true"
+        >
+          {videoEnabled && (
+            <>
+              <source src={videoSources.webm} type="video/webm" />
+              <source src={videoSources.mp4} type="video/mp4" />
+            </>
+          )}
+        </video>
       </div>
     </div>
   );
