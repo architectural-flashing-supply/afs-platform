@@ -133,7 +133,7 @@ export default function NavBar() {
         className="hidden md:flex fixed inset-y-0 left-0 z-40 flex-col items-center justify-center bg-afs-bg-raised border-r border-afs-border"
         style={{ width: SIDEBAR_WIDTH }}
       >
-        <AfsLogo variant="mark" size={80} />
+        <AfsLogo variant="sidebar" />
       </Link>
 
       <header
@@ -142,7 +142,7 @@ export default function NavBar() {
       {/* Mobile-only: compact logo embedded in the header row itself, since
           there's no left rail below md to hold it. */}
       <Link href="/" className="md:hidden flex items-center shrink-0">
-        <AfsLogo variant="wordmark" size={44} />
+        <AfsLogo variant="compact" />
       </Link>
 
       <div className="hidden md:flex items-center gap-8">

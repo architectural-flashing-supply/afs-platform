@@ -10,7 +10,7 @@ export default function Footer() {
           {/* Brand */}
           <div>
             <div className="mb-4">
-              <AfsLogo variant="wordmark" size={36} />
+              <AfsLogo variant="compact" />
             </div>
             <p className="font-body text-sm text-afs-chrome-base leading-relaxed mb-4">
               Architectural Flashing Supply. Custom sheet metal fabrication for contractors and architects.
