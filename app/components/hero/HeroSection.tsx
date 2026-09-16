@@ -51,28 +51,28 @@ export default function HeroSection() {
           </video>
         </div>
 
-        {/* Right column: light/white palette (a deliberate break from the
-            dark gunmetal used everywhere else) with a faint architectural
-            blueprint grid behind the copy. No external photo asset exists
-            for this (public/images has no blueprint stock), so the grid is
-            a self-contained inline SVG pattern instead of a background-image
-            -- afs-* tokens throughout via `currentColor`/`stop-color`, no
-            hardcoded hex per CLAUDE.md rule 4. */}
-        <div className="relative flex flex-col justify-center overflow-hidden bg-white px-6 py-16 md:px-12 md:py-16">
-          <svg
-            className="pointer-events-none absolute inset-0 h-full w-full text-afs-ink-900/[0.06]"
-            aria-hidden="true"
-            preserveAspectRatio="none"
-          >
-            <defs>
-              <pattern id="hero-blueprint-grid" width="80" height="80" patternUnits="userSpaceOnUse">
-                <path d="M 80 0 L 0 0 0 80" fill="none" stroke="currentColor" strokeWidth="1" />
-                <path d="M 20 0 L 20 80 M 40 0 L 40 80 M 60 0 L 60 80 M 0 20 L 80 20 M 0 40 L 80 40 M 0 60 L 80 60" fill="none" stroke="currentColor" strokeWidth="0.5" />
-              </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#hero-blueprint-grid)" />
-          </svg>
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white via-white to-afs-chrome-silver/10" />
+        {/* Right column: light palette (a deliberate break from the dark
+            gunmetal used everywhere else) over a real architectural
+            blueprint photo (public/images/blueprint-bg.jpg -- Amsterdam
+            City Archives building-elevation blueprint, via Unsplash,
+            downloaded with Reid's explicit in-chat confirmation and
+            downscaled/compressed for web: 6251x4376 6.1MB -> 1800x1260
+            268KB). The photo is a deep navy blue, not the "light blue"
+            originally described, so the fade overlay below goes most of
+            the way to opaque white by the time it reaches the copy --
+            otherwise afs-ink-900 text wouldn't have safe contrast against
+            it. Left edge (near the video seam) stays closer to the raw
+            photo; text/CTAs sit under a near-solid white wash. */}
+        <div
+          className="relative flex flex-col justify-center overflow-hidden bg-afs-chrome-high bg-cover bg-center px-6 py-16 md:px-12 md:py-16"
+          style={{ backgroundImage: "url('/images/blueprint-bg.jpg')" }}
+        >
+          {/* Fade overlay built from the afs-chrome-high token (== #FFFFFF)
+              at varying opacity via Tailwind's theme()-in-arbitrary-value
+              syntax, not a raw rgba()/white literal -- CLAUDE.md rule 4. */}
+          <div
+            className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,theme(colors.afs.chrome-high/25%)_0%,theme(colors.afs.chrome-high/94%)_55%,theme(colors.afs.chrome-high/97%)_100%)]"
+          />
 
           <div className="relative z-10">
             <p className="font-label text-xs font-semibold uppercase tracking-widest text-afs-crimson">
