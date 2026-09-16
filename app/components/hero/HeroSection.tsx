@@ -1,76 +1,53 @@
-'use client';
-
-import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import PhoneMockupVideo from '@/app/components/home/PhoneMockupVideo';
 
+// Split-screen hero (hpd-004) -- replaces the prior full-bleed
+// hero-metal-fabrication.mp4 background hero. The phone-mockup video that
+// used to live below the fold in FieldAppStory (hp-005) is now the left
+// column here instead; see PhoneMockupVideo.tsx and FieldAppStory.tsx's own
+// comment for why that video isn't duplicated in both places.
 export default function HeroSection() {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [videoEnabled, setVideoEnabled] = useState(false);
-
-  useEffect(() => {
-    const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-
-    const applyPreference = (reduceMotion: boolean) => {
-      setVideoEnabled(!reduceMotion);
-      if (reduceMotion) videoRef.current?.pause();
-    };
-
-    applyPreference(motionQuery.matches);
-    const handleChange = (e: MediaQueryListEvent) => applyPreference(e.matches);
-    motionQuery.addEventListener('change', handleChange);
-    return () => motionQuery.removeEventListener('change', handleChange);
-  }, []);
-
   return (
-    <section className="relative min-h-[100svh] w-full overflow-hidden bg-afs-bg-dim">
-      <video
-        ref={videoRef}
-        className="absolute inset-0 h-full w-full object-cover"
-        poster="/images/hero-poster.jpg"
-        autoPlay
-        muted
-        loop
-        playsInline
-        preload="metadata"
-        aria-hidden="true"
-      >
-        {/* Sources are only attached once mounted and reduced-motion has been
-            checked, so the poster is always what paints first — no video byte
-            fetch competes with it for LCP. */}
-        {videoEnabled && (
-          <>
-            <source src="/videos/hero-metal-fabrication.webm" type="video/webm" />
-            <source src="/videos/hero-metal-fabrication.mp4" type="video/mp4" />
-          </>
-        )}
-      </video>
+    <section className="relative w-full overflow-hidden bg-gradient-to-br from-afs-bg-dim to-afs-bg-base">
+      <div className="relative mx-auto grid min-h-[600px] max-w-7xl grid-cols-1 items-center gap-12 px-6 py-16 md:grid-cols-2 md:px-10 md:py-20">
+        <div className="flex w-full justify-center">
+          <PhoneMockupVideo />
+        </div>
 
-      <div className="absolute inset-0 bg-gradient-to-br from-afs-bg-dim/70 via-afs-bg-dim/45 to-afs-bg-dim/60" />
+        <div className="flex flex-col justify-center gap-8 border-afs-crimson md:border-l-2 md:pl-12">
+          <div>
+            <p className="font-label text-xs font-semibold uppercase tracking-widest text-afs-chrome-mid">
+              Start Your Project
+            </p>
+            <h1 className="mt-3 font-display leading-none text-afs-chrome-high text-4xl sm:text-5xl md:text-[4rem]">
+              Design Your Profile. Get Your Quote. Ship Fast.
+            </h1>
+            <p className="mt-6 max-w-lg font-body text-lg text-afs-chrome-mid">
+              Whether you&apos;re an architect, contractor, or GC — AFS handles custom
+              fabrication from concept to delivery.
+            </p>
+          </div>
 
-      <div className="relative z-10 mx-auto flex min-h-[100svh] max-w-7xl flex-col justify-end px-6 pb-16 pt-28 md:justify-center md:px-10 md:pb-28">
-        <div className="flex max-w-3xl flex-col justify-center">
-          <h1 className="font-display leading-none text-afs-chrome-high text-5xl sm:text-6xl md:text-7xl lg:text-[7rem]">
-            SHOW US THE DETAIL. WE&apos;LL FORM IT.
-          </h1>
+          <div className="flex flex-col gap-8">
+            <div className="flex flex-col gap-4 sm:flex-row">
+              <Link
+                href="/studio/draft"
+                className="rounded bg-afs-crimson px-8 py-4 text-center font-label text-sm font-semibold text-white metal-edge-red shadow-crimson transition-colors hover:bg-afs-crimson-hover"
+              >
+                Design Your Profile
+              </Link>
+              <Link
+                href="/quote"
+                className="rounded border border-afs-border px-8 py-4 text-center font-label text-sm font-semibold text-afs-chrome-mid transition-colors hover:bg-afs-bg-surface"
+              >
+                Request a Quote
+              </Link>
+            </div>
 
-          <p className="mt-6 max-w-lg font-body text-lg text-afs-chrome-mid md:text-xl">
-            Custom architectural metal flashing, fabricated to exact specification in
-            Texas and delivered nationwide.
-          </p>
-
-          <div className="mt-10 flex flex-wrap gap-4">
-            <Link
-              href="/design-studio"
-              className="rounded bg-afs-crimson px-8 py-4 font-label text-sm font-semibold text-white metal-edge-red shadow-crimson transition-colors hover:bg-afs-crimson-hover"
-            >
-              Start a Quote
-            </Link>
-            <Link
-              href="#shop-floor"
-              className="rounded border border-[var(--afs-border)] px-8 py-4 font-label text-sm font-semibold text-afs-chrome-mid transition-colors hover:bg-afs-bg-surface"
-            >
-              See How It&apos;s Made
-            </Link>
+            <p className="max-w-md font-body text-sm text-afs-chrome-dim">
+              Upload drawings, get real-time estimates, or use our design studio to
+              build exactly what you need.
+            </p>
           </div>
         </div>
       </div>
