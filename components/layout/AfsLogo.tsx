@@ -9,9 +9,9 @@ const MARK_SRC = '/afs-logo-512.png';
 
 export default function AfsLogo({ className = '' }: { className?: string }) {
   return (
-    <div className={`flex flex-row items-center space-x-2 ${className}`}>
-      <Image src={MARK_SRC} alt="" width={40} height={40} className="object-contain" />
-      <span className="font-display text-xl text-afs-chrome-high">AFS</span>
+    <div className={`flex flex-row items-center space-x-3 ${className}`}>
+      <Image src={MARK_SRC} alt="" width={64} height={64} className="object-contain" />
+      <span className="font-display text-3xl font-bold text-afs-chrome-high">AFS</span>
     </div>
   );
 }

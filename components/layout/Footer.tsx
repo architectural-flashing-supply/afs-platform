@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import AfsLogo from './AfsLogo';
 
 export default function Footer() {
   return (
@@ -7,13 +6,14 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-6 py-16">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
 
-          {/* Brand */}
+          {/* Brand -- text only, no logo mark (the header is the one place
+              the logo renders; see NavBar.tsx). */}
           <div>
-            <div className="mb-4">
-              <AfsLogo />
-            </div>
+            <h2 className="font-label text-sm font-bold uppercase tracking-widest text-afs-chrome-high mb-3">
+              AFS — Architectural Flashing Supply
+            </h2>
             <p className="font-body text-sm text-afs-chrome-base leading-relaxed mb-4">
-              Architectural Flashing Supply. Custom sheet metal fabrication for contractors and architects.
+              Custom sheet metal fabrication for contractors and architects.
             </p>
             <p className="font-body text-sm text-afs-chrome-base leading-relaxed">
               209 Sure Cast Drive<br />Burnet, Texas 78611

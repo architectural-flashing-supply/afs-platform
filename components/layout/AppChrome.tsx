@@ -30,7 +30,7 @@ export default function AppChrome({ children }: { children: React.ReactNode }) {
   return (
     <>
       <NavBar />
-      <div className="pt-14">
+      <div className="pt-20">
         {children}
         <Footer />
       </div>
