@@ -24,6 +24,39 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## HOMEPAGE REDESIGN PHASE 5 (hpd-009) — 2026-09-16
+
+Follow-up clarifying hero-background vs. phone-mockup-video are different
+sections, asking for a real blueprint photo (not hpd-008's SVG grid) and a
+real fix for the phone video's framing. Full detail in
+STATE_OF_THE_BUILD.md's matching entry (top of file) — summary here for
+handoff:
+
+- The supplied Unsplash URL was checked before asking to download it and
+  turned out to not be a blueprint at all (a circuit-board repair photo) —
+  flagged, not used. Searched Unsplash directly, verified candidates via
+  low-res preview, got Reid's confirmation on one (Amsterdam City Archives
+  building-elevation blueprint), downloaded with confirmation, downscaled
+  6.1MB→268KB, saved to `public/images/blueprint-bg.jpg`. Hero's right
+  column now uses it as a real background-image with a fade overlay
+  (afs-chrome-high token via Tailwind's `theme()` syntax, not raw rgba).
+- Phone-mockup video's "zoomed in" complaint was a real crop-position bug,
+  not a sizing bug — extracted and inspected actual video frames, found
+  `object-cover`'s default center crop showed **blank background** for 2
+  of 3 segments (FlashDraft-canvas segment was 100% empty grid). Fixed
+  with `object-[25%_center]`, verified against extracted-frame crops
+  before committing to it.
+- Logo re-audited (single `<AfsLogo/>` in NavBar, zero in Footer, single
+  mount path) — already correct from hpd-008, no code change.
+- Flagged, not touched: 6 more untracked files appeared in
+  `public/images/`/`public/videos/` mid-session (3 WhatsApp images, 1
+  `shop pic.png`, 1 ChatGPT-generated image, 1 WhatsApp video) — same
+  pattern as the `hp N.mp4` files flagged before, not from this session's
+  own work.
+- `tests/e2e/homepage.spec.ts` +2 tests — 46 passed, 1 skipped, 0 failed.
+- IMPLEMENTED, UNCONFIRMED per this file's own verification standard —
+  gates pass, no user confirmation of live behavior yet.
+
 ## HOMEPAGE REDESIGN PHASE 4 (hpd-008) — 2026-09-16
 
 13-task follow-up covering logo, hero, carousel, phone mockup, both "how it

@@ -259,6 +259,26 @@ test.describe('Homepage overhaul (hpd-008)', () => {
     await expect(footer.getByText('AFS — Architectural Flashing Supply')).toBeVisible();
   });
 
+  test('hero right column has a real blueprint background image, not a plain white fill', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const hero = page.locator('[data-section="hero"]');
+    const rightColumn = hero.locator('div.grid > div').nth(1);
+    const backgroundImage = await rightColumn.evaluate((el) => getComputedStyle(el).backgroundImage);
+    expect(backgroundImage).toContain('blueprint-bg.jpg');
+  });
+
+  test('field-app phone-mockup video crops at 25% (not dead-center) so the subject stays in frame', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const phoneVideo = page.locator('[data-section="field-app"] video');
+    await phoneVideo.scrollIntoViewIfNeeded();
+    const objectPosition = await phoneVideo.evaluate((el) => getComputedStyle(el).objectPosition);
+    expect(objectPosition).toBe('25% 50%');
+  });
+
   test('client carousel spells "Hays ISD" correctly and scrolls slowly (14s cycle)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');

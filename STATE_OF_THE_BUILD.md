@@ -34,6 +34,66 @@ summary, not a replacement for it.
 
 ---
 
+## HOMEPAGE REDESIGN PHASE 5 — REAL BLUEPRINT PHOTO, PHONE VIDEO CROP FIX, LOGO RE-VERIFIED (hpd-009): IMPLEMENTED, UNCONFIRMED (2026-09-16)
+
+A tightly-scoped follow-up clarifying that the hero's right-column
+background and FieldAppStory's phone-mockup video are two different things
+(the prior pass's own summary risked conflating them) and asking for a
+real blueprint photo, not the inline-SVG grid pattern hpd-008 shipped.
+
+**Gates:** `pnpm tsc --noEmit` — 0 errors. `pnpm build` — succeeds.
+`tests/e2e/homepage.spec.ts` (2 new tests in the existing "Homepage
+overhaul (hpd-008)" block) — 46 passed, 1 skipped, 0 failed.
+
+- **Hero blueprint image:** the prompt supplied a specific Unsplash URL
+  (`photo-1581092918056-0c4c3acd3789`) and said "do not guess." Per this
+  project's own file-download rule, downloading needed Reid's explicit
+  in-chat go-ahead even with the URL already given -- and checking the URL
+  first (before asking) found it was **not a blueprint**: a photo of
+  someone repairing a circuit board. Flagged rather than used. Searched
+  Unsplash directly for real architectural blueprint photos, verified 3
+  candidates visually (downloaded low-res previews, not full files, before
+  asking), and got Reid's confirmation on one: an Amsterdam City Archives
+  building-elevation blueprint (`photo-1721244654392-9c912a6eb236`). Full
+  file downloaded with confirmation, downscaled 6251x4376/6.1MB ->
+  1800x1260/268KB, saved to `public/images/blueprint-bg.jpg`.
+  `HeroSection.tsx`'s right column now sets it as a real CSS
+  `background-image` (replacing hpd-008's inline-SVG grid placeholder) with
+  a left-to-right fade overlay. The photo is a deep navy blue, not "light
+  blue" as originally described, so the overlay goes to ~94-97% white
+  opacity by the point the copy sits, not the ~30% a lighter photo could
+  have gotten away with -- otherwise the existing afs-ink-900 text
+  wouldn't have safe contrast. Overlay and the container's own base fill
+  are built from the `afs-chrome-high` token (`#FFFFFF`) via Tailwind's
+  `theme()`-in-arbitrary-value syntax (`bg-[linear-gradient(...,theme(colors.afs.chrome-high/94%),...)]`),
+  not a raw `rgba()`/`white` literal, per CLAUDE.md rule 4.
+- **Phone-mockup video crop:** the prior pass's `object-cover` (needed to
+  fill the frame at all) was still reported "zoomed in." Root-caused by
+  extracting and inspecting actual frames from all 3 concatenated segments,
+  not guessed: `object-cover`'s default center crop was showing **near-
+  empty background** for 2 of the 3 segments (the FlashDraft-canvas segment
+  was 100% blank grid, no diagram visible at all -- the real diagram sits
+  left-of-center in the source frame) -- not a sizing bug, a crop-position
+  bug. Fixed with `object-[25%_center]` (verified against extracted-frame
+  crops before committing to it): keeps the actual subject in frame across
+  all 3 segments instead of blank background. `object-cover` itself is
+  unchanged/still deliberate (see the hpd-008 entry below for why
+  `object-contain` isn't used).
+- **Logo:** re-audited per this prompt's explicit "check for a duplicate"
+  ask -- `NavBar.tsx` renders exactly one `<AfsLogo />` (confirmed via
+  grep across the codebase and a single `app/layout.tsx` -> `AppChrome` ->
+  `NavBar` mount path, no duplicate render path found), `Footer.tsx`
+  renders zero (removed in hpd-008). No code change; the concern appears
+  already resolved by hpd-008, not yet seen live by Reid.
+
+**Flagged, not touched:** six more untracked files appeared in
+`public/images/`/`public/videos/` mid-session (three `WhatsApp Image
+2026-09-16 at 12.2*.jpeg`, one `shop pic.png`, one `ChatGPT Image Sep 16,
+2026, 12_38_45 PM.png`, one `WhatsApp Video 2026-09-16 at 12.21.48
+PM.mp4`) -- not created by this session's own work, same pattern as the
+`hp 1/2/3.mp4` files flagged in the hpd-006 entry below. Left uncommitted,
+flagged to Reid, not deleted or referenced by any code in this pass.
+
 ## HOMEPAGE REDESIGN PHASE 4 — COMPREHENSIVE OVERHAUL: LOGO, HERO BG, CAROUSEL, COPY, MAP, SERVICES (hpd-008): IMPLEMENTED, UNCONFIRMED (2026-09-16)
 
 A 13-task follow-up prompt covering the header logo, hero, carousel, phone
