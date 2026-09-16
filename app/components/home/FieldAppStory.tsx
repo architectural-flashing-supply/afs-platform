@@ -4,12 +4,6 @@ import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 
-// Phone screen plays a short 0-7s cut of the same hero clip used in
-// HeroSection (app/components/hero/HeroSection.tsx) -- looping the
-// timeupdate handler back to 0 keeps it to a 6-8s cut without a second
-// trimmed video asset.
-const CLIP_END_SECONDS = 7;
-
 const STEPS = [
   {
     number: '01',
@@ -70,13 +64,6 @@ export default function FieldAppStory() {
     return () => observer.disconnect();
   }, []);
 
-  const handleTimeUpdate = () => {
-    const video = videoRef.current;
-    if (video && video.currentTime >= CLIP_END_SECONDS) {
-      video.currentTime = 0;
-    }
-  };
-
   return (
     <section ref={sectionRef} className="relative overflow-hidden bg-afs-bg-base py-20 md:py-28">
       {/* Real jobsite installation detail (flashing-1.jpg, per
@@ -107,16 +94,14 @@ export default function FieldAppStory() {
                 poster="/images/hero-poster.jpg"
                 autoPlay
                 muted
-                loop
                 playsInline
                 preload="metadata"
-                onTimeUpdate={handleTimeUpdate}
                 aria-hidden="true"
               >
                 {videoEnabled && (
                   <>
-                    <source src="/videos/hero-metal-fabrication.webm" type="video/webm" />
-                    <source src="/videos/hero-metal-fabrication.mp4" type="video/mp4" />
+                    <source src="/videos/three-step-process.webm" type="video/webm" />
+                    <source src="/videos/three-step-process.mp4" type="video/mp4" />
                   </>
                 )}
               </video>

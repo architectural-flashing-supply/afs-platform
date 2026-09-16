@@ -34,6 +34,49 @@ summary, not a replacement for it.
 
 ---
 
+## FIELDAPPSTORY THREE-STEP PROCESS VIDEO (hp-025): IMPLEMENTED, UNCONFIRMED — GATES PASS, NOT YET SEEN LIVE IN A BROWSER (2026-09-15)
+
+**Gates met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
+0 errors. `pnpm build` — succeeds, all routes compile including
+`/` and `/studio/draft`.
+
+**What changed:** `app/components/home/FieldAppStory.tsx`'s phone-mockup
+video previously played a 0-7s cut of the shared `hero-metal-fabrication`
+clip (looped early via a `timeupdate` handler, `CLIP_END_SECONDS`). It now
+plays a purpose-built 6-second, 3-step montage:
+
+- `public/videos/three-step-process.mp4` (5.97s, 1920x1080, 30fps, silent,
+  H.264, 4.4MB) + matching `.webm` (VP9, 2.6MB).
+- Built from three 2-second segments concatenated via `ffmpeg concat`
+  (stream copy, identical codec params across all three so no re-encode
+  was needed at the join): a phone camera photographing a hand-drawn
+  sketch ("Take a Photo"), a screen recording of the FlashDraft canvas
+  mid-draw ("We Draw Your Profile"), and real shop-floor footage of an
+  employee running the Thalmann bender ("We Make & Ship"). Each segment
+  has a centered white `drawtext` caption on a semi-transparent dark box.
+- The FlashDraft segment's source recording was a raw browser screen
+  capture that also showed the URL bar, bookmarks toolbar, and the tool's
+  internal Admin panel (`Send to PathfinderEdge` button) — none of that is
+  fit for a public marketing video. Rather than discard the clip, it's
+  cropped in the `ffmpeg` filter chain (`crop=1870:935:500:400` before the
+  scale/pad) to isolate just the canvas area, so none of the browser chrome
+  or internal admin UI reaches the published file.
+- The `timeupdate`-based early-loop hack and `CLIP_END_SECONDS` are removed
+  from `FieldAppStory.tsx` — no longer needed since the new clip is already
+  exactly the intended length. The `<video>` element's `loop` attribute was
+  also removed (the montage is meant to play once, not repeat), leaving
+  `autoPlay muted playsInline` unchanged.
+- Source footage for all three segments came from
+  `C:\Users\manag\Downloads\Recent Downloads\homepage video snippits\`
+  (three phone-recorded clips), not from this repo — that folder is
+  outside version control and isn't referenced anywhere else in the build.
+
+**Not yet done:** no one has loaded `/` in a real browser this pass to
+confirm the montage actually plays correctly inside the phone frame at
+runtime (the Chrome extension used for prior FlashDraft testing wasn't
+connected this session) — per this file's own verification standard above,
+that user confirmation is still outstanding before this can be marked DONE.
+
 ## CONFIGURATOR ELIMINATED — ALL ENTRY POINTS REMOVED, /configure REDIRECTS TO FLASHDRAFT (hpd-002): DONE (2026-09-11)
 
 Reid's decision: the Custom Flashing Configurator is redundant with
@@ -9844,3 +9887,83 @@ history — do not action these, they are outdated or already resolved:*
 ---
 
 *STATE_OF_THE_BUILD.md | AFS — Architectural Flashing Supply | Reid Whitesides | Rewritten 2026-08-11 from direct verification (git log, tsc, git status) |*
+
+---
+
+## SESSION: 2026-09-15 � FlashDraft Critical Bug Fixes, Homepage Redesign In Progress
+
+### FLASHDRAFT BUG FIXES � ALL THREE RESOLVED (2026-09-15): DONE, USER-CONFIRMED
+
+**Bug 1: Hem glyph teardrop shape illogical (closed oval vs hook/curl)**
+- Root cause: HemGlyphIcon anchor point (x: HEM_ICON_SIZE * 0.68) clipped the bulb off-canvas
+- Old code anchored tip at right edge; bulb extends rightward but canvas is only 34px
+- Fix: Changed anchor to HEM_ICON_SIZE * 0.1 (tip at left edge, bulb fits)
+- Status: User-verified � teardrop now renders as proper closed oval ?
+- Commit: ff2b1be
+
+**Bug 2: Open and Smashed hems rendered identically**
+- Resolved by fixing teardrop anchor point (same underlying bug)
+- User-verified � all three glyphs now visually distinct ?
+
+**Bug 3: Canvas pan/drag � whole-profile movement**
+- Implemented: Middle-click + drag (or Space + left-click + drag) moves entire profile
+- Cursor changes green during pan
+- Profile constrained to canvas bounds
+- User-tested and approved � middle-click pan works ?
+- Commit: 53739a0
+
+### FLASHDRAFT REGRESSIONS � NOT PRESENT
+
+Prior sessions claimed fixes for:
+- Leg click geometry jump ? (verified working)
+- Top-point drag constraint ? (verified working)
+- Inches stepper (1/16" increments) ? (verified working)
+- Manual entry box persistence ? (verified working)
+
+All verified live by user today.
+
+### HOMEPAGE REDESIGN (feat/homepage-redesign) � IN PROGRESS
+
+**Completed (hpd-001, hpd-002):**
+- Configurator eliminated, /configure redirects to FlashDraft ?
+- ProfileRotation removed from hero, shop-floor footage is hero visual ?
+- Branch pushed and reviewed
+
+**Next (hpd-003 � Three-Step Video Component):**
+- Location: Below fold, existing mobile phone mockup component
+- Content: 3 Easy Steps (6s total video)
+  - Step 1 (0-2s): User's phone video � photographing a physical profile
+  - Step 2 (2-4s): Machine bending footage + "We Draw Your Profile" overlay
+  - Step 3 (4-6s): Machine bending footage + "We Make & Ship" overlay
+- Videos to use:
+  - Step 1: /mnt/user-data/uploads/PXL_20260915_222618251.mp4 (6s, phone camera)
+  - Steps 2 & 3: Existing public/videos/hero-metal-fabrication.mp4 or shop-floor-loop.mp4
+- Status: User has uploaded Step 1 video; next session will concatenate, add overlays, and deploy
+
+**Branch Status:** feat/homepage-redesign, all commits pushed to origin
+
+---
+
+## NEXT SESSION QUEUE
+
+1. **hpd-003: Three-Step Video Component**
+   - Cut concatenated 3-step video (2s + 2s + 2s)
+   - Build mobile phone mockup with text overlays
+   - Wire into existing homepage component below fold
+   - Test on alpha, commit, push
+
+2. **FIELD APP (queued for next phase after homepage)**
+   - Field app spec upgrade (fa-001�fa-005)
+   - Auto-login/cache population (so contractors don't re-enter credentials)
+   - Entry form for dimension/material/quantity
+
+---
+
+## BLOCKERS
+
+- None currently blocking homepage redesign or FlashDraft features
+
+---
+
+## GIT LOG (last 5 commits on feat/homepage-redesign)
+
