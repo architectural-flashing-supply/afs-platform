@@ -26,7 +26,10 @@ export default function HeroSection() {
 
   return (
     <section className="relative w-full overflow-hidden bg-afs-bg-base">
-      <div className="grid min-h-[700px] grid-cols-1 items-stretch md:grid-cols-2">
+      {/* min-h-[560px] (was 700px): at 700px, the hero + fixed 80px header
+          left almost nothing above the fold for ClientCarousel below it on
+          a typical ~900px viewport -- see that component's own comment. */}
+      <div className="grid min-h-[560px] grid-cols-1 items-stretch md:grid-cols-2">
         <div className="relative min-h-[320px] w-full overflow-hidden">
           <video
             ref={videoRef}

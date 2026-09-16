@@ -80,7 +80,11 @@ export default function ClientCarousel() {
     <section
       aria-label="Trusted clients carousel"
       role="region"
-      className="w-full bg-white py-12"
+      // py-8 (was py-12): the hero above this was also shortened (700px ->
+      // 560px) since the two changes together are what actually gets this
+      // band showing above the fold on a typical ~900px viewport -- a
+      // padding trim on this section alone can't undo the hero's own height.
+      className="w-full bg-white py-8"
     >
       <p className="text-center font-label text-xs font-semibold uppercase tracking-widest text-afs-ink-700">
         Trusted By Industry Leaders
