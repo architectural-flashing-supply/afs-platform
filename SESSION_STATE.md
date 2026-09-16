@@ -24,6 +24,40 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## HOMEPAGE REDESIGN PHASE 1 + 2 (hpd-003..hpd-006) — 2026-09-15
+
+Full detail in STATE_OF_THE_BUILD.md's matching entry (top of file) —
+summary here for handoff:
+
+- Rebuilt `three-step-process.mp4/.webm` (no text overlay, per Reid);
+  fixed the "25 Standard Profiles" stat, mobile-only Field App CTA,
+  Contact page "President" label, and Footer's real logo.
+- New `AfsLogo.tsx`; `NavBar.tsx` now renders a fixed full-height 120px
+  left logo rail on desktop (was an 80px top-left box) — **global, not
+  homepage-only** — with `AppChrome.tsx` clearing it via `md:pl-[120px]`.
+  Visually checked on `/`, `/studio/draft`, `/products`, `/contact` at
+  both breakpoints; no regressions found (session self-test only).
+- `HeroSection.tsx` rewritten as a split-screen: the phone-mockup video
+  (extracted to `PhoneMockupVideo.tsx`) on the left, new headline + dual
+  CTAs (`/studio/draft`, `/quote`) on the right. `FieldAppStory.tsx` is
+  now text-only (its video moved into the hero, not duplicated).
+- New `/about/services` (5-card grid, one shared expandable detail panel)
+  and `/about/services/submittal` (breadcrumb, placeholder profile grid +
+  modal, process timeline, pricing) — both under `app/(public)/` to match
+  the existing route-group convention. New `ClientCarousel.tsx` (16 real
+  client names, confirmed by Reid, no logos) wired between hero and
+  credibility on the homepage.
+- `tests/e2e/homepage.spec.ts` updated — 3 assertions were stale against
+  this session's own intentional changes (missing `client-carousel`
+  section, old hero video src, removed single hero CTA). Full `tests/e2e/`
+  suite: 52 passed, 13 skipped (auth-gated), 0 failed.
+- Flagged, not deleted: three untracked `hp N.mp4` files (~137MB) that
+  appeared in `public/videos/` mid-session, not from this session's own
+  work — duplicates of clips already in use elsewhere.
+- Everything marked IMPLEMENTED, UNCONFIRMED per this file's own
+  verification standard above — gates pass, but no user has confirmed
+  the actual behavior live yet.
+
 ## CONFIGURATOR ELIMINATED (hpd-002) — 2026-09-11
 
 Reid's decision: the Custom Flashing Configurator is redundant with

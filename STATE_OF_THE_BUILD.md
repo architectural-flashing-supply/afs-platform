@@ -34,6 +34,97 @@ summary, not a replacement for it.
 
 ---
 
+## HOMEPAGE REDESIGN PHASE 1 + 2 — VIDEO, LOGO SIDEBAR, HERO SPLIT-SCREEN, SERVICES PAGES, CLIENT CAROUSEL (hpd-003..hpd-006): IMPLEMENTED, UNCONFIRMED (2026-09-15)
+
+**Per this file's own verification standard above:** every gate below was
+run directly this pass (not assumed), but nothing in this entry has been
+independently confirmed by the user in a real browser yet — marked
+IMPLEMENTED, UNCONFIRMED throughout, not COMPLETE, on that basis alone.
+
+**Gates:** `pnpm tsc --noEmit` — 0 errors (checked fresh after every
+sub-task below, not just once at the end). `pnpm build` — succeeds, all
+routes compile including the two new `/about/services*` pages. Playwright:
+full `tests/e2e/` suite run against a live dev server — 52 passed, 13
+skipped (auth-gated, no `E2E_TEST_EMAIL`/`E2E_TEST_PASSWORD` in this
+environment), 0 failed. `tests/e2e/homepage.spec.ts` needed updating —
+three assertions were stale against this session's own intentional
+changes (`SECTION_SLUGS` missing the new `client-carousel` section, the
+hero video's expected `src` still pointing at the retired
+`hero-metal-fabrication.mp4`, and the removed single hero CTA);
+see that commit for detail.
+
+**Phase 1 fixes (not separately ID'd, folded in here since they landed the
+same session):** `three-step-process.mp4/.webm` rebuilt from the
+Take-a-Photo / FlashDraft-draw / shop-floor clips (see hp-025 below for
+the original build); `ShopFloorProof.tsx`'s "25 Standard Profiles" stat
+tile is now "Unlimited / Custom Profiles"; `FieldAppStory.tsx`'s Field App
+CTA row is `md:hidden` (mobile-only — installing/opening a PWA doesn't
+apply on desktop); `app/(public)/contact/page.tsx`'s "Owner" label is now
+"President"; `Footer.tsx`'s plain-text "AFS" badge is now the real
+`<AfsLogo />`.
+
+**hpd-004 — Logo sidebar + hero split-screen:**
+- New `components/layout/AfsLogo.tsx` (`mark`/`wordmark` variants —
+  nothing reusable existed before). `NavBar.tsx` desktop now renders a
+  fixed, full-height 120px left logo rail (`border-afs-border`) instead of
+  an 80px-tall top-left box; mobile reverts to a compact 44px wordmark
+  embedded in the header row. `AppChrome.tsx` gained `md:pl-[120px]` to
+  clear it. **This is global, not homepage-only** — every non-portal page
+  now has this rail on desktop. Visually checked (Playwright screenshots,
+  this session) at 1440px and 375px on `/`, `/studio/draft` (FlashDraft —
+  width-sensitive, confirmed no squeeze/overlap), `/products`, `/contact`;
+  no regressions found, but this is session self-testing, not user
+  confirmation.
+- `app/components/hero/HeroSection.tsx` rewritten from the old full-bleed
+  `hero-metal-fabrication.mp4` background hero to a two-column split:
+  left = the phone-mockup video (extracted into new
+  `app/components/home/PhoneMockupVideo.tsx` so `FieldAppStory.tsx`,
+  which used to own it, doesn't duplicate it — see that file's own
+  comment), right = new eyebrow/H1/subheading copy + two CTAs
+  (`/studio/draft`, `/quote`). The old single CTA
+  ("See How It's Made" → `#shop-floor`) is gone by design.
+
+**hpd-005 — Services pages:** `app/(public)/about/services/page.tsx`
+(new) — 5-card grid (2/2/1 centered layout), each card's "Learn More"
+drives one shared expandable panel below the grid (full description, key
+benefits, numbered process steps, CTA), not a per-card inline expansion.
+Only Submittal Services' full detail content was supplied directly; the
+other four services' benefits/process copy was written to match that
+pattern, describing AFS's own already-real service offerings — not
+invented facts about any client or third party.
+`app/(public)/about/services/submittal/page.tsx` (new) — breadcrumb, full
+hero copy (as supplied), a 24-item **placeholder** profile grid
+(gunmetal/crimson gradient cards, `TODO` comment pointing at
+`public/images/profiles/` once real photography exists per this file's
+own DATA BLOCKERS table), click-to-expand modal, 4-step process timeline,
+pricing section, bottom CTA. No testimonial/case-study section — no real
+quote or client attribution for submittal work exists to use, and this
+task's own instructions explicitly permitted skipping it rather than
+inventing one. Both pages moved into `app/(public)/` (matching
+`contact`/`about`/`products`' existing route-group convention) rather
+than left at the originally-specified `app/about/services/`, which would
+have been the only public page outside that group.
+
+**hpd-006 — Client carousel:** New `components/home/ClientCarousel.tsx`,
+wired into `app/page.tsx` between `hero` and `credibility`. 16 real client
+names (no logos — avoids any trademark/logo-usage risk), confirmed
+directly by Reid in-session as real, existing AFS client relationships —
+NASA is independently corroborated by the `NASA_Johnson_Space_Center.png`
+credential already live in `CaseStudies.tsx` from a prior session. Pure
+CSS marquee (duplicated list + `@keyframes` translateX, pause-on-hover via
+a plain `:hover` rule) — no client-side JS state needed, so the component
+needs no `'use client'`. Mobile: static single-column stack, no
+animation, per this task's own explicit fallback.
+
+**Not yet done / explicitly out of scope this pass:** the `?service=`
+query param on the new pages' quote CTAs (e.g. `/contact?service=submittal`)
+is inert — the contact form has no matching field to prefill, and building
+that was a separate, unscoped task. Three files (`hp 1.mp4`, `hp 2.mp4`,
+`hp 3.mp4`, untracked, ~137MB combined) appeared in `public/videos/`
+mid-session, not created by this session's own work — confirmed to be
+duplicates of the same three source clips already in use; left uncommitted,
+flagged to Reid, not deleted.
+
 ## FIELDAPPSTORY THREE-STEP PROCESS VIDEO (hp-025): IMPLEMENTED, UNCONFIRMED — GATES PASS, NOT YET SEEN LIVE IN A BROWSER (2026-09-15)
 
 **Gates met this pass, run directly, not assumed:** `pnpm tsc --noEmit` —
