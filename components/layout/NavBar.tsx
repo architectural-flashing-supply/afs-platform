@@ -8,9 +8,9 @@ import AfsLogo from './AfsLogo';
 
 // Exported so any full-width fixed/absolute element anchored near the top of
 // the viewport (e.g. app/hailview/page.tsx's map background) can clear the
-// header row's real height. h-20 (80px) gives the oversized 64px logo mark
-// room to breathe without the header feeling cramped.
-export const LOGO_HEIGHT = 80;
+// header row's real height. h-24 (96px) gives the 76px logo mark (with its
+// AFS + tagline stack) room to breathe without the header feeling cramped.
+export const LOGO_HEIGHT = 96;
 
 const TOP_NAV_LINKS = [
   { label: 'Products', href: '/products' },
@@ -119,7 +119,7 @@ export default function NavBar() {
   return (
     <>
       <header
-        className="fixed top-0 inset-x-0 z-40 h-20 bg-afs-bg-raised border-b border-afs-chrome-dim flex items-center justify-between gap-4 px-4 md:px-8"
+        className="fixed top-0 inset-x-0 z-40 h-24 bg-afs-bg-raised border-b border-afs-chrome-dim flex items-center justify-between gap-4 px-4 md:px-8"
       >
       <Link href="/" className="flex items-center shrink-0">
         <AfsLogo />
