@@ -93,7 +93,7 @@ for (const viewport of VIEWPORTS) {
       await expect(phoneVideo).toHaveAttribute('poster', '/images/hero-poster.jpg');
       await expect(phoneVideo).toHaveAttribute('loop', '');
       const mp4Source = phoneVideo.locator('source[type="video/mp4"]');
-      await expect(mp4Source).toHaveAttribute('src', '/videos/three-step-process.mp4');
+      await expect(mp4Source).toHaveAttribute('src', '/videos/three-step-process-portrait.mp4');
     });
 
     test('hero renders with zero console errors and no canvas element', async ({ page }) => {
@@ -244,12 +244,16 @@ test.describe('Homepage CTAs retargeted off the removed profile-explorer section
 });
 
 test.describe('Homepage overhaul (hpd-008)', () => {
-  test('header logo has no separate sidebar, and the mark renders oversized (64px)', async ({ page }) => {
+  test('header logo has no separate sidebar, the mark renders oversized (76px), and the tagline is present', async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
-    const headerLogoImg = page.locator('header img');
+    const header = page.locator('header');
+    const headerLogoImg = header.locator('img');
     await expect(headerLogoImg).toHaveCount(1);
-    await expect(headerLogoImg).toHaveAttribute('width', '64');
+    await expect(headerLogoImg).toHaveAttribute('width', '76');
+    await expect(header.getByText('Architectural Flashing Supply', { exact: false })).toBeVisible();
   });
 
   test('footer has no logo image, only text branding', async ({ page }) => {
@@ -259,24 +263,44 @@ test.describe('Homepage overhaul (hpd-008)', () => {
     await expect(footer.getByText('AFS — Architectural Flashing Supply')).toBeVisible();
   });
 
-  test('hero right column has a real blueprint background image, not a plain white fill', async ({ page }) => {
+  test('hero right column has Reid\'s real blueprint background image, not a plain white fill', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
     const hero = page.locator('[data-section="hero"]');
     const rightColumn = hero.locator('div.grid > div').nth(1);
     const backgroundImage = await rightColumn.evaluate((el) => getComputedStyle(el).backgroundImage);
-    expect(backgroundImage).toContain('blueprint-bg.jpg');
+    expect(backgroundImage).toContain('blueprint.webp');
   });
 
-  test('field-app phone-mockup video crops at 25% (not dead-center) so the subject stays in frame', async ({
+  test('client-carousel is visible within the initial viewport on load (above the fold)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const carousel = page.locator('[data-section="client-carousel"]');
+    const box = await carousel.boundingBox();
+    expect(box).not.toBeNull();
+    // Some part of the section's top must be within the 900px viewport --
+    // doesn't need to be fully visible, just not entirely below the fold.
+    expect(box!.y).toBeLessThan(900);
+  });
+
+  test('field-app step highlighting tracks video playback: step 1 active at start, step 2 by ~2.5s', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
-    const phoneVideo = page.locator('[data-section="field-app"] video');
-    await phoneVideo.scrollIntoViewIfNeeded();
-    const objectPosition = await phoneVideo.evaluate((el) => getComputedStyle(el).objectPosition);
-    expect(objectPosition).toBe('25% 50%');
+    const fieldApp = page.locator('[data-section="field-app"]');
+    const steps = fieldApp.locator('ol > li');
+    await fieldApp.scrollIntoViewIfNeeded();
+
+    // Step 1 should be the active (opacity: 1) one shortly after the video
+    // starts playing.
+    await expect(steps.nth(0)).toHaveCSS('opacity', '1', { timeout: 5000 });
+    await expect(steps.nth(1)).not.toHaveCSS('opacity', '1');
+
+    // By ~2.5s into the (autoplaying, muted) video, step 2 should take over.
+    await page.waitForTimeout(2500);
+    await expect(steps.nth(1)).toHaveCSS('opacity', '1');
+    await expect(steps.nth(0)).not.toHaveCSS('opacity', '1');
   });
 
   test('client carousel spells "Hays ISD" correctly and scrolls slowly (14s cycle)', async ({ page }) => {

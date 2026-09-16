@@ -24,6 +24,45 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## HOMEPAGE REDESIGN PHASE 6 (hpd-010) — 2026-09-16
+
+Follow-up prompt made several claims about the current state that didn't
+match reality -- checked each against actual code/git history before
+acting. Full detail in STATE_OF_THE_BUILD.md's matching entry (top of
+file) — summary here for handoff:
+
+- Hero video "labels deleted by accident": searched full git history,
+  found no evidence any overlay/caption ever existed on the hero video.
+  Not implemented — flagged as unfounded rather than inventing labels.
+- Blueprint swapped to Reid's real upload (`public/images/blueprint.webp`,
+  English-language) — the hpd-008 pass's Unsplash pick was a real
+  blueprint but in Dutch, which explains the "wrong language" complaint.
+- Carousel now above the fold: hero `min-h-[700px]`→`560px` +
+  ClientCarousel `py-12`→`py-8` (root cause was the hero's own height, not
+  just the carousel's padding).
+- Phone-mockup video: solved the actual geometry problem this time,
+  instead of toggling object-fit again. Rebuilt the video via ffmpeg as a
+  portrait composite (blurred/darkened background fill + full uncropped
+  centered footage) — every segment now shows its complete frame, no hard
+  letterbox bars, no cropped-out subjects.
+- Step highlighting (1/2/3) added, driven by the video's own timeupdate.
+- Logo: audited first (exactly one AfsLogo, none in Footer, mark already
+  crimson) — most of the prompt's claims didn't match the code. Real gaps
+  were size (64px→76px) and a missing tagline, now added (hidden below md
+  — it was wide enough to push the mobile hamburger off-screen at 375px;
+  caught by re-running the existing mobile-nav test, fixed, re-verified).
+- Footer: no change, already correct — the "just 'architectural'" claim
+  didn't match Footer.tsx's actual content.
+- Flagged, not touched: more untracked files appeared (`blueprints+for+
+  site.webp`, `ready_to_build_house_plans_...jpg`, renamed copies of
+  previously-flagged WhatsApp files) — `blueprints+for+site.webp` in
+  particular looks like it could be an even better hero-background fit,
+  but `blueprint.webp` was the file this pass's own instructions actually
+  named, so it wasn't swapped in without being asked.
+- `tests/e2e/homepage.spec.ts` updated — 47 passed, 1 skipped, 0 failed.
+- IMPLEMENTED, UNCONFIRMED per this file's own verification standard —
+  gates pass, no user confirmation of live behavior yet.
+
 ## HOMEPAGE REDESIGN PHASE 5 (hpd-009) — 2026-09-16
 
 Follow-up clarifying hero-background vs. phone-mockup-video are different

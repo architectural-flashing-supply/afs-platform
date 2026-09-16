@@ -34,6 +34,105 @@ summary, not a replacement for it.
 
 ---
 
+## HOMEPAGE REDESIGN PHASE 6 — REAL BLUEPRINT, VIDEO GEOMETRY SOLVED, STEP HIGHLIGHTING, LOGO TAGLINE (hpd-010): IMPLEMENTED, UNCONFIRMED (2026-09-16)
+
+A follow-up making several claims about the current state that didn't
+match the actual code or git history -- checked each against the real
+files/history before touching anything, per this file's own verification
+standard, rather than assuming the prompt's premises were correct.
+
+**Gates:** `pnpm tsc --noEmit` — 0 errors. `pnpm build` — succeeds.
+`tests/e2e/homepage.spec.ts` (several tests rewritten/added in the
+existing "Homepage overhaul (hpd-008)" block) + `tests/e2e/services.spec.ts`
+— 47 passed, 1 skipped, 0 failed, at mobile/tablet/desktop viewports.
+
+- **Hero video labels: no code change, claim not supported by the
+  history.** The prompt said overlaid text labels on the hero's shop-floor
+  video were "deleted by accident" and asked to restore them from git
+  history. `git log -p` across every HeroSection.tsx revision back to
+  hp-003 (the file's first commit) was searched for any overlay/caption/
+  label content on the video -- none exists in any revision. The hero
+  video has always been `aria-hidden="true"` background footage; the
+  headline/CTAs live in the right column, never overlaid on the video
+  itself. Not implemented -- inventing labels with no historical basis to
+  restore would be fabrication, not a fix. Flagged to Reid.
+- **Blueprint image swapped to Reid's own upload.** `public/blueprint.*`
+  as literally described doesn't exist, but `public/images/blueprint.webp`
+  clearly does (a real, English-language architectural blueprint -- ground
+  floor plan, elevations, roof options, dimensioned and labeled). Explains
+  the "wrong language" complaint: the hpd-008 pass's Unsplash pick was a
+  real blueprint but in Dutch. `HeroSection.tsx` now points at
+  `blueprint.webp`; the Dutch one (`blueprint-bg.jpg`) is deleted, no
+  longer referenced anywhere.
+- **Carousel moved above the fold.** Root cause: hero's own `min-h-[700px]`
+  plus the fixed 80px header left almost nothing above the fold for
+  `ClientCarousel` on a typical ~900px viewport -- confirmed by checking
+  actual pixel math, not just trimming the carousel's own padding (which
+  alone couldn't have fixed it). Hero `min-h-[700px]` -> `min-h-[560px]`,
+  `ClientCarousel`'s `py-12` -> `py-8`. Verified via a full-viewport
+  screenshot at 1440x900: the carousel band is now visible on initial load
+  with no scroll.
+- **Phone-mockup video: the real fix, this time.** Prior passes tried
+  `object-contain` (full frame, but read as "tiny" -- see the Phase 2
+  follow-up entry below) and `object-cover` at various crop positions
+  (fills the frame, but crops content out -- see the hpd-009 entry below).
+  This prompt's "step 2 shows only a close-up, can't see the person holding
+  the phone" pointed at the same underlying geometry problem neither fix
+  actually solved: a 16:9 landscape source cannot fill a ~9:19.5 portrait
+  frame edge-to-edge AND show its complete, uncropped content at the same
+  time. Solved by rebuilding the video itself via `ffmpeg` as a portrait
+  composite -- a blurred/darkened/scaled-up copy of the same footage fills
+  the canvas behind a full, uncropped, centered copy of the original
+  frame (`split` into two branches: one `scale+crop+gblur+eq` to cover
+  1080x2340, the other `scale` to fit with no crop, `overlay`ed centered).
+  Verified by extracting frames from the rendered output before wiring it
+  in -- every segment now shows its complete frame (the sketch, the full
+  FlashDraft diagram, the worker) with a soft blurred fill instead of hard
+  black bars. New `public/videos/three-step-process-portrait.mp4/.webm`;
+  the original landscape source files are left in place (unused now, but
+  kept as master footage, not deleted).
+- **Step highlighting (1/2/3) added.** `PhoneMockupVideo` exposes an
+  `onActiveStepChange` callback driven by the video's own `timeupdate`
+  event (`Math.floor(currentTime / 2)`, matching the video's 2s-per-
+  segment structure); `FieldAppStory` (now a Client Component) holds
+  `activeStep` state and scales/glows/brightens the active step's number
+  while dimming the other two.
+- **Logo: audited, not blindly rebuilt.** Grepped the whole codebase for
+  `AfsLogo`, `>AFS<`, and `Architectural` before changing anything:
+  confirmed exactly one `<AfsLogo/>` call site (`NavBar.tsx`), zero in
+  `Footer.tsx` (text-only branding, by design, already correct), and the
+  mark image (`afs-logo-512.png`) is already crimson-colored -- the
+  "generic white AFS text," "duplicates," and "wrong places" claims didn't
+  match what's actually in the codebase (most likely: the concern was
+  raised before this build's live state was seen, not a real regression).
+  The two real gaps were size and the missing tagline: mark 64px -> 76px,
+  added a live "ARCHITECTURAL FLASHING SUPPLY" tagline under "AFS,"
+  hidden below `md` -- at 10px with `tracking-[0.2em]` it renders far
+  wider than it looks, and initially pushed the mobile hamburger button
+  off-screen at 375px; caught by re-running (not skipping) the existing
+  mobile-nav test after the change, which failed, then fixed and
+  re-verified green. Wordmark text stays white (`afs-chrome-high`), not
+  "dark text" as literally requested -- every placement has a dark
+  gunmetal background, so dark text would be illegible; documented inline
+  as a deliberate deviation, not a silent non-compliance.
+- **Footer branding: no code change, already correct.** The prompt said
+  the footer shows "just 'architectural'" -- `Footer.tsx`'s brand column
+  already renders a proper heading ("AFS — Architectural Flashing
+  Supply"), the company description, full address, phone, and email
+  (unchanged since the hpd-008 pass). No matching issue found.
+
+**Flagged, not touched:** even more untracked files have appeared in
+`public/images/`/`public/videos/` since the hpd-009 entry below --
+`blueprints+for+site.webp` and `ready_to_build_house_plans_...jpg` (both
+real, English-language blueprint/plans stock photos -- `blueprints+for+
+site.webp` in particular reads as a strong candidate for the hero
+background, possibly a better match for the original "light blue" ask
+than `blueprint.webp`), plus `rf1/2/3.jpeg` and `rv1.mp4` (identical file
+sizes to the previously-flagged WhatsApp image/video, i.e. renamed
+copies, not new content). None referenced by this pass's code -- flagged
+to Reid rather than guessed into use, since `blueprint.webp` was the file
+actually named in this pass's own instructions.
+
 ## HOMEPAGE REDESIGN PHASE 5 — REAL BLUEPRINT PHOTO, PHONE VIDEO CROP FIX, LOGO RE-VERIFIED (hpd-009): IMPLEMENTED, UNCONFIRMED (2026-09-16)
 
 A tightly-scoped follow-up clarifying that the hero's right-column
