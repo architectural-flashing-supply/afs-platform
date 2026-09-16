@@ -2,41 +2,46 @@
 // naming real, confirmed AFS client relationships (confirmed directly by
 // Reid, 2026-09-15 -- see the NASA Johnson Space Center credential already
 // live in CaseStudies.tsx for independent corroboration of at least that one).
+// afs-ink-900/afs-crimson (not the chrome-* tokens, which are near-white and
+// meant for the dark gunmetal backgrounds used elsewhere on this page) are
+// the afs-* tokens built for text on a light/white surface -- see this
+// band's bg-white below.
 const CLIENTS = [
-  'NASA',
-  'Samsung',
-  'Tesla',
-  'Google',
-  'Facebook',
-  'Baylor Scott & White',
-  'University Hospital',
-  'Hayes ISD',
-  'TopGolf',
-  'Bugmaster',
-  'Manor Medical',
-  'UT San Antonio',
-  'Seton Round Rock',
-  'Midland Memorial Hospital System',
-  'Canyon Ranch',
-  'DPR',
+  { name: 'NASA', accent: true },
+  { name: 'Samsung', accent: false },
+  { name: 'Tesla', accent: true },
+  { name: 'Google', accent: false },
+  { name: 'Facebook', accent: true },
+  { name: 'Baylor Scott & White', accent: false },
+  { name: 'University Hospital', accent: true },
+  { name: 'Hayes ISD', accent: false },
+  { name: 'TopGolf', accent: true },
+  { name: 'Bugmaster', accent: false },
+  { name: 'Manor Medical', accent: true },
+  { name: 'UT San Antonio', accent: false },
+  { name: 'Seton Round Rock', accent: true },
+  { name: 'Midland Memorial Hospital System', accent: false },
+  { name: 'Canyon Ranch', accent: true },
+  { name: 'DPR', accent: false },
 ] as const;
 
 // Pure CSS marquee -- no client-side JS/state needed. The track is the
 // client list rendered twice back to back; animating it from 0 to -50%
 // (exactly one copy's width) and looping produces a seamless infinite
 // scroll, and "pause on hover" is a plain :hover rule on the wrapper, not a
-// mouseenter/mouseleave handler. ~5s per name x 16 names = 80s per full
-// pass, per spec.
-const ANIMATION_DURATION_S = CLIENTS.length * 5;
+// mouseenter/mouseleave handler. 5s per full cycle, per spec.
+const ANIMATION_DURATION_S = 5;
 
-function ClientCard({ name, ariaHidden }: { name: string; ariaHidden?: boolean }) {
+function ClientName({ name, accent, ariaHidden }: { name: string; accent: boolean; ariaHidden?: boolean }) {
   return (
-    <div
+    <span
       aria-hidden={ariaHidden}
-      className="flex min-w-[200px] flex-none items-center justify-center rounded border border-afs-chrome-dim bg-afs-bg-surface p-6 font-heading text-lg text-afs-chrome-high transition-colors hover:border-afs-crimson hover:text-afs-crimson"
+      className={`flex-none whitespace-nowrap font-display text-4xl leading-none ${
+        accent ? 'text-afs-crimson' : 'text-afs-ink-900'
+      }`}
     >
       {name}
-    </div>
+    </span>
   );
 }
 
@@ -45,34 +50,39 @@ export default function ClientCarousel() {
     <section
       aria-label="Trusted clients carousel"
       role="region"
-      className="bg-afs-bg-base py-16 md:py-20"
+      className="w-full bg-white py-12"
     >
-      <div className="mx-auto max-w-6xl px-6">
-        <p className="text-center font-label text-xs font-semibold uppercase tracking-widest text-afs-crimson">
-          Trusted By Industry Leaders
-        </p>
+      <p className="text-center font-label text-xs font-semibold uppercase tracking-widest text-afs-ink-700">
+        Trusted By Industry Leaders
+      </p>
 
-        {/* Desktop: animated marquee, 6ish cards visible at once. */}
-        <div className="client-marquee-wrap mt-10 hidden overflow-hidden md:block">
-          <div
-            className="client-marquee-track flex w-max gap-6"
-            style={{ animationDuration: `${ANIMATION_DURATION_S}s` }}
-          >
-            {CLIENTS.map((name) => (
-              <ClientCard key={name} name={name} />
-            ))}
-            {CLIENTS.map((name) => (
-              <ClientCard key={`${name}-repeat`} name={name} ariaHidden />
-            ))}
-          </div>
-        </div>
-
-        {/* Mobile: plain static stack -- no scroll/animation needed. */}
-        <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 md:hidden">
-          {CLIENTS.map((name) => (
-            <ClientCard key={name} name={name} />
+      {/* Desktop: full-width animated marquee. */}
+      <div className="client-marquee-wrap mt-10 hidden overflow-hidden md:block">
+        <div
+          className="client-marquee-track flex w-max items-center gap-12"
+          style={{ animationDuration: `${ANIMATION_DURATION_S}s` }}
+        >
+          {CLIENTS.map((client) => (
+            <ClientName key={client.name} name={client.name} accent={client.accent} />
+          ))}
+          {CLIENTS.map((client) => (
+            <ClientName key={`${client.name}-repeat`} name={client.name} accent={client.accent} ariaHidden />
           ))}
         </div>
+      </div>
+
+      {/* Mobile: vertical stack, no scroll/animation needed. */}
+      <div className="mt-10 flex flex-col items-center gap-6 md:hidden">
+        {CLIENTS.map((client) => (
+          <span
+            key={client.name}
+            className={`text-center font-display text-3xl leading-none ${
+              client.accent ? 'text-afs-crimson' : 'text-afs-ink-900'
+            }`}
+          >
+            {client.name}
+          </span>
+        ))}
       </div>
 
       <style>{`
