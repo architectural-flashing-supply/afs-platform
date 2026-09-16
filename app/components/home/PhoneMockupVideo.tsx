@@ -17,6 +17,9 @@ import { useEffect, useRef, useState } from 'react';
 // center) inside a portrait phone screen without either cropping content
 // out (object-cover) or leaving big empty letterbox bars (object-contain)
 // -- both were tried in prior passes and neither actually solved it.
+// Canvas is 1080x1920 (9:16), re-rendered to match the phone frame's own
+// aspect exactly -- see the frame div below -- so object-cover has zero
+// crop to do.
 const videoSources = {
   webm: '/videos/three-step-process-portrait.webm',
   mp4: '/videos/three-step-process-portrait.mp4',
@@ -97,14 +100,13 @@ export default function PhoneMockupVideo({
           the border itself is the only thing between the video and the
           frame edge, and overflow-hidden clips the video to the same
           rounded corners as the border. */}
-      <div className="relative aspect-[9/19.5] w-[260px] overflow-hidden rounded-[2.5rem] border-[6px] border-afs-bg-overlay bg-afs-bg-dim shadow-raised metal-edge">
+      <div className="relative aspect-[9/16] w-[360px] overflow-hidden rounded-[2.5rem] border-[6px] border-afs-bg-overlay bg-afs-bg-dim shadow-raised metal-edge">
         <div className="absolute left-1/2 top-3 z-10 h-[6px] w-[70px] -translate-x-1/2 rounded-full bg-afs-bg-dim" />
         <video
           ref={videoRef}
           // object-cover is safe here (no crop trade-off): the -portrait
-          // source's own canvas aspect already matches this frame almost
-          // exactly (1080x2340 vs. this container's 9:19.5), so there's
-          // nothing left to crop.
+          // source's own canvas (1080x1920) is rendered at this exact 9:16
+          // aspect, so there's nothing left to crop.
           className="absolute inset-0 h-full w-full object-cover"
           poster="/images/hero-poster.jpg"
           autoPlay
