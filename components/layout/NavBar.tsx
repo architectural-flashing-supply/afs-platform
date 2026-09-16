@@ -24,6 +24,7 @@ const TOP_NAV_LINKS = [
   { label: 'Products', href: '/products' },
   { label: 'Design Studio', href: '/studio' },
   { label: 'Track Delivery', href: '/track' },
+  { label: 'Services', href: '/about/services' },
   { label: 'Architects', href: '/architects' },
 ];
 
