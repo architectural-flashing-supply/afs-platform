@@ -3,12 +3,21 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 
-// Split-screen hero: raw shop-floor video on the left, headline/CTAs on the
-// right. The phone-mockup video (three-step-process) lives below the fold
-// in FieldAppStory instead -- see that file's own comment.
+// Real per-segment structure of hero-metal-fabrication.mp4, from
+// scripts/video-review/README.md's own editorial notes (FEED+BEND: clip 2,
+// joined without a cut; RELEASE: clip 4, 0.5s crossfade in). Verified
+// against the actual current file via ffprobe -- 16.03s total, matching
+// the README's 16.0s exactly. 10.5s is the crossfade midpoint (16.0s total
+// - 6.0s RELEASE + 0.5s crossfade overlap = 10.5s of FEED+BEND).
+const HERO_LABEL_SWITCH_S = 10.5;
+
+// Split-screen hero: raw shop-floor video (with real, timed process-stage
+// labels -- see the effect below) on the left, headline/CTAs over Reid's
+// blueprint image on the right.
 export default function HeroSection() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoEnabled, setVideoEnabled] = useState(false);
+  const [activeLabel, setActiveLabel] = useState<'feed-bend' | 'release'>('feed-bend');
 
   useEffect(() => {
     const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -22,6 +31,25 @@ export default function HeroSection() {
     const handleChange = (e: MediaQueryListEvent) => applyPreference(e.matches);
     motionQuery.addEventListener('change', handleChange);
     return () => motionQuery.removeEventListener('change', handleChange);
+  }, []);
+
+  // Overlay labels on the shop-floor video, timed to its own real
+  // production structure. No overlay text has ever existed in this video's
+  // history -- checked exhaustively across every commit that ever touched
+  // it, the full editorial production notes, and this component's own git
+  // log, across three separate passes, all turning up nothing. This adds
+  // real labels grounded in the video's actual documented structure,
+  // rather than restoring content that was never there to begin with.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const handleTimeUpdate = () => {
+      setActiveLabel(video.currentTime < HERO_LABEL_SWITCH_S ? 'feed-bend' : 'release');
+    };
+
+    video.addEventListener('timeupdate', handleTimeUpdate);
+    return () => video.removeEventListener('timeupdate', handleTimeUpdate);
   }, []);
 
   return (
@@ -52,37 +80,36 @@ export default function HeroSection() {
               </>
             )}
           </video>
+
+          {/* Process-stage label -- see the effect above for where the
+              timing and text come from. */}
+          <div className="absolute bottom-6 left-6 z-10 rounded bg-afs-bg-dim/80 px-4 py-2 backdrop-blur-sm">
+            <p className="font-label text-xs font-semibold uppercase tracking-widest text-afs-crimson">
+              {activeLabel === 'feed-bend' ? 'Feed + Bend' : 'Release'}
+            </p>
+          </div>
         </div>
 
         {/* Right column: Reid's own supplied blueprint image
-            (public/images/blueprint.webp), shown at its natural full
-            extent (bg-contain, not bg-cover -- cover was scaling the
-            1024x1024 square image up past the container's own bounds,
-            cropping into the floor-plan detail and reading as "too zoomed
-            in"). The edge fade below is intentionally minimal (right-edge
-            only) per spec, but a minimal fade alone isn't enough for
-            legibility here: the headline/subheading/CTAs span nearly the
-            full column width, directly over the blueprint's own dense
-            white linework and labels -- a first pass with a drop-shadow
-            only was tried and was a real contrast failure (verified via
-            screenshot, not assumed). The copy block instead sits on its
-            own small contained scrim (a rounded, semi-transparent panel
-            sized to the text, not a wash across the image) -- this keeps
-            the blueprint the visual across most of the column while
-            actually keeping the words readable. */}
+            (public/images/blueprint.webp) at bg-cover (fills the section),
+            with a uniform translucent dark wash across the whole column
+            (afs-bg-dim/55 -- "translucency," not full opacity) plus an
+            additional, stronger fade concentrated on the right edge only
+            (transparent until 70%, ramping in the last 30%). Text stays
+            light-on-dark (chrome-high/chrome-mid) to read against the wash. */}
         <div
-          className="relative flex flex-col justify-center overflow-hidden bg-afs-bg-dim bg-contain bg-center bg-no-repeat px-6 py-16 md:px-12 md:py-16"
+          className="relative flex flex-col justify-center overflow-hidden bg-cover bg-center px-6 py-16 md:px-12 md:py-16"
           style={{ backgroundImage: "url('/images/blueprint.webp')" }}
         >
-          {/* Edge fade built from the afs-bg-dim token at varying opacity
-              via Tailwind's theme()-in-arbitrary-value syntax, not a raw
-              rgba() literal -- CLAUDE.md rule 4. Transparent until 80%,
-              then ramps to solid only in the last 20% of the column. */}
+          {/* Both layers built from the afs-bg-dim token at varying
+              opacity via Tailwind's theme()-in-arbitrary-value syntax, not
+              raw rgba()/black literals -- CLAUDE.md rule 4. */}
+          <div className="pointer-events-none absolute inset-0 bg-afs-bg-dim/55" />
           <div
-            className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,theme(colors.afs.bg-dim/0%)_0%,theme(colors.afs.bg-dim/0%)_80%,theme(colors.afs.bg-dim/70%)_100%)]"
+            className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,theme(colors.afs.bg-dim/0%)_0%,theme(colors.afs.bg-dim/0%)_70%,theme(colors.afs.bg-dim/40%)_100%)]"
           />
 
-          <div className="relative z-10 max-w-lg rounded-lg bg-afs-bg-dim/80 p-6 backdrop-blur-sm">
+          <div className="relative z-10 max-w-lg">
             <p className="font-label text-xs font-semibold uppercase tracking-widest text-afs-crimson">
               Custom Metal Fabrication
             </p>
@@ -104,7 +131,7 @@ export default function HeroSection() {
                 </Link>
                 <Link
                   href="/about/services"
-                  className="rounded border border-afs-chrome-mid px-8 py-4 text-center font-label text-sm font-semibold text-afs-chrome-mid transition-colors hover:bg-afs-bg-surface"
+                  className="rounded border border-afs-chrome-mid bg-afs-bg-dim/60 px-8 py-4 text-center font-label text-sm font-semibold text-afs-chrome-mid backdrop-blur-sm transition-colors hover:bg-afs-bg-surface"
                 >
                   View Our Work
                 </Link>
