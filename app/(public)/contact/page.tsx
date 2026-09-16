@@ -46,7 +46,7 @@ const CONTACT_CARDS: ContactCard[] = [
     href: 'mailto:trica@architecturalflashingsupply.com',
   },
   {
-    label: 'Owner',
+    label: 'President',
     value: 'steve@architecturalflashingsupply.com',
     href: 'mailto:steve@architecturalflashingsupply.com',
     note: 'Steve Harycki',

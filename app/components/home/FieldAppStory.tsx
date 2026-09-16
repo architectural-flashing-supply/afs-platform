@@ -4,6 +4,11 @@ import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 
+const videoSources = {
+  webm: '/videos/three-step-process.webm',
+  mp4: '/videos/three-step-process.mp4',
+};
+
 const STEPS = [
   {
     number: '01',
@@ -100,8 +105,8 @@ export default function FieldAppStory() {
               >
                 {videoEnabled && (
                   <>
-                    <source src="/videos/three-step-process.webm" type="video/webm" />
-                    <source src="/videos/three-step-process.mp4" type="video/mp4" />
+                    <source src={videoSources.webm} type="video/webm" />
+                    <source src={videoSources.mp4} type="video/mp4" />
                   </>
                 )}
               </video>
@@ -127,7 +132,14 @@ export default function FieldAppStory() {
             ))}
           </ol>
 
-          <div className="mt-10 flex flex-wrap items-center gap-6">
+          {/* The Field App is a mobile PWA for on-site contractors (see
+              app/field/contractor) -- promoting "install"/"open" on a
+              desktop browser doesn't apply, so this CTA row is mobile-only.
+              A plain md:hidden matches this codebase's existing responsive
+              show/hide convention (hidden md:flex, md:hidden elsewhere in
+              this file and NavBar.tsx) rather than a JS media-query hook,
+              which would add hydration-mismatch risk for the same result. */}
+          <div className="mt-10 flex flex-wrap items-center gap-6 md:hidden">
             <Link
               href="/field/contractor"
               className="rounded bg-afs-crimson px-8 py-4 font-label text-sm font-semibold text-white metal-edge-red shadow-crimson transition-colors hover:bg-afs-crimson-hover"

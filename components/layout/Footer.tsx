@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import AfsLogo from './AfsLogo';
 
 export default function Footer() {
   return (
@@ -8,8 +9,8 @@ export default function Footer() {
 
           {/* Brand */}
           <div>
-            <div className="bg-afs-bg-dim inline-block px-3 py-1.5 rounded mb-4">
-              <span className="font-display text-2xl text-afs-chrome-high">AFS</span>
+            <div className="mb-4">
+              <AfsLogo variant="wordmark" size={36} />
             </div>
             <p className="font-body text-sm text-afs-chrome-base leading-relaxed mb-4">
               Architectural Flashing Supply. Custom sheet metal fabrication for contractors and architects.
