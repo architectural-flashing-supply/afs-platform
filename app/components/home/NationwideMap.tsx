@@ -42,30 +42,28 @@ export default function NationwideMap() {
           Fabricated in Burnet. Shipped Anywhere in the US.
         </h2>
 
-        <div className="mt-12 h-[320px] w-full overflow-hidden rounded border border-[var(--afs-border)] metal-edge md:h-[420px]">
-          <NationwideMapLeaflet />
-        </div>
+        {/* Keyboard-accessible fallback for the map's marker(s) below --
+            Leaflet markers/popups aren't reliably keyboard-operable -- kept
+            to a single small line under the title rather than a separate
+            "Locations" section, so the map (not the address) is what fills
+            this section. */}
+        <p className="mt-3 font-body text-sm text-afs-chrome-mid">
+          {ALL_LOCATIONS.map((location, i) => (
+            <span key={location.id}>
+              {i > 0 && ', '}
+              {location.href ? (
+                <Link href={location.href} className="hover:text-afs-chrome-high hover:underline">
+                  {location.name}
+                </Link>
+              ) : (
+                location.name
+              )}
+            </span>
+          ))}
+        </p>
 
-        {/* Keyboard-accessible fallback list — same locations plotted on the
-            map above, reachable without pointer interaction with the map
-            (Leaflet markers/popups are not reliably keyboard-operable). */}
-        <div className="mt-6">
-          <h3 className="font-label text-xs font-semibold uppercase tracking-widest text-afs-chrome-mid">
-            Locations
-          </h3>
-          <ul className="mt-3 space-y-2">
-            {ALL_LOCATIONS.map((location) => (
-              <li key={location.id} className="font-body text-sm text-afs-chrome-mid">
-                {location.href ? (
-                  <Link href={location.href} className="hover:text-afs-chrome-high hover:underline">
-                    {location.name}
-                  </Link>
-                ) : (
-                  location.name
-                )}
-              </li>
-            ))}
-          </ul>
+        <div className="mt-8 h-[500px] w-full overflow-hidden rounded border border-[var(--afs-border)] metal-edge md:h-[560px]">
+          <NationwideMapLeaflet />
         </div>
       </div>
     </section>
