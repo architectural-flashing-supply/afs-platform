@@ -2,14 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import AfsLogo from './AfsLogo';
 
 // Exported so any full-width fixed/absolute element anchored near the top of
 // the viewport (e.g. app/hailview/page.tsx's map background) can clear the
-// header row's real height. h-24 (96px) gives the 76px logo mark (with its
-// AFS + tagline stack) room to breathe without the header feeling cramped.
+// header row's real height. h-24 (96px) gives room to breathe without the
+// header feeling cramped.
 export const LOGO_HEIGHT = 96;
 
 const TOP_NAV_LINKS = [
@@ -122,7 +122,7 @@ export default function NavBar() {
         className="fixed top-0 inset-x-0 z-40 h-24 bg-afs-bg-raised border-b border-afs-chrome-dim flex items-center justify-between gap-4 px-4 md:px-8"
       >
       <Link href="/" className="flex items-center shrink-0">
-        <AfsLogo />
+        <Image src="/afs-logo.png" alt="Architectural Flashing Supply" width={160} height={80} className="object-contain" priority />
       </Link>
 
       <div className="hidden md:flex items-center gap-8">
