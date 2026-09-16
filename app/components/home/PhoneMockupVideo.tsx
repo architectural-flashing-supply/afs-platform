@@ -5,12 +5,32 @@ import { useEffect, useRef, useState } from 'react';
 // Phone-mockup video used by FieldAppStory's below-the-fold "Photo to Quote"
 // section, kept as its own component for its autoplay/reduced-motion/
 // intersection-observer logic.
+//
+// -portrait variants (not the original 1920x1080 landscape three-step-
+// process.mp4/.webm): a blurred, scaled-up copy of the same footage fills
+// the portrait canvas behind a full, uncropped, centered copy of the
+// original frame -- built once via ffmpeg (split -> one branch scale+crop+
+// blur+darken to cover the canvas, the other branch scale to fit the canvas
+// with no crop, overlaid centered). This was the only way to show the full
+// frame (the person's hand and phone are outside the video's own centered
+// safe area, and the FlashDraft-canvas segment's diagram sits left-of-
+// center) inside a portrait phone screen without either cropping content
+// out (object-cover) or leaving big empty letterbox bars (object-contain)
+// -- both were tried in prior passes and neither actually solved it.
 const videoSources = {
-  webm: '/videos/three-step-process.webm',
-  mp4: '/videos/three-step-process.mp4',
+  webm: '/videos/three-step-process-portrait.webm',
+  mp4: '/videos/three-step-process-portrait.mp4',
 };
 
-export default function PhoneMockupVideo() {
+// Segment boundaries in the concatenated 6s source -- see
+// FieldAppStory.tsx's STEPS array; each 2s segment corresponds to one step.
+const STEP_DURATION_S = 2;
+
+export default function PhoneMockupVideo({
+  onActiveStepChange,
+}: {
+  onActiveStepChange?: (step: number) => void;
+}) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isNearViewport, setIsNearViewport] = useState(false);
@@ -50,6 +70,24 @@ export default function PhoneMockupVideo() {
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    if (!onActiveStepChange) return;
+    const video = videoRef.current;
+    if (!video) return;
+
+    let lastStep = -1;
+    const handleTimeUpdate = () => {
+      const step = Math.min(2, Math.floor(video.currentTime / STEP_DURATION_S));
+      if (step !== lastStep) {
+        lastStep = step;
+        onActiveStepChange(step);
+      }
+    };
+
+    video.addEventListener('timeupdate', handleTimeUpdate);
+    return () => video.removeEventListener('timeupdate', handleTimeUpdate);
+  }, [onActiveStepChange]);
+
   return (
     <div ref={wrapRef} className="flex w-full justify-center">
       {/* CSS-only phone device frame -- no third-party image asset */}
@@ -58,25 +96,11 @@ export default function PhoneMockupVideo() {
         <div className="relative h-full w-full overflow-hidden rounded-[1.9rem] bg-afs-bg-dim">
           <video
             ref={videoRef}
-            // object-cover (not object-contain): a follow-up pass explicitly
-            // asked for the video to fill the phone screen edge-to-edge --
-            // object-contain's letterboxing (source is 1920x1080 landscape,
-            // this screen is ~9:19.5 portrait) read as "tiny" with most of
-            // the frame empty. This does crop the sides of the landscape
-            // source to fill the portrait screen -- a real trade-off,
-            // reverting the object-contain fix from a prior pass -- but
-            // it's what that pass's spec explicitly called for.
-            //
-            // object-[25%_center] (not the object-cover default of center
-            // center): the video's actual subjects sit left-of-center in
-            // frame in all 3 concatenated segments (verified by extracting
-            // and inspecting frames) -- a dead-center crop shows blank
-            // background for the sketch-photo and FlashDraft-canvas
-            // segments (the canvas segment's crop was 100% empty grid, no
-            // diagram visible at all) and clips most of the worker in the
-            // shop-floor segment. 25% keeps each segment's real subject in
-            // frame instead of empty background.
-            className="absolute inset-0 h-full w-full object-cover object-[25%_center]"
+            // object-cover is safe here (no crop trade-off): the -portrait
+            // source's own canvas aspect already matches this frame almost
+            // exactly (1080x2340 vs. this container's 9:19.5), so there's
+            // nothing left to crop.
+            className="absolute inset-0 h-full w-full object-cover"
             poster="/images/hero-poster.jpg"
             autoPlay
             muted
