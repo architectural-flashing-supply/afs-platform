@@ -58,15 +58,15 @@ export default function PhoneMockupVideo() {
         <div className="relative h-full w-full overflow-hidden rounded-[1.9rem] bg-afs-bg-dim">
           <video
             ref={videoRef}
-            // object-contain (not object-cover): the source footage is
-            // 1920x1080 (16:9 landscape), while this phone screen is
-            // roughly 9:19.5 (portrait) -- object-cover was scaling the
-            // landscape video up to fill that much taller/narrower frame,
-            // cropping most of the width away and reading as an extreme,
-            // disorienting zoom. object-contain shows the whole frame,
-            // letterboxed against the screen's own bg-afs-bg-dim above and
-            // below, rather than an unrecognizable crop.
-            className="absolute inset-0 h-full w-full object-contain"
+            // object-cover (not object-contain): a follow-up pass explicitly
+            // asked for the video to fill the phone screen edge-to-edge --
+            // object-contain's letterboxing (source is 1920x1080 landscape,
+            // this screen is ~9:19.5 portrait) read as "tiny" with most of
+            // the frame empty. This does crop the sides of the landscape
+            // source to fill the portrait screen -- a real trade-off,
+            // reverting the object-contain fix from the prior pass -- but
+            // it's what this pass's spec explicitly calls for.
+            className="absolute inset-0 h-full w-full object-cover"
             poster="/images/hero-poster.jpg"
             autoPlay
             muted
