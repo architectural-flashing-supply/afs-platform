@@ -80,20 +80,16 @@ export default function ClientCarousel() {
     <section
       aria-label="Trusted clients carousel"
       role="region"
-      // py-8 (was py-12): the hero above this was also shortened (700px ->
-      // 560px) since the two changes together are what actually gets this
-      // band showing above the fold on a typical ~900px viewport -- a
-      // padding trim on this section alone can't undo the hero's own height.
-      className="w-full bg-white py-8"
+      className="w-full bg-white py-6"
     >
       <p className="text-center font-label text-xs font-semibold uppercase tracking-widest text-afs-ink-700">
         Trusted By Industry Leaders
       </p>
 
       {/* Desktop: full-width animated marquee. */}
-      <div className="client-marquee-wrap mt-10 hidden overflow-hidden md:block">
+      <div className="client-marquee-wrap mt-8 hidden overflow-hidden md:block">
         <div
-          className="client-marquee-track flex w-max items-center gap-12"
+          className="client-marquee-track flex w-max items-center gap-8"
           style={{ animationDuration: `${ANIMATION_DURATION_S}s` }}
         >
           {CLIENTS.map((client) => (
@@ -109,7 +105,7 @@ export default function ClientCarousel() {
           the marquee's text-4xl) and no forced nowrap, so the longest names
           (e.g. "Midland Memorial Hospital System") can wrap instead of
           overflowing the viewport width. */}
-      <div className="mt-10 flex flex-col items-center gap-6 px-6 md:hidden">
+      <div className="mt-8 flex flex-col items-center gap-4 px-6 md:hidden">
         {CLIENTS.map((client) => (
           <span key={client.name} className="text-center font-display text-3xl leading-none">
             <NameContent name={client.name} className={client.className} />
