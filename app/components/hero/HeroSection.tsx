@@ -52,20 +52,18 @@ export default function HeroSection() {
         </div>
 
         {/* Right column: light palette (a deliberate break from the dark
-            gunmetal used everywhere else) over a real architectural
-            blueprint photo (public/images/blueprint-bg.jpg -- Amsterdam
-            City Archives building-elevation blueprint, via Unsplash,
-            downloaded with Reid's explicit in-chat confirmation and
-            downscaled/compressed for web: 6251x4376 6.1MB -> 1800x1260
-            268KB). The photo is a deep navy blue, not the "light blue"
-            originally described, so the fade overlay below goes most of
-            the way to opaque white by the time it reaches the copy --
-            otherwise afs-ink-900 text wouldn't have safe contrast against
-            it. Left edge (near the video seam) stays closer to the raw
-            photo; text/CTAs sit under a near-solid white wash. */}
+            gunmetal used everywhere else) over Reid's own supplied
+            blueprint image (public/images/blueprint.webp -- English-
+            language, replacing a prior pass's Unsplash pick that turned
+            out to be a Dutch-language archival scan). The fade overlay
+            below goes most of the way to opaque white by the time it
+            reaches the copy, since the image is a deep blue, not "light
+            blue" -- otherwise afs-ink-900 text wouldn't have safe contrast
+            against it. Left edge (near the video seam) stays closer to the
+            raw image; text/CTAs sit under a near-solid white wash. */}
         <div
           className="relative flex flex-col justify-center overflow-hidden bg-afs-chrome-high bg-cover bg-center px-6 py-16 md:px-12 md:py-16"
-          style={{ backgroundImage: "url('/images/blueprint-bg.jpg')" }}
+          style={{ backgroundImage: "url('/images/blueprint.webp')" }}
         >
           {/* Fade overlay built from the afs-chrome-high token (== #FFFFFF)
               at varying opacity via Tailwind's theme()-in-arbitrary-value
