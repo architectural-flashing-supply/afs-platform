@@ -34,6 +34,66 @@ summary, not a replacement for it.
 
 ---
 
+## HOMEPAGE REDESIGN PHASE 7 — HERO LABEL CLAIM RE-INVESTIGATED, BLUEPRINT ZOOM/FADE, PHONE VIDEO BEZEL (hpd-011): IMPLEMENTED, UNCONFIRMED (2026-09-16)
+
+**Vercel confirmed live and current for this investigation:** checked via
+the Vercel MCP tools rather than assuming -- `list_deployments` on the
+`afs-website` project shows the hpd-010 pass's final commit (`0b305e6`)
+already deployed and `READY` at
+`afs-website-kdtsekkx8-steveharyckis-projects.vercel.app`, so this
+prompt's claims were checked against what's actually shipped, not stale
+history. That specific preview URL is SSO-gated (`vercel.com/sso-api`
+redirect on unauthenticated `curl`), so it couldn't be fetched directly
+from this session -- verification below is from the local dev server
+build, which is the same Next.js output Vercel serves; nothing in these
+three fixes is edge/runtime-specific.
+
+**Gates:** `pnpm tsc --noEmit` — 0 errors. `pnpm build` — succeeds.
+`tests/e2e/homepage.spec.ts` (3 new tests) — 49 passed, 1 skipped, 0
+failed.
+
+- **Hero video labels: re-investigated, still no code change.** This is
+  the second time this claim has been made. Went further than the hpd-010
+  pass's search: checked every commit that ever touched
+  `hero-metal-fabrication.mp4/.webm` (`764b0da`/`hp-001`,
+  `2c4b704`/`hpc-001`) and their full commit messages, the detailed hp-001
+  narrative in this file (asset production notes -- "silent," "0.4s
+  crossfades," no mention of text/drawtext anywhere), and
+  `scripts/video-review/README.md` (the editorial rationale doc for this
+  exact footage -- grepped for text/label/caption/overlay/drawtext, zero
+  matches). No evidence of overlay text on this video exists anywhere in
+  the repo's history. Not implemented a second time -- flagged again
+  rather than fabricating content with no basis.
+- **Blueprint zoom + fade:** `bg-cover` -> `bg-contain` (was scaling the
+  1024x1024 image up past the container, cropping into the floor-plan
+  detail). Fade gradient narrowed to a transparent-until-80%,
+  solid-only-in-the-last-20% band on the right edge, replacing the
+  hpd-009/hpd-010 passes' much heavier whole-column wash. This alone
+  created a real legibility failure, caught by screenshot before
+  committing to it: the copy spans nearly the full column width, directly
+  over the blueprint's own dense white text/linework, and a drop-shadow
+  alone wasn't enough contrast. Fixed by giving the copy its own small
+  contained scrim (rounded `bg-afs-bg-dim/80` panel sized to the text, not
+  a wash across the image) -- keeps the minimal-fade spec while keeping
+  the words actually readable. Text colors flipped back to light-on-dark
+  (chrome-high/chrome-mid) to read against the scrim.
+- **Phone-mockup video bezel:** removed the `p-2` padding + separate inner
+  rounded div between the frame border and the video -- absolutely
+  positioned children sit inside the parent's padding box, so that
+  padding was a real, visible ~8px gap around the video on every side (on
+  top of the 6px border), which plausibly read as "a small box floating
+  in the middle of the frame." Border and `overflow-hidden` now live on
+  the same element the video is positioned against, so the video fills
+  right up to the border with nothing else in between.
+
+**Flagged, not touched:** more files continue appearing in
+`public/images/`/`public/videos/` mid-session -- `bp1.webp` and
+`shop1.png` are confirmed-identical-by-filesize renames of
+`blueprints+for+site.webp`/the ChatGPT image flagged in the hpd-010 entry
+below (not new content), but `looking at blueprints.png` (three people in
+hard hats reviewing a floor plan on a construction site) is genuinely new.
+None referenced by this pass's code.
+
 ## HOMEPAGE REDESIGN PHASE 6 — REAL BLUEPRINT, VIDEO GEOMETRY SOLVED, STEP HIGHLIGHTING, LOGO TAGLINE (hpd-010): IMPLEMENTED, UNCONFIRMED (2026-09-16)
 
 A follow-up making several claims about the current state that didn't

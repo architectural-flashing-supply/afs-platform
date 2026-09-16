@@ -263,13 +263,49 @@ test.describe('Homepage overhaul (hpd-008)', () => {
     await expect(footer.getByText('AFS — Architectural Flashing Supply')).toBeVisible();
   });
 
-  test('hero right column has Reid\'s real blueprint background image, not a plain white fill', async ({ page }) => {
+  test('hero right column has Reid\'s real blueprint background image, shown at its natural extent (not zoomed/cropped)', async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
     const hero = page.locator('[data-section="hero"]');
     const rightColumn = hero.locator('div.grid > div').nth(1);
     const backgroundImage = await rightColumn.evaluate((el) => getComputedStyle(el).backgroundImage);
     expect(backgroundImage).toContain('blueprint.webp');
+    const backgroundSize = await rightColumn.evaluate((el) => getComputedStyle(el).backgroundSize);
+    expect(backgroundSize).toBe('contain');
+  });
+
+  test('hero copy sits on its own contained scrim, not directly on the blueprint (legibility)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const hero = page.locator('[data-section="hero"]');
+    const scrim = hero.getByRole('heading', { name: /From Concept to Delivery/ }).locator('..');
+    await expect(scrim).toBeVisible();
+    const bg = await scrim.evaluate((el) => getComputedStyle(el).backgroundColor);
+    // Must have an actual (non-transparent) fill behind the text.
+    expect(bg).not.toBe('rgba(0, 0, 0, 0)');
+  });
+
+  test('field-app phone-mockup video has no bezel padding around it (fills to the frame border)', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const fieldApp = page.locator('[data-section="field-app"]');
+    await fieldApp.scrollIntoViewIfNeeded();
+    const video = fieldApp.locator('video');
+    const frame = video.locator('..');
+    const [videoBox, frameBox] = await Promise.all([video.boundingBox(), frame.boundingBox()]);
+    expect(videoBox).not.toBeNull();
+    expect(frameBox).not.toBeNull();
+    // The video fills the frame right up to its 6px border on every side
+    // (absolutely positioned children sit inside the parent's padding
+    // box) -- so the expected gap is exactly 2*6=12px, not the ~28px gap
+    // the old border + p-2 bezel + separate inner rounded div used to leave.
+    const BORDER_PX = 12;
+    expect(Math.abs(videoBox!.width - (frameBox!.width - BORDER_PX))).toBeLessThan(2);
+    expect(Math.abs(videoBox!.height - (frameBox!.height - BORDER_PX))).toBeLessThan(2);
   });
 
   test('client-carousel is visible within the initial viewport on load (above the fold)', async ({ page }) => {

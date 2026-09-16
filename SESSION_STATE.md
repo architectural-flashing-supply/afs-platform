@@ -24,6 +24,33 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## HOMEPAGE REDESIGN PHASE 7 (hpd-011) — 2026-09-16
+
+Confirmed via Vercel MCP tools that hpd-010's final commit is live and
+READY on the actual Vercel deployment before investigating this prompt's
+claims, so they're checked against real shipped behavior. Full detail in
+STATE_OF_THE_BUILD.md's matching entry (top of file) — summary here for
+handoff:
+
+- Hero video labels: re-investigated more thoroughly than last time
+  (checked the video asset commits' full messages, this file's own hp-001
+  narrative, and the editorial review README) — still zero evidence any
+  overlay text ever existed. Not implemented, flagged again.
+- Blueprint: `bg-cover`→`bg-contain` (was cropping into the detail),
+  fade narrowed to the right 20% only. This alone broke legibility (copy
+  overlapping the blueprint's own dense text) — caught by screenshot,
+  fixed with a small contained scrim behind just the copy block instead of
+  a column-wide wash.
+- Phone-mockup video: removed a `p-2` bezel padding + extra inner div that
+  was leaving a real ~8px gap around the video on every side — video now
+  fills to the frame's border with nothing in between.
+- `tests/e2e/homepage.spec.ts` +3 tests — 49 passed, 1 skipped, 0 failed.
+- Flagged, not touched: `bp1.webp`/`shop1.png` are confirmed renames of
+  previously-flagged files (same byte size); `looking at blueprints.png`
+  is genuinely new (construction-site photo, 3 people reviewing a plan).
+- IMPLEMENTED, UNCONFIRMED per this file's own verification standard —
+  gates pass, no user confirmation of live behavior yet.
+
 ## HOMEPAGE REDESIGN PHASE 6 (hpd-010) — 2026-09-16
 
 Follow-up prompt made several claims about the current state that didn't
