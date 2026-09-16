@@ -243,6 +243,87 @@ test.describe('Homepage CTAs retargeted off the removed profile-explorer section
   });
 });
 
+test.describe('Homepage overhaul (hpd-008)', () => {
+  test('header logo has no separate sidebar, and the mark renders oversized (64px)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const headerLogoImg = page.locator('header img');
+    await expect(headerLogoImg).toHaveCount(1);
+    await expect(headerLogoImg).toHaveAttribute('width', '64');
+  });
+
+  test('footer has no logo image, only text branding', async ({ page }) => {
+    await page.goto('/');
+    const footer = page.locator('footer');
+    await expect(footer.locator('img')).toHaveCount(0);
+    await expect(footer.getByText('AFS — Architectural Flashing Supply')).toBeVisible();
+  });
+
+  test('client carousel spells "Hays ISD" correctly and scrolls slowly (14s cycle)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const carousel = page.locator('[data-section="client-carousel"]');
+    await expect(carousel.getByText('Hays ISD', { exact: true }).first()).toBeVisible();
+    await expect(carousel.getByText('Hayes ISD')).toHaveCount(0);
+    const duration = await carousel
+      .locator('.client-marquee-track')
+      .evaluate((el) => getComputedStyle(el).animationDuration);
+    expect(duration).toBe('14s');
+  });
+
+  test('field-app button text is breakpoint-conditional: desktop "Open the Field App", mobile "Install App"', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const fieldApp = page.locator('[data-section="field-app"]');
+    await expect(fieldApp.getByRole('link', { name: 'Open the Field App' })).toBeVisible();
+    await expect(fieldApp.getByRole('link', { name: 'Install App' })).toBeHidden();
+
+    await page.setViewportSize({ width: 375, height: 812 });
+    await expect(fieldApp.getByRole('link', { name: 'Install App' })).toBeVisible();
+    await expect(fieldApp.getByRole('link', { name: 'Open the Field App' })).toBeHidden();
+  });
+
+  test('field-app steps use single-digit numbers and the updated step 2/3 copy', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const fieldApp = page.locator('[data-section="field-app"]');
+    await expect(fieldApp.getByText('AFS designs the profile')).toBeVisible();
+    await expect(fieldApp.getByText('Fabrication & Job Site Delivery')).toBeVisible();
+    await expect(fieldApp.getByText('AI identifies the profile and material')).toHaveCount(0);
+  });
+
+  test('design-to-delivery has no photo/camera reference in step 1', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const section = page.locator('[data-section="design-to-delivery"]');
+    await expect(section.getByText('Upload Blueprints & Specifications')).toBeVisible();
+    await expect(section.getByText(/snap a photo/i)).toHaveCount(0);
+  });
+
+  test('nationwide map is expanded to at least 500px tall', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const map = page.locator('[data-testid="nationwide-map"]');
+    const box = await map.boundingBox();
+    expect(box?.height).toBeGreaterThanOrEqual(500);
+  });
+
+  test('final-CTA buttons are all the same crimson style, and hail button reads "Check Hail View"', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    const finalCTA = page.locator('[data-section="final-cta"]');
+    await expect(finalCTA.getByRole('link', { name: 'Check Hail View' })).toHaveAttribute('href', '/hailview');
+    await expect(finalCTA.getByRole('link', { name: 'Check Hail Impact' })).toHaveCount(0);
+
+    const classes = await finalCTA.getByRole('link').evaluateAll((links) => links.map((l) => l.className));
+    expect(new Set(classes).size).toBe(1);
+    expect(classes[0]).toContain('bg-afs-crimson');
+  });
+});
+
 test.describe('Homepage link integrity', () => {
   test('every homepage CTA and every nav/footer link returns 200', async ({ page }) => {
     // Generous timeout: each unique href below is a route the Next.js dev

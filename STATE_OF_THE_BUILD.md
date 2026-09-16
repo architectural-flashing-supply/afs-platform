@@ -34,6 +34,116 @@ summary, not a replacement for it.
 
 ---
 
+## HOMEPAGE REDESIGN PHASE 4 — COMPREHENSIVE OVERHAUL: LOGO, HERO BG, CAROUSEL, COPY, MAP, SERVICES (hpd-008): IMPLEMENTED, UNCONFIRMED (2026-09-16)
+
+A 13-task follow-up prompt covering the header logo, hero, carousel, phone
+mockup, two "how it works" sections, the Field App CTA, the nationwide map,
+materials copy, the services accordion, and the final CTA band. Implemented
+12 of 13 tasks; 2 required no code change (already correct on inspection,
+see below), and 2 requested commits were folded into one (same file, same
+section) — noted per task below rather than split via a fragile partial-file
+patch.
+
+**Gates:** `pnpm tsc --noEmit` — 0 errors. `pnpm build` — succeeds, all
+routes compile. `tests/e2e/homepage.spec.ts` (new "Homepage overhaul
+(hpd-008)" describe block, 8 new tests) + new `tests/e2e/services.spec.ts`
+(2 tests) — 44 passed, 1 skipped (auth-gated), 0 failed, at mobile/tablet/
+desktop viewports.
+
+- **Logo:** `AfsLogo.tsx`'s mark grows 40px→64px, "AFS" text-xl→text-3xl
+  font-bold. `NavBar.tsx`'s header grows `h-14`→`h-20` (and `LOGO_HEIGHT`
+  56→80) to fit it without cramping — every place that reads `LOGO_HEIGHT`
+  or matches its `pt-14`/`top-14` convention needed the same update to stay
+  aligned: `AppChrome.tsx`'s `pt-14`→`pt-20` wrapper, and
+  `ResourcesBrowser.tsx`'s `sticky top-14` category headers →`top-20`
+  (audited via a repo-wide grep for `pt-14`/`top-14`/`h-14`/`LOGO_HEIGHT`,
+  not assumed). `app/hailview/page.tsx` already reads `LOGO_HEIGHT`
+  dynamically (fixed in an earlier pass) so it needed no change. `Footer.tsx`
+  no longer renders `<AfsLogo />` at all — replaced with a plain text
+  "AFS — Architectural Flashing Supply" heading, per this pass's explicit
+  "text branding only" instruction.
+- **Hero right column:** now `bg-white` with a faint architectural-blueprint
+  grid behind the copy. No blueprint stock photo exists in `public/images/`
+  and none was fetched from the web (this project's own safety rules
+  prohibit downloading files from untrusted sources without the user
+  choosing to) — instead the grid is a self-contained inline SVG `<pattern>`
+  (`stroke="currentColor"`, `text-afs-ink-900/[0.06]`), so it's afs-*
+  token-driven like everything else, not a hardcoded-hex background-image
+  per CLAUDE.md rule 4. Copy switched from the chrome-*/white-on-dark tokens
+  to afs-ink-900/afs-ink-700 (dark-on-light), matching the tokens
+  `ClientCarousel.tsx` already established for text on a white surface.
+- **Carousel:** `tailwind.config.js` gained two new afs-* tokens --
+  `accent-blue` (#0177C8) and `accent-orange` (#994C00) -- following the
+  exact precedent this file documents for `accent-green`/`accent-purple`
+  (added for FlashDraft), rather than hardcoding the requested brand hex
+  values directly in JSX (rule 4 again). 8 names now carry an accent: NASA/
+  Tesla → crimson, Samsung/Facebook → accent-blue, UT San Antonio →
+  accent-orange, Canyon Ranch → the existing copper token, DPR → ink-700,
+  Google → per-letter (blue/red/amber/blue/green/red, all existing/new
+  tokens). Marquee cycle 5s→14s. "Hayes ISD" corrected to "Hays ISD".
+- **Phone mockup video:** `PhoneMockupVideo.tsx`'s `object-contain`
+  (deliberately set in the Phase 2 follow-up, 2026-09-16 entry below, to
+  stop the landscape source from being cropped hard) is reverted to
+  `object-cover` per this pass's explicit instruction that the video reads
+  as "tiny" letterboxed and should fill the phone screen. This is a real,
+  acknowledged trade-off -- documented inline at the change site -- not an
+  oversight of the earlier fix.
+- **"Photo to Quote" (`FieldAppStory.tsx`):** heading moved above the phone
+  mockup (was beside it in a two-column layout; now a centered heading above
+  a two-column video+steps row). Step numbers: `01`→`1` etc., `text-5xl`/
+  `text-6xl` crimson (were small `font-data text-sm`). Added camera/pencil/
+  truck icons per step (none existed before). Step 2 copy "AI identifies the
+  profile and material"→"AFS designs the profile"; step 3 "Your quote
+  request is submitted to AFS"→"Fabrication & Job Site Delivery". **Folds
+  in this prompt's separately-requested Field App button task** (same file,
+  same CTA row): the single `md:hidden` mobile-only button is now two
+  breakpoint-conditional buttons -- desktop "Open the Field App" (`hidden
+  md:inline-flex`), mobile "Install App" (`md:hidden`) -- both still
+  pointing at the real `/field/contractor` PWA route. No fabricated Apple
+  App Store/Google Play link: the Field App is a PWA (see
+  `app/field/contractor`, `app/field/layout.tsx`'s own manifest/service-
+  worker shell), not a native app with a real store listing, and this
+  project's own tech stack (CLAUDE.md) has no app-store integration --
+  inventing one would be a dead/misleading link.
+- **"From Capture to Delivery" (`DesignToDelivery.tsx`):** step 1
+  `CaptureIcon`→`UploadIcon` (up-arrow-into-tray, was a camera), title
+  "Capture"→"Upload Blueprints & Specifications", description no longer
+  mentions "snap a photo" (that flow now lives solely in FieldAppStory's own
+  section). Step 2 title "Convert"→"AFS Reviews Specifications & Creates
+  Quote" — note this is now close in meaning to step 3 "Verify"'s existing
+  copy ("AFS estimators review every submission... a formal quote is
+  issued"); left as-is since this pass's own instructions explicitly said
+  "Step 3+: Keep as-is," not a request to resolve that overlap. Step 5 title
+  "Track"→"Track Production & Delivery Status in Real Time".
+- **Nationwide map:** height `320px/420px`→`500px/560px` (mobile/desktop).
+  The single-item keyboard-accessible location list (just the one HQ entry
+  — `ALL_LOCATIONS` has no project pins, see `nationwide-locations.ts`) is
+  now one small text line directly under the section heading instead of a
+  separate "Locations" heading + list block below the map.
+- **Materials copy:** already correct on inspection — `ShopFloorProof.tsx`
+  already reads "Unlimited / Custom Profiles" (not a number); its own
+  comment explains the real 911-profile internal shop-history figure was
+  deliberately never used in site copy. No code change made for this task.
+- **Services accordion (`app/(public)/about/services/page.tsx`):** clicking
+  "Learn More" now calls `scrollIntoView({behavior:'smooth', block:'start'})`
+  on the (always-mounted, `grid-rows-[0fr]`→`[1fr]`) panel wrapper, only
+  when opening (not when collapsing via "Show Less").
+- **Submittal content:** already correct on inspection —
+  `app/(public)/about/services/submittal/page.tsx`'s hero section already
+  renders the full supplied description text directly (not inside a
+  collapsed accordion). No code change made for this task.
+- **Final CTA (`FinalCTA.tsx`):** all 4 buttons now share one crimson
+  style (the `primary`/secondary branch and unused `primary` flag removed
+  entirely, since every action was the same style once branching was
+  pointless). "Check Hail Impact"→"Check Hail View".
+
+**Not yet done / carried over unresolved:** the `hp 1.mp4`/`hp 2.mp4`/
+`hp 3.mp4` untracked files (flagged in the hpd-006 entry below) are still
+present and untouched. No user confirmation yet that this pass's changes
+render correctly in a real browser — session self-testing only (Playwright
+screenshots at 1440px and 375px), per this file's own verification standard
+above.
+
 ## HOMEPAGE REDESIGN PHASE 3 — SIDEBAR REMOVED, HERO RE-ARCHITECTED, CAROUSEL REDESIGNED (hpd-007): IMPLEMENTED, UNCONFIRMED (2026-09-16)
 
 A follow-up prompt reported the hero, carousel, and header logo were "wrong"

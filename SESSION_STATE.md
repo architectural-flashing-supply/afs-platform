@@ -24,6 +24,47 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## HOMEPAGE REDESIGN PHASE 4 (hpd-008) — 2026-09-16
+
+13-task follow-up covering logo, hero, carousel, phone mockup, both "how it
+works" sections, Field App CTA, map, materials copy, services accordion,
+and final CTA. Full detail in STATE_OF_THE_BUILD.md's matching entry (top
+of file) — summary here for handoff:
+
+- Logo oversized (40px→64px mark, header 56px→80px) and removed from the
+  footer entirely (text-only brand now). Every `LOGO_HEIGHT`/`pt-14`/
+  `top-14` consumer audited and updated to match (`AppChrome.tsx`,
+  `ResourcesBrowser.tsx`'s sticky category headers).
+- Hero's right column is now a light `bg-white` panel with an inline-SVG
+  blueprint grid (afs-* tokens, not a fetched stock photo or hardcoded hex)
+  and dark-on-light copy.
+- Carousel: 2 new afs-* tokens (`accent-blue`, `accent-orange`) added
+  following the existing accent-green/accent-purple precedent; 8 client
+  names get brand-flavored accents (Google per-letter); marquee slowed
+  5s→14s; "Hayes ISD"→"Hays ISD".
+- Phone mockup video reverted `object-contain`→`object-cover` (explicit
+  ask this pass, a real trade-off vs. the Phase 2 follow-up's fix — see
+  inline comment).
+- FieldAppStory: heading moved above the mockup, step numbers enlarged +
+  crimson + icons added, steps 2/3 copy updated. Field App CTA is now two
+  breakpoint-conditional buttons (desktop "Open the Field App", mobile
+  "Install App"), both still pointing at the real `/field/contractor` PWA
+  route — no fabricated app-store link.
+- DesignToDelivery: step 1 is now upload-focused (icon + copy, no photo
+  reference), step 2 retitled "AFS Reviews Specifications & Creates Quote",
+  step 5 retitled "Track Production & Delivery Status in Real Time".
+- NationwideMap: 320/420px→500/560px tall; the one-item location list
+  condensed to a small line under the heading instead of its own section.
+- Materials copy and submittal-page content were both already correct on
+  inspection — no code change for either.
+- Services page "Learn More" now auto-scrolls the expanded panel into view.
+- FinalCTA: all 4 buttons now one crimson style; "Check Hail Impact"→
+  "Check Hail View".
+- `tests/e2e/homepage.spec.ts` (+8 tests) and new `tests/e2e/services.spec.ts`
+  (+2 tests) cover this pass's changes — 44 passed, 1 skipped, 0 failed.
+- Same as every entry above: gates pass, but no user has confirmed the
+  actual behavior live yet — IMPLEMENTED, UNCONFIRMED.
+
 ## HOMEPAGE REDESIGN PHASE 3 (hpd-007) — 2026-09-16
 
 Follow-up prompt specified a different target than hpd-004/hpd-006 shipped
