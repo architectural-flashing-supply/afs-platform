@@ -37,12 +37,12 @@ export default function HomePage() {
         <ClientCarousel />
       </HomeSection>
 
-      <HomeSection slug="credibility">
-        <CredibilityStrip />
-      </HomeSection>
-
       <HomeSection slug="field-app">
         <FieldAppStory />
+      </HomeSection>
+
+      <HomeSection slug="credibility">
+        <CredibilityStrip />
       </HomeSection>
 
       {/* DesignStudioHub already sets id="design-studio" on its own root

@@ -2,10 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-// Extracted from FieldAppStory.tsx (hp-005) so HeroSection's new split-screen
-// layout (hpd-004) can reuse the exact same phone-mockup video without a
-// second copy of this autoplay/reduced-motion/intersection-observer logic.
-// FieldAppStory itself is now text-only -- see that file's own comment.
+// Phone-mockup video used by FieldAppStory's below-the-fold "Photo to Quote"
+// section, kept as its own component for its autoplay/reduced-motion/
+// intersection-observer logic.
 const videoSources = {
   webm: '/videos/three-step-process.webm',
   mp4: '/videos/three-step-process.mp4',
@@ -32,10 +31,8 @@ export default function PhoneMockupVideo() {
     return () => motionQuery.removeEventListener('change', handleChange);
   }, []);
 
-  // Same near-viewport gate as the original FieldAppStory -- now placed
-  // inside the hero (above the fold), this observer simply fires immediately
-  // on mount instead of waiting for a scroll, so the gate is a no-op there
-  // without needing a separate code path.
+  // Defers loading the video source until the component nears the viewport,
+  // since this section renders below the fold.
   useEffect(() => {
     const wrap = wrapRef.current;
     if (!wrap) return;
@@ -73,6 +70,7 @@ export default function PhoneMockupVideo() {
             poster="/images/hero-poster.jpg"
             autoPlay
             muted
+            loop
             playsInline
             preload="metadata"
             aria-hidden="true"
