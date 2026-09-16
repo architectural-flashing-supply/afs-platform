@@ -30,10 +30,7 @@ export default function AppChrome({ children }: { children: React.ReactNode }) {
   return (
     <>
       <NavBar />
-      {/* md:pl-[120px] clears NavBar's desktop-only fixed left logo rail
-          (SIDEBAR_WIDTH in NavBar.tsx) -- mobile has no rail, so no left
-          padding is needed below md. */}
-      <div className="pt-14 md:pl-[120px]">
+      <div className="pt-14">
         {children}
         <Footer />
       </div>
