@@ -2,45 +2,75 @@
 // naming real, confirmed AFS client relationships (confirmed directly by
 // Reid, 2026-09-15 -- see the NASA Johnson Space Center credential already
 // live in CaseStudies.tsx for independent corroboration of at least that one).
-// afs-ink-900/afs-crimson (not the chrome-* tokens, which are near-white and
-// meant for the dark gunmetal backgrounds used elsewhere on this page) are
-// the afs-* tokens built for text on a light/white surface -- see this
-// band's bg-white below.
-const CLIENTS = [
-  { name: 'NASA', accent: true },
-  { name: 'Samsung', accent: false },
-  { name: 'Tesla', accent: true },
-  { name: 'Google', accent: false },
-  { name: 'Facebook', accent: true },
-  { name: 'Baylor Scott & White', accent: false },
-  { name: 'University Hospital', accent: true },
-  { name: 'Hayes ISD', accent: false },
-  { name: 'TopGolf', accent: true },
-  { name: 'Bugmaster', accent: false },
-  { name: 'Manor Medical', accent: true },
-  { name: 'UT San Antonio', accent: false },
-  { name: 'Seton Round Rock', accent: true },
-  { name: 'Midland Memorial Hospital System', accent: false },
-  { name: 'Canyon Ranch', accent: true },
-  { name: 'DPR', accent: false },
-] as const;
+// Selective brand-flavored accents on 8 names, approximated with afs-*
+// tokens rather than each brand's literal hex (CLAUDE.md rule 4: no
+// hardcoded hex in JSX) -- afs-crimson stands in for NASA/Tesla red,
+// afs-accent-blue for Samsung/Facebook blue, afs-copper for Canyon Ranch's
+// warm tan/brown, afs-amber/afs-accent-green fill out Google's per-letter
+// scheme. Everyone else stays afs-ink-900 (plain "gunmetal" text on white).
+const DEFAULT_CLASS = 'text-afs-ink-900';
+
+const CLIENTS: { name: string; className: string }[] = [
+  { name: 'NASA', className: 'text-afs-crimson' },
+  { name: 'Samsung', className: 'text-afs-accent-blue' },
+  { name: 'Tesla', className: 'text-afs-crimson' },
+  { name: 'Google', className: '' }, // rendered per-letter, see GOOGLE_LETTER_CLASSES below
+  { name: 'Facebook', className: 'text-afs-accent-blue' },
+  { name: 'Baylor Scott & White', className: DEFAULT_CLASS },
+  { name: 'University Hospital', className: DEFAULT_CLASS },
+  { name: 'Hays ISD', className: DEFAULT_CLASS },
+  { name: 'TopGolf', className: DEFAULT_CLASS },
+  { name: 'Bugmaster', className: DEFAULT_CLASS },
+  { name: 'Manor Medical', className: DEFAULT_CLASS },
+  { name: 'UT San Antonio', className: 'text-afs-accent-orange' },
+  { name: 'Seton Round Rock', className: DEFAULT_CLASS },
+  { name: 'Midland Memorial Hospital System', className: DEFAULT_CLASS },
+  { name: 'Canyon Ranch', className: 'text-afs-copper' },
+  { name: 'DPR', className: 'text-afs-ink-700' },
+];
+
+// Google's classic per-letter color sequence (blue/red/yellow/blue/green/red),
+// built entirely from existing/added afs-* tokens -- no literal hex.
+const GOOGLE_LETTER_CLASSES = [
+  'text-afs-accent-blue',
+  'text-afs-crimson',
+  'text-afs-amber',
+  'text-afs-accent-blue',
+  'text-afs-accent-green',
+  'text-afs-crimson',
+];
 
 // Pure CSS marquee -- no client-side JS/state needed. The track is the
 // client list rendered twice back to back; animating it from 0 to -50%
 // (exactly one copy's width) and looping produces a seamless infinite
 // scroll, and "pause on hover" is a plain :hover rule on the wrapper, not a
-// mouseenter/mouseleave handler. 5s per full cycle, per spec.
-const ANIMATION_DURATION_S = 5;
+// mouseenter/mouseleave handler. 14s per full cycle -- slow enough to
+// actually read each name, still continuously moving.
+const ANIMATION_DURATION_S = 14;
 
-function ClientName({ name, accent, ariaHidden }: { name: string; accent: boolean; ariaHidden?: boolean }) {
+// Just the text/letters, no sizing or layout classes -- callers (marquee vs.
+// mobile stack) wrap this in their own <span> with context-appropriate size/
+// whitespace handling.
+function NameContent({ name, className }: { name: string; className: string }) {
+  if (name === 'Google') {
+    return (
+      <>
+        {name.split('').map((letter, i) => (
+          <span key={i} className={GOOGLE_LETTER_CLASSES[i % GOOGLE_LETTER_CLASSES.length]}>
+            {letter}
+          </span>
+        ))}
+      </>
+    );
+  }
+
+  return <span className={className}>{name}</span>;
+}
+
+function MarqueeName({ name, className, ariaHidden }: { name: string; className: string; ariaHidden?: boolean }) {
   return (
-    <span
-      aria-hidden={ariaHidden}
-      className={`flex-none whitespace-nowrap font-display text-4xl leading-none ${
-        accent ? 'text-afs-crimson' : 'text-afs-ink-900'
-      }`}
-    >
-      {name}
+    <span aria-hidden={ariaHidden} className="flex-none whitespace-nowrap font-display text-4xl leading-none">
+      <NameContent name={name} className={className} />
     </span>
   );
 }
@@ -63,24 +93,22 @@ export default function ClientCarousel() {
           style={{ animationDuration: `${ANIMATION_DURATION_S}s` }}
         >
           {CLIENTS.map((client) => (
-            <ClientName key={client.name} name={client.name} accent={client.accent} />
+            <MarqueeName key={client.name} name={client.name} className={client.className} />
           ))}
           {CLIENTS.map((client) => (
-            <ClientName key={`${client.name}-repeat`} name={client.name} accent={client.accent} ariaHidden />
+            <MarqueeName key={`${client.name}-repeat`} name={client.name} className={client.className} ariaHidden />
           ))}
         </div>
       </div>
 
-      {/* Mobile: vertical stack, no scroll/animation needed. */}
-      <div className="mt-10 flex flex-col items-center gap-6 md:hidden">
+      {/* Mobile: vertical stack, no scroll/animation needed -- text-3xl (not
+          the marquee's text-4xl) and no forced nowrap, so the longest names
+          (e.g. "Midland Memorial Hospital System") can wrap instead of
+          overflowing the viewport width. */}
+      <div className="mt-10 flex flex-col items-center gap-6 px-6 md:hidden">
         {CLIENTS.map((client) => (
-          <span
-            key={client.name}
-            className={`text-center font-display text-3xl leading-none ${
-              client.accent ? 'text-afs-crimson' : 'text-afs-ink-900'
-            }`}
-          >
-            {client.name}
+          <span key={client.name} className="text-center font-display text-3xl leading-none">
+            <NameContent name={client.name} className={client.className} />
           </span>
         ))}
       </div>
