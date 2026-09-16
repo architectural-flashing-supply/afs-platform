@@ -34,6 +34,65 @@ summary, not a replacement for it.
 
 ---
 
+## HOMEPAGE REDESIGN PHASE 8 — HERO PROCESS LABELS ADDED, BLUEPRINT COVER+TRANSLUCENCY, WIDER PHONE FRAME (hpd-012): IMPLEMENTED, UNCONFIRMED (2026-09-16)
+
+Third consecutive pass asking to "restore" hero overlay labels, and a
+respecification of the blueprint treatment (cover + uniform translucency +
+right-edge-only fade, reversing hpd-011's contain + contained-scrim
+approach) and the phone frame (wider, 9:16 instead of 9:19.5). A duplicate
+resend of the prior prompt arrived first and was confirmed as a no-op
+(branch already had that work, pushed) before this respecified version
+landed.
+
+**Gates:** `pnpm tsc --noEmit` — 0 errors. `pnpm build` — succeeds.
+`tests/e2e/homepage.spec.ts` (tests rewritten/added for this pass's
+changes) — 50 passed, 1 skipped, 0 failed.
+
+- **Hero video labels: added for real this time, not "restored."** Three
+  passes now have searched exhaustively (commit history, full commit
+  messages, this file's own hp-001 narrative, the editorial
+  `scripts/video-review/README.md`) and found zero evidence overlay text
+  ever existed on this video. Rather than report "not found" a third time
+  with nothing to show for it, built real labels grounded in that same
+  README's own documented structure: `hero-metal-fabrication.mp4` is
+  edited as FEED+BEND (clip 2, joined without a cut) then RELEASE (clip 4,
+  0.5s crossfade in), 16.0s total -- verified against the actual current
+  file via `ffprobe` (16.03s, matches). A `timeupdate` listener switches a
+  small bottom-left label between "Feed + Bend" and "Release" at the
+  10.5s crossfade midpoint (16.0 total - 6.0s RELEASE segment + 0.5s
+  crossfade overlap). This is new content grounded in real production
+  data, explicitly not a restoration of something that was deleted --
+  documented as such inline, in case a fourth pass reads this file first.
+- **Blueprint: reversed from hpd-011's `bg-contain` back to `bg-cover`**
+  (fills the section, per this pass's explicit respec) with two separate
+  overlay layers instead of one: a uniform `afs-bg-dim/55` wash across the
+  whole column ("translucency"), plus a second gradient layer fading in
+  only over the right 30% of the width (transparent until 70%, `afs-bg-
+  dim/40%` at 100%) -- not the whole-column wash hpd-011's contained-scrim
+  fix used. This is a real trade-off, not a strict improvement: the
+  smaller copy (eyebrow, subheading, helper text) still shows some
+  overlap with the blueprint's own dense linework underneath, softer than
+  hpd-011's scrim-based fix but not as clean -- shipped as literally
+  specified (this pass gave an exact CSS gradient example) rather than
+  reintroducing the scrim unasked, and flagged to Reid rather than
+  silently accepting or silently overriding a second time. The one
+  concrete fix applied beyond the literal spec: the "View Our Work"
+  secondary button had no background fill, so the blueprint showed
+  straight through its interior -- given a `bg-afs-bg-dim/60` fill so its
+  own text stays legible regardless of what's behind it.
+- **Phone-mockup video: frame widened 260px/9:19.5 -> 360px/9:16**, per
+  this pass's explicit sizing. The `-portrait` composite video (built in
+  hpd-011) was re-rendered at a matching 1080x1920 canvas (was 1080x2340)
+  so `object-cover` still has zero crop to do at the new aspect -- ffmpeg
+  pipeline reused verbatim, just retargeted.
+
+**Not split into 3 separate hero commits as literally requested:** Task 1
+(labels) and Task 2 (blueprint) both landed in `HeroSection.tsx` with
+heavily interleaved diff hunks (checked via `git diff --unified=0` before
+deciding, not assumed) -- splitting via `git add -p` would have been
+fragile across 10 overlapping hunks. Committed together as one hero
+commit; phone mockup is its own commit as requested.
+
 ## HOMEPAGE REDESIGN PHASE 7 — HERO LABEL CLAIM RE-INVESTIGATED, BLUEPRINT ZOOM/FADE, PHONE VIDEO BEZEL (hpd-011): IMPLEMENTED, UNCONFIRMED (2026-09-16)
 
 **Vercel confirmed live and current for this investigation:** checked via

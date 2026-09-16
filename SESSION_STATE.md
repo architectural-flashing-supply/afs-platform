@@ -24,6 +24,34 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## HOMEPAGE REDESIGN PHASE 8 (hpd-012) — 2026-09-16
+
+Third pass asking to "restore" hero overlay labels (a duplicate resend of
+the prior prompt landed first, confirmed as a no-op since the branch
+already had that work). Full detail in STATE_OF_THE_BUILD.md's matching
+entry (top of file) — summary here for handoff:
+
+- Hero labels: still zero evidence anything ever existed to restore
+  (three passes have now searched exhaustively). Instead of reporting
+  "not found" a third time, added real labels grounded in the video's own
+  documented editorial structure (FEED+BEND / RELEASE, from
+  `scripts/video-review/README.md`), timed via the video's own
+  `timeupdate` at the real 10.5s crossfade point. New content, explicitly
+  not a restoration — documented as such for whoever reads this next.
+- Blueprint: `bg-contain` → `bg-cover` (reversed from hpd-011, per this
+  pass's explicit respec), uniform translucent wash + separate right-
+  edge-only fade layer (not hpd-011's contained scrim). Real trade-off:
+  smaller copy still shows some overlap with the blueprint's own
+  linework — shipped as literally specified and flagged, not silently
+  re-overridden with a scrim a second time. Did fix the "View Our Work"
+  button specifically (it had no background, so the blueprint showed
+  straight through it).
+- Phone mockup: frame widened to 360px/9:16 (was 260px/9:19.5); the
+  portrait composite video re-rendered to match exactly, zero crop.
+- `tests/e2e/homepage.spec.ts` updated — 50 passed, 1 skipped, 0 failed.
+- IMPLEMENTED, UNCONFIRMED per this file's own verification standard —
+  gates pass, no user confirmation of live behavior yet.
+
 ## HOMEPAGE REDESIGN PHASE 7 (hpd-011) — 2026-09-16
 
 Confirmed via Vercel MCP tools that hpd-010's final commit is live and

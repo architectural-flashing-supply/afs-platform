@@ -263,7 +263,7 @@ test.describe('Homepage overhaul (hpd-008)', () => {
     await expect(footer.getByText('AFS — Architectural Flashing Supply')).toBeVisible();
   });
 
-  test('hero right column has Reid\'s real blueprint background image, shown at its natural extent (not zoomed/cropped)', async ({
+  test('hero right column has Reid\'s real blueprint background image, filling the section (bg-cover)', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -273,18 +273,30 @@ test.describe('Homepage overhaul (hpd-008)', () => {
     const backgroundImage = await rightColumn.evaluate((el) => getComputedStyle(el).backgroundImage);
     expect(backgroundImage).toContain('blueprint.webp');
     const backgroundSize = await rightColumn.evaluate((el) => getComputedStyle(el).backgroundSize);
-    expect(backgroundSize).toBe('contain');
+    expect(backgroundSize).toBe('cover');
   });
 
-  test('hero copy sits on its own contained scrim, not directly on the blueprint (legibility)', async ({ page }) => {
+  test('hero right column has a uniform translucent wash plus an extra fade on the right edge only', async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
     const hero = page.locator('[data-section="hero"]');
-    const scrim = hero.getByRole('heading', { name: /From Concept to Delivery/ }).locator('..');
-    await expect(scrim).toBeVisible();
-    const bg = await scrim.evaluate((el) => getComputedStyle(el).backgroundColor);
-    // Must have an actual (non-transparent) fill behind the text.
-    expect(bg).not.toBe('rgba(0, 0, 0, 0)');
+    const rightColumn = hero.locator('div.grid > div').nth(1);
+    // Two overlay divs: a uniform wash, then a right-edge-only gradient.
+    const overlays = rightColumn.locator(':scope > div.pointer-events-none.absolute.inset-0');
+    await expect(overlays).toHaveCount(2);
+    const washBg = await overlays.nth(0).evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(washBg).not.toBe('rgba(0, 0, 0, 0)');
+    const edgeBg = await overlays.nth(1).evaluate((el) => getComputedStyle(el).backgroundImage);
+    expect(edgeBg).toContain('linear-gradient');
+  });
+
+  test('hero left video shows a real, timed process-stage label ("Feed + Bend" then "Release")', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const hero = page.locator('[data-section="hero"]');
+    await expect(hero.getByText('Feed + Bend')).toBeVisible();
   });
 
   test('field-app phone-mockup video has no bezel padding around it (fills to the frame border)', async ({
