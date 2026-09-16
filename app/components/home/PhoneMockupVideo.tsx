@@ -64,9 +64,19 @@ export default function PhoneMockupVideo() {
             // this screen is ~9:19.5 portrait) read as "tiny" with most of
             // the frame empty. This does crop the sides of the landscape
             // source to fill the portrait screen -- a real trade-off,
-            // reverting the object-contain fix from the prior pass -- but
-            // it's what this pass's spec explicitly calls for.
-            className="absolute inset-0 h-full w-full object-cover"
+            // reverting the object-contain fix from a prior pass -- but
+            // it's what that pass's spec explicitly called for.
+            //
+            // object-[25%_center] (not the object-cover default of center
+            // center): the video's actual subjects sit left-of-center in
+            // frame in all 3 concatenated segments (verified by extracting
+            // and inspecting frames) -- a dead-center crop shows blank
+            // background for the sketch-photo and FlashDraft-canvas
+            // segments (the canvas segment's crop was 100% empty grid, no
+            // diagram visible at all) and clips most of the worker in the
+            // shop-floor segment. 25% keeps each segment's real subject in
+            // frame instead of empty background.
+            className="absolute inset-0 h-full w-full object-cover object-[25%_center]"
             poster="/images/hero-poster.jpg"
             autoPlay
             muted
