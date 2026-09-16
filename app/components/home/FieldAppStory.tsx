@@ -1,3 +1,6 @@
+'use client';
+
+import { useState } from 'react';
 import Link from 'next/link';
 import type { SVGProps } from 'react';
 import PhoneMockupVideo from './PhoneMockupVideo';
@@ -52,6 +55,8 @@ const STEPS = [
 ];
 
 export default function FieldAppStory() {
+  const [activeStep, setActiveStep] = useState(0);
+
   return (
     <section className="relative overflow-hidden bg-afs-bg-base py-20 md:py-28">
       <div className="relative mx-auto max-w-6xl px-6">
@@ -61,24 +66,37 @@ export default function FieldAppStory() {
 
         <div className="mt-16 grid grid-cols-1 items-center gap-12 md:grid-cols-2 md:gap-16">
           <div className="flex w-full justify-center">
-            <PhoneMockupVideo />
+            <PhoneMockupVideo onActiveStepChange={setActiveStep} />
           </div>
 
           <div className="text-center md:text-left">
             <ol className="mx-auto flex max-w-md flex-col gap-8 text-left md:mx-0">
-              {STEPS.map((step) => (
-                <li key={step.number} className="flex items-center gap-5">
-                  <span className="flex flex-none items-center gap-3">
-                    <span className="font-display text-5xl leading-none text-afs-crimson sm:text-6xl">
-                      {step.number}
+              {STEPS.map((step, index) => {
+                const isActive = index === activeStep;
+                return (
+                  <li
+                    key={step.number}
+                    className="flex items-center gap-5 transition-opacity duration-300"
+                    style={{ opacity: isActive ? 1 : 0.45 }}
+                  >
+                    <span className="flex flex-none items-center gap-3">
+                      <span
+                        className={`font-display leading-none text-afs-crimson transition-transform duration-300 ${
+                          isActive
+                            ? 'scale-110 text-5xl drop-shadow-[0_0_12px_theme(colors.afs.crimson/50%)] sm:text-6xl'
+                            : 'text-5xl sm:text-6xl'
+                        }`}
+                      >
+                        {step.number}
+                      </span>
+                      <step.Icon className="h-8 w-8 flex-none text-afs-crimson" aria-hidden="true" />
                     </span>
-                    <step.Icon className="h-8 w-8 flex-none text-afs-crimson" aria-hidden="true" />
-                  </span>
-                  <span className="font-body text-lg text-afs-chrome-mid md:text-xl">
-                    {step.text}
-                  </span>
-                </li>
-              ))}
+                    <span className="font-body text-lg text-afs-chrome-mid md:text-xl">
+                      {step.text}
+                    </span>
+                  </li>
+                );
+              })}
             </ol>
 
             {/* The Field App is a real installable PWA (app/field/contractor
