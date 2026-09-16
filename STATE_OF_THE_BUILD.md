@@ -34,6 +34,49 @@ summary, not a replacement for it.
 
 ---
 
+## HOMEPAGE REDESIGN PHASE 2 FOLLOW-UP — VIDEO OBJECT-FIT + LOGO TAGLINE FIXED, NOT REVERTED (2026-09-16)
+
+A follow-up prompt reported "Phase 2 is broken" and asked for a full
+`git revert` of all 7 Phase 2 commits back to the Phase 1 state
+(`3acb1d0`). Checked before acting, since that's a large, mostly-unrelated
+action for what the prompt's own Steps 3-4 actually described:
+
+- The video file itself: re-probed with `ffmpeg` — 5.97s, valid H.264,
+  1920x1080, exactly as built. Not corrupted, not the wrong length.
+- Git: no divergence from what was pushed last pass; nothing had changed.
+- The two real, specific issues (video looking over-zoomed; logo missing
+  its tagline) are narrow, in-place-fixable cosmetic items, unrelated to
+  the client carousel, both services pages, the nav link, or the test
+  fixes that a full revert would have also discarded.
+
+Presented this to Reid directly rather than either reverting blind or
+unilaterally ignoring the instruction; he chose to fix in place. Both
+real issues are now fixed:
+
+- `PhoneMockupVideo.tsx`: `object-cover` → `object-contain`. The source
+  video is landscape 1920x1080; the phone screen is portrait ~9:19.5 —
+  `object-cover` was scaling the video up to fill that much
+  taller/narrower frame, cropping nearly all of the width away. Now
+  letterboxed against the screen's own background instead.
+- `AfsLogo.tsx` rewritten: previously rendered the flat
+  `afs-logo.png`/`afs-logo-512.png` assets directly, so the sidebar
+  'mark' variant had no tagline (baked into neither the mark asset nor
+  independently restyleable in the flattened wordmark asset). Now
+  composes the mark image with live "AFS" text and, in the new
+  `variant="sidebar"`, a live "ARCHITECTURAL FLASHING SUPPLY" tagline
+  underneath — real HTML text, not flattened into the image, so it stays
+  legible at the sidebar's actual render size. `variant="compact"`
+  (mark + "AFS", no tagline) replaces the old `'wordmark'` variant for
+  the mobile header and footer.
+
+**Gates:** `pnpm tsc --noEmit` — 0 errors. `pnpm build` — succeeds. Full
+`tests/e2e/` suite re-run after both fixes: 53 passed, 12 skipped
+(auth-gated), 0 failed. Visually confirmed via Playwright screenshots
+(1440px + 375px) that the video is no longer cropped and the sidebar
+logo shows mark + "AFS" + tagline, footer/mobile header show mark + "AFS"
+only. Still IMPLEMENTED, UNCONFIRMED, not DONE — same standard as above,
+no user confirmation yet.
+
 ## HOMEPAGE REDESIGN PHASE 1 + 2 — VIDEO, LOGO SIDEBAR, HERO SPLIT-SCREEN, SERVICES PAGES, CLIENT CAROUSEL (hpd-003..hpd-006): IMPLEMENTED, UNCONFIRMED (2026-09-15)
 
 **Per this file's own verification standard above:** every gate below was

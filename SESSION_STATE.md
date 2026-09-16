@@ -24,6 +24,21 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## HOMEPAGE REDESIGN PHASE 2 FOLLOW-UP — 2026-09-16
+
+A "Phase 2 is broken, revert all 7 commits" request turned out, on
+inspection, to describe two narrow cosmetic issues (video over-zoomed,
+logo missing its tagline) — not a crash, and not caused by the carousel/
+services pages/nav link a full revert would also have discarded. Checked
+the video file (valid, 5.97s) and git state (no divergence) before
+proposing the smaller fix instead of executing the revert; Reid agreed.
+Fixed both in place: `PhoneMockupVideo.tsx` now uses `object-contain`
+(was cropping the landscape video hard to fill the portrait phone
+screen), and `AfsLogo.tsx` now composes live "AFS" + tagline text next
+to the mark image instead of relying on flattened image text. Full
+`tests/e2e/` suite re-passed (53/0/12 skipped) after both fixes. Detail
+in STATE_OF_THE_BUILD.md's matching entry.
+
 ## HOMEPAGE REDESIGN PHASE 1 + 2 (hpd-003..hpd-006) — 2026-09-15
 
 Full detail in STATE_OF_THE_BUILD.md's matching entry (top of file) —
