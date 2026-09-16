@@ -13,11 +13,12 @@ import { test, expect, type Page } from '@playwright/test';
 const PRICE_PATTERN = /\$[\d,]+(\.\d{2})?/;
 
 // Document order asserted by app/page.tsx's own <HomeSection slug="..."> wrapper
-// sequence — eleven real sections as of hpc-003 (was twelve at hpa-003;
-// profile-explorer was removed from the render order — the Explore Our
-// Profiles section is no longer used as a sample, per Reid).
+// sequence — twelve real sections as of hpd-004/hpd-006 (was eleven at
+// hpc-003; the split-screen hero redesign added a new client-carousel
+// section right after hero — see ClientCarousel.tsx).
 const SECTION_SLUGS = [
   'hero',
+  'client-carousel',
   'credibility',
   'field-app',
   'design-studio',
@@ -67,12 +68,15 @@ for (const viewport of VIEWPORTS) {
       expect(slugs).toEqual(SECTION_SLUGS);
     });
 
-    test('hero video declares an mp4 source and a poster', async ({ page }) => {
+    test('hero phone-mockup video declares an mp4 source and a poster', async ({ page }) => {
+      // hpd-004: the hero no longer has a full-bleed background video --
+      // PhoneMockupVideo (the three-step-process montage, moved here from
+      // FieldAppStory) is the only <video> left inside [data-section="hero"].
       await page.goto('/');
       const heroVideo = page.locator('[data-section="hero"] video');
       await expect(heroVideo).toHaveAttribute('poster', '/images/hero-poster.jpg');
       const mp4Source = heroVideo.locator('source[type="video/mp4"]');
-      await expect(mp4Source).toHaveAttribute('src', '/videos/hero-metal-fabrication.mp4');
+      await expect(mp4Source).toHaveAttribute('src', '/videos/three-step-process.mp4');
     });
 
     test('hero renders with zero console errors and no canvas element', async ({ page }) => {
@@ -193,12 +197,18 @@ test.describe('Homepage navigation and footer', () => {
 });
 
 test.describe('Homepage CTAs retargeted off the removed profile-explorer section (hpc-003)', () => {
-  test('hero secondary CTA points at #shop-floor, which resolves on the page', async ({ page }) => {
+  // hpd-004 replaced the old single-CTA full-bleed hero with a split-screen
+  // dual-CTA design -- "See How It's Made" / #shop-floor no longer exists.
+  test('hero dual CTAs resolve to /studio/draft and /quote', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
-    const heroCTA = page.locator('[data-section="hero"]').getByRole('link', { name: "See How It's Made" });
-    await expect(heroCTA).toHaveAttribute('href', '#shop-floor');
-    await expect(page.locator('#shop-floor')).toHaveCount(1);
+    const hero = page.locator('[data-section="hero"]');
+
+    const primaryCTA = hero.getByRole('link', { name: 'Design Your Profile' });
+    await expect(primaryCTA).toHaveAttribute('href', '/studio/draft');
+
+    const secondaryCTA = hero.getByRole('link', { name: 'Request a Quote' });
+    await expect(secondaryCTA).toHaveAttribute('href', '/quote');
   });
 
   test('final-CTA "Custom Profiles" button points at /architects/custom-profiles, which returns 200', async ({
