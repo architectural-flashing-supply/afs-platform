@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type SVGProps } from 'react';
+import { useRef, useState, type SVGProps } from 'react';
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
 
@@ -189,9 +189,17 @@ const SERVICES: ServiceDetail[] = [
 export default function ServicesPage() {
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const expanded = SERVICES.find((s) => s.key === expandedKey) ?? null;
+  const panelRef = useRef<HTMLDivElement>(null);
 
   const toggleExpanded = (key: string) => {
+    const opening = expandedKey !== key;
     setExpandedKey((prev) => (prev === key ? null : key));
+    // Only auto-scroll when opening -- the panel wrapper always exists in
+    // the DOM (grid-rows-[0fr] when collapsed), so it's a valid scroll
+    // target immediately, no need to wait for the expanded content to render.
+    if (opening) {
+      panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   };
 
   return (
@@ -248,7 +256,8 @@ export default function ServicesPage() {
             smooth height transition that doesn't need a measured pixel
             height from JS. */}
         <div
-          className={`mt-8 grid transition-[grid-template-rows] duration-300 ease-out ${
+          ref={panelRef}
+          className={`mt-8 scroll-mt-24 grid transition-[grid-template-rows] duration-300 ease-out ${
             expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
           }`}
         >
