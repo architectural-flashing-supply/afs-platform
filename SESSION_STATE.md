@@ -24,6 +24,335 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## FLASHDRAFT — REMEDIAL PASS (afs-jf-006/007/008) — 2026-09-17
+
+Phase 1 complete: 5-task remedial follow-up to afs-fl-027 below, all in
+`app/studio/draft/page.tsx`. Full detail in STATE_OF_THE_BUILD.md's matching
+entry (top of file) — summary here for handoff:
+
+1. Profile Match sidebar list removed (the separate split-screen 3D
+   exact-match feature it also fed was confirmed still intact and untouched).
+2. "Untitled Profile" placeholder now displays as "Name your profile"
+   (internal sentinel string unchanged — only the label). Profile info box
+   gained its own dismiss X (collapses to a "Profile Info" reopen pill).
+3. Job Info is now a right-side slide-out drawer instead of an inline
+   downward expansion. Closing it (either X) now actually clears all 5
+   fields — fixes the persist bug where closing only hid stale data.
+4. "Load" (now "Load Profiles") repointed from the shop's `machine_profiles`
+   library to the signed-in user's own Profile Passport
+   (`saved_configurations`, `dimensions->>kind='flashdraft'`) — auth
+   required, Profile Name/Date Created/Job Name columns, hover quick-view
+   thumbnail via `CanonicalProfileDiagram`. **Did NOT delete any database
+   rows** — the task's premise that the old library data was "geometrically
+   invalid" test data conflicts with SCHEMA.md, which documents
+   `machine_profiles` as real, irreplaceable Thalmann DS2801 shop history
+   (911 real customer/project profiles). Also: no Supabase MCP access to
+   the real afs-website project exists in this session regardless. Flagged
+   for Reid to decide, not silently actioned or silently dropped.
+5. Business Name now auto-populates from `profiles.company` on login into
+   the (still-empty) Job Info field, without clobbering an autosave-restored
+   or user-typed value.
+
+**Gates:** `pnpm tsc --noEmit` clean, `pnpm build` succeeds. Only
+`tests/e2e/flashdraft.spec.ts`'s one always-runnable (non-auth) test could
+execute in this environment — same missing `E2E_TEST_EMAIL`/
+`E2E_TEST_PASSWORD` limitation as afs-fl-027. Everything reachable without
+auth (tasks 1–4's sign-in-prompt paths) was verified live via a temporary
+Playwright script against the dev server, then deleted. **IMPLEMENTED,
+UNCONFIRMED** — Reid has not yet visually confirmed any of this himself.
+
+**Phase 2:** nothing queued yet for FlashDraft as of this writing.
+
+---
+
+## FLASHDRAFT — LOCK PROFILE & SAVE TO PASSPORT (afs-fl-027) — 2026-09-17
+
+Fixed the reported bug: after drafting a profile, clicking empty canvas
+away from the geometry silently started a new leg from the last point —
+there was no "this profile is done" concept anywhere in
+`app/studio/draft/page.tsx`. Full detail in STATE_OF_THE_BUILD.md's
+matching entry (top of file) — summary here for handoff:
+
+- New "Lock Profile & Save to Passport" button (shown once a real profile
+  exists) reuses the existing Save modal/`performSave` path (a new
+  `lockOnSave` flag) rather than a parallel implementation — "the
+  Passport" is the existing Save feature (`saved_configurations` table),
+  confirmed against `ProfilePassportExplainer.tsx`'s own copy, not the
+  unrelated "My Saved Profiles" (past quote line items) or "Load"
+  (`machine_profiles` shop library) buttons.
+- Every geometry-mutating handler (canvas pointer/double-click, undo/redo,
+  keyboard delete, segment length/angle inputs, hem edit/remove, delete,
+  rotate, clear) independently checks `isLocked`; canvas also gets
+  `pointerEvents: 'none'` while locked. "New" and "Duplicate" stay
+  available (New resets the lock along with everything else; Duplicate
+  makes an editable copy, never touches the locked record).
+- Visual indicators: green "Locked" badge in the on-canvas info panel,
+  grayscale/dimmed canvas, and the Lock button is replaced by a "Profile
+  Locked & Saved" status row with "Unlock to Edit" once locked.
+- `isLocked` is persisted into the saved row's `dimensions` JSON so it's a
+  real property of the saved profile, not just transient UI state — though
+  nothing in this file currently reads a `saved_configurations` row back
+  into the canvas, so this isn't round-tripped by any existing "load"
+  feature yet.
+- `tests/e2e/flashdraft.spec.ts` gained a new lock/unlock test, gated on
+  `E2E_TEST_EMAIL`/`E2E_TEST_PASSWORD` like every other auth-required test
+  in this suite — not set in this environment, so it did not run to
+  completion here. Verified everything reachable without auth via a
+  temporary unauthenticated smoke test instead (button renders, opens the
+  real modal, correctly does NOT lock when save fails on sign-in).
+- IMPLEMENTED, UNCONFIRMED per this file's own verification standard —
+  gates pass, but the user has not confirmed the actual locked-canvas
+  behavior live themselves (and couldn't be, in this session, past the
+  sign-in gate).
+
+---
+
+## HOMEPAGE REDESIGN PHASE 8 (hpd-012) — 2026-09-16
+
+Third pass asking to "restore" hero overlay labels (a duplicate resend of
+the prior prompt landed first, confirmed as a no-op since the branch
+already had that work). Full detail in STATE_OF_THE_BUILD.md's matching
+entry (top of file) — summary here for handoff:
+
+- Hero labels: still zero evidence anything ever existed to restore
+  (three passes have now searched exhaustively). Instead of reporting
+  "not found" a third time, added real labels grounded in the video's own
+  documented editorial structure (FEED+BEND / RELEASE, from
+  `scripts/video-review/README.md`), timed via the video's own
+  `timeupdate` at the real 10.5s crossfade point. New content, explicitly
+  not a restoration — documented as such for whoever reads this next.
+- Blueprint: `bg-contain` → `bg-cover` (reversed from hpd-011, per this
+  pass's explicit respec), uniform translucent wash + separate right-
+  edge-only fade layer (not hpd-011's contained scrim). Real trade-off:
+  smaller copy still shows some overlap with the blueprint's own
+  linework — shipped as literally specified and flagged, not silently
+  re-overridden with a scrim a second time. Did fix the "View Our Work"
+  button specifically (it had no background, so the blueprint showed
+  straight through it).
+- Phone mockup: frame widened to 360px/9:16 (was 260px/9:19.5); the
+  portrait composite video re-rendered to match exactly, zero crop.
+- `tests/e2e/homepage.spec.ts` updated — 50 passed, 1 skipped, 0 failed.
+- IMPLEMENTED, UNCONFIRMED per this file's own verification standard —
+  gates pass, no user confirmation of live behavior yet.
+
+## HOMEPAGE REDESIGN PHASE 7 (hpd-011) — 2026-09-16
+
+Confirmed via Vercel MCP tools that hpd-010's final commit is live and
+READY on the actual Vercel deployment before investigating this prompt's
+claims, so they're checked against real shipped behavior. Full detail in
+STATE_OF_THE_BUILD.md's matching entry (top of file) — summary here for
+handoff:
+
+- Hero video labels: re-investigated more thoroughly than last time
+  (checked the video asset commits' full messages, this file's own hp-001
+  narrative, and the editorial review README) — still zero evidence any
+  overlay text ever existed. Not implemented, flagged again.
+- Blueprint: `bg-cover`→`bg-contain` (was cropping into the detail),
+  fade narrowed to the right 20% only. This alone broke legibility (copy
+  overlapping the blueprint's own dense text) — caught by screenshot,
+  fixed with a small contained scrim behind just the copy block instead of
+  a column-wide wash.
+- Phone-mockup video: removed a `p-2` bezel padding + extra inner div that
+  was leaving a real ~8px gap around the video on every side — video now
+  fills to the frame's border with nothing in between.
+- `tests/e2e/homepage.spec.ts` +3 tests — 49 passed, 1 skipped, 0 failed.
+- Flagged, not touched: `bp1.webp`/`shop1.png` are confirmed renames of
+  previously-flagged files (same byte size); `looking at blueprints.png`
+  is genuinely new (construction-site photo, 3 people reviewing a plan).
+- IMPLEMENTED, UNCONFIRMED per this file's own verification standard —
+  gates pass, no user confirmation of live behavior yet.
+
+## HOMEPAGE REDESIGN PHASE 6 (hpd-010) — 2026-09-16
+
+Follow-up prompt made several claims about the current state that didn't
+match reality -- checked each against actual code/git history before
+acting. Full detail in STATE_OF_THE_BUILD.md's matching entry (top of
+file) — summary here for handoff:
+
+- Hero video "labels deleted by accident": searched full git history,
+  found no evidence any overlay/caption ever existed on the hero video.
+  Not implemented — flagged as unfounded rather than inventing labels.
+- Blueprint swapped to Reid's real upload (`public/images/blueprint.webp`,
+  English-language) — the hpd-008 pass's Unsplash pick was a real
+  blueprint but in Dutch, which explains the "wrong language" complaint.
+- Carousel now above the fold: hero `min-h-[700px]`→`560px` +
+  ClientCarousel `py-12`→`py-8` (root cause was the hero's own height, not
+  just the carousel's padding).
+- Phone-mockup video: solved the actual geometry problem this time,
+  instead of toggling object-fit again. Rebuilt the video via ffmpeg as a
+  portrait composite (blurred/darkened background fill + full uncropped
+  centered footage) — every segment now shows its complete frame, no hard
+  letterbox bars, no cropped-out subjects.
+- Step highlighting (1/2/3) added, driven by the video's own timeupdate.
+- Logo: audited first (exactly one AfsLogo, none in Footer, mark already
+  crimson) — most of the prompt's claims didn't match the code. Real gaps
+  were size (64px→76px) and a missing tagline, now added (hidden below md
+  — it was wide enough to push the mobile hamburger off-screen at 375px;
+  caught by re-running the existing mobile-nav test, fixed, re-verified).
+- Footer: no change, already correct — the "just 'architectural'" claim
+  didn't match Footer.tsx's actual content.
+- Flagged, not touched: more untracked files appeared (`blueprints+for+
+  site.webp`, `ready_to_build_house_plans_...jpg`, renamed copies of
+  previously-flagged WhatsApp files) — `blueprints+for+site.webp` in
+  particular looks like it could be an even better hero-background fit,
+  but `blueprint.webp` was the file this pass's own instructions actually
+  named, so it wasn't swapped in without being asked.
+- `tests/e2e/homepage.spec.ts` updated — 47 passed, 1 skipped, 0 failed.
+- IMPLEMENTED, UNCONFIRMED per this file's own verification standard —
+  gates pass, no user confirmation of live behavior yet.
+
+## HOMEPAGE REDESIGN PHASE 5 (hpd-009) — 2026-09-16
+
+Follow-up clarifying hero-background vs. phone-mockup-video are different
+sections, asking for a real blueprint photo (not hpd-008's SVG grid) and a
+real fix for the phone video's framing. Full detail in
+STATE_OF_THE_BUILD.md's matching entry (top of file) — summary here for
+handoff:
+
+- The supplied Unsplash URL was checked before asking to download it and
+  turned out to not be a blueprint at all (a circuit-board repair photo) —
+  flagged, not used. Searched Unsplash directly, verified candidates via
+  low-res preview, got Reid's confirmation on one (Amsterdam City Archives
+  building-elevation blueprint), downloaded with confirmation, downscaled
+  6.1MB→268KB, saved to `public/images/blueprint-bg.jpg`. Hero's right
+  column now uses it as a real background-image with a fade overlay
+  (afs-chrome-high token via Tailwind's `theme()` syntax, not raw rgba).
+- Phone-mockup video's "zoomed in" complaint was a real crop-position bug,
+  not a sizing bug — extracted and inspected actual video frames, found
+  `object-cover`'s default center crop showed **blank background** for 2
+  of 3 segments (FlashDraft-canvas segment was 100% empty grid). Fixed
+  with `object-[25%_center]`, verified against extracted-frame crops
+  before committing to it.
+- Logo re-audited (single `<AfsLogo/>` in NavBar, zero in Footer, single
+  mount path) — already correct from hpd-008, no code change.
+- Flagged, not touched: 6 more untracked files appeared in
+  `public/images/`/`public/videos/` mid-session (3 WhatsApp images, 1
+  `shop pic.png`, 1 ChatGPT-generated image, 1 WhatsApp video) — same
+  pattern as the `hp N.mp4` files flagged before, not from this session's
+  own work.
+- `tests/e2e/homepage.spec.ts` +2 tests — 46 passed, 1 skipped, 0 failed.
+- IMPLEMENTED, UNCONFIRMED per this file's own verification standard —
+  gates pass, no user confirmation of live behavior yet.
+
+## HOMEPAGE REDESIGN PHASE 4 (hpd-008) — 2026-09-16
+
+13-task follow-up covering logo, hero, carousel, phone mockup, both "how it
+works" sections, Field App CTA, map, materials copy, services accordion,
+and final CTA. Full detail in STATE_OF_THE_BUILD.md's matching entry (top
+of file) — summary here for handoff:
+
+- Logo oversized (40px→64px mark, header 56px→80px) and removed from the
+  footer entirely (text-only brand now). Every `LOGO_HEIGHT`/`pt-14`/
+  `top-14` consumer audited and updated to match (`AppChrome.tsx`,
+  `ResourcesBrowser.tsx`'s sticky category headers).
+- Hero's right column is now a light `bg-white` panel with an inline-SVG
+  blueprint grid (afs-* tokens, not a fetched stock photo or hardcoded hex)
+  and dark-on-light copy.
+- Carousel: 2 new afs-* tokens (`accent-blue`, `accent-orange`) added
+  following the existing accent-green/accent-purple precedent; 8 client
+  names get brand-flavored accents (Google per-letter); marquee slowed
+  5s→14s; "Hayes ISD"→"Hays ISD".
+- Phone mockup video reverted `object-contain`→`object-cover` (explicit
+  ask this pass, a real trade-off vs. the Phase 2 follow-up's fix — see
+  inline comment).
+- FieldAppStory: heading moved above the mockup, step numbers enlarged +
+  crimson + icons added, steps 2/3 copy updated. Field App CTA is now two
+  breakpoint-conditional buttons (desktop "Open the Field App", mobile
+  "Install App"), both still pointing at the real `/field/contractor` PWA
+  route — no fabricated app-store link.
+- DesignToDelivery: step 1 is now upload-focused (icon + copy, no photo
+  reference), step 2 retitled "AFS Reviews Specifications & Creates Quote",
+  step 5 retitled "Track Production & Delivery Status in Real Time".
+- NationwideMap: 320/420px→500/560px tall; the one-item location list
+  condensed to a small line under the heading instead of its own section.
+- Materials copy and submittal-page content were both already correct on
+  inspection — no code change for either.
+- Services page "Learn More" now auto-scrolls the expanded panel into view.
+- FinalCTA: all 4 buttons now one crimson style; "Check Hail Impact"→
+  "Check Hail View".
+- `tests/e2e/homepage.spec.ts` (+8 tests) and new `tests/e2e/services.spec.ts`
+  (+2 tests) cover this pass's changes — 44 passed, 1 skipped, 0 failed.
+- Same as every entry above: gates pass, but no user has confirmed the
+  actual behavior live yet — IMPLEMENTED, UNCONFIRMED.
+
+## HOMEPAGE REDESIGN PHASE 3 (hpd-007) — 2026-09-16
+
+Follow-up prompt specified a different target than hpd-004/hpd-006 shipped
+for the hero/carousel/header. Full detail in STATE_OF_THE_BUILD.md's
+matching entry (top of file) — summary here for handoff:
+
+- Deleted `NavBar.tsx`'s fixed 120px desktop logo sidebar (from hpd-004)
+  and `AppChrome.tsx`'s matching `md:pl-[120px]`. Logo lives only in the
+  header row now, at every breakpoint — compact mark + "AFS", no tagline.
+  `AfsLogo.tsx`'s now-unused `sidebar` variant (and the `variant` prop
+  itself) deleted.
+- `HeroSection.tsx`'s left column is the raw `hero-metal-fabrication`
+  shop-floor video again (not `PhoneMockupVideo`), same
+  prefers-reduced-motion gating the pre-hpd-004 hero used. Right column:
+  new copy + CTAs (Start Your Project → `/quote`, View Our Work →
+  `/about/services`).
+- `ClientCarousel.tsx` redesigned as a full-width `bg-white` band — bold
+  plain-text names (no cards/borders), alternating crimson/ink-900, 5s
+  marquee cycle.
+- `PhoneMockupVideo` moved back out of the hero into `FieldAppStory.tsx`
+  (below the fold, next to the 3-step copy), gained a `loop` attribute.
+  `app/page.tsx` section order: `field-app` now follows `client-carousel`
+  directly, ahead of `credibility`.
+- `tests/e2e/homepage.spec.ts` updated to match (section order, hero video
+  src, new field-app video assertion, new hero CTA copy/hrefs) — 34
+  passed, 1 skipped, 0 failed.
+- Same as every entry above: gates pass, but no user has confirmed the
+  actual behavior live yet — IMPLEMENTED, UNCONFIRMED.
+
+## HOMEPAGE REDESIGN PHASE 2 FOLLOW-UP — 2026-09-16
+
+A "Phase 2 is broken, revert all 7 commits" request turned out, on
+inspection, to describe two narrow cosmetic issues (video over-zoomed,
+logo missing its tagline) — not a crash, and not caused by the carousel/
+services pages/nav link a full revert would also have discarded. Checked
+the video file (valid, 5.97s) and git state (no divergence) before
+proposing the smaller fix instead of executing the revert; Reid agreed.
+Fixed both in place: `PhoneMockupVideo.tsx` now uses `object-contain`
+(was cropping the landscape video hard to fill the portrait phone
+screen), and `AfsLogo.tsx` now composes live "AFS" + tagline text next
+to the mark image instead of relying on flattened image text. Full
+`tests/e2e/` suite re-passed (53/0/12 skipped) after both fixes. Detail
+in STATE_OF_THE_BUILD.md's matching entry.
+
+## HOMEPAGE REDESIGN PHASE 1 + 2 (hpd-003..hpd-006) — 2026-09-15
+
+Full detail in STATE_OF_THE_BUILD.md's matching entry (top of file) —
+summary here for handoff:
+
+- Rebuilt `three-step-process.mp4/.webm` (no text overlay, per Reid);
+  fixed the "25 Standard Profiles" stat, mobile-only Field App CTA,
+  Contact page "President" label, and Footer's real logo.
+- New `AfsLogo.tsx`; `NavBar.tsx` now renders a fixed full-height 120px
+  left logo rail on desktop (was an 80px top-left box) — **global, not
+  homepage-only** — with `AppChrome.tsx` clearing it via `md:pl-[120px]`.
+  Visually checked on `/`, `/studio/draft`, `/products`, `/contact` at
+  both breakpoints; no regressions found (session self-test only).
+- `HeroSection.tsx` rewritten as a split-screen: the phone-mockup video
+  (extracted to `PhoneMockupVideo.tsx`) on the left, new headline + dual
+  CTAs (`/studio/draft`, `/quote`) on the right. `FieldAppStory.tsx` is
+  now text-only (its video moved into the hero, not duplicated).
+- New `/about/services` (5-card grid, one shared expandable detail panel)
+  and `/about/services/submittal` (breadcrumb, placeholder profile grid +
+  modal, process timeline, pricing) — both under `app/(public)/` to match
+  the existing route-group convention. New `ClientCarousel.tsx` (16 real
+  client names, confirmed by Reid, no logos) wired between hero and
+  credibility on the homepage.
+- `tests/e2e/homepage.spec.ts` updated — 3 assertions were stale against
+  this session's own intentional changes (missing `client-carousel`
+  section, old hero video src, removed single hero CTA). Full `tests/e2e/`
+  suite: 52 passed, 13 skipped (auth-gated), 0 failed.
+- Flagged, not deleted: three untracked `hp N.mp4` files (~137MB) that
+  appeared in `public/videos/` mid-session, not from this session's own
+  work — duplicates of clips already in use elsewhere.
+- Everything marked IMPLEMENTED, UNCONFIRMED per this file's own
+  verification standard above — gates pass, but no user has confirmed
+  the actual behavior live yet.
+
 ## CONFIGURATOR ELIMINATED (hpd-002) — 2026-09-11
 
 Reid's decision: the Custom Flashing Configurator is redundant with

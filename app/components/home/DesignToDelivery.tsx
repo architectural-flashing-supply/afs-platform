@@ -9,11 +9,12 @@ interface Step {
   Icon: (props: SVGProps<SVGSVGElement>) => JSX.Element;
 }
 
-function CaptureIcon(props: SVGProps<SVGSVGElement>) {
+function UploadIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
-      <circle cx="12" cy="13" r="3" />
+      <path d="M12 16V4" />
+      <path d="m6 10 6-6 6 6" />
+      <path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
     </svg>
   );
 }
@@ -61,32 +62,31 @@ function TrackIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-// Grounded in the real platform flow, not generic copy: Capture covers both
-// blueprint upload (SPEC_DOCUMENT_UPLOAD.md) and jobsite photos
-// (SPEC_PHOTO_TO_QUOTE_AI.md, app/field/contractor). Convert's copy matches
-// SPEC_PHOTO_TO_QUOTE_AI.md's explicit rule that AI never estimates
-// dimensions from a photo -- the customer always confirms measurements --
-// same correction already applied in FieldAppStory.tsx (hp-005). Verify and
-// Fabricate reflect the estimator review + Thalmann DS2801 shop floor
-// described in CLAUDE.md's Pillar 1 and the MACHINE INTEGRATION section.
-// Track reflects Pillar 3 (production stage updates, pre-ship photos,
-// delivery) as built in SPEC_PRODUCTION_TIMELINE.md.
+// Grounded in the real platform flow, not generic copy: this section is
+// specifically about blueprints/specifications (SPEC_DOCUMENT_UPLOAD.md) --
+// the jobsite-photo flow (SPEC_PHOTO_TO_QUOTE_AI.md, app/field/contractor)
+// is FieldAppStory.tsx's own "Photo to Quote" section above, so no photo/
+// camera reference belongs here. Verify and Fabricate reflect the estimator
+// review + Thalmann DS2801 shop floor described in CLAUDE.md's Pillar 1 and
+// the MACHINE INTEGRATION section. Track reflects Pillar 3 (production
+// stage updates, pre-ship photos, delivery) as built in
+// SPEC_PRODUCTION_TIMELINE.md.
 const STEPS: Step[] = [
   {
     key: 'capture',
-    title: 'Capture',
+    title: 'Upload Blueprints & Specifications',
     description: [
-      'Upload a blueprint or snap a photo of the flashing detail from the jobsite.',
-      'No CAD file or finished drawing required to get started.',
+      'Upload your blueprints, drawings, or project specifications directly to AFS.',
+      'No finished CAD file required to get started.',
     ],
-    Icon: CaptureIcon,
+    Icon: UploadIcon,
   },
   {
     key: 'convert',
-    title: 'Convert',
+    title: 'AFS Reviews Specifications & Creates Quote',
     description: [
-      'AI reads the submission and drafts a structured takeoff of profile and material.',
-      'Dimensions are always confirmed by you, never guessed from a photo.',
+      'AFS reads the submission and drafts a structured takeoff of profile and material.',
+      'Dimensions are always confirmed by you, never guessed from a drawing.',
     ],
     Icon: ConvertIcon,
   },
@@ -110,7 +110,7 @@ const STEPS: Step[] = [
   },
   {
     key: 'track',
-    title: 'Track',
+    title: 'Track Production & Delivery Status in Real Time',
     description: [
       'Watch production status and pre-ship photos update live in your account.',
       'Delivery scheduling and tracking, start to finish, with no phone call.',

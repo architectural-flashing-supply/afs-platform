@@ -24,9 +24,10 @@ import {
   LIVE_CANVAS_LABEL_STYLE,
 } from '@/lib/flashdraft/draw-profile-scene';
 import BendSequenceDiagram from '@/components/studio/BendSequenceDiagram';
+import CanonicalProfileDiagram from '@/components/studio/CanonicalProfileDiagram';
 import SubmitConfirmation3DModal, { type PaintFace } from '@/components/studio/SubmitConfirmation3DModal';
 import MatchedProfile3DModal from '@/components/studio/MatchedProfile3DModal';
-import { isPaintedMaterial, resolveSelectedPaintColor } from '@/lib/utils/paint-appearance';
+import { isPaintedMaterial, resolveSelectedPaintColor, BARE_METAL_COLOR } from '@/lib/utils/paint-appearance';
 import ProfileDetailsModal, { type ProfileDetailsFormValues } from '@/components/studio/ProfileDetailsModal';
 import VariantPicker from '@/components/studio/VariantPicker';
 import Toast from '@/components/ui/Toast';
@@ -111,16 +112,23 @@ const PLACEHOLDER_COPING_CAP_BENDS: ProfileBend[] = [
 ];
 const PLACEHOLDER_BLANK_WIDTH_MM = 76.2 + 254 + 76.2;
 
-interface LibraryProfile {
+// The user's own saved_configurations rows (the "Profile Passport" — see
+// performSave/afs-fl-027) — afs-jf-007 repoints the "Load" button here
+// instead of the shop's machine_profiles library, since that library is real
+// Thalmann DS2801 shop history (SCHEMA.md), not sample/test data safe to
+// prune, and isn't what "your saved profiles" should mean to a customer.
+interface PassportProfile {
   id: string;
-  name_en: string;
-  profile_number: string;
+  name: string;
+  createdAt: string;
+  jobName: string | null;
+  points: Point[];
 }
 
 // A FlashDraft profile recovered from a customer's own submitted quote
-// request (quote_requests.line_items), as opposed to LibraryProfile above
-// (the shop's public/machine-history library). `points` is only present for
-// requests submitted after this feature shipped — line_items previously
+// request (quote_requests.line_items), as opposed to PassportProfile above
+// (the customer's own saved_configurations Profile Passport rows). `points`
+// is only present for requests submitted after this feature shipped — line_items previously
 // stored only the reconstruction-lossy bendRadiiIn/hemStart/hemEnd
 // fields, not the raw drawn geometry, so older submissions can't be loaded
 // back exactly and their Load button is disabled instead of guessing.
@@ -208,6 +216,20 @@ const CANVAS_COLORS = {
   angleArcWarn: '#D32F2F',
   hemLine: '#C0001A', // afs-crimson — hem fold/gap/teardrop rendering (DESIGN_TOKENS.md §10)
 };
+
+// Green "move mode" cursor shown while whole-profile move (afs-sv-004,
+// Alt+drag) is actively dragging — matches the Pathfinder-familiar move
+// affordance Steve expects. CSS `cursor` can't consume Tailwind classes or
+// CSS custom properties any more than a 2D canvas context can, so this is a
+// literal-hex value under the same documented exception as CANVAS_COLORS
+// above (DESIGN_TOKENS.md §10) rather than a new precedent. Inline SVG data
+// URI (a 4-way move-arrows glyph) with a `grabbing` keyword fallback for any
+// browser that can't parse a custom cursor image.
+const MOVE_CURSOR_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">' +
+  '<path d="M12 1 L8.5 5.5 H11 V10.5 H6 V8 L1.5 12 L6 16 V13.5 H11 V18.5 H8.5 L12 23 L15.5 18.5 H13 V13.5 H18 V16 L22.5 12 L18 8 V10.5 H13 V5.5 H15.5 Z" ' +
+  'fill="#00FF00" stroke="#111111" stroke-width="1"/></svg>';
+const MOVE_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(MOVE_CURSOR_SVG)}") 12 12, grabbing`;
 
 const PIXELS_PER_INCH = 20;
 const CANVAS_MIN_WIDTH = 600;
@@ -362,13 +384,19 @@ function wrapDeg(deg: number): number {
 // If thetaDeg is within [MIN_BEND_ANGLE_DEG, MAX_BEND_ANGLE_DEG] of refDeg
 // (unsigned), returns it unchanged. Otherwise pulls it back to whichever
 // boundary it crossed — the one-dimensional primitive behind
-// clampDragAngle below.
-function clampAngleAwayFromRef(thetaDeg: number, refDeg: number): number {
+// clampDragAngle below. `guardStraight` (default true) gates only the
+// MAX_BEND_ANGLE_DEG side (mag -> 180°, "fully straightened") — see
+// clampDragAngle's mirrored branch for why point 0's own drag passes
+// false here: unlike every other clamped joint, that check isn't
+// protecting a bend angle point 0 itself owns.
+function clampAngleAwayFromRef(thetaDeg: number, refDeg: number, guardStraight = true): number {
   const delta = wrapDeg(thetaDeg - refDeg);
   const mag = Math.abs(delta);
-  if (mag >= MIN_BEND_ANGLE_DEG && mag <= MAX_BEND_ANGLE_DEG) return thetaDeg;
+  const tooOverlapped = mag < MIN_BEND_ANGLE_DEG;
+  const tooStraight = guardStraight && mag > MAX_BEND_ANGLE_DEG;
+  if (!tooOverlapped && !tooStraight) return thetaDeg;
   const sign = delta < 0 ? -1 : 1;
-  const clampedMag = mag < MIN_BEND_ANGLE_DEG ? MIN_BEND_ANGLE_DEG : MAX_BEND_ANGLE_DEG;
+  const clampedMag = tooOverlapped ? MIN_BEND_ANGLE_DEG : MAX_BEND_ANGLE_DEG;
   return refDeg + sign * clampedMag;
 }
 
@@ -407,7 +435,15 @@ function clampDragAngle(candidate: Point, idx: number, original: Point[]): Point
   const anchorFarNeighbor = mirrored ? original[idx + 2] : original[idx - 2];
   if (anchorFarNeighbor) {
     const phiBefore = (Math.atan2(anchorFarNeighbor.y - anchor.y, anchorFarNeighbor.x - anchor.x) * 180) / Math.PI;
-    theta = clampAngleAwayFromRef(theta, phiBefore);
+    // Point 0 (mirrored) has no leg before it — no bend angle of its own
+    // for this joint to protect. The only real hazard is leg0 folding
+    // exactly back onto leg1 (mag->0, guarded below regardless); a fully
+    // straightened run (leg0 collinear with, and opposite to, leg1) is an
+    // ordinary straight profile, not a degenerate one — and is exactly the
+    // "move point 0 further in/out along the leg" drag. Guarding it here
+    // was pulling that legitimate in/out drag off-axis. Every other
+    // (non-mirrored) vertex still protects its own straightened-joint case.
+    theta = clampAngleAwayFromRef(theta, phiBefore, !mirrored);
   }
   // Joint at idx itself: only applies in the non-mirrored case. It
   // protects the angle between the leg this drag is creating and the
@@ -754,6 +790,18 @@ function ToolbarIcon({ name }: { name: string }) {
   );
 }
 
+// Standalone (not part of ToolbarIcon's named set below) since it's only
+// ever used for the lock/unlock indicator and the Lock & Save button, not
+// as a small toolbar icon button.
+function LockIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <rect x="4" y="11" width="16" height="10" rx="2" />
+      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+    </svg>
+  );
+}
+
 function ToolbarButton({
   icon,
   label,
@@ -819,10 +867,26 @@ function HemGlyphIcon({ type }: { type: HemType }) {
     canvas.height = HEM_ICON_SIZE * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, HEM_ICON_SIZE, HEM_ICON_SIZE);
-    // angleRad=0 (local +x = screen +x) with the glyph's own -x-only
-    // shapes anchored near the icon's right edge, so the material reads
-    // left-to-right within the square.
-    drawHemGlyph(ctx, { x: HEM_ICON_SIZE * 0.68, y: HEM_ICON_SIZE * 0.5 }, 0, type, HEM_ICON_GLYPH_R);
+    // angleRad=0 (local +x = screen +x). hem-glyph.ts's own coordinate
+    // convention (see its file header) builds every shape spanning FROM
+    // the tip OUTWARD into +x ONLY — confirmed for both branches: the
+    // hook (drawHookGlyph) reaches a max local x of Lh = R*1.8, and the
+    // teardrop reaches centerDist + bulbR = R*1.5 + R*0.6 = R*2.1 (its
+    // bulb circle is centered at local x=R*1.5 with radius R*0.6). Anchor
+    // the tip near the icon's LEFT edge, not the right — this used to
+    // anchor at 0.68 (assuming -x-only shapes, which contradicted
+    // hem-glyph.ts's actual +x convention even before the 2026-09-15
+    // teardrop rework) and silently clipped almost the entire teardrop
+    // bulb off the 34px-wide canvas (circle spanned local x=10.8..25.2,
+    // i.e. canvas x=33.9..48.3 against a 34px-wide box) — the popup
+    // icon rendered as just the two tangent lines (a "<" wedge), not a
+    // teardrop, even though drawHemGlyph's own math was correct.
+    // fitFraction leaves a small margin on both sides for HEM_ICON_GLYPH_R's
+    // worst-case (teardrop) reach of R*2.1: at HEM_ICON_GLYPH_R=12 that's
+    // 25.2px of a 34px-wide canvas, so anchoring the tip at 10% (3.4px)
+    // leaves ~5.4px of margin on the right and ~3.4px on the left.
+    const tipXFraction = 0.1;
+    drawHemGlyph(ctx, { x: HEM_ICON_SIZE * tipXFraction, y: HEM_ICON_SIZE * 0.5 }, 0, type, HEM_ICON_GLYPH_R);
   }, [type]);
   return <canvas ref={iconCanvasRef} width={HEM_ICON_SIZE} height={HEM_ICON_SIZE} style={{ width: HEM_ICON_SIZE, height: HEM_ICON_SIZE }} />;
 }
@@ -892,6 +956,15 @@ export default function FlashDraftPage() {
   const [savedProfileId, setSavedProfileId] = useState<string | null>(null);
   const [profileCategoryId, setProfileCategoryId] = useState<string | null>(null);
   const [profileSubcategory, setProfileSubcategory] = useState('');
+  // Lock Profile & Save to Passport: once locked, every geometry-mutating
+  // path (canvas drawing/dragging, hem edits, segment length/angle inputs,
+  // rotate, delete, undo/redo) is guarded off at its own entry point below
+  // -- this is the single source of truth all of them check. lockOnSave
+  // threads through the EXISTING save modal/performSave flow (see
+  // openLockAndSaveModal) rather than duplicating it, so locking reuses the
+  // same tested validation/DB-write path a plain Save already uses.
+  const [isLocked, setIsLocked] = useState(false);
+  const [lockOnSave, setLockOnSave] = useState(false);
   const [showNewConfirm, setShowNewConfirm] = useState(false);
   const [showProfileDetails, setShowProfileDetails] = useState(false);
   const [duplicateOnSave, setDuplicateOnSave] = useState(false);
@@ -990,6 +1063,22 @@ export default function FlashDraftPage() {
     towardStart: Point;
   } | null>(null);
 
+  // A pointerdown that lands near the LAST point is ambiguous, same as a
+  // vertex hit or a leg-body hit above: it could be the start of "continue
+  // the line" (drag away to extend), or it could just be a plain click
+  // meaning "select this vertex/segment." Deferring the decision until real
+  // movement is seen (same VERTEX_DRAG_THRESHOLD_PX pattern the two
+  // candidate refs above already use) fixes a real bug — previously this
+  // branch armed isDragDrawing immediately, with no threshold at all, so an
+  // ordinary click with only a few pixels of unavoidable mouse jitter (any
+  // real mouse, not a synthetic zero-movement click) was silently
+  // interpreted as "extend the line," appending a whole new leg the user
+  // never intended to draw. Confirmed live: clicking a leg near its free
+  // end to select it instead silently grew the profile (a second leg
+  // appearing, blank width jumping) with no drag gesture the user was
+  // consciously performing.
+  const continueLineCandidateRef = useRef<{ anchor: Point; downScreenPos: Point; prepend: boolean } | null>(null);
+
   const [material, setMaterial] = useState('');
   const [gauge, setGauge] = useState('');
   const [color, setColor] = useState('');
@@ -1009,8 +1098,14 @@ export default function FlashDraftPage() {
   // format (afs-jf-005) — no date-picker library exists in this project.
   const [requestedDeliveryDate, setRequestedDeliveryDate] = useState('');
   // Collapsed by default so the canvas info overlay stays compact when the
-  // job-identity fields aren't in use (afs-jf-005).
+  // job-identity fields aren't in use (afs-jf-005). Now drives a right-side
+  // slide-out drawer instead of an inline downward expansion (afs-jf-006).
   const [showJobInfo, setShowJobInfo] = useState(false);
+  // Lets the whole upper-left name/stats box be dismissed via its own X
+  // (afs-jf-006) — collapsing it is purely a display toggle (drawing/state
+  // is untouched); a small pill re-opens it. Separate from showJobInfo so
+  // dismissing the box doesn't fight with the drawer's own open/close state.
+  const [profileBoxCollapsed, setProfileBoxCollapsed] = useState(false);
 
   const [matches, setMatches] = useState<ProfileMatch[]>([]);
   const [matchLoading, setMatchLoading] = useState(false);
@@ -1031,12 +1126,15 @@ export default function FlashDraftPage() {
   const [guestEmail, setGuestEmail] = useState('');
   const [draftSavedNotice, setDraftSavedNotice] = useState(false);
 
-  const [showLibrary, setShowLibrary] = useState(false);
-  const [libraryProfiles, setLibraryProfiles] = useState<LibraryProfile[]>([]);
+  const [showLoadPanel, setShowLoadPanel] = useState(false);
+  const [passportProfiles, setPassportProfiles] = useState<PassportProfile[]>([]);
+  const [loadPanelLoading, setLoadPanelLoading] = useState(false);
+  // Quick-view hover preview (afs-jf-007) — id of the passport row currently
+  // showing its thumbnail, null when none is hovered.
+  const [quickViewId, setQuickViewId] = useState<string | null>(null);
   const [showSavedProfiles, setShowSavedProfiles] = useState(false);
   const [savedProfilesLoading, setSavedProfilesLoading] = useState(false);
   const [savedProfiles, setSavedProfiles] = useState<SavedQuoteProfile[]>([]);
-  const [libraryLoading, setLibraryLoading] = useState(false);
 
   const [show3DConfirm, setShow3DConfirm] = useState(false);
   const [confirmedPaintFace, setConfirmedPaintFace] = useState<PaintFace | null>(null);
@@ -1166,10 +1264,20 @@ export default function FlashDraftPage() {
       if (!data.user) return;
       supabase
         .from('profiles')
-        .select('role')
+        .select('role, company')
         .eq('id', data.user.id)
         .single()
-        .then(({ data: profile }) => setIsAdmin(profile?.role === 'admin'));
+        .then(({ data: profile }) => {
+          setIsAdmin(profile?.role === 'admin');
+          // afs-jf-008 — auto-populate Business Name from the account's
+          // profile, but only into an empty field: a functional update
+          // reads state as of whenever this network round-trip resolves,
+          // so it never clobbers a value the autosave-restore effect above
+          // already put there, or one the user has since typed.
+          if (profile?.company) {
+            setClientBusinessName((prev) => prev || profile.company);
+          }
+        });
     });
   }, []);
 
@@ -1209,7 +1317,7 @@ export default function FlashDraftPage() {
   // ever computes the next array; every other setter is called once, at
   // undo/redo's own top level.
   const undo = useCallback(() => {
-    if (past.length === 0) return;
+    if (isLocked || past.length === 0) return;
     const prev = past[past.length - 1];
     setFuture((f) => [{ points, hemStart, hemEnd }, ...f]);
     setPast((p) => p.slice(0, -1));
@@ -1217,10 +1325,10 @@ export default function FlashDraftPage() {
     setHemStart(prev.hemStart);
     setHemEnd(prev.hemEnd);
     setSelectedSegment(null);
-  }, [past, points, hemStart, hemEnd]);
+  }, [isLocked, past, points, hemStart, hemEnd]);
 
   const redo = useCallback(() => {
-    if (future.length === 0) return;
+    if (isLocked || future.length === 0) return;
     const next = future[0];
     setPast((p) => [...p, { points, hemStart, hemEnd }]);
     setFuture((f) => f.slice(1));
@@ -1228,7 +1336,7 @@ export default function FlashDraftPage() {
     setHemStart(next.hemStart);
     setHemEnd(next.hemEnd);
     setSelectedSegment(null);
-  }, [future, points, hemStart, hemEnd]);
+  }, [isLocked, future, points, hemStart, hemEnd]);
 
   const getEffectiveRadius = useCallback(
     (i: number): number => points[i]?.radius ?? defaultBendRadiusIn(material),
@@ -1297,7 +1405,7 @@ export default function FlashDraftPage() {
         redo();
       } else if (e.key === 'Escape') {
         setHemPopup(null);
-      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+      } else if ((e.key === 'Delete' || e.key === 'Backspace') && !isLocked) {
         const target = e.target as HTMLElement | null;
         if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
         if (selectedBendPoint !== null) {
@@ -1322,7 +1430,7 @@ export default function FlashDraftPage() {
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('keyup', handleKeyUp);
     };
-  }, [undo, redo, points, selectedBendPoint, selectedSegment, commitPoints]);
+  }, [undo, redo, points, selectedBendPoint, selectedSegment, commitPoints, isLocked]);
 
   // --- Coordinate conversion ---
   // Reads canvas size via getBoundingClientRect() (always CSS/logical
@@ -1598,6 +1706,12 @@ export default function FlashDraftPage() {
   );
 
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    // Locked profile: the canvas itself also gets pointerEvents: 'none'
+    // (see the <canvas> style below) so this normally never even fires --
+    // this guard is defense in depth against that CSS being bypassed some
+    // other way, matching this file's own existing "defense in depth"
+    // pattern (see handlePointerMove's dragStateArmed comment).
+    if (isLocked) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     canvas.setPointerCapture(e.pointerId);
@@ -1614,6 +1728,7 @@ export default function FlashDraftPage() {
     // gesture leaking in.
     legBodyDragCandidateRef.current = null;
     legReshapeGrabOffsetRef.current = null;
+    continueLineCandidateRef.current = null;
     prependDragRef.current = false;
 
     // Whole-profile move (afs-sv-004) — see the doc comment on
@@ -1628,7 +1743,7 @@ export default function FlashDraftPage() {
       hasMovedProfileRef.current = false;
       setSelectedBendPoint(null);
       setSelectedSegment(null);
-      canvas.style.cursor = 'grabbing';
+      canvas.style.cursor = MOVE_CURSOR;
       return;
     }
 
@@ -1688,23 +1803,19 @@ export default function FlashDraftPage() {
       return;
     }
 
-    // A click near the LAST point continues the line — checked before
-    // segment hit-testing, since the last point sits exactly on the last
-    // segment too. Without this, the single most natural drawing action
-    // (starting the next drag from where the pen currently is) would
-    // select that segment instead of extending from it.
+    // A click/drag near the LAST point is ambiguous, same as the vertex and
+    // leg-body hits above: it might be the start of "continue the line"
+    // (drag away to extend), or it might just be a plain click meaning
+    // "select this." Recorded as a deferred candidate (see
+    // continueLineCandidateRef's own comment) rather than committing to
+    // "continue the line" immediately — falls through to the normal
+    // segment hit-testing below, which finds this same segment (the last
+    // point sits exactly on the last segment too), so a plain click here
+    // selects it exactly like clicking anywhere else on the profile.
     const lastScreen = worldToScreen(points[points.length - 1], canvas);
     const distToLast = Math.hypot(screenPos.x - lastScreen.x, screenPos.y - lastScreen.y);
     if (distToLast <= HIT_RADIUS_PX) {
-      setSelectedBendPoint(null);
-      setSelectedSegment(null);
-      const anchor = points[points.length - 1];
-      dragAnchorRef.current = anchor;
-      dragDownScreenRef.current = screenPos;
-      setIsDragDrawing(true);
-      setDragPreview({ point: anchor, length: 0, angleDeg: 0 });
-      setDragScreenPos(screenPos);
-      return;
+      continueLineCandidateRef.current = { anchor: points[points.length - 1], downScreenPos: screenPos, prepend: false };
     }
 
     const segmentHit = hitTestSegmentAt(screenPos, canvas);
@@ -1782,6 +1893,7 @@ export default function FlashDraftPage() {
       isMovingProfile ||
       draggingVertexIndex !== null ||
       legBodyDragCandidateRef.current !== null ||
+      continueLineCandidateRef.current !== null ||
       isDragDrawing;
     if (e.buttons === 0 && dragStateArmed) {
       handlePointerUp();
@@ -1870,6 +1982,38 @@ export default function FlashDraftPage() {
       return;
     }
 
+    if (continueLineCandidateRef.current) {
+      // Resolve once, at the first sign of real movement — same deferred
+      // pattern as the vertex-hit and leg-body candidates. A plain click
+      // (no real movement) leaves this candidate to be discarded in
+      // handlePointerUp, and the segment/vertex selection already made in
+      // handlePointerDown stands as the outcome (see that branch's own
+      // comment) — it never silently appends a new point.
+      const candidate = continueLineCandidateRef.current;
+      const movedPx = Math.hypot(screenPos.x - candidate.downScreenPos.x, screenPos.y - candidate.downScreenPos.y);
+      if (movedPx < VERTEX_DRAG_THRESHOLD_PX) return; // still just a click, not a drag yet
+
+      continueLineCandidateRef.current = null;
+      // A real drag from here always means "continue the line," overriding
+      // whatever selection handlePointerDown made as its click-only guess —
+      // and takes priority over a leg-body-reshape candidate that may have
+      // armed on the very same pointerdown (the last point sits on the
+      // last segment too).
+      legBodyDragCandidateRef.current = null;
+      setSelectedBendPoint(null);
+      setSelectedSegment(null);
+      dragAnchorRef.current = candidate.anchor;
+      dragDownScreenRef.current = candidate.downScreenPos;
+      prependDragRef.current = candidate.prepend;
+      setIsDragDrawing(true);
+      const raw = screenToWorld(screenPos.x, screenPos.y, canvas);
+      const length = dist(candidate.anchor, raw);
+      const angleDeg = (Math.atan2(raw.y - candidate.anchor.y, raw.x - candidate.anchor.x) * 180) / Math.PI;
+      setDragPreview({ point: raw, length, angleDeg });
+      setDragScreenPos(screenPos);
+      return;
+    }
+
     if (legBodyDragCandidateRef.current) {
       // A drag that started on a leg's body is ambiguous until now: decide
       // once, at the first sign of real movement, same as the vertex-hit
@@ -1885,7 +2029,19 @@ export default function FlashDraftPage() {
 
       legBodyDragCandidateRef.current = null;
 
-      const farVertex = candidate.legIndex + 1;
+      // Every leg's body-drag reshapes it by moving whichever endpoint is
+      // the "loose" one — the one whose own drag doesn't translate the rest
+      // of the chain (see the idx===0 mirrored branch below and
+      // clampDragAngle's own `mirrored` comment). For every leg except the
+      // first, that's the higher-index endpoint (legIndex + 1): point 0 sits
+      // fixed while the tail from there on translates. Leg 0 is the one
+      // exception — point 0 itself is the loose end there, and point 1 is
+      // the shared joint the rest of the chain hangs off, so grabbing leg
+      // 0's body must drag point 0, not point 1. Without this special case,
+      // grabbing anywhere along leg 0 except its exact tip dragged point 1
+      // instead — moving the wrong end and stretching the leg rather than
+      // swinging its free end (afs-sv-003 follow-up).
+      const farVertex = candidate.legIndex === 0 ? 0 : candidate.legIndex + 1;
       const farOriginal = points[farVertex];
       legReshapeGrabOffsetRef.current = { x: candidate.clickPoint.x - farOriginal.x, y: candidate.clickPoint.y - farOriginal.y };
       setSelectedBendPoint(null);
@@ -1971,6 +2127,7 @@ export default function FlashDraftPage() {
   const handlePointerUp = () => {
     legBodyDragCandidateRef.current = null;
     legReshapeGrabOffsetRef.current = null;
+    continueLineCandidateRef.current = null;
     // Read then reset, same pattern as the two refs above — this flag must
     // never survive past the gesture it belongs to, but the isDragDrawing
     // finalize branch below still needs to know which end THIS gesture was
@@ -1989,7 +2146,16 @@ export default function FlashDraftPage() {
       // the undo stack, same no-op guard the vertex-drag/leg-reshape
       // gestures elsewhere in this file already apply.
       if (hasMovedProfileRef.current && moveProfileOriginRef.current) {
-        setPast((p) => [...p, { points: moveProfileOriginRef.current!.points, hemStart, hemEnd }]);
+        // Captured into a plain local BEFORE moveProfileOriginRef.current is
+        // nulled below — setPast's updater callback runs later, during
+        // React's next render/commit, not synchronously here. Reading the
+        // ref directly inside that callback (as this used to) meant it saw
+        // whatever the ref held BY THEN, which was already null (the very
+        // next line nulls it), crashing every real Alt+drag move with
+        // "Cannot read properties of null (reading 'points')" the instant
+        // the drag was released. Confirmed via Playwright.
+        const originalPoints = moveProfileOriginRef.current.points;
+        setPast((p) => [...p, { points: originalPoints, hemStart, hemEnd }]);
         setFuture([]);
       }
       setIsMovingProfile(false);
@@ -2107,6 +2273,7 @@ export default function FlashDraftPage() {
   }, [viewMode]);
 
   const handleDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (isLocked) return;
     // A hem needs a neighbor point to compute a fold direction from, so
     // the popup itself is harmless to open at 1 point — renderHemAt (in the
     // draw loop) is what actually gates on having ≥2 points before drawing
@@ -2165,22 +2332,30 @@ export default function FlashDraftPage() {
   };
 
   const applySegmentLength = () => {
-    if (selectedSegment === null) return;
+    if (isLocked || selectedSegment === null) return;
     const newLength = Number(segmentLengthInput.replace(/[^0-9.]/g, ''));
     if (!Number.isFinite(newLength) || newLength <= 0) return;
     const a = points[selectedSegment];
     const b = points[selectedSegment + 1];
-    // No-op guard: this input has autoFocus, so a leg-body reshape drag
-    // starting while a segment is selected unmounts it mid-gesture (the
-    // input's own render condition hides it once draggingVertexIndex is
-    // set — see segmentInputPos below) — an unmount-while-focused fires a
-    // native blur, invoking this via onBlur with the length UNCHANGED. That
-    // silently pushed a spurious, geometrically-identical entry onto the
-    // undo stack on every reshape/hem drag that started from a selected
-    // segment, corrupting undo (confirmed live: every other Undo click
-    // became a no-op). Skip the commit entirely when the typed length
-    // doesn't actually differ from the segment's current length.
-    if (Math.abs(newLength - dist(a, b)) < 1e-6) return;
+    // No-op guard: this input has autoFocus, so ANY unmount while it's
+    // focused — a leg-body reshape drag starting mid-selection, or simply
+    // clicking a different leg/vertex/blank canvas to change or clear the
+    // selection — fires a native blur, invoking this via onBlur with the
+    // length UNCHANGED. Comparing against the raw, unrounded dist(a, b) was
+    // not enough: the displayed segmentLengthInput is dist(a, b).toFixed(3),
+    // so for any leg whose true length isn't already an exact 3-decimal
+    // value (i.e. almost every leg not drawn perfectly axis-aligned), the
+    // rounded-then-reparsed newLength differs from the exact dist(a, b) by
+    // up to 0.0005" — comfortably over the old 1e-6 tolerance. That false
+    // "edit" was committing a same-leg micro-resize (snapping the leg to its
+    // own rounded length) on every plain click away from a selected
+    // segment, which also re-fit/re-centered the view (see the
+    // computeFitView call below) — a visible geometry/view "jump" on every
+    // leg-to-leg click, confirmed live. Round dist(a, b) the same way before
+    // comparing so a genuine, intentional edit (which changes the rounded
+    // value by a real 0.001"+ step) still commits, but a blur with no real
+    // edit is a true no-op.
+    if (Math.abs(newLength - Number(dist(a, b).toFixed(3))) < 1e-6) return;
     const angleRad = Math.atan2(b.y - a.y, b.x - a.x);
     const newB = { x: a.x + Math.cos(angleRad) * newLength, y: a.y + Math.sin(angleRad) * newLength };
     const delta = { x: newB.x - b.x, y: newB.y - b.y };
@@ -2202,7 +2377,7 @@ export default function FlashDraftPage() {
   // downstream of the selected joint by the difference (same math the old
   // canvas-drag interaction used, just driven by a numeric field now).
   const applyBendAngle = () => {
-    if (selectedBendPoint === null) return;
+    if (isLocked || selectedBendPoint === null) return;
     const i = selectedBendPoint;
     const desired = Number(angleInputDraft);
     if (!Number.isFinite(desired)) return;
@@ -2218,6 +2393,7 @@ export default function FlashDraftPage() {
   };
 
   const deleteSelected = () => {
+    if (isLocked) return;
     if (selectedBendPoint !== null) {
       commitPoints(points.filter((_, i) => i !== selectedBendPoint));
       setSelectedBendPoint(null);
@@ -2294,7 +2470,7 @@ export default function FlashDraftPage() {
   };
 
   const rotateProfile = (deltaDeg: number) => {
-    if (points.length < 2) return;
+    if (isLocked || points.length < 2) return;
     commitPoints(rotateAllPoints(points, centroidOf(points), deltaDeg));
   };
 
@@ -2303,6 +2479,11 @@ export default function FlashDraftPage() {
   };
 
   const confirmNew = () => {
+    // Always allowed, even while locked -- this discards the current
+    // profile entirely (not an edit to it) and starts fresh, so the lock
+    // resets along with everything else rather than blocking the action.
+    setIsLocked(false);
+    setLockOnSave(false);
     commitPoints([]);
     setMatches([]);
     setTopMatchDiagramBends(null);
@@ -2321,6 +2502,18 @@ export default function FlashDraftPage() {
     setEditingName(false);
   };
 
+  // Fixes the Job Info persist bug (afs-jf-006): closing the drawer/box
+  // previously just hid the fields while leaving their state (and the next
+  // debounced autosave write, see the AUTOSAVE_KEY effect above) intact, so
+  // reopening showed stale data. Called from both X buttons below.
+  const clearJobInfoFields = () => {
+    setClientBusinessName('');
+    setClientName('');
+    setPoNumber('');
+    setJobName('');
+    setRequestedDeliveryDate('');
+  };
+
   const openSaveModal = () => {
     setDuplicateOnSave(false);
     setSaveError(null);
@@ -2330,6 +2523,19 @@ export default function FlashDraftPage() {
   const openDuplicateModal = () => {
     setDuplicateOnSave(true);
     setSaveError(null);
+    setShowProfileDetails(true);
+  };
+
+  // "Lock Profile & Save to Passport" -- reuses the exact same modal/
+  // performSave path a plain Save uses (name/category validation, the
+  // saved_configurations insert-or-update) rather than a parallel
+  // implementation; lockOnSave just tells performSave to also lock on
+  // success. Not available while already locked (nothing left to save
+  // until Unlock is used) or before a real profile exists.
+  const openLockAndSaveModal = () => {
+    setDuplicateOnSave(false);
+    setSaveError(null);
+    setLockOnSave(true);
     setShowProfileDetails(true);
   };
 
@@ -2363,7 +2569,19 @@ export default function FlashDraftPage() {
           hemEnd,
           categoryId: values.categoryId,
           subcategory: values.subcategory,
+          // Snapshotted from the Job Info drawer at save time (afs-jf-006)
+          // so the Load list's Job Name column has something to show —
+          // this is the only place FlashDraft's job-identity fields are
+          // persisted server-side; the fields themselves are still cleared
+          // independently when the drawer/box is closed (clearJobInfoFields).
+          jobName: jobName || null,
           revision: nextRevision,
+          // Persisted alongside the geometry so lock status is a real,
+          // durable property of the saved passport row, not just this
+          // session's transient isLocked state -- lockOnSave locks going
+          // INTO this save; a profile already locked stays locked on a
+          // later re-save (e.g. via Edit Name) unless Unlock was used.
+          isLocked: lockOnSave || isLocked,
         },
         length_ft: lengthFtDecimal || null,
         quantity: Number(quantity) || null,
@@ -2382,7 +2600,16 @@ export default function FlashDraftPage() {
       setProfileSubcategory(values.subcategory);
       setRevision(nextRevision);
       setShowProfileDetails(false);
-      setToast('Profile saved to your account');
+      // lockOnSave (set by openLockAndSaveModal) only takes effect here, on
+      // an actual successful write -- a failed save (network error, RLS
+      // rejection) below hits the catch block instead and never locks.
+      if (lockOnSave) {
+        setIsLocked(true);
+        setLockOnSave(false);
+        setToast('Profile locked and saved to your Passport');
+      } else {
+        setToast('Profile saved to your account');
+      }
     } catch {
       setSaveError('Could not save profile. Please try again.');
     } finally {
@@ -2404,7 +2631,7 @@ export default function FlashDraftPage() {
   };
 
   const applyHem = (type: HemType) => {
-    if (!hemPopup) return;
+    if (isLocked || !hemPopup) return;
     pushHistorySnapshot();
     const current = hemPopup.endpoint === 'start' ? hemStart : hemEnd;
     // gapIn is a real per-hem editable value (see the Gap (in) field below)
@@ -2463,7 +2690,7 @@ export default function FlashDraftPage() {
   };
 
   const removeHem = () => {
-    if (!hemPopup) return;
+    if (isLocked || !hemPopup) return;
     pushHistorySnapshot();
     if (hemPopup.endpoint === 'start') setHemStart(null);
     else setHemEnd(null);
@@ -2471,6 +2698,7 @@ export default function FlashDraftPage() {
   };
 
   const clearCanvas = () => {
+    if (isLocked) return;
     commitPoints([]);
     setMatches([]);
     setTopMatchDiagramBends(null);
@@ -2483,17 +2711,57 @@ export default function FlashDraftPage() {
     }
   };
 
-  const openLibrary = async () => {
-    setShowLibrary(true);
-    setLibraryLoading(true);
-    const res = await fetch('/api/studio/library-list');
-    let profiles: LibraryProfile[] = [];
-    if (res.ok) {
-      const data = (await res.json()) as { profiles: LibraryProfile[] };
-      profiles = data.profiles ?? [];
+  const openLoadPanel = async () => {
+    setShowLoadPanel(true);
+    if (!isAuthenticated) {
+      setPassportProfiles([]);
+      return;
     }
-    setLibraryProfiles(profiles);
-    setLibraryLoading(false);
+    setLoadPanelLoading(true);
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      setPassportProfiles([]);
+      setLoadPanelLoading(false);
+      return;
+    }
+    // RLS (`users_own_configs`) already restricts this to the caller's own
+    // rows -- the .eq is belt-and-suspenders, not the actual security
+    // boundary. dimensions->>kind filters out the unrelated quote-wizard
+    // "Saved quote request templates" use of this same table (SCHEMA.md).
+    const { data } = await supabase
+      .from('saved_configurations')
+      .select('id, name, created_at, dimensions')
+      .eq('user_id', user.id)
+      .eq('dimensions->>kind', 'flashdraft')
+      .order('created_at', { ascending: false });
+
+    const profiles: PassportProfile[] = ((data ?? []) as {
+      id: string;
+      name: string | null;
+      created_at: string;
+      dimensions: unknown;
+    }[])
+      .map((row) => {
+        const dims = row.dimensions as { points?: unknown; jobName?: unknown } | null;
+        const points = isPointArrayShape(dims?.points) ? dims!.points : [];
+        const jobName = typeof dims?.jobName === 'string' && dims.jobName ? dims.jobName : null;
+        return { id: row.id, name: row.name || 'Untitled Profile', createdAt: row.created_at, jobName, points };
+      })
+      .filter((p) => p.points.length > 0);
+
+    setPassportProfiles(profiles);
+    setLoadPanelLoading(false);
+  };
+
+  const loadFromPassport = (profile: PassportProfile) => {
+    setPast((p) => [...p, { points, hemStart, hemEnd }]);
+    setFuture([]);
+    setPoints(profile.points);
+    setSelectedSegment(null);
+    setShowLoadPanel(false);
   };
 
   const openSavedProfiles = async () => {
@@ -2588,7 +2856,7 @@ export default function FlashDraftPage() {
     setFuture([]);
     setPoints(reconstructed);
     setSelectedSegment(null);
-    setShowLibrary(false);
+    setShowLoadPanel(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -2615,7 +2883,7 @@ export default function FlashDraftPage() {
     setFuture([]);
     setPoints(canonicalPoints);
     setSelectedSegment(null);
-    setShowLibrary(false);
+    setShowLoadPanel(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -3060,7 +3328,11 @@ export default function FlashDraftPage() {
         <div className="flex items-center gap-1 flex-wrap justify-end">
           <ToolbarButton icon="new" label="New" onClick={() => setShowNewConfirm(true)} />
           <ToolbarButton icon="open" label="My Saved Profiles" onClick={openSavedProfiles} />
-          <ToolbarButton icon="save" label="Save" onClick={openSaveModal} disabled={points.length < 2} />
+          <ToolbarButton icon="save" label="Save" onClick={openSaveModal} disabled={points.length < 2 || isLocked} />
+          {/* Duplicate stays enabled while locked -- "make an editable copy
+              of this locked profile" is a reasonable thing to want, and
+              openDuplicateModal always saves as a brand-new (unlocked)
+              record, never mutating the locked one. */}
           <ToolbarButton icon="duplicate" label="Duplicate" onClick={openDuplicateModal} disabled={points.length < 2} />
           <ToolbarButton icon="editName" label="Edit Name" onClick={openSaveModal} disabled={!savedProfileId} />
           <ToolbarButton icon="print" label="Print" onClick={printCanvas} />
@@ -3070,15 +3342,15 @@ export default function FlashDraftPage() {
           <ToolbarButton icon="zoomOut" label="Zoom Out" onClick={() => setZoom((z) => Math.max(0.25, z * (1 - ZOOM_STEP_RATIO)))} />
           <ToolbarButton icon="zoomIn" label="Zoom In" onClick={() => setZoom((z) => Math.min(4, z * (1 + ZOOM_STEP_RATIO)))} />
           <span className="font-data text-[10px] text-afs-chrome-dim px-1 self-center">{Math.round(zoom * 100)}%</span>
-          <ToolbarButton icon="undo" label="Undo" onClick={undo} disabled={past.length === 0} />
-          <ToolbarButton icon="redo" label="Redo" onClick={redo} disabled={future.length === 0} />
-          <ToolbarButton icon="rotateLeft" label="Rotate Left" onClick={() => rotateProfile(-ROTATE_STEP_DEG)} disabled={points.length < 2} />
-          <ToolbarButton icon="rotateRight" label="Rotate Right" onClick={() => rotateProfile(ROTATE_STEP_DEG)} disabled={points.length < 2} />
+          <ToolbarButton icon="undo" label="Undo" onClick={undo} disabled={past.length === 0 || isLocked} />
+          <ToolbarButton icon="redo" label="Redo" onClick={redo} disabled={future.length === 0 || isLocked} />
+          <ToolbarButton icon="rotateLeft" label="Rotate Left" onClick={() => rotateProfile(-ROTATE_STEP_DEG)} disabled={points.length < 2 || isLocked} />
+          <ToolbarButton icon="rotateRight" label="Rotate Right" onClick={() => rotateProfile(ROTATE_STEP_DEG)} disabled={points.length < 2 || isLocked} />
           <ToolbarButton
             icon="delete"
             label="Delete"
             onClick={deleteSelected}
-            disabled={selectedBendPoint === null && selectedSegment === null}
+            disabled={isLocked || (selectedBendPoint === null && selectedSegment === null)}
           />
           <ToolbarButton icon="prev" label="Prev" onClick={() => selectAdjacentBendPoint(-1)} disabled={points.length < 3} />
           <ToolbarButton icon="next" label="Next" onClick={() => selectAdjacentBendPoint(1)} disabled={points.length < 3} />
@@ -3250,7 +3522,7 @@ export default function FlashDraftPage() {
                   type="number"
                   min="0"
                   max="11.875"
-                  step="0.125"
+                  step="0.0625"
                   value={lengthInches}
                   onChange={(e) => setLengthInches(e.target.value)}
                   className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-1.5 font-data text-sm text-afs-chrome-high focus:outline-none focus:border-afs-crimson transition-colors"
@@ -3351,43 +3623,12 @@ export default function FlashDraftPage() {
             />
           </div>
 
-          <div className="bg-afs-bg-surface border border-afs-chrome-dim rounded overflow-hidden">
-            <div className="px-3 py-2 border-b border-afs-chrome-dim">
-              <span className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid">
-                Profile Match {matchLoading && '· searching…'}
-              </span>
-            </div>
-            {matches.length === 0 ? (
-              <p className="font-body text-xs text-afs-chrome-dim px-3 py-3">
-                Draw at least one bend to see matching profiles.
-              </p>
-            ) : (
-              <ul>
-                {matches.map((m) => {
-                  const barColorClass = m.score >= 90 ? 'bg-afs-accent-green' : m.score >= 70 ? 'bg-afs-amber' : 'bg-afs-crimson';
-                  return (
-                    <li key={m.profileId} className="px-3 py-2.5 border-b border-afs-chrome-dim last:border-b-0">
-                      <div className="flex items-center justify-between gap-2 mb-1">
-                        <span className="font-body text-xs text-afs-chrome-high truncate">{m.nameEn}</span>
-                        <span className="font-data text-sm font-semibold text-afs-chrome-high shrink-0">{m.score.toFixed(0)}% match</span>
-                      </div>
-                      <div className="h-1.5 bg-afs-bg-dim rounded-full overflow-hidden mb-1.5">
-                        <div className={`h-full ${barColorClass}`} style={{ width: `${Math.min(100, m.score)}%` }} />
-                      </div>
-                      <p className="font-body text-[11px] text-afs-chrome-dim">
-                        Fabricated {m.fabricatedCount} time{m.fabricatedCount === 1 ? '' : 's'} in shop history
-                      </p>
-                      {m.isExactMatch && (
-                        <p className="font-label text-[10px] font-bold text-afs-accent-green uppercase tracking-wide mt-1">
-                          Exact Match — Machine program ready
-                        </p>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
+          {/* Profile Match sidebar list removed (afs-fl-028) -- the
+              underlying matches/matchLoading/topMatchDiagramBends state and
+              fetch effect are UNCHANGED and still deliberately kept: they
+              also power the separate "Part 6" split-screen exact-match 3D
+              view (showSplit/MatchedProfile3DModal below), which this task
+              didn't ask to remove. Only this sidebar list is gone. */}
 
           {submitError && <p className="font-body text-sm text-afs-crimson">{submitError}</p>}
           {draftSavedNotice && <p className="font-body text-sm text-afs-success">Draft saved to this browser.</p>}
@@ -3419,6 +3660,40 @@ export default function FlashDraftPage() {
           )}
 
           <div className="flex flex-col gap-2 mt-auto pt-2">
+            {/* Lock Profile & Save to Passport -- shown once a real profile
+                exists (points.length >= 2, same threshold Save/Duplicate
+                already use). Reuses the existing Save modal/performSave
+                path (see openLockAndSaveModal) rather than a separate save
+                implementation. Once locked, this is replaced by a status
+                row with an Unlock control -- the visual indicator the task
+                asked for, not just the grayed-out canvas. */}
+            {points.length >= 2 && (
+              isLocked ? (
+                <div className="flex items-center justify-between gap-2 rounded border border-afs-accent-green bg-afs-accent-green/10 px-4 py-3">
+                  <span className="flex items-center gap-2 font-label text-sm font-semibold text-afs-accent-green">
+                    <LockIcon className="h-4 w-4" aria-hidden="true" />
+                    Profile Locked & Saved
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsLocked(false)}
+                    className="font-label text-xs font-semibold text-afs-chrome-mid underline underline-offset-2 hover:text-afs-chrome-high"
+                  >
+                    Unlock to Edit
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={openLockAndSaveModal}
+                  disabled={savingProfile}
+                  className="flex items-center justify-center gap-2 border-2 border-afs-accent-green text-afs-accent-green hover:bg-afs-accent-green hover:text-white font-label font-semibold px-6 py-3 rounded text-sm transition-colors disabled:opacity-50"
+                >
+                  <LockIcon className="h-4 w-4" aria-hidden="true" />
+                  {savingProfile && lockOnSave ? 'Saving…' : 'Lock Profile & Save to Passport'}
+                </button>
+              )
+            )}
             <button
               type="button"
               onClick={openSubmitFlow}
@@ -3438,16 +3713,17 @@ export default function FlashDraftPage() {
               <button
                 type="button"
                 onClick={clearCanvas}
-                className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label text-xs font-semibold px-3 py-2.5 rounded transition-colors"
+                disabled={isLocked}
+                className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label text-xs font-semibold px-3 py-2.5 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-afs-bg-overlay"
               >
                 Clear
               </button>
               <button
                 type="button"
-                onClick={openLibrary}
+                onClick={openLoadPanel}
                 className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label text-xs font-semibold px-3 py-2.5 rounded transition-colors"
               >
-                Load
+                Load Profiles
               </button>
             </div>
 
@@ -3499,6 +3775,9 @@ export default function FlashDraftPage() {
                     profileName={profileName}
                     hemStart={hemStart}
                     hemEnd={hemEnd}
+                    paintFace={paintFaceSelectable ? paintFace : undefined}
+                    paintColor={paintFaceSelectable ? resolvedPaintColor : undefined}
+                    bareColor={paintFaceSelectable ? BARE_METAL_COLOR : undefined}
                     className="w-full h-full"
                   />
                 </div>
@@ -3518,143 +3797,208 @@ export default function FlashDraftPage() {
                 onPointerLeave={handlePointerLeave}
                 onDoubleClick={handleDoubleClick}
                 onContextMenu={(e) => e.preventDefault()}
-                className="w-full h-full"
-                style={{ touchAction: 'none', cursor: 'crosshair', background: CANVAS_COLORS.background }}
+                className={`w-full h-full ${isLocked ? 'grayscale-[40%] opacity-80' : ''}`}
+                // pointerEvents: 'none' while locked is the primary guard --
+                // every handler above also checks isLocked itself (defense
+                // in depth, matching this file's own established pattern),
+                // but this is what actually stops the cursor from doing
+                // anything at all, including view-only hover feedback.
+                style={{
+                  touchAction: 'none',
+                  cursor: isLocked ? 'not-allowed' : 'crosshair',
+                  background: CANVAS_COLORS.background,
+                  pointerEvents: isLocked ? 'none' : 'auto',
+                }}
               />
 
-              {/* PART 2 — PROFILE INFO PANEL */}
+              {/* PART 2 — PROFILE INFO PANEL (afs-jf-006: renamed placeholder,
+                  dismissible via its own X, Job Info moved to a right-side
+                  drawer below instead of expanding inline). */}
+              {profileBoxCollapsed ? (
+                <button
+                  type="button"
+                  onClick={() => setProfileBoxCollapsed(false)}
+                  className="absolute z-20 bg-black/70 text-white rounded px-3 py-2 font-semibold hover:bg-black/80"
+                  style={{ top: 8, left: 8, fontFamily: jetbrainsFontRef.current, fontSize: 12 }}
+                >
+                  Profile Info
+                </button>
+              ) : (
+                <div
+                  className="absolute z-20 bg-black/70 text-white rounded px-3 py-2 flex flex-col gap-0.5"
+                  style={{ top: 8, left: 8, fontFamily: jetbrainsFontRef.current, fontSize: 12 }}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    {editingName ? (
+                      <input
+                        autoFocus
+                        value={profileNameDraft}
+                        onChange={(e) => setProfileNameDraft(e.target.value)}
+                        onBlur={commitProfileName}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') commitProfileName();
+                          if (e.key === 'Escape') setEditingName(false);
+                        }}
+                        className="bg-transparent border-b border-white/40 outline-none text-white"
+                        style={{ fontFamily: jetbrainsFontRef.current, fontSize: 12, width: 150 }}
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProfileNameDraft(profileName === 'Untitled Profile' ? '' : profileName);
+                          setEditingName(true);
+                        }}
+                        className={`text-left hover:underline font-semibold ${
+                          profileName === 'Untitled Profile' ? 'italic opacity-60' : ''
+                        }`}
+                      >
+                        {profileName === 'Untitled Profile' ? 'Name your profile' : profileName}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProfileBoxCollapsed(true);
+                        setShowJobInfo(false);
+                        clearJobInfoFields();
+                      }}
+                      aria-label="Close profile info"
+                      className="text-white/60 hover:text-white leading-none -mt-0.5 -mr-0.5"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <span>Blank Width: {formatInches(blankWidthInLive)}</span>
+                  <span>Bend Count: {bendCountLive}</span>
+                  <span>Hem Count: {hemCountLive}</span>
+                  <span>Revision: {revision}</span>
+                  {isLocked && (
+                    <span className="flex items-center gap-1 font-semibold text-afs-accent-green">
+                      <LockIcon className="h-3 w-3" aria-hidden="true" />
+                      Locked
+                    </span>
+                  )}
+
+                  {/* Job-identity intake fields (migration 018/019, afs-jf-000/
+                      afs-jf-004) now live in the right-side drawer rendered
+                      below (afs-jf-006) — this just opens/closes it. */}
+                  <button
+                    type="button"
+                    onClick={() => setShowJobInfo((v) => !v)}
+                    className="text-left font-semibold hover:underline mt-1 pt-1 border-t border-white/20"
+                  >
+                    {showJobInfo ? '− Job Info' : '+ Job Info'}
+                  </button>
+                </div>
+              )}
+
+              {/* Job Info slide-out drawer (afs-jf-006) — replaces the old
+                  inline downward expansion. Always mounted (not just while
+                  showJobInfo) so the translate-x transition actually
+                  animates; canvasWrapRef's overflow-hidden clips it fully
+                  off-canvas when closed. */}
               <div
-                className="absolute z-20 bg-black/70 text-white rounded px-3 py-2 flex flex-col gap-0.5"
-                style={{ top: 8, left: 8, fontFamily: jetbrainsFontRef.current, fontSize: 12 }}
+                className={`absolute z-30 top-0 right-0 h-full w-[260px] bg-afs-bg-raised border-l border-afs-chrome-dim shadow-xl transition-transform duration-300 ease-in-out flex flex-col ${
+                  showJobInfo ? 'translate-x-0' : 'translate-x-full'
+                }`}
               >
-                {editingName ? (
-                  <input
-                    autoFocus
-                    value={profileNameDraft}
-                    onChange={(e) => setProfileNameDraft(e.target.value)}
-                    onBlur={commitProfileName}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') commitProfileName();
-                      if (e.key === 'Escape') setEditingName(false);
-                    }}
-                    className="bg-transparent border-b border-white/40 outline-none text-white"
-                    style={{ fontFamily: jetbrainsFontRef.current, fontSize: 12, width: 150 }}
-                  />
-                ) : (
+                <div className="flex items-center justify-between px-4 py-3 border-b border-afs-chrome-dim">
+                  <span className="font-label text-sm font-semibold text-afs-chrome-high">Job Info</span>
                   <button
                     type="button"
                     onClick={() => {
-                      setProfileNameDraft(profileName);
-                      setEditingName(true);
+                      setShowJobInfo(false);
+                      clearJobInfoFields();
                     }}
-                    className={`text-left hover:underline font-semibold ${
-                      profileName === 'Untitled Profile' ? 'italic opacity-60' : ''
-                    }`}
+                    aria-label="Close job info"
+                    className="text-afs-chrome-mid hover:text-afs-chrome-high leading-none"
                   >
-                    {profileName}
+                    ✕
                   </button>
-                )}
-                <span>Blank Width: {formatInches(blankWidthInLive)}</span>
-                <span>Bend Count: {bendCountLive}</span>
-                <span>Hem Count: {hemCountLive}</span>
-                <span>Revision: {revision}</span>
-
-                {/* Job-identity intake fields (migration 018/019, afs-jf-000/
-                    afs-jf-004) — relocated here from the sidebar, collapsed by
-                    default so the overlay stays compact (afs-jf-005). All
-                    optional, never block submit (afs-jf-003). */}
-                <button
-                  type="button"
-                  onClick={() => setShowJobInfo((v) => !v)}
-                  className="text-left font-semibold hover:underline mt-1 pt-1 border-t border-white/20"
-                >
-                  {showJobInfo ? '− Job Info' : '+ Job Info'}
-                </button>
-
-                {showJobInfo && (
-                  <div className="flex flex-col gap-2 mt-1" style={{ width: 210 }}>
-                    <div>
-                      <label
-                        className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid mb-1 block"
-                        htmlFor="clientBusinessName"
-                      >
-                        Business Name (optional)
-                      </label>
-                      <input
-                        id="clientBusinessName"
-                        type="text"
-                        value={clientBusinessName}
-                        onChange={(e) => setClientBusinessName(e.target.value)}
-                        placeholder="Company name"
-                        className="w-full bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 font-body text-xs text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
-                      />
-                    </div>
-                    <div>
-                      <label
-                        className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid mb-1 block"
-                        htmlFor="clientName"
-                      >
-                        Client Name (optional)
-                      </label>
-                      <input
-                        id="clientName"
-                        type="text"
-                        value={clientName}
-                        onChange={(e) => setClientName(e.target.value)}
-                        placeholder="Contact name"
-                        className="w-full bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 font-body text-xs text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
-                      />
-                    </div>
-                    <div>
-                      <label
-                        className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid mb-1 block"
-                        htmlFor="poNumber"
-                      >
-                        PO Number (optional)
-                      </label>
-                      <input
-                        id="poNumber"
-                        type="text"
-                        value={poNumber}
-                        onChange={(e) => setPoNumber(e.target.value)}
-                        placeholder="e.g. PO-10234"
-                        className="w-full bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 font-body text-xs text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
-                      />
-                    </div>
-                    <div>
-                      <label
-                        className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid mb-1 block"
-                        htmlFor="jobName"
-                      >
-                        Job Name (optional)
-                      </label>
-                      <input
-                        id="jobName"
-                        type="text"
-                        value={jobName}
-                        onChange={(e) => setJobName(e.target.value)}
-                        placeholder="e.g. Smith Residence Reroof"
-                        className="w-full bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 font-body text-xs text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
-                      />
-                    </div>
-                    <div>
-                      <label
-                        className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid mb-1 block"
-                        htmlFor="requestedDeliveryDate"
-                      >
-                        Requested Delivery Date (optional)
-                      </label>
-                      <input
-                        id="requestedDeliveryDate"
-                        type="date"
-                        value={requestedDeliveryDate}
-                        onChange={(e) => setRequestedDeliveryDate(e.target.value)}
-                        className="w-full bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 font-body text-xs text-afs-chrome-high focus:outline-none focus:border-afs-crimson transition-colors"
-                        style={{ colorScheme: 'dark' }}
-                      />
-                    </div>
+                </div>
+                <div className="flex flex-col gap-3 px-4 py-3 overflow-y-auto">
+                  <div>
+                    <label
+                      className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid mb-1 block"
+                      htmlFor="clientBusinessName"
+                    >
+                      Business Name (optional)
+                    </label>
+                    <input
+                      id="clientBusinessName"
+                      type="text"
+                      value={clientBusinessName}
+                      onChange={(e) => setClientBusinessName(e.target.value)}
+                      placeholder="Company name"
+                      className="w-full bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 font-body text-xs text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
+                    />
                   </div>
-                )}
+                  <div>
+                    <label
+                      className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid mb-1 block"
+                      htmlFor="clientName"
+                    >
+                      Client Name (optional)
+                    </label>
+                    <input
+                      id="clientName"
+                      type="text"
+                      value={clientName}
+                      onChange={(e) => setClientName(e.target.value)}
+                      placeholder="Contact name"
+                      className="w-full bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 font-body text-xs text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid mb-1 block"
+                      htmlFor="poNumber"
+                    >
+                      PO Number (optional)
+                    </label>
+                    <input
+                      id="poNumber"
+                      type="text"
+                      value={poNumber}
+                      onChange={(e) => setPoNumber(e.target.value)}
+                      placeholder="e.g. PO-10234"
+                      className="w-full bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 font-body text-xs text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid mb-1 block"
+                      htmlFor="jobName"
+                    >
+                      Job Name (optional)
+                    </label>
+                    <input
+                      id="jobName"
+                      type="text"
+                      value={jobName}
+                      onChange={(e) => setJobName(e.target.value)}
+                      placeholder="e.g. Smith Residence Reroof"
+                      className="w-full bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 font-body text-xs text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid mb-1 block"
+                      htmlFor="requestedDeliveryDate"
+                    >
+                      Requested Delivery Date (optional)
+                    </label>
+                    <input
+                      id="requestedDeliveryDate"
+                      type="date"
+                      value={requestedDeliveryDate}
+                      onChange={(e) => setRequestedDeliveryDate(e.target.value)}
+                      className="w-full bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 font-body text-xs text-afs-chrome-high focus:outline-none focus:border-afs-crimson transition-colors"
+                      style={{ colorScheme: 'dark' }}
+                    />
+                  </div>
+                </div>
               </div>
 
               {isDragDrawing && dragPreview && dragScreenPos && (
@@ -3913,35 +4257,83 @@ export default function FlashDraftPage() {
         </div>
       </div>
 
-      {showLibrary && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-6" onClick={() => setShowLibrary(false)}>
+      {showLoadPanel && (
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-6"
+          onClick={() => setShowLoadPanel(false)}
+        >
           <div
-            className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-6 max-w-lg w-full max-h-[70vh] overflow-y-auto"
+            className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-6 max-w-2xl w-full max-h-[70vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="font-heading text-xl text-afs-chrome-high mb-4">Load from Library</h3>
-            {libraryLoading ? (
+            <h3 className="font-heading text-xl text-afs-chrome-high mb-4">Load Profiles</h3>
+            {!isAuthenticated ? (
+              <p className="font-body text-sm text-afs-chrome-mid">
+                Sign in to view your saved profiles.{' '}
+                <Link href="/login" className="text-afs-crimson hover:underline">
+                  Sign in
+                </Link>
+              </p>
+            ) : loadPanelLoading ? (
               <p className="font-body text-sm text-afs-chrome-mid">Loading…</p>
-            ) : libraryProfiles.length === 0 ? (
-              <p className="font-body text-sm text-afs-chrome-mid">No public profiles available yet.</p>
+            ) : passportProfiles.length === 0 ? (
+              <p className="font-body text-sm text-afs-chrome-mid">
+                No saved profiles yet. Use "Save" or "Lock Profile & Save to Passport" to save one.
+              </p>
             ) : (
-              <ul className="flex flex-col gap-1">
-                {libraryProfiles.map((p) => (
-                  <li key={p.id}>
-                    <button
-                      type="button"
-                      onClick={() => loadFromLibrary(p.id)}
-                      className="w-full text-left font-body text-sm text-afs-chrome-high hover:bg-afs-bg-surface px-3 py-2 rounded transition-colors"
-                    >
-                      {p.name_en} <span className="font-data text-xs text-afs-chrome-dim">#{p.profile_number}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid border-b border-afs-chrome-dim">
+                    <th className="pb-2 pr-3">Profile Name</th>
+                    <th className="pb-2 pr-3">Date Created</th>
+                    <th className="pb-2 pr-3">Job Name</th>
+                    <th className="pb-2 w-8" aria-hidden="true" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {passportProfiles.map((p) => (
+                    <tr key={p.id} className="border-b border-afs-chrome-dim/40 last:border-0">
+                      <td className="py-0">
+                        <button
+                          type="button"
+                          onClick={() => loadFromPassport(p)}
+                          className="w-full text-left font-body text-sm text-afs-chrome-high hover:bg-afs-bg-surface px-3 py-2 rounded transition-colors"
+                        >
+                          {p.name}
+                        </button>
+                      </td>
+                      <td className="py-2 pr-3 font-body text-xs text-afs-chrome-mid whitespace-nowrap">
+                        {new Date(p.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="py-2 pr-3 font-body text-xs text-afs-chrome-mid">{p.jobName || '—'}</td>
+                      <td className="py-2 relative">
+                        <button
+                          type="button"
+                          onMouseEnter={() => setQuickViewId(p.id)}
+                          onMouseLeave={() => setQuickViewId((id) => (id === p.id ? null : id))}
+                          aria-label={`Quick view ${p.name}`}
+                          className="text-afs-chrome-mid hover:text-afs-chrome-high"
+                        >
+                          {/* Eye icon */}
+                          <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                            <path d="M1 10s3-6 9-6 9 6 9 6-3 6-9 6-9-6-9-6Z" strokeLinejoin="round" />
+                            <circle cx="10" cy="10" r="2.5" />
+                          </svg>
+                        </button>
+                        {quickViewId === p.id && (
+                          <div className="absolute right-full top-1/2 -translate-y-1/2 mr-2 z-10 w-40 h-32 bg-afs-bg-overlay border border-afs-chrome-dim rounded shadow-xl p-1">
+                            <CanonicalProfileDiagram points={p.points} width={152} height={120} />
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             )}
             <button
               type="button"
-              onClick={() => setShowLibrary(false)}
+              onClick={() => setShowLoadPanel(false)}
               className="mt-4 font-label text-sm text-afs-chrome-mid hover:text-afs-crimson transition-colors"
             >
               Close
@@ -4085,7 +4477,12 @@ export default function FlashDraftPage() {
             categoryId: profileCategoryId,
             subcategory: profileSubcategory,
           }}
-          onCancel={() => setShowProfileDetails(false)}
+          onCancel={() => {
+            setShowProfileDetails(false);
+            // A canceled lock-attempt shouldn't leave lockOnSave armed for
+            // a later, unrelated plain Save to pick up.
+            setLockOnSave(false);
+          }}
           onSave={(values) => performSave(values, duplicateOnSave)}
           saving={savingProfile}
           error={saveError}

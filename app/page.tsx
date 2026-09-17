@@ -1,6 +1,7 @@
 import dynamic from 'next/dynamic';
 import HomeSection from '@/app/components/home/HomeSection';
 import HeroSection from '@/app/components/hero/HeroSection';
+import ClientCarousel from '@/components/home/ClientCarousel';
 import CredibilityStrip from '@/app/components/home/CredibilityStrip';
 import FieldAppStory from '@/app/components/home/FieldAppStory';
 import DesignStudioHub from '@/app/components/home/DesignStudioHub';
@@ -32,12 +33,16 @@ export default function HomePage() {
         <HeroSection />
       </HomeSection>
 
-      <HomeSection slug="credibility">
-        <CredibilityStrip />
+      <HomeSection slug="client-carousel">
+        <ClientCarousel />
       </HomeSection>
 
       <HomeSection slug="field-app">
         <FieldAppStory />
+      </HomeSection>
+
+      <HomeSection slug="credibility">
+        <CredibilityStrip />
       </HomeSection>
 
       {/* DesignStudioHub already sets id="design-studio" on its own root

@@ -6,16 +6,17 @@ import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
-const LOGO_WIDTH = 200;
 // Exported so any full-width fixed/absolute element anchored near the top of
 // the viewport (e.g. app/hailview/page.tsx's map background) can clear the
-// logo's real footprint instead of the header's shorter 56px height.
-export const LOGO_HEIGHT = 80;
+// header row's real height. h-24 (96px) gives room to breathe without the
+// header feeling cramped.
+export const LOGO_HEIGHT = 96;
 
 const TOP_NAV_LINKS = [
   { label: 'Products', href: '/products' },
   { label: 'Design Studio', href: '/studio' },
   { label: 'Track Delivery', href: '/track' },
+  { label: 'Services', href: '/about/services' },
   { label: 'Architects', href: '/architects' },
 ];
 
@@ -117,23 +118,13 @@ export default function NavBar() {
 
   return (
     <>
-      <Link
-        href="/"
-        className="fixed top-0 left-0 z-40 shrink-0 flex items-center justify-center"
-        style={{ width: LOGO_WIDTH, height: LOGO_HEIGHT }}
-      >
-        <Image
-          src="/afs-logo.png"
-          alt="AFS Architectural Flashing Supply"
-          width={LOGO_WIDTH}
-          height={LOGO_HEIGHT}
-          className="object-contain"
-        />
-      </Link>
       <header
-        className="fixed top-0 right-0 z-40 h-14 bg-afs-bg-raised border-b border-afs-chrome-dim flex items-center justify-between gap-4 px-4 md:px-8"
-        style={{ left: LOGO_WIDTH }}
+        className="fixed top-0 inset-x-0 z-40 h-24 bg-afs-bg-raised border-b border-afs-chrome-dim flex items-center justify-between gap-4 px-4 md:px-8"
       >
+      <Link href="/" className="flex items-center shrink-0">
+        <Image src="/afs-logo.png" alt="Architectural Flashing Supply" width={160} height={80} className="object-contain" priority />
+      </Link>
+
       <div className="hidden md:flex items-center gap-8">
         {TOP_NAV_LINKS.map((link) => (
           <Link key={link.href} href={link.href} className={topNavLinkClass(link.href)} style={topNavLinkStyle(link.href)}>

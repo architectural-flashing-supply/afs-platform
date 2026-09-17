@@ -6,15 +6,17 @@ import { useEffect, useRef, useState } from 'react';
 // - 5 materials: CLAUDE.md's fabrication list (copper, aluminum, galvanized
 //   steel, stainless, Galvalume), repeated identically in SPEC_DRAWING_TOOL.md
 //   and SPEC_PHOTO_TO_QUOTE_AI.md.
-// - 25 standard profiles: SCHEMA.md's CANONICAL PROFILE LIBRARY TABLE --
-//   the public canonical_profiles catalog (25 hand-crafted profiles), not
-//   the private machine_profiles shop job history (911 profiles, only 70
-//   public) which is real customer project data and not for site copy.
+// - "Custom Profiles" (not a profile count): the 25-entry canonical_profiles
+//   catalog (SCHEMA.md's CANONICAL PROFILE LIBRARY TABLE) is a starter
+//   library, not a ceiling -- FlashDraft draws any custom geometry, so
+//   leading with a specific number undersold that. The private
+//   machine_profiles shop job history (911 profiles, only 70 public) is
+//   real customer project data and still not for site copy either way.
 // - Nationwide delivery: lib/chatbot/knowledge/afs-company.ts's
 //   company-service-area entry -- "ships nationwide within North America."
 const STATS = [
   { value: '5', label: 'Materials Fabricated' },
-  { value: '25', label: 'Standard Profiles' },
+  { value: 'Unlimited', label: 'Custom Profiles' },
   { value: 'Nationwide', label: 'Delivery Footprint' },
 ] as const;
 

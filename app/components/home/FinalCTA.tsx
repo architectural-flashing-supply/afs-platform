@@ -12,13 +12,15 @@ interface CTAAction {
   key: string;
   label: string;
   href: string;
-  primary?: boolean;
 }
 
+const ACTION_CLASS =
+  'flex items-center justify-center rounded border border-transparent bg-afs-crimson px-6 py-5 text-center font-label text-sm font-semibold tracking-wide text-white metal-edge-red shadow-crimson transition-colors hover:bg-afs-crimson-hover';
+
 const ACTIONS: CTAAction[] = [
-  { key: 'quote', label: 'Start a Quote', href: '/design-studio', primary: true },
+  { key: 'quote', label: 'Start a Quote', href: '/design-studio' },
   { key: 'profiles', label: 'Custom Profiles', href: '/architects/custom-profiles' },
-  { key: 'hail', label: 'Check Hail Impact', href: '/hailview' },
+  { key: 'hail', label: 'Check Hail View', href: '/hailview' },
   { key: 'contact', label: 'Talk to AFS', href: '/contact' },
 ];
 
@@ -32,15 +34,7 @@ export default function FinalCTA() {
 
         <div className="mt-12 grid grid-cols-2 gap-4 md:grid-cols-4 md:gap-6">
           {ACTIONS.map((action) => (
-            <Link
-              key={action.key}
-              href={action.href}
-              className={
-                action.primary
-                  ? 'flex items-center justify-center rounded border border-transparent bg-afs-crimson px-6 py-5 text-center font-label text-sm font-semibold tracking-wide text-white metal-edge-red shadow-crimson transition-colors hover:bg-afs-crimson-hover'
-                  : 'flex items-center justify-center rounded border border-[var(--afs-border)] bg-transparent px-6 py-5 text-center font-label text-sm font-semibold tracking-wide text-afs-chrome-mid transition-colors hover:bg-afs-bg-surface hover:text-afs-chrome-high'
-              }
-            >
+            <Link key={action.key} href={action.href} className={ACTION_CLASS}>
               {action.label}
             </Link>
           ))}

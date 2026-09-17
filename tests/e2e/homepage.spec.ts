@@ -13,13 +13,17 @@ import { test, expect, type Page } from '@playwright/test';
 const PRICE_PATTERN = /\$[\d,]+(\.\d{2})?/;
 
 // Document order asserted by app/page.tsx's own <HomeSection slug="..."> wrapper
-// sequence — eleven real sections as of hpc-003 (was twelve at hpa-003;
-// profile-explorer was removed from the render order — the Explore Our
-// Profiles section is no longer used as a sample, per Reid).
+// sequence — twelve real sections as of hpd-007 (was eleven at hpc-003; the
+// split-screen hero redesign added a new client-carousel section right
+// after hero — see ClientCarousel.tsx). field-app now sits directly after
+// client-carousel (ahead of credibility) so the phone-mockup/three-step
+// story follows straight on from the trust band, per the hero/carousel
+// architecture fix.
 const SECTION_SLUGS = [
   'hero',
-  'credibility',
+  'client-carousel',
   'field-app',
+  'credibility',
   'design-studio',
   'design-to-delivery',
   'pathways',
@@ -67,12 +71,29 @@ for (const viewport of VIEWPORTS) {
       expect(slugs).toEqual(SECTION_SLUGS);
     });
 
-    test('hero video declares an mp4 source and a poster', async ({ page }) => {
+    test('hero shop-floor video declares an mp4 source and a poster', async ({ page }) => {
+      // hpd-007: split-screen hero restored -- raw shop-floor fabrication
+      // footage fills the left column, no phone mockup inside the hero.
       await page.goto('/');
       const heroVideo = page.locator('[data-section="hero"] video');
       await expect(heroVideo).toHaveAttribute('poster', '/images/hero-poster.jpg');
       const mp4Source = heroVideo.locator('source[type="video/mp4"]');
       await expect(mp4Source).toHaveAttribute('src', '/videos/hero-metal-fabrication.mp4');
+    });
+
+    test('field-app phone-mockup video declares an mp4 source, a poster, and loops', async ({ page }) => {
+      // hpd-007: PhoneMockupVideo (three-step-process montage) moved back
+      // below the fold into FieldAppStory, alongside the "Photo to Quote"
+      // steps copy.
+      await page.goto('/');
+      const phoneVideo = page.locator('[data-section="field-app"] video');
+      // Below the fold: PhoneMockupVideo only attaches <source> once its
+      // IntersectionObserver (rootMargin 200px) sees it near the viewport.
+      await phoneVideo.scrollIntoViewIfNeeded();
+      await expect(phoneVideo).toHaveAttribute('poster', '/images/hero-poster.jpg');
+      await expect(phoneVideo).toHaveAttribute('loop', '');
+      const mp4Source = phoneVideo.locator('source[type="video/mp4"]');
+      await expect(mp4Source).toHaveAttribute('src', '/videos/three-step-process-portrait.mp4');
     });
 
     test('hero renders with zero console errors and no canvas element', async ({ page }) => {
@@ -193,12 +214,19 @@ test.describe('Homepage navigation and footer', () => {
 });
 
 test.describe('Homepage CTAs retargeted off the removed profile-explorer section (hpc-003)', () => {
-  test('hero secondary CTA points at #shop-floor, which resolves on the page', async ({ page }) => {
+  // hpd-007 restored the split-screen hero's dual CTAs as "Start Your
+  // Project" / "View Our Work" -- "Design Your Profile" / "Request a Quote"
+  // no longer exist inside the hero.
+  test('hero dual CTAs resolve to /quote and /about/services', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
-    const heroCTA = page.locator('[data-section="hero"]').getByRole('link', { name: "See How It's Made" });
-    await expect(heroCTA).toHaveAttribute('href', '#shop-floor');
-    await expect(page.locator('#shop-floor')).toHaveCount(1);
+    const hero = page.locator('[data-section="hero"]');
+
+    const primaryCTA = hero.getByRole('link', { name: 'Start Your Project' });
+    await expect(primaryCTA).toHaveAttribute('href', '/quote');
+
+    const secondaryCTA = hero.getByRole('link', { name: 'View Our Work' });
+    await expect(secondaryCTA).toHaveAttribute('href', '/about/services');
   });
 
   test('final-CTA "Custom Profiles" button points at /architects/custom-profiles, which returns 200', async ({
@@ -212,6 +240,179 @@ test.describe('Homepage CTAs retargeted off the removed profile-explorer section
     await expect(finalCTA).toHaveAttribute('href', '/architects/custom-profiles');
     const response = await page.request.get('/architects/custom-profiles', { timeout: 60_000 });
     expect(response.ok(), `/architects/custom-profiles returned ${response.status()}`).toBe(true);
+  });
+});
+
+test.describe('Homepage overhaul (hpd-008)', () => {
+  test('header logo has no separate sidebar, the mark renders oversized (76px), and the tagline is present', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const header = page.locator('header');
+    const headerLogoImg = header.locator('img');
+    await expect(headerLogoImg).toHaveCount(1);
+    await expect(headerLogoImg).toHaveAttribute('width', '76');
+    await expect(header.getByText('Architectural Flashing Supply', { exact: false })).toBeVisible();
+  });
+
+  test('footer has no logo image, only text branding', async ({ page }) => {
+    await page.goto('/');
+    const footer = page.locator('footer');
+    await expect(footer.locator('img')).toHaveCount(0);
+    await expect(footer.getByText('AFS — Architectural Flashing Supply')).toBeVisible();
+  });
+
+  test('hero right column has Reid\'s real blueprint background image, filling the section (bg-cover)', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const hero = page.locator('[data-section="hero"]');
+    const rightColumn = hero.locator('div.grid > div').nth(1);
+    const backgroundImage = await rightColumn.evaluate((el) => getComputedStyle(el).backgroundImage);
+    expect(backgroundImage).toContain('blueprint.webp');
+    const backgroundSize = await rightColumn.evaluate((el) => getComputedStyle(el).backgroundSize);
+    expect(backgroundSize).toBe('cover');
+  });
+
+  test('hero right column has a uniform translucent wash plus an extra fade on the right edge only', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const hero = page.locator('[data-section="hero"]');
+    const rightColumn = hero.locator('div.grid > div').nth(1);
+    // Two overlay divs: a uniform wash, then a right-edge-only gradient.
+    const overlays = rightColumn.locator(':scope > div.pointer-events-none.absolute.inset-0');
+    await expect(overlays).toHaveCount(2);
+    const washBg = await overlays.nth(0).evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(washBg).not.toBe('rgba(0, 0, 0, 0)');
+    const edgeBg = await overlays.nth(1).evaluate((el) => getComputedStyle(el).backgroundImage);
+    expect(edgeBg).toContain('linear-gradient');
+  });
+
+  test('hero left video shows a real, timed process-stage label ("Feed + Bend" then "Release")', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const hero = page.locator('[data-section="hero"]');
+    await expect(hero.getByText('Feed + Bend')).toBeVisible();
+  });
+
+  test('field-app phone-mockup video has no bezel padding around it (fills to the frame border)', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const fieldApp = page.locator('[data-section="field-app"]');
+    await fieldApp.scrollIntoViewIfNeeded();
+    const video = fieldApp.locator('video');
+    const frame = video.locator('..');
+    const [videoBox, frameBox] = await Promise.all([video.boundingBox(), frame.boundingBox()]);
+    expect(videoBox).not.toBeNull();
+    expect(frameBox).not.toBeNull();
+    // The video fills the frame right up to its 6px border on every side
+    // (absolutely positioned children sit inside the parent's padding
+    // box) -- so the expected gap is exactly 2*6=12px, not the ~28px gap
+    // the old border + p-2 bezel + separate inner rounded div used to leave.
+    const BORDER_PX = 12;
+    expect(Math.abs(videoBox!.width - (frameBox!.width - BORDER_PX))).toBeLessThan(2);
+    expect(Math.abs(videoBox!.height - (frameBox!.height - BORDER_PX))).toBeLessThan(2);
+  });
+
+  test('client-carousel is visible within the initial viewport on load (above the fold)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const carousel = page.locator('[data-section="client-carousel"]');
+    const box = await carousel.boundingBox();
+    expect(box).not.toBeNull();
+    // Some part of the section's top must be within the 900px viewport --
+    // doesn't need to be fully visible, just not entirely below the fold.
+    expect(box!.y).toBeLessThan(900);
+  });
+
+  test('field-app step highlighting tracks video playback: step 1 active at start, step 2 by ~2.5s', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const fieldApp = page.locator('[data-section="field-app"]');
+    const steps = fieldApp.locator('ol > li');
+    await fieldApp.scrollIntoViewIfNeeded();
+
+    // Step 1 should be the active (opacity: 1) one shortly after the video
+    // starts playing.
+    await expect(steps.nth(0)).toHaveCSS('opacity', '1', { timeout: 5000 });
+    await expect(steps.nth(1)).not.toHaveCSS('opacity', '1');
+
+    // By ~2.5s into the (autoplaying, muted) video, step 2 should take over.
+    await page.waitForTimeout(2500);
+    await expect(steps.nth(1)).toHaveCSS('opacity', '1');
+    await expect(steps.nth(0)).not.toHaveCSS('opacity', '1');
+  });
+
+  test('client carousel spells "Hays ISD" correctly and scrolls slowly (14s cycle)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const carousel = page.locator('[data-section="client-carousel"]');
+    await expect(carousel.getByText('Hays ISD', { exact: true }).first()).toBeVisible();
+    await expect(carousel.getByText('Hayes ISD')).toHaveCount(0);
+    const duration = await carousel
+      .locator('.client-marquee-track')
+      .evaluate((el) => getComputedStyle(el).animationDuration);
+    expect(duration).toBe('14s');
+  });
+
+  test('field-app button text is breakpoint-conditional: desktop "Open the Field App", mobile "Install App"', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const fieldApp = page.locator('[data-section="field-app"]');
+    await expect(fieldApp.getByRole('link', { name: 'Open the Field App' })).toBeVisible();
+    await expect(fieldApp.getByRole('link', { name: 'Install App' })).toBeHidden();
+
+    await page.setViewportSize({ width: 375, height: 812 });
+    await expect(fieldApp.getByRole('link', { name: 'Install App' })).toBeVisible();
+    await expect(fieldApp.getByRole('link', { name: 'Open the Field App' })).toBeHidden();
+  });
+
+  test('field-app steps use single-digit numbers and the updated step 2/3 copy', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const fieldApp = page.locator('[data-section="field-app"]');
+    await expect(fieldApp.getByText('AFS designs the profile')).toBeVisible();
+    await expect(fieldApp.getByText('Fabrication & Job Site Delivery')).toBeVisible();
+    await expect(fieldApp.getByText('AI identifies the profile and material')).toHaveCount(0);
+  });
+
+  test('design-to-delivery has no photo/camera reference in step 1', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const section = page.locator('[data-section="design-to-delivery"]');
+    await expect(section.getByText('Upload Blueprints & Specifications')).toBeVisible();
+    await expect(section.getByText(/snap a photo/i)).toHaveCount(0);
+  });
+
+  test('nationwide map is expanded to at least 500px tall', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const map = page.locator('[data-testid="nationwide-map"]');
+    const box = await map.boundingBox();
+    expect(box?.height).toBeGreaterThanOrEqual(500);
+  });
+
+  test('final-CTA buttons are all the same crimson style, and hail button reads "Check Hail View"', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    const finalCTA = page.locator('[data-section="final-cta"]');
+    await expect(finalCTA.getByRole('link', { name: 'Check Hail View' })).toHaveAttribute('href', '/hailview');
+    await expect(finalCTA.getByRole('link', { name: 'Check Hail Impact' })).toHaveCount(0);
+
+    const classes = await finalCTA.getByRole('link').evaluateAll((links) => links.map((l) => l.className));
+    expect(new Set(classes).size).toBe(1);
+    expect(classes[0]).toContain('bg-afs-crimson');
   });
 });
 

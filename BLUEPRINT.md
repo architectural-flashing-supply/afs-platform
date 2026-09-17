@@ -251,6 +251,26 @@ see ARCHITECTURE.md), and the AFS Machine Bridge + admin Command Center
 program file. See STATE_OF_THE_BUILD.md for exact build status and the
 Machine Bridge's current audited (not yet fully working) state.
 
+**FlashDraft UI, as of the afs-jf-006/007/008 remedial pass:** the sidebar's
+"Profile Match" list was removed (the split-screen 3D exact-match view it
+fed is unaffected — see `showSplit`/`MatchedProfile3DModal`). The upper-left
+canvas overlay reads "Name your profile" (was "Untitled Profile") and has
+its own X to dismiss it (a small "Profile Info" pill reopens it). Job Info
+(Business Name/Client Name/PO Number/Job Name/Requested Delivery Date, all
+optional) is a right-side slide-out drawer instead of an inline expansion;
+closing it from either X clears all five fields (fixes the old
+close-doesn't-clear persist bug). Business Name auto-populates from
+`profiles.company` on login, without overwriting a value already restored
+from autosave or already typed. The "Load" button ("Load Profiles") now
+reads the signed-in user's own Profile Passport rows
+(`saved_configurations`, `dimensions->>kind = 'flashdraft'`) instead of the
+shop's `machine_profiles` library, with Profile Name/Date Created/Job Name
+columns and a hover quick-view thumbnail
+(`components/studio/CanonicalProfileDiagram.tsx`) — sign-in is required, an
+unauthenticated user sees a sign-in prompt. The Thalmann machine-profile
+library is real shop history (SCHEMA.md) and was deliberately NOT deleted;
+see STATE_OF_THE_BUILD.md for that discrepancy.
+
 ---
 
 ## 6. ENVIRONMENT VARIABLES
