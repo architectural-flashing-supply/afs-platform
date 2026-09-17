@@ -157,11 +157,18 @@ real production/staging data as a signed-in admin.
   `feat/homepage-redesign` via a `--no-ff` merge + push immediately before
   this pass started, per Reid's explicit confirmation).
 
-**Not yet done:** Vercel preview deploy (Reid chose preview over the spec's
-own `vercel --prod` instruction) — see the deployment line for the actual
-outcome/URL once run. Real admin-session confirmation of the rendered
+**Deployment:** Vercel preview (not production — Reid chose this over the
+spec's own `vercel --prod` instruction):
+`https://afs-website-3vmucy6s5-reids-projects-b3405b97.vercel.app`. Gated
+by Vercel's own deployment-protection SSO wall (anonymous `curl` gets
+bounced to `vercel.com/sso-api`) — expected preview behavior, opens fine
+for Reid signed into the Vercel team, not a bug in this pass. Branch pushed
+to `origin/feat/command-center-redesign`; not merged to `main` or opened as
+a PR — that's a separate decision for Reid.
+
+**Not yet done:** Real admin-session confirmation of the rendered
 dashboard, nav, and click-through filtering, per the verification standard
-above.
+above — nothing in this pass has been seen by an actual signed-in admin.
 
 ---
 

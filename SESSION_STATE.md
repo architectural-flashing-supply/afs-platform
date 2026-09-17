@@ -81,10 +81,14 @@ finishing (never committed). Also confirmed `/admin/command-center`,
 when hit unauthenticated (no crash). **IMPLEMENTED, UNCONFIRMED** — Reid
 has not seen this against a real signed-in admin session yet.
 
-**Deployment:** Vercel preview deploy — see below for the resulting URL
-(Reid chose preview over the requesting prompt's own `vercel --prod`
-instruction, given a production deploy of a live business site needs its
-own explicit go-ahead separate from the rest of this task).
+**Deployment:** Vercel preview (Reid chose this over the requesting
+prompt's own `vercel --prod` instruction, given a production deploy of a
+live business site needs its own explicit go-ahead separate from the rest
+of this task):
+`https://afs-website-3vmucy6s5-reids-projects-b3405b97.vercel.app`
+(gated by Vercel's own preview SSO wall — expected, opens fine signed into
+the Vercel team). Branch `feat/command-center-redesign` pushed to origin;
+not merged to `main`, no PR opened yet.
 
 ---
 
