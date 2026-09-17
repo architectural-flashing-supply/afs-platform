@@ -6,44 +6,78 @@ import { NextResponse, type NextRequest } from 'next/server';
 // request-scoped session client — the session client's `profiles` read
 // depends on RLS/cookie propagation timing in the Edge runtime, which is
 // exactly what let non-admins (and even admins) get silently misrouted.
+//
+// createClient() throws synchronously ("supabaseKey is required." /
+// "Invalid supabaseUrl") if either env var is missing or malformed, and the
+// query itself can reject on a network error — both are real failure modes
+// in the Edge runtime, not hypotheticals. Left unguarded, either one crashes
+// the whole middleware invocation (Vercel: 500 MIDDLEWARE_INVOCATION_FAILED)
+// for every request that needs a role check. Fail closed instead: treat any
+// failure here as "role unknown," which every caller already treats as
+// not-admin.
 async function getUserRole(userId: string): Promise<string | null> {
-  const admin = createServiceRoleClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
-  const { data, error } = await admin.from('profiles').select('role').eq('id', userId).single();
-  if (error || !data) return null;
-  return data.role as string;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceRoleKey) {
+    console.error('getUserRole: missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+    return null;
+  }
+
+  try {
+    const admin = createServiceRoleClient(url, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { data, error } = await admin.from('profiles').select('role').eq('id', userId).single();
+    if (error || !data) return null;
+    return data.role as string;
+  } catch (err) {
+    console.error('getUserRole: role lookup failed', err);
+    return null;
+  }
 }
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
+  // createServerClient() throws synchronously ("supabaseUrl is required.")
+  // if NEXT_PUBLIC_SUPABASE_URL/ANON_KEY are missing or malformed, and
+  // auth.getUser() can reject on a network error. Both are real Edge-runtime
+  // failure modes, and either one — left unguarded — crashes every single
+  // request through this middleware (Vercel: 500 MIDDLEWARE_INVOCATION_FAILED),
+  // public routes included, since this whole block runs unconditionally
+  // before any route-specific logic. Fall back to "unauthenticated" on any
+  // failure here: public routes still render, protected routes fall through
+  // to the existing !user gate below instead of the middleware crashing.
+  let user = null;
+  try {
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value }) =>
+              request.cookies.set(name, value)
+            );
+            supabaseResponse = NextResponse.next({ request });
+            cookiesToSet.forEach(({ name, value, options }) =>
+              supabaseResponse.cookies.set(name, value, options)
+            );
+          },
         },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          );
-          supabaseResponse = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          );
-        },
-      },
-    }
-  );
+      }
+    );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    const {
+      data: { user: fetchedUser },
+    } = await supabase.auth.getUser();
+    user = fetchedUser;
+  } catch (err) {
+    console.error('middleware: failed to resolve Supabase session', err);
+  }
 
   const pathname = request.nextUrl.pathname;
   const isAccountRoute = pathname.startsWith('/account');
