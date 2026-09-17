@@ -782,6 +782,18 @@ function ToolbarIcon({ name }: { name: string }) {
   );
 }
 
+// Standalone (not part of ToolbarIcon's named set below) since it's only
+// ever used for the lock/unlock indicator and the Lock & Save button, not
+// as a small toolbar icon button.
+function LockIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <rect x="4" y="11" width="16" height="10" rx="2" />
+      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+    </svg>
+  );
+}
+
 function ToolbarButton({
   icon,
   label,
@@ -936,6 +948,15 @@ export default function FlashDraftPage() {
   const [savedProfileId, setSavedProfileId] = useState<string | null>(null);
   const [profileCategoryId, setProfileCategoryId] = useState<string | null>(null);
   const [profileSubcategory, setProfileSubcategory] = useState('');
+  // Lock Profile & Save to Passport: once locked, every geometry-mutating
+  // path (canvas drawing/dragging, hem edits, segment length/angle inputs,
+  // rotate, delete, undo/redo) is guarded off at its own entry point below
+  // -- this is the single source of truth all of them check. lockOnSave
+  // threads through the EXISTING save modal/performSave flow (see
+  // openLockAndSaveModal) rather than duplicating it, so locking reuses the
+  // same tested validation/DB-write path a plain Save already uses.
+  const [isLocked, setIsLocked] = useState(false);
+  const [lockOnSave, setLockOnSave] = useState(false);
   const [showNewConfirm, setShowNewConfirm] = useState(false);
   const [showProfileDetails, setShowProfileDetails] = useState(false);
   const [duplicateOnSave, setDuplicateOnSave] = useState(false);
@@ -1269,7 +1290,7 @@ export default function FlashDraftPage() {
   // ever computes the next array; every other setter is called once, at
   // undo/redo's own top level.
   const undo = useCallback(() => {
-    if (past.length === 0) return;
+    if (isLocked || past.length === 0) return;
     const prev = past[past.length - 1];
     setFuture((f) => [{ points, hemStart, hemEnd }, ...f]);
     setPast((p) => p.slice(0, -1));
@@ -1277,10 +1298,10 @@ export default function FlashDraftPage() {
     setHemStart(prev.hemStart);
     setHemEnd(prev.hemEnd);
     setSelectedSegment(null);
-  }, [past, points, hemStart, hemEnd]);
+  }, [isLocked, past, points, hemStart, hemEnd]);
 
   const redo = useCallback(() => {
-    if (future.length === 0) return;
+    if (isLocked || future.length === 0) return;
     const next = future[0];
     setPast((p) => [...p, { points, hemStart, hemEnd }]);
     setFuture((f) => f.slice(1));
@@ -1288,7 +1309,7 @@ export default function FlashDraftPage() {
     setHemStart(next.hemStart);
     setHemEnd(next.hemEnd);
     setSelectedSegment(null);
-  }, [future, points, hemStart, hemEnd]);
+  }, [isLocked, future, points, hemStart, hemEnd]);
 
   const getEffectiveRadius = useCallback(
     (i: number): number => points[i]?.radius ?? defaultBendRadiusIn(material),
@@ -1357,7 +1378,7 @@ export default function FlashDraftPage() {
         redo();
       } else if (e.key === 'Escape') {
         setHemPopup(null);
-      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+      } else if ((e.key === 'Delete' || e.key === 'Backspace') && !isLocked) {
         const target = e.target as HTMLElement | null;
         if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
         if (selectedBendPoint !== null) {
@@ -1382,7 +1403,7 @@ export default function FlashDraftPage() {
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('keyup', handleKeyUp);
     };
-  }, [undo, redo, points, selectedBendPoint, selectedSegment, commitPoints]);
+  }, [undo, redo, points, selectedBendPoint, selectedSegment, commitPoints, isLocked]);
 
   // --- Coordinate conversion ---
   // Reads canvas size via getBoundingClientRect() (always CSS/logical
@@ -1658,6 +1679,12 @@ export default function FlashDraftPage() {
   );
 
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    // Locked profile: the canvas itself also gets pointerEvents: 'none'
+    // (see the <canvas> style below) so this normally never even fires --
+    // this guard is defense in depth against that CSS being bypassed some
+    // other way, matching this file's own existing "defense in depth"
+    // pattern (see handlePointerMove's dragStateArmed comment).
+    if (isLocked) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     canvas.setPointerCapture(e.pointerId);
@@ -2219,6 +2246,7 @@ export default function FlashDraftPage() {
   }, [viewMode]);
 
   const handleDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (isLocked) return;
     // A hem needs a neighbor point to compute a fold direction from, so
     // the popup itself is harmless to open at 1 point — renderHemAt (in the
     // draw loop) is what actually gates on having ≥2 points before drawing
@@ -2277,7 +2305,7 @@ export default function FlashDraftPage() {
   };
 
   const applySegmentLength = () => {
-    if (selectedSegment === null) return;
+    if (isLocked || selectedSegment === null) return;
     const newLength = Number(segmentLengthInput.replace(/[^0-9.]/g, ''));
     if (!Number.isFinite(newLength) || newLength <= 0) return;
     const a = points[selectedSegment];
@@ -2322,7 +2350,7 @@ export default function FlashDraftPage() {
   // downstream of the selected joint by the difference (same math the old
   // canvas-drag interaction used, just driven by a numeric field now).
   const applyBendAngle = () => {
-    if (selectedBendPoint === null) return;
+    if (isLocked || selectedBendPoint === null) return;
     const i = selectedBendPoint;
     const desired = Number(angleInputDraft);
     if (!Number.isFinite(desired)) return;
@@ -2338,6 +2366,7 @@ export default function FlashDraftPage() {
   };
 
   const deleteSelected = () => {
+    if (isLocked) return;
     if (selectedBendPoint !== null) {
       commitPoints(points.filter((_, i) => i !== selectedBendPoint));
       setSelectedBendPoint(null);
@@ -2414,7 +2443,7 @@ export default function FlashDraftPage() {
   };
 
   const rotateProfile = (deltaDeg: number) => {
-    if (points.length < 2) return;
+    if (isLocked || points.length < 2) return;
     commitPoints(rotateAllPoints(points, centroidOf(points), deltaDeg));
   };
 
@@ -2423,6 +2452,11 @@ export default function FlashDraftPage() {
   };
 
   const confirmNew = () => {
+    // Always allowed, even while locked -- this discards the current
+    // profile entirely (not an edit to it) and starts fresh, so the lock
+    // resets along with everything else rather than blocking the action.
+    setIsLocked(false);
+    setLockOnSave(false);
     commitPoints([]);
     setMatches([]);
     setTopMatchDiagramBends(null);
@@ -2450,6 +2484,19 @@ export default function FlashDraftPage() {
   const openDuplicateModal = () => {
     setDuplicateOnSave(true);
     setSaveError(null);
+    setShowProfileDetails(true);
+  };
+
+  // "Lock Profile & Save to Passport" -- reuses the exact same modal/
+  // performSave path a plain Save uses (name/category validation, the
+  // saved_configurations insert-or-update) rather than a parallel
+  // implementation; lockOnSave just tells performSave to also lock on
+  // success. Not available while already locked (nothing left to save
+  // until Unlock is used) or before a real profile exists.
+  const openLockAndSaveModal = () => {
+    setDuplicateOnSave(false);
+    setSaveError(null);
+    setLockOnSave(true);
     setShowProfileDetails(true);
   };
 
@@ -2484,6 +2531,12 @@ export default function FlashDraftPage() {
           categoryId: values.categoryId,
           subcategory: values.subcategory,
           revision: nextRevision,
+          // Persisted alongside the geometry so lock status is a real,
+          // durable property of the saved passport row, not just this
+          // session's transient isLocked state -- lockOnSave locks going
+          // INTO this save; a profile already locked stays locked on a
+          // later re-save (e.g. via Edit Name) unless Unlock was used.
+          isLocked: lockOnSave || isLocked,
         },
         length_ft: lengthFtDecimal || null,
         quantity: Number(quantity) || null,
@@ -2502,7 +2555,16 @@ export default function FlashDraftPage() {
       setProfileSubcategory(values.subcategory);
       setRevision(nextRevision);
       setShowProfileDetails(false);
-      setToast('Profile saved to your account');
+      // lockOnSave (set by openLockAndSaveModal) only takes effect here, on
+      // an actual successful write -- a failed save (network error, RLS
+      // rejection) below hits the catch block instead and never locks.
+      if (lockOnSave) {
+        setIsLocked(true);
+        setLockOnSave(false);
+        setToast('Profile locked and saved to your Passport');
+      } else {
+        setToast('Profile saved to your account');
+      }
     } catch {
       setSaveError('Could not save profile. Please try again.');
     } finally {
@@ -2524,7 +2586,7 @@ export default function FlashDraftPage() {
   };
 
   const applyHem = (type: HemType) => {
-    if (!hemPopup) return;
+    if (isLocked || !hemPopup) return;
     pushHistorySnapshot();
     const current = hemPopup.endpoint === 'start' ? hemStart : hemEnd;
     // gapIn is a real per-hem editable value (see the Gap (in) field below)
@@ -2583,7 +2645,7 @@ export default function FlashDraftPage() {
   };
 
   const removeHem = () => {
-    if (!hemPopup) return;
+    if (isLocked || !hemPopup) return;
     pushHistorySnapshot();
     if (hemPopup.endpoint === 'start') setHemStart(null);
     else setHemEnd(null);
@@ -2591,6 +2653,7 @@ export default function FlashDraftPage() {
   };
 
   const clearCanvas = () => {
+    if (isLocked) return;
     commitPoints([]);
     setMatches([]);
     setTopMatchDiagramBends(null);
@@ -3180,7 +3243,11 @@ export default function FlashDraftPage() {
         <div className="flex items-center gap-1 flex-wrap justify-end">
           <ToolbarButton icon="new" label="New" onClick={() => setShowNewConfirm(true)} />
           <ToolbarButton icon="open" label="My Saved Profiles" onClick={openSavedProfiles} />
-          <ToolbarButton icon="save" label="Save" onClick={openSaveModal} disabled={points.length < 2} />
+          <ToolbarButton icon="save" label="Save" onClick={openSaveModal} disabled={points.length < 2 || isLocked} />
+          {/* Duplicate stays enabled while locked -- "make an editable copy
+              of this locked profile" is a reasonable thing to want, and
+              openDuplicateModal always saves as a brand-new (unlocked)
+              record, never mutating the locked one. */}
           <ToolbarButton icon="duplicate" label="Duplicate" onClick={openDuplicateModal} disabled={points.length < 2} />
           <ToolbarButton icon="editName" label="Edit Name" onClick={openSaveModal} disabled={!savedProfileId} />
           <ToolbarButton icon="print" label="Print" onClick={printCanvas} />
@@ -3190,15 +3257,15 @@ export default function FlashDraftPage() {
           <ToolbarButton icon="zoomOut" label="Zoom Out" onClick={() => setZoom((z) => Math.max(0.25, z * (1 - ZOOM_STEP_RATIO)))} />
           <ToolbarButton icon="zoomIn" label="Zoom In" onClick={() => setZoom((z) => Math.min(4, z * (1 + ZOOM_STEP_RATIO)))} />
           <span className="font-data text-[10px] text-afs-chrome-dim px-1 self-center">{Math.round(zoom * 100)}%</span>
-          <ToolbarButton icon="undo" label="Undo" onClick={undo} disabled={past.length === 0} />
-          <ToolbarButton icon="redo" label="Redo" onClick={redo} disabled={future.length === 0} />
-          <ToolbarButton icon="rotateLeft" label="Rotate Left" onClick={() => rotateProfile(-ROTATE_STEP_DEG)} disabled={points.length < 2} />
-          <ToolbarButton icon="rotateRight" label="Rotate Right" onClick={() => rotateProfile(ROTATE_STEP_DEG)} disabled={points.length < 2} />
+          <ToolbarButton icon="undo" label="Undo" onClick={undo} disabled={past.length === 0 || isLocked} />
+          <ToolbarButton icon="redo" label="Redo" onClick={redo} disabled={future.length === 0 || isLocked} />
+          <ToolbarButton icon="rotateLeft" label="Rotate Left" onClick={() => rotateProfile(-ROTATE_STEP_DEG)} disabled={points.length < 2 || isLocked} />
+          <ToolbarButton icon="rotateRight" label="Rotate Right" onClick={() => rotateProfile(ROTATE_STEP_DEG)} disabled={points.length < 2 || isLocked} />
           <ToolbarButton
             icon="delete"
             label="Delete"
             onClick={deleteSelected}
-            disabled={selectedBendPoint === null && selectedSegment === null}
+            disabled={isLocked || (selectedBendPoint === null && selectedSegment === null)}
           />
           <ToolbarButton icon="prev" label="Prev" onClick={() => selectAdjacentBendPoint(-1)} disabled={points.length < 3} />
           <ToolbarButton icon="next" label="Next" onClick={() => selectAdjacentBendPoint(1)} disabled={points.length < 3} />
@@ -3539,6 +3606,40 @@ export default function FlashDraftPage() {
           )}
 
           <div className="flex flex-col gap-2 mt-auto pt-2">
+            {/* Lock Profile & Save to Passport -- shown once a real profile
+                exists (points.length >= 2, same threshold Save/Duplicate
+                already use). Reuses the existing Save modal/performSave
+                path (see openLockAndSaveModal) rather than a separate save
+                implementation. Once locked, this is replaced by a status
+                row with an Unlock control -- the visual indicator the task
+                asked for, not just the grayed-out canvas. */}
+            {points.length >= 2 && (
+              isLocked ? (
+                <div className="flex items-center justify-between gap-2 rounded border border-afs-accent-green bg-afs-accent-green/10 px-4 py-3">
+                  <span className="flex items-center gap-2 font-label text-sm font-semibold text-afs-accent-green">
+                    <LockIcon className="h-4 w-4" aria-hidden="true" />
+                    Profile Locked & Saved
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsLocked(false)}
+                    className="font-label text-xs font-semibold text-afs-chrome-mid underline underline-offset-2 hover:text-afs-chrome-high"
+                  >
+                    Unlock to Edit
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={openLockAndSaveModal}
+                  disabled={savingProfile}
+                  className="flex items-center justify-center gap-2 border-2 border-afs-accent-green text-afs-accent-green hover:bg-afs-accent-green hover:text-white font-label font-semibold px-6 py-3 rounded text-sm transition-colors disabled:opacity-50"
+                >
+                  <LockIcon className="h-4 w-4" aria-hidden="true" />
+                  {savingProfile && lockOnSave ? 'Saving…' : 'Lock Profile & Save to Passport'}
+                </button>
+              )
+            )}
             <button
               type="button"
               onClick={openSubmitFlow}
@@ -3558,7 +3659,8 @@ export default function FlashDraftPage() {
               <button
                 type="button"
                 onClick={clearCanvas}
-                className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label text-xs font-semibold px-3 py-2.5 rounded transition-colors"
+                disabled={isLocked}
+                className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label text-xs font-semibold px-3 py-2.5 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-afs-bg-overlay"
               >
                 Clear
               </button>
@@ -3641,8 +3743,18 @@ export default function FlashDraftPage() {
                 onPointerLeave={handlePointerLeave}
                 onDoubleClick={handleDoubleClick}
                 onContextMenu={(e) => e.preventDefault()}
-                className="w-full h-full"
-                style={{ touchAction: 'none', cursor: 'crosshair', background: CANVAS_COLORS.background }}
+                className={`w-full h-full ${isLocked ? 'grayscale-[40%] opacity-80' : ''}`}
+                // pointerEvents: 'none' while locked is the primary guard --
+                // every handler above also checks isLocked itself (defense
+                // in depth, matching this file's own established pattern),
+                // but this is what actually stops the cursor from doing
+                // anything at all, including view-only hover feedback.
+                style={{
+                  touchAction: 'none',
+                  cursor: isLocked ? 'not-allowed' : 'crosshair',
+                  background: CANVAS_COLORS.background,
+                  pointerEvents: isLocked ? 'none' : 'auto',
+                }}
               />
 
               {/* PART 2 — PROFILE INFO PANEL */}
@@ -3681,6 +3793,12 @@ export default function FlashDraftPage() {
                 <span>Bend Count: {bendCountLive}</span>
                 <span>Hem Count: {hemCountLive}</span>
                 <span>Revision: {revision}</span>
+                {isLocked && (
+                  <span className="flex items-center gap-1 font-semibold text-afs-accent-green">
+                    <LockIcon className="h-3 w-3" aria-hidden="true" />
+                    Locked
+                  </span>
+                )}
 
                 {/* Job-identity intake fields (migration 018/019, afs-jf-000/
                     afs-jf-004) — relocated here from the sidebar, collapsed by
@@ -4208,7 +4326,12 @@ export default function FlashDraftPage() {
             categoryId: profileCategoryId,
             subcategory: profileSubcategory,
           }}
-          onCancel={() => setShowProfileDetails(false)}
+          onCancel={() => {
+            setShowProfileDetails(false);
+            // A canceled lock-attempt shouldn't leave lockOnSave armed for
+            // a later, unrelated plain Save to pick up.
+            setLockOnSave(false);
+          }}
           onSave={(values) => performSave(values, duplicateOnSave)}
           saving={savingProfile}
           error={saveError}

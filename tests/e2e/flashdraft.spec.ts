@@ -111,6 +111,72 @@ test.describe('FlashDraft canvas', () => {
     await expect(blankWidthLine).toHaveText(blankWidthBefore ?? '');
     await expect(bendCountLine).toHaveText(bendCountBefore ?? '');
   });
+
+  // The reported bug: after a profile is drafted, clicking elsewhere on
+  // empty canvas silently starts a new segment from the last point (see
+  // handlePointerDown's "click empty space" branch). Lock Profile & Save
+  // to Passport is the fix -- once locked, the canvas gets pointerEvents:
+  // 'none' AND every mutation handler independently checks isLocked, so
+  // this proves the actual reported symptom (a stray click extending the
+  // drawing) is gone, not just that some internal flag got set.
+  test('Lock Profile & Save to Passport stops the canvas from accepting further clicks/drags, and the profile saves', async ({
+    page,
+  }) => {
+    await page.goto('/studio/draft');
+
+    const canvas = page.locator('canvas');
+    await expect(canvas).toBeVisible();
+    const box = await canvas.boundingBox();
+    if (!box) throw new Error('FlashDraft canvas did not render a bounding box.');
+
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+
+    await drawTwoLegProfile(page, cx, cy);
+    await expect(page.getByText('Bend Count: 1')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Lock Profile & Save to Passport' }).click();
+    await expect(page.getByRole('heading', { name: 'Profile Details' })).toBeVisible();
+    // Profile Name is pre-filled ("Untitled Profile"); Category/Subcategory
+    // are optional (see ProfileDetailsModal's handleSave) -- OK alone saves.
+    // exact: true -- a template button's accessible name loosely matched
+    // "OK" as a substring without it, a real strict-mode violation found
+    // live (not assumed) while smoke-testing this modal.
+    await page.getByRole('button', { name: 'OK', exact: true }).click();
+
+    // Confirms performSave's success path actually ran (a real DB write,
+    // not just the button toggling some local-only "locked" flag) and that
+    // it recognized lockOnSave and locked as a result.
+    await expect(page.getByText('Profile locked and saved to your Passport')).toBeVisible();
+    await expect(page.getByText('Profile Locked & Saved')).toBeVisible();
+
+    const bendCountBefore = await page.getByText(/^Bend Count:/).textContent();
+    const blankWidthBefore = await page.getByText(/^Blank Width:/).textContent();
+
+    // Exactly the reported gesture: a click on empty canvas, away from the
+    // existing geometry, that pre-lock would extend the line from the last
+    // point (a new leg, bumping Bend Count).
+    await page.mouse.click(cx + 150, cy - 300);
+    await expect(page.getByText(/^Bend Count:/)).toHaveText(bendCountBefore ?? '');
+    await expect(page.getByText(/^Blank Width:/)).toHaveText(blankWidthBefore ?? '');
+
+    // A click-drag (the other half of the same bug -- drag-to-draw a new
+    // segment) is equally a no-op while locked.
+    await page.mouse.move(cx + 150, cy - 300);
+    await page.mouse.down();
+    await page.mouse.move(cx + 300, cy - 300, { steps: 10 });
+    await page.mouse.up();
+    await expect(page.getByText(/^Bend Count:/)).toHaveText(bendCountBefore ?? '');
+
+    // Unlock restores normal editing.
+    await page.getByRole('button', { name: 'Unlock to Edit' }).click();
+    await expect(page.getByText('Profile Locked & Saved')).toHaveCount(0);
+    await page.mouse.move(cx + 150, cy - 150);
+    await page.mouse.down();
+    await page.mouse.move(cx + 300, cy - 150, { steps: 10 });
+    await page.mouse.up();
+    await expect(page.getByText('Bend Count: 2')).toBeVisible();
+  });
 });
 
 // afs-fl-020 — 20-item template list + VariantPicker for Coping Cap/Valley.

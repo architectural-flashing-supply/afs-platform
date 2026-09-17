@@ -34,6 +34,81 @@ summary, not a replacement for it.
 
 ---
 
+## FLASHDRAFT — LOCK PROFILE & SAVE TO PASSPORT (afs-fl-027): IMPLEMENTED, UNCONFIRMED (2026-09-17)
+
+**Bug fixed:** after drafting a profile, a click on empty canvas away from
+the existing geometry silently started a new leg from the last point
+(`handlePointerDown`'s "click empty space to draw a new segment" fallback,
+`app/studio/draft/page.tsx`) — no concept of "this profile is done" existed
+anywhere in the component, so every click anywhere kept extending the line
+indefinitely. Root-caused by reading the actual handler, not assumed.
+
+**Gates:** `pnpm tsc --noEmit` — 0 errors. `pnpm build` — succeeds.
+`tests/e2e/flashdraft.spec.ts` — 4 runnable tests pass (the new lock test
+is gated on `E2E_TEST_EMAIL`/`E2E_TEST_PASSWORD`, not set in this
+environment, same as every other auth-required test in this suite — it
+could not be executed live here; verified everything reachable without
+auth instead, see below).
+
+**What "the Passport" is:** confirmed against `ProfilePassportExplainer.tsx`
+("Save it to your Profile Passport — profile type, material, gauge,
+finish, and dimensions, stored with your account") that this is the
+existing Save feature (`performSave`, the `saved_configurations` table) —
+not the unrelated "My Saved Profiles" toolbar button (reads past
+`quote_requests` line items) or "Load" (reads the real `machine_profiles`
+shop library). Lock & Save reuses `performSave`'s exact tested
+validation/DB-write path via a new `lockOnSave` flag, rather than a
+parallel save implementation.
+
+**Implementation:**
+- `isLocked` / `lockOnSave` state. `openLockAndSaveModal()` opens the
+  existing `ProfileDetailsModal` with `lockOnSave: true`; `performSave`
+  only sets `isLocked(true)` on an actual successful DB write (the
+  unauthenticated "Sign in to save profiles" failure path never locks —
+  verified live, not assumed, by smoke-testing the modal without auth).
+- Every geometry-mutating entry point independently checks `isLocked`:
+  `handlePointerDown`, `handleDoubleClick`, `undo`/`redo`, the keyboard
+  Delete/Backspace handler, `applySegmentLength`, `applyBendAngle`,
+  `applyHem`, `removeHem`, `deleteSelected`, `rotateProfile`,
+  `clearCanvas`. The canvas itself also gets `pointerEvents: 'none'` while
+  locked — belt-and-suspenders, matching this file's own pre-existing
+  "defense in depth" pattern (see `handlePointerMove`'s `dragStateArmed`
+  comment) rather than relying on a single choke point.
+- `confirmNew` (the "New" button) explicitly resets `isLocked`/`lockOnSave`
+  as part of its full state reset — always allowed even while locked,
+  since it discards the current profile entirely rather than editing it.
+  `Duplicate` also stays enabled while locked (makes an editable copy,
+  never mutates the locked record).
+- Visual indicators: a green "🔒 Locked" line in the on-canvas info panel
+  (info panel already showed Blank Width/Bend Count/Revision), the canvas
+  gets a grayscale/reduced-opacity filter, and the toolbar "Lock Profile &
+  Save to Passport" button (green outline, only shown once
+  `points.length >= 2`) is replaced by a "Profile Locked & Saved" status
+  row with an "Unlock to Edit" control once locked.
+- `isLocked` is also persisted into the `dimensions` JSONB payload written
+  to `saved_configurations` (alongside `points`/`hemStart`/`hemEnd`/etc.)
+  so lock status is a real, durable property of the saved row — not just
+  this session's transient UI state. Note: there is currently no UI path
+  in this file that reads a `saved_configurations` row back into the
+  canvas (`loadSavedProfile` reads past quote line items, `loadFromLibrary`
+  reads `machine_profiles` — neither touches `saved_configurations`), so
+  this persisted flag isn't round-tripped by anything yet; wiring an
+  actual "load from Passport" feature is separate, unscoped work.
+
+**Not yet done:** the auth-gated Playwright test
+(`Lock Profile & Save to Passport stops the canvas from accepting further
+clicks/drags, and the profile saves`) has not run to completion in this
+environment — no `E2E_TEST_EMAIL`/`E2E_TEST_PASSWORD` configured, the same
+pre-existing limitation every other auth-required test in this suite
+already has. Confirmed via a temporary unauthenticated smoke test instead:
+the button renders once a profile exists, opens the real `ProfileDetails`
+modal, and correctly does NOT lock when the save fails (sign-in required).
+Marked **IMPLEMENTED, UNCONFIRMED** per this file's own verification
+standard above — the user has not confirmed the actual locked-canvas
+behavior live themselves.
+
+---
+
 ## HOMEPAGE REDESIGN PHASE 8 — HERO PROCESS LABELS ADDED, BLUEPRINT COVER+TRANSLUCENCY, WIDER PHONE FRAME (hpd-012): IMPLEMENTED, UNCONFIRMED (2026-09-16)
 
 Third consecutive pass asking to "restore" hero overlay labels, and a

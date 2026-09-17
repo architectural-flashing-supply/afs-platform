@@ -24,6 +24,48 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## FLASHDRAFT — LOCK PROFILE & SAVE TO PASSPORT (afs-fl-027) — 2026-09-17
+
+Fixed the reported bug: after drafting a profile, clicking empty canvas
+away from the geometry silently started a new leg from the last point —
+there was no "this profile is done" concept anywhere in
+`app/studio/draft/page.tsx`. Full detail in STATE_OF_THE_BUILD.md's
+matching entry (top of file) — summary here for handoff:
+
+- New "Lock Profile & Save to Passport" button (shown once a real profile
+  exists) reuses the existing Save modal/`performSave` path (a new
+  `lockOnSave` flag) rather than a parallel implementation — "the
+  Passport" is the existing Save feature (`saved_configurations` table),
+  confirmed against `ProfilePassportExplainer.tsx`'s own copy, not the
+  unrelated "My Saved Profiles" (past quote line items) or "Load"
+  (`machine_profiles` shop library) buttons.
+- Every geometry-mutating handler (canvas pointer/double-click, undo/redo,
+  keyboard delete, segment length/angle inputs, hem edit/remove, delete,
+  rotate, clear) independently checks `isLocked`; canvas also gets
+  `pointerEvents: 'none'` while locked. "New" and "Duplicate" stay
+  available (New resets the lock along with everything else; Duplicate
+  makes an editable copy, never touches the locked record).
+- Visual indicators: green "Locked" badge in the on-canvas info panel,
+  grayscale/dimmed canvas, and the Lock button is replaced by a "Profile
+  Locked & Saved" status row with "Unlock to Edit" once locked.
+- `isLocked` is persisted into the saved row's `dimensions` JSON so it's a
+  real property of the saved profile, not just transient UI state — though
+  nothing in this file currently reads a `saved_configurations` row back
+  into the canvas, so this isn't round-tripped by any existing "load"
+  feature yet.
+- `tests/e2e/flashdraft.spec.ts` gained a new lock/unlock test, gated on
+  `E2E_TEST_EMAIL`/`E2E_TEST_PASSWORD` like every other auth-required test
+  in this suite — not set in this environment, so it did not run to
+  completion here. Verified everything reachable without auth via a
+  temporary unauthenticated smoke test instead (button renders, opens the
+  real modal, correctly does NOT lock when save fails on sign-in).
+- IMPLEMENTED, UNCONFIRMED per this file's own verification standard —
+  gates pass, but the user has not confirmed the actual locked-canvas
+  behavior live themselves (and couldn't be, in this session, past the
+  sign-in gate).
+
+---
+
 ## HOMEPAGE REDESIGN PHASE 8 (hpd-012) — 2026-09-16
 
 Third pass asking to "restore" hero overlay labels (a duplicate resend of
