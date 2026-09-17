@@ -34,6 +34,213 @@ summary, not a replacement for it.
 
 ---
 
+## PROFILE PASSPORT — UNIFIED ACCOUNT + PROFILES HUB (afs-pp-001, "Phase 3"): IMPLEMENTED, UNCONFIRMED (2026-09-17)
+
+**Naming note:** the requesting prompt called this "Phase 3," unrelated to
+this document/CLAUDE.md's own Phase 0–9 build-phase numbering. Referenced
+here as afs-pp-001 to avoid collision, same convention as afs-cc-001 below.
+**"Phase 4" per the requesting prompt is Admin Customer Management, queued
+next** — again, this is that prompt's own numbering, not a claim about this
+document's real phase list.
+
+**THE MOST IMPORTANT THING IN THIS ENTRY:** this feature does not work at
+all yet, on purpose, pending one manual step. `saved_configurations` needed
+three new columns (`company_id`, `is_locked`, `job_info`) and a replaced RLS
+policy set to support the spec's "account-wide ownership" requirement. This
+session has no Supabase access to the real afs-website project (only
+unrelated projects are visible via the connected Supabase MCP tools), so
+the migration could only be written, never applied or verified —
+`supabase/migrations/024_profile_passport_company_scope.sql` is a real,
+reviewed file sitting unapplied. Every route/component in this entry
+assumes it already ran. **Until someone with real project access applies
+it, every Profile Passport API route will error, and FlashDraft's Save/
+Duplicate/Lock Profile & Save will all fail outright** (Postgres rejects an
+insert/update referencing a column that doesn't exist) — this is a
+regression risk to already-shipped, currently-working functionality, not
+just a new feature failing to activate. Apply migration 024 before/
+immediately after this deploys, not after real usage starts.
+
+**Gates:** `pnpm tsc --noEmit` — 0 errors. `pnpm build` — succeeds, all new
+routes compile (`/app/profile-passport`, 5 new `/api/profile-passport/*`
+routes, `/api/team/members/[userId]`). Full `npx playwright test` — 69
+passed, 14 skipped (pre-existing), 2 failed — the same two pre-existing,
+unrelated `homepage.spec.ts` failures already flagged in the afs-cc-001
+entry below (hero CTA href + header logo width, `HeroSection.tsx`/
+`AfsLogo.tsx`, untouched by this pass).
+
+**No live-admin/live-DB verification possible.** Same missing
+`E2E_TEST_EMAIL`/`E2E_TEST_PASSWORD` limitation as every prior entry, made
+worse here by the unapplied migration — even with credentials, every
+Profile Passport route would 500 in this environment right now. Verified
+what could be verified without either: a temporary unauthenticated preview
+route rendering every tab (`ProfilesTab`/`AccountTab`/`SettingsTab`) and
+modal (`ProfilePreviewModal`/`ManageTeamModal`) with fixture data,
+screenshotted, confirmed correct, then deleted — never committed. Also
+confirmed live on `/studio/draft` without auth: the new "Profile Passport"
+left-panel button and "Load Profiles" link both point at
+`/app/profile-passport`; clicking "Lock Profile & Save to Passport" opens
+no modal (zero-friction confirmed) and shows a toast + reverts to its
+original state on the expected "sign in required" failure (a real toast
+gap found and fixed live during this verification — see below). Confirmed
+`/app/profile-passport`, `/api/profile-passport/profiles`, and the other
+new routes redirect/401 cleanly when hit unauthenticated rather than
+crash. **IMPLEMENTED, UNCONFIRMED** — Reid has not seen any of this against
+a real signed-in session, and cannot until migration 024 is applied.
+
+**Where this spec didn't match the codebase, and how each was reconciled**
+(full detail per topic below; Reid confirmed each approach before it was built):
+- `auth.companies` (spec's schema section) doesn't exist — real table is
+  public `companies`, reached via `profiles.company_id`.
+- Spec's Admin/Editor/Viewer role system doesn't exist. Mapped onto the
+  real, already-shipped `profiles.company_role` enum (owner/admin/
+  estimator/pm/accounting/viewer — used by `/account/team`,
+  `/api/team/invite`) instead of adding a second role column: owner/admin
+  → Admin, estimator/pm/accounting → Editor, viewer → Viewer. A user not on
+  any company account (`company_id IS NULL`) gets full ("admin") control
+  over their own rows — the pre-Phase-3 per-user behavior, unchanged. See
+  `lib/data/team.ts`'s `getPassportRole`.
+- Spec's `POST/PATCH/DELETE /api/profile-passport/team/*` would have
+  duplicated the real, already-shipped Team Accounts feature. Built
+  `PATCH`/`DELETE /api/team/members/[userId]` instead (invite/cancel-invite
+  already existed at `/api/team/invite`; only remove-member/change-role
+  were actually missing) — extends the existing system rather than forking
+  it, per Reid's explicit confirmation.
+- Spec's Lock & Save (modal, asks for name/category first) and Load
+  (in-canvas modal) both got REPLACED with zero-friction auto-save and a
+  redirect to `/app/profile-passport`, per Reid's explicit confirmation
+  this was an intentional supersession of the afs-fl-027/afs-jf-007 work
+  from earlier in this same session, not a misunderstanding of it.
+- Spec's `categoryId` auto-value ("General") isn't written literally —
+  `categoryId` is a real FK-shaped reference into
+  `machine_profile_categories.id` (see `ProfileDetailsModal.tsx`), not a
+  free-text label, and has no consumer in this phase's own Profiles tab
+  (Name/Date Created/Job Name/Actions) to justify inventing a fake row for
+  it to point at. Left as whatever it already is (usually null).
+  `subcategory` IS free text, so "Custom" applies there exactly as spec'd.
+- "Download PDF" renders the actual profile geometry (not just a text
+  summary) via `pdf-lib` (already a project dependency —
+  `app/api/takeoff/route.ts`) rather than extending
+  `lib/utils/simple-pdf.ts`, which has no vector line-drawing primitive at
+  all. See `lib/utils/profile-pdf.ts`.
+- "Delete Account" (Settings tab, Admin only) is scoped to deleting only
+  the CALLING admin's own login (`supabase.auth.admin.deleteUser`) — not
+  the whole company or every teammate's access, since the spec doesn't
+  define what "the account" means for a multi-person company and silently
+  taking down teammates' logins would be a far more destructive default
+  than a single admin likely intends. **This route is completely untested**
+  (no Supabase access to exercise `auth.admin.deleteUser` against the real
+  project) — verify carefully, ideally against a disposable test account,
+  before relying on it.
+- "Profile Display Preference" (Settings tab) persists to `localStorage`
+  only (per-viewer, `afs-passport-display-pref` key) — no backend field for
+  this exists or was asked for. "Thumbnails" mode shows each row's preview
+  inline instead of only on hover; it isn't a separate grid layout — a
+  scope-bounded interpretation given time constraints, not a literal
+  card-grid rebuild.
+- "Notifications" (share-with-me email) and "Export All Profiles" (ZIP) are
+  both marked "future feature" in the spec itself — built as visibly
+  disabled, "Coming Soon"-badged controls, matching this codebase's
+  existing pattern for not-yet-active integrations (Settings page's own
+  QuickBooks card).
+
+**Implementation:**
+- `supabase/migrations/024_profile_passport_company_scope.sql` (NEW, NOT
+  APPLIED) — adds `company_id`/`is_locked`/`job_info` to
+  `saved_configurations`; backfills `company_id` from each existing row's
+  saving user (real behavior change: existing rows become visible to that
+  user's whole team the moment this runs, not just new saves — see the
+  file's own header comment); replaces the old `auth.uid() = user_id`-only
+  RLS policy with four company-aware ones (SELECT: any teammate, any role;
+  UPDATE: Editor-or-above; DELETE: Admin only; solo/no-company rows keep
+  exactly today's behavior via a `company_id IS NULL` fallback in every
+  policy). **Naming collision, not a duplicate:** `023_profile_passport.sql`
+  already exists under this same feature name, for a completely different
+  and also-unapplied table (`custom_profiles` — an admin-tracked,
+  AFS-fabricated custom-profile catalog, unrelated to FlashDraft's saved
+  drawings). Migration 024 does not touch it.
+- `lib/data/team.ts` — added `PassportRole`/`getPassportRole` (the
+  company_role mapping above).
+- `lib/data/profile-passport.ts` (NEW) — `getPassportUserContext`,
+  `getPassportProfiles` (RLS-scoped list, reads `is_locked`/`job_info` with
+  a fallback to the old `dimensions` JSONB fields for rows saved before
+  this migration/phase), `getPassportAccountInfo`.
+- `lib/utils/profile-pdf.ts` (NEW) — `pdf-lib`-based single-page PDF:
+  profile name, job name, saved date, and the actual polyline geometry
+  scaled/centered into a drawing box.
+- 5 new API routes under `app/api/profile-passport/`: `profiles`
+  (GET/POST), `profiles/[id]` (PATCH rename/DELETE, role-gated),
+  `profiles/[id]/pdf` (GET), `account` (GET/PATCH company info — PATCH uses
+  the service-role client since `companies`' own RLS only grants members
+  SELECT, matching the identical pattern in `/api/team/invite/route.ts`),
+  `account/delete` (DELETE, untested, see above).
+- `app/api/team/members/[userId]/route.ts` (NEW) — PATCH (change role,
+  owner/admin only, can't self-demote out of admin) and DELETE (remove
+  member, owner/admin only, can't remove self) — extends the real Team
+  Accounts feature.
+- `app/app/profile-passport/layout.tsx` + `page.tsx` (NEW) — auth-gated
+  (any signed-in user, not admin-only), `?tab=profiles|account|settings`
+  query-param tabs (same pattern as `/admin/command-center`'s own tab
+  handling), matching the spec's explicit `/app/profile-passport` route
+  (an unusual prefix next to this codebase's `/account`/`/admin`/`/studio`
+  — not a typo, the spec repeats it consistently across all 3 entry
+  points).
+- `components/profile-passport/` (NEW directory) — `ProfilesTab.tsx`
+  (sortable/paginated table, hover-or-inline thumbnail depending on the
+  display preference, actions menu gated by role), `AccountTab.tsx`
+  (company info + team list + Edit Company Info modal, Admin only),
+  `SettingsTab.tsx` (display preference, disabled Notifications/Export,
+  Danger Zone), `ProfilePreviewModal.tsx` (reuses
+  `components/studio/CanonicalProfileDiagram.tsx`'s points-to-SVG
+  renderer), `ManageTeamModal.tsx` (role changes/removal, reuses the
+  extended `/api/team/members` routes).
+- FlashDraft (`app/studio/draft/page.tsx`):
+  - New "Profile Passport" button in the left panel (entry point 2/3) and
+    the existing "Load Profiles" button now links to `/app/profile-passport`
+    instead of opening the old in-canvas modal (that modal's code —
+    `PassportProfile` interface, `openLoadPanel`/`loadFromPassport`,
+    `passportProfiles`/`showLoadPanel`/`quickViewId` state — was deleted,
+    not left dead, since nothing can reach it anymore).
+  - "Lock Profile & Save to Passport" (`lockAndSaveProfile`, replaces
+    `openLockAndSaveModal`) calls `performSave` directly with an
+    auto-generated `Profile-<ISO-8601>` name — no modal. `performSave`'s
+    `lockOnSave` state was replaced with an explicit `lock` parameter
+    (state read from a same-tick `setState` call would still see the OLD
+    value — a real bug that would have shipped had this stayed a state
+    flag). A new `justLocked` state flashes "✓ Profile Saved & Locked" for
+    ~3.5s before settling into the pre-existing permanent "Profile Locked &
+    Saved / Unlock to Edit" status row — the canvas stays genuinely locked
+    (`isLocked`) throughout both, satisfying the spec's own "disable all
+    geometry editing tools while is_locked = true" requirement even though
+    its button-text wording ("reverts to Lock Profile & Save") read
+    literally would imply otherwise.
+  - Added a toast for the "sign in required" save failure — found live
+    during verification (see above) that this path showed nothing at all
+    once the modal was removed, silently violating the spec's own "if save
+    fails, show toast error" requirement.
+  - `performSave` now also writes `company_id` (looked up from the
+    session's own profile), `is_locked`, and `job_info` as real top-level
+    columns — alongside the pre-existing `dimensions.isLocked`/
+    `dimensions.jobName` (kept for rows saved before migration 024 exists).
+  - Added `loadFromPassportById` (`?loadPassport=<id>` mount-param, same
+    pattern as the existing `?loadProfile=`/`?loadCanonical=` handoffs) —
+    loads a saved row's full state (points/hems/name/category/revision/
+    lock) back into the canvas as the actively-editing profile, not just
+    its geometry, so a subsequent Save/Lock updates the same row. A locked
+    profile loads still locked, per spec.
+- `components/layout/NavBar.tsx` — "Profile Passport" link added to both
+  the authenticated account dropdown and the mobile menu (entry point 1/3).
+
+**Not yet done:** migration 024 applied to the live database (see above —
+this blocks everything else). Real admin-session confirmation of every
+tab/role/action. `Export All Profiles` and the notifications checkbox are
+deliberately stubbed ("future feature" per spec). No automated test
+coverage was added for this phase (existing `tests/e2e/` specs are
+untouched) — everything above was verified via a temporary, uncommitted
+preview route instead, per the verification standard's own bar for what
+counts as evidence vs. confirmation.
+
+---
+
 ## ADMIN COMMAND CENTER — DASHBOARD + NAV REDESIGN (afs-cc-001, "FORGE 2.0 Phase 2"): IMPLEMENTED, UNCONFIRMED (2026-09-17)
 
 **Naming note:** the requesting prompt called this "Phase 2" of its own

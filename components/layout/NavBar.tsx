@@ -190,6 +190,15 @@ export default function NavBar() {
                 >
                   Account
                 </Link>
+                {/* Entry point 1/3 of Profile Passport (Phase 3, afs-pp-001) — main site nav, top right. */}
+                <Link
+                  href="/app/profile-passport"
+                  role="menuitem"
+                  className="block px-4 py-2 text-sm text-white hover:bg-afs-bg-overlay font-label"
+                  onClick={() => setAccountMenuOpen(false)}
+                >
+                  Profile Passport
+                </Link>
                 <button
                   type="button"
                   role="menuitem"
@@ -267,6 +276,16 @@ export default function NavBar() {
           >
             {accountLink.label}
           </Link>
+          {isAuthenticated && (
+            <Link
+              href="/app/profile-passport"
+              role="menuitem"
+              className="block px-6 py-3 font-label text-sm text-white border-b border-afs-chrome-dim/40 hover:bg-afs-bg-overlay"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Profile Passport
+            </Link>
+          )}
           {isAuthenticated && (
             <button
               type="button"

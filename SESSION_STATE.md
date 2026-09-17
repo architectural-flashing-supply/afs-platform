@@ -24,6 +24,74 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## PROFILE PASSPORT — UNIFIED ACCOUNT + PROFILES HUB (afs-pp-001) — 2026-09-17
+
+**"Phase 3" per the requesting prompt's own numbering, "Phase 4" (Admin
+Customer Management) queued next** — same numbering caveat as afs-cc-001's
+"Phase 2" below; unrelated to this project's real Phase 0–9. Full detail,
+including every place this spec didn't match the codebase and how each was
+reconciled, is in STATE_OF_THE_BUILD.md's matching entry (top of file).
+Summary here for handoff:
+
+**READ THIS FIRST: the feature does not work yet, on purpose.** It needs a
+real database migration (`supabase/migrations/024_profile_passport_company_scope.sql`
+— new `company_id`/`is_locked`/`job_info` columns + new RLS policies on
+`saved_configurations`) that this session could not apply or verify (no
+Supabase access to the real project). Until someone applies it: every new
+Profile Passport route errors, AND FlashDraft's existing Save/Duplicate/
+Lock Profile & Save all break too (they now write the same new columns).
+**Apply migration 024 before real use — this is a regression risk to
+already-working functionality, not just an inactive new feature.**
+
+**Branch:** built directly on `main`, no feature branch — per the
+requesting prompt's explicit "no feature branch, per locked decision" and
+Reid's confirmation.
+
+**Files touched (grouped):**
+- Migration: `supabase/migrations/024_profile_passport_company_scope.sql` (NEW, unapplied).
+- Data/util: `lib/data/team.ts` (added role mapping), `lib/data/profile-passport.ts` (NEW),
+  `lib/utils/profile-pdf.ts` (NEW, pdf-lib-based).
+- API: `app/api/profile-passport/{profiles,profiles/[id],profiles/[id]/pdf,account,account/delete}/route.ts`
+  (all NEW), `app/api/team/members/[userId]/route.ts` (NEW — extends the existing Team Accounts feature).
+- UI: `app/app/profile-passport/{layout,page}.tsx` (NEW), `components/profile-passport/*`
+  (NEW — ProfilesTab, AccountTab, SettingsTab, ProfilePreviewModal, ManageTeamModal).
+- FlashDraft: `app/studio/draft/page.tsx` — Lock & Save is now zero-friction/no-modal
+  (replaces the modal-based flow from earlier this session, per Reid's explicit
+  confirmation this was an intentional supersession); Load button now links to
+  `/app/profile-passport` instead of its old in-canvas modal (that modal's code was
+  deleted); new `?loadPassport=<id>` handoff; new "Profile Passport" left-panel button.
+- Nav: `components/layout/NavBar.tsx` — "Profile Passport" link (account dropdown + mobile menu).
+
+**Gates:** `pnpm tsc --noEmit` clean. `pnpm build` succeeds (all new routes
+compile). Full `npx playwright test` — 69 passed, 14 pre-existing skips, 2
+pre-existing failures (same unrelated `homepage.spec.ts` CTA-href/logo-width
+issues already flagged in the afs-cc-001 entry below — not caused by this
+work).
+
+**Verification:** No live DB/admin session available (migration unapplied +
+no test credentials). Built and screenshotted every tab/modal via a
+temporary, uncommitted, unauthenticated preview route with fixture data —
+confirmed the Profiles table (sort/paginate/hover-thumbnail/expand-preview/
+actions-menu/rename/PDF-download-link), Account tab (company info, team
+list, Manage Team modal's role-change/remove, Edit Company Info modal), and
+Settings tab (display preference toggle, disabled Coming-Soon controls,
+Delete Account's type-to-confirm dialog) all render and interact correctly
+— then deleted the preview route. Confirmed live on `/studio/draft`
+(public, no auth needed): the new nav buttons point at the right places,
+Lock Profile & Save opens no modal, and — a real bug found and fixed during
+this same verification pass — the "sign in required" save failure now
+shows a toast and reverts the button to its original state (previously
+silent once the modal was removed). **IMPLEMENTED, UNCONFIRMED** — Reid
+has not seen any of this live, and can't until migration 024 is applied.
+
+**Not yet done:** applying migration 024 (blocks everything). Real
+admin-session testing of roles/permissions. Export All Profiles and the
+notifications checkbox are deliberately stubbed (spec's own "future
+feature" items). No new automated test coverage — verified via the
+temporary preview route described above instead.
+
+---
+
 ## ADMIN COMMAND CENTER — DASHBOARD + NAV REDESIGN (afs-cc-001) — 2026-09-17
 
 Called "Phase 2" by the requesting prompt's own numbering ("FORGE 2.0") —

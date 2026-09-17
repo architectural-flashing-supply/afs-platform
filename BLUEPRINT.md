@@ -337,6 +337,58 @@ Not independently confirmed by Reid against a real signed-in admin
 session — see STATE_OF_THE_BUILD.md's verification-standard caveat on this
 same entry.
 
+### Phase 9 addendum — Profile Passport (afs-pp-001, "Phase 3")
+A customer-facing (not admin) unified hub at `/app/profile-passport` — an
+unusual route prefix next to this codebase's `/account`/`/admin`/`/studio`
+convention, but the requesting spec repeats it consistently across all 3
+entry points (main nav, FlashDraft, the dashboard itself), so it's followed
+literally rather than "corrected" to `/account/profile-passport`.
+
+**Schema change — NOT YET LIVE:** `saved_configurations` gained
+`company_id`/`is_locked`/`job_info` columns and company-aware RLS via
+`supabase/migrations/024_profile_passport_company_scope.sql`, written but
+never applied (no Supabase access to the real project this session — see
+STATE_OF_THE_BUILD.md's matching entry for the exact blast radius: this
+also breaks FlashDraft's existing Save/Lock until applied). Naming
+collision, not a duplicate: `023_profile_passport.sql` already existed
+under the same feature name for a different, also-unapplied table
+(`custom_profiles`) — 024 doesn't touch it.
+
+**Role model:** no new role column. Maps onto the existing, already-shipped
+`profiles.company_role` enum (owner/admin/estimator/pm/accounting/viewer —
+the real Team Accounts feature, `/account/team`) via
+`lib/data/team.ts`'s `getPassportRole`: owner/admin → Admin, estimator/pm/
+accounting → Editor, viewer → Viewer, no company at all → Admin (full
+control of one's own solo profiles, matching pre-Phase-3 behavior).
+
+**Structure:**
+- `app/app/profile-passport/{layout,page}.tsx` — auth-gated, `?tab=`
+  query-param tabs (Profiles/Account/Settings), same pattern as
+  `/admin/command-center`'s own tab handling.
+- `components/profile-passport/` — `ProfilesTab.tsx` (sortable/paginated
+  table over `saved_configurations`, RLS-scoped to own-or-company rows),
+  `AccountTab.tsx` (company info + team list, Admin-only edit/manage),
+  `SettingsTab.tsx` (display preference, Danger Zone), plus
+  `ProfilePreviewModal.tsx` (reuses `CanonicalProfileDiagram`) and
+  `ManageTeamModal.tsx` (reuses/extends the Team Accounts API).
+- `app/api/profile-passport/*` — profiles CRUD + PDF export
+  (`lib/utils/profile-pdf.ts`, pdf-lib-based, renders the actual geometry)
+  + account read/update/delete.
+- `app/api/team/members/[userId]/route.ts` — the one real gap in the
+  existing Team Accounts feature (invite/cancel-invite existed;
+  change-role/remove-member didn't) — added here rather than as a
+  parallel passport-specific team system.
+- FlashDraft (`app/studio/draft/page.tsx`): "Lock Profile & Save to
+  Passport" is now zero-friction (no modal, auto-generated name) instead
+  of the modal-based flow from earlier this session; "Load Profiles" now
+  redirects here instead of opening its own in-canvas modal (deleted, not
+  left dead); a new `?loadPassport=<id>` query param loads a saved row back
+  into the canvas as the actively-editing profile.
+
+Not independently confirmed by Reid against a real signed-in session, and
+can't be until migration 024 is applied — see STATE_OF_THE_BUILD.md's
+matching entry.
+
 ---
 
 ## 6. ENVIRONMENT VARIABLES

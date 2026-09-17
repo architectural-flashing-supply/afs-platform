@@ -24,7 +24,6 @@ import {
   LIVE_CANVAS_LABEL_STYLE,
 } from '@/lib/flashdraft/draw-profile-scene';
 import BendSequenceDiagram from '@/components/studio/BendSequenceDiagram';
-import CanonicalProfileDiagram from '@/components/studio/CanonicalProfileDiagram';
 import SubmitConfirmation3DModal, { type PaintFace } from '@/components/studio/SubmitConfirmation3DModal';
 import MatchedProfile3DModal from '@/components/studio/MatchedProfile3DModal';
 import { isPaintedMaterial, resolveSelectedPaintColor, BARE_METAL_COLOR } from '@/lib/utils/paint-appearance';
@@ -112,23 +111,11 @@ const PLACEHOLDER_COPING_CAP_BENDS: ProfileBend[] = [
 ];
 const PLACEHOLDER_BLANK_WIDTH_MM = 76.2 + 254 + 76.2;
 
-// The user's own saved_configurations rows (the "Profile Passport" — see
-// performSave/afs-fl-027) — afs-jf-007 repoints the "Load" button here
-// instead of the shop's machine_profiles library, since that library is real
-// Thalmann DS2801 shop history (SCHEMA.md), not sample/test data safe to
-// prune, and isn't what "your saved profiles" should mean to a customer.
-interface PassportProfile {
-  id: string;
-  name: string;
-  createdAt: string;
-  jobName: string | null;
-  points: Point[];
-}
-
 // A FlashDraft profile recovered from a customer's own submitted quote
-// request (quote_requests.line_items), as opposed to PassportProfile above
-// (the customer's own saved_configurations Profile Passport rows). `points`
-// is only present for requests submitted after this feature shipped — line_items previously
+// request (quote_requests.line_items), as opposed to the user's own
+// saved_configurations Profile Passport rows (now browsed at
+// /app/profile-passport, not inline here — see loadFromPassportById).
+// `points` is only present for requests submitted after this feature shipped — line_items previously
 // stored only the reconstruction-lossy bendRadiiIn/hemStart/hemEnd
 // fields, not the raw drawn geometry, so older submissions can't be loaded
 // back exactly and their Load button is disabled instead of guessing.
@@ -959,12 +946,18 @@ export default function FlashDraftPage() {
   // Lock Profile & Save to Passport: once locked, every geometry-mutating
   // path (canvas drawing/dragging, hem edits, segment length/angle inputs,
   // rotate, delete, undo/redo) is guarded off at its own entry point below
-  // -- this is the single source of truth all of them check. lockOnSave
-  // threads through the EXISTING save modal/performSave flow (see
-  // openLockAndSaveModal) rather than duplicating it, so locking reuses the
-  // same tested validation/DB-write path a plain Save already uses.
+  // -- this is the single source of truth all of them check. Phase 3
+  // (afs-pp-001) made this a zero-friction, no-modal auto-save
+  // (lockAndSaveProfile below) rather than routing through the Save modal
+  // -- it still calls performSave's exact tested validation/DB-write path
+  // via an explicit `lock` argument, just without ever opening the modal.
   const [isLocked, setIsLocked] = useState(false);
-  const [lockOnSave, setLockOnSave] = useState(false);
+  // True for a few seconds right after a successful lock-and-save, so the
+  // button can flash "Profile Saved & Locked" before settling into the
+  // permanent "Profile Locked & Saved / Unlock to Edit" status row below --
+  // the canvas itself stays locked (isLocked) the whole time; this is purely
+  // the button's own transient confirmation text.
+  const [justLocked, setJustLocked] = useState(false);
   const [showNewConfirm, setShowNewConfirm] = useState(false);
   const [showProfileDetails, setShowProfileDetails] = useState(false);
   const [duplicateOnSave, setDuplicateOnSave] = useState(false);
@@ -1126,12 +1119,6 @@ export default function FlashDraftPage() {
   const [guestEmail, setGuestEmail] = useState('');
   const [draftSavedNotice, setDraftSavedNotice] = useState(false);
 
-  const [showLoadPanel, setShowLoadPanel] = useState(false);
-  const [passportProfiles, setPassportProfiles] = useState<PassportProfile[]>([]);
-  const [loadPanelLoading, setLoadPanelLoading] = useState(false);
-  // Quick-view hover preview (afs-jf-007) — id of the passport row currently
-  // showing its thumbnail, null when none is hovered.
-  const [quickViewId, setQuickViewId] = useState<string | null>(null);
   const [showSavedProfiles, setShowSavedProfiles] = useState(false);
   const [savedProfilesLoading, setSavedProfilesLoading] = useState(false);
   const [savedProfiles, setSavedProfiles] = useState<SavedQuoteProfile[]>([]);
@@ -2483,7 +2470,7 @@ export default function FlashDraftPage() {
     // profile entirely (not an edit to it) and starts fresh, so the lock
     // resets along with everything else rather than blocking the action.
     setIsLocked(false);
-    setLockOnSave(false);
+    setJustLocked(false);
     commitPoints([]);
     setMatches([]);
     setTopMatchDiagramBends(null);
@@ -2526,26 +2513,19 @@ export default function FlashDraftPage() {
     setShowProfileDetails(true);
   };
 
-  // "Lock Profile & Save to Passport" -- reuses the exact same modal/
-  // performSave path a plain Save uses (name/category validation, the
-  // saved_configurations insert-or-update) rather than a parallel
-  // implementation; lockOnSave just tells performSave to also lock on
-  // success. Not available while already locked (nothing left to save
-  // until Unlock is used) or before a real profile exists.
-  const openLockAndSaveModal = () => {
-    setDuplicateOnSave(false);
-    setSaveError(null);
-    setLockOnSave(true);
-    setShowProfileDetails(true);
-  };
-
   // Part 5 — reuses the pre-existing saved_configurations table (confirmed
   // live in the real database, not just the migration file) rather than a
   // new one: FlashDraft doesn't use that table's catalog-linked FK columns
   // (profile_id/material_id/gauge_id/finish_id all stay null), so its own
   // points/hem/category data lives inside the existing flexible
   // `dimensions` JSONB column instead of requiring a schema change.
-  const performSave = async (values: ProfileDetailsFormValues, asDuplicate: boolean) => {
+  // `lock` is an explicit argument, not a piece of component state, because
+  // lockAndSaveProfile (Phase 3) calls this synchronously in the same tick
+  // it decides to lock -- a `setLockOnSave(true)` immediately followed by a
+  // direct performSave() call would still close over the OLD state value
+  // (React doesn't re-render between them), so a state flag can't drive
+  // this from a same-tick caller the way the old modal-based flow did.
+  const performSave = async (values: ProfileDetailsFormValues, asDuplicate: boolean, lock: boolean = false) => {
     setSavingProfile(true);
     setSaveError(null);
     try {
@@ -2555,13 +2535,37 @@ export default function FlashDraftPage() {
       } = await supabase.auth.getUser();
       if (!user) {
         setSaveError('Sign in to save profiles to your account.');
+        // Same reasoning as the catch block below: the lock-and-save path
+        // has no modal to show saveError inline in, so it needs its own
+        // toast or this failure is otherwise silent.
+        if (lock) setToast('Sign in to save profiles to your account.');
         setSavingProfile(false);
         return;
       }
+      // Phase 3 (afs-pp-001) -- company_id/is_locked/job_info are real
+      // top-level columns added by
+      // supabase/migrations/024_profile_passport_company_scope.sql, which
+      // has NOT been applied to the live database as of this writing (no
+      // Supabase access to the real project in this session — see that
+      // migration's own header comment). Every save through this function
+      // will fail until it's applied, same as every other Profile Passport
+      // route added in this phase.
+      const { data: ownProfile } = await supabase.from('profiles').select('company_id').eq('id', user.id).single();
+      const companyId = (ownProfile?.company_id as string | null) ?? null;
       const nextRevision = asDuplicate || !savedProfileId ? 1 : revision + 1;
+      const isLockedNow = lock || isLocked;
       const payload = {
         user_id: user.id,
+        company_id: companyId,
         name: values.name,
+        is_locked: isLockedNow,
+        job_info: {
+          clientBusinessName: clientBusinessName || null,
+          clientName: clientName || null,
+          poNumber: poNumber || null,
+          jobName: jobName || null,
+          requestedDeliveryDate: requestedDeliveryDate || null,
+        },
         dimensions: {
           kind: 'flashdraft',
           points,
@@ -2571,17 +2575,19 @@ export default function FlashDraftPage() {
           subcategory: values.subcategory,
           // Snapshotted from the Job Info drawer at save time (afs-jf-006)
           // so the Load list's Job Name column has something to show —
-          // this is the only place FlashDraft's job-identity fields are
-          // persisted server-side; the fields themselves are still cleared
-          // independently when the drawer/box is closed (clearJobInfoFields).
+          // kept here too (alongside the new top-level job_info column
+          // above) so a row saved before this phase's migration was
+          // applied still displays correctly (see getPassportProfiles'
+          // own fallback read, lib/data/profile-passport.ts).
           jobName: jobName || null,
           revision: nextRevision,
           // Persisted alongside the geometry so lock status is a real,
           // durable property of the saved passport row, not just this
-          // session's transient isLocked state -- lockOnSave locks going
-          // INTO this save; a profile already locked stays locked on a
-          // later re-save (e.g. via Edit Name) unless Unlock was used.
-          isLocked: lockOnSave || isLocked,
+          // session's transient isLocked state -- `lock` locks going INTO
+          // this save; a profile already locked stays locked on a later
+          // re-save (e.g. via Edit Name) unless Unlock was used. Same
+          // backward-compatibility reasoning as jobName above.
+          isLocked: isLockedNow,
         },
         length_ft: lengthFtDecimal || null,
         quantity: Number(quantity) || null,
@@ -2600,21 +2606,63 @@ export default function FlashDraftPage() {
       setProfileSubcategory(values.subcategory);
       setRevision(nextRevision);
       setShowProfileDetails(false);
-      // lockOnSave (set by openLockAndSaveModal) only takes effect here, on
-      // an actual successful write -- a failed save (network error, RLS
-      // rejection) below hits the catch block instead and never locks.
-      if (lockOnSave) {
+      // `lock` only takes effect here, on an actual successful write -- a
+      // failed save (network error, RLS rejection) below hits the catch
+      // block instead and never locks.
+      if (lock) {
         setIsLocked(true);
-        setLockOnSave(false);
-        setToast('Profile locked and saved to your Passport');
+        setJustLocked(true);
+        setTimeout(() => setJustLocked(false), 3500);
+        setToast('Profile Saved & Locked');
       } else {
         setToast('Profile saved to your account');
       }
     } catch {
       setSaveError('Could not save profile. Please try again.');
+      // The lock-and-save path has no modal to show `saveError` inline in
+      // (that's the whole point -- zero friction, afs-pp-001) so it needs
+      // its own toast; the modal path already surfaces `saveError` via
+      // ProfileDetailsModal's own `error` prop, so this stays lock-only to
+      // avoid showing the same failure twice there.
+      if (lock) setToast('Could not save profile. Please try again.');
     } finally {
       setSavingProfile(false);
     }
+  };
+
+  // "Profile-<ISO-8601 timestamp>" per the Phase 3 spec's exact auto-name
+  // format — includes milliseconds/timezone, so two locks in the same
+  // second still can't collide the way a whole-second or date-only format
+  // could.
+  function generateAutoProfileName(): string {
+    return `Profile-${new Date().toISOString()}`;
+  }
+
+  // Zero-friction "Lock Profile & Save to Passport" (Phase 3, afs-pp-001) --
+  // no modal, no form-filling: calls performSave directly with an
+  // auto-generated name and Job-Info-or-default category/subcategory. Job
+  // Info has no category concept of its own (Business Name/Client Name/PO
+  // Number/Job Name/Requested Delivery Date only), so `categoryId` is left
+  // as whatever it already is (usually null) rather than writing the
+  // spec's literal "General" into it -- categoryId is a real FK-shaped
+  // reference into machine_profile_categories.id (see
+  // ProfileDetailsModal.tsx), not a free-text label, and it has no visible
+  // consumer in this phase's Profiles tab (Name/Date Created/Job Name/
+  // Actions) to justify inventing a fake category row for it to point at.
+  // subcategory IS free text, so "Custom" applies there exactly as spec'd.
+  // Superseded the old modal-based lock flow (openLockAndSaveModal/
+  // lockOnSave), which asked for name/category first.
+  const lockAndSaveProfile = () => {
+    if (isLocked || points.length < 2 || savingProfile) return;
+    performSave(
+      {
+        name: profileName !== 'Untitled Profile' ? profileName : generateAutoProfileName(),
+        categoryId: profileCategoryId,
+        subcategory: profileSubcategory || 'Custom',
+      },
+      false,
+      true
+    );
   };
 
   // Snapshots the CURRENT state (before a hem mutation about to happen) onto
@@ -2711,58 +2759,55 @@ export default function FlashDraftPage() {
     }
   };
 
-  const openLoadPanel = async () => {
-    setShowLoadPanel(true);
-    if (!isAuthenticated) {
-      setPassportProfiles([]);
-      return;
-    }
-    setLoadPanelLoading(true);
+  // Phase 3 (afs-pp-001) -- the in-canvas Load modal (PassportProfile,
+  // openLoadPanel/loadFromPassport) was replaced by a redirect to
+  // /app/profile-passport (see the "Load Profiles" Link below); this is
+  // what that dashboard's profile selection actually hands back to,
+  // via ?loadPassport=<id> (see the mount effect below), rather than a
+  // list picked from inline. Loads the row as the real, currently-editing
+  // profile (savedProfileId/profileName/revision all set from it, not just
+  // its geometry) so a subsequent Save/Lock updates the SAME row instead of
+  // silently forking a duplicate. A locked profile loads still-locked (the
+  // spec's own "user cannot edit unless they create a new unlocked
+  // version" rule) -- Duplicate remains the supported way to fork an
+  // editable copy of a locked profile, unchanged from existing behavior.
+  const loadFromPassportById = useCallback(async (id: string) => {
     const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      setPassportProfiles([]);
-      setLoadPanelLoading(false);
-      return;
-    }
-    // RLS (`users_own_configs`) already restricts this to the caller's own
-    // rows -- the .eq is belt-and-suspenders, not the actual security
-    // boundary. dimensions->>kind filters out the unrelated quote-wizard
-    // "Saved quote request templates" use of this same table (SCHEMA.md).
     const { data } = await supabase
       .from('saved_configurations')
-      .select('id, name, created_at, dimensions')
-      .eq('user_id', user.id)
-      .eq('dimensions->>kind', 'flashdraft')
-      .order('created_at', { ascending: false });
+      .select('id, name, dimensions')
+      .eq('id', id)
+      .maybeSingle();
+    if (!data) return;
 
-    const profiles: PassportProfile[] = ((data ?? []) as {
-      id: string;
-      name: string | null;
-      created_at: string;
-      dimensions: unknown;
-    }[])
-      .map((row) => {
-        const dims = row.dimensions as { points?: unknown; jobName?: unknown } | null;
-        const points = isPointArrayShape(dims?.points) ? dims!.points : [];
-        const jobName = typeof dims?.jobName === 'string' && dims.jobName ? dims.jobName : null;
-        return { id: row.id, name: row.name || 'Untitled Profile', createdAt: row.created_at, jobName, points };
-      })
-      .filter((p) => p.points.length > 0);
+    const row = data as { id: string; name: string | null; dimensions: unknown };
+    const dims = row.dimensions as {
+      points?: unknown;
+      hemStart?: Hem | null;
+      hemEnd?: Hem | null;
+      jobName?: unknown;
+      categoryId?: string | null;
+      subcategory?: string;
+      revision?: number;
+      isLocked?: boolean;
+    } | null;
+    if (!isPointArrayShape(dims?.points)) return;
 
-    setPassportProfiles(profiles);
-    setLoadPanelLoading(false);
-  };
-
-  const loadFromPassport = (profile: PassportProfile) => {
     setPast((p) => [...p, { points, hemStart, hemEnd }]);
     setFuture([]);
-    setPoints(profile.points);
+    setPoints(dims!.points as Point[]);
+    setHemStart(isHemShape(dims?.hemStart) ? (dims!.hemStart as Hem) : null);
+    setHemEnd(isHemShape(dims?.hemEnd) ? (dims!.hemEnd as Hem) : null);
     setSelectedSegment(null);
-    setShowLoadPanel(false);
-  };
+    setSavedProfileId(row.id);
+    setProfileName(row.name || 'Untitled Profile');
+    setProfileCategoryId(dims?.categoryId ?? null);
+    setProfileSubcategory(dims?.subcategory ?? '');
+    setRevision(dims?.revision ?? 1);
+    if (typeof dims?.jobName === 'string' && dims.jobName) setJobName(dims.jobName);
+    setIsLocked(Boolean(dims?.isLocked));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const openSavedProfiles = async () => {
     setShowSavedProfiles(true);
@@ -2856,7 +2901,6 @@ export default function FlashDraftPage() {
     setFuture([]);
     setPoints(reconstructed);
     setSelectedSegment(null);
-    setShowLoadPanel(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -2883,13 +2927,14 @@ export default function FlashDraftPage() {
     setFuture([]);
     setPoints(canonicalPoints);
     setSelectedSegment(null);
-    setShowLoadPanel(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Part 4 integration: /studio/library's "Load into FlashDraft" button
   // links here with ?loadProfile=<id> (machine profiles) or ?loadCanonical=1
-  // (canonical profiles) — load it once on mount. Read via
+  // (canonical profiles) — load it once on mount. /app/profile-passport's
+  // Profiles tab (Phase 3, afs-pp-001) does the same with ?loadPassport=<id>
+  // for the user's own saved_configurations rows. Read via
   // window.location.search (not next/navigation's useSearchParams) so this
   // page stays statically prerenderable instead of requiring a Suspense
   // boundary just for a one-time read.
@@ -2898,6 +2943,8 @@ export default function FlashDraftPage() {
     const loadId = params.get('loadProfile');
     if (loadId) loadFromLibrary(loadId);
     if (params.get('loadCanonical')) loadCanonicalFromHandoff();
+    const passportId = params.get('loadPassport');
+    if (passportId) loadFromPassportById(passportId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -3391,6 +3438,18 @@ export default function FlashDraftPage() {
       <div className="flex-1 flex flex-col lg:flex-row gap-4 pt-4 px-4 pb-4 lg:pb-0 min-h-0">
         {/* LEFT PANEL */}
         <div className="w-full lg:w-[320px] lg:shrink-0 bg-afs-bg-raised border border-afs-chrome-dim rounded p-3.5 flex flex-col gap-2.5 overflow-y-auto">
+          {/* Entry point 2/3 of Profile Passport (Phase 3, afs-pp-001) — the
+              main site nav (top right) and this button both route to
+              /app/profile-passport; distinct from "Load Profiles" further
+              down, which also lands there but via the profile-loading flow
+              specifically. */}
+          <Link
+            href="/app/profile-passport"
+            className="flex items-center justify-center gap-2 border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label text-xs font-semibold px-3 py-2 rounded transition-colors"
+          >
+            <LockIcon className="h-3.5 w-3.5" aria-hidden="true" />
+            Profile Passport
+          </Link>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1 block" htmlFor="material">
@@ -3662,35 +3721,49 @@ export default function FlashDraftPage() {
           <div className="flex flex-col gap-2 mt-auto pt-2">
             {/* Lock Profile & Save to Passport -- shown once a real profile
                 exists (points.length >= 2, same threshold Save/Duplicate
-                already use). Reuses the existing Save modal/performSave
-                path (see openLockAndSaveModal) rather than a separate save
-                implementation. Once locked, this is replaced by a status
-                row with an Unlock control -- the visual indicator the task
-                asked for, not just the grayed-out canvas. */}
+                already use). Zero-friction, no-modal auto-save
+                (lockAndSaveProfile, Phase 3/afs-pp-001) still reuses
+                performSave's exact tested validation/DB-write path. Once
+                locked, this is replaced by a status row with an Unlock
+                control -- the visual indicator the task asked for, not just
+                the grayed-out canvas. justLocked is a purely transient
+                (~3.5s) confirmation flash on top of that permanent state,
+                not a substitute for it -- the canvas stays genuinely locked
+                (isLocked) the whole time, spec's own "disable all geometry
+                editing tools while is_locked = true" requirement holds
+                throughout, even while this flash is showing. */}
             {points.length >= 2 && (
               isLocked ? (
-                <div className="flex items-center justify-between gap-2 rounded border border-afs-accent-green bg-afs-accent-green/10 px-4 py-3">
-                  <span className="flex items-center gap-2 font-label text-sm font-semibold text-afs-accent-green">
-                    <LockIcon className="h-4 w-4" aria-hidden="true" />
-                    Profile Locked & Saved
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setIsLocked(false)}
-                    className="font-label text-xs font-semibold text-afs-chrome-mid underline underline-offset-2 hover:text-afs-chrome-high"
-                  >
-                    Unlock to Edit
-                  </button>
-                </div>
+                justLocked ? (
+                  <div className="flex items-center justify-center gap-2 rounded border border-afs-accent-green bg-afs-accent-green/10 px-4 py-3">
+                    <span className="flex items-center gap-2 font-label text-sm font-semibold text-afs-accent-green">
+                      ✓ Profile Saved & Locked
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between gap-2 rounded border border-afs-accent-green bg-afs-accent-green/10 px-4 py-3">
+                    <span className="flex items-center gap-2 font-label text-sm font-semibold text-afs-accent-green">
+                      <LockIcon className="h-4 w-4" aria-hidden="true" />
+                      Profile Locked & Saved
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsLocked(false)}
+                      className="font-label text-xs font-semibold text-afs-chrome-mid underline underline-offset-2 hover:text-afs-chrome-high"
+                    >
+                      Unlock to Edit
+                    </button>
+                  </div>
+                )
               ) : (
                 <button
                   type="button"
-                  onClick={openLockAndSaveModal}
+                  onClick={lockAndSaveProfile}
                   disabled={savingProfile}
                   className="flex items-center justify-center gap-2 border-2 border-afs-accent-green text-afs-accent-green hover:bg-afs-accent-green hover:text-white font-label font-semibold px-6 py-3 rounded text-sm transition-colors disabled:opacity-50"
                 >
                   <LockIcon className="h-4 w-4" aria-hidden="true" />
-                  {savingProfile && lockOnSave ? 'Saving…' : 'Lock Profile & Save to Passport'}
+                  {savingProfile ? 'Saving…' : 'Lock Profile & Save to Passport'}
                 </button>
               )
             )}
@@ -3718,13 +3791,16 @@ export default function FlashDraftPage() {
               >
                 Clear
               </button>
-              <button
-                type="button"
-                onClick={openLoadPanel}
-                className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label text-xs font-semibold px-3 py-2.5 rounded transition-colors"
+              {/* Phase 3 (afs-pp-001) -- routes to the Profile Passport
+                  dashboard instead of the old in-canvas Load modal; picking
+                  a profile there navigates back here with ?loadPassport=<id>
+                  (see the mount effect below) rather than loading inline. */}
+              <Link
+                href="/app/profile-passport"
+                className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label text-xs font-semibold px-3 py-2.5 rounded transition-colors text-center"
               >
                 Load Profiles
-              </button>
+              </Link>
             </div>
 
             {isAdmin && (
@@ -4257,91 +4333,6 @@ export default function FlashDraftPage() {
         </div>
       </div>
 
-      {showLoadPanel && (
-        <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-6"
-          onClick={() => setShowLoadPanel(false)}
-        >
-          <div
-            className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-6 max-w-2xl w-full max-h-[70vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="font-heading text-xl text-afs-chrome-high mb-4">Load Profiles</h3>
-            {!isAuthenticated ? (
-              <p className="font-body text-sm text-afs-chrome-mid">
-                Sign in to view your saved profiles.{' '}
-                <Link href="/login" className="text-afs-crimson hover:underline">
-                  Sign in
-                </Link>
-              </p>
-            ) : loadPanelLoading ? (
-              <p className="font-body text-sm text-afs-chrome-mid">Loading…</p>
-            ) : passportProfiles.length === 0 ? (
-              <p className="font-body text-sm text-afs-chrome-mid">
-                No saved profiles yet. Use "Save" or "Lock Profile & Save to Passport" to save one.
-              </p>
-            ) : (
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid border-b border-afs-chrome-dim">
-                    <th className="pb-2 pr-3">Profile Name</th>
-                    <th className="pb-2 pr-3">Date Created</th>
-                    <th className="pb-2 pr-3">Job Name</th>
-                    <th className="pb-2 w-8" aria-hidden="true" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {passportProfiles.map((p) => (
-                    <tr key={p.id} className="border-b border-afs-chrome-dim/40 last:border-0">
-                      <td className="py-0">
-                        <button
-                          type="button"
-                          onClick={() => loadFromPassport(p)}
-                          className="w-full text-left font-body text-sm text-afs-chrome-high hover:bg-afs-bg-surface px-3 py-2 rounded transition-colors"
-                        >
-                          {p.name}
-                        </button>
-                      </td>
-                      <td className="py-2 pr-3 font-body text-xs text-afs-chrome-mid whitespace-nowrap">
-                        {new Date(p.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="py-2 pr-3 font-body text-xs text-afs-chrome-mid">{p.jobName || '—'}</td>
-                      <td className="py-2 relative">
-                        <button
-                          type="button"
-                          onMouseEnter={() => setQuickViewId(p.id)}
-                          onMouseLeave={() => setQuickViewId((id) => (id === p.id ? null : id))}
-                          aria-label={`Quick view ${p.name}`}
-                          className="text-afs-chrome-mid hover:text-afs-chrome-high"
-                        >
-                          {/* Eye icon */}
-                          <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.5}>
-                            <path d="M1 10s3-6 9-6 9 6 9 6-3 6-9 6-9-6-9-6Z" strokeLinejoin="round" />
-                            <circle cx="10" cy="10" r="2.5" />
-                          </svg>
-                        </button>
-                        {quickViewId === p.id && (
-                          <div className="absolute right-full top-1/2 -translate-y-1/2 mr-2 z-10 w-40 h-32 bg-afs-bg-overlay border border-afs-chrome-dim rounded shadow-xl p-1">
-                            <CanonicalProfileDiagram points={p.points} width={152} height={120} />
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-            <button
-              type="button"
-              onClick={() => setShowLoadPanel(false)}
-              className="mt-4 font-label text-sm text-afs-chrome-mid hover:text-afs-crimson transition-colors"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
-
       {showSavedProfiles && (
         <div
           className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-6"
@@ -4477,12 +4468,7 @@ export default function FlashDraftPage() {
             categoryId: profileCategoryId,
             subcategory: profileSubcategory,
           }}
-          onCancel={() => {
-            setShowProfileDetails(false);
-            // A canceled lock-attempt shouldn't leave lockOnSave armed for
-            // a later, unrelated plain Save to pick up.
-            setLockOnSave(false);
-          }}
+          onCancel={() => setShowProfileDetails(false)}
           onSave={(values) => performSave(values, duplicateOnSave)}
           saving={savingProfile}
           error={saveError}
