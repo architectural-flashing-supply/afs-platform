@@ -24,6 +24,70 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## ADMIN COMMAND CENTER — DASHBOARD + NAV REDESIGN (afs-cc-001) — 2026-09-17
+
+Called "Phase 2" by the requesting prompt's own numbering ("FORGE 2.0") —
+unrelated to this project's real Phase 2 (Quote Request System, shipped
+long ago). Full detail, including every place the requesting spec didn't
+match this codebase's real schema/routes and how each was reconciled, is in
+STATE_OF_THE_BUILD.md's matching entry (top of file). Summary here for
+handoff:
+
+**Branch:** `feat/command-center-redesign`, off `main`. `main` itself
+received `feat/homepage-redesign` via a `--no-ff` merge + push immediately
+before this pass, per Reid's explicit confirmation (separate from this
+task, but happened in the same session).
+
+**Files touched:**
+- `components/layout/AdminShell.tsx` — sidebar simplified to 6 items,
+  renders the new `AdminTopBar`, fixed an active-nav-link prefix-matching
+  bug.
+- `components/layout/AdminTopBar.tsx` (NEW) — sticky top bar: logo, 5 tabs,
+  customer search, Machine Bridge status, Settings gear popover.
+- `app/admin/command-center/page.tsx` — dashboard is now the default view;
+  `?tab=customers` deleted (true duplicate of `/admin/customers`);
+  `?tab=pending/sent/completed/bids` untouched.
+- `components/admin/CommandCenterDashboard.tsx` — fully rewritten, composes
+  the 5 new dashboard components below.
+- `components/admin/dashboard/` (NEW directory) — `MetricCard.tsx`,
+  `OrderPipelineFunnel.tsx`, `ProductionStatusTable.tsx`,
+  `PendingActionsPanel.tsx`, `CustomerHealthSection.tsx`.
+- `lib/data/command-center-dashboard.ts` — 9 new data functions added, 3
+  old ones (each with exactly one, now-gone caller) deleted.
+- `app/admin/orders-crm/page.tsx` (NEW) — promoted the old Command Center
+  "Orders" CRM tab into its own route.
+- `components/admin/OrdersCrmTab.tsx` — gained an optional `initialView`
+  prop for the Invoices deep link.
+- `app/admin/settings/page.tsx` — added a Pricing quick-link card.
+
+**Gates:** `pnpm tsc --noEmit` clean. `pnpm build` succeeds (all routes
+including the 2 new ones). Full `npx playwright test` — 69 passed, 14
+skipped (pre-existing auth-gated skips, nothing new), 2 failed — both
+pre-existing homepage regressions (`HeroSection.tsx`/`AfsLogo.tsx`, hero CTA
+href + logo width assertions) inherited from the earlier
+`feat/homepage-redesign` merge, unrelated to this task's files, flagged for
+Reid rather than fixed here.
+
+**Verification:** No real admin login available in this environment (same
+missing `E2E_TEST_EMAIL`/`E2E_TEST_PASSWORD` limitation as every other
+admin-gated spec). Built and screenshotted the actual dashboard/nav via a
+temporary unauthenticated preview route bypassing `requireAdminUser`
+entirely, at desktop/tablet/mobile widths — confirmed the nav, metric
+cards, pipeline funnel, production-status color-coding and row-expand, the
+pending-actions pills, customer health tables, and the Settings gear
+popover all render and interact correctly — then deleted that route before
+finishing (never committed). Also confirmed `/admin/command-center`,
+`/admin/orders-crm`, and `/admin/settings` redirect cleanly to `/login`
+when hit unauthenticated (no crash). **IMPLEMENTED, UNCONFIRMED** — Reid
+has not seen this against a real signed-in admin session yet.
+
+**Deployment:** Vercel preview deploy — see below for the resulting URL
+(Reid chose preview over the requesting prompt's own `vercel --prod`
+instruction, given a production deploy of a live business site needs its
+own explicit go-ahead separate from the rest of this task).
+
+---
+
 ## FLASHDRAFT — REMEDIAL PASS (afs-jf-006/007/008) — 2026-09-17
 
 Phase 1 complete: 5-task remedial follow-up to afs-fl-027 below, all in

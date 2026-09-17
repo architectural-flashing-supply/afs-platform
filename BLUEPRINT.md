@@ -271,6 +271,72 @@ unauthenticated user sees a sign-in prompt. The Thalmann machine-profile
 library is real shop history (SCHEMA.md) and was deliberately NOT deleted;
 see STATE_OF_THE_BUILD.md for that discrepancy.
 
+### Phase 9 addendum — Command Center redesign (afs-cc-001, "FORGE 2.0 Phase 2")
+A separate build queue outside this file's own Phase 0–9 numbering — named
+"Phase 2" by that queue, not this document's Phase 2 (Quote Request System,
+already shipped). Referenced here as afs-cc-001 to avoid the collision.
+Rebuilt `/admin/command-center`'s dashboard and the whole admin nav shell
+against a spec that assumed some things about this codebase that weren't
+true (a `customers`/`invoices`/`production_queue` table set that doesn't
+exist — see STATE_OF_THE_BUILD.md's matching entry for exactly how each was
+reconciled against the real schema).
+
+**Nav (`components/layout/AdminShell.tsx` + new `AdminTopBar.tsx`):** left
+sidebar simplified from 13 links across 3 titled sections down to exactly 6
+(Dashboard, Quote Requests, Production Queue, Orders, Customers, Settings).
+A new sticky top bar (`fixed`, spans right of the sidebar) duplicates 5 of
+those as tabs (Dashboard/Quote Requests/Production/Orders/Customers) plus a
+customer-search box, `MachineBridgeStatusDot` (moved here from the old
+dashboard), and a Settings gear popover (QuickBooks + Dynamic Pricing
+Engine, both "Coming Soon" — the real pages behind both are still live at
+`/admin/quickbooks` and `/admin/pricing`, just no longer directly in the
+sidebar; `/admin/settings` links to Pricing too). Consultations, Bid
+Monitor, Shop View, Employee App, Credit Apps, Building Codes, and the old
+Command Center CRM "Bids" tab all lost their nav links but NOT their
+routes/components — all still load at their existing URLs, matching this
+codebase's pre-existing pattern for unlinked admin tools (see
+`app/admin/geometry-test/page.tsx`'s own comment). "Orders" is a new route,
+`/admin/orders-crm` (customer record/dispatch/invoicing — promoted out of
+the old `?tab=orders` Command Center tab), kept distinct from
+`/admin/orders` ("Production Queue"/"Production" — real-time fabrication
+stage tracking, unchanged) since that URL was already taken.
+
+**Dashboard (`app/admin/command-center/page.tsx` when no `?tab=` is
+present, composed by `components/admin/CommandCenterDashboard.tsx`):**
+- 4 metric cards (`components/admin/dashboard/MetricCard.tsx`) — Quote-to-
+  Order Conversion (3-month sparkline), Average Order Value (vs. last
+  month), Production Cycle Time (vs. a target — see below), Revenue This
+  Month (vs. a goal — see below). All backed by real `quotes`/`orders`/
+  `order_status_history` queries in `lib/data/command-center-dashboard.ts`.
+- Order Pipeline funnel (`OrderPipelineFunnel.tsx`) — Quotes → Orders → In
+  Production → Ready → Delivered, 90-day rolling window, proportional bar
+  widths, hover shows stage-over-stage %.
+- Production Status table (`ProductionStatusTable.tsx`) — reuses
+  `getProductionQueue` (the same data `/admin/orders` shows), re-sorted
+  overdue/at-risk first, click a row to expand.
+- Pending Actions (`PendingActionsPanel.tsx`) — Quotes Awaiting Approval
+  (→ the real approve-and-send-to-Thalmann queue at `?tab=pending`), Orders
+  Awaiting Material Pickup, Invoices Past 30 Days (reuses `getCrmInvoices`'
+  existing overdue derivation).
+- Customer Health (`CustomerHealthSection.tsx`) — top 5 customers by
+  calendar-YTD order value, 5 most recent orders.
+- Two placeholder constants have no configured value anywhere in the schema
+  and are named/documented in `lib/data/command-center-dashboard.ts` rather
+  than buried in JSX, pending real numbers from Steve:
+  `PRODUCTION_CYCLE_TARGET_DAYS` (3.5, matching the spec author's own
+  example) and `REVENUE_GOAL_MONTHLY` ($150,000, same).
+- Old dashboard fully deleted: the "Pending Approval"/"Sent to Machine"
+  status-strip cards, the Quote Requests/Machine Queue preview feeds, the
+  Outstanding Invoices box, Recent Customers box, and the GBP Photo
+  Queue/Active Deliveries bottom strip. `getOrderStatusCounts`/
+  `getGbpPendingCount`/`getRecentQuoteRequests` were deleted from
+  `lib/data/command-center-dashboard.ts` as a result — each had exactly one
+  caller, this page, and nothing else needed them.
+
+Not independently confirmed by Reid against a real signed-in admin
+session — see STATE_OF_THE_BUILD.md's verification-standard caveat on this
+same entry.
+
 ---
 
 ## 6. ENVIRONMENT VARIABLES

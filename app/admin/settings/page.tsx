@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { requireAdminUser } from '@/lib/admin/auth';
 import { getProductStockRows } from '@/lib/data/product-stock';
@@ -121,6 +122,26 @@ export default async function AdminSettingsPage() {
         <h1 className="font-heading text-3xl text-afs-chrome-high">Settings</h1>
         <p className="font-body text-sm text-afs-chrome-mid mt-1">Integration status and cron job health.</p>
       </div>
+
+      {/* Phase 2 (Command Center redesign, afs-cc-001) — Pricing lost its own
+          sidebar entry per the redesign's simplified nav; this link is what
+          keeps the real Pricing Rules Editor (app/admin/pricing/page.tsx)
+          reachable, alongside the top bar's gear-icon "Dynamic Pricing
+          Engine" popover entry. */}
+      <section className="mb-8">
+        <Link
+          href="/admin/pricing"
+          className="flex items-center justify-between gap-4 bg-afs-bg-raised border border-afs-border rounded p-5 hover:bg-afs-bg-surface transition-colors"
+        >
+          <div>
+            <p className="font-heading text-base text-afs-chrome-high">Pricing</p>
+            <p className="font-body text-xs text-afs-chrome-mid mt-1">
+              Manual pricing rules editor · commodity-indexed engine coming soon
+            </p>
+          </div>
+          <span className="font-label text-xs text-afs-crimson shrink-0">Open →</span>
+        </Link>
+      </section>
 
       <section className="mb-8">
         <h2 className="font-heading text-lg text-afs-chrome-high mb-4">Integration Status</h2>

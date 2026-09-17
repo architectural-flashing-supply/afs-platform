@@ -12,6 +12,8 @@ interface OrdersCrmTabProps {
   orders: CrmOrderRow[];
   operators: OperatorRow[];
   invoices: CrmInvoiceRow[];
+  /** Lets a deep link (e.g. the dashboard's "Invoices Past 30 Days" pending action) land directly on the Invoices sub-view instead of always defaulting to Orders. */
+  initialView?: OrdersView;
 }
 
 const ORDERS_VIEWS = ['orders', 'invoices'] as const;
@@ -43,9 +45,9 @@ function toDateInputValue(iso: string | null): string {
   return iso.slice(0, 10);
 }
 
-export default function OrdersCrmTab({ orders: initialOrders, operators, invoices }: OrdersCrmTabProps) {
+export default function OrdersCrmTab({ orders: initialOrders, operators, invoices, initialView = 'orders' }: OrdersCrmTabProps) {
   const router = useRouter();
-  const [view, setView] = useState<OrdersView>('orders');
+  const [view, setView] = useState<OrdersView>(initialView);
   const [orders, setOrders] = useState(initialOrders);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [driverFilter, setDriverFilter] = useState<string>('all');

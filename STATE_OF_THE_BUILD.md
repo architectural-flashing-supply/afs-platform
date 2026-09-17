@@ -34,6 +34,137 @@ summary, not a replacement for it.
 
 ---
 
+## ADMIN COMMAND CENTER — DASHBOARD + NAV REDESIGN (afs-cc-001, "FORGE 2.0 Phase 2"): IMPLEMENTED, UNCONFIRMED (2026-09-17)
+
+**Naming note:** the requesting prompt called this "Phase 2" of its own
+numbering scheme ("FORGE 2.0"), unrelated to this document/CLAUDE.md's own
+Phase 0–9 build-phase numbering (this project's actual Phase 2 is the Quote
+Request System, shipped long ago). Referenced here as afs-cc-001 to avoid
+that collision — do not read "Phase 2 complete" below as reopening or
+redoing this project's real Phase 2.
+
+**The requesting spec didn't fully match this codebase, and was not
+followed literally where it didn't.** It asked for dashboard queries against
+`quotes`, `orders`, `customers`, `invoices`, and `production_queue` tables.
+`quotes` and `orders` are real (SCHEMA.md tables 16/18). `customers`,
+`invoices`, and `production_queue` do not exist as tables — customer
+identity lives in `profiles`/`companies`, "invoices" are derived from
+`orders` columns (no separate table — see `lib/data/command-center-crm.ts`'s
+own header comment, `getCrmInvoices`), and production status is a status
+value on `orders` (`in_queue`/`cutting`/`bending`/`qc`/etc. — see
+`lib/admin/orderStages.ts`), not a separate queue table. All new queries in
+`lib/data/command-center-dashboard.ts` were written against the real schema
+instead of the spec's assumed one.
+
+**Also not done as literally instructed, and why:**
+- The spec's own "EXECUTION STEPS" asked for `vercel --prod` as the final
+  step. Reid was asked first (production deploy is a top-tier
+  hard-to-reverse action on a live business site) and chose a preview
+  deploy instead — see the deployment line below for the actual URL.
+- The spec said "delete... all basic status boxes" but didn't account for
+  the fact that the old dashboard's `?tab=pending/sent/completed` machine
+  queue (real, live, day-to-day "approve fabrication jobs and send to the
+  Thalmann" workflow — `machine_jobs` table) has no equivalent anywhere in
+  the new nav plan. It was NOT deleted — it's real, in-use functionality
+  the spec's author likely didn't know existed. It's kept exactly as it was
+  and is reachable from the new Dashboard's "Quotes Awaiting Approval"
+  pending-action pill (`/admin/command-center?tab=pending`).
+- Two of the spec's four metric cards need a comparison target with no
+  configured value anywhere in the schema (no settings table, nothing
+  admin-editable): "Production Cycle Time... target: 3.5" and revenue "89%
+  of goal." Hardcoded as named, documented constants
+  (`PRODUCTION_CYCLE_TARGET_DAYS = 3.5`, `REVENUE_GOAL_MONTHLY = 150_000`)
+  in `lib/data/command-center-dashboard.ts` using the spec's own example
+  numbers as placeholders — flagging for Reid/Steve to supply real ones,
+  same treatment CLAUDE.md's DATA BLOCKERS table gives other missing
+  business inputs.
+
+**Gates:** `pnpm tsc --noEmit` — 0 errors. `pnpm build` — succeeds, all
+routes including the two new ones (`/admin/orders-crm`,
+`/admin/command-center`) compile. Full `npx playwright test` run — 69
+passed, 14 skipped (all pre-existing auth-gated skips, same
+`E2E_TEST_EMAIL`/`E2E_TEST_PASSWORD` limitation as every other admin/auth
+spec in this suite — nothing new skipped by this pass), 2 failed. **Both
+failures are pre-existing and unrelated** — `homepage.spec.ts`'s hero CTA
+href and header-logo-width assertions, about `HeroSection.tsx`/`AfsLogo.tsx`,
+neither touched in this pass; they came in on `main` via this session's
+earlier `feat/homepage-redesign` merge and were not caused or fixed here.
+Flagging for Reid rather than fixing silently, since that's a different
+feature area than this task's actual scope.
+
+**No live-admin-session verification.** Every gate above ran without a real
+admin login (no `E2E_TEST_EMAIL`/`E2E_TEST_PASSWORD` in this environment,
+matching every prior entry's limitation). To still verify the actual
+rendered dashboard/nav — not just that it compiles — a temporary
+unauthenticated preview route (`app/dev-preview-dashboard/page.tsx`,
+rendering `<AdminShell>`/`<CommandCenterDashboard>` directly with fixture
+data, bypassing `requireAdminUser` entirely) was built, screenshotted at
+desktop/tablet/mobile widths, confirmed correct, then deleted before this
+entry was written — it was never committed. Real admin routes
+(`/admin/command-center`, `/admin/orders-crm`, `/admin/settings`) were also
+hit unauthenticated and confirmed to redirect cleanly to `/login` via
+middleware rather than error. Marked **IMPLEMENTED, UNCONFIRMED** per this
+file's own verification standard above — Reid has not seen this against
+real production/staging data as a signed-in admin.
+
+**Implementation:**
+- Nav: `components/layout/AdminShell.tsx` sidebar cut from 13 links/3
+  sections to the spec's exact 6 (Dashboard/Quote Requests/Production
+  Queue/Orders/Customers/Settings). New `components/layout/AdminTopBar.tsx`
+  — sticky top bar, 5 tabs (Production/Orders point at the same two
+  fabrication-vs-CRM order views as the sidebar), customer search box,
+  `MachineBridgeStatusDot` (relocated here from the old dashboard), and a
+  Settings gear popover (QuickBooks + Dynamic Pricing Engine, both "Coming
+  Soon" — both real pages stay linked from here and from `/admin/settings`,
+  not deleted). Fixed an `isActivePath` prefix bug that would have made
+  `/admin/orders-crm` also highlight the "Production Queue"/"Production" nav
+  item for `/admin/orders`, since `.startsWith()` alone doesn't respect a
+  path-segment boundary.
+- Consultations, Bid Monitor, Shop View, Employee App, Credit Apps,
+  Building Codes, and the old Command Center "Bids" CRM tab all lost their
+  nav links (spec's own DELETIONS list, for the first six) but keep their
+  routes/components exactly as they were — reachable by direct URL only,
+  matching this codebase's pre-existing `app/admin/geometry-test` pattern.
+- New `/admin/orders-crm` — promoted the old `?tab=orders` Command Center
+  CRM view (`OrdersCrmTab`, dispatch/invoicing/driver assignment) into its
+  own first-class route, since the new nav needs an "Orders" destination
+  distinct from `/admin/orders` ("Production Queue," which already existed
+  and was left alone). `OrdersCrmTab` gained an `initialView` prop so the
+  Pending Actions "Invoices Past 30 Days" link can deep-link straight to
+  its Invoices sub-view (`?view=invoices`).
+- `app/admin/command-center/page.tsx`: the old `?tab=customers` CRM tab was
+  deleted outright (a true duplicate of `/admin/customers` — confirmed
+  `getCrmCustomers` just calls the same `getCustomersList` that page
+  already uses). `?tab=pending/sent/completed` (machine-job approval) and
+  `?tab=bids` (GC bid pricing, also unmentioned by the spec) are untouched.
+- New dashboard: `components/admin/CommandCenterDashboard.tsx` composes
+  five new presentational components under `components/admin/dashboard/`
+  (`MetricCard`, `OrderPipelineFunnel`, `ProductionStatusTable`,
+  `PendingActionsPanel`, `CustomerHealthSection`) — full architecture
+  detail in BLUEPRINT.md's matching Phase 9 addendum. Nine new data
+  functions added to `lib/data/command-center-dashboard.ts`
+  (`getQuoteToOrderConversion`, `getAverageOrderValue`,
+  `getProductionCycleTime`, `getRevenueThisMonth`, `getOrderPipeline`,
+  `getProductionStatusRows`, `getPendingActions`, `getTopCustomersYtd`,
+  `getRecentOrders`); the file's three old exports
+  (`getOrderStatusCounts`/`getGbpPendingCount`/`getRecentQuoteRequests`)
+  were deleted, each having exactly one caller (the old dashboard, now
+  gone) — not left as dead code.
+- `/admin/settings` gained a Pricing quick-link card, since Pricing lost
+  its own sidebar entry and needed to stay reachable somewhere besides the
+  gear popover.
+- Branch: `feat/command-center-redesign`, off `main` (which itself received
+  `feat/homepage-redesign` via a `--no-ff` merge + push immediately before
+  this pass started, per Reid's explicit confirmation).
+
+**Not yet done:** Vercel preview deploy (Reid chose preview over the spec's
+own `vercel --prod` instruction) — see the deployment line for the actual
+outcome/URL once run. Real admin-session confirmation of the rendered
+dashboard, nav, and click-through filtering, per the verification standard
+above.
+
+---
+
 ## FLASHDRAFT — REMEDIAL PASS: PROFILE MATCH REMOVED, JOB INFO DRAWER, PASSPORT LOAD, AUTO BUSINESS NAME (afs-jf-006/007/008): IMPLEMENTED, UNCONFIRMED (2026-09-17)
 
 Five-task remedial pass on `app/studio/draft/page.tsx`, requested as a direct
