@@ -2559,6 +2559,15 @@ export default function FlashDraftPage() {
         company_id: companyId,
         name: values.name,
         is_locked: isLockedNow,
+        // Plain display-only labels (024_profile_passport_company_scope.sql)
+        // — deliberately separate from dimensions.categoryId, a real FK into
+        // machine_profile_categories.id (see ProfileDetailsModal.tsx), which
+        // stays whatever the user actually picked there. Only the
+        // zero-friction lock flow (afs-pp-001's own literal "Category (from
+        // Job Info or 'General')" spec) ever sets these -- Job Info has no
+        // category/subcategory concept of its own, so this is always just
+        // the two defaults, never conditionally sourced from anything.
+        ...(lock ? { category: 'General', subcategory: 'Custom' } : {}),
         job_info: {
           clientBusinessName: clientBusinessName || null,
           clientName: clientName || null,

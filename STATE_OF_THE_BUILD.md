@@ -39,14 +39,30 @@ summary, not a replacement for it.
 **Naming note:** the requesting prompt called this "Phase 3," unrelated to
 this document/CLAUDE.md's own Phase 0–9 build-phase numbering. Referenced
 here as afs-pp-001 to avoid collision, same convention as afs-cc-001 below.
-**"Phase 4" per the requesting prompt is Admin Customer Management, queued
-next** — again, this is that prompt's own numbering, not a claim about this
-document's real phase list.
+**"Phase 4" per the requesting prompt is FlashDraft final cleanup, queued
+next** (an earlier resend of this same prompt said "Admin Customer
+Management" — this refinement pass's wording supersedes that) — again,
+this is that prompt's own numbering, not a claim about this document's
+real phase list.
+
+**This entry covers a refinement pass on the same Phase 3 task, resent
+after the first pass (below) was already built and deployed.** Two real
+deltas from the resend, both incorporated: (1) the spec's exact
+`/api/team/:user_id` path — the first pass built this as
+`/api/team/members/[userId]`, renamed to `/api/team/[userId]` to match
+literally; (2) explicit plain-text `category`/`subcategory` columns
+("ADD if missing") — added to the still-unapplied migration 024, kept
+separate from `dimensions.categoryId` (the real FK) for the same reasoning
+as everything else in this entry. Everything else in the resent prompt
+(entry points, tab specs, lock/auto-save behavior, role mapping, deploy
+steps) was identical to what's documented below and required no further
+changes — confirmed by direct comparison, not assumed.
 
 **THE MOST IMPORTANT THING IN THIS ENTRY:** this feature does not work at
 all yet, on purpose, pending one manual step. `saved_configurations` needed
-three new columns (`company_id`, `is_locked`, `job_info`) and a replaced RLS
-policy set to support the spec's "account-wide ownership" requirement. This
+five new columns (`company_id`, `is_locked`, `job_info`, `category`,
+`subcategory`) and a replaced RLS policy set to support the spec's
+"account-wide ownership" requirement. This
 session has no Supabase access to the real afs-website project (only
 unrelated projects are visible via the connected Supabase MCP tools), so
 the migration could only be written, never applied or verified —
@@ -62,7 +78,7 @@ immediately after this deploys, not after real usage starts.
 
 **Gates:** `pnpm tsc --noEmit` — 0 errors. `pnpm build` — succeeds, all new
 routes compile (`/app/profile-passport`, 5 new `/api/profile-passport/*`
-routes, `/api/team/members/[userId]`). Full `npx playwright test` — 69
+routes, `/api/team/[userId]`). Full `npx playwright test` — 69
 passed, 14 skipped (pre-existing), 2 failed — the same two pre-existing,
 unrelated `homepage.spec.ts` failures already flagged in the afs-cc-001
 entry below (hero CTA href + header logo width, `HeroSection.tsx`/
@@ -101,7 +117,7 @@ a real signed-in session, and cannot until migration 024 is applied.
   `lib/data/team.ts`'s `getPassportRole`.
 - Spec's `POST/PATCH/DELETE /api/profile-passport/team/*` would have
   duplicated the real, already-shipped Team Accounts feature. Built
-  `PATCH`/`DELETE /api/team/members/[userId]` instead (invite/cancel-invite
+  `PATCH`/`DELETE /api/team/[userId]` instead (invite/cancel-invite
   already existed at `/api/team/invite`; only remove-member/change-role
   were actually missing) — extends the existing system rather than forking
   it, per Reid's explicit confirmation.
@@ -145,11 +161,19 @@ a real signed-in session, and cannot until migration 024 is applied.
 
 **Implementation:**
 - `supabase/migrations/024_profile_passport_company_scope.sql` (NEW, NOT
-  APPLIED) — adds `company_id`/`is_locked`/`job_info` to
-  `saved_configurations`; backfills `company_id` from each existing row's
-  saving user (real behavior change: existing rows become visible to that
-  user's whole team the moment this runs, not just new saves — see the
-  file's own header comment); replaces the old `auth.uid() = user_id`-only
+  APPLIED) — adds `company_id`/`is_locked`/`job_info`/`category`/
+  `subcategory` to `saved_configurations`. `category`/`subcategory` are
+  plain display-only TEXT, deliberately separate from
+  `dimensions.categoryId` (a real FK into `machine_profile_categories.id`)
+  — only ever set by the zero-friction lock flow (`General`/`Custom`,
+  literally per spec) or a caller of the new POST API route; the plain
+  Save/Duplicate modal path never touches them, so a manually-picked real
+  category is never overwritten with a fake label. Backfills `company_id`
+  from each existing row's saving user (real behavior change: existing
+  rows become visible to that user's whole team the moment this runs, not
+  just new saves — see the file's own header comment) and `category`/
+  `subcategory` from `dimensions`' own fields where present, defaulting to
+  General/Custom otherwise; replaces the old `auth.uid() = user_id`-only
   RLS policy with four company-aware ones (SELECT: any teammate, any role;
   UPDATE: Editor-or-above; DELETE: Admin only; solo/no-company rows keep
   exactly today's behavior via a `company_id IS NULL` fallback in every
@@ -173,7 +197,7 @@ a real signed-in session, and cannot until migration 024 is applied.
   the service-role client since `companies`' own RLS only grants members
   SELECT, matching the identical pattern in `/api/team/invite/route.ts`),
   `account/delete` (DELETE, untested, see above).
-- `app/api/team/members/[userId]/route.ts` (NEW) — PATCH (change role,
+- `app/api/team/[userId]/route.ts` (NEW) — PATCH (change role,
   owner/admin only, can't self-demote out of admin) and DELETE (remove
   member, owner/admin only, can't remove self) — extends the real Team
   Accounts feature.
@@ -192,7 +216,7 @@ a real signed-in session, and cannot until migration 024 is applied.
   Danger Zone), `ProfilePreviewModal.tsx` (reuses
   `components/studio/CanonicalProfileDiagram.tsx`'s points-to-SVG
   renderer), `ManageTeamModal.tsx` (role changes/removal, reuses the
-  extended `/api/team/members` routes).
+  extended `/api/team` routes).
 - FlashDraft (`app/studio/draft/page.tsx`):
   - New "Profile Passport" button in the left panel (entry point 2/3) and
     the existing "Load Profiles" button now links to `/app/profile-passport`

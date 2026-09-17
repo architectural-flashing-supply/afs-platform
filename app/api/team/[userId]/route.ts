@@ -11,13 +11,15 @@ interface ChangeRoleBody {
  * Extends the existing Team Accounts feature (app/account/team,
  * app/api/team/invite) with remove-member/change-role — that route only
  * ever covered invite/cancel-invite, nothing edited an already-active
- * member. Added here as /api/team/members/[userId] rather than folding into
- * /api/team/invite's own file, since these operate on real profiles rows,
- * not team_invitations rows, and mixing both resources into one handler
- * would make each method's meaning ambiguous. Built for Profile Passport's
- * Account tab (Phase 3, afs-pp-001), but not passport-specific — this is
- * real team management usable from anywhere, matching the explicit
- * decision to reuse rather than fork the team system.
+ * member. Added as a sibling dynamic route under /api/team/ (not folded
+ * into /api/team/invite's own file) since these operate on real profiles
+ * rows, not team_invitations rows, and mixing both resources into one
+ * handler would make each method's meaning ambiguous — Next.js resolves
+ * the literal /api/team/invite segment ahead of this dynamic [userId] one,
+ * so both coexist without conflict. Built for Profile Passport's Account
+ * tab (Phase 3, afs-pp-001), but not passport-specific — this is real team
+ * management usable from anywhere, matching the explicit decision to reuse
+ * rather than fork the team system.
  */
 export async function PATCH(request: NextRequest, { params }: { params: { userId: string } }): Promise<NextResponse> {
   try {

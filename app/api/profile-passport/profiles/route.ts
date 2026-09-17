@@ -58,13 +58,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       company_id: context.companyId,
       name: profileName,
       is_locked: false,
+      // Plain display labels (024_profile_passport_company_scope.sql) — NOT
+      // the same thing as dimensions.categoryId below, which is a real FK
+      // into machine_profile_categories.id. body.category is caller-supplied
+      // free text here, so it never gets written into that FK field.
+      category: body?.category?.trim() || 'General',
+      subcategory: body?.subcategory?.trim() || 'Custom',
       job_info: body?.job_info ?? null,
       dimensions: {
         kind: 'flashdraft',
         points,
         hemStart: body?.geometry_data?.hemStart ?? null,
         hemEnd: body?.geometry_data?.hemEnd ?? null,
-        categoryId: body?.category ?? null,
+        categoryId: null,
         subcategory: body?.subcategory ?? 'Custom',
         revision: 1,
         isLocked: false,

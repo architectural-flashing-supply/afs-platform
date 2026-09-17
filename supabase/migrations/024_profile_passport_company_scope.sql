@@ -54,10 +54,19 @@
 -- expressed in application code.
 -- ============================================================================
 
+-- category/subcategory are deliberately plain TEXT here, separate from
+-- dimensions->>'categoryId' (a real FK-shaped reference into
+-- machine_profile_categories.id, see components/studio/ProfileDetailsModal.tsx)
+-- — writing the spec's literal "General"/"Custom" defaults into that FK
+-- field would mean a category value pointing at a machine_profile_categories
+-- row that doesn't exist. These two columns are just the display-only
+-- label the spec actually wants; the real FK is untouched.
 ALTER TABLE saved_configurations
   ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES companies(id),
   ADD COLUMN IF NOT EXISTS is_locked BOOLEAN NOT NULL DEFAULT false,
-  ADD COLUMN IF NOT EXISTS job_info JSONB;
+  ADD COLUMN IF NOT EXISTS job_info JSONB,
+  ADD COLUMN IF NOT EXISTS category TEXT,
+  ADD COLUMN IF NOT EXISTS subcategory TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_saved_configurations_company ON saved_configurations(company_id);
 
@@ -73,6 +82,19 @@ WHERE sc.user_id = p.id AND sc.company_id IS NULL;
 UPDATE saved_configurations
 SET is_locked = COALESCE((dimensions->>'isLocked')::boolean, false)
 WHERE dimensions ? 'isLocked';
+
+-- Backfill category/subcategory display labels from dimensions' own
+-- categoryId/subcategory (afs-fl-027/afs-jf-006) where present, defaulting
+-- to the spec's literal "General"/"Custom" otherwise — matches exactly
+-- what a NEW row written by the zero-friction lock-and-save flow gets
+-- going forward (see app/studio/draft/page.tsx's lockAndSaveProfile).
+UPDATE saved_configurations
+SET category = COALESCE(NULLIF(dimensions->>'categoryId', ''), 'General')
+WHERE category IS NULL;
+
+UPDATE saved_configurations
+SET subcategory = COALESCE(NULLIF(dimensions->>'subcategory', ''), 'Custom')
+WHERE subcategory IS NULL;
 
 -- Replace the old per-user-only policy set with company-aware ones. Mirrors
 -- companies' own "company_members" policy shape (SCHEMA.md TABLE 2) for the

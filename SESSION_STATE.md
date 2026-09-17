@@ -26,12 +26,18 @@ let self-reported verification read as equivalent to user confirmation.
 
 ## PROFILE PASSPORT — UNIFIED ACCOUNT + PROFILES HUB (afs-pp-001) — 2026-09-17
 
-**"Phase 3" per the requesting prompt's own numbering, "Phase 4" (Admin
-Customer Management) queued next** — same numbering caveat as afs-cc-001's
-"Phase 2" below; unrelated to this project's real Phase 0–9. Full detail,
-including every place this spec didn't match the codebase and how each was
-reconciled, is in STATE_OF_THE_BUILD.md's matching entry (top of file).
-Summary here for handoff:
+**"Phase 3" per the requesting prompt's own numbering, "Phase 4" (FlashDraft
+final cleanup, per this pass's resend — an earlier resend said "Admin
+Customer Management") queued next** — same numbering caveat as
+afs-cc-001's "Phase 2" below; unrelated to this project's real Phase 0–9.
+This is a refinement pass on the same Phase 3 task, resent after the first
+pass was already built and deployed — two real deltas, both applied: the
+team-member route renamed from `/api/team/members/[userId]` to the spec's
+exact `/api/team/[userId]`, and explicit `category`/`subcategory` TEXT
+columns added to migration 024 (still unapplied). Everything else in the
+resend matched what was already built. Full detail in
+STATE_OF_THE_BUILD.md's matching entry (top of file). Summary here for
+handoff:
 
 **READ THIS FIRST: the feature does not work yet, on purpose.** It needs a
 real database migration (`supabase/migrations/024_profile_passport_company_scope.sql`
@@ -52,7 +58,7 @@ Reid's confirmation.
 - Data/util: `lib/data/team.ts` (added role mapping), `lib/data/profile-passport.ts` (NEW),
   `lib/utils/profile-pdf.ts` (NEW, pdf-lib-based).
 - API: `app/api/profile-passport/{profiles,profiles/[id],profiles/[id]/pdf,account,account/delete}/route.ts`
-  (all NEW), `app/api/team/members/[userId]/route.ts` (NEW — extends the existing Team Accounts feature).
+  (all NEW), `app/api/team/[userId]/route.ts` (NEW — extends the existing Team Accounts feature).
 - UI: `app/app/profile-passport/{layout,page}.tsx` (NEW), `components/profile-passport/*`
   (NEW — ProfilesTab, AccountTab, SettingsTab, ProfilePreviewModal, ManageTeamModal).
 - FlashDraft: `app/studio/draft/page.tsx` — Lock & Save is now zero-friction/no-modal

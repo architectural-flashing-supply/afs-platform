@@ -345,7 +345,8 @@ entry points (main nav, FlashDraft, the dashboard itself), so it's followed
 literally rather than "corrected" to `/account/profile-passport`.
 
 **Schema change — NOT YET LIVE:** `saved_configurations` gained
-`company_id`/`is_locked`/`job_info` columns and company-aware RLS via
+`company_id`/`is_locked`/`job_info`/`category`/`subcategory` columns and
+company-aware RLS via
 `supabase/migrations/024_profile_passport_company_scope.sql`, written but
 never applied (no Supabase access to the real project this session — see
 STATE_OF_THE_BUILD.md's matching entry for the exact blast radius: this
@@ -374,7 +375,7 @@ control of one's own solo profiles, matching pre-Phase-3 behavior).
 - `app/api/profile-passport/*` — profiles CRUD + PDF export
   (`lib/utils/profile-pdf.ts`, pdf-lib-based, renders the actual geometry)
   + account read/update/delete.
-- `app/api/team/members/[userId]/route.ts` — the one real gap in the
+- `app/api/team/[userId]/route.ts` — the one real gap in the
   existing Team Accounts feature (invite/cancel-invite existed;
   change-role/remove-member didn't) — added here rather than as a
   parallel passport-specific team system.

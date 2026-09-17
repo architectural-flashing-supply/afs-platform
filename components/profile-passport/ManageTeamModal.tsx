@@ -27,7 +27,7 @@ const ROLE_LABEL: Record<CompanyRole, string> = {
 
 /**
  * Extends the existing Team Accounts system (profiles.company_role,
- * /api/team/invite, /api/team/members/[userId] — added this same phase)
+ * /api/team/invite, /api/team/[userId] — added this same phase)
  * rather than a parallel add/remove/change-role implementation. Invite
  * still goes through app/account/team's full page (linked below) since
  * that flow already handles the "no company yet" bootstrap case
@@ -43,7 +43,7 @@ export default function ManageTeamModal({ members: initialMembers, onClose }: Ma
     setBusyId(userId);
     setError(null);
     try {
-      const res = await fetch(`/api/team/members/${userId}`, {
+      const res = await fetch(`/api/team/${userId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role }),
@@ -66,7 +66,7 @@ export default function ManageTeamModal({ members: initialMembers, onClose }: Ma
     setBusyId(userId);
     setError(null);
     try {
-      const res = await fetch(`/api/team/members/${userId}`, { method: 'DELETE' });
+      const res = await fetch(`/api/team/${userId}`, { method: 'DELETE' });
       if (!res.ok && res.status !== 204) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
         setError(data.error ?? 'Could not remove team member.');
