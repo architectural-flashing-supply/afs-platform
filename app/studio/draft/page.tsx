@@ -24,6 +24,7 @@ import {
   LIVE_CANVAS_LABEL_STYLE,
 } from '@/lib/flashdraft/draw-profile-scene';
 import BendSequenceDiagram from '@/components/studio/BendSequenceDiagram';
+import CanonicalProfileDiagram from '@/components/studio/CanonicalProfileDiagram';
 import SubmitConfirmation3DModal, { type PaintFace } from '@/components/studio/SubmitConfirmation3DModal';
 import MatchedProfile3DModal from '@/components/studio/MatchedProfile3DModal';
 import { isPaintedMaterial, resolveSelectedPaintColor, BARE_METAL_COLOR } from '@/lib/utils/paint-appearance';
@@ -111,16 +112,23 @@ const PLACEHOLDER_COPING_CAP_BENDS: ProfileBend[] = [
 ];
 const PLACEHOLDER_BLANK_WIDTH_MM = 76.2 + 254 + 76.2;
 
-interface LibraryProfile {
+// The user's own saved_configurations rows (the "Profile Passport" — see
+// performSave/afs-fl-027) — afs-jf-007 repoints the "Load" button here
+// instead of the shop's machine_profiles library, since that library is real
+// Thalmann DS2801 shop history (SCHEMA.md), not sample/test data safe to
+// prune, and isn't what "your saved profiles" should mean to a customer.
+interface PassportProfile {
   id: string;
-  name_en: string;
-  profile_number: string;
+  name: string;
+  createdAt: string;
+  jobName: string | null;
+  points: Point[];
 }
 
 // A FlashDraft profile recovered from a customer's own submitted quote
-// request (quote_requests.line_items), as opposed to LibraryProfile above
-// (the shop's public/machine-history library). `points` is only present for
-// requests submitted after this feature shipped — line_items previously
+// request (quote_requests.line_items), as opposed to PassportProfile above
+// (the customer's own saved_configurations Profile Passport rows). `points`
+// is only present for requests submitted after this feature shipped — line_items previously
 // stored only the reconstruction-lossy bendRadiiIn/hemStart/hemEnd
 // fields, not the raw drawn geometry, so older submissions can't be loaded
 // back exactly and their Load button is disabled instead of guessing.
@@ -1090,8 +1098,14 @@ export default function FlashDraftPage() {
   // format (afs-jf-005) — no date-picker library exists in this project.
   const [requestedDeliveryDate, setRequestedDeliveryDate] = useState('');
   // Collapsed by default so the canvas info overlay stays compact when the
-  // job-identity fields aren't in use (afs-jf-005).
+  // job-identity fields aren't in use (afs-jf-005). Now drives a right-side
+  // slide-out drawer instead of an inline downward expansion (afs-jf-006).
   const [showJobInfo, setShowJobInfo] = useState(false);
+  // Lets the whole upper-left name/stats box be dismissed via its own X
+  // (afs-jf-006) — collapsing it is purely a display toggle (drawing/state
+  // is untouched); a small pill re-opens it. Separate from showJobInfo so
+  // dismissing the box doesn't fight with the drawer's own open/close state.
+  const [profileBoxCollapsed, setProfileBoxCollapsed] = useState(false);
 
   const [matches, setMatches] = useState<ProfileMatch[]>([]);
   const [matchLoading, setMatchLoading] = useState(false);
@@ -1112,12 +1126,15 @@ export default function FlashDraftPage() {
   const [guestEmail, setGuestEmail] = useState('');
   const [draftSavedNotice, setDraftSavedNotice] = useState(false);
 
-  const [showLibrary, setShowLibrary] = useState(false);
-  const [libraryProfiles, setLibraryProfiles] = useState<LibraryProfile[]>([]);
+  const [showLoadPanel, setShowLoadPanel] = useState(false);
+  const [passportProfiles, setPassportProfiles] = useState<PassportProfile[]>([]);
+  const [loadPanelLoading, setLoadPanelLoading] = useState(false);
+  // Quick-view hover preview (afs-jf-007) — id of the passport row currently
+  // showing its thumbnail, null when none is hovered.
+  const [quickViewId, setQuickViewId] = useState<string | null>(null);
   const [showSavedProfiles, setShowSavedProfiles] = useState(false);
   const [savedProfilesLoading, setSavedProfilesLoading] = useState(false);
   const [savedProfiles, setSavedProfiles] = useState<SavedQuoteProfile[]>([]);
-  const [libraryLoading, setLibraryLoading] = useState(false);
 
   const [show3DConfirm, setShow3DConfirm] = useState(false);
   const [confirmedPaintFace, setConfirmedPaintFace] = useState<PaintFace | null>(null);
@@ -1247,10 +1264,20 @@ export default function FlashDraftPage() {
       if (!data.user) return;
       supabase
         .from('profiles')
-        .select('role')
+        .select('role, company')
         .eq('id', data.user.id)
         .single()
-        .then(({ data: profile }) => setIsAdmin(profile?.role === 'admin'));
+        .then(({ data: profile }) => {
+          setIsAdmin(profile?.role === 'admin');
+          // afs-jf-008 — auto-populate Business Name from the account's
+          // profile, but only into an empty field: a functional update
+          // reads state as of whenever this network round-trip resolves,
+          // so it never clobbers a value the autosave-restore effect above
+          // already put there, or one the user has since typed.
+          if (profile?.company) {
+            setClientBusinessName((prev) => prev || profile.company);
+          }
+        });
     });
   }, []);
 
@@ -2475,6 +2502,18 @@ export default function FlashDraftPage() {
     setEditingName(false);
   };
 
+  // Fixes the Job Info persist bug (afs-jf-006): closing the drawer/box
+  // previously just hid the fields while leaving their state (and the next
+  // debounced autosave write, see the AUTOSAVE_KEY effect above) intact, so
+  // reopening showed stale data. Called from both X buttons below.
+  const clearJobInfoFields = () => {
+    setClientBusinessName('');
+    setClientName('');
+    setPoNumber('');
+    setJobName('');
+    setRequestedDeliveryDate('');
+  };
+
   const openSaveModal = () => {
     setDuplicateOnSave(false);
     setSaveError(null);
@@ -2530,6 +2569,12 @@ export default function FlashDraftPage() {
           hemEnd,
           categoryId: values.categoryId,
           subcategory: values.subcategory,
+          // Snapshotted from the Job Info drawer at save time (afs-jf-006)
+          // so the Load list's Job Name column has something to show —
+          // this is the only place FlashDraft's job-identity fields are
+          // persisted server-side; the fields themselves are still cleared
+          // independently when the drawer/box is closed (clearJobInfoFields).
+          jobName: jobName || null,
           revision: nextRevision,
           // Persisted alongside the geometry so lock status is a real,
           // durable property of the saved passport row, not just this
@@ -2666,17 +2711,57 @@ export default function FlashDraftPage() {
     }
   };
 
-  const openLibrary = async () => {
-    setShowLibrary(true);
-    setLibraryLoading(true);
-    const res = await fetch('/api/studio/library-list');
-    let profiles: LibraryProfile[] = [];
-    if (res.ok) {
-      const data = (await res.json()) as { profiles: LibraryProfile[] };
-      profiles = data.profiles ?? [];
+  const openLoadPanel = async () => {
+    setShowLoadPanel(true);
+    if (!isAuthenticated) {
+      setPassportProfiles([]);
+      return;
     }
-    setLibraryProfiles(profiles);
-    setLibraryLoading(false);
+    setLoadPanelLoading(true);
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      setPassportProfiles([]);
+      setLoadPanelLoading(false);
+      return;
+    }
+    // RLS (`users_own_configs`) already restricts this to the caller's own
+    // rows -- the .eq is belt-and-suspenders, not the actual security
+    // boundary. dimensions->>kind filters out the unrelated quote-wizard
+    // "Saved quote request templates" use of this same table (SCHEMA.md).
+    const { data } = await supabase
+      .from('saved_configurations')
+      .select('id, name, created_at, dimensions')
+      .eq('user_id', user.id)
+      .eq('dimensions->>kind', 'flashdraft')
+      .order('created_at', { ascending: false });
+
+    const profiles: PassportProfile[] = ((data ?? []) as {
+      id: string;
+      name: string | null;
+      created_at: string;
+      dimensions: unknown;
+    }[])
+      .map((row) => {
+        const dims = row.dimensions as { points?: unknown; jobName?: unknown } | null;
+        const points = isPointArrayShape(dims?.points) ? dims!.points : [];
+        const jobName = typeof dims?.jobName === 'string' && dims.jobName ? dims.jobName : null;
+        return { id: row.id, name: row.name || 'Untitled Profile', createdAt: row.created_at, jobName, points };
+      })
+      .filter((p) => p.points.length > 0);
+
+    setPassportProfiles(profiles);
+    setLoadPanelLoading(false);
+  };
+
+  const loadFromPassport = (profile: PassportProfile) => {
+    setPast((p) => [...p, { points, hemStart, hemEnd }]);
+    setFuture([]);
+    setPoints(profile.points);
+    setSelectedSegment(null);
+    setShowLoadPanel(false);
   };
 
   const openSavedProfiles = async () => {
@@ -2771,7 +2856,7 @@ export default function FlashDraftPage() {
     setFuture([]);
     setPoints(reconstructed);
     setSelectedSegment(null);
-    setShowLibrary(false);
+    setShowLoadPanel(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -2798,7 +2883,7 @@ export default function FlashDraftPage() {
     setFuture([]);
     setPoints(canonicalPoints);
     setSelectedSegment(null);
-    setShowLibrary(false);
+    setShowLoadPanel(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -3538,43 +3623,12 @@ export default function FlashDraftPage() {
             />
           </div>
 
-          <div className="bg-afs-bg-surface border border-afs-chrome-dim rounded overflow-hidden">
-            <div className="px-3 py-2 border-b border-afs-chrome-dim">
-              <span className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid">
-                Profile Match {matchLoading && '· searching…'}
-              </span>
-            </div>
-            {matches.length === 0 ? (
-              <p className="font-body text-xs text-afs-chrome-dim px-3 py-3">
-                Draw at least one bend to see matching profiles.
-              </p>
-            ) : (
-              <ul>
-                {matches.map((m) => {
-                  const barColorClass = m.score >= 90 ? 'bg-afs-accent-green' : m.score >= 70 ? 'bg-afs-amber' : 'bg-afs-crimson';
-                  return (
-                    <li key={m.profileId} className="px-3 py-2.5 border-b border-afs-chrome-dim last:border-b-0">
-                      <div className="flex items-center justify-between gap-2 mb-1">
-                        <span className="font-body text-xs text-afs-chrome-high truncate">{m.nameEn}</span>
-                        <span className="font-data text-sm font-semibold text-afs-chrome-high shrink-0">{m.score.toFixed(0)}% match</span>
-                      </div>
-                      <div className="h-1.5 bg-afs-bg-dim rounded-full overflow-hidden mb-1.5">
-                        <div className={`h-full ${barColorClass}`} style={{ width: `${Math.min(100, m.score)}%` }} />
-                      </div>
-                      <p className="font-body text-[11px] text-afs-chrome-dim">
-                        Fabricated {m.fabricatedCount} time{m.fabricatedCount === 1 ? '' : 's'} in shop history
-                      </p>
-                      {m.isExactMatch && (
-                        <p className="font-label text-[10px] font-bold text-afs-accent-green uppercase tracking-wide mt-1">
-                          Exact Match — Machine program ready
-                        </p>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
+          {/* Profile Match sidebar list removed (afs-fl-028) -- the
+              underlying matches/matchLoading/topMatchDiagramBends state and
+              fetch effect are UNCHANGED and still deliberately kept: they
+              also power the separate "Part 6" split-screen exact-match 3D
+              view (showSplit/MatchedProfile3DModal below), which this task
+              didn't ask to remove. Only this sidebar list is gone. */}
 
           {submitError && <p className="font-body text-sm text-afs-crimson">{submitError}</p>}
           {draftSavedNotice && <p className="font-body text-sm text-afs-success">Draft saved to this browser.</p>}
@@ -3666,10 +3720,10 @@ export default function FlashDraftPage() {
               </button>
               <button
                 type="button"
-                onClick={openLibrary}
+                onClick={openLoadPanel}
                 className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label text-xs font-semibold px-3 py-2.5 rounded transition-colors"
               >
-                Load
+                Load Profiles
               </button>
             </div>
 
@@ -3757,145 +3811,194 @@ export default function FlashDraftPage() {
                 }}
               />
 
-              {/* PART 2 — PROFILE INFO PANEL */}
+              {/* PART 2 — PROFILE INFO PANEL (afs-jf-006: renamed placeholder,
+                  dismissible via its own X, Job Info moved to a right-side
+                  drawer below instead of expanding inline). */}
+              {profileBoxCollapsed ? (
+                <button
+                  type="button"
+                  onClick={() => setProfileBoxCollapsed(false)}
+                  className="absolute z-20 bg-black/70 text-white rounded px-3 py-2 font-semibold hover:bg-black/80"
+                  style={{ top: 8, left: 8, fontFamily: jetbrainsFontRef.current, fontSize: 12 }}
+                >
+                  Profile Info
+                </button>
+              ) : (
+                <div
+                  className="absolute z-20 bg-black/70 text-white rounded px-3 py-2 flex flex-col gap-0.5"
+                  style={{ top: 8, left: 8, fontFamily: jetbrainsFontRef.current, fontSize: 12 }}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    {editingName ? (
+                      <input
+                        autoFocus
+                        value={profileNameDraft}
+                        onChange={(e) => setProfileNameDraft(e.target.value)}
+                        onBlur={commitProfileName}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') commitProfileName();
+                          if (e.key === 'Escape') setEditingName(false);
+                        }}
+                        className="bg-transparent border-b border-white/40 outline-none text-white"
+                        style={{ fontFamily: jetbrainsFontRef.current, fontSize: 12, width: 150 }}
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProfileNameDraft(profileName === 'Untitled Profile' ? '' : profileName);
+                          setEditingName(true);
+                        }}
+                        className={`text-left hover:underline font-semibold ${
+                          profileName === 'Untitled Profile' ? 'italic opacity-60' : ''
+                        }`}
+                      >
+                        {profileName === 'Untitled Profile' ? 'Name your profile' : profileName}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProfileBoxCollapsed(true);
+                        setShowJobInfo(false);
+                        clearJobInfoFields();
+                      }}
+                      aria-label="Close profile info"
+                      className="text-white/60 hover:text-white leading-none -mt-0.5 -mr-0.5"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <span>Blank Width: {formatInches(blankWidthInLive)}</span>
+                  <span>Bend Count: {bendCountLive}</span>
+                  <span>Hem Count: {hemCountLive}</span>
+                  <span>Revision: {revision}</span>
+                  {isLocked && (
+                    <span className="flex items-center gap-1 font-semibold text-afs-accent-green">
+                      <LockIcon className="h-3 w-3" aria-hidden="true" />
+                      Locked
+                    </span>
+                  )}
+
+                  {/* Job-identity intake fields (migration 018/019, afs-jf-000/
+                      afs-jf-004) now live in the right-side drawer rendered
+                      below (afs-jf-006) — this just opens/closes it. */}
+                  <button
+                    type="button"
+                    onClick={() => setShowJobInfo((v) => !v)}
+                    className="text-left font-semibold hover:underline mt-1 pt-1 border-t border-white/20"
+                  >
+                    {showJobInfo ? '− Job Info' : '+ Job Info'}
+                  </button>
+                </div>
+              )}
+
+              {/* Job Info slide-out drawer (afs-jf-006) — replaces the old
+                  inline downward expansion. Always mounted (not just while
+                  showJobInfo) so the translate-x transition actually
+                  animates; canvasWrapRef's overflow-hidden clips it fully
+                  off-canvas when closed. */}
               <div
-                className="absolute z-20 bg-black/70 text-white rounded px-3 py-2 flex flex-col gap-0.5"
-                style={{ top: 8, left: 8, fontFamily: jetbrainsFontRef.current, fontSize: 12 }}
+                className={`absolute z-30 top-0 right-0 h-full w-[260px] bg-afs-bg-raised border-l border-afs-chrome-dim shadow-xl transition-transform duration-300 ease-in-out flex flex-col ${
+                  showJobInfo ? 'translate-x-0' : 'translate-x-full'
+                }`}
               >
-                {editingName ? (
-                  <input
-                    autoFocus
-                    value={profileNameDraft}
-                    onChange={(e) => setProfileNameDraft(e.target.value)}
-                    onBlur={commitProfileName}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') commitProfileName();
-                      if (e.key === 'Escape') setEditingName(false);
-                    }}
-                    className="bg-transparent border-b border-white/40 outline-none text-white"
-                    style={{ fontFamily: jetbrainsFontRef.current, fontSize: 12, width: 150 }}
-                  />
-                ) : (
+                <div className="flex items-center justify-between px-4 py-3 border-b border-afs-chrome-dim">
+                  <span className="font-label text-sm font-semibold text-afs-chrome-high">Job Info</span>
                   <button
                     type="button"
                     onClick={() => {
-                      setProfileNameDraft(profileName);
-                      setEditingName(true);
+                      setShowJobInfo(false);
+                      clearJobInfoFields();
                     }}
-                    className={`text-left hover:underline font-semibold ${
-                      profileName === 'Untitled Profile' ? 'italic opacity-60' : ''
-                    }`}
+                    aria-label="Close job info"
+                    className="text-afs-chrome-mid hover:text-afs-chrome-high leading-none"
                   >
-                    {profileName}
+                    ✕
                   </button>
-                )}
-                <span>Blank Width: {formatInches(blankWidthInLive)}</span>
-                <span>Bend Count: {bendCountLive}</span>
-                <span>Hem Count: {hemCountLive}</span>
-                <span>Revision: {revision}</span>
-                {isLocked && (
-                  <span className="flex items-center gap-1 font-semibold text-afs-accent-green">
-                    <LockIcon className="h-3 w-3" aria-hidden="true" />
-                    Locked
-                  </span>
-                )}
-
-                {/* Job-identity intake fields (migration 018/019, afs-jf-000/
-                    afs-jf-004) — relocated here from the sidebar, collapsed by
-                    default so the overlay stays compact (afs-jf-005). All
-                    optional, never block submit (afs-jf-003). */}
-                <button
-                  type="button"
-                  onClick={() => setShowJobInfo((v) => !v)}
-                  className="text-left font-semibold hover:underline mt-1 pt-1 border-t border-white/20"
-                >
-                  {showJobInfo ? '− Job Info' : '+ Job Info'}
-                </button>
-
-                {showJobInfo && (
-                  <div className="flex flex-col gap-2 mt-1" style={{ width: 210 }}>
-                    <div>
-                      <label
-                        className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid mb-1 block"
-                        htmlFor="clientBusinessName"
-                      >
-                        Business Name (optional)
-                      </label>
-                      <input
-                        id="clientBusinessName"
-                        type="text"
-                        value={clientBusinessName}
-                        onChange={(e) => setClientBusinessName(e.target.value)}
-                        placeholder="Company name"
-                        className="w-full bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 font-body text-xs text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
-                      />
-                    </div>
-                    <div>
-                      <label
-                        className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid mb-1 block"
-                        htmlFor="clientName"
-                      >
-                        Client Name (optional)
-                      </label>
-                      <input
-                        id="clientName"
-                        type="text"
-                        value={clientName}
-                        onChange={(e) => setClientName(e.target.value)}
-                        placeholder="Contact name"
-                        className="w-full bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 font-body text-xs text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
-                      />
-                    </div>
-                    <div>
-                      <label
-                        className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid mb-1 block"
-                        htmlFor="poNumber"
-                      >
-                        PO Number (optional)
-                      </label>
-                      <input
-                        id="poNumber"
-                        type="text"
-                        value={poNumber}
-                        onChange={(e) => setPoNumber(e.target.value)}
-                        placeholder="e.g. PO-10234"
-                        className="w-full bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 font-body text-xs text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
-                      />
-                    </div>
-                    <div>
-                      <label
-                        className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid mb-1 block"
-                        htmlFor="jobName"
-                      >
-                        Job Name (optional)
-                      </label>
-                      <input
-                        id="jobName"
-                        type="text"
-                        value={jobName}
-                        onChange={(e) => setJobName(e.target.value)}
-                        placeholder="e.g. Smith Residence Reroof"
-                        className="w-full bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 font-body text-xs text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
-                      />
-                    </div>
-                    <div>
-                      <label
-                        className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid mb-1 block"
-                        htmlFor="requestedDeliveryDate"
-                      >
-                        Requested Delivery Date (optional)
-                      </label>
-                      <input
-                        id="requestedDeliveryDate"
-                        type="date"
-                        value={requestedDeliveryDate}
-                        onChange={(e) => setRequestedDeliveryDate(e.target.value)}
-                        className="w-full bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 font-body text-xs text-afs-chrome-high focus:outline-none focus:border-afs-crimson transition-colors"
-                        style={{ colorScheme: 'dark' }}
-                      />
-                    </div>
+                </div>
+                <div className="flex flex-col gap-3 px-4 py-3 overflow-y-auto">
+                  <div>
+                    <label
+                      className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid mb-1 block"
+                      htmlFor="clientBusinessName"
+                    >
+                      Business Name (optional)
+                    </label>
+                    <input
+                      id="clientBusinessName"
+                      type="text"
+                      value={clientBusinessName}
+                      onChange={(e) => setClientBusinessName(e.target.value)}
+                      placeholder="Company name"
+                      className="w-full bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 font-body text-xs text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
+                    />
                   </div>
-                )}
+                  <div>
+                    <label
+                      className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid mb-1 block"
+                      htmlFor="clientName"
+                    >
+                      Client Name (optional)
+                    </label>
+                    <input
+                      id="clientName"
+                      type="text"
+                      value={clientName}
+                      onChange={(e) => setClientName(e.target.value)}
+                      placeholder="Contact name"
+                      className="w-full bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 font-body text-xs text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid mb-1 block"
+                      htmlFor="poNumber"
+                    >
+                      PO Number (optional)
+                    </label>
+                    <input
+                      id="poNumber"
+                      type="text"
+                      value={poNumber}
+                      onChange={(e) => setPoNumber(e.target.value)}
+                      placeholder="e.g. PO-10234"
+                      className="w-full bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 font-body text-xs text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid mb-1 block"
+                      htmlFor="jobName"
+                    >
+                      Job Name (optional)
+                    </label>
+                    <input
+                      id="jobName"
+                      type="text"
+                      value={jobName}
+                      onChange={(e) => setJobName(e.target.value)}
+                      placeholder="e.g. Smith Residence Reroof"
+                      className="w-full bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 font-body text-xs text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid mb-1 block"
+                      htmlFor="requestedDeliveryDate"
+                    >
+                      Requested Delivery Date (optional)
+                    </label>
+                    <input
+                      id="requestedDeliveryDate"
+                      type="date"
+                      value={requestedDeliveryDate}
+                      onChange={(e) => setRequestedDeliveryDate(e.target.value)}
+                      className="w-full bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 font-body text-xs text-afs-chrome-high focus:outline-none focus:border-afs-crimson transition-colors"
+                      style={{ colorScheme: 'dark' }}
+                    />
+                  </div>
+                </div>
               </div>
 
               {isDragDrawing && dragPreview && dragScreenPos && (
@@ -4154,35 +4257,83 @@ export default function FlashDraftPage() {
         </div>
       </div>
 
-      {showLibrary && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-6" onClick={() => setShowLibrary(false)}>
+      {showLoadPanel && (
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-6"
+          onClick={() => setShowLoadPanel(false)}
+        >
           <div
-            className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-6 max-w-lg w-full max-h-[70vh] overflow-y-auto"
+            className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-6 max-w-2xl w-full max-h-[70vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="font-heading text-xl text-afs-chrome-high mb-4">Load from Library</h3>
-            {libraryLoading ? (
+            <h3 className="font-heading text-xl text-afs-chrome-high mb-4">Load Profiles</h3>
+            {!isAuthenticated ? (
+              <p className="font-body text-sm text-afs-chrome-mid">
+                Sign in to view your saved profiles.{' '}
+                <Link href="/login" className="text-afs-crimson hover:underline">
+                  Sign in
+                </Link>
+              </p>
+            ) : loadPanelLoading ? (
               <p className="font-body text-sm text-afs-chrome-mid">Loading…</p>
-            ) : libraryProfiles.length === 0 ? (
-              <p className="font-body text-sm text-afs-chrome-mid">No public profiles available yet.</p>
+            ) : passportProfiles.length === 0 ? (
+              <p className="font-body text-sm text-afs-chrome-mid">
+                No saved profiles yet. Use "Save" or "Lock Profile & Save to Passport" to save one.
+              </p>
             ) : (
-              <ul className="flex flex-col gap-1">
-                {libraryProfiles.map((p) => (
-                  <li key={p.id}>
-                    <button
-                      type="button"
-                      onClick={() => loadFromLibrary(p.id)}
-                      className="w-full text-left font-body text-sm text-afs-chrome-high hover:bg-afs-bg-surface px-3 py-2 rounded transition-colors"
-                    >
-                      {p.name_en} <span className="font-data text-xs text-afs-chrome-dim">#{p.profile_number}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid border-b border-afs-chrome-dim">
+                    <th className="pb-2 pr-3">Profile Name</th>
+                    <th className="pb-2 pr-3">Date Created</th>
+                    <th className="pb-2 pr-3">Job Name</th>
+                    <th className="pb-2 w-8" aria-hidden="true" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {passportProfiles.map((p) => (
+                    <tr key={p.id} className="border-b border-afs-chrome-dim/40 last:border-0">
+                      <td className="py-0">
+                        <button
+                          type="button"
+                          onClick={() => loadFromPassport(p)}
+                          className="w-full text-left font-body text-sm text-afs-chrome-high hover:bg-afs-bg-surface px-3 py-2 rounded transition-colors"
+                        >
+                          {p.name}
+                        </button>
+                      </td>
+                      <td className="py-2 pr-3 font-body text-xs text-afs-chrome-mid whitespace-nowrap">
+                        {new Date(p.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="py-2 pr-3 font-body text-xs text-afs-chrome-mid">{p.jobName || '—'}</td>
+                      <td className="py-2 relative">
+                        <button
+                          type="button"
+                          onMouseEnter={() => setQuickViewId(p.id)}
+                          onMouseLeave={() => setQuickViewId((id) => (id === p.id ? null : id))}
+                          aria-label={`Quick view ${p.name}`}
+                          className="text-afs-chrome-mid hover:text-afs-chrome-high"
+                        >
+                          {/* Eye icon */}
+                          <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                            <path d="M1 10s3-6 9-6 9 6 9 6-3 6-9 6-9-6-9-6Z" strokeLinejoin="round" />
+                            <circle cx="10" cy="10" r="2.5" />
+                          </svg>
+                        </button>
+                        {quickViewId === p.id && (
+                          <div className="absolute right-full top-1/2 -translate-y-1/2 mr-2 z-10 w-40 h-32 bg-afs-bg-overlay border border-afs-chrome-dim rounded shadow-xl p-1">
+                            <CanonicalProfileDiagram points={p.points} width={152} height={120} />
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             )}
             <button
               type="button"
-              onClick={() => setShowLibrary(false)}
+              onClick={() => setShowLoadPanel(false)}
               className="mt-4 font-label text-sm text-afs-chrome-mid hover:text-afs-crimson transition-colors"
             >
               Close

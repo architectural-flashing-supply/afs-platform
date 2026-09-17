@@ -24,6 +24,47 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## FLASHDRAFT — REMEDIAL PASS (afs-jf-006/007/008) — 2026-09-17
+
+Phase 1 complete: 5-task remedial follow-up to afs-fl-027 below, all in
+`app/studio/draft/page.tsx`. Full detail in STATE_OF_THE_BUILD.md's matching
+entry (top of file) — summary here for handoff:
+
+1. Profile Match sidebar list removed (the separate split-screen 3D
+   exact-match feature it also fed was confirmed still intact and untouched).
+2. "Untitled Profile" placeholder now displays as "Name your profile"
+   (internal sentinel string unchanged — only the label). Profile info box
+   gained its own dismiss X (collapses to a "Profile Info" reopen pill).
+3. Job Info is now a right-side slide-out drawer instead of an inline
+   downward expansion. Closing it (either X) now actually clears all 5
+   fields — fixes the persist bug where closing only hid stale data.
+4. "Load" (now "Load Profiles") repointed from the shop's `machine_profiles`
+   library to the signed-in user's own Profile Passport
+   (`saved_configurations`, `dimensions->>kind='flashdraft'`) — auth
+   required, Profile Name/Date Created/Job Name columns, hover quick-view
+   thumbnail via `CanonicalProfileDiagram`. **Did NOT delete any database
+   rows** — the task's premise that the old library data was "geometrically
+   invalid" test data conflicts with SCHEMA.md, which documents
+   `machine_profiles` as real, irreplaceable Thalmann DS2801 shop history
+   (911 real customer/project profiles). Also: no Supabase MCP access to
+   the real afs-website project exists in this session regardless. Flagged
+   for Reid to decide, not silently actioned or silently dropped.
+5. Business Name now auto-populates from `profiles.company` on login into
+   the (still-empty) Job Info field, without clobbering an autosave-restored
+   or user-typed value.
+
+**Gates:** `pnpm tsc --noEmit` clean, `pnpm build` succeeds. Only
+`tests/e2e/flashdraft.spec.ts`'s one always-runnable (non-auth) test could
+execute in this environment — same missing `E2E_TEST_EMAIL`/
+`E2E_TEST_PASSWORD` limitation as afs-fl-027. Everything reachable without
+auth (tasks 1–4's sign-in-prompt paths) was verified live via a temporary
+Playwright script against the dev server, then deleted. **IMPLEMENTED,
+UNCONFIRMED** — Reid has not yet visually confirmed any of this himself.
+
+**Phase 2:** nothing queued yet for FlashDraft as of this writing.
+
+---
+
 ## FLASHDRAFT — LOCK PROFILE & SAVE TO PASSPORT (afs-fl-027) — 2026-09-17
 
 Fixed the reported bug: after drafting a profile, clicking empty canvas

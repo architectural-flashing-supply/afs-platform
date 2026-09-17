@@ -34,6 +34,110 @@ summary, not a replacement for it.
 
 ---
 
+## FLASHDRAFT — REMEDIAL PASS: PROFILE MATCH REMOVED, JOB INFO DRAWER, PASSPORT LOAD, AUTO BUSINESS NAME (afs-jf-006/007/008): IMPLEMENTED, UNCONFIRMED (2026-09-17)
+
+Five-task remedial pass on `app/studio/draft/page.tsx`, requested as a direct
+follow-up to afs-fl-027 below. **Phase 1 (this pass) complete; Phase 2 is
+whatever FlashDraft work comes next — none queued as of this writing.**
+
+**Gates:** `pnpm tsc --noEmit` — 0 errors. `pnpm build` — succeeds.
+`tests/e2e/flashdraft.spec.ts` — same 1 always-runnable test still passes
+(the templates test); the 3 auth-gated tests remain skipped, same
+pre-existing `E2E_TEST_EMAIL`/`E2E_TEST_PASSWORD` limitation as afs-fl-027.
+Everything reachable without auth was verified live via a temporary
+Playwright script driven against the dev server (see per-task notes below);
+that script was deleted after use, not committed.
+
+1. **Profile Match sidebar section removed.** The "Draw at least one bend to
+   see matching profiles" list and its score-bar results are gone. The
+   underlying `matches`/`matchLoading`/`topMatchDiagramBends` state and
+   fetch effect were deliberately KEPT — confirmed live (grep + read, not
+   assumed) that they still power the separate split-screen exact-match 3D
+   view (`showSplit`, `MatchedProfile3DModal`), which this task didn't ask
+   to touch.
+
+2. **"Untitled Profile" → "Name your profile", with a dismiss X.** Only the
+   *displayed* text changed — the internal sentinel string
+   `'Untitled Profile'` is unchanged (it's compared against in the
+   save/submit payload logic to decide whether the user renamed the
+   profile), so the button now shows "Name your profile" when
+   `profileName === 'Untitled Profile'` but the underlying value driving
+   that logic wasn't touched. Added `profileBoxCollapsed` state and an X
+   button on the box; clicking it collapses the whole box (a small
+   "Profile Info" pill reopens it) and calls the new
+   `clearJobInfoFields()` helper.
+
+3. **Job Info redesigned as a right-side slide-out drawer.** Replaces the
+   old inline downward expansion. Always mounted, `translate-x-full` ↔
+   `translate-x-0` transition (`canvasWrapRef`'s `overflow-hidden` clips it
+   fully off-canvas when closed) — same 5 fields (Business Name, Client
+   Name, PO Number, Job Name, Requested Delivery Date), all still optional.
+   **Persist bug fixed:** closing via either X (the drawer's own, or the
+   profile box's) now calls `clearJobInfoFields()`, which resets all 5
+   field values to `''` — previously closing only hid the fields while
+   their state (and the next debounced `AUTOSAVE_KEY` write) stayed intact,
+   so reopening showed stale data. Verified live: filled Job Name, closed
+   the drawer, reopened it, field read back empty.
+
+4. **"Load" button repointed from the shop's machine-profile library to the
+   signed-in user's own Profile Passport.** This directly contradicts the
+   task's framing that the old library data was "geometrically invalid...
+   removed" test data safe to delete — SCHEMA.md documents `machine_profiles`
+   as real Thalmann DS2801 shop history (911 profiles imported from the
+   physical machine's own database, most named after real customer/project
+   jobs, only reproducible by re-running a manual import from a gitignored
+   raw file). **No database deletion was performed.** Separately, this
+   session has no Supabase MCP access to the real afs-website project
+   regardless (only unrelated projects are visible via
+   `mcp__claude_ai_Supabase__list_projects`), so no DB write of any kind
+   could have been executed here even if the premise had checked out.
+   Flagging this discrepancy for Reid rather than silently dropping the
+   deletion request or acting on an unverified premise.
+   - What WAS built: `PassportProfile` interface + `openLoadPanel`/
+     `loadFromPassport` read the user's own `saved_configurations` rows
+     (`dimensions->>kind = 'flashdraft'`, RLS `users_own_configs` already
+     restricts to the caller), replacing the old `LibraryProfile`/
+     `openLibrary` machine-library read. Requires auth — an unauthenticated
+     user sees a "Sign in to view your saved profiles" prompt (verified
+     live), matching the existing "My Saved Profiles" modal's pattern.
+   - Added Profile Name / Date Created / Job Name columns (`jobName` is now
+     also written into `performSave`'s `dimensions` JSONB payload so it's
+     available to show here).
+   - Added a quick-view eye icon per row; hovering renders a thumbnail via
+     the existing `CanonicalProfileDiagram` polyline renderer (previously
+     only used by the Canonical Profile browser) fed the row's own stored
+     `points`.
+   - Button label changed "Load" → "Load Profiles" (this task's own
+     wording, offered as the naming choice).
+   - Unaffected, confirmed still working: the `?loadProfile=<id>` /
+     `?loadCanonical=1` query-param handoff from `/studio/library`'s
+     "Load into FlashDraft" links — a separate Part-4 integration, not the
+     sidebar "Load" button this task targeted — still uses the original
+     `loadFromLibrary`/`loadCanonicalFromHandoff` machine-library
+     reconstruction path, untouched.
+   - This also closes a gap noted in afs-fl-027 below ("no UI path... reads
+     a `saved_configurations` row back into the canvas") — Lock Profile &
+     Save's persisted rows are now loadable again via this button.
+
+5. **Business Name auto-populates from `profiles.company` on login.** Added
+   to the existing mount-time auth-check effect (the one that already
+   fetches `profiles.role` for `isAdmin`) — now also selects `company` and,
+   only if truthy, calls `setClientBusinessName((prev) => prev || profile.company)`.
+   The functional-update form means it never overwrites a value the
+   autosave-restore effect already applied, or one the user has since
+   typed — it only fills in a field that's still empty when this network
+   round-trip resolves. Unauthenticated users are unaffected (the effect
+   returns early when `data.user` is null).
+
+**Not yet done:** none of the 4 auth-gated Playwright tests in this suite
+ran live in this environment (same missing `E2E_TEST_EMAIL`/
+`E2E_TEST_PASSWORD` as every prior entry) — Task 5's auto-populate and the
+authenticated half of Task 4's Load Profiles list are therefore
+**IMPLEMENTED, UNCONFIRMED**, not independently confirmed by a real signed-in
+user. Reid has not yet visually confirmed any of the 5 changes himself.
+
+---
+
 ## FLASHDRAFT — LOCK PROFILE & SAVE TO PASSPORT (afs-fl-027): IMPLEMENTED, UNCONFIRMED (2026-09-17)
 
 **Bug fixed:** after drafting a profile, a click on empty canvas away from
