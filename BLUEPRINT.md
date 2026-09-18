@@ -433,6 +433,19 @@ never read this field back out before, even though FlashDraft's Job Info
 drawer has always captured it). Not independently confirmed against a real
 signed-in session — see STATE_OF_THE_BUILD.md's matching entry.
 
+### Phase 9 addendum — HailView homepage section
+New `app/components/home/HailViewSection.tsx`, the homepage's new last
+section (`app/page.tsx`, after `final-cta`) — left-column heading/copy on
+hail damage + insurance replacement value, right-column full-height video
+(`object-contain`) with "Start a Quote"/"Talk to AFS" CTAs beneath it. No
+hail-strike footage exists in this repo; the component's optional
+`videoUrl` prop is currently unset on the real homepage and it renders a
+static placeholder panel instead — a real DATA BLOCKER (see CLAUDE.md's
+table and this file's top-level entry), not a stub, and no code change is
+needed once real footage lands. Verified via temp preview
+route/Playwright specs (deleted before commit); full detail in
+STATE_OF_THE_BUILD.md's 2026-09-17 session entry.
+
 ---
 
 ## 6. ENVIRONMENT VARIABLES

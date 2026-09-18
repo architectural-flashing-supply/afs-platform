@@ -13,12 +13,13 @@ import { test, expect, type Page } from '@playwright/test';
 const PRICE_PATTERN = /\$[\d,]+(\.\d{2})?/;
 
 // Document order asserted by app/page.tsx's own <HomeSection slug="..."> wrapper
-// sequence — twelve real sections as of hpd-007 (was eleven at hpc-003; the
-// split-screen hero redesign added a new client-carousel section right
-// after hero — see ClientCarousel.tsx). field-app now sits directly after
-// client-carousel (ahead of credibility) so the phone-mockup/three-step
-// story follows straight on from the trust band, per the hero/carousel
-// architecture fix.
+// sequence — thirteen real sections as of the HailView section addition (was
+// twelve at hpd-007; the split-screen hero redesign added a new
+// client-carousel section right after hero — see ClientCarousel.tsx).
+// field-app now sits directly after client-carousel (ahead of credibility)
+// so the phone-mockup/three-step story follows straight on from the trust
+// band, per the hero/carousel architecture fix. hail-view is the newest,
+// last section, after final-cta.
 const SECTION_SLUGS = [
   'hero',
   'client-carousel',
@@ -32,6 +33,7 @@ const SECTION_SLUGS = [
   'shop-floor',
   'nationwide',
   'final-cta',
+  'hail-view',
 ];
 
 // DesignStudioHub's METHODS array (app/components/home/DesignStudioHub.tsx) —

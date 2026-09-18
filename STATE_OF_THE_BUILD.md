@@ -11393,3 +11393,85 @@ All verified live by user today.
 
 ## GIT LOG (last 5 commits on feat/homepage-redesign)
 
+---
+
+## SESSION: 2026-09-17 — HailView Homepage Section
+
+### HAILVIEW HOMEPAGE SECTION: IMPLEMENTED, UNCONFIRMED (verified via temp Playwright routes/specs, not confirmed live by Reid)
+
+New homepage section, `app/components/home/HailViewSection.tsx`, wired into
+`app/page.tsx` as the new last section (`<HomeSection slug="hail-view">`,
+after `final-cta`, before `</main>`). Left column: eyebrow ("HailView"),
+heading ("Hail Damages Metal Roofs. We Show You the Payout."), and copy
+refined per spec ("concise, marketable, emphasis on metal roof impact +
+insurance replacement value") — the copy is a placeholder pending Reid's own
+refinement pass, as the task itself said it would be. Right column: video
+panel (full column height, `object-contain` — no cropping/zoomed-in
+extremes, matching the established pattern from `PhoneMockupVideo.tsx`'s
+b3508a1 fix), with two CTAs below it — "Start a Quote" → `/design-studio`
+and "Talk to AFS" → `/contact` (same real hrefs `FinalCTA.tsx` already uses).
+Dark (`bg-black`/`bg-afs-bg-dim`), high-contrast, video-first styling per spec.
+
+**DATA BLOCKER — no hail-strike video exists.** No hail-strike footage
+exists anywhere in this repo (`public/videos/` has 11 files, none hail- or
+storm-related), and no "E4 Roofing repo" link was supplied this session.
+Rather than fabricate footage or repurpose an unrelated video, the component
+takes an optional `videoUrl` prop and renders a static placeholder panel
+(storm-cloud icon + "Storm footage coming soon") whenever `videoUrl` is
+unset or the source fails to load — matching this project's own Data
+Blockers convention (correct architecture now, real asset drops in later
+with no code change). `app/page.tsx` currently renders
+`<HailViewSection />` with no `videoUrl` — deliberately left unset rather
+than pointed at a not-yet-existing file path, since a guaranteed-404 `src`
+would fire a real console/network error on every homepage load (this was
+caught by `tests/e2e/homepage.spec.ts`'s "zero console errors" assertion
+during this session's own gate run, before it ever reached production).
+When real footage lands, pass its `/videos/...` path (or wire an env var)
+into that one prop.
+
+Also worth a second look before this ships as final marketing copy: a
+separate, substantial, already-shipped `/hailview` tool
+(`app/hailview/page.tsx`, Phase 4 / afs-hv-004 — real address-based storm
+lookup, scoring engine, agentic explanation, interactive map) already does
+almost exactly what this new section's copy describes. This new section's
+two CTAs go to `/design-studio` and `/contact` only, per the task's literal
+spec — neither links to `/hailview` itself. Flagging this rather than
+silently adding a third CTA, since the task explicitly named two.
+
+**Verification performed (no live DB/auth needed — fully public route):**
+- `pnpm tsc --noEmit` — 0 errors
+- `pnpm run build` — clean
+- Temp preview route `app/dev-preview-hailview/page.tsx` + temp Playwright
+  specs (`verify-tmp.spec.ts`, `verify-tmp2.spec.ts`) — both deleted before
+  commit, confirmed via `git status --short`:
+  - Placeholder path: heading, both CTA hrefs, and the "Storm footage
+    coming soon" fallback panel all render and pass real assertions once a
+    (react effect ordering) bug was fixed — see below.
+  - Real-video path: swapped in an existing file
+    (`/videos/shop-floor-loop.mp4`) via the temp preview route and
+    confirmed via `boundingBox()` + screenshot that the video fills the
+    full right-column height with `object-contain` letterboxing, no crop.
+- Full `npx playwright test` suite: 70 passed, 2 failed — both are the
+  same 2 pre-existing failures unrelated to this change (hero CTA href
+  `/about/services` vs `/design-studio`; header logo width `76` vs `160` —
+  confirmed unrelated in a prior session, re-confirmed unaffected here).
+  13 skipped (pre-existing, auth-gated).
+- Updated `tests/e2e/homepage.spec.ts`'s hardcoded `SECTION_SLUGS` (was 12
+  entries, now 13 — added `'hail-view'` at the end) so the existing
+  "renders all N data-section elements, in document order" test reflects
+  the real, intentional new section instead of failing on it.
+
+**Real bug found and fixed during verification (not present in any prior
+commit — caught before it shipped):** the placeholder-fallback logic
+originally attached its `video` `error`-event listener in a `useEffect`
+keyed only on `[videoUrl]`, which fires once on mount — but the `<video>`
+element itself is conditionally rendered (only once the separate
+reduced-motion effect flips `videoEnabled` to `true` on a later render), so
+`videoRef.current` was `null` when the listener tried to attach and the
+fallback never engaged. Fixed by adding `videoEnabled` to that effect's
+dependency array. Confirmed via a debug `page.evaluate()` read of the video
+element's real `readyState`/`networkState`/`error` before and after the fix.
+
+Deployed to production per the task's explicit "Deploy after gates pass"
+instruction — see commit/deploy record below.
+

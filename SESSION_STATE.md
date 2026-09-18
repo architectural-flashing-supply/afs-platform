@@ -7714,6 +7714,29 @@ one open confidence-building step, not a missing feature.
 
 ---
 
+## SESSION: 2026-09-17 — HailView Homepage Section
+
+New `app/components/home/HailViewSection.tsx`, wired into `app/page.tsx` as
+the new last section (after `final-cta`). Left column heading/copy about
+hail damage + insurance replacement value; right column video panel
+(`object-contain`, full column height) with two CTAs below it ("Start a
+Quote" → `/design-studio`, "Talk to AFS" → `/contact`). No hail-strike
+footage exists in this repo and none was supplied — the component takes an
+optional `videoUrl` prop and falls back to a static placeholder panel when
+it's unset or the source fails to load; `page.tsx` currently passes no
+`videoUrl` (deliberately, not a not-yet-existing path — see
+`STATE_OF_THE_BUILD.md`'s DATA BLOCKER note on why a guaranteed-404 `src`
+was rejected after it tripped the "zero console errors" homepage test).
+Found and fixed a real bug during verification: the video `error`-listener
+effect was keyed on `[videoUrl]` only and ran before the conditionally-
+rendered `<video>` existed in the DOM, so the fallback never engaged —
+fixed by adding `videoEnabled` to its dependency array. Updated
+`tests/e2e/homepage.spec.ts`'s hardcoded `SECTION_SLUGS` (12 → 13 entries)
+for the new section. Full detail: `STATE_OF_THE_BUILD.md`'s matching
+2026-09-17 session entry.
+
+---
+
 ## PRIOR HISTORY
 
 This file previously contained several thousand lines of session-by-session

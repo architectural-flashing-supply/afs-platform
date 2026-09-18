@@ -11,6 +11,7 @@ import ProfilePassportExplainer from '@/app/components/home/ProfilePassportExpla
 import CaseStudies from '@/app/components/home/CaseStudies';
 import ShopFloorProof from '@/app/components/home/ShopFloorProof';
 import FinalCTA from '@/app/components/home/FinalCTA';
+import HailViewSection from '@/app/components/home/HailViewSection';
 
 // NationwideMap (Leaflet map) is the heaviest section below the fold.
 // `ssr: false` isn't legal here -- this file has no 'use client', and Next
@@ -79,6 +80,17 @@ export default function HomePage() {
 
       <HomeSection slug="final-cta">
         <FinalCTA />
+      </HomeSection>
+
+      {/* DATA BLOCKER: no real hail-strike footage exists yet (CLAUDE.md
+          Data Blockers table). videoUrl is left unset rather than pointed
+          at a file that doesn't exist -- a guaranteed-404 src would fire a
+          real console/network error on every page load. HailViewSection
+          renders its placeholder panel until a real path (e.g.
+          "/videos/hail-strikes.mp4", once that file exists, or an env var)
+          is passed here. */}
+      <HomeSection slug="hail-view">
+        <HailViewSection />
       </HomeSection>
     </main>
   );
