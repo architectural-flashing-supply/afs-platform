@@ -1109,7 +1109,36 @@ CREATE TABLE saved_configurations (
 ALTER TABLE saved_configurations ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "users_own_configs" ON saved_configurations
   FOR ALL USING (auth.uid() = user_id);
+```
 
+**Profile Passport additions (Phase 3, afs-pp-001/003) — NEITHER APPLIED TO
+THE LIVE DATABASE as of this writing.** This session series has no
+Supabase access to the real afs-website project, so both migrations below
+exist only as reviewed files; someone with real project access must run
+them before the columns/policies they describe actually exist. Until then,
+FlashDraft's Save/Duplicate/Lock Profile & Save all fail outright, since
+`performSave` (`app/studio/draft/page.tsx`) writes these columns
+unconditionally — see STATE_OF_THE_BUILD.md's matching entries for the
+full blast-radius explanation.
+
+- `supabase/migrations/024_profile_passport_company_scope.sql` — adds
+  `company_id UUID REFERENCES companies(id)`, `is_locked BOOLEAN NOT NULL
+  DEFAULT false`, `job_info JSONB`, `category TEXT`, `subcategory TEXT`.
+  Replaces the single `users_own_configs` policy above with four
+  company-aware ones (`profile_passport_select/insert/update/delete`) —
+  any teammate on the same `company_id` can SELECT; UPDATE requires
+  `company_role` estimator-or-above; DELETE requires owner/admin; a row
+  with `company_id IS NULL` keeps exactly the original per-user behavior.
+  `category`/`subcategory` are plain display-only TEXT, deliberately
+  separate from `dimensions.categoryId` (a real FK into
+  `machine_profile_categories.id`).
+- `supabase/migrations/025_profile_passport_thumbnail.sql` — adds
+  `thumbnail_image TEXT`, a `data:image/png;base64,...` capture of the
+  FlashDraft canvas at save time (`HTMLCanvasElement.toDataURL()`, no
+  library). No index — never filtered/searched, only fetched by primary
+  key alongside its own row.
+
+```sql
 -- Saved quote request templates
 CREATE TABLE quote_templates (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),

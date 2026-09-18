@@ -24,6 +24,76 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## PROFILE PASSPORT — REAL CANVAS THUMBNAILS (afs-pp-003) — 2026-09-17
+
+Replaces the generic vector-shape Profile Passport thumbnail with a real
+screenshot of the FlashDraft canvas. Full detail, including two premise
+corrections against the actual codebase, is in STATE_OF_THE_BUILD.md's
+matching entry (top of file). Summary here for handoff:
+
+**Two things in the request didn't match this app's real architecture,
+corrected rather than followed literally:** (1) Playwright can't run
+inside client-side page code to screenshot itself — used the browser's own
+`canvas.toDataURL('image/png')` instead, zero new dependencies; (2) there
+is no `/api/studio/draft` save route — FlashDraft saves straight to
+Supabase from the browser (`performSave`), so the thumbnail is just one
+more field in that existing payload.
+
+**Still blocked on the same unapplied-migration issue as afs-pp-001/002
+below** — now two migrations deep. `supabase/migrations/025_profile_passport_thumbnail.sql`
+(NEW, adds `thumbnail_image TEXT`) is written and reviewed but not applied
+(no Supabase access to the real project, same as before). Every FlashDraft
+save still fails until both 024 and 025 are applied.
+
+**Files touched:** `supabase/migrations/025_profile_passport_thumbnail.sql`
+(NEW); `lib/data/profile-passport.ts` (added `thumbnailImage` field);
+`app/api/profile-passport/profiles/route.ts` (POST accepts it too);
+`app/studio/draft/page.tsx` (captures the screenshot on every save, new
+"← Back to Profiles" link + "locked, view only" banner via a new
+`viewingFromPassport` flag, fixed `loadFromPassportById` to prefer the
+real `is_locked` column over the JSONB fallback it was still using);
+`components/profile-passport/ProfilesTab.tsx` and `ProfilePreviewModal.tsx`
+(real image with vector-shape fallback, thumbnails now clickable, modal
+gained a "View in FlashDraft →" link); `SCHEMA.md` (also backfilled
+migration 024's documentation, which was missed during the original Phase
+3 pass — a real gap, fixed now alongside 025).
+
+**Gates:** `pnpm tsc --noEmit` clean, `pnpm build` succeeds, full
+Playwright suite 69 passed / 14 pre-existing skips / 2 pre-existing
+unrelated failures (same as every prior entry).
+
+**Verification:** live on `/studio/draft` (no auth needed), confirmed
+`canvas.toDataURL()` produces genuinely different, valid PNG data before
+vs. after drawing, and that clicking Lock runs the capture-then-save path
+to completion without crashing. Took that real captured image and fed it
+into a temporary, uncommitted preview route rendering `ProfilesTab`/
+`ProfilePreviewModal` — confirmed the actual screenshot displays correctly
+(hover thumbnail, always-on thumbnail, full preview modal), confirmed the
+vector-shape fallback still works for profiles with no thumbnail, and
+confirmed the new "View in FlashDraft →" link is present — then deleted
+the route. **Not verified:** "← Back to Profiles" and the locked/view-only
+banner, since testing them needs a real locked profile loaded via a real
+account, which needs both real auth and the still-unapplied migrations —
+correct by code review and clean type-check/build only. **IMPLEMENTED,
+UNCONFIRMED.**
+
+**Known limitation:** thumbnails capture the canvas exactly as zoomed/
+panned at save time, not auto-fit first — a small drawing on a mostly-empty
+canvas produces a thumbnail that looks mostly blank (confirmed live).
+Fixable later (would need `fitToScreen()` plus a render-then-capture
+sequencing fix); not attempted here given the added complexity/risk for a
+cosmetic issue.
+
+**Governance file note:** `SCHEMA_REGISTRY.md` doesn't exist in this repo
+— updated the real equivalent, `SCHEMA.md`, instead. `queue.yaml` exists
+as **two different files** — the canonical one CLAUDE.md names under
+`FORGE\projects\afs-website\` (246 lines) and a second, unrelated 887-line
+file at this repo's own root, which CLAUDE.md's "no alternate/named queue
+files" rule seems to directly prohibit. Neither touched; flagging the
+duplicate for Reid.
+
+---
+
 ## PROFILE PASSPORT — UNIFIED ACCOUNT + PROFILES HUB (afs-pp-001) — 2026-09-17
 
 **"Phase 3" per the requesting prompt's own numbering, "Phase 4" (FlashDraft

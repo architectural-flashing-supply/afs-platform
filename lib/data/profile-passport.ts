@@ -42,6 +42,8 @@ export interface PassportProfileRow {
   jobName: string | null;
   isLocked: boolean;
   points: PassportPoint[];
+  /** Real canvas screenshot (025_profile_passport_thumbnail.sql), a `data:image/png;base64,...` URI — null for rows saved before this column existed or without one captured. Callers fall back to rendering `points` via CanonicalProfileDiagram when this is null. */
+  thumbnailImage: string | null;
   ownerId: string;
   ownerName: string;
 }
@@ -53,6 +55,7 @@ interface PassportProfileSource {
   is_locked: boolean | null;
   job_info: { jobName?: string } | null;
   dimensions: { kind?: string; points?: unknown; jobName?: unknown; isLocked?: boolean } | null;
+  thumbnail_image: string | null;
   user_id: string;
 }
 
@@ -70,7 +73,7 @@ interface PassportProfileSource {
 export async function getPassportProfiles(supabase: SupabaseClient): Promise<PassportProfileRow[]> {
   const { data } = await supabase
     .from('saved_configurations')
-    .select('id, name, created_at, is_locked, job_info, dimensions, user_id')
+    .select('id, name, created_at, is_locked, job_info, dimensions, thumbnail_image, user_id')
     .order('created_at', { ascending: false });
 
   const rows = (data ?? []) as unknown as PassportProfileSource[];
@@ -93,6 +96,7 @@ export async function getPassportProfiles(supabase: SupabaseClient): Promise<Pas
         jobName,
         isLocked: row.is_locked ?? Boolean(row.dimensions?.isLocked),
         points,
+        thumbnailImage: row.thumbnail_image ?? null,
         ownerId: row.user_id,
         ownerName: nameById.get(row.user_id) ?? 'Unknown',
       };

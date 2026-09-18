@@ -204,14 +204,32 @@ export default function ProfilesTab({ initialProfiles, role, isCompanyAccount }:
                     </Link>
                   )}
                   {showThumbnailsAlways && renamingId !== profile.id && (
-                    <div className="mt-2 w-24 h-20 bg-afs-bg-overlay border border-afs-chrome-dim rounded p-1">
-                      <CanonicalProfileDiagram points={profile.points} width={88} height={72} />
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewId(profile.id)}
+                      aria-label={`Preview ${profile.name}`}
+                      className="mt-2 block w-24 h-20 bg-afs-bg-overlay border border-afs-chrome-dim rounded p-1 hover:border-afs-crimson transition-colors"
+                    >
+                      {profile.thumbnailImage ? (
+                        <img src={profile.thumbnailImage} alt="" className="w-full h-full object-contain" />
+                      ) : (
+                        <CanonicalProfileDiagram points={profile.points} width={88} height={72} />
+                      )}
+                    </button>
                   )}
                   {!showThumbnailsAlways && hoveredId === profile.id && renamingId !== profile.id && (
-                    <div className="absolute left-0 top-full mt-1 z-10 w-36 h-28 bg-afs-bg-overlay border border-afs-chrome-dim rounded shadow-xl p-1">
-                      <CanonicalProfileDiagram points={profile.points} width={136} height={104} />
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewId(profile.id)}
+                      aria-label={`Preview ${profile.name}`}
+                      className="absolute left-0 top-full mt-1 z-10 w-36 h-28 bg-afs-bg-overlay border border-afs-chrome-dim rounded shadow-xl p-1 hover:border-afs-crimson transition-colors"
+                    >
+                      {profile.thumbnailImage ? (
+                        <img src={profile.thumbnailImage} alt="" className="w-full h-full object-contain" />
+                      ) : (
+                        <CanonicalProfileDiagram points={profile.points} width={136} height={104} />
+                      )}
+                    </button>
                   )}
                 </td>
                 <td className="px-4 py-3 font-data text-xs text-afs-chrome-mid whitespace-nowrap">{formatDate(profile.createdAt)}</td>
@@ -308,7 +326,13 @@ export default function ProfilesTab({ initialProfiles, role, isCompanyAccount }:
       )}
 
       {previewProfile && (
-        <ProfilePreviewModal name={previewProfile.name} points={previewProfile.points} onClose={() => setPreviewId(null)} />
+        <ProfilePreviewModal
+          profileId={previewProfile.id}
+          name={previewProfile.name}
+          points={previewProfile.points}
+          thumbnailImage={previewProfile.thumbnailImage}
+          onClose={() => setPreviewId(null)}
+        />
       )}
     </div>
   );

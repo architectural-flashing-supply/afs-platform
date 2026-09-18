@@ -390,6 +390,22 @@ Not independently confirmed by Reid against a real signed-in session, and
 can't be until migration 024 is applied — see STATE_OF_THE_BUILD.md's
 matching entry.
 
+**Addendum — real canvas thumbnails (afs-pp-003):** Profile Passport's
+generic vector-shape thumbnail is replaced by an actual screenshot of the
+FlashDraft canvas, captured via the browser-native
+`HTMLCanvasElement.toDataURL('image/png')` (no library — a request to use
+Playwright for this was corrected; Playwright is a Node-side test tool
+that cannot run inside client-side page code) and stored as
+`saved_configurations.thumbnail_image` TEXT
+(`supabase/migrations/025_profile_passport_thumbnail.sql`, unapplied, same
+blocker as 024). `performSave` captures it on every save; `ProfilesTab`/
+`ProfilePreviewModal` render it with a graceful fallback to the original
+vector-shape rendering for rows with no thumbnail. FlashDraft also gained
+a "← Back to Profiles" link and a locked/view-only banner
+(`viewingFromPassport` state) for profiles opened via `?loadPassport=`.
+Not independently confirmed against a real signed-in session — see
+STATE_OF_THE_BUILD.md's matching entry.
+
 ---
 
 ## 6. ENVIRONMENT VARIABLES

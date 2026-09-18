@@ -958,6 +958,15 @@ export default function FlashDraftPage() {
   // the canvas itself stays locked (isLocked) the whole time; this is purely
   // the button's own transient confirmation text.
   const [justLocked, setJustLocked] = useState(false);
+  // True once a profile has been loaded via ?loadPassport=<id> (Profile
+  // Passport's "View in FlashDraft" / row-name link) — drives the
+  // "← Back to Profiles" button and the "This profile is locked. View
+  // only." banner. Deliberately NOT the same thing as isLocked: a user can
+  // open an UNLOCKED profile from Profile Passport too (Editor/Admin roles
+  // can still edit it there), in which case they came from Profile
+  // Passport but the canvas isn't read-only -- only the Back button should
+  // show, not the "view only" messaging or any extra edit restriction.
+  const [viewingFromPassport, setViewingFromPassport] = useState(false);
   const [showNewConfirm, setShowNewConfirm] = useState(false);
   const [showProfileDetails, setShowProfileDetails] = useState(false);
   const [duplicateOnSave, setDuplicateOnSave] = useState(false);
@@ -2481,6 +2490,7 @@ export default function FlashDraftPage() {
     setSavedProfileId(null);
     setProfileCategoryId(null);
     setProfileSubcategory('');
+    setViewingFromPassport(false);
     setShowNewConfirm(false);
   };
 
@@ -2554,11 +2564,26 @@ export default function FlashDraftPage() {
       const companyId = (ownProfile?.company_id as string | null) ?? null;
       const nextRevision = asDuplicate || !savedProfileId ? 1 : revision + 1;
       const isLockedNow = lock || isLocked;
+      // Real canvas screenshot (025_profile_passport_thumbnail.sql), replacing
+      // Profile Passport's generic vector-shape thumbnail with what the user
+      // actually drew. Captured on every save, not only Lock -- the task this
+      // shipped for asked for it specifically "when a profile is locked and
+      // saved," but a profile saved via plain Save (never locked) benefits
+      // from a real thumbnail too, and there's no reason to withhold one.
+      // toDataURL() is synchronous and needs no library (Playwright is a
+      // Node-side browser-automation tool -- it cannot run inside this
+      // client-side page to screenshot itself; html2canvas would also be
+      // solving a problem that doesn't exist here, since the canvas already
+      // has real pixels to read directly). Safe to call unconditionally: this
+      // canvas is never drawn to via drawImage() with cross-origin content,
+      // so it can never be in a tainted state that would throw here.
+      const thumbnailImage = canvasRef.current ? canvasRef.current.toDataURL('image/png') : null;
       const payload = {
         user_id: user.id,
         company_id: companyId,
         name: values.name,
         is_locked: isLockedNow,
+        thumbnail_image: thumbnailImage,
         // Plain display-only labels (024_profile_passport_company_scope.sql)
         // — deliberately separate from dimensions.categoryId, a real FK into
         // machine_profile_categories.id (see ProfileDetailsModal.tsx), which
@@ -2784,12 +2809,12 @@ export default function FlashDraftPage() {
     const supabase = createClient();
     const { data } = await supabase
       .from('saved_configurations')
-      .select('id, name, dimensions')
+      .select('id, name, is_locked, dimensions')
       .eq('id', id)
       .maybeSingle();
     if (!data) return;
 
-    const row = data as { id: string; name: string | null; dimensions: unknown };
+    const row = data as { id: string; name: string | null; is_locked: boolean | null; dimensions: unknown };
     const dims = row.dimensions as {
       points?: unknown;
       hemStart?: Hem | null;
@@ -2814,7 +2839,15 @@ export default function FlashDraftPage() {
     setProfileSubcategory(dims?.subcategory ?? '');
     setRevision(dims?.revision ?? 1);
     if (typeof dims?.jobName === 'string' && dims.jobName) setJobName(dims.jobName);
-    setIsLocked(Boolean(dims?.isLocked));
+    // Prefers the real is_locked column (024_profile_passport_company_scope.sql)
+    // over dimensions.isLocked, matching getPassportProfiles' own fallback
+    // order (lib/data/profile-passport.ts) -- falls back to the JSONB flag
+    // for a row saved before that migration/column existed.
+    setIsLocked(row.is_locked ?? Boolean(dims?.isLocked));
+    // Marks this session as "opened from Profile Passport" (afs-pp-002) --
+    // drives the "← Back to Profiles" button and, only when the profile is
+    // also locked, the "View only" banner below the toolbar.
+    setViewingFromPassport(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -3373,11 +3406,31 @@ export default function FlashDraftPage() {
     // sidebar — a design call, not something to guess at here.
     <main className="min-h-[calc(100vh-56px)] lg:h-[calc(100vh-56px)] bg-afs-bg-base flex flex-col overflow-visible lg:overflow-hidden">
       <div className="px-6 py-1 border-b border-afs-chrome-dim flex items-center gap-4 shrink-0">
+        {/* Only shown when this session opened a saved profile from Profile
+            Passport (afs-pp-002) -- a fresh/new drawing has nowhere to "go
+            back" to. */}
+        {viewingFromPassport && (
+          <Link
+            href="/app/profile-passport"
+            className="font-label text-xs font-semibold text-afs-chrome-mid hover:text-afs-chrome-high transition-colors whitespace-nowrap"
+          >
+            ← Back to Profiles
+          </Link>
+        )}
         <div className="flex items-baseline gap-2">
           <span className="font-label text-afs-crimson text-[10px] tracking-widest uppercase">FlashDraft</span>
           <h1 className="font-heading text-base text-afs-chrome-high leading-tight">Draw Your Profile</h1>
         </div>
       </div>
+
+      {viewingFromPassport && isLocked && (
+        <div className="px-6 py-2 bg-afs-accent-green/10 border-b border-afs-accent-green/40 shrink-0">
+          <p className="font-label text-xs font-semibold text-afs-accent-green">
+            <LockIcon className="h-3 w-3 inline mr-1.5 -mt-0.5" aria-hidden="true" />
+            This profile is locked. View only.
+          </p>
+        </div>
+      )}
 
       {/* PART 1 — PROFESSIONAL TOOLBAR (single row) */}
       <div className="px-4 py-1.5 border-b border-afs-chrome-dim shrink-0 bg-afs-bg-dim">

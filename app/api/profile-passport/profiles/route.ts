@@ -8,6 +8,8 @@ interface CreateProfileBody {
   subcategory?: string;
   geometry_data?: { points?: unknown; hemStart?: unknown; hemEnd?: unknown };
   job_info?: Record<string, unknown>;
+  /** `data:image/png;base64,...` canvas capture (025_profile_passport_thumbnail.sql) — optional, same field FlashDraft's own performSave writes directly. */
+  thumbnail_image?: string | null;
 }
 
 /**
@@ -65,6 +67,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       category: body?.category?.trim() || 'General',
       subcategory: body?.subcategory?.trim() || 'Custom',
       job_info: body?.job_info ?? null,
+      thumbnail_image: body?.thumbnail_image ?? null,
       dimensions: {
         kind: 'flashdraft',
         points,
