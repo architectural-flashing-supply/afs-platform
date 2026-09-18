@@ -18,6 +18,7 @@ import { formatInches } from '@/lib/utils/format-inches';
 import ProfileViewer3D, { type ProfileBend } from '@/components/studio/ProfileViewer3D';
 import { computeProfilePoints } from '@/lib/flashdraft/geometry';
 import { drawHemGlyph, HEM_GLYPH_R } from '@/lib/flashdraft/hem-glyph';
+import { ADMIN_JOB_HANDOFF_KEY, type AdminJobHandoffPayload } from '@/lib/flashdraft/admin-job-handoff';
 import {
   drawProfileScene,
   renderShopSnapshotDataUri,
@@ -1119,6 +1120,14 @@ export default function FlashDraftPage() {
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  // True only when FlashDraft was opened from Command Center (the
+  // top-nav link, or a specific job's "Open in FlashDraft" link) --
+  // NOT simply whenever an admin-role user happens to visit this
+  // otherwise-public page directly. Gates "Send to PathfinderEdge"
+  // together with isAdmin (Phase 3b) so that button no longer appears in
+  // customer-visible FlashDraft just because the signed-in user has the
+  // admin role.
+  const [adminContext, setAdminContext] = useState(false);
   const [pathfinderState, setPathfinderState] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
   const [pathfinderMessage, setPathfinderMessage] = useState<string | null>(null);
   const [submitState, setSubmitState] = useState<SubmitState>('idle');
@@ -1253,10 +1262,12 @@ export default function FlashDraftPage() {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data }) => {
       setIsAuthenticated(!!data.user);
-      // Gates the "Send to PathfinderEdge" button — this page is
-      // otherwise public (no login required to draw/match a profile), so
-      // the button itself must not even render for a non-admin; the
-      // route re-checks the same role server-side regardless.
+      // One of two gates on the "Send to PathfinderEdge" button (the other
+      // is adminContext, above) — this page is otherwise public (no login
+      // required to draw/match a profile), so the button itself must not
+      // even render for a non-admin; the route re-checks the same role
+      // server-side regardless. isAdmin alone used to be the only gate
+      // (Phase 3b removed that — see adminContext's own comment).
       if (!data.user) return;
       supabase
         .from('profiles')
@@ -2972,6 +2983,52 @@ export default function FlashDraftPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Phase 3b: CommandCenterJobCard's "Open in FlashDraft" writes the job's
+  // bends + identity fields to localStorage (ADMIN_JOB_HANDOFF_KEY) just
+  // before navigating here with ?admin=1&loadJob=<jobId> — same handoff
+  // pattern as loadCanonicalFromHandoff above, chosen over a new API route
+  // since the card already has the full job (including bends) as a prop.
+  // Same "turtle graphics" bends->points reconstruction loadFromLibrary and
+  // BendSequenceDiagram use, via the shared computeProfilePoints.
+  const loadFromAdminJobHandoff = useCallback(() => {
+    let payload: AdminJobHandoffPayload | null = null;
+    try {
+      const raw = window.localStorage.getItem(ADMIN_JOB_HANDOFF_KEY);
+      if (raw) payload = JSON.parse(raw) as AdminJobHandoffPayload;
+      window.localStorage.removeItem(ADMIN_JOB_HANDOFF_KEY);
+    } catch {
+      return;
+    }
+    if (!payload) return;
+
+    // machine_jobs bends are stored in millimeters (see MachineJobBend /
+    // CommandCenterJobCard.tsx's own mmToIn), but computeProfilePoints's
+    // legIn/nextLegIn feed directly into FlashDraft's points state, which
+    // is inches-denominated throughout this canvas (loadFromLibrary's
+    // source data is already in inches, hence no conversion there) — verified
+    // by the mm values otherwise landing as a wildly oversized "Blank
+    // Width" (e.g. a 100mm leg read as 100", not 3.94") during this
+    // feature's own verification pass.
+    const MM_PER_INCH = 25.4;
+    const { points: reconstructed } = computeProfilePoints(
+      payload.bends.map((bend) => ({
+        legIn: bend.leftLegMm !== null ? bend.leftLegMm / MM_PER_INCH : null,
+        nextLegIn: bend.rightLegMm !== null ? bend.rightLegMm / MM_PER_INCH : null,
+        bendAngleDegrees: bend.bendAngleDegrees,
+      }))
+    );
+
+    setPast((p) => [...p, { points, hemStart, hemEnd }]);
+    setFuture([]);
+    setPoints(reconstructed);
+    setSelectedSegment(null);
+    setProfileName(payload.profileName);
+    if (payload.material) setMaterial(payload.material);
+    if (payload.gauge) setGauge(payload.gauge);
+    if (payload.quantity) setQuantity(String(payload.quantity));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Part 4 integration: /studio/library's "Load into FlashDraft" button
   // links here with ?loadProfile=<id> (machine profiles) or ?loadCanonical=1
   // (canonical profiles) — load it once on mount. /app/profile-passport's
@@ -2980,6 +3037,12 @@ export default function FlashDraftPage() {
   // window.location.search (not next/navigation's useSearchParams) so this
   // page stays statically prerenderable instead of requiring a Suspense
   // boundary just for a one-time read.
+  //
+  // Phase 3b: ?admin=1 marks this session as opened from Command Center
+  // (gates "Send to PathfinderEdge" together with the isAdmin role check —
+  // see adminContext's own comment); ?loadJob=1 (alongside admin=1) means
+  // CommandCenterJobCard also left a specific job's geometry to load via
+  // ADMIN_JOB_HANDOFF_KEY.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const loadId = params.get('loadProfile');
@@ -2987,6 +3050,8 @@ export default function FlashDraftPage() {
     if (params.get('loadCanonical')) loadCanonicalFromHandoff();
     const passportId = params.get('loadPassport');
     if (passportId) loadFromPassportById(passportId);
+    if (params.get('admin')) setAdminContext(true);
+    if (params.get('loadJob')) loadFromAdminJobHandoff();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -3865,7 +3930,7 @@ export default function FlashDraftPage() {
               </Link>
             </div>
 
-            {isAdmin && (
+            {isAdmin && adminContext && (
               <div className="border-t border-afs-chrome-dim/40 pt-2 mt-1 flex flex-col gap-1.5">
                 <p className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid">Admin</p>
                 <button
@@ -4019,125 +4084,112 @@ export default function FlashDraftPage() {
                   )}
 
                   {/* Job-identity intake fields (migration 018/019, afs-jf-000/
-                      afs-jf-004) now live in the right-side drawer rendered
-                      below (afs-jf-006) — this just opens/closes it. */}
+                      afs-jf-004) pop down inline below, in this same
+                      translucent left-side box -- reverted from afs-jf-006's
+                      right-side full-height drawer back to the original
+                      left-side/pop-down treatment. Toggling closed always
+                      clears the fields (afs-jf-006's fix for the old
+                      close-doesn't-clear persist bug -- kept; only the
+                      position/style reverted, not that fix). */}
                   <button
                     type="button"
-                    onClick={() => setShowJobInfo((v) => !v)}
+                    onClick={() => {
+                      const next = !showJobInfo;
+                      setShowJobInfo(next);
+                      if (!next) clearJobInfoFields();
+                    }}
                     className="text-left font-semibold hover:underline mt-1 pt-1 border-t border-white/20"
                   >
                     {showJobInfo ? '− Job Info' : '+ Job Info'}
                   </button>
+
+                  {showJobInfo && (
+                    <div className="flex flex-col gap-2 mt-1 pt-1 border-t border-white/20" style={{ width: 220 }}>
+                      <div>
+                        <label
+                          className="font-label text-[10px] uppercase tracking-wide text-white/70 mb-1 block"
+                          htmlFor="clientBusinessName"
+                        >
+                          Business Name (optional)
+                        </label>
+                        <input
+                          id="clientBusinessName"
+                          type="text"
+                          value={clientBusinessName}
+                          onChange={(e) => setClientBusinessName(e.target.value)}
+                          placeholder="Company name"
+                          className="w-full bg-black/30 border border-white/20 rounded px-2 py-1.5 font-body text-xs text-white placeholder:text-white/40 focus:outline-none focus:border-afs-crimson transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label
+                          className="font-label text-[10px] uppercase tracking-wide text-white/70 mb-1 block"
+                          htmlFor="clientName"
+                        >
+                          Client Name (optional)
+                        </label>
+                        <input
+                          id="clientName"
+                          type="text"
+                          value={clientName}
+                          onChange={(e) => setClientName(e.target.value)}
+                          placeholder="Contact name"
+                          className="w-full bg-black/30 border border-white/20 rounded px-2 py-1.5 font-body text-xs text-white placeholder:text-white/40 focus:outline-none focus:border-afs-crimson transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label
+                          className="font-label text-[10px] uppercase tracking-wide text-white/70 mb-1 block"
+                          htmlFor="poNumber"
+                        >
+                          PO Number (optional)
+                        </label>
+                        <input
+                          id="poNumber"
+                          type="text"
+                          value={poNumber}
+                          onChange={(e) => setPoNumber(e.target.value)}
+                          placeholder="e.g. PO-10234"
+                          className="w-full bg-black/30 border border-white/20 rounded px-2 py-1.5 font-body text-xs text-white placeholder:text-white/40 focus:outline-none focus:border-afs-crimson transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label
+                          className="font-label text-[10px] uppercase tracking-wide text-white/70 mb-1 block"
+                          htmlFor="jobName"
+                        >
+                          Job Name (optional)
+                        </label>
+                        <input
+                          id="jobName"
+                          type="text"
+                          value={jobName}
+                          onChange={(e) => setJobName(e.target.value)}
+                          placeholder="e.g. Smith Residence Reroof"
+                          className="w-full bg-black/30 border border-white/20 rounded px-2 py-1.5 font-body text-xs text-white placeholder:text-white/40 focus:outline-none focus:border-afs-crimson transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label
+                          className="font-label text-[10px] uppercase tracking-wide text-white/70 mb-1 block"
+                          htmlFor="requestedDeliveryDate"
+                        >
+                          Requested Delivery Date (optional)
+                        </label>
+                        <input
+                          id="requestedDeliveryDate"
+                          type="date"
+                          value={requestedDeliveryDate}
+                          onChange={(e) => setRequestedDeliveryDate(e.target.value)}
+                          className="w-full bg-black/30 border border-white/20 rounded px-2 py-1.5 font-body text-xs text-white focus:outline-none focus:border-afs-crimson transition-colors"
+                          style={{ colorScheme: 'dark' }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* Job Info slide-out drawer (afs-jf-006) — replaces the old
-                  inline downward expansion. Always mounted (not just while
-                  showJobInfo) so the translate-x transition actually
-                  animates; canvasWrapRef's overflow-hidden clips it fully
-                  off-canvas when closed. */}
-              <div
-                className={`absolute z-30 top-0 right-0 h-full w-[260px] bg-afs-bg-raised border-l border-afs-chrome-dim shadow-xl transition-transform duration-300 ease-in-out flex flex-col ${
-                  showJobInfo ? 'translate-x-0' : 'translate-x-full'
-                }`}
-              >
-                <div className="flex items-center justify-between px-4 py-3 border-b border-afs-chrome-dim">
-                  <span className="font-label text-sm font-semibold text-afs-chrome-high">Job Info</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowJobInfo(false);
-                      clearJobInfoFields();
-                    }}
-                    aria-label="Close job info"
-                    className="text-afs-chrome-mid hover:text-afs-chrome-high leading-none"
-                  >
-                    ✕
-                  </button>
-                </div>
-                <div className="flex flex-col gap-3 px-4 py-3 overflow-y-auto">
-                  <div>
-                    <label
-                      className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid mb-1 block"
-                      htmlFor="clientBusinessName"
-                    >
-                      Business Name (optional)
-                    </label>
-                    <input
-                      id="clientBusinessName"
-                      type="text"
-                      value={clientBusinessName}
-                      onChange={(e) => setClientBusinessName(e.target.value)}
-                      placeholder="Company name"
-                      className="w-full bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 font-body text-xs text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
-                    />
-                  </div>
-                  <div>
-                    <label
-                      className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid mb-1 block"
-                      htmlFor="clientName"
-                    >
-                      Client Name (optional)
-                    </label>
-                    <input
-                      id="clientName"
-                      type="text"
-                      value={clientName}
-                      onChange={(e) => setClientName(e.target.value)}
-                      placeholder="Contact name"
-                      className="w-full bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 font-body text-xs text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
-                    />
-                  </div>
-                  <div>
-                    <label
-                      className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid mb-1 block"
-                      htmlFor="poNumber"
-                    >
-                      PO Number (optional)
-                    </label>
-                    <input
-                      id="poNumber"
-                      type="text"
-                      value={poNumber}
-                      onChange={(e) => setPoNumber(e.target.value)}
-                      placeholder="e.g. PO-10234"
-                      className="w-full bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 font-body text-xs text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
-                    />
-                  </div>
-                  <div>
-                    <label
-                      className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid mb-1 block"
-                      htmlFor="jobName"
-                    >
-                      Job Name (optional)
-                    </label>
-                    <input
-                      id="jobName"
-                      type="text"
-                      value={jobName}
-                      onChange={(e) => setJobName(e.target.value)}
-                      placeholder="e.g. Smith Residence Reroof"
-                      className="w-full bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 font-body text-xs text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors"
-                    />
-                  </div>
-                  <div>
-                    <label
-                      className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid mb-1 block"
-                      htmlFor="requestedDeliveryDate"
-                    >
-                      Requested Delivery Date (optional)
-                    </label>
-                    <input
-                      id="requestedDeliveryDate"
-                      type="date"
-                      value={requestedDeliveryDate}
-                      onChange={(e) => setRequestedDeliveryDate(e.target.value)}
-                      className="w-full bg-afs-bg-overlay border border-afs-border rounded px-2 py-1.5 font-body text-xs text-afs-chrome-high focus:outline-none focus:border-afs-crimson transition-colors"
-                      style={{ colorScheme: 'dark' }}
-                    />
-                  </div>
-                </div>
-              </div>
 
               {isDragDrawing && dragPreview && dragScreenPos && (
               <div

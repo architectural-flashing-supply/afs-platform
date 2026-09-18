@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Badge from '@/components/ui/Badge';
 import BendSequenceDiagram from '@/components/studio/BendSequenceDiagram';
 import type { MachineJobRow } from '@/lib/data/machine-jobs';
+import { ADMIN_JOB_HANDOFF_KEY, type AdminJobHandoffPayload } from '@/lib/flashdraft/admin-job-handoff';
 
 // approved_for_machine has no single fixed label — it now means one of
 // two real, different things depending on delivery_method (machine_jobs
@@ -54,6 +55,25 @@ export default function CommandCenterJobCard({ job }: { job: MachineJobRow }) {
   const [modal, setModal] = useState<'reject' | 'request-changes' | null>(null);
   const [reason, setReason] = useState('');
 
+  // Phase 3b: hands this job's bends + identity fields to FlashDraft via
+  // localStorage (same pattern as the draft page's own
+  // loadCanonicalFromHandoff) rather than a new API route, since this
+  // component already has the full job as a prop. ?admin=1&loadJob=1
+  // together are what reveal FlashDraft's "Send to PathfinderEdge" button
+  // for this session (see app/studio/draft/page.tsx's adminContext).
+  const openInFlashDraft = () => {
+    const payload: AdminJobHandoffPayload = {
+      jobId: job.id,
+      profileName: job.profileName,
+      material: job.material,
+      gauge: job.gauge,
+      quantity: job.quantity,
+      bends: job.bends,
+    };
+    window.localStorage.setItem(ADMIN_JOB_HANDOFF_KEY, JSON.stringify(payload));
+    router.push('/studio/draft?admin=1&loadJob=1');
+  };
+
   const call = async (path: string, body: Record<string, unknown>) => {
     setBusy(true);
     setError(null);
@@ -98,6 +118,15 @@ export default function CommandCenterJobCard({ job }: { job: MachineJobRow }) {
         <div>
           <p className="font-heading text-base text-afs-chrome-high mb-1">{job.profileName}</p>
           <BendSequenceDiagram bends={job.bends} />
+          {job.bends.length > 0 && (
+            <button
+              type="button"
+              onClick={openInFlashDraft}
+              className="mt-2 font-label text-xs font-semibold text-afs-crimson hover:text-afs-crimson-hover transition-colors"
+            >
+              Open in FlashDraft →
+            </button>
+          )}
         </div>
         <div className="font-data text-xs text-afs-chrome-mid space-y-1">
           <p>Material: <span className="text-afs-chrome-high">{job.material ?? '—'}</span></p>

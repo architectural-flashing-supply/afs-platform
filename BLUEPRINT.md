@@ -257,9 +257,13 @@ fed is unaffected — see `showSplit`/`MatchedProfile3DModal`). The upper-left
 canvas overlay reads "Name your profile" (was "Untitled Profile") and has
 its own X to dismiss it (a small "Profile Info" pill reopens it). Job Info
 (Business Name/Client Name/PO Number/Job Name/Requested Delivery Date, all
-optional) is a right-side slide-out drawer instead of an inline expansion;
-closing it from either X clears all five fields (fixes the old
-close-doesn't-clear persist bug). Business Name auto-populates from
+optional) — **as of Phase 3b, reverted from afs-jf-006's right-side
+slide-out drawer back to a left-side pop-down**, rendered inline inside
+the same translucent "Profile Info" overlay box (grows it downward when
+open) instead of a separate opaque full-height panel; closing it from
+either X still clears all five fields (afs-jf-006's fix for the old
+close-doesn't-clear persist bug — kept, only the position/style reverted).
+Business Name auto-populates from
 `profiles.company` on login, without overwriting a value already restored
 from autosave or already typed. The "Load" button ("Load Profiles") now
 reads the signed-in user's own Profile Passport rows
@@ -270,6 +274,22 @@ columns and a hover quick-view thumbnail
 unauthenticated user sees a sign-in prompt. The Thalmann machine-profile
 library is real shop history (SCHEMA.md) and was deliberately NOT deleted;
 see STATE_OF_THE_BUILD.md for that discrepancy.
+
+**FlashDraft — Phase 3b (Command Center integration):** "Send to
+PathfinderEdge" no longer shows just because the signed-in user has the
+admin role — it now also requires `adminContext` (a new state flag set
+only by `?admin=1` on the URL), so a customer or an admin who happens to
+open the otherwise-public `/studio/draft` directly never sees it.
+`AdminTopBar.tsx` gained a direct "FlashDraft" nav link
+(`/studio/draft?admin=1`), and `CommandCenterJobCard.tsx` (the Sent/
+Completed jobs list) gained an "Open in FlashDraft →" link under its
+bend-sequence diagram for any job with real bends, handing off that job's
+geometry via a new shared localStorage pattern
+(`lib/flashdraft/admin-job-handoff.ts`, same approach as the existing
+canonical-profile handoff) rather than a new API route. See
+STATE_OF_THE_BUILD.md for the real mm-vs-inches bug this surfaced and
+fixed, and for which two sub-items still need Reid's own admin-account
+verification.
 
 ### Phase 9 addendum — Command Center redesign (afs-cc-001, "FORGE 2.0 Phase 2")
 A separate build queue outside this file's own Phase 0–9 numbering — named

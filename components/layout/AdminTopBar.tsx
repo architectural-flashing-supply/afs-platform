@@ -24,6 +24,13 @@ const TOP_BAR_TABS: TopBarTab[] = [
   { label: 'Production', href: '/admin/orders' },
   { label: 'Orders', href: '/admin/orders-crm' },
   { label: 'Customers', href: '/admin/customers' },
+  // Phase 3b: direct jump-out to FlashDraft (for Steve) — not an /admin/*
+  // route, so isActivePath below never marks it active; that's expected,
+  // this is a one-way link to a separate tool, not another admin section.
+  // ?admin=1 marks the session as opened from Command Center, revealing
+  // the "Send to PathfinderEdge" button there (see app/studio/draft/
+  // page.tsx's adminContext).
+  { label: 'FlashDraft', href: '/studio/draft?admin=1' },
 ];
 
 function GearIcon({ className }: { className?: string }) {

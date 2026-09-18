@@ -11709,4 +11709,121 @@ the description/address/phone/email lines below it are unchanged.
   pre-existing, unrelated failures (hero CTA href, header logo width). 13
   skipped (pre-existing, auth-gated).
 
+---
+
+## SESSION: 2026-09-18 (continued) — FlashDraft UI Layout Changes (Phase 3b)
+
+### PHASE 3b: IMPLEMENTED, PARTIALLY VERIFIED — TWO ITEMS NEED REID'S OWN REAL-ADMIN-ACCOUNT CHECK
+
+Before writing any code, two of this task's four items had genuine
+ambiguity against the real codebase — confirmed with Reid via
+AskUserQuestion rather than guessed, since FlashDraft
+(`app/studio/draft/page.tsx`) is this project's most heavily-iterated,
+highest-risk file:
+- Item 3 ("submitted profile appears with thumbnail") had three plausible
+  real targets with different data models — Pending Approval
+  (`quote_requests`, photo-attachment thumbnails, not always real FlashDraft
+  geometry), Sent/Completed jobs (`machine_jobs`, real bend-sequence vector
+  "thumbnails"), or Profile Library (already sent to PathfinderEdge).
+  **Confirmed: Sent/Completed jobs** (`CommandCenterJobCard.tsx`).
+- Item 4 ("Name Your Profile modal") doesn't literally exist anywhere in
+  the codebase. The only actual "right-side full-panel" element is the
+  **Job Info** drawer (Business Name/Client Name/PO/Job Name/Delivery
+  Date) — confirmed this is what was meant.
+
+**1. Pathfinder button no longer shows just because `isAdmin` is true.**
+Previously gated only on the signed-in user's role (`{isAdmin && (...)}`)
+— any admin visiting the otherwise-public `/studio/draft` directly saw it.
+Now gated on `isAdmin && adminContext`, where `adminContext` is a new
+piece of state set only when the page is opened with a real `?admin=1`
+query param (i.e. from Command Center) — never from role alone.
+
+**2. Command Center top nav → FlashDraft (for Steve).**
+`components/layout/AdminTopBar.tsx`'s `TOP_BAR_TABS` gained a 6th entry,
+`{ label: 'FlashDraft', href: '/studio/draft?admin=1' }` — a one-way jump
+to the separate tool (not an `/admin/*` route, so it's never highlighted
+"active" the way the other 5 real admin sections are — expected).
+
+**3. `CommandCenterJobCard.tsx` gets an "Open in FlashDraft →" link.**
+Appears under the existing `BendSequenceDiagram` "thumbnail" whenever a
+job has real bends. New shared `lib/flashdraft/admin-job-handoff.ts`
+defines the localStorage handoff key/shape — reused the exact pattern
+`loadCanonicalFromHandoff` already established for `/studio/library`'s
+canonical-profile handoff, rather than building a new authenticated API
+route, since the card already has the full job (bends, material, gauge,
+quantity, profileName) as a prop. Clicking it writes that payload to
+localStorage and navigates to `/studio/draft?admin=1&loadJob=1`; the draft
+page's new `loadFromAdminJobHandoff` reads and clears it once on mount,
+reconstructing points via the same shared `computeProfilePoints` turtle-
+graphics walk `loadFromLibrary` and `BendSequenceDiagram` already use.
+
+**Real bug found and fixed during this feature's own verification (not
+present before this session, since nothing previously fed `machine_jobs`
+bend data into FlashDraft's actual canvas):** `MachineJobBend` stores leg
+lengths in millimeters (`leftLegMm`/`rightLegMm`), but FlashDraft's
+`points` coordinate space — and `computeProfilePoints`'s `legIn`/
+`nextLegIn` parameters — are inches throughout (confirmed:
+`loadFromLibrary`'s own source data is already inch-denominated, hence no
+conversion there). Feeding mm straight through produced a "Blank Width:
+250"" reading for what should have been a ~9.8" coping cap — caught via a
+real Playwright screenshot of the loaded canvas during verification, not
+just code review. Fixed by dividing `leftLegMm`/`rightLegMm` by 25.4
+before calling `computeProfilePoints` in `loadFromAdminJobHandoff`, using
+the same conversion factor `CommandCenterJobCard.tsx`'s own `mmToIn`
+already uses for display. `BendSequenceDiagram.tsx`'s existing rendering
+of this same mm data was checked and is unaffected — it's a proportional
+SVG preview whose own `SCALE_PX_PER_MM` constant already treats the input
+as mm, so it was never actually wrong, just a different (and, it turns
+out, correct) convention than FlashDraft's canvas.
+
+**4. Job Info drawer reverted from right-side full-panel to left-side
+pop-down, translucent.** Was `absolute top-0 right-0 h-full w-[260px]
+bg-afs-bg-raised` (opaque, full-height, right-side slide-in, added by
+afs-jf-006). Now renders inline inside the same translucent (`bg-black/70`)
+top-left "Profile Info" overlay box the profile-name editor already uses —
+toggling it open grows that box downward (true "pop-down"), matching the
+box's own translucent background instead of introducing a second, opaque
+one. afs-jf-006's real bug fix (closing Job Info always clears its five
+fields, not just the box's own X) was preserved — only the position/style
+reverted, not that fix — by moving the clear-on-close call into the
+toggle button itself.
+
+**Verification (mostly complete without real auth; two things need Reid's
+own admin account):**
+- `pnpm tsc --noEmit` — 0 errors. `pnpm run build` — clean.
+- Real Playwright verification, all without needing admin credentials
+  (temp preview routes + temp specs, deleted before commit):
+  - `AdminTopBar`'s FlashDraft tab: real link, correct href, screenshotted.
+  - Job Info panel: opened it on the real `/studio/draft` page, confirmed
+    via `boundingBox()` it renders on the left (x≈373, same column as the
+    canvas's left sidebar) not the right, and screenshotted the translucent
+    pop-down treatment.
+  - The full geometry handoff round-trip: rendered `CommandCenterJobCard`
+    with a real 2-bend fixture job, clicked "Open in FlashDraft →",
+    confirmed the URL, confirmed the localStorage handoff key was written
+    then cleared, and confirmed via screenshot that FlashDraft's canvas
+    actually shows the reconstructed profile with the right profile name,
+    material, and quantity (this is what caught the mm/inch bug above).
+  - Confirmed `adminContext` alone (via `?admin=1`) does NOT reveal the
+    Pathfinder button without `isAdmin` also being true — the unauthenticated
+    test session correctly shows no Admin section at all even when
+    `adminContext` is true, proving both gates are actually required, not
+    just one.
+- **Cannot verify without real admin credentials (none available this
+  session) — needs Reid's own check, per this task's own "VERIFICATION:
+  User confirms in browser" instruction:**
+  1. That the Pathfinder button actually DOES appear for a real signed-in
+     admin who arrives via `?admin=1` (proved the negative case above —
+     `adminContext` without `isAdmin` correctly hides it — but not the
+     positive case, since this session has no admin login).
+  2. That an admin visiting `/studio/draft` directly (no `?admin=1`) no
+     longer sees the button, now that it depends on `adminContext` too —
+     same underlying reason.
+- Full `npx playwright test`: 69 passed, 2 failed — the same 2
+  pre-existing, unrelated failures (hero CTA href, header logo width).
+  FlashDraft's own suites (`flashdraft.spec.ts`,
+  `flashdraft-regression.spec.ts`) re-run directly to confirm the Job Info
+  JSX restructuring didn't regress existing draw/hem/template behavior —
+  all 4 non-auth-gated tests in those files passed.
+
 
