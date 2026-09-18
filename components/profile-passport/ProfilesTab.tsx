@@ -1,10 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
+import { useMemo, useState } from 'react';
 import CanonicalProfileDiagram from '@/components/studio/CanonicalProfileDiagram';
-import ProfilePreviewModal from '@/components/profile-passport/ProfilePreviewModal';
-import { DISPLAY_PREF_KEY, type DisplayPreference } from '@/components/profile-passport/SettingsTab';
+import FullPageProfileModal from '@/components/profile-passport/FullPageProfileModal';
 import type { PassportRole } from '@/lib/data/team';
 import type { PassportProfileRow } from '@/lib/data/profile-passport';
 
@@ -21,17 +19,24 @@ interface ProfilesTabProps {
   isCompanyAccount: boolean;
 }
 
+/**
+ * Rebuilt as a permanent left-sidebar thumbnail strip (a follow-up request
+ * to the original table layout) — sort, pagination, and the per-profile
+ * actions menu (Edit Name/Download PDF/Delete) are unchanged in behavior,
+ * just re-laid-out into a single scrollable column instead of a wide table
+ * (per Reid's explicit "keep sort/pagination/actions, restyle as sidebar"
+ * direction, not the request's own literal wording, which didn't mention
+ * any of those three at all). The "Saved By" company-account column
+ * becomes a line under the job name instead of its own table column, for
+ * the same reason. The sidebar is permanent for the DURATION of the
+ * Profiles tab being active — not literally present on the Account/
+ * Settings tabs too, which would be a much bigger, unrequested layout
+ * change to the whole page.
+ */
 export default function ProfilesTab({ initialProfiles, role, isCompanyAccount }: ProfilesTabProps) {
   const [profiles, setProfiles] = useState(initialProfiles);
   const [sortKey, setSortKey] = useState<SortKey>('created');
   const [page, setPage] = useState(1);
-  // "Profile Display Preference" (Settings tab) — thumbnails always show
-  // inline instead of only on hover. Read directly from localStorage
-  // (SettingsTab's own persistence) rather than threaded through props,
-  // since the two tabs render on separate page loads/searchParams values,
-  // not as siblings that could share state directly.
-  const [showThumbnailsAlways, setShowThumbnailsAlways] = useState(false);
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -41,15 +46,6 @@ export default function ProfilesTab({ initialProfiles, role, isCompanyAccount }:
 
   const canEdit = role === 'admin' || role === 'editor';
   const canDelete = role === 'admin';
-
-  useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(DISPLAY_PREF_KEY) as DisplayPreference | null;
-      setShowThumbnailsAlways(stored === 'thumbnails');
-    } catch {
-      // Best-effort — browser may be blocking local storage.
-    }
-  }, []);
 
   const sorted = useMemo(() => {
     const copy = [...profiles];
@@ -117,12 +113,12 @@ export default function ProfilesTab({ initialProfiles, role, isCompanyAccount }:
         <p className="font-body text-sm text-afs-chrome-mid mb-4">
           No saved profiles yet. Create one from FlashDraft and lock it to save.
         </p>
-        <Link
+        <a
           href="/studio/draft"
           className="inline-block bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label font-semibold px-6 py-3 rounded text-sm transition-colors"
         >
           Open FlashDraft
-        </Link>
+        </a>
       </div>
     );
   }
@@ -130,204 +126,167 @@ export default function ProfilesTab({ initialProfiles, role, isCompanyAccount }:
   const previewProfile = previewId ? profiles.find((p) => p.id === previewId) : null;
 
   return (
-    <div>
-      {rowError && <p className="font-body text-sm text-afs-crimson mb-3">{rowError}</p>}
-      <div className="bg-afs-bg-raised border border-afs-border rounded overflow-hidden">
-        <table className="w-full text-left">
-          <thead>
-            <tr className="bg-afs-bg-surface border-b border-afs-border">
-              <th className="px-4 py-3">
-                <button
-                  type="button"
-                  onClick={() => changeSort('name')}
-                  className={`font-heading text-xs uppercase tracking-wide transition-colors ${sortKey === 'name' ? 'text-afs-crimson' : 'text-afs-chrome-mid hover:text-afs-chrome-high'}`}
-                >
-                  Name
-                </button>
-              </th>
-              <th className="px-4 py-3">
-                <button
-                  type="button"
-                  onClick={() => changeSort('created')}
-                  className={`font-heading text-xs uppercase tracking-wide transition-colors ${sortKey === 'created' ? 'text-afs-crimson' : 'text-afs-chrome-mid hover:text-afs-chrome-high'}`}
-                >
-                  Date Created
-                </button>
-              </th>
-              <th className="px-4 py-3">
-                <button
-                  type="button"
-                  onClick={() => changeSort('jobName')}
-                  className={`font-heading text-xs uppercase tracking-wide transition-colors ${sortKey === 'jobName' ? 'text-afs-crimson' : 'text-afs-chrome-mid hover:text-afs-chrome-high'}`}
-                >
-                  Job Name
-                </button>
-              </th>
-              {isCompanyAccount && (
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">Saved By</th>
-              )}
-              <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-right px-4 py-3">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pageRows.map((profile) => (
-              <tr key={profile.id} className="border-b border-afs-border last:border-0 hover:bg-afs-bg-surface transition-colors">
-                <td className="px-4 py-3 relative" onMouseEnter={() => setHoveredId(profile.id)} onMouseLeave={() => setHoveredId((id) => (id === profile.id ? null : id))}>
-                  {renamingId === profile.id ? (
-                    <div className="flex items-center gap-2">
-                      <input
-                        autoFocus
-                        value={nameDraft}
-                        onChange={(e) => setNameDraft(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') submitRename(profile.id);
-                          if (e.key === 'Escape') setRenamingId(null);
-                        }}
-                        className="bg-afs-bg-overlay border border-afs-border rounded px-2 py-1 font-body text-sm text-afs-chrome-high focus:outline-none focus:border-afs-crimson"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => submitRename(profile.id)}
-                        disabled={busyId === profile.id}
-                        className="font-label text-xs text-afs-crimson hover:text-afs-crimson-hover"
-                      >
-                        Save
-                      </button>
-                    </div>
-                  ) : (
-                    <Link
-                      href={`/studio/draft?loadPassport=${profile.id}`}
-                      className="font-body text-sm text-afs-chrome-high hover:text-afs-crimson transition-colors"
-                    >
-                      {profile.name}
-                      {profile.isLocked && <span className="ml-2 font-label text-[10px] text-afs-accent-green">LOCKED</span>}
-                    </Link>
-                  )}
-                  {showThumbnailsAlways && renamingId !== profile.id && (
+    <div className="flex gap-6">
+      {/* LEFT SIDEBAR — fixed width, dark background, permanent (never
+          collapses/closes), scrollable. */}
+      <aside className="w-[300px] shrink-0 bg-afs-bg-raised border border-afs-border rounded flex flex-col max-h-[75vh]">
+        <div className="flex items-center gap-1 px-3 py-2.5 border-b border-afs-border shrink-0 overflow-x-auto">
+          {(['created', 'name', 'jobName'] as SortKey[]).map((key) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => changeSort(key)}
+              className={`font-label text-[10px] uppercase tracking-wide px-2 py-1 rounded whitespace-nowrap transition-colors ${
+                sortKey === key ? 'text-afs-crimson bg-afs-crimson/10' : 'text-afs-chrome-mid hover:text-afs-chrome-high'
+              }`}
+            >
+              {key === 'created' ? 'Date' : key === 'name' ? 'Name' : 'Job'}
+            </button>
+          ))}
+        </div>
+
+        {rowError && <p className="font-body text-xs text-afs-crimson px-3 pt-2">{rowError}</p>}
+
+        <div className="flex-1 overflow-y-auto">
+          {pageRows.map((profile) => (
+            <div key={profile.id} className="flex gap-3 p-3 border-b border-afs-border last:border-0 relative">
+              <button
+                type="button"
+                onClick={() => setPreviewId(profile.id)}
+                aria-label={`Preview ${profile.name}`}
+                className="shrink-0 w-[120px] h-[120px] bg-afs-bg-overlay border border-afs-chrome-dim rounded overflow-hidden hover:border-afs-crimson transition-colors cursor-pointer"
+              >
+                {profile.thumbnailImage ? (
+                  <img src={profile.thumbnailImage} alt="" className="w-full h-full object-contain" />
+                ) : (
+                  <CanonicalProfileDiagram points={profile.points} width={118} height={118} />
+                )}
+              </button>
+
+              <div className="flex-1 min-w-0 flex flex-col gap-1">
+                {renamingId === profile.id ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      autoFocus
+                      value={nameDraft}
+                      onChange={(e) => setNameDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') submitRename(profile.id);
+                        if (e.key === 'Escape') setRenamingId(null);
+                      }}
+                      className="w-full bg-afs-bg-overlay border border-afs-border rounded px-2 py-1 font-body text-xs text-afs-chrome-high focus:outline-none focus:border-afs-crimson"
+                    />
                     <button
                       type="button"
-                      onClick={() => setPreviewId(profile.id)}
-                      aria-label={`Preview ${profile.name}`}
-                      className="mt-2 block w-24 h-20 bg-afs-bg-overlay border border-afs-chrome-dim rounded p-1 hover:border-afs-crimson transition-colors"
+                      onClick={() => submitRename(profile.id)}
+                      disabled={busyId === profile.id}
+                      className="font-label text-xs text-afs-crimson hover:text-afs-crimson-hover shrink-0"
                     >
-                      {profile.thumbnailImage ? (
-                        <img src={profile.thumbnailImage} alt="" className="w-full h-full object-contain" />
-                      ) : (
-                        <CanonicalProfileDiagram points={profile.points} width={88} height={72} />
-                      )}
+                      Save
                     </button>
-                  )}
-                  {!showThumbnailsAlways && hoveredId === profile.id && renamingId !== profile.id && (
-                    <button
-                      type="button"
-                      onClick={() => setPreviewId(profile.id)}
-                      aria-label={`Preview ${profile.name}`}
-                      className="absolute left-0 top-full mt-1 z-10 w-36 h-28 bg-afs-bg-overlay border border-afs-chrome-dim rounded shadow-xl p-1 hover:border-afs-crimson transition-colors"
-                    >
-                      {profile.thumbnailImage ? (
-                        <img src={profile.thumbnailImage} alt="" className="w-full h-full object-contain" />
-                      ) : (
-                        <CanonicalProfileDiagram points={profile.points} width={136} height={104} />
-                      )}
-                    </button>
-                  )}
-                </td>
-                <td className="px-4 py-3 font-data text-xs text-afs-chrome-mid whitespace-nowrap">{formatDate(profile.createdAt)}</td>
-                <td className="px-4 py-3 font-body text-sm text-afs-chrome-mid">{profile.jobName || '—'}</td>
-                {isCompanyAccount && <td className="px-4 py-3 font-body text-sm text-afs-chrome-mid">{profile.ownerName}</td>}
-                <td className="px-4 py-3 text-right relative">
+                  </div>
+                ) : (
                   <button
                     type="button"
                     onClick={() => setPreviewId(profile.id)}
-                    aria-label={`Expand ${profile.name}`}
-                    className="text-afs-chrome-mid hover:text-afs-chrome-high mr-3"
-                    title="Full-size preview"
+                    className="text-left font-body text-sm text-afs-chrome-high hover:text-afs-crimson transition-colors truncate"
                   >
-                    <svg viewBox="0 0 20 20" className="h-4 w-4 inline" fill="none" stroke="currentColor" strokeWidth={1.5}>
-                      <path d="M7 3H3v4M13 3h4v4M7 17H3v-4M13 17h4v-4" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
+                    {profile.name}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setMenuOpenId((id) => (id === profile.id ? null : profile.id))}
-                    aria-label={`Actions for ${profile.name}`}
-                    className="text-afs-chrome-mid hover:text-afs-chrome-high"
-                  >
-                    ⋮
-                  </button>
-                  {menuOpenId === profile.id && (
-                    <>
-                      <div className="fixed inset-0 z-10" onClick={() => setMenuOpenId(null)} />
-                      <div className="absolute right-4 top-full mt-1 z-20 w-44 bg-afs-bg-raised border border-afs-chrome-dim rounded shadow-xl py-1">
-                        {canEdit && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setRenamingId(profile.id);
-                              setNameDraft(profile.name);
-                              setMenuOpenId(null);
-                            }}
-                            className="w-full text-left px-3 py-2 font-body text-sm text-afs-chrome-high hover:bg-afs-bg-surface transition-colors"
-                          >
-                            Edit Name
-                          </button>
-                        )}
-                        <a
-                          href={`/api/profile-passport/profiles/${profile.id}/pdf`}
-                          onClick={() => setMenuOpenId(null)}
-                          className="block w-full text-left px-3 py-2 font-body text-sm text-afs-chrome-high hover:bg-afs-bg-surface transition-colors"
-                        >
-                          Download PDF
-                        </a>
-                        {canDelete && (
-                          <button
-                            type="button"
-                            onClick={() => deleteProfile(profile.id)}
-                            disabled={busyId === profile.id}
-                            className="w-full text-left px-3 py-2 font-body text-sm text-afs-crimson hover:bg-afs-bg-surface transition-colors disabled:opacity-50"
-                          >
-                            Delete
-                          </button>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                )}
+                {profile.isLocked && (
+                  <span className="self-start font-label text-[10px] font-bold text-afs-accent-green border border-afs-accent-green rounded px-1.5 py-0.5">
+                    LOCKED
+                  </span>
+                )}
+                <p className="font-data text-xs text-afs-chrome-dim">{formatDate(profile.createdAt)}</p>
+                <p className="font-body text-xs text-afs-chrome-mid truncate">{profile.jobName || '—'}</p>
+                {isCompanyAccount && <p className="font-body text-[11px] text-afs-chrome-dim truncate">Saved by {profile.ownerName}</p>}
+              </div>
 
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-4">
-          <p className="font-body text-xs text-afs-chrome-dim">
-            Page {page} of {totalPages} · {sorted.length} profiles
-          </p>
-          <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setMenuOpenId((id) => (id === profile.id ? null : profile.id))}
+                aria-label={`Actions for ${profile.name}`}
+                className="shrink-0 self-start text-afs-chrome-mid hover:text-afs-chrome-high"
+              >
+                ⋮
+              </button>
+              {menuOpenId === profile.id && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setMenuOpenId(null)} />
+                  <div className="absolute right-2 top-8 z-20 w-44 bg-afs-bg-raised border border-afs-chrome-dim rounded shadow-xl py-1">
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRenamingId(profile.id);
+                          setNameDraft(profile.name);
+                          setMenuOpenId(null);
+                        }}
+                        className="w-full text-left px-3 py-2 font-body text-sm text-afs-chrome-high hover:bg-afs-bg-surface transition-colors"
+                      >
+                        Edit Name
+                      </button>
+                    )}
+                    <a
+                      href={`/api/profile-passport/profiles/${profile.id}/pdf`}
+                      onClick={() => setMenuOpenId(null)}
+                      className="block w-full text-left px-3 py-2 font-body text-sm text-afs-chrome-high hover:bg-afs-bg-surface transition-colors"
+                    >
+                      Download PDF
+                    </a>
+                    {canDelete && (
+                      <button
+                        type="button"
+                        onClick={() => deleteProfile(profile.id)}
+                        disabled={busyId === profile.id}
+                        className="w-full text-left px-3 py-2 font-body text-sm text-afs-crimson hover:bg-afs-bg-surface transition-colors disabled:opacity-50"
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-3 py-2 border-t border-afs-border shrink-0">
             <button
               type="button"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page === 1}
-              className="font-label text-xs text-afs-chrome-mid hover:text-afs-chrome-high disabled:opacity-30 disabled:cursor-not-allowed"
+              className="font-label text-[10px] text-afs-chrome-mid hover:text-afs-chrome-high disabled:opacity-30 disabled:cursor-not-allowed"
             >
               ← Prev
             </button>
+            <p className="font-body text-[10px] text-afs-chrome-dim">
+              {page} / {totalPages}
+            </p>
             <button
               type="button"
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
-              className="font-label text-xs text-afs-chrome-mid hover:text-afs-chrome-high disabled:opacity-30 disabled:cursor-not-allowed"
+              className="font-label text-[10px] text-afs-chrome-mid hover:text-afs-chrome-high disabled:opacity-30 disabled:cursor-not-allowed"
             >
               Next →
             </button>
           </div>
-        </div>
-      )}
+        )}
+      </aside>
+
+      {/* Main area — empty in this redesign except for the full-page modal
+          (FullPageProfileModal) that takes over the ENTIRE viewport
+          (including this sidebar) once a thumbnail is clicked. */}
+      <div className="flex-1 flex items-center justify-center min-h-[75vh]">
+        <p className="font-body text-sm text-afs-chrome-dim">Select a profile to view it full-size.</p>
+      </div>
 
       {previewProfile && (
-        <ProfilePreviewModal
-          profileId={previewProfile.id}
+        <FullPageProfileModal
           name={previewProfile.name}
           points={previewProfile.points}
           thumbnailImage={previewProfile.thumbnailImage}

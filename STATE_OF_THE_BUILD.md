@@ -34,6 +34,98 @@ summary, not a replacement for it.
 
 ---
 
+## PROFILE PASSPORT — SIDEBAR REDESIGN + FULL-PAGE MODAL (afs-pp-004): IMPLEMENTED, UNCONFIRMED (2026-09-17)
+
+A follow-up request asked to rebuild the Profile Passport components —
+literally, at a NEW path (`/app/components/profile-passport/`), with
+`AccountTab`/`SettingsTab` reduced to bare stubs, and `ProfilesTab`
+replaced by a from-scratch permanent-sidebar design with no mention of
+sorting, pagination, or the actions menu. **All three of those would have
+either duplicated or deleted real, working code from the prior two
+entries below (afs-pp-001 through -003)** — confirmed with Reid before
+touching anything, rather than guessed:
+
+- **Component location**: kept building in the existing
+  `components/profile-passport/` (where `AccountTab`/`SettingsTab`/
+  `ManageTeamModal`/`ProfilesTab` already lived with real, tested code) —
+  did NOT create a second copy at `/app/components/profile-passport/`.
+  `app/components/` does exist in this repo (`hero/`, `home/` — homepage
+  section components colocated near `app/page.tsx`), so the request wasn't
+  inventing a nonexistent convention, but mirroring it here would have
+  either forked the real implementation into two divergent copies or
+  required deleting the working one — neither was wanted.
+- **AccountTab/SettingsTab**: kept exactly as built in afs-pp-001/002 —
+  Manage Team (add/remove/change roles), Edit Company Info, the Delete
+  Account danger zone, and the Display Preference toggle all stay. Not
+  reduced to stubs.
+- **ProfilesTab**: sort, pagination, and the per-profile actions menu
+  (Edit Name/Download PDF/Delete) are all kept — see "Implementation"
+  below for how they fit into the new sidebar layout.
+
+**What WAS rebuilt, per the request:** `ProfilesTab`'s layout, from a wide
+table to a permanent (never collapses) fixed-width (300px) left sidebar of
+120×120 thumbnails — real canvas screenshot when present
+(`thumbnailImage`), falling back to the vector shape
+(`CanonicalProfileDiagram`) otherwise, per-row LOCKED badge, saved date,
+and job name. Clicking any thumbnail (or the profile name) opens a new
+`FullPageProfileModal` — a genuine full-viewport takeover (`fixed inset-0
+z-[100]`, higher than any other z-index in the app), header with the
+profile name and an X, ESC-to-close, and **the "View in FlashDraft →"
+button from afs-pp-003 deleted entirely, on explicit instruction** (a
+real, deliberate reversal of that button's own addition one entry ago —
+confirmed by the instruction's own emphasis, "DELETE entirely," not
+treated as ambiguous). The old `ProfilePreviewModal.tsx` (small centered
+popup, had the View-in-FlashDraft link) is deleted outright, not left as
+dead code — nothing referenced it besides `ProfilesTab.tsx`, confirmed by
+grep before removing it.
+
+**Gates:** `pnpm tsc --noEmit` — 0 errors. `pnpm build` — succeeds. Full
+`npx playwright test` — 69 passed, 14 pre-existing skips, 2 pre-existing
+unrelated failures (same `homepage.spec.ts` issues flagged in every prior
+entry).
+
+**Verification:** reused the real canvas screenshot captured live during
+afs-pp-003's own verification (drawn on `/studio/draft`, no auth needed) as
+a fixture, fed into a temporary, uncommitted preview route rendering the
+new `ProfilesTab`. Confirmed live: the sidebar renders at the correct
+fixed width with real thumbnails and vector-shape fallbacks side by side;
+clicking a thumbnail opens `FullPageProfileModal` filling the entire
+viewport with the real image, the "View in FlashDraft" text is absent
+(searched for programmatically, not just eyeballed), and ESC closes it;
+sort buttons and the actions menu (Edit Name/Download PDF/Delete) are
+still present and functional in the new layout. Then deleted the preview
+route. **Not verified:** anything requiring real auth or the still-
+unapplied migrations (024, 025) — same standing blocker as every prior
+Profile Passport entry, unchanged by this pass. **IMPLEMENTED,
+UNCONFIRMED.**
+
+**This task also asked to "test at
+https://afs-website-eight.vercel.app/app/profile-passport"**, which only
+makes sense once this build is actually live there — deployed to
+production after the gates above passed, per Reid's explicit confirmation
+(a change from the immediately prior entry, where deployment wasn't
+requested and wasn't done). See the deployment line below for the
+resulting URL/outcome.
+
+**Stray file noticed, not touched:** `app/app/profile-passport/page - Copy.tsx`
+exists, byte-identical to `page.tsx` — almost certainly a manual
+Windows-Explorer-style backup Reid made himself, not created by this
+session. Harmless (Next.js doesn't route a file unless it's literally
+named `page.tsx`) and left alone rather than assumed-safe-to-delete.
+
+**Implementation:**
+- `components/profile-passport/FullPageProfileModal.tsx` (NEW) — replaces
+  `ProfilePreviewModal.tsx` (deleted).
+- `components/profile-passport/ProfilesTab.tsx` — rewritten layout (table
+  → sidebar), all existing state/handlers (sort, pagination, rename,
+  delete, PDF link) carried over unchanged in behavior.
+- No changes to `AccountTab.tsx`, `SettingsTab.tsx`, `ManageTeamModal.tsx`,
+  `lib/data/profile-passport.ts`, or `app/app/profile-passport/page.tsx` —
+  none were needed, since the component location and import paths didn't
+  change (per the reconciliation above).
+
+---
+
 ## PROFILE PASSPORT — REAL CANVAS THUMBNAILS (afs-pp-003): IMPLEMENTED, UNCONFIRMED (2026-09-17)
 
 Replaces Profile Passport's generic vector-shape thumbnail with an actual

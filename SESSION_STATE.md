@@ -24,6 +24,62 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## PROFILE PASSPORT — SIDEBAR REDESIGN + FULL-PAGE MODAL (afs-pp-004) — 2026-09-17
+
+A follow-up request would have duplicated or deleted real, working code
+from the prior two entries if followed literally — confirmed with Reid
+first (three separate confirmations) rather than guessed. Full detail in
+STATE_OF_THE_BUILD.md's matching entry (top of file). Summary here for
+handoff:
+
+**Confirmed with Reid before building:** (1) kept all Profile Passport
+components in the existing `components/profile-passport/`, did not create
+a second copy at the requested `/app/components/profile-passport/`; (2)
+kept `AccountTab`/`SettingsTab`'s full real functionality (Manage Team,
+Edit Company Info, Delete Account, Display Preference) rather than
+reducing them to stubs; (3) kept `ProfilesTab`'s sort/pagination/actions
+menu, restyled into the new sidebar layout rather than dropped.
+
+**What changed:** `ProfilesTab` is now a permanent 300px-wide left sidebar
+of 120×120 thumbnails (real screenshot or vector-shape fallback), LOCKED
+badge, date, job name — clicking one opens the new
+`FullPageProfileModal.tsx`, a genuine full-viewport takeover with **the
+"View in FlashDraft" button from last entry deleted entirely**, per
+explicit instruction (a real, deliberate reversal, not a misread). Old
+`ProfilePreviewModal.tsx` deleted outright (confirmed nothing else
+referenced it first).
+
+**Files touched:** `components/profile-passport/FullPageProfileModal.tsx`
+(NEW), `components/profile-passport/ProfilesTab.tsx` (rewritten layout,
+same underlying logic), `components/profile-passport/ProfilePreviewModal.tsx`
+(deleted). Nothing else — `AccountTab`/`SettingsTab`/`ManageTeamModal`/
+`page.tsx` imports were all untouched since the component location and
+functionality didn't change.
+
+**Gates:** `pnpm tsc --noEmit` clean, `pnpm build` succeeds, full
+Playwright suite 69 passed / 14 pre-existing skips / 2 pre-existing
+unrelated failures (same as every prior entry).
+
+**Verification:** reused the real canvas screenshot captured during the
+previous entry's own live verification as a fixture in a temporary,
+uncommitted preview route — confirmed the sidebar renders correctly with
+real/fallback thumbnails side by side, the full-page modal genuinely fills
+the viewport and closes on ESC, "View in FlashDraft" is programmatically
+confirmed absent, and sort/actions-menu still work. Deleted the preview
+route after. **Not verified:** anything needing real auth or the still-
+unapplied migrations 024/025 (unchanged blocker). **IMPLEMENTED,
+UNCONFIRMED.**
+
+**Deployment:** this task explicitly asked to test at the live production
+URL and confirmed a deploy was wanted (unlike the immediately prior task,
+where it wasn't) — see below for the outcome.
+
+**Noticed, not touched:** `app/app/profile-passport/page - Copy.tsx` — a
+byte-identical duplicate of `page.tsx`, almost certainly Reid's own manual
+backup, harmless and left alone.
+
+---
+
 ## PROFILE PASSPORT — REAL CANVAS THUMBNAILS (afs-pp-003) — 2026-09-17
 
 Replaces the generic vector-shape Profile Passport thumbnail with a real

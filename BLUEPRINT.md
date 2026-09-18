@@ -398,13 +398,28 @@ Playwright for this was corrected; Playwright is a Node-side test tool
 that cannot run inside client-side page code) and stored as
 `saved_configurations.thumbnail_image` TEXT
 (`supabase/migrations/025_profile_passport_thumbnail.sql`, unapplied, same
-blocker as 024). `performSave` captures it on every save; `ProfilesTab`/
-`ProfilePreviewModal` render it with a graceful fallback to the original
-vector-shape rendering for rows with no thumbnail. FlashDraft also gained
-a "← Back to Profiles" link and a locked/view-only banner
+blocker as 024). `performSave` captures it on every save; `ProfilesTab`
+renders it (see afs-pp-004 addendum below for that component's current
+form) with a graceful fallback to the original vector-shape rendering for
+rows with no thumbnail. FlashDraft also gained a "← Back to Profiles" link
+and a locked/view-only banner
 (`viewingFromPassport` state) for profiles opened via `?loadPassport=`.
 Not independently confirmed against a real signed-in session — see
 STATE_OF_THE_BUILD.md's matching entry.
+
+**Addendum — sidebar redesign + full-page modal (afs-pp-004):**
+`ProfilesTab`'s layout changed from a wide table to a permanent 300px-wide
+left sidebar of 120×120 thumbnails (real screenshot or vector-shape
+fallback), with sort/pagination/the actions menu (Edit Name/Download PDF/
+Delete) all carried over unchanged. Clicking a thumbnail opens
+`FullPageProfileModal.tsx` (replaces the deleted `ProfilePreviewModal.tsx`)
+— a genuine full-viewport takeover (`fixed inset-0 z-[100]`) with no
+"View in FlashDraft" link (deliberately removed). A request to relocate
+these components to `/app/components/profile-passport/` and reduce
+`AccountTab`/`SettingsTab` to stubs was declined after confirming with
+Reid — both stay at `components/profile-passport/` with their full
+existing functionality intact. Not independently confirmed against a real
+signed-in session — see STATE_OF_THE_BUILD.md's matching entry.
 
 ---
 
