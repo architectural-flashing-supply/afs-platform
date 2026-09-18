@@ -13,16 +13,16 @@ import { test, expect, type Page } from '@playwright/test';
 const PRICE_PATTERN = /\$[\d,]+(\.\d{2})?/;
 
 // Document order asserted by app/page.tsx's own <HomeSection slug="..."> wrapper
-// sequence — thirteen real sections as of the HailView section addition (was
-// twelve at hpd-007; the split-screen hero redesign added a new
-// client-carousel section right after hero — see ClientCarousel.tsx).
-// field-app now sits directly after client-carousel (ahead of credibility)
-// so the phone-mockup/three-step story follows straight on from the trust
-// band, per the hero/carousel architecture fix. hail-view is the newest,
-// last section, after final-cta.
+// sequence — thirteen real sections. client-carousel moved from #2 (right
+// after hero) to the very last section, ahead of the footer, in the
+// homepage layout restructuring pass — its bg-white was breaking the page's
+// otherwise-consistent dark gunmetal theme just three sections in; as the
+// last section it now closes the page on a bright trust band instead. Three
+// SectionImageBreak photo bands (not HomeSections — no data-section, so
+// they don't appear in this list) were added between sections at the same
+// time; see app/page.tsx and STATE_OF_THE_BUILD.md for the full layout.
 const SECTION_SLUGS = [
   'hero',
-  'client-carousel',
   'field-app',
   'credibility',
   'design-studio',
@@ -34,6 +34,7 @@ const SECTION_SLUGS = [
   'nationwide',
   'final-cta',
   'hail-view',
+  'client-carousel',
 ];
 
 // DesignStudioHub's METHODS array (app/components/home/DesignStudioHub.tsx) —
@@ -323,15 +324,24 @@ test.describe('Homepage overhaul (hpd-008)', () => {
     expect(Math.abs(videoBox!.height - (frameBox!.height - BORDER_PX))).toBeLessThan(2);
   });
 
-  test('client-carousel is visible within the initial viewport on load (above the fold)', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 });
+  test('client-carousel is the last section, immediately before the footer', async ({ page }) => {
+    // Moved from #2 (above the fold, right after hero) to the very bottom
+    // of the page in the homepage layout restructuring pass -- its
+    // bg-white broke the page's otherwise-consistent dark gunmetal theme
+    // just three sections in. It's no longer expected to be above the fold.
     await page.goto('/');
-    const carousel = page.locator('[data-section="client-carousel"]');
-    const box = await carousel.boundingBox();
-    expect(box).not.toBeNull();
-    // Some part of the section's top must be within the 900px viewport --
-    // doesn't need to be fully visible, just not entirely below the fold.
-    expect(box!.y).toBeLessThan(900);
+    const lastSection = page.locator('main > [data-section]').last();
+    await expect(lastSection).toHaveAttribute('data-section', 'client-carousel');
+
+    const carouselBox = await lastSection.boundingBox();
+    const footerBox = await page.locator('footer').boundingBox();
+    expect(carouselBox).not.toBeNull();
+    expect(footerBox).not.toBeNull();
+    // The footer should follow directly after the carousel -- allowing for
+    // ordinary layout padding/margin (not pixel-perfect), but nowhere near
+    // enough gap to fit another whole section in between.
+    expect(footerBox!.y).toBeGreaterThanOrEqual(carouselBox!.y);
+    expect(footerBox!.y - (carouselBox!.y + carouselBox!.height)).toBeLessThan(150);
   });
 
   test('field-app step highlighting tracks video playback: step 1 active at start, step 2 by ~2.5s', async ({

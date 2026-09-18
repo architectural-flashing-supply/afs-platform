@@ -12,6 +12,7 @@ import CaseStudies from '@/app/components/home/CaseStudies';
 import ShopFloorProof from '@/app/components/home/ShopFloorProof';
 import FinalCTA from '@/app/components/home/FinalCTA';
 import HailViewSection from '@/app/components/home/HailViewSection';
+import SectionImageBreak from '@/app/components/home/SectionImageBreak';
 
 // NationwideMap (Leaflet map) is the heaviest section below the fold.
 // `ssr: false` isn't legal here -- this file has no 'use client', and Next
@@ -34,9 +35,17 @@ export default function HomePage() {
         <HeroSection />
       </HomeSection>
 
-      <HomeSection slug="client-carousel">
-        <ClientCarousel />
-      </HomeSection>
+      {/* Real AFS shop-floor photo (Reid-supplied, public/images/shop1.png)
+          -- a visual break right after the hero's own video, ahead of the
+          long run of UI-mockup/gunmetal sections below. Not a HomeSection
+          (no anchor/nav target of its own -- it's a breather, not a
+          destination). */}
+      <SectionImageBreak
+        src="/images/shop1.png"
+        alt="The full Thalmann bending line on the AFS shop floor, coil stock racked behind it and a technician handling formed metal"
+        caption="AFS Shop Floor — Burnet, Texas"
+        objectPosition="center 35%"
+      />
 
       <HomeSection slug="field-app">
         <FieldAppStory />
@@ -57,6 +66,17 @@ export default function HomePage() {
       <HomeSection slug="design-to-delivery">
         <DesignToDelivery />
       </HomeSection>
+
+      {/* Real, on-site AFS field photo (Reid-supplied,
+          public/images/rf2.jpeg) -- second visual break, roughly the
+          midpoint of the page, breaking up the long stretch of
+          text/UI-heavy feature sections either side of it. */}
+      <SectionImageBreak
+        src="/images/rf2.jpeg"
+        alt="A completed standing-seam metal roof installation on a residential job site, roll-forming equipment and coil stock in the foreground"
+        caption="Standing Seam, Formed and Installed On-Site"
+        objectPosition="center 42%"
+      />
 
       <HomeSection slug="pathways">
         <CustomerPathways />
@@ -91,6 +111,25 @@ export default function HomePage() {
           is passed here. */}
       <HomeSection slug="hail-view">
         <HailViewSection />
+      </HomeSection>
+
+      {/* Real AFS shop-floor photo (Reid-supplied, public/images/shop-pic.png)
+          -- third visual break, closing the loop back to the shop floor
+          right before the trusted-by carousel and footer. */}
+      <SectionImageBreak
+        src="/images/shop-pic.png"
+        alt="Coil stock racked above the Thalmann bending machine on the AFS shop floor, ready for fabrication"
+        caption="Coil Stock, Ready for the Brake"
+        objectPosition="center 40%"
+      />
+
+      {/* Moved to the very bottom of the page, ahead of the footer -- was
+          previously section #2 (right after hero), where its bg-white
+          broke the page's otherwise-consistent dark gunmetal theme just
+          three sections in. As the last section it instead closes the page
+          on a clean, bright trust band right before the footer. */}
+      <HomeSection slug="client-carousel">
+        <ClientCarousel />
       </HomeSection>
     </main>
   );

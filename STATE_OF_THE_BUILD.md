@@ -11567,4 +11567,98 @@ hoping a given browser/version respects it.
   unrelated failures re-confirmed every session this build cycle (hero CTA
   href, header logo width). 13 skipped (pre-existing, auth-gated).
 
+---
+
+## SESSION: 2026-09-18 (continued) — Homepage Layout Restructuring: Carousel Moved, Real Photo Breaks Added
+
+### HOMEPAGE LAYOUT RESTRUCTURING: IMPLEMENTED, VERIFIED LOCALLY AND ON LIVE PRODUCTION
+
+**1. Client carousel moved to the very bottom of the page, before the
+footer.** `ClientCarousel` (`components/home/ClientCarousel.tsx`) was
+section #2 — right after the hero — where its `bg-white` broke the page's
+otherwise-consistent dark gunmetal theme just three sections in. Moved to
+the last position in `app/page.tsx`, immediately before `</main>` (the
+footer itself comes from the root layout's `AppChrome`, not this file), so
+it now closes the page on a clean, bright trust band right before the
+footer instead of interrupting the dark theme near the top.
+
+**2/3. Three real-photo visual breaks added between sections.** New
+`app/components/home/SectionImageBreak.tsx` — a lightweight, non-`HomeSection`
+full-bleed photo band (no heading/copy, no nav anchor, `h-[280px]` to
+`h-[440px]` depending on breakpoint) dropped between major sections purely
+to interrupt the long run of gunmetal-gray/crimson UI with real imagery, per
+the task's own framing ("reduce gray/red monotony"). Placed after Hero
+(before Field App), after Design-to-Delivery (before Pathways, roughly the
+page's midpoint), and after HailView (before the now-relocated carousel).
+
+**Photo sourcing — used what Reid already supplied, not stock.** Before
+picking anything, every unused file in `public/images/` was actually opened
+and reviewed (not assumed from filename). Two real, genuine categories were
+found already committed to `main` from a prior session, sitting completely
+unreferenced by any component:
+- **Real AFS shop/field photography** (used here): `shop1.png` (wide shot
+  of the full Thalmann bending line, coil racks, a technician handling
+  metal), `shop pic.png` → renamed `shop-pic.png` (Thalmann close-up with
+  coil stock; the original filename's literal space was a real risk for a
+  `next/image` `src` string, so it was renamed rather than trusting URL
+  encoding), and `rf2.jpeg` (a genuine on-site job photo: a completed
+  standing-seam metal roof installation, roll-forming rig visible in the
+  foreground). `rf1.jpeg`/`rf3.jpeg` are the same real shoot as `rf2.jpeg`
+  (roll-forming trailer setup/operation) — left unused this pass to avoid
+  three near-duplicate images in one page; available for a future pass.
+- **Generic stock photography** (deliberately NOT used, flagged here so a
+  future pass doesn't reach for them by mistake): `looking at
+  blueprints.png` and `ready_to_build_house_plans_10x20_lot_c3d610fd8b.jpg`
+  are staged/generic construction stock photos (models in hard hats, a
+  filename bearing a stock-photo-service hash) — no real AFS people,
+  jobsite, or fabrication work depicted. `bp1.webp` is likewise a generic
+  house-plan stock photo (already-labeled rooms like "BEDROOM"/"KITCHEN",
+  nothing AFS-specific), matching the *existing*, already-approved
+  `blueprint.webp` used in `HeroSection.tsx`'s background — that one prior
+  use is an established pattern this session didn't touch or reconsider,
+  but no *new* stock imagery was added on top of it. The task explicitly
+  asked for real shop photography over synthetic options, and CLAUDE.md's
+  own Data Blockers table still lists real photography as generally
+  unreceived — these two facts don't actually conflict once the stock files
+  are correctly identified as stock rather than real, which is what this
+  pass did before using anything.
+- The already-integrated, separately-sourced 39-photo `PORTFOLIO_PHOTOS`
+  catalog (`lib/home/portfolio-photos.ts`, real AFS project photography
+  from the company's own prior website, already used by `CaseStudies.tsx`
+  further down this same page) was deliberately left alone — different,
+  already-established purpose, not this task's concern.
+
+**Crop calibration was real, iterative work, not a guess.** `rf2.jpeg` is
+portrait (1536×2048) being cropped into a wide, short band — a first pass
+at `objectPosition="center 65%"` centered the crop on the roll-forming
+equipment in the lower frame and cropped the actual roof (the entire point
+of the photo) out almost completely. Caught via a real Playwright
+element-screenshot during verification, not just code review; recalculated
+the visible-window math against the image's actual pixel dimensions and
+corrected to `"center 42%"`, re-verified, confirmed the roof is now the
+clear subject.
+
+**Verification:**
+- `pnpm tsc --noEmit` — 0 errors. `pnpm run build` — clean.
+- Local dev server + real Playwright: per-element screenshots of all three
+  breaks and the relocated carousel, confirmed visually (not just DOM
+  presence) — including catching and fixing the `rf2.jpeg` crop issue above,
+  and one false alarm (a full-viewport screenshot that appeared solid black
+  turned out to be a scroll-position artifact — `HailViewSection`'s own
+  tall `bg-black` filling most of that particular viewport — confirmed via
+  `<img>` `naturalWidth`/`naturalHeight`/`complete` plus an isolated
+  element-only screenshot that the photo itself was rendering correctly all
+  along).
+- Updated `tests/e2e/homepage.spec.ts`: `SECTION_SLUGS` reordered
+  (`client-carousel` moved from position 2 to the end); the old "client-
+  carousel is visible within the initial viewport on load (above the fold)"
+  test rewritten to assert the new, intentional placement instead
+  (last `main > [data-section]` element, immediately before `<footer>`).
+- Deployed to production, then re-verified against the real live URL
+  (`https://afs-website-eight.vercel.app`) with a fresh Playwright run
+  against production, not just localhost.
+- Full `npx playwright test`: 70 passed, 2 failed — the same 2
+  pre-existing, unrelated failures (hero CTA href, header logo width). 13
+  skipped (pre-existing, auth-gated).
+
 
