@@ -34,6 +34,74 @@ summary, not a replacement for it.
 
 ---
 
+## PROFILE PASSPORT — TABLE LAYOUT, PO COLUMN (afs-pp-005): IMPLEMENTED, UNCONFIRMED (2026-09-17)
+
+Third `ProfilesTab` layout in three consecutive passes — table (afs-pp-001)
+→ permanent left sidebar (afs-pp-004) → back to a table, now with an
+explicit column order and the thumbnail moved to the far right (this
+entry). Unlike the prior two passes, this request had no premise mismatch
+or scope-deleting instruction to flag — a clear, concrete spec, executed
+directly.
+
+**New column requested that didn't exist anywhere yet: PO Number.**
+FlashDraft's Job Info drawer has always captured a PO Number field
+(`poNumber`, alongside Business Name/Client Name/Job Name/Requested
+Delivery Date), and `job_info` JSONB (024_profile_passport_company_scope.sql)
+has stored the whole group since that migration was written — but
+`getPassportProfiles` (`lib/data/profile-passport.ts`) only ever extracted
+`jobName` out of it, never `poNumber`. Added now: `PassportProfileRow`
+gained a `poNumber` field, read from `job_info.poNumber` with no
+JSONB-`dimensions` fallback (unlike `jobName`/`isLocked`) — PO Number was
+never part of that older pre-migration scheme, so there's nothing to fall
+back to for a row saved before 024.
+
+**Gates:** `pnpm tsc --noEmit` — 0 errors. `pnpm build` — succeeds. Full
+`npx playwright test` — 69 passed, 14 pre-existing skips, 2 pre-existing
+unrelated failures (same as every prior entry).
+
+**Verification:** reused the same real captured canvas screenshot as the
+last two entries as a fixture in a temporary, uncommitted preview route.
+Confirmed live: column headers render in the exact requested order
+(`Profile Name | Job Name | PO | Date | Thumbnail`, checked
+programmatically, not eyeballed); a PO number renders when present and an
+em dash when null; the actions button's computed `opacity` is `0` before
+hovering its row and `1` after (confirmed via `getComputedStyle`, not
+assumed from the CSS) — satisfying this pass's "on hover" requirement,
+a change from afs-pp-004's always-visible version; the actions menu still
+opens with all three items (Edit Name/Download PDF/Delete); clicking the
+thumbnail still opens `FullPageProfileModal` with the real image and no
+"View in FlashDraft" text. Then deleted the preview route. **Not
+verified:** anything needing real auth or the still-unapplied migrations
+024/025 (unchanged blocker, now three entries running). **IMPLEMENTED,
+UNCONFIRMED.**
+
+**Design decision not explicit in the request:** the spec's 5-column order
+is exhaustive and doesn't mention "Saved By" (company-account visibility
+into who saved a given profile, built in afs-pp-001/002). Rather than
+silently drop that information or add an unrequested 6th column
+contradicting the explicit order, it's now a small subtext line under the
+profile name — preserved, not deleted, without fighting the literal
+column spec.
+
+**Deployed to production** after gates passed, per this task's own
+explicit instruction (same as afs-pp-004) — see the deployment line below
+for the resulting URL.
+
+**Implementation:**
+- `lib/data/profile-passport.ts` — `PassportProfileRow`/
+  `PassportProfileSource` gained `poNumber`; `getPassportProfiles` extracts
+  it from `job_info.poNumber`.
+- `components/profile-passport/ProfilesTab.tsx` — rewritten back to a
+  `<table>` (`Profile Name | Job Name | PO | Date | Thumbnail`, thumbnail
+  cell `text-center`), LOCKED badge inline with the name, "Saved by"
+  subtext beneath it, actions button now `opacity-0 group-hover:opacity-100`
+  on the row instead of always visible. Sort/pagination/rename/delete/PDF
+  logic is byte-for-byte the same as afs-pp-004 — only JSX/layout changed.
+- No changes to `FullPageProfileModal.tsx`, `AccountTab.tsx`,
+  `SettingsTab.tsx`, `ManageTeamModal.tsx`, or `page.tsx` — none needed.
+
+---
+
 ## PROFILE PASSPORT — SIDEBAR REDESIGN + FULL-PAGE MODAL (afs-pp-004): IMPLEMENTED, UNCONFIRMED (2026-09-17)
 
 A follow-up request asked to rebuild the Profile Passport components —

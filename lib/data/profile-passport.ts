@@ -40,6 +40,8 @@ export interface PassportProfileRow {
   name: string;
   createdAt: string;
   jobName: string | null;
+  /** From job_info.poNumber (024_profile_passport_company_scope.sql) — job_info is the only place a PO number is ever captured for a FlashDraft profile (the Job Info drawer's own PO Number field); there is no dimensions-JSONB fallback for it the way jobName/isLocked have, since PO Number was never part of that older scheme. */
+  poNumber: string | null;
   isLocked: boolean;
   points: PassportPoint[];
   /** Real canvas screenshot (025_profile_passport_thumbnail.sql), a `data:image/png;base64,...` URI — null for rows saved before this column existed or without one captured. Callers fall back to rendering `points` via CanonicalProfileDiagram when this is null. */
@@ -53,7 +55,7 @@ interface PassportProfileSource {
   name: string | null;
   created_at: string;
   is_locked: boolean | null;
-  job_info: { jobName?: string } | null;
+  job_info: { jobName?: string; poNumber?: string } | null;
   dimensions: { kind?: string; points?: unknown; jobName?: unknown; isLocked?: boolean } | null;
   thumbnail_image: string | null;
   user_id: string;
@@ -94,6 +96,7 @@ export async function getPassportProfiles(supabase: SupabaseClient): Promise<Pas
         name: row.name || 'Untitled Profile',
         createdAt: row.created_at,
         jobName,
+        poNumber: row.job_info?.poNumber || null,
         isLocked: row.is_locked ?? Boolean(row.dimensions?.isLocked),
         points,
         thumbnailImage: row.thumbnail_image ?? null,

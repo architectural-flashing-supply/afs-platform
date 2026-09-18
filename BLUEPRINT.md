@@ -421,6 +421,18 @@ Reid — both stay at `components/profile-passport/` with their full
 existing functionality intact. Not independently confirmed against a real
 signed-in session — see STATE_OF_THE_BUILD.md's matching entry.
 
+**Addendum — table layout, PO column (afs-pp-005):** `ProfilesTab` is a
+table again (third layout in three passes — see afs-pp-001 and afs-pp-004
+above), now with an explicit column order: Profile Name (+ LOCKED badge,
++ "Saved by" subtext on company accounts) | Job Name | PO | Date |
+Thumbnail (far right, 120×120, `text-center`). The actions menu (Edit
+Name/Download PDF/Delete) now only appears on row hover, a change from
+afs-pp-004's always-visible version. New: a PO Number column, sourced from
+`job_info.poNumber` (`lib/data/profile-passport.ts`'s `getPassportProfiles`
+never read this field back out before, even though FlashDraft's Job Info
+drawer has always captured it). Not independently confirmed against a real
+signed-in session — see STATE_OF_THE_BUILD.md's matching entry.
+
 ---
 
 ## 6. ENVIRONMENT VARIABLES

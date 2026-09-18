@@ -24,6 +24,50 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## PROFILE PASSPORT — TABLE LAYOUT, PO COLUMN (afs-pp-005) — 2026-09-17
+
+Third `ProfilesTab` layout in three passes: table → permanent sidebar →
+back to a table, now with an explicit column order (Profile Name | Job
+Name | PO | Date | Thumbnail, thumbnail far right) and hover-only actions
+menu. Unlike the last two entries, nothing here conflicted with existing
+work or the actual codebase — a clear, concrete spec, built directly. Full
+detail in STATE_OF_THE_BUILD.md's matching entry (top of file). Summary
+here for handoff:
+
+**New: PO Number column.** FlashDraft's Job Info drawer has always
+captured this field and `job_info` JSONB has stored it since migration
+024 was written, but `getPassportProfiles` never read it back out — fixed
+now (`lib/data/profile-passport.ts` gained `poNumber`).
+
+**Files touched:** `lib/data/profile-passport.ts` (added `poNumber`),
+`components/profile-passport/ProfilesTab.tsx` (rewritten back to a table
+layout; sort/pagination/rename/delete/PDF logic unchanged, only JSX
+changed). Nothing else touched.
+
+**Gates:** `pnpm tsc --noEmit` clean, `pnpm build` succeeds, full
+Playwright suite 69 passed / 14 pre-existing skips / 2 pre-existing
+unrelated failures (same as every prior entry).
+
+**Verification:** reused the same real captured screenshot from the last
+two entries as a fixture in a temporary preview route. Confirmed
+programmatically (not eyeballed): column order matches exactly, PO number
+renders (or em dash when null), the actions button's opacity is 0 before
+row-hover and 1 after, the actions menu still has all 3 items, and
+clicking the thumbnail still opens the full-page modal with the real image
+and no "View in FlashDraft" text. Deleted the preview route after.
+**Not verified:** anything needing real auth or the still-unapplied
+migrations 024/025 — unchanged blocker, three entries running now.
+**IMPLEMENTED, UNCONFIRMED.**
+
+**Note:** the spec's 5-column order doesn't mention "Saved By" (company
+accounts); kept it as subtext under the name rather than dropping it or
+adding an unrequested 6th column.
+
+**Deployment:** deployed to production after gates passed, per this task's
+explicit instruction — see below for the outcome.
+
+---
+
 ## PROFILE PASSPORT — SIDEBAR REDESIGN + FULL-PAGE MODAL (afs-pp-004) — 2026-09-17
 
 A follow-up request would have duplicated or deleted real, working code
