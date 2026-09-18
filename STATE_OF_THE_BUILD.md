@@ -11826,4 +11826,62 @@ own admin account):**
   JSX restructuring didn't regress existing draw/hem/template behavior —
   all 4 non-auth-gated tests in those files passed.
 
+---
+
+## SESSION: 2026-09-18 (continued) — Shop View Tab Added to AdminTopBar
+
+### SHOP VIEW NAV LINK: IMPLEMENTED, VERIFIED
+
+Two real mismatches between this task's own text and the actual codebase,
+checked before writing anything (not followed literally):
+- **`SPEC_LIVE_INVENTORY.md` is unrelated.** Read the full file (72 lines)
+  — it's Phase 6's customer-facing stock-status signal system (in-stock/
+  made-to-order/special-order dots on product pages), currently BLOCKED
+  per its own header. Nothing in it mentions Shop View, Command Center
+  tabs, or shop-floor monitoring. The task's own "or existing Shop View
+  specification" alternative is what actually applies — Shop View's real
+  spec is its own already-built page and STATE_OF_THE_BUILD's prior
+  afs-sv-* build history, not this file.
+- **The task's suggested route (`/app/command-center?tab=shop`) and test
+  URL (`.../app/command-center`) don't exist.** The real route is
+  `/admin/command-center` (confirmed live: `/app/command-center` 404s).
+  Shop View itself is not a `?tab=` case of command-center at all — it's
+  already its own real, complete, `requireAdminUser`-gated standalone page
+  at `/admin/shop-view` (`app/admin/shop-view/page.tsx` +
+  `components/admin/ShopViewBoard.tsx`), built and working, just missing
+  its nav link — exactly matching the task's own "Shop View exists but is
+  NOT visible" framing, once the route name is corrected.
+
+**Change:** `components/layout/AdminTopBar.tsx`'s `TOP_BAR_TABS` gained
+`{ label: 'Shop View', href: '/admin/shop-view' }`, positioned between
+Customers and FlashDraft (the task said "6th tab" — it's the 7th now,
+since Phase 3b's FlashDraft link was added as the 6th in this same build
+cycle; noting the discrepancy rather than silently renumbering anything).
+Added as a plain nav link (the same pattern as Orders/Customers/Profile
+Library/FlashDraft), not folded into command-center's own internal
+`?tab=pending/sent/completed/bids` system — Shop View was already built as
+a separate top-level route, so a link is the correct, minimal, no-risk
+fix; rebuilding it as a query-param tab inside command-center would
+duplicate real working code for no benefit.
+
+**Item 3 ("admin-only visibility") required no new code** — `/admin/
+shop-view/page.tsx` already calls `requireAdminUser(supabase)`, same as
+every other `/admin/*` route; confirmed live via curl:
+unauthenticated request to `/admin/shop-view` returns a real `307` to
+`/login?redirect=%2Fadmin%2Fshop-view`, not a 200.
+
+**Verification:**
+- `pnpm tsc --noEmit` — 0 errors. `pnpm run build` — clean.
+- `curl -I http://localhost:3000/admin/shop-view` (unauthenticated) — `307`
+  redirect to login, confirming the existing admin gate still applies.
+- Real Playwright screenshot of `AdminTopBar` (temp preview route, deleted
+  before commit) — "Shop View" renders between Customers and FlashDraft,
+  correct `href="/admin/shop-view"`.
+- Full `npx playwright test`: 69 passed, 2 failed — the same 2
+  pre-existing, unrelated failures (hero CTA href, header logo width). 14
+  skipped (pre-existing, auth-gated).
+- Deployed to production, re-verified against
+  `https://afs-website-eight.vercel.app` directly (not just localhost) —
+  see below.
+
 

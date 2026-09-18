@@ -24,6 +24,16 @@ const TOP_BAR_TABS: TopBarTab[] = [
   { label: 'Production', href: '/admin/orders' },
   { label: 'Orders', href: '/admin/orders-crm' },
   { label: 'Customers', href: '/admin/customers' },
+  // Real, already-built, admin-only page (app/admin/shop-view/page.tsx,
+  // requireAdminUser-gated) that lost its nav link in the afs-cc-001
+  // Command Center redesign along with several other real admin tools
+  // (see BLUEPRINT.md's Phase 9 addendum) — it kept its route the whole
+  // time, just wasn't linked from anywhere. Restored here rather than
+  // rebuilt as a ?tab= case of /admin/command-center: it's already its
+  // own top-level route (same pattern as Orders/Customers/Profile
+  // Library), not one of command-center's own internal
+  // ?tab=pending/sent/completed/bids cases.
+  { label: 'Shop View', href: '/admin/shop-view' },
   // Phase 3b: direct jump-out to FlashDraft (for Steve) — not an /admin/*
   // route, so isActivePath below never marks it active; that's expected,
   // this is a one-way link to a separate tool, not another admin section.
