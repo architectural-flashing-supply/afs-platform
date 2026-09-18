@@ -6,27 +6,29 @@ import { useEffect, useRef, useState } from 'react';
 // section, kept as its own component for its autoplay/reduced-motion/
 // intersection-observer logic.
 //
-// -portrait variants (not the original 1920x1080 landscape three-step-
-// process.mp4/.webm): a blurred, scaled-up copy of the same footage fills
-// the portrait canvas behind a full, uncropped, centered copy of the
-// original frame -- built once via ffmpeg (split -> one branch scale+crop+
-// blur+darken to cover the canvas, the other branch scale to fit the canvas
-// with no crop, overlaid centered). This was the only way to show the full
-// frame (the person's hand and phone are outside the video's own centered
-// safe area, and the FlashDraft-canvas segment's diagram sits left-of-
-// center) inside a portrait phone screen without either cropping content
-// out (object-cover) or leaving big empty letterbox bars (object-contain)
-// -- both were tried in prior passes and neither actually solved it.
-// Canvas is 1080x1920 (9:16), re-rendered to match the phone frame's own
-// aspect exactly -- see the frame div below -- so object-cover has zero
-// crop to do.
+// field-app.mp4/webm: Reid's real ~6s handheld field clip (source: "hp 1.mp4",
+// a Pixel 10 Pro shot of himself photographing a hand-drawn flashing sketch
+// with his phone -- casual and shaky on purpose, left as shot). The source
+// file is stored landscape (1920x1080) with a -90 deg rotation flag in its
+// display matrix -- browsers are inconsistent about honoring that metadata
+// for playback (this is what actually caused the long-standing "notch
+// upside down" / not-filling-the-frame bug: earlier passes kept adjusting
+// this component's CSS, but the actual defect was in the source file, not
+// the layout). Re-encoded once via ffmpeg with the rotation physically
+// baked into the pixels (`-vf scale=1080:1920`, matching ffprobe's own
+// auto-rotate behavior) into a real, upright, rotation-metadata-free
+// 1080x1920 (9:16) file -- so it matches this frame's own aspect exactly
+// (see the frame div below) and object-cover has zero crop to do, no
+// letterboxing, no scaling down.
 const videoSources = {
-  webm: '/videos/three-step-process-portrait.webm',
-  mp4: '/videos/three-step-process-portrait.mp4',
+  webm: '/videos/field-app.webm',
+  mp4: '/videos/field-app.mp4',
 };
 
-// Segment boundaries in the concatenated 6s source -- see
-// FieldAppStory.tsx's STEPS array; each 2s segment corresponds to one step.
+// This is now one continuous ~6s clip (not three distinct staged shots),
+// so this just divides it into three equal highlight windows for the STEPS
+// list in FieldAppStory.tsx -- it's decorative pacing, not a claim that the
+// video visually depicts each step.
 const STEP_DURATION_S = 2;
 
 export default function PhoneMockupVideo({
@@ -101,14 +103,21 @@ export default function PhoneMockupVideo({
           frame edge, and overflow-hidden clips the video to the same
           rounded corners as the border. */}
       <div className="relative aspect-[9/16] w-[360px] overflow-hidden rounded-[2.5rem] border-[6px] border-afs-bg-overlay bg-afs-bg-dim shadow-raised metal-edge">
+        {/* Camera notch -- top, matching a real device's front camera
+            cutout. */}
         <div className="absolute left-1/2 top-3 z-10 h-[6px] w-[70px] -translate-x-1/2 rounded-full bg-afs-bg-dim" />
+        {/* Home indicator -- bottom, thin bar. Over the light background of
+            this video's footage (paper/desk), afs-bg-dim would nearly
+            vanish, so this one is a translucent white to stay legible
+            against either a light or dark frame. */}
+        <div className="absolute bottom-2 left-1/2 z-10 h-[4px] w-[100px] -translate-x-1/2 rounded-full bg-white/70" />
         <video
           ref={videoRef}
-          // object-cover is safe here (no crop trade-off): the -portrait
-          // source's own canvas (1080x1920) is rendered at this exact 9:16
-          // aspect, so there's nothing left to crop.
+          // object-cover is safe here (no crop trade-off): field-app.mp4's
+          // own canvas (1080x1920) is rendered at this exact 9:16 aspect,
+          // so there's nothing left to crop.
           className="absolute inset-0 h-full w-full object-cover"
-          poster="/images/hero-poster.jpg"
+          poster="/images/field-app-poster.jpg"
           autoPlay
           muted
           loop

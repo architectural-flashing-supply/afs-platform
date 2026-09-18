@@ -11475,3 +11475,96 @@ element's real `readyState`/`networkState`/`error` before and after the fix.
 Deployed to production per the task's explicit "Deploy after gates pass"
 instruction — see commit/deploy record below.
 
+---
+
+## SESSION: 2026-09-18 — Field-App Phone Mockup Video: Root Cause Found and Fixed
+
+### FIELD-APP PHONE MOCKUP VIDEO: FIXED, VERIFIED AGAINST LIVE PRODUCTION (before and after)
+
+**This was never a CSS/layout bug, despite 8+ prior fix attempts all
+targeting `PhoneMockupVideo.tsx`'s CSS.** Screenshotting the real live
+production site (`https://afs-website-eight.vercel.app`) before touching
+anything confirmed the actual defect: the video file itself
+(`public/videos/three-step-process-portrait.mp4`, an ffmpeg-composited
+"blurred fill + centered safe copy" build described in that component's own
+prior comment) only paints real content into the *middle third* of its
+1080x1920 canvas — the rest is heavily blurred padding, baked directly into
+the pixels. `object-fit` on the `<video>` tag can't touch that; every prior
+pass changing `object-cover`/`object-contain`/container sizing was adjusting
+a layer that was never the problem. Confirmed with `ffprobe`/`ffmpeg` frame
+extraction directly against the committed file, independent of any browser
+rendering.
+
+**Real root cause of the reported "notch upside down," found in a second,
+separate file:** `public/videos/hp 1.mp4` — an untracked file that had
+already been committed to `main` in a prior session (visible in this
+session's very first `git status`, now confirmed tracked) — is Reid's real
+~6-second handheld field clip (duration 6.07s, matching the task's "6-7
+second field video" description almost exactly; content confirmed by frame
+extraction: himself photographing a hand-drawn flashing sketch with his own
+phone, casual/shaky, notch clearly at the top of the subject phone
+throughout). The file is stored landscape (1920x1080) with a `-90°`
+rotation flag in its MP4 display matrix rather than physically rotated
+pixels. `ffprobe`/`ffmpeg` (and, generally, browsers) auto-rotate on
+decode — but browser support for this specific metadata path has a real,
+documented history of cross-browser inconsistency, and this project's own
+8-attempt failure history is itself strong evidence something in this
+pipeline wasn't reliably honoring it. Baking the rotation into new,
+rotation-metadata-free files removes that dependency entirely rather than
+hoping a given browser/version respects it.
+
+**Fix — `app/components/home/PhoneMockupVideo.tsx`:**
+- New source files, re-encoded once via `ffmpeg -vf scale=1080:1920` (which
+  triggers ffmpeg's own auto-rotate on decode, physically baking the
+  rotation into the output): `public/videos/field-app.mp4` (h264, no audio,
+  `+faststart`) and `public/videos/field-app.webm` (vp9) — both genuinely
+  1080x1920 (exact 9:16, matching the phone frame's own `aspect-[9/16]`
+  container), confirmed via `ffprobe` to carry zero rotation side-data.
+  `object-cover` now has zero crop to perform — the video fills the frame
+  edge to edge because the pixels already do, not because of a CSS trick.
+- New poster, `public/images/field-app-poster.jpg`, extracted from the new
+  file's first frame — replaces a stale `poster="/images/hero-poster.jpg"`
+  reference (unrelated hero image, a pre-existing mismatch this pass also
+  caught and fixed while in the file).
+- Added the "thin line at bottom" home-indicator bar the task's fix
+  description named — the top notch pill was already correctly positioned
+  (`top-3`); this component had no bottom element before. Cosmetic-only,
+  doesn't affect the video's own fill/crop.
+- Deleted `public/videos/three-step-process-portrait.mp4/.webm` (`git rm`)
+  — confirmed via repo-wide grep that nothing else referenced them once
+  this component's own reference was removed. The non-portrait
+  `three-step-process.mp4/.webm` (landscape originals) were already
+  orphaned before this session (not referenced anywhere in `.ts`/`.tsx`)
+  and are left alone — out of scope for this fix, flagged here rather than
+  silently deleted.
+- `STEP_DURATION_S`/`onActiveStepChange` (the three-highlight-window sync
+  with `FieldAppStory.tsx`'s STEPS list) is unchanged — the new clip is one
+  continuous ~6s take rather than three staged shots, so the sync is now
+  decorative pacing rather than a literal per-step visual match. Not asked
+  to change this scope, flagging it: the STEPS text ("AFS designs the
+  profile" / "Fabrication & Job Site Delivery") no longer visually matches
+  what's on screen at those moments, since the video is now entirely footage
+  of step 1 (photographing the sketch). Worth a decision from Reid on
+  whether that's acceptable long-term or the video should later be trimmed/
+  extended to actually depict all three steps.
+
+**Verification:**
+- `pnpm tsc --noEmit` — 0 errors. `pnpm run build` — clean.
+- Real production screenshot taken *before* the fix
+  (`https://afs-website-eight.vercel.app`, temp Playwright spec, deleted
+  after use) — visually confirms the blurred-letterbox defect described
+  above, not just inferred from code reading.
+- Local dev server + real Playwright run against the actual fixed
+  component: video `boundingBox()` (348×628) fills the frame right up to
+  its 6px border (frame is 360×640) — matches the existing, unmodified
+  `homepage.spec.ts` bezel-padding test's own expectation. Screenshots at
+  t=3s and t=5s into playback both show full-bleed footage, notch correctly
+  at top, no letterbox bars, step-highlight sync advancing normally.
+- Updated `tests/e2e/homepage.spec.ts`'s field-app video test (poster path,
+  mp4 `src`) to match the new files — this was the one other place the old
+  path was hardcoded.
+- Full `npx playwright test`: 70 passed, 2 failed — the same 2 pre-existing,
+  unrelated failures re-confirmed every session this build cycle (hero CTA
+  href, header logo width). 13 skipped (pre-existing, auth-gated).
+
+

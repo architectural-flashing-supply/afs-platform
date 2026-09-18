@@ -84,18 +84,19 @@ for (const viewport of VIEWPORTS) {
     });
 
     test('field-app phone-mockup video declares an mp4 source, a poster, and loops', async ({ page }) => {
-      // hpd-007: PhoneMockupVideo (three-step-process montage) moved back
-      // below the fold into FieldAppStory, alongside the "Photo to Quote"
-      // steps copy.
+      // hpd-007: PhoneMockupVideo moved back below the fold into
+      // FieldAppStory, alongside the "Photo to Quote" steps copy. Source
+      // swapped to field-app.mp4/webm (Reid's real handheld field clip,
+      // rotation baked in) -- see PhoneMockupVideo.tsx's own comment for why.
       await page.goto('/');
       const phoneVideo = page.locator('[data-section="field-app"] video');
       // Below the fold: PhoneMockupVideo only attaches <source> once its
       // IntersectionObserver (rootMargin 200px) sees it near the viewport.
       await phoneVideo.scrollIntoViewIfNeeded();
-      await expect(phoneVideo).toHaveAttribute('poster', '/images/hero-poster.jpg');
+      await expect(phoneVideo).toHaveAttribute('poster', '/images/field-app-poster.jpg');
       await expect(phoneVideo).toHaveAttribute('loop', '');
       const mp4Source = phoneVideo.locator('source[type="video/mp4"]');
-      await expect(mp4Source).toHaveAttribute('src', '/videos/three-step-process-portrait.mp4');
+      await expect(mp4Source).toHaveAttribute('src', '/videos/field-app.mp4');
     });
 
     test('hero renders with zero console errors and no canvas element', async ({ page }) => {
