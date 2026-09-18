@@ -1,11 +1,11 @@
 import Image from 'next/image';
 
 // afs-logo.png is the complete branded lockup (mark + wordmark + tagline,
-// all baked in as a single image). This is the ONLY logo component in the
-// codebase (audited: a single <AfsLogo /> call site in NavBar.tsx, none in
-// Footer.tsx, which is text-only branding by design -- see that file's own
-// comment). Do not add a second logo component or improvise text overlays;
-// extend this one instead.
+// all baked in as a single image). Used by Footer.tsx. NavBar.tsx renders
+// the same /afs-logo.png asset but via its own separate inline <Image>
+// call (a pre-existing duplication, not introduced or fixed here -- see
+// STATE_OF_THE_BUILD.md). Do not add a second logo asset or improvise text
+// overlays; extend this component instead.
 const LOGO_SRC = '/afs-logo.png';
 
 export default function AfsLogo({ className = '' }: { className?: string }) {

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import AfsLogo from './AfsLogo';
 
 export default function Footer() {
   return (
@@ -6,12 +7,11 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-6 py-16">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
 
-          {/* Brand -- text only, no logo mark (the header is the one place
-              the logo renders; see NavBar.tsx). */}
+          {/* Brand -- the real logo mark, same asset the header renders
+              (05c772e previously removed this in favor of text-only
+              branding; reinstated per explicit instruction). */}
           <div>
-            <h2 className="font-label text-sm font-bold uppercase tracking-widest text-afs-chrome-high mb-3">
-              AFS — Architectural Flashing Supply
-            </h2>
+            <AfsLogo className="h-auto w-[180px] mb-4" />
             <p className="font-body text-sm text-afs-chrome-base leading-relaxed mb-4">
               Custom sheet metal fabrication for contractors and architects.
             </p>

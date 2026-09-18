@@ -260,11 +260,15 @@ test.describe('Homepage overhaul (hpd-008)', () => {
     await expect(header.getByText('Architectural Flashing Supply', { exact: false })).toBeVisible();
   });
 
-  test('footer has no logo image, only text branding', async ({ page }) => {
+  test('footer renders the real AFS logo image, not text branding', async ({ page }) => {
+    // Reverses 05c772e's earlier "text-only, no logo mark" decision, per an
+    // explicit later instruction to restore the logo image in the footer.
     await page.goto('/');
     const footer = page.locator('footer');
-    await expect(footer.locator('img')).toHaveCount(0);
-    await expect(footer.getByText('AFS — Architectural Flashing Supply')).toBeVisible();
+    const footerLogoImg = footer.locator('img');
+    await expect(footerLogoImg).toHaveCount(1);
+    await expect(footerLogoImg).toHaveAttribute('src', /afs-logo\.png/);
+    await expect(footer.getByText('AFS — Architectural Flashing Supply')).toHaveCount(0);
   });
 
   test('hero right column has Reid\'s real blueprint background image, filling the section (bg-cover)', async ({

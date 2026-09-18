@@ -11661,4 +11661,52 @@ clear subject.
   pre-existing, unrelated failures (hero CTA href, header logo width). 13
   skipped (pre-existing, auth-gated).
 
+---
+
+## SESSION: 2026-09-18 (continued) — Footer Logo Restored
+
+### FOOTER LOGO: IMPLEMENTED, VERIFIED LOCALLY AND ON LIVE PRODUCTION
+
+`components/layout/Footer.tsx`'s brand block previously rendered
+text-only branding ("AFS — Architectural Flashing Supply"), deliberately —
+commit `05c772e` removed a real `<AfsLogo />` render from the footer as
+part of an earlier "the header is the one place the logo renders" decision
+(that commit is Reid-authored). This task explicitly asked to reverse that:
+replace the text with the real logo image, same asset as the header.
+
+**Real, pre-existing inconsistency found and flagged (not silently
+"fixed"):** `AfsLogo.tsx` claimed in its own comment to have "a single
+`<AfsLogo />` call site in NavBar.tsx" — false. `NavBar.tsx` actually
+renders the header logo through its own separate, inline `<Image
+src="/afs-logo.png" ... width={160} height={80} />` call; `AfsLogo.tsx` was
+a fully orphaned, unused component before this change (confirmed via
+repo-wide grep, zero import sites). "Use the existing logo from the
+header" is satisfied either way — both point at the same real
+`/afs-logo.png` asset — but the component wasn't actually what the header
+renders. Used `<AfsLogo />` in the footer anyway (cleaner than a third
+copy-pasted inline `<Image>` call, and matches the component's own stated
+purpose), and corrected its comment to describe reality instead of a
+NavBar call site that doesn't exist. NavBar.tsx's own duplication was left
+alone — out of scope for this task, no instruction to touch the header.
+
+**Change:** `Footer.tsx`'s brand block now renders `<AfsLogo
+className="h-auto w-[180px] mb-4" />` in place of the `<h2>` text line;
+the description/address/phone/email lines below it are unchanged.
+
+**Verification:**
+- `pnpm tsc --noEmit` — 0 errors. `pnpm run build` — clean.
+- Local dev server + real Playwright screenshots, desktop (1440px) and
+  mobile (390px) — logo renders correctly, properly sized, consistent with
+  the header's own logo treatment on dark `bg-afs-bg-raised`.
+- Updated `tests/e2e/homepage.spec.ts`'s "footer has no logo image, only
+  text branding" test (asserted the exact opposite of this task's request)
+  to assert the new, intentional behavior instead: exactly one `<img>` in
+  the footer, `src` pointing at `afs-logo.png`, and the old text branding
+  no longer present.
+- Deployed to production, re-verified against
+  `https://afs-website-eight.vercel.app` directly (not just localhost).
+- Full `npx playwright test`: 70 passed, 2 failed — the same 2
+  pre-existing, unrelated failures (hero CTA href, header logo width). 13
+  skipped (pre-existing, auth-gated).
+
 
