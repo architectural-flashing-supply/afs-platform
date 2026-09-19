@@ -12245,4 +12245,56 @@ before concluding there was nothing to remove, not assumed absent.
   cycles, carousel sits directly under hero, zero `/videos/`or `/images/`
   404s in the network log).
 
+### TWO REAL PROBLEMS HIT AND FIXED DURING THE `deploy.ps1` RUN ITSELF
+
+1. **Lockfile drift caused a real remote build failure, not a CLI false
+   negative.** After manually editing `package.json` to move
+   `@types/qrcode` from `dependencies` to `devDependencies` (matching this
+   repo's own established convention — see item 4 above), the lockfile
+   was never regenerated to match. `vercel --prod`'s remote build failed
+   for real: `ERR_PNPM_OUTDATED_LOCKFILE` — Vercel's CI uses
+   `--frozen-lockfile`, which strictly validates the lockfile against
+   `package.json` and refuses to proceed on any mismatch. This is
+   different from the "Vercel CLI sometimes reports failure on a
+   deployment that actually succeeded" pattern documented earlier in this
+   file — confirmed for real via `vercel inspect --logs` on the failed
+   deployment, not assumed. Fixed with a plain `pnpm install` (regenerates
+   the lockfile from the current `package.json`, 226 lines changed as
+   dependents re-resolved around the section move) and a clean re-run.
+   **Lesson for future sessions:** any manual `package.json` edit — not
+   just `pnpm add`/`pnpm remove` — needs a `pnpm install` before deploying,
+   or the exact same class of failure recurs.
+
+2. **`deploy.ps1` itself has a real gap: its own Playwright step (4/5)
+   assumes a dev server is already running on `localhost:3000`, but
+   nothing in the script starts one.** `playwright.config.ts` has no
+   `webServer` entry (confirmed earlier this session), so `npx playwright
+   test` connects to whatever's already listening, or fails fast
+   (~3.5s/test) if nothing is. This session had correctly stopped the dev
+   server before running the script specifically to avoid the *other*
+   known Windows issue (`next build` racing a live dev server for a lock
+   on `.next/trace` — also previously documented in this file) — meaning
+   steps 2 (build, needs the server *stopped*) and 4 (tests, needs the
+   server *running*) have directly conflicting preconditions within one
+   single, unmodified script invocation. Not a bug introduced this
+   session — a pre-existing structural gap in the script, surfaced by
+   actually running it start-to-finish for the first time on record in
+   this file. Worked around without modifying `deploy.ps1` (not
+   authorized without Reid's explicit instruction, per this file's own
+   "FORGE LAUNCH" section): steps 1-3 completed via a real `deploy.ps1`
+   run (confirmed via its own log — TypeScript check passed, build
+   succeeded, Vercel deployment succeeded); step 4 completed by running
+   the exact same `npx playwright test` command manually once a dev
+   server was started; step 5 completed by running the exact same `git
+   add .` + commit + push the script performs (with a real descriptive
+   commit message in place of the script's generic `chore: deploy
+   <timestamp>`). All 5 steps' real actions happened; they just didn't
+   all happen inside one single process invocation, because the script
+   as written can't do that on Windows without either the build or the
+   tests failing for an environmental reason unrelated to this session's
+   own code changes. **Worth Reid's attention:** `deploy.ps1` likely needs
+   a `Start-Process` step to launch (and later stop) a dev server around
+   just the Playwright step, or a `webServer` entry added to
+   `playwright.config.ts` so Playwright manages that lifecycle itself.
+
 
