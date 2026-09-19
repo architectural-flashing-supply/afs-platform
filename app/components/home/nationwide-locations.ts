@@ -38,10 +38,3 @@ export const HQ_LOCATION: NationwideLocation = {
 export const PROJECT_LOCATIONS: NationwideLocation[] = [];
 
 export const ALL_LOCATIONS: NationwideLocation[] = [HQ_LOCATION, ...PROJECT_LOCATIONS];
-
-// Visual "nationwide delivery" radius, not a literal service boundary —
-// sized to read as spanning the continental US from the Burnet, TX shop
-// (~2,000mi covers coast-to-coast from Central Texas), matching
-// lib/chatbot/knowledge/afs-company.ts's company-service-area entry
-// ("ships nationwide within North America").
-export const NATIONWIDE_RADIUS_METERS = 3_218_688; // 2,000 miles

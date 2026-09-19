@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { SVGProps } from 'react';
 import InstallFieldAppButton from './InstallFieldAppButton';
+import RevealOnScroll from './RevealOnScroll';
 
 function ContractorIcon(props: SVGProps<SVGSVGElement>) {
   return (
@@ -102,7 +103,7 @@ const PATHWAYS: Pathway[] = [
 export default function CustomerPathways() {
   return (
     <section className="bg-afs-bg-light py-20 md:py-28">
-      <div className="mx-auto max-w-6xl px-6">
+      <RevealOnScroll className="mx-auto max-w-6xl px-6">
         <div className="text-center">
           <h2 className="font-display text-4xl leading-none text-afs-ink-900 sm:text-5xl md:text-6xl">
             Built for How You Work
@@ -149,7 +150,7 @@ export default function CustomerPathways() {
             </div>
           ))}
         </div>
-      </div>
+      </RevealOnScroll>
     </section>
   );
 }

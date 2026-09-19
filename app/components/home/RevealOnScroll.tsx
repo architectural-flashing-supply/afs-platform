@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type ElementType, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ElementType, type ReactNode } from 'react';
 
 // Viewport-triggered entrance animation with staggered child reveals
 // (2026-09-19 revision pass, item 10). framer-motion isn't installed in
@@ -15,12 +15,23 @@ export default function RevealOnScroll({
   children,
   className = '',
   as: Tag = 'div',
+  durationMs,
+  staggerMs,
 }: {
   children: ReactNode;
   className?: string;
   // Lets callers preserve a semantic wrapper (e.g. <dl> for a stats list)
   // instead of always getting a generic <div> around their children.
   as?: 'div' | 'dl' | 'ol' | 'ul';
+  // Per-instance timing override (2026-09-19 revision pass #2, item 1) --
+  // the hero needs ~600ms/~120ms instead of every other section's
+  // ~500ms/~80ms default. Applied as CSS custom properties consumed by
+  // .reveal-group in globals.css; omitted entirely (undefined) falls
+  // through to that file's own hardcoded defaults, so every existing
+  // caller is byte-for-byte unaffected -- "same timing tokens as last
+  // run" for anything that doesn't pass these.
+  durationMs?: number;
+  staggerMs?: number;
 }) {
   // ElementType (not `any`) -- React's own typed escape hatch for a
   // polymorphic "as" tag. The `as unknown as` double-assertion (rather
@@ -66,8 +77,20 @@ export default function RevealOnScroll({
     return () => observer.disconnect();
   }, [reducedMotion]);
 
+  const style =
+    durationMs !== undefined || staggerMs !== undefined
+      ? ({
+          ...(durationMs !== undefined && { '--reveal-duration': `${durationMs}ms` }),
+          ...(staggerMs !== undefined && { '--reveal-stagger': `${staggerMs}ms` }),
+        } as React.CSSProperties)
+      : undefined;
+
   return (
-    <Component ref={ref} className={`reveal-group ${visible ? 'is-visible' : ''} ${className}`}>
+    <Component
+      ref={ref}
+      className={`reveal-group ${visible ? 'is-visible' : ''} ${className}`}
+      style={style}
+    >
       {children}
     </Component>
   );

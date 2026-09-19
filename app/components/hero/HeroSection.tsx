@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import RevealOnScroll from '../home/RevealOnScroll';
 
 export default function HeroSection() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -44,11 +45,14 @@ export default function HeroSection() {
             )}
           </video>
 
-          <div className="relative z-20 max-w-sm">
-            <h2 className="font-display leading-none text-afs-chrome-high text-4xl sm:text-5xl md:text-[4rem] drop-shadow-lg">
+          <RevealOnScroll durationMs={600} staggerMs={120} className="relative z-20 max-w-sm">
+            <p className="font-label text-3xl sm:text-4xl font-semibold uppercase tracking-widest text-afs-crimson">
+              Custom Metal Fabrication
+            </p>
+            <h2 className="mt-3 font-display leading-none text-afs-chrome-high text-4xl sm:text-5xl md:text-[4rem] drop-shadow-lg">
               Engineered for architects. Trusted by contractors.
             </h2>
-          </div>
+          </RevealOnScroll>
         </div>
 
         <div
@@ -60,11 +64,8 @@ export default function HeroSection() {
             className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,theme(colors.afs.bg-dim/0%)_0%,theme(colors.afs.bg-dim/0%)_70%,theme(colors.afs.bg-dim/40%)_100%)]"
           />
 
-          <div className="relative z-10 max-w-lg">
-            <p className="font-label text-3xl sm:text-4xl font-semibold uppercase tracking-widest text-afs-crimson">
-              Custom Metal Fabrication
-            </p>
-            <h1 className="mt-3 font-display leading-none text-afs-chrome-high text-4xl sm:text-5xl md:text-[4rem]">
+          <RevealOnScroll durationMs={600} staggerMs={120} className="relative z-10 max-w-lg">
+            <h1 className="font-display leading-none text-afs-chrome-high text-4xl sm:text-5xl md:text-[4rem]">
               From Concept to Delivery. Fast.
             </h1>
             <p className="mt-6 max-w-lg font-body text-lg text-afs-chrome-mid">
@@ -86,7 +87,7 @@ export default function HeroSection() {
                 View Our Work
               </Link>
             </div>
-          </div>
+          </RevealOnScroll>
         </div>
       </div>
     </section>

@@ -93,7 +93,7 @@ export default function ShopFloorProof() {
       <div className="absolute inset-0 bg-afs-bg-dim/70" />
 
       <div className="relative z-10 mx-auto flex min-h-[60svh] max-w-6xl flex-col items-center justify-center gap-10 px-6 py-20 text-center">
-        <div>
+        <RevealOnScroll>
           <h2 className="font-display text-4xl leading-none text-afs-chrome-high sm:text-5xl md:text-6xl">
             Where precision meets production
           </h2>
@@ -101,7 +101,7 @@ export default function ShopFloorProof() {
             Fabricated in Burnet, Texas, and shipped nationwide across North
             America.
           </p>
-        </div>
+        </RevealOnScroll>
 
         <RevealOnScroll as="dl" className="grid w-full max-w-3xl grid-cols-1 gap-8 sm:grid-cols-3">
           {STATS.map((stat) => (

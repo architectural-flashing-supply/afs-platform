@@ -2,6 +2,7 @@
 
 import { useRef, useState, type KeyboardEvent } from 'react';
 import Link from 'next/link';
+import RevealOnScroll from './RevealOnScroll';
 
 interface DesignMethod {
   id: string;
@@ -86,8 +87,8 @@ export default function DesignStudioHub() {
   const selected = METHODS[selectedIndex];
 
   return (
-    <section id="design-studio" className="bg-afs-bg-light py-20 md:py-28">
-      <div className="mx-auto max-w-6xl px-6">
+    <section id="design-studio" className="bg-afs-bg-band py-20 md:py-28">
+      <RevealOnScroll className="mx-auto max-w-6xl px-6">
         <div className="text-center">
           <h2 className="font-display text-4xl leading-none text-afs-ink-900 sm:text-5xl md:text-6xl">
             Four Ways to Start
@@ -150,7 +151,7 @@ export default function DesignStudioHub() {
             Start
           </Link>
         </div>
-      </div>
+      </RevealOnScroll>
     </section>
   );
 }

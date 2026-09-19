@@ -25,6 +25,7 @@
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { ALL_LOCATIONS } from './nationwide-locations';
+import RevealOnScroll from './RevealOnScroll';
 
 const NationwideMapLeaflet = dynamic(() => import('./NationwideMapLeaflet'), {
   ssr: false,
@@ -34,7 +35,7 @@ const NationwideMapLeaflet = dynamic(() => import('./NationwideMapLeaflet'), {
 export default function NationwideMap() {
   return (
     <section id="nationwide" className="bg-afs-bg-light py-20 md:py-28">
-      <div className="mx-auto max-w-6xl px-6">
+      <RevealOnScroll className="mx-auto max-w-6xl px-6">
         <p className="font-label text-xs font-semibold uppercase tracking-widest text-afs-crimson">
           Texas Made. Nationally Delivered.
         </p>
@@ -65,7 +66,7 @@ export default function NationwideMap() {
         <div className="mt-8 h-[500px] w-full overflow-hidden rounded border border-afs-border-light metal-edge md:h-[560px]">
           <NationwideMapLeaflet />
         </div>
-      </div>
+      </RevealOnScroll>
     </section>
   );
 }

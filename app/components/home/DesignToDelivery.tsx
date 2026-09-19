@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type SVGProps } from 'react';
+import RevealOnScroll from './RevealOnScroll';
 
 interface Step {
   key: string;
@@ -162,12 +163,14 @@ export default function DesignToDelivery() {
   return (
     <section className="bg-afs-bg-light py-20 md:py-28">
       <div className="mx-auto max-w-6xl px-6">
-        <p className="font-label text-xs font-semibold uppercase tracking-widest text-afs-crimson">
-          How It Works
-        </p>
-        <h2 className="mt-3 font-display text-4xl leading-none text-afs-ink-900 sm:text-5xl">
-          From capture to delivery
-        </h2>
+        <RevealOnScroll>
+          <p className="font-label text-xs font-semibold uppercase tracking-widest text-afs-crimson">
+            How It Works
+          </p>
+          <h2 className="mt-3 font-display text-4xl leading-none text-afs-ink-900 sm:text-5xl">
+            From capture to delivery
+          </h2>
+        </RevealOnScroll>
 
         <div className="relative mt-16 md:mt-24">
           {/* Vertical rail track + fill -- mobile */}

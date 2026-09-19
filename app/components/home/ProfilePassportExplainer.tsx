@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Fragment, type SVGProps } from 'react';
 import { createClient } from '@/lib/supabase/server';
+import RevealOnScroll from './RevealOnScroll';
 
 function DesignIcon(props: SVGProps<SVGSVGElement>) {
   return (
@@ -121,7 +122,7 @@ export default async function ProfilePassportExplainer() {
 
   return (
     <section id="profile-passport" className="bg-afs-bg-light py-20 md:py-28">
-      <div className="mx-auto max-w-6xl px-6">
+      <RevealOnScroll className="mx-auto max-w-6xl px-6">
         <div className="text-center">
           <h2 className="font-display text-4xl leading-none text-afs-ink-900 sm:text-5xl md:text-6xl">
             Design it once. Order it whenever you need it.
@@ -192,7 +193,7 @@ export default async function ProfilePassportExplainer() {
             {cta.label}
           </Link>
         </div>
-      </div>
+      </RevealOnScroll>
     </section>
   );
 }

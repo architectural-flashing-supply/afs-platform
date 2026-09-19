@@ -144,7 +144,7 @@ export default function ClientCarousel() {
       role="region"
       className="w-full bg-white py-3"
     >
-      <p className="text-center font-label text-xs font-semibold uppercase tracking-widest text-afs-ink-700">
+      <p className="text-center font-label text-xs font-bold uppercase tracking-widest text-afs-ink-700">
         Trusted By Industry Leaders
       </p>
 

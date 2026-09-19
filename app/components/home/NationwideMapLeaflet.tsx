@@ -10,21 +10,37 @@
 // Next's bundler), and the overall MapContainer setup are copied from that
 // same already-verified HailViewMap.tsx, not a new map dependency.
 
-import { MapContainer, TileLayer, Marker, Popup, Circle, Tooltip, useMap } from 'react-leaflet';
+import { useEffect, useState } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, GeoJSON, Tooltip, useMap } from 'react-leaflet';
 import type { LeafletEvent } from 'leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { HQ_LOCATION, NATIONWIDE_RADIUS_METERS } from './nationwide-locations';
+import { HQ_LOCATION } from './nationwide-locations';
 
-// Continental US bounding box (approx. contiguous 48 states — mainland only,
-// not AK/HI): SW corner near San Diego/the Mexico border, NE corner near
-// the Maine/New Brunswick border. Used with fitBounds() rather than a fixed
-// center/zoom so the full CONUS frame holds regardless of the map
-// container's exact aspect ratio at 420px/320px heights.
-const CONTINENTAL_US_BOUNDS: [[number, number], [number, number]] = [
-  [24.5, -124.8],
-  [49.4, -66.9],
-];
+// Contiguous-US delivery-area outline (2026-09-19 revision pass #2, item 6)
+// -- replaces the old decorative radius Circle, which drew a perfect circle
+// centered on Burnet that bore no relation to the actual US coastline or the
+// Canadian/Mexican borders. public/data/us-contiguous.geojson is a single
+// MultiPolygon Feature generated once from the free `us-atlas` npm package
+// (ISC license, US Census TIGER/Line-derived, states-10m.json) merged with
+// topojson-client's merge() over every state EXCEPT Alaska, Hawaii, and the
+// territories (Puerto Rico, Guam, American Samoa, N. Mariana Islands, USVI)
+// -- so the outline is exactly the lower 48 + DC, stopping at the real
+// international borders, coast to coast. Coordinates rounded to 3 decimals
+// (~110m precision, invisible at this render size) to keep the committed
+// file at ~70KB, under the 100KB budget. us-atlas/topojson-client/
+// topojson-simplify were only ever dev-time tools to produce this one static
+// file -- they are not runtime dependencies and are not in package.json.
+// Fetched from /public/data at runtime (not bundled via a TS import) since
+// it's a static asset, not app code.
+interface UsContiguousGeoJSON {
+  type: 'Feature';
+  properties: { name: string };
+  geometry: {
+    type: 'MultiPolygon';
+    coordinates: number[][][][];
+  };
+}
 
 const HQ_MARKER_ICON = L.divIcon({
   className: '',
@@ -38,12 +54,6 @@ const HQ_MARKER_ICON = L.divIcon({
   iconAnchor: [11, 11],
 });
 
-function FitToContinentalUS() {
-  const map = useMap();
-  map.fitBounds(CONTINENTAL_US_BOUNDS, { padding: [16, 16] });
-  return null;
-}
-
 // A divIcon marker gets Leaflet's own role="button"/tabindex="0" for
 // keyboard interactivity but no accessible name (unlike an L.Icon image
 // marker, a div has no `alt`) -- axe/Lighthouse's aria-command-name audit
@@ -55,7 +65,38 @@ function setMarkerAriaLabel(e: LeafletEvent) {
   e.target.getElement()?.setAttribute('aria-label', HQ_LOCATION.name);
 }
 
+// Fits the view to the polygon's own real bounds (computed from the actual
+// geometry via Leaflet, not a hand-typed approximate bounding box) so the
+// frame always matches whatever outline is actually drawn.
+function FitToPolygonBounds({ geojson }: { geojson: UsContiguousGeoJSON }) {
+  const map = useMap();
+
+  useEffect(() => {
+    const bounds = L.geoJSON(geojson as unknown as GeoJSON.GeoJsonObject).getBounds();
+    if (bounds.isValid()) {
+      map.fitBounds(bounds, { padding: [16, 16] });
+    }
+  }, [geojson, map]);
+
+  return null;
+}
+
 export default function NationwideMapLeaflet() {
+  const [usPolygon, setUsPolygon] = useState<UsContiguousGeoJSON | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/data/us-contiguous.geojson')
+      .then((res) => res.json())
+      .then((data: UsContiguousGeoJSON) => {
+        if (!cancelled) setUsPolygon(data);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     // react-leaflet's MapContainer doesn't spread unrecognized props (like
     // data-testid) onto its underlying DOM node, so the test hook lives on a
@@ -72,23 +113,26 @@ export default function NationwideMapLeaflet() {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <FitToContinentalUS />
 
-        {/* Leaflet's pathOptions prop takes a plain style object read by its
-            own SVG renderer, not JSX/CSS -- it can't consume Tailwind
-            classes or CSS custom properties, same documented exception as
-            the CANVAS_COLORS/WebGL material patterns in
-            DESIGN_TOKENS.md §10. Literal value mirrors afs-crimson
-            (#C0001A). */}
-        <Circle
-          center={[HQ_LOCATION.lat, HQ_LOCATION.lon]}
-          radius={NATIONWIDE_RADIUS_METERS}
-          pathOptions={{ color: '#C0001A', fillColor: '#C0001A', fillOpacity: 0.05, opacity: 0.25 }}
-        >
-          <Tooltip direction="top" permanent>
-            Nationwide delivery
-          </Tooltip>
-        </Circle>
+        {usPolygon && (
+          <>
+            <FitToPolygonBounds geojson={usPolygon} />
+            {/* Leaflet's pathOptions prop takes a plain style object read by
+                its own SVG renderer, not JSX/CSS -- it can't consume
+                Tailwind classes or CSS custom properties, same documented
+                exception as the CANVAS_COLORS/WebGL material patterns in
+                DESIGN_TOKENS.md §10. Literal value mirrors afs-crimson
+                (#C0001A); same fill/opacity as the old circle, thin stroke. */}
+            <GeoJSON
+              data={usPolygon as unknown as GeoJSON.GeoJsonObject}
+              pathOptions={{ color: '#C0001A', weight: 1.5, fillColor: '#C0001A', fillOpacity: 0.05, opacity: 0.25 }}
+            >
+              <Tooltip direction="top" permanent>
+                Nationwide delivery
+              </Tooltip>
+            </GeoJSON>
+          </>
+        )}
 
         <Marker
           position={[HQ_LOCATION.lat, HQ_LOCATION.lon]}

@@ -30,6 +30,10 @@ module.exports = {
           // bg-raised/bg-surface for cards within a light section.
           'bg-light':        '#F7F7F5',
           'bg-light-raised': '#EFEFEC',
+          // Distinct from bg-light -- explicitly requested as its own hex
+          // (2026-09-19 revision pass #2, items 4-5) for the field-app
+          // credibility strip and the "Four Ways to Start" pathways section.
+          'bg-band':         '#F1F2F4',
           'border-light':    '#D8D8D4',
           'crimson':       '#C0001A',
           'crimson-hover': '#E8001F',

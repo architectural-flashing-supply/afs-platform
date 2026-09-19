@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import RevealOnScroll from './RevealOnScroll';
 
 const ITEMS: { label: string; href: string }[] = [
   { label: '4 Ways to Start', href: '#design-studio' },
@@ -10,8 +11,11 @@ const ITEMS: { label: string; href: string }[] = [
 
 export default function CredibilityStrip() {
   return (
-    <nav aria-label="Key capabilities" className="border-y border-afs-border-light bg-afs-bg-light">
-      <ul className="mx-auto grid max-w-6xl grid-cols-2 gap-x-4 gap-y-5 px-6 py-6 sm:flex sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-x-3 sm:gap-y-0">
+    <nav aria-label="Key capabilities" className="border-y border-afs-border-light bg-afs-bg-band">
+      <RevealOnScroll
+        as="ul"
+        className="mx-auto grid max-w-6xl grid-cols-2 gap-x-4 gap-y-5 px-6 py-6 sm:flex sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-x-3 sm:gap-y-0"
+      >
         {ITEMS.map((item, index) => (
           <li
             key={item.label}
@@ -21,7 +25,7 @@ export default function CredibilityStrip() {
           >
             <Link
               href={item.href}
-              className="font-heading text-xs font-semibold uppercase tracking-wider text-afs-ink-700 transition-colors hover:text-afs-ink-900 sm:text-sm"
+              className="font-heading text-base font-bold uppercase tracking-wider text-afs-ink-700 transition-colors hover:text-afs-ink-900 sm:text-lg"
             >
               {item.label}
             </Link>
@@ -32,7 +36,7 @@ export default function CredibilityStrip() {
             )}
           </li>
         ))}
-      </ul>
+      </RevealOnScroll>
     </nav>
   );
 }

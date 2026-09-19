@@ -42,18 +42,6 @@ export default function HomePage() {
         <ClientCarousel />
       </HomeSection>
 
-      {/* Real AFS shop-floor photo (Reid-supplied, public/images/shop1.png)
-          -- a visual break right after the hero's own video, ahead of the
-          long run of UI-mockup/gunmetal sections below. Not a HomeSection
-          (no anchor/nav target of its own -- it's a breather, not a
-          destination). */}
-      <SectionImageBreak
-        src="/images/shop1.png"
-        alt="The full Thalmann bending line on the AFS shop floor, coil stock racked behind it and a technician handling formed metal"
-        caption="AFS Shop Floor — Burnet, Texas"
-        objectPosition="center 35%"
-      />
-
       <HomeSection slug="field-app">
         <FieldAppStory />
       </HomeSection>
@@ -74,15 +62,16 @@ export default function HomePage() {
         <DesignToDelivery />
       </HomeSection>
 
-      {/* Real, on-site AFS field photo (Reid-supplied,
-          public/images/rf2.jpeg) -- second visual break, roughly the
-          midpoint of the page, breaking up the long stretch of
-          text/UI-heavy feature sections either side of it. */}
+      {/* Real AFS shop-floor photo (Reid-supplied, public/images/shop1.png)
+          -- moved here from directly under the hero (2026-09-19 revision
+          pass #2, item 2), second visual break, roughly the midpoint of
+          the page, breaking up the long stretch of text/UI-heavy feature
+          sections either side of it. */}
       <SectionImageBreak
-        src="/images/rf2.jpeg"
-        alt="A completed standing-seam metal roof installation on a residential job site, roll-forming equipment and coil stock in the foreground"
-        caption="Standing Seam, Formed and Installed On-Site"
-        objectPosition="center 42%"
+        src="/images/shop1.png"
+        alt="The full Thalmann bending line on the AFS shop floor, coil stock racked behind it and a technician handling formed metal"
+        caption="AFS Shop Floor — Burnet, Texas"
+        objectPosition="center 35%"
       />
 
       <HomeSection slug="pathways">
