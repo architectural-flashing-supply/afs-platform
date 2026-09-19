@@ -236,6 +236,36 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
    to update STATE_OF_THE_BUILD.md and SESSION_STATE.md from an actual
    audit of the codebase — never from memory.
 
+9. **Canonical site URL — always `lib/site-url.ts`'s `getSiteUrl()`, never
+   a hardcoded fallback.** Server-side code (API routes, background jobs)
+   that needs the app's own absolute URL calls `getSiteUrl()`
+   (`NEXT_PUBLIC_APP_URL`, else `https://$VERCEL_URL`, else
+   `http://localhost:3000`) — never a literal `'https://afs-website-...
+   .vercel.app'` string. `NEXT_PUBLIC_APP_URL` is set in Vercel production
+   env to `https://afs-website-eight.vercel.app`, the real production
+   alias — confirmed via `vercel project ls`/`vercel alias ls`
+   (2026-09-19). `afs-website-alpha.vercel.app`, which several routes had
+   hardcoded as their fallback before this rule, does **not** belong to
+   this project's Vercel account/scope at all (`vercel inspect` fails
+   against it under `reids-projects-b3405b97`) despite serving what looks
+   like a copy of this same site — see STATE_OF_THE_BUILD.md's 2026-09-19
+   entry for the full investigation. Client-side code that needs the
+   current origin should use `window.location.origin` directly instead
+   (works correctly on preview deployments too, no env-inlining needed).
+
+10. **Homepage/marketing videos are pre-rendered to their display aspect,
+    never re-cropped or scaled in CSS.** Every real video asset used in a
+    fixed-aspect container (hero, HailView, phone-mockup clips, shop-floor
+    loop) is encoded at that exact target aspect ratio before it's dropped
+    into `public/videos/`, so the component's own `object-cover` has zero
+    actual cropping to do — no `scale-*` transforms, no letterboxing, no
+    "shrink it down and center it" CSS tricks to compensate for a mismatched
+    source. If a video looks cropped, zoomed, or letterboxed on the site,
+    the fix is re-encoding the source file to the container's real aspect
+    ratio (see PhoneMockupVideo.tsx's own comment for a worked example: a
+    -90°-rotation-flagged landscape source baked into a genuine upright
+    portrait file), not adjusting the CSS around it.
+
 ---
 
 ## MACHINE INTEGRATION — THALMANN DS2801 / AFS MACHINE BRIDGE

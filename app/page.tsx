@@ -35,6 +35,13 @@ export default function HomePage() {
         <HeroSection />
       </HomeSection>
 
+      {/* Moved back directly below the hero (2026-09-19 revision pass) --
+          was at the very bottom of the page; restyled as a thinner banner
+          in ClientCarousel.tsx itself. */}
+      <HomeSection slug="client-carousel">
+        <ClientCarousel />
+      </HomeSection>
+
       {/* Real AFS shop-floor photo (Reid-supplied, public/images/shop1.png)
           -- a visual break right after the hero's own video, ahead of the
           long run of UI-mockup/gunmetal sections below. Not a HomeSection
@@ -102,34 +109,15 @@ export default function HomePage() {
         <FinalCTA />
       </HomeSection>
 
-      {/* DATA BLOCKER: no real hail-strike footage exists yet (CLAUDE.md
-          Data Blockers table). videoUrl is left unset rather than pointed
-          at a file that doesn't exist -- a guaranteed-404 src would fire a
-          real console/network error on every page load. HailViewSection
-          renders its placeholder panel until a real path (e.g.
-          "/videos/hail-strikes.mp4", once that file exists, or an env var)
-          is passed here. */}
+      {/* Real hail-strike footage (2026-09-19 revision pass) -- the
+          DATA BLOCKER is resolved; Reid supplied real portrait (490x940)
+          video + webm + poster, pre-rendered to their display aspect. */}
       <HomeSection slug="hail-view">
-        <HailViewSection />
-      </HomeSection>
-
-      {/* Real AFS shop-floor photo (Reid-supplied, public/images/shop-pic.png)
-          -- third visual break, closing the loop back to the shop floor
-          right before the trusted-by carousel and footer. */}
-      <SectionImageBreak
-        src="/images/shop-pic.png"
-        alt="Coil stock racked above the Thalmann bending machine on the AFS shop floor, ready for fabrication"
-        caption="Coil Stock, Ready for the Brake"
-        objectPosition="center 40%"
-      />
-
-      {/* Moved to the very bottom of the page, ahead of the footer -- was
-          previously section #2 (right after hero), where its bg-white
-          broke the page's otherwise-consistent dark gunmetal theme just
-          three sections in. As the last section it instead closes the page
-          on a clean, bright trust band right before the footer. */}
-      <HomeSection slug="client-carousel">
-        <ClientCarousel />
+        <HailViewSection
+          videoUrl="/videos/hail-strikes.mp4"
+          webmUrl="/videos/hail-strikes.webm"
+          posterUrl="/images/hail-strikes-poster.jpg"
+        />
       </HomeSection>
     </main>
   );

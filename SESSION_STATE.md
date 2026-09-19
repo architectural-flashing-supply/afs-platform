@@ -7737,6 +7737,35 @@ for the new section. Full detail: `STATE_OF_THE_BUILD.md`'s matching
 
 ---
 
+## SESSION: 2026-09-19 — Homepage + HailView + Field App Revision Pass
+
+12-item revision pass, all done except one deliberately held sub-item. Real
+HailView video wired in (resolving the earlier DATA BLOCKER), HailView
+promoted to its own top-level nav item, Field App phone mockup converted to
+a real 3-clip crossfading playlist with a shared platform-aware "Install
+Field App" button (found and fixed a real manifest-scoping bug: the
+homepage can't correctly trigger `beforeinstallprompt` for
+`field-contractor-manifest.json` since it links the root site manifest
+instead — fixed via a hard-nav handoff to `/field/contractor?install=1`),
+most homepage sections converted from dark gunmetal to a light `#F7F7F5`
+palette (hero/HailView/footer excepted, `ShopFloorProof` also excepted
+since it's video-background not flat-color), viewport-triggered entrance
+animations added via a small IntersectionObserver component
+(framer-motion isn't installed), a canonical `getSiteUrl()` replacing 7
+hardcoded `afs-website-alpha` fallbacks, and 3 unused source videos
+removed. **Held:** the hero's "bottom image" swap — `HeroSection.tsx` has
+never had a third image in its real git history, so this needs Reid's
+clarification before proceeding rather than a guess that could destroy
+real content. **Real finding worth Reid's attention:**
+`afs-website-alpha.vercel.app` is a live, publicly-reachable deployment of
+what looks like this same site, but does not belong to Reid's own Vercel
+account/scope at all (`vercel inspect` fails against it). Full detail,
+full PASS/FAIL breakdown per item, and exactly what was and wasn't
+verifiable by automation: `STATE_OF_THE_BUILD.md`'s matching 2026-09-19
+entry.
+
+---
+
 ## PRIOR HISTORY
 
 This file previously contained several thousand lines of session-by-session

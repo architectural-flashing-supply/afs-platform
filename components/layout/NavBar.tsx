@@ -15,15 +15,13 @@ export const LOGO_HEIGHT = 96;
 const TOP_NAV_LINKS = [
   { label: 'Products', href: '/products' },
   { label: 'Design Studio', href: '/studio' },
+  { label: 'HailView', href: '/hailview' },
   { label: 'Track Delivery', href: '/track' },
   { label: 'Services', href: '/about/services' },
   { label: 'Architects', href: '/architects' },
 ];
 
-const RESOURCES_LINKS = [
-  { label: 'Resources', href: '/resources' },
-  { label: 'HailView', href: '/hailview' },
-];
+const RESOURCES_LINKS = [{ label: 'Resources', href: '/resources' }];
 
 const START_QUOTE_CLASS =
   'bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label text-sm font-semibold rounded px-4 py-2 transition-colors shadow-crimson shrink-0';

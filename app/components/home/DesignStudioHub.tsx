@@ -86,13 +86,13 @@ export default function DesignStudioHub() {
   const selected = METHODS[selectedIndex];
 
   return (
-    <section id="design-studio" className="bg-afs-bg-base py-20 md:py-28">
+    <section id="design-studio" className="bg-afs-bg-light py-20 md:py-28">
       <div className="mx-auto max-w-6xl px-6">
         <div className="text-center">
-          <h2 className="font-display text-4xl leading-none text-afs-chrome-high sm:text-5xl md:text-6xl">
+          <h2 className="font-display text-4xl leading-none text-afs-ink-900 sm:text-5xl md:text-6xl">
             Four Ways to Start
           </h2>
-          <p className="mt-4 font-body text-base text-afs-chrome-mid md:text-lg">
+          <p className="mt-4 font-body text-base text-afs-ink-700 md:text-lg">
             Pick the method that fits what you have. Every path leads to a formal AFS quote.
           </p>
         </div>
@@ -120,12 +120,12 @@ export default function DesignStudioHub() {
                 onKeyDown={(event) => handleKeyDown(event, index)}
                 className={`flex w-[220px] shrink-0 snap-center flex-col rounded border p-4 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-afs-crimson sm:w-auto ${
                   isSelected
-                    ? 'border-afs-crimson bg-afs-bg-raised metal-edge-red'
-                    : 'border-[var(--afs-border)] bg-afs-bg-raised hover:bg-afs-bg-surface'
+                    ? 'border-afs-crimson bg-afs-bg-light-raised metal-edge-red'
+                    : 'border-afs-border-light bg-afs-bg-light-raised hover:bg-white'
                 }`}
               >
-                <span className="font-heading text-lg text-afs-chrome-high">{method.title}</span>
-                <span className="mt-1 font-body text-xs text-afs-chrome-mid">{method.description}</span>
+                <span className="font-heading text-lg text-afs-ink-900">{method.title}</span>
+                <span className="mt-1 font-body text-xs text-afs-ink-700">{method.description}</span>
               </button>
             );
           })}
@@ -135,11 +135,11 @@ export default function DesignStudioHub() {
           id="design-studio-panel"
           role="tabpanel"
           aria-labelledby={`design-studio-tab-${selected.id}`}
-          className="mt-8 rounded border border-[var(--afs-border)] bg-afs-bg-raised p-8 metal-edge"
+          className="mt-8 rounded border border-afs-border-light bg-afs-bg-light-raised p-8 metal-edge"
         >
-          <h3 className="font-heading text-2xl text-afs-chrome-high">{selected.title}</h3>
-          <p className="mt-3 max-w-2xl font-body text-base text-afs-chrome-mid">{selected.description}</p>
-          <p className="mt-3 font-label text-sm font-semibold uppercase tracking-wide text-afs-chrome-mid">
+          <h3 className="font-heading text-2xl text-afs-ink-900">{selected.title}</h3>
+          <p className="mt-3 max-w-2xl font-body text-base text-afs-ink-700">{selected.description}</p>
+          <p className="mt-3 font-label text-sm font-semibold uppercase tracking-wide text-afs-ink-700">
             {selected.bestFor}
           </p>
           <Link

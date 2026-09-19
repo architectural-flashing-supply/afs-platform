@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import type { SVGProps } from 'react';
 import PhoneMockupVideo from './PhoneMockupVideo';
+import InstallFieldAppButton from './InstallFieldAppButton';
+import RevealOnScroll from './RevealOnScroll';
 
 function CameraIcon(props: SVGProps<SVGSVGElement>) {
   return (
@@ -39,7 +40,7 @@ function TruckIcon(props: SVGProps<SVGSVGElement>) {
 const STEPS = [
   {
     number: '1',
-    text: 'Snap a photo of the detail',
+    text: 'Take a photo of your profile',
     Icon: CameraIcon,
   },
   {
@@ -58,13 +59,18 @@ export default function FieldAppStory() {
   const [activeStep, setActiveStep] = useState(0);
 
   return (
-    <section className="relative overflow-hidden bg-afs-bg-base py-20 md:py-28">
+    <section className="relative overflow-hidden bg-afs-bg-light py-20 md:py-28">
       <div className="relative mx-auto max-w-6xl px-6">
-        <h2 className="text-center font-display text-4xl leading-none text-afs-chrome-high sm:text-5xl">
+        <h2 className="text-center font-display text-4xl leading-none text-afs-ink-900 sm:text-5xl">
           Photo to Quote from the jobsite
         </h2>
 
-        <div className="mt-16 grid grid-cols-1 items-center gap-12 md:grid-cols-2 md:gap-16">
+        {/* Reveal group's children are the two grid columns (phone, steps/CTA)
+            -- not the STEPS <ol> below, whose <li> elements already carry
+            their own inline opacity for the active-step highlight; an
+            inline style would win the cascade over .reveal-group's CSS
+            opacity, silently breaking the entrance fade for those. */}
+        <RevealOnScroll className="mt-16 grid grid-cols-1 items-center gap-12 md:grid-cols-2 md:gap-16">
           <div className="flex w-full justify-center">
             <PhoneMockupVideo onActiveStepChange={setActiveStep} />
           </div>
@@ -91,7 +97,7 @@ export default function FieldAppStory() {
                       </span>
                       <step.Icon className="h-8 w-8 flex-none text-afs-crimson" aria-hidden="true" />
                     </span>
-                    <span className="font-body text-lg text-afs-chrome-mid md:text-xl">
+                    <span className="font-body text-lg text-afs-ink-700 md:text-xl">
                       {step.text}
                     </span>
                   </li>
@@ -102,25 +108,17 @@ export default function FieldAppStory() {
             {/* The Field App is a real installable PWA (app/field/contractor
                 and app/field/layout.tsx's own manifest/service-worker shell),
                 not a native app published to an app store -- there is no
-                real Apple App Store or Google Play listing to link to, so
-                both breakpoints link to the same real route; only the label
-                changes to match how each surface actually gets you there. */}
+                real Apple App Store or Google Play listing to link to.
+                InstallFieldAppButton (2026-09-19 revision, item 4) handles
+                the platform split internally (native install prompt on
+                Android/Chrome, an instructional sheet on iOS, a QR modal
+                on desktop) instead of this being two differently-labeled
+                Link variants. */}
             <div className="mt-10 flex flex-wrap items-center justify-center gap-6 md:justify-start">
-              <Link
-                href="/field/contractor"
-                className="hidden rounded bg-afs-crimson px-8 py-4 font-label text-sm font-semibold text-white metal-edge-red shadow-crimson transition-colors hover:bg-afs-crimson-hover md:inline-flex"
-              >
-                Open the Field App
-              </Link>
-              <Link
-                href="/field/contractor"
-                className="rounded bg-afs-crimson px-8 py-4 font-label text-sm font-semibold text-white metal-edge-red shadow-crimson transition-colors hover:bg-afs-crimson-hover md:hidden"
-              >
-                Install App
-              </Link>
+              <InstallFieldAppButton className="rounded bg-afs-crimson px-8 py-4 font-label text-sm font-semibold text-white metal-edge-red shadow-crimson transition-colors hover:bg-afs-crimson-hover" />
             </div>
           </div>
-        </div>
+        </RevealOnScroll>
       </div>
     </section>
   );

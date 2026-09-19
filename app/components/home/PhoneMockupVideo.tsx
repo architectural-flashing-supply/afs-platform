@@ -6,30 +6,44 @@ import { useEffect, useRef, useState } from 'react';
 // section, kept as its own component for its autoplay/reduced-motion/
 // intersection-observer logic.
 //
-// field-app.mp4/webm: Reid's real ~6s handheld field clip (source: "hp 1.mp4",
-// a Pixel 10 Pro shot of himself photographing a hand-drawn flashing sketch
-// with his phone -- casual and shaky on purpose, left as shot). The source
-// file is stored landscape (1920x1080) with a -90 deg rotation flag in its
-// display matrix -- browsers are inconsistent about honoring that metadata
-// for playback (this is what actually caused the long-standing "notch
-// upside down" / not-filling-the-frame bug: earlier passes kept adjusting
-// this component's CSS, but the actual defect was in the source file, not
-// the layout). Re-encoded once via ffmpeg with the rotation physically
-// baked into the pixels (`-vf scale=1080:1920`, matching ffprobe's own
-// auto-rotate behavior) into a real, upright, rotation-metadata-free
-// 1080x1920 (9:16) file -- so it matches this frame's own aspect exactly
-// (see the frame div below) and object-cover has zero crop to do, no
-// letterboxing, no scaling down.
-const videoSources = {
-  webm: '/videos/field-app.webm',
-  mp4: '/videos/field-app.mp4',
-};
+// 2026-09-19 revision: converted from a single continuous clip into a real
+// 3-clip sequential playlist, one clip per step (previously one clip
+// divided into three decorative time-windows -- see git history). All
+// three source files are pre-rendered to this frame's own 9:16 (1080x1920)
+// display aspect already (field-app.mp4's own comment below still applies
+// to clip 1; field-step-2/3 were supplied already matching it) -- never
+// re-cropped or scaled in CSS, just object-cover with zero crop to do.
+//
+// field-app.mp4/webm (clip 1): Reid's real ~6s handheld field clip (source:
+// "hp 1.mp4", a Pixel 10 Pro shot of himself photographing a hand-drawn
+// flashing sketch with his phone -- casual and shaky on purpose, left as
+// shot). The source file was stored landscape (1920x1080) with a -90 deg
+// rotation flag in its display matrix -- browsers are inconsistent about
+// honoring that metadata for playback (this is what actually caused the
+// long-standing "notch upside down" / not-filling-the-frame bug: earlier
+// passes kept adjusting this component's CSS, but the actual defect was in
+// the source file, not the layout). Re-encoded once via ffmpeg with the
+// rotation physically baked into the pixels, into a real, upright,
+// rotation-metadata-free 1080x1920 file.
+interface Clip {
+  webm: string;
+  mp4: string;
+  poster: string;
+}
 
-// This is now one continuous ~6s clip (not three distinct staged shots),
-// so this just divides it into three equal highlight windows for the STEPS
-// list in FieldAppStory.tsx -- it's decorative pacing, not a claim that the
-// video visually depicts each step.
-const STEP_DURATION_S = 2;
+const CLIPS: Clip[] = [
+  { webm: '/videos/field-app.webm', mp4: '/videos/field-app.mp4', poster: '/images/field-app-poster.jpg' },
+  {
+    webm: '/videos/field-step-2.webm',
+    mp4: '/videos/field-step-2.mp4',
+    poster: '/images/field-step-2-poster.jpg',
+  },
+  {
+    webm: '/videos/field-step-3.webm',
+    mp4: '/videos/field-step-3.mp4',
+    poster: '/images/field-step-3-poster.jpg',
+  },
+];
 
 export default function PhoneMockupVideo({
   onActiveStepChange,
@@ -37,9 +51,10 @@ export default function PhoneMockupVideo({
   onActiveStepChange?: (step: number) => void;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRefs = useRef<(HTMLVideoElement | null)[]>([null, null, null]);
   const [isNearViewport, setIsNearViewport] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
+  const [activeClip, setActiveClip] = useState(0);
   const videoEnabled = isNearViewport && !reducedMotion;
 
   useEffect(() => {
@@ -47,7 +62,7 @@ export default function PhoneMockupVideo({
 
     const applyPreference = (reduceMotion: boolean) => {
       setReducedMotion(reduceMotion);
-      if (reduceMotion) videoRef.current?.pause();
+      if (reduceMotion) videoRefs.current.forEach((v) => v?.pause());
     };
 
     applyPreference(motionQuery.matches);
@@ -56,7 +71,7 @@ export default function PhoneMockupVideo({
     return () => motionQuery.removeEventListener('change', handleChange);
   }, []);
 
-  // Defers loading the video source until the component nears the viewport,
+  // Defers loading the video sources until the component nears the viewport,
   // since this section renders below the fold.
   useEffect(() => {
     const wrap = wrapRef.current;
@@ -75,23 +90,34 @@ export default function PhoneMockupVideo({
     return () => observer.disconnect();
   }, []);
 
+  // Drives both the initial kick-off (videoEnabled false -> true, activeClip
+  // still 0) and every subsequent clip advance: play the active clip from
+  // its own start, pause the rest. All three <video> elements are always
+  // mounted with real sources once videoEnabled (see JSX below), so the
+  // next clip is already buffering during the current one's playback --
+  // "preload the next clip" is satisfied by never tearing sources down
+  // between clips, not by a separate preload step.
   useEffect(() => {
-    if (!onActiveStepChange) return;
-    const video = videoRef.current;
-    if (!video) return;
-
-    let lastStep = -1;
-    const handleTimeUpdate = () => {
-      const step = Math.min(2, Math.floor(video.currentTime / STEP_DURATION_S));
-      if (step !== lastStep) {
-        lastStep = step;
-        onActiveStepChange(step);
+    if (!videoEnabled) return;
+    videoRefs.current.forEach((v, i) => {
+      if (!v) return;
+      if (i === activeClip) {
+        v.currentTime = 0;
+        v.play().catch(() => {});
+      } else {
+        v.pause();
       }
-    };
+    });
+  }, [activeClip, videoEnabled]);
 
-    video.addEventListener('timeupdate', handleTimeUpdate);
-    return () => video.removeEventListener('timeupdate', handleTimeUpdate);
-  }, [onActiveStepChange]);
+  useEffect(() => {
+    onActiveStepChange?.(activeClip);
+  }, [activeClip, onActiveStepChange]);
+
+  const handleEnded = (i: number) => {
+    if (i !== activeClip) return; // stray event guard -- only the active clip actually plays
+    setActiveClip((c) => (c + 1) % CLIPS.length);
+  };
 
   return (
     <div ref={wrapRef} className="flex w-full justify-center">
@@ -111,27 +137,38 @@ export default function PhoneMockupVideo({
             vanish, so this one is a translucent white to stay legible
             against either a light or dark frame. */}
         <div className="absolute bottom-2 left-1/2 z-10 h-[4px] w-[100px] -translate-x-1/2 rounded-full bg-white/70" />
-        <video
-          ref={videoRef}
-          // object-cover is safe here (no crop trade-off): field-app.mp4's
-          // own canvas (1080x1920) is rendered at this exact 9:16 aspect,
-          // so there's nothing left to crop.
-          className="absolute inset-0 h-full w-full object-cover"
-          poster="/images/field-app-poster.jpg"
-          autoPlay
-          muted
-          loop
-          playsInline
-          preload="metadata"
-          aria-hidden="true"
-        >
-          {videoEnabled && (
-            <>
-              <source src={videoSources.webm} type="video/webm" />
-              <source src={videoSources.mp4} type="video/mp4" />
-            </>
-          )}
-        </video>
+
+        {/* All three clips stacked, always mounted once enabled -- only
+            opacity differs, so switching the active clip crossfades
+            (transition-opacity) instead of ever showing a black frame. */}
+        {CLIPS.map((clip, i) => (
+          <video
+            key={clip.mp4}
+            ref={(el) => {
+              videoRefs.current[i] = el;
+            }}
+            // object-cover is safe here (no crop trade-off): every clip's
+            // own canvas is rendered at this exact 9:16 aspect already, so
+            // there's nothing left to crop -- no scale transforms, no
+            // shrunken renditions.
+            className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ease-out ${
+              activeClip === i ? 'opacity-100' : 'opacity-0'
+            }`}
+            poster={clip.poster}
+            muted
+            playsInline
+            preload="auto"
+            aria-hidden="true"
+            onEnded={() => handleEnded(i)}
+          >
+            {videoEnabled && (
+              <>
+                <source src={clip.webm} type="video/webm" />
+                <source src={clip.mp4} type="video/mp4" />
+              </>
+            )}
+          </video>
+        ))}
       </div>
     </div>
   );

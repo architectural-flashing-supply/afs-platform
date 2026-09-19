@@ -23,14 +23,6 @@ export default function Footer() {
                 (512) 372-4900
               </a>
             </p>
-            <p className="font-body text-sm text-afs-chrome-base mt-1 break-all">
-              <a
-                href="mailto:trica@architecturalflashingsupply.com"
-                className="hover:text-afs-chrome-mid transition-colors"
-              >
-                trica@architecturalflashingsupply.com
-              </a>
-            </p>
           </div>
 
           {/* Products */}

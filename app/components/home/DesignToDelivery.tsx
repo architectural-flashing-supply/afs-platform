@@ -160,19 +160,19 @@ export default function DesignToDelivery() {
   const fillPercent = (visibleCount / STEPS.length) * 100;
 
   return (
-    <section className="bg-afs-bg-base py-20 md:py-28">
+    <section className="bg-afs-bg-light py-20 md:py-28">
       <div className="mx-auto max-w-6xl px-6">
         <p className="font-label text-xs font-semibold uppercase tracking-widest text-afs-crimson">
           How It Works
         </p>
-        <h2 className="mt-3 font-display text-4xl leading-none text-afs-chrome-high sm:text-5xl">
+        <h2 className="mt-3 font-display text-4xl leading-none text-afs-ink-900 sm:text-5xl">
           From capture to delivery
         </h2>
 
         <div className="relative mt-16 md:mt-24">
           {/* Vertical rail track + fill -- mobile */}
           <div
-            className="absolute left-5 top-5 bottom-5 w-px bg-[var(--afs-border)] md:hidden"
+            className="absolute left-5 top-5 bottom-5 w-px bg-afs-border-light md:hidden"
             aria-hidden="true"
           >
             <div
@@ -183,7 +183,7 @@ export default function DesignToDelivery() {
 
           {/* Horizontal rail track + fill -- desktop */}
           <div
-            className="absolute left-5 right-5 top-5 hidden h-px bg-[var(--afs-border)] md:block"
+            className="absolute left-5 right-5 top-5 hidden h-px bg-afs-border-light md:block"
             aria-hidden="true"
           >
             <div
@@ -208,19 +208,19 @@ export default function DesignToDelivery() {
                     className={`relative z-10 flex h-10 w-10 flex-none items-center justify-center rounded-full border-2 transition-colors duration-500 ${
                       isActive
                         ? 'border-afs-crimson bg-afs-crimson text-white'
-                        : 'border-[var(--afs-border)] bg-afs-bg-raised text-afs-chrome-dim'
+                        : 'border-afs-border-light bg-afs-bg-light-raised text-afs-ink-700'
                     }`}
                   >
                     <step.Icon className="h-5 w-5" aria-hidden="true" />
                   </span>
                   <div>
-                    <h3 className="font-heading text-lg font-semibold text-afs-chrome-high">
+                    <h3 className="font-heading text-lg font-semibold text-afs-ink-900">
                       {step.title}
                     </h3>
-                    <p className="mt-1 font-body text-sm text-afs-chrome-mid">
+                    <p className="mt-1 font-body text-sm text-afs-ink-700">
                       {step.description[0]}
                     </p>
-                    <p className="mt-1 font-body text-sm text-afs-chrome-mid">
+                    <p className="mt-1 font-body text-sm text-afs-ink-700">
                       {step.description[1]}
                     </p>
                   </div>

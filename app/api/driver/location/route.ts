@@ -4,9 +4,10 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { haversineDistance } from '@/lib/utils/distance';
 import { geocodeAddress } from '@/lib/utils/geocode';
 import { sendSms } from '@/lib/twilio/sms';
+import { getSiteUrl } from '@/lib/site-url';
 
 const TEN_MILE_THRESHOLD_MILES = 10;
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://afs-website-alpha.vercel.app';
+const APP_URL = getSiteUrl();
 
 interface DeliveryAddressJson {
   line1?: string;

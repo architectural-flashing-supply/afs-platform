@@ -1,8 +1,9 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { logAdminAction } from '@/lib/admin/audit';
 import { sendInvoiceEmail } from './invoice-email';
+import { getSiteUrl } from '@/lib/site-url';
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://afs-website-alpha.vercel.app';
+const APP_URL = getSiteUrl();
 
 export interface ShopJobCompletionEvent {
   shopProfileLibraryId: string;

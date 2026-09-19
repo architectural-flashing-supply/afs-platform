@@ -33,12 +33,12 @@ const NationwideMapLeaflet = dynamic(() => import('./NationwideMapLeaflet'), {
 
 export default function NationwideMap() {
   return (
-    <section id="nationwide" className="bg-afs-bg-base py-20 md:py-28">
+    <section id="nationwide" className="bg-afs-bg-light py-20 md:py-28">
       <div className="mx-auto max-w-6xl px-6">
         <p className="font-label text-xs font-semibold uppercase tracking-widest text-afs-crimson">
           Texas Made. Nationally Delivered.
         </p>
-        <h2 className="mt-3 font-display text-4xl leading-none text-afs-chrome-high sm:text-5xl md:text-6xl">
+        <h2 className="mt-3 font-display text-4xl leading-none text-afs-ink-900 sm:text-5xl md:text-6xl">
           Fabricated in Burnet. Shipped Anywhere in the US.
         </h2>
 
@@ -47,12 +47,12 @@ export default function NationwideMap() {
             to a single small line under the title rather than a separate
             "Locations" section, so the map (not the address) is what fills
             this section. */}
-        <p className="mt-3 font-body text-sm text-afs-chrome-mid">
+        <p className="mt-3 font-body text-sm text-afs-ink-700">
           {ALL_LOCATIONS.map((location, i) => (
             <span key={location.id}>
               {i > 0 && ', '}
               {location.href ? (
-                <Link href={location.href} className="hover:text-afs-chrome-high hover:underline">
+                <Link href={location.href} className="hover:text-afs-ink-900 hover:underline">
                   {location.name}
                 </Link>
               ) : (
@@ -62,7 +62,7 @@ export default function NationwideMap() {
           ))}
         </p>
 
-        <div className="mt-8 h-[500px] w-full overflow-hidden rounded border border-[var(--afs-border)] metal-edge md:h-[560px]">
+        <div className="mt-8 h-[500px] w-full overflow-hidden rounded border border-afs-border-light metal-edge md:h-[560px]">
           <NationwideMapLeaflet />
         </div>
       </div>

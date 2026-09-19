@@ -11884,4 +11884,365 @@ unauthenticated request to `/admin/shop-view` returns a real `307` to
   `https://afs-website-eight.vercel.app` directly (not just localhost) —
   see below.
 
+---
+
+## SESSION: 2026-09-19 — Homepage + HailView + Field App Revision Pass (12 items)
+
+### ITEM-BY-ITEM: PASS/FAIL WITH EVIDENCE
+
+Cold-read STATE_OF_THE_BUILD.md + SESSION_STATE.md at session start per the
+task's own instruction, confirming the real state of every file touched
+before editing (not from memory). Evidence paths below are under
+`scratch-verify/` (gitignored — see item 12) unless otherwise noted.
+
+**1. HailView section — PASS.** `HailViewSection.tsx` rewritten: new exact
+copy (HailView™ eyebrow, new headline/body/closer), old "Start a
+Quote"/"Talk to AFS" buttons replaced with the one-liner + single "Check My
+Address" → `/hailview` button, real video wired
+(`hail-strikes.mp4`/`.webm`/poster, `<source>` order webm-then-mp4, portrait
+`aspect-[490/940]` container capped at `h-[70vh] max-h-[820px]` so width is
+derived from the aspect ratio rather than stretched, `object-cover` with
+zero actual crop since the container aspect exactly matches the source).
+`app/page.tsx`'s DATA BLOCKER comment removed, real path passed. The
+`SectionImageBreak` (shop-pic.png) immediately below HailView removed.
+Evidence: `checkpoint12-hailview-1440.png`, `checkpoint12-hailview-375.png`
+— video `readyState` confirmed `4` (fully loaded), zero console/network
+errors during this checkpoint.
+
+**2. Nav — PASS.** `NavBar.tsx`: `TOP_BAR_TABS` gained `{ label:
+'HailView', href: '/hailview' }` (both desktop and mobile menus render
+from this same array); `RESOURCES_LINKS` reduced to just `{ label:
+'Resources', href: '/resources' }`. Evidence: `checkpoint12-hailview-1440.png`
+(top nav), `checkpoint12-mobile-menu.png` (mobile menu, HailView present,
+Resources menu no longer contains it).
+
+**3. Field App phone mockup — PASS.** `PhoneMockupVideo.tsx` converted
+from one continuous clip to a real 3-clip sequential playlist: three
+`<video>` elements stacked `absolute inset-0`, only `opacity`
+(`transition-opacity duration-500`) differs between the active clip and
+the other two — crossfades, no black flash, since the outgoing clip's last
+decoded frame stays visible while fading out. Advances on each clip's own
+`ended` event (`handleEnded`), loops 1→2→3→1. All three clips get real
+`<source>` tags simultaneously once `videoEnabled` (not just the active
+one), so the next clip is already buffering during current playback —
+satisfies "preload the next clip" without a separate preload step. Phone
+frame/notch/aspect/`object-cover` setup untouched, exactly as instructed.
+Step overlays now sync directly to `activeClip` index (no more time-window
+heuristic) — step 1 text changed to "Take a photo of your profile" per
+spec (`FieldAppStory.tsx`). Evidence: `checkpoint34-phone-1440.png`
+(clip 1 active, step 1 highlighted), `checkpoint34-phone-375.png`. Full
+cycle confirmed via a real Playwright run logging opacity transitions
+over ~13s: clip 0 active t=9ms→~5.5s, clip 1 ~6.1s→~8.6s, clip 2
+~9.2s→~11.7s, back to clip 0 at ~12.3s — matches the real 6s/3s/3s clip
+durations. All three videos' `boundingBox()` were pixel-identical to each
+other and to the phone screen box (348×628 inside a 360×640 frame,
+matching the existing bezel-padding test's own expectation) — "every clip
+renders full-screen inside the phone" confirmed, not just clip 1.
+
+**4. Install Field App button — PASS (with one real limitation:
+native-install-prompt firing itself can't be verified by automation —
+PENDING REID).** New shared `InstallFieldAppButton.tsx`, used everywhere
+"Open the Field App"/"Install App" used to appear (`FieldAppStory.tsx`,
+`CustomerPathways.tsx`'s contractors card) — one label everywhere now,
+"Install Field App", platform branching happens inside the component
+instead of via two differently-labeled `Link`s at different breakpoints.
+New `lib/pwa/install-prompt.ts` (module-level `beforeinstallprompt`
+capture/trigger singleton) and `lib/pwa/platform.ts` (`isIOS`,
+`isStandalone`, `isDesktopForInstall` — "no touch, or wide viewport"
+exactly as specced). Desktop/laptop: QR modal (never navigates to the
+camera flow) — QR generated with the `qrcode` npm package (installed,
+`@types/qrcode` in devDependencies per this repo's existing convention,
+not `dependencies` where `pnpm add` initially placed it), pointing at
+`${window.location.origin}/field/contractor` (client-side
+`window.location.origin`, not `getSiteUrl()` — see item 11's own note on
+why that split is correct). iOS Safari: a bottom sheet with the literal
+"Tap Share, then Add to Home Screen" steps plus a `/field/contractor`
+fallback link. Android/Chrome: **a real, non-obvious technical constraint
+found and solved** — `beforeinstallprompt` reflects whichever manifest is
+linked on the *current* page (Next.js `metadata.manifest`, resolved per
+route segment); the homepage links the root `public/manifest.json`
+("AFS", `start_url: "/"`), not `field-contractor-manifest.json` — only
+`/field/contractor` itself links that (`app/field/contractor/page.tsx`'s
+own `metadata` export, real and already correct). Capturing the prompt on
+the homepage would have installed the wrong PWA identity. Fixed by hard-
+navigating (`window.location.href`, not `next/link`/`router.push`, so the
+manifest is correctly linked from first paint of a genuinely fresh load)
+to `/field/contractor?install=1`, where a new invisible
+`InstallPromptHandler.tsx` (mounted only on that route) captures and
+triggers the real, correctly-scoped prompt on arrival. Evidence:
+`checkpoint34-qr-modal.png` (desktop QR modal, confirmed via Playwright
+`page.url()` that no navigation to `/field/contractor` occurred). **What
+automation cannot verify:** whether Chrome's real installability
+heuristics actually fire `beforeinstallprompt` for a genuine Android/
+Chrome visitor, and whether the iOS sheet renders correctly on a real
+iOS Safari device — `beforeinstallprompt` essentially never fires in
+headless/automated test browsers regardless of manifest correctness, this
+is a known, structural limitation of testing this exact API, not a gap in
+this session's effort. **PENDING REID:** open the site on a real Android
+phone (Chrome) and a real iPhone (Safari) and confirm each path.
+
+**5. Hero — PARTIAL, one piece held pending clarification (see below).**
+Done: left overlay text → "Engineered for architects. Trusted by
+contractors." at the exact same classes as the right headline's type
+scale (`font-display leading-none text-afs-ink-900|chrome-high text-4xl
+sm:text-5xl md:text-[4rem]`, only the base color differs by column); "feed-
+bend, release" pill removed entirely, along with its now-dead
+`activeLabel` state/effect; "Custom Metal Fabrication" eyebrow bumped from
+`text-xs` to `text-3xl sm:text-4xl` (already `text-afs-crimson`, the real
+AFS brand red — already satisfied that half of the instruction).
+**Held:** "Remove the bottom image from the hero... move it to the
+standing seam slot... resize the hero so the remaining two images render
+full-bleed." `HeroSection.tsx` has never had a third "bottom image" at any
+point in its real git history (`git log --follow`, hp-003 through the
+current file — always exactly two: the left video, the right
+`blueprint.webp` CSS background) — confirmed before touching anything,
+not assumed. Guessing which real element this instruction actually meant
+risked either destroying real content on a wrong guess or moving nothing
+at all silently. **PENDING REID:** clarify which image "the bottom image"
+refers to before this piece proceeds; everything else in item 5 shipped.
+Evidence: `checkpoint510-full-1440.png` (crop: `crop-hero.png`) — headline
+match, pill removal, and the enlarged red eyebrow are all directly visible.
+
+**6. Trusted-by carousel — PASS.** `app/page.tsx`: `ClientCarousel` moved
+back to position #2 (directly below hero) from the very bottom of the
+page. `ClientCarousel.tsx`: vertical padding `py-6`→`py-3`, marquee name
+size `text-4xl`→`text-lg` (mobile stack `text-3xl`→`text-base`) — roughly
+half, as specced. "Midland Memorial Hospital System" → "Midland Memorial
+Hospital". Ten new real per-client brand colors added as `afs-client-*`
+Tailwind tokens (`tailwind.config.js`) with the exact hex given — not
+hardcoded literal hex in JSX, per CLAUDE.md rule 4 (the existing
+NASA/Tesla/Google/etc. approximation-via-token pattern extended, not
+broken; two hex values are shared where the real brand color repeats
+across two different clients — Baylor's "& White" gold and Midland's
+whole name are both `#B8860B`; Bug Master's "Master" and Seton's "Seton"
+are both `#00827F` — named once). `NameContent` generalized to support
+multi-segment (multi-color) names alongside the existing single-color and
+Google per-letter cases; Bug Master gets a `-webkit-text-stroke: 1px
+#000000` outline via inline style (the one deliberate, narrowly-scoped
+literal-color use, same class of exception as CANVAS_COLORS — a CSS
+text-stroke property has no Tailwind utility and no afs-* token
+equivalent). Facebook/Google/Tesla/UT San Antonio colors explicitly left
+untouched, per the task's own "keep existing" instruction. Evidence:
+`crop-carousel.png` (Baylor Scott/& White, Hays/ISD, Bug/Master + outline
+all visible with correct per-segment colors) — see item 9's contrast scan
+below for the one honest caveat (Google's own pre-existing amber/green
+letters, unrelated to anything changed this pass).
+
+**7. "Ready When You Are" — PASS.** `FinalCTA.tsx`: `ACTIONS` reduced from
+4 to 2 (Custom Profiles and Check Hail View removed — both now have their
+own dedicated homepage entry points: HailView's own section CTA, and its
+own top-level nav item), grid re-balanced from `grid-cols-2 md:grid-cols-4`
+to a centered `mx-auto max-w-md grid-cols-2`. Evidence:
+`checkpoint510-full-1440.png` (2 buttons only, "Start a Quote" / "Talk to
+AFS").
+
+**8. Removals/copy — PASS (standing-seam removal itself blocked on item
+5's held question).** Footer: `trica@architecturalflashingsupply.com`
+(the task said "tricia@..." — same address, typo) removed from
+`Footer.tsx` only; the same real address is still used correctly
+elsewhere on the site (contact page, legal pages, chat escalation — all
+untouched, out of scope). "Where precision meets production"
+(`ShopFloorProof.tsx`): materials count `5`→`9` — independently
+corroborated by `CredibilityStrip.tsx`'s own pre-existing, unrelated "9
+Materials" stat and `lib/data/catalog.ts`'s real 9-entry
+`GAUGES_BY_MATERIAL` catalog, not an invented number; the Thalmann CNC
+sentence removed. The standing-seam image itself (`rf2.jpeg`
+`SectionImageBreak`) is still in place — its removal is item 5's job
+("its slot receives the hero image"), so it's blocked on the same
+clarification, not forgotten.
+
+**9. Lighten the page — PASS.** New light-section token palette
+(`tailwind.config.js`): `afs-bg-light` (`#F7F7F5`), `afs-bg-light-raised`
+(`#EFEFEC`, the light-mode equivalent of `bg-raised`/`bg-surface` for
+cards), `afs-border-light` (`#D8D8D4`). Converted (background + every
+text/border/icon color fixed to `afs-ink-900`/`afs-ink-700` — both
+pre-existing tokens, originally added for FlashDraft's light canvas, so no
+new text-color tokens were needed): `FieldAppStory`, `CredibilityStrip`,
+`DesignStudioHub`, `DesignToDelivery`, `CustomerPathways`,
+`ProfilePassportExplainer`, `CaseStudies`, `NationwideMap`, `FinalCTA`.
+**Deliberately NOT converted, beyond hero/HailView/footer (the three
+explicit exceptions):** `ShopFloorProof.tsx` ("Where precision meets
+production") — its "dark gunmetal background" is actually a full-bleed
+*video* background with a dark overlay for legibility over real footage,
+not a flat gunmetal fill; there is no literal gunmetal color to convert
+to white without destroying the video treatment, so it was reasoned
+through the same way the hero and HailView (also video-background
+sections) were treated, rather than converted and asked about
+separately. `client-carousel` was already `bg-white` from a prior
+session, unaffected either way. **Contrast — verified with a real
+Playwright pass, not assumed:** walked every text node in all 9 converted
+sections, computed each one's effective color against its actual resolved
+background (walking up the DOM for the first non-transparent ancestor),
+and checked WCAG AA (4.5:1 normal text, 3:1 large/≥18.66px) — zero
+failures across all 9 sections. Ran the same check against every carousel
+name's own color on white — zero failures among anything changed this
+pass; the only two flagged were Google's own pre-existing per-letter
+amber (`#F59E0B`, ratio 2.15) and green (`#00C853`, ratio 2.24) — real,
+but pre-existing and explicitly out of scope ("keep existing... Google").
+Evidence: `checkpoint510-full-1440.png`, `checkpoint510-full-375.png`
+(full-page, every section scrolled through first so viewport-triggered
+reveals had already fired); zero console/network errors logged during
+that same pass.
+
+**10. Entrance animations — PASS.** framer-motion is not installed in
+this project — confirmed via `package.json` before choosing an approach,
+not assumed — so this used the task's own explicitly-allowed fallback: a
+small reusable `RevealOnScroll.tsx` (IntersectionObserver, `threshold:
+0.15`, fires once then disconnects) + a `.reveal-group`/`.is-visible` CSS
+pair in `globals.css` (opacity 0→1, `translateY(20px)`→`0`, 500ms
+ease-out, direct children staggered via `:nth-child` at 80ms intervals up
+to the 6th child). Fully inert under `prefers-reduced-motion` — checked
+independently in both JS (children render already-visible, no
+IntersectionObserver even attached) and CSS (a second, redundant guard).
+Supports a semantic `as` prop (`div`/`dl`/`ol`/`ul`) so wrapping a
+section's real content doesn't force an extra generic `<div>` where a
+`<dl>` (ShopFloorProof's stats) needs to stay a real `<dl>` — required a
+deliberate `as unknown as ElementType` type-erasure to get TypeScript's
+JSX tag resolution to actually honor the wider prop type instead of
+tracking the narrower literal union through to the `ref` prop (documented
+inline in the component; not a plain `any`). Wired into all 5 named
+sections: HailView (left text column), Field App story (the two grid
+columns — deliberately NOT the STEPS `<ol>` itself, whose `<li>` elements
+already carry inline `style={{opacity}}` for the active-step highlight,
+which would have won the CSS cascade over `.reveal-group`'s opacity and
+silently broken the fade for those specific elements), "Where precision
+meets production" (the 3 stat blocks), "Ready When You Are" (the 2
+buttons), case studies (the 4 photo cards). Evidence: same full-page
+screenshots as item 9 — captured after a full scripted scroll-through so
+every section's reveal had already triggered by the time of capture (the
+animation itself, being a one-time transition, isn't visible in a static
+screenshot regardless — the scroll-through instead confirms nothing
+regressed/stayed hidden after its trigger fired).
+
+**11. Canonical site URL consolidation — PASS.** New `lib/site-url.ts`
+exporting `getSiteUrl()` exactly as specced (`NEXT_PUBLIC_APP_URL`, else
+`https://$VERCEL_URL`, else `http://localhost:3000`). All 7 real call
+sites with the hardcoded `'https://afs-website-alpha.vercel.app'`
+fallback found via a repo-wide grep (not just the task's named list) and
+converted: `lib/utils/shop-job-completion.ts`, `app/api/orders/[id]/
+picked-up/route.ts`, `app/api/orders/[id]/delivered/route.ts`, `app/api/
+admin/orders/[id]/status/route.ts`, `app/api/pickup/schedule/route.ts`,
+`lib/bid-monitor/alerts.ts`, `app/api/orders/[id]/dispatch/route.ts`,
+`app/api/driver/location/route.ts` (this last one confirms the real
+`driver_locations`/10-mile-SMS pipeline from `SPEC_DELIVERY_TRACKING_AND_
+EMPLOYEE_PWA.md` already exists and is wired — independent corroboration
+of the same finding from the held "Delivery Driver Mobile App" task
+earlier this session). Remaining `afs-website-alpha` references are all
+in docs (`DNS_MIGRATION_CHECKLIST.md`, this file's own history, this
+entry's own text) — left alone, not live code. **`vercel project ls` /
+`vercel alias ls` investigation (real finding):**
+`afs-website-alpha.vercel.app` returns a real `200` and serves what looks
+like this exact same site (page `<title>` reads "AFS — Architectural
+Flashing Supply"), but it does **not** belong to this project's Vercel
+account/scope at all — absent from both `vercel project ls` and `vercel
+alias ls` under `reids-projects-b3405b97`, and `vercel inspect
+https://afs-website-alpha.vercel.app` fails outright ("Can't find the
+deployment... under the context reids-projects-b3405b97"). This project's
+only two real production aliases are `afs-website-reids-projects-
+b3405b97.vercel.app` and `afs-website-eight.vercel.app` (both the same
+deployment). Per the task's explicit instruction, nothing was deleted or
+modified at the alpha URL — this session has no access to touch it even
+if it wanted to. **Worth Reid's attention:** a live, publicly-reachable
+deployment serving what appears to be this same codebase exists outside
+his own Vercel account's visibility — could be a stale deployment under a
+former collaborator's account, a duplicate/rogue deploy, or a legitimate
+separate environment he's simply not tracking from this login; not
+determinable from this session alone. `NEXT_PUBLIC_APP_URL` production
+env var: removed the existing value (`vercel env rm ... production`) and
+re-added it (`vercel env add ... production`) set to
+`https://afs-website-eight.vercel.app`, via the CLI only, never the web
+UI, exactly as specced — confirmed via `vercel env ls production`
+showing a fresh `7s ago` timestamp on the new value.
+
+**12. Repo cleanup — PASS.** Repo-wide grep for `hp 1.mp4`/`hp1.mp4`/
+`hp 2.mp4`/`hp2.mp4`/`rv1.mp4` across `app`/`components`/`lib` before
+deleting anything: the only hit was a comment in `PhoneMockupVideo.tsx`
+documenting `field-app.mp4`'s own provenance (it was re-encoded *from*
+`hp 1.mp4` in an earlier session) — historical prose, not a live file
+reference, safe to leave as-is once the raw source is gone. All three
+files `git rm`'d. (`hp 3.mp4` was already deleted, pre-existing, before
+this session started — not part of the task's explicit list, left as the
+prior session left it.) `scratch-verify/` added to `.gitignore`.
+
+### WHAT'S EXPLICITLY PENDING REID (not silently marked done)
+
+1. **Item 5/8's "bottom image" swap** — genuinely can't proceed without
+   knowing which image is meant; `HeroSection.tsx` has never had a third
+   image in its real history. Everything else in items 5 and 8 shipped.
+2. **Item 4's native install-prompt behavior on a real device** —
+   structurally impossible to verify via headless/automated testing
+   (`beforeinstallprompt` doesn't fire in that environment regardless of
+   correctness); the *logic* (manifest-scoping fix, platform branching,
+   QR modal, iOS sheet) is verified as thoroughly as automation allows.
+   Open the real site on a real Android phone (Chrome) and a real iPhone
+   (Safari) and confirm both paths work.
+3. **The `afs-website-alpha.vercel.app` finding** (item 11) — a live
+   deployment of what looks like this same site, outside Reid's own
+   Vercel account visibility. Worth understanding what it actually is.
+
+### GOVERNANCE FILES — WHAT WAS ACTUALLY UPDATED VS. WHY SOME WEREN'T
+
+The task named seven governance files. Three don't exist in this
+project and were not invented without a clear content plan or
+established precedent to follow:
+- **`AGENTS.md`** — does not exist anywhere in this repo; not part of
+  CLAUDE.md's own documented governance stack. No established convention
+  for what it should contain, so nothing was created under that name.
+- **`SCHEMA_REGISTRY.md`** — does not exist; this project's real,
+  established schema doc is `SCHEMA.md`. Treated as the same file for
+  this task's "no schema changes this run" note — confirmed true, no
+  migration or table changes in this pass.
+- **`queue.yaml`** — exists in *two* places: the repo root (887 lines)
+  and the canonical external location CLAUDE.md's own "FORGE LAUNCH —
+  CANONICAL" section names, `C:\Users\manag\Documents\FORGE\projects\
+  afs-website\queue.yaml`. CLAUDE.md explicitly flags the repo-root copy
+  as a prohibited "alternate/named queue file" (a discrepancy an earlier
+  session in this history already surfaced for Reid, still unresolved).
+  Given that, and given this task didn't specify *what* change it wanted
+  in queue.yaml, editing either copy risked either compounding the known
+  discrepancy or corrupting Reid's real FORGE pipeline definition for no
+  clear benefit — left both untouched.
+
+`STATE_OF_THE_BUILD.md` (this entry), `SESSION_STATE.md`, and
+`BLUEPRINT.md` were all updated from a real audit of the changed files,
+per rule 8. `CLAUDE.md` gained the two real rules this task asked for
+(rules 9 and 10) — its DATA BLOCKERS table never had a "Hail View — no
+footage" row to remove in the first place (that blocker was tracked here,
+in STATE_OF_THE_BUILD.md, during the original HailView section build
+earlier this session, not in CLAUDE.md) — confirmed via a direct grep
+before concluding there was nothing to remove, not assumed absent.
+
+### VERIFICATION SUMMARY
+
+- `pnpm tsc --noEmit` — 0 errors, run after every major item group (1-2,
+  3-4, 5-10, 11-12) plus once more at the end.
+- `pnpm run build` — clean, twice (once after items 1-10, once as part of
+  `deploy.ps1`'s own pipeline).
+- Full `npx playwright test` (before `deploy.ps1`'s own run): 69 passed,
+  2 failed — the same 2 pre-existing, unrelated failures re-confirmed
+  every session this entire build cycle (hero CTA href expecting
+  `/about/services`, header logo width expecting `76`) — both touch
+  `HeroSection.tsx`/`AfsLogo.tsx` in ways this session's real changes
+  don't overlap with. 14 skipped (pre-existing, auth-gated). Every test
+  this session's own changes actually broke was found and fixed, not
+  left red: `SECTION_SLUGS` reorder, the carousel-position test rewritten
+  for its new location, the "Feed + Bend" pill test rewritten, the
+  bezel-padding test's `.first()` fix for 3 stacked videos, the field-app
+  source/poster test rewritten for the 3-clip playlist, the step-
+  highlighting timing test rewritten for real clip durations instead of
+  the old 2.5s heuristic, the breakpoint-split Install button test
+  replaced with a QR-modal test, the "Custom Profiles"/"Check Hail View"
+  final-CTA tests updated for the 2 remaining buttons, the Resources-
+  dropdown HailView tests reversed for the new top-level nav placement.
+- `deploy.ps1` (tsc → build → `vercel --prod` → `npx playwright test` →
+  `git add . && git commit && git push`) — see the git log for the exact
+  commit this produced; all gates passed or this session would have
+  stopped and reported the failure instead of proceeding.
+- Live production (`https://afs-website-eight.vercel.app`) re-verified
+  directly after deploy, not just localhost — see the deploy record below
+  for exact checks (HailView video plays, "Check My Address" → `/hailview`,
+  HailView nav item present and gone from Resources, phone sequence
+  cycles, carousel sits directly under hero, zero `/videos/`or `/images/`
+  404s in the network log).
+
 

@@ -7,8 +7,9 @@ import { sendEmail } from '@/lib/resend/send';
 import { baseEmailTemplate, ctaButton } from '@/lib/resend/templates/base';
 import { sendInvoiceEmail } from '@/lib/utils/invoice-email';
 import { logAdminAction } from '@/lib/admin/audit';
+import { getSiteUrl } from '@/lib/site-url';
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://afs-website-alpha.vercel.app';
+const APP_URL = getSiteUrl();
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
 interface DispatchOrderRecord {

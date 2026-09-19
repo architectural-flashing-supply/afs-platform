@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import ContractorCameraQuoteForm from '@/components/field/ContractorCameraQuoteForm';
+import InstallPromptHandler from '@/components/field/InstallPromptHandler';
 
 // Route-scoped PWA install (afs-fl-010) -- overrides the root layout's
 // manifest/icons for this segment only, per Next.js metadata resolution
@@ -26,5 +27,10 @@ export const metadata: Metadata = {
  * email, mirroring /upload's isAuthenticated + showEmailCapture flow.
  */
 export default function FieldContractorPage() {
-  return <ContractorCameraQuoteForm />;
+  return (
+    <>
+      <InstallPromptHandler />
+      <ContractorCameraQuoteForm />
+    </>
+  );
 }

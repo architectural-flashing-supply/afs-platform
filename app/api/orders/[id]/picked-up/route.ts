@@ -5,8 +5,9 @@ import { requireOperatorApi } from '@/lib/auth/require-operator';
 import { logAdminAction } from '@/lib/admin/audit';
 import { sendEmail } from '@/lib/resend/send';
 import { baseEmailTemplate, ctaButton } from '@/lib/resend/templates/base';
+import { getSiteUrl } from '@/lib/site-url';
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://afs-website-alpha.vercel.app';
+const APP_URL = getSiteUrl();
 
 interface PickedUpOrderRecord {
   id: string;

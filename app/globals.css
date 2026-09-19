@@ -233,3 +233,34 @@ body {
     opacity: 1;
   }
 }
+
+/* Viewport-triggered entrance animation, RevealOnScroll.tsx (2026-09-19
+   revision pass, item 10). Direct children of .reveal-group fade in and
+   rise 20px, staggered ~80ms apart, once .is-visible is added (on first
+   intersection -- see the component). Reduced-motion is handled in JS
+   (children start already visible, this CSS never engages), but the
+   media query below is a second, independent guard in case .is-visible
+   somehow gets added without the JS-side check. */
+.reveal-group > * {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 500ms ease-out, transform 500ms ease-out;
+}
+.reveal-group.is-visible > * {
+  opacity: 1;
+  transform: translateY(0);
+}
+.reveal-group.is-visible > *:nth-child(1) { transition-delay: 0ms; }
+.reveal-group.is-visible > *:nth-child(2) { transition-delay: 80ms; }
+.reveal-group.is-visible > *:nth-child(3) { transition-delay: 160ms; }
+.reveal-group.is-visible > *:nth-child(4) { transition-delay: 240ms; }
+.reveal-group.is-visible > *:nth-child(5) { transition-delay: 320ms; }
+.reveal-group.is-visible > *:nth-child(6) { transition-delay: 400ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal-group > * {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}

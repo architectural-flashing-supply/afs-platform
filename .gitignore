@@ -54,3 +54,7 @@ scripts/video-review/*.jpg
 EMAIL PROSPECT LISTS/
 .repro-*/
 supabase/.temp/
+
+# 2026-09-19 revision pass verification screenshots (full-page checkpoint
+# captures) — local evidence for that session, never committed.
+scratch-verify/

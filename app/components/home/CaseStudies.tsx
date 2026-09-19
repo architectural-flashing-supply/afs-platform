@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import { PORTFOLIO_PHOTOS } from '@/lib/home/portfolio-photos';
+import RevealOnScroll from './RevealOnScroll';
 
 // Photo selection resolved against lib/home/portfolio-photos.ts -- the
 // already-verified catalog of the 46 real AFS legacy photos (afs-fl-034),
@@ -65,23 +66,23 @@ const PHOTO_CASE_STUDIES: PhotoCaseStudy[] = [
 
 export default function CaseStudies() {
   return (
-    <section className="bg-afs-bg-surface py-20 md:py-28">
+    <section className="bg-afs-bg-light py-20 md:py-28">
       <div className="mx-auto max-w-6xl px-6">
         <p className="font-label text-xs font-semibold uppercase tracking-widest text-afs-crimson">
           Real AFS Fabrication
         </p>
-        <h2 className="mt-3 font-display text-4xl leading-none text-afs-chrome-high sm:text-5xl md:text-6xl">
+        <h2 className="mt-3 font-display text-4xl leading-none text-afs-ink-900 sm:text-5xl md:text-6xl">
           Built to Spec. Delivered on Site.
         </h2>
 
-        <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2">
+        <RevealOnScroll className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2">
           {PHOTO_CASE_STUDIES.map((study) => {
             const photo = PORTFOLIO_PHOTOS[study.photoId];
             return (
               <div
                 key={study.key}
                 id={`case-study-${study.key}`}
-                className="flex flex-col overflow-hidden rounded border border-[var(--afs-border)] bg-afs-bg-raised metal-edge"
+                className="flex flex-col overflow-hidden rounded border border-afs-border-light bg-afs-bg-light-raised metal-edge"
               >
                 <div className="relative aspect-[4/3] w-full overflow-hidden">
                   <Image
@@ -93,13 +94,13 @@ export default function CaseStudies() {
                   />
                 </div>
                 <div className="flex flex-1 flex-col p-6">
-                  <h3 className="font-heading text-xl font-semibold text-afs-chrome-high">
+                  <h3 className="font-heading text-xl font-semibold text-afs-ink-900">
                     {study.title}
                   </h3>
-                  <p className="mt-1 font-label text-xs uppercase tracking-wider text-afs-chrome-mid">
+                  <p className="mt-1 font-label text-xs uppercase tracking-wider text-afs-ink-700">
                     {study.materialFinish}
                   </p>
-                  <p className="mt-3 font-body text-sm text-afs-chrome-mid">{study.outcome}</p>
+                  <p className="mt-3 font-body text-sm text-afs-ink-700">{study.outcome}</p>
                 </div>
               </div>
             );
@@ -113,7 +114,7 @@ export default function CaseStudies() {
               the image, which has generation artifacts (mirrored signage). */}
           <div
             id="case-study-nasa-jsc"
-            className="flex flex-col overflow-hidden rounded border border-[var(--afs-border)] bg-afs-bg-raised metal-edge"
+            className="flex flex-col overflow-hidden rounded border border-afs-border-light bg-afs-bg-light-raised metal-edge"
           >
             <div className="relative aspect-[4/3] w-full overflow-hidden">
               <Image
@@ -125,20 +126,20 @@ export default function CaseStudies() {
             </div>
             <div className="flex flex-1 flex-col p-6">
               <div className="flex items-start justify-between gap-3">
-                <h3 className="font-heading text-xl font-semibold text-afs-chrome-high">
+                <h3 className="font-heading text-xl font-semibold text-afs-ink-900">
                   Mission-Critical Precision
                 </h3>
                 <span className="flex-none rounded bg-afs-crimson px-2.5 py-1 font-label text-xs font-bold uppercase tracking-wider text-white">
                   Zero-Defect Delivery
                 </span>
               </div>
-              <p className="mt-3 font-body text-sm text-afs-chrome-mid">
+              <p className="mt-3 font-body text-sm text-afs-ink-700">
                 Custom architectural metal fabricated to Johnson Space Center&rsquo;s exact
                 specifications. Zero tolerance for deviation. Delivered on schedule.
               </p>
             </div>
           </div>
-        </div>
+        </RevealOnScroll>
       </div>
     </section>
   );

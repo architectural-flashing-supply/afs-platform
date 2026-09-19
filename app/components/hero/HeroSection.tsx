@@ -3,12 +3,9 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 
-const HERO_LABEL_SWITCH_S = 10.5;
-
 export default function HeroSection() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoEnabled, setVideoEnabled] = useState(false);
-  const [activeLabel, setActiveLabel] = useState<'feed-bend' | 'release'>('feed-bend');
 
   useEffect(() => {
     const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -22,18 +19,6 @@ export default function HeroSection() {
     const handleChange = (e: MediaQueryListEvent) => applyPreference(e.matches);
     motionQuery.addEventListener('change', handleChange);
     return () => motionQuery.removeEventListener('change', handleChange);
-  }, []);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    const handleTimeUpdate = () => {
-      setActiveLabel(video.currentTime < HERO_LABEL_SWITCH_S ? 'feed-bend' : 'release');
-    };
-
-    video.addEventListener('timeupdate', handleTimeUpdate);
-    return () => video.removeEventListener('timeupdate', handleTimeUpdate);
   }, []);
 
   return (
@@ -59,15 +44,9 @@ export default function HeroSection() {
             )}
           </video>
 
-          <div className="absolute bottom-6 left-6 z-10 rounded bg-afs-bg-dim/80 px-4 py-2 backdrop-blur-sm">
-            <p className="font-label text-xs font-semibold uppercase tracking-widest text-afs-crimson">
-              {activeLabel === 'feed-bend' ? 'Feed + Bend' : 'Release'}
-            </p>
-          </div>
-
           <div className="relative z-20 max-w-sm">
-            <h2 className="font-display text-3xl md:text-4xl leading-tight text-white drop-shadow-lg">
-              Built for the<br />people who build.
+            <h2 className="font-display leading-none text-afs-chrome-high text-4xl sm:text-5xl md:text-[4rem] drop-shadow-lg">
+              Engineered for architects. Trusted by contractors.
             </h2>
           </div>
         </div>
@@ -82,7 +61,7 @@ export default function HeroSection() {
           />
 
           <div className="relative z-10 max-w-lg">
-            <p className="font-label text-xs font-semibold uppercase tracking-widest text-afs-crimson">
+            <p className="font-label text-3xl sm:text-4xl font-semibold uppercase tracking-widest text-afs-crimson">
               Custom Metal Fabrication
             </p>
             <h1 className="mt-3 font-display leading-none text-afs-chrome-high text-4xl sm:text-5xl md:text-[4rem]">

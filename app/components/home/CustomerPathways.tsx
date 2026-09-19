@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { SVGProps } from 'react';
+import InstallFieldAppButton from './InstallFieldAppButton';
 
 function ContractorIcon(props: SVGProps<SVGSVGElement>) {
   return (
@@ -67,7 +68,7 @@ const PATHWAYS: Pathway[] = [
       'No AFS account required — submit as a guest with just an email',
       'Install as an app on your phone for one-tap access on-site',
     ],
-    ctaLabel: 'Open the Field App',
+    ctaLabel: 'Install Field App',
     href: '/field/contractor',
   },
   {
@@ -100,13 +101,13 @@ const PATHWAYS: Pathway[] = [
 
 export default function CustomerPathways() {
   return (
-    <section className="bg-afs-bg-surface py-20 md:py-28">
+    <section className="bg-afs-bg-light py-20 md:py-28">
       <div className="mx-auto max-w-6xl px-6">
         <div className="text-center">
-          <h2 className="font-display text-4xl leading-none text-afs-chrome-high sm:text-5xl md:text-6xl">
+          <h2 className="font-display text-4xl leading-none text-afs-ink-900 sm:text-5xl md:text-6xl">
             Built for How You Work
           </h2>
-          <p className="mt-4 font-body text-base text-afs-chrome-mid md:text-lg">
+          <p className="mt-4 font-body text-base text-afs-ink-700 md:text-lg">
             Whichever seat you're in, there's a real path from here to a formal AFS quote.
           </p>
         </div>
@@ -115,32 +116,36 @@ export default function CustomerPathways() {
           {PATHWAYS.map((pathway) => (
             <div
               key={pathway.key}
-              className="flex flex-col rounded border border-[var(--afs-border)] bg-afs-bg-raised p-8 metal-edge"
+              className="flex flex-col rounded border border-afs-border-light bg-afs-bg-light-raised p-8 metal-edge"
             >
               <span className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-afs-crimson text-afs-crimson">
                 <pathway.Icon className="h-6 w-6" aria-hidden="true" />
               </span>
 
-              <h3 className="mt-6 font-heading text-2xl font-semibold text-afs-chrome-high">
+              <h3 className="mt-6 font-heading text-2xl font-semibold text-afs-ink-900">
                 {pathway.role}
               </h3>
-              <p className="mt-2 font-body text-base text-afs-chrome-mid">{pathway.valueLine}</p>
+              <p className="mt-2 font-body text-base text-afs-ink-700">{pathway.valueLine}</p>
 
               <ul className="mt-6 flex flex-col gap-3">
                 {pathway.bullets.map((bullet) => (
-                  <li key={bullet} className="flex items-start gap-3 font-body text-sm text-afs-chrome-mid">
+                  <li key={bullet} className="flex items-start gap-3 font-body text-sm text-afs-ink-700">
                     <span className="mt-2 h-1 w-1 flex-none rounded-full bg-afs-crimson" aria-hidden="true" />
                     {bullet}
                   </li>
                 ))}
               </ul>
 
-              <Link
-                href={pathway.href}
-                className="mt-8 inline-block rounded bg-afs-crimson px-6 py-3 text-center font-label text-sm font-semibold text-white metal-edge-red shadow-crimson transition-colors hover:bg-afs-crimson-hover"
-              >
-                {pathway.ctaLabel}
-              </Link>
+              {pathway.key === 'contractors' ? (
+                <InstallFieldAppButton className="mt-8 inline-block rounded bg-afs-crimson px-6 py-3 text-center font-label text-sm font-semibold text-white metal-edge-red shadow-crimson transition-colors hover:bg-afs-crimson-hover" />
+              ) : (
+                <Link
+                  href={pathway.href}
+                  className="mt-8 inline-block rounded bg-afs-crimson px-6 py-3 text-center font-label text-sm font-semibold text-white metal-edge-red shadow-crimson transition-colors hover:bg-afs-crimson-hover"
+                >
+                  {pathway.ctaLabel}
+                </Link>
+              )}
             </div>
           ))}
         </div>

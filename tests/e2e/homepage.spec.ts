@@ -13,16 +13,16 @@ import { test, expect, type Page } from '@playwright/test';
 const PRICE_PATTERN = /\$[\d,]+(\.\d{2})?/;
 
 // Document order asserted by app/page.tsx's own <HomeSection slug="..."> wrapper
-// sequence — thirteen real sections. client-carousel moved from #2 (right
-// after hero) to the very last section, ahead of the footer, in the
-// homepage layout restructuring pass — its bg-white was breaking the page's
-// otherwise-consistent dark gunmetal theme just three sections in; as the
-// last section it now closes the page on a bright trust band instead. Three
-// SectionImageBreak photo bands (not HomeSections — no data-section, so
-// they don't appear in this list) were added between sections at the same
-// time; see app/page.tsx and STATE_OF_THE_BUILD.md for the full layout.
+// sequence — thirteen real sections. client-carousel moved back to #2
+// (directly below the hero) in the 2026-09-19 revision pass, restyled as a
+// thinner banner (ClientCarousel.tsx) instead of the earlier full-weight
+// bottom-of-page treatment. Two SectionImageBreak photo bands (not
+// HomeSections — no data-section, so they don't appear in this list) sit
+// between sections; see app/page.tsx and STATE_OF_THE_BUILD.md for the
+// full layout.
 const SECTION_SLUGS = [
   'hero',
+  'client-carousel',
   'field-app',
   'credibility',
   'design-studio',
@@ -34,7 +34,6 @@ const SECTION_SLUGS = [
   'nationwide',
   'final-cta',
   'hail-view',
-  'client-carousel',
 ];
 
 // DesignStudioHub's METHODS array (app/components/home/DesignStudioHub.tsx) —
@@ -84,20 +83,32 @@ for (const viewport of VIEWPORTS) {
       await expect(mp4Source).toHaveAttribute('src', '/videos/hero-metal-fabrication.mp4');
     });
 
-    test('field-app phone-mockup video declares an mp4 source, a poster, and loops', async ({ page }) => {
-      // hpd-007: PhoneMockupVideo moved back below the fold into
-      // FieldAppStory, alongside the "Photo to Quote" steps copy. Source
-      // swapped to field-app.mp4/webm (Reid's real handheld field clip,
-      // rotation baked in) -- see PhoneMockupVideo.tsx's own comment for why.
+    test('field-app phone-mockup declares a 3-clip playlist, each with an mp4 source and poster', async ({
+      page,
+    }) => {
+      // 2026-09-19 revision pass, item 3: converted from one continuous
+      // clip (with the `loop` attribute) into a real 3-clip sequential
+      // playlist, advanced on each clip's own "ended" event instead --
+      // see PhoneMockupVideo.tsx's own comment.
       await page.goto('/');
-      const phoneVideo = page.locator('[data-section="field-app"] video');
+      const phoneVideos = page.locator('[data-section="field-app"] video');
       // Below the fold: PhoneMockupVideo only attaches <source> once its
       // IntersectionObserver (rootMargin 200px) sees it near the viewport.
-      await phoneVideo.scrollIntoViewIfNeeded();
-      await expect(phoneVideo).toHaveAttribute('poster', '/images/field-app-poster.jpg');
-      await expect(phoneVideo).toHaveAttribute('loop', '');
-      const mp4Source = phoneVideo.locator('source[type="video/mp4"]');
-      await expect(mp4Source).toHaveAttribute('src', '/videos/field-app.mp4');
+      await phoneVideos.first().scrollIntoViewIfNeeded();
+      await expect(phoneVideos).toHaveCount(3);
+
+      const expected = [
+        { poster: '/images/field-app-poster.jpg', mp4: '/videos/field-app.mp4' },
+        { poster: '/images/field-step-2-poster.jpg', mp4: '/videos/field-step-2.mp4' },
+        { poster: '/images/field-step-3-poster.jpg', mp4: '/videos/field-step-3.mp4' },
+      ];
+      for (let i = 0; i < expected.length; i++) {
+        const clip = phoneVideos.nth(i);
+        await expect(clip).toHaveAttribute('poster', expected[i].poster);
+        await expect(clip).not.toHaveAttribute('loop', '');
+        const mp4Source = clip.locator('source[type="video/mp4"]');
+        await expect(mp4Source).toHaveAttribute('src', expected[i].mp4);
+      }
     });
 
     test('hero renders with zero console errors and no canvas element', async ({ page }) => {
@@ -182,14 +193,16 @@ test.describe('Homepage navigation and footer', () => {
     await expect(page.getByRole('link', { name: 'Start a Quote' }).first()).toBeVisible();
   });
 
-  test('HailView lives inside the Resources menu', async ({ page }) => {
+  test('HailView is its own top-level nav item, not inside the Resources menu', async ({ page }) => {
+    // Reversed 2026-09-19 (item 2) -- was inside Resources before this.
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
-    await expect(page.getByRole('menuitem', { name: 'HailView' })).toHaveCount(0);
+    const hailViewLink = page.locator('header').getByRole('link', { name: 'HailView', exact: true });
+    await expect(hailViewLink).toBeVisible();
+    await expect(hailViewLink).toHaveAttribute('href', '/hailview');
+
     await page.getByRole('button', { name: 'Resources' }).click();
-    const hailViewItem = page.getByRole('menuitem', { name: 'HailView' });
-    await expect(hailViewItem).toBeVisible();
-    await expect(hailViewItem).toHaveAttribute('href', '/hailview');
+    await expect(page.getByRole('menuitem', { name: 'HailView' })).toHaveCount(0);
   });
 
   test('FAQ and Contact appear in the footer', async ({ page }) => {
@@ -233,18 +246,6 @@ test.describe('Homepage CTAs retargeted off the removed profile-explorer section
     await expect(secondaryCTA).toHaveAttribute('href', '/about/services');
   });
 
-  test('final-CTA "Custom Profiles" button points at /architects/custom-profiles, which returns 200', async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto('/');
-    const finalCTA = page
-      .locator('[data-section="final-cta"]')
-      .getByRole('link', { name: 'Custom Profiles' });
-    await expect(finalCTA).toHaveAttribute('href', '/architects/custom-profiles');
-    const response = await page.request.get('/architects/custom-profiles', { timeout: 60_000 });
-    expect(response.ok(), `/architects/custom-profiles returned ${response.status()}`).toBe(true);
-  });
 });
 
 test.describe('Homepage overhaul (hpd-008)', () => {
@@ -300,11 +301,17 @@ test.describe('Homepage overhaul (hpd-008)', () => {
     expect(edgeBg).toContain('linear-gradient');
   });
 
-  test('hero left video shows a real, timed process-stage label ("Feed + Bend" then "Release")', async ({ page }) => {
+  test('hero left video overlay reads the new headline, no feed-bend/release pill', async ({ page }) => {
+    // 2026-09-19 revision pass, item 5: the process-stage pill was removed
+    // entirely; the left overlay is now a static headline matching the
+    // right side's own type scale.
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
     const hero = page.locator('[data-section="hero"]');
-    await expect(hero.getByText('Feed + Bend')).toBeVisible();
+    await expect(hero.getByText('Feed + Bend')).toHaveCount(0);
+    await expect(
+      hero.getByRole('heading', { name: 'Engineered for architects. Trusted by contractors.' })
+    ).toBeVisible();
   });
 
   test('field-app phone-mockup video has no bezel padding around it (fills to the frame border)', async ({
@@ -314,7 +321,10 @@ test.describe('Homepage overhaul (hpd-008)', () => {
     await page.goto('/');
     const fieldApp = page.locator('[data-section="field-app"]');
     await fieldApp.scrollIntoViewIfNeeded();
-    const video = fieldApp.locator('video');
+    // Three clips are stacked in the same frame now (2026-09-19 revision
+    // pass, item 3) -- .first() is any one of them, all three share the
+    // same absolute inset-0 box.
+    const video = fieldApp.locator('video').first();
     const frame = video.locator('..');
     const [videoBox, frameBox] = await Promise.all([video.boundingBox(), frame.boundingBox()]);
     expect(videoBox).not.toBeNull();
@@ -328,43 +338,44 @@ test.describe('Homepage overhaul (hpd-008)', () => {
     expect(Math.abs(videoBox!.height - (frameBox!.height - BORDER_PX))).toBeLessThan(2);
   });
 
-  test('client-carousel is the last section, immediately before the footer', async ({ page }) => {
-    // Moved from #2 (above the fold, right after hero) to the very bottom
-    // of the page in the homepage layout restructuring pass -- its
-    // bg-white broke the page's otherwise-consistent dark gunmetal theme
-    // just three sections in. It's no longer expected to be above the fold.
+  test('client-carousel sits directly below the hero, as a thin banner', async ({ page }) => {
+    // Moved back from the very bottom of the page (where it briefly lived)
+    // to #2, right after the hero, in the 2026-09-19 revision pass --
+    // restyled as a thinner banner (ClientCarousel.tsx) rather than
+    // reverting the earlier full-weight styling.
+    await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
-    const lastSection = page.locator('main > [data-section]').last();
-    await expect(lastSection).toHaveAttribute('data-section', 'client-carousel');
+    const sections = page.locator('main > [data-section]');
+    await expect(sections.nth(0)).toHaveAttribute('data-section', 'hero');
+    await expect(sections.nth(1)).toHaveAttribute('data-section', 'client-carousel');
 
-    const carouselBox = await lastSection.boundingBox();
-    const footerBox = await page.locator('footer').boundingBox();
+    const heroBox = await sections.nth(0).boundingBox();
+    const carouselBox = await sections.nth(1).boundingBox();
+    expect(heroBox).not.toBeNull();
     expect(carouselBox).not.toBeNull();
-    expect(footerBox).not.toBeNull();
-    // The footer should follow directly after the carousel -- allowing for
-    // ordinary layout padding/margin (not pixel-perfect), but nowhere near
-    // enough gap to fit another whole section in between.
-    expect(footerBox!.y).toBeGreaterThanOrEqual(carouselBox!.y);
-    expect(footerBox!.y - (carouselBox!.y + carouselBox!.height)).toBeLessThan(150);
+    expect(carouselBox!.y).toBeGreaterThanOrEqual(heroBox!.y + heroBox!.height - 5);
   });
 
-  test('field-app step highlighting tracks video playback: step 1 active at start, step 2 by ~2.5s', async ({
+  test('field-app step highlighting tracks the real 3-clip playlist: 1 at start, 2 after clip 1 ends (~6s)', async ({
     page,
   }) => {
+    // 2026-09-19 revision pass, item 3: step highlighting now maps
+    // directly to the active clip index (set on each clip's own real
+    // "ended" event), not a time-window heuristic inside one continuous
+    // clip -- clip 1 (field-app.mp4) is a real ~6s clip, so step 2 doesn't
+    // take over until it actually ends, not at 2.5s.
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
     const fieldApp = page.locator('[data-section="field-app"]');
     const steps = fieldApp.locator('ol > li');
     await fieldApp.scrollIntoViewIfNeeded();
 
-    // Step 1 should be the active (opacity: 1) one shortly after the video
-    // starts playing.
     await expect(steps.nth(0)).toHaveCSS('opacity', '1', { timeout: 5000 });
     await expect(steps.nth(1)).not.toHaveCSS('opacity', '1');
 
-    // By ~2.5s into the (autoplaying, muted) video, step 2 should take over.
-    await page.waitForTimeout(2500);
-    await expect(steps.nth(1)).toHaveCSS('opacity', '1');
+    // Clip 1 is ~6s; give it up to 8s (playback speed can lag in CI) to end
+    // and hand off to clip 2.
+    await expect(steps.nth(1)).toHaveCSS('opacity', '1', { timeout: 8000 });
     await expect(steps.nth(0)).not.toHaveCSS('opacity', '1');
   });
 
@@ -380,18 +391,27 @@ test.describe('Homepage overhaul (hpd-008)', () => {
     expect(duration).toBe('14s');
   });
 
-  test('field-app button text is breakpoint-conditional: desktop "Open the Field App", mobile "Install App"', async ({
-    page,
-  }) => {
+  test('field-app has one "Install Field App" button (no breakpoint-split labels)', async ({ page }) => {
+    // 2026-09-19 revision pass, item 4: InstallFieldAppButton replaces the
+    // old two differently-labeled Link variants with one shared button
+    // that branches on platform internally instead of on viewport width.
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
     const fieldApp = page.locator('[data-section="field-app"]');
-    await expect(fieldApp.getByRole('link', { name: 'Open the Field App' })).toBeVisible();
-    await expect(fieldApp.getByRole('link', { name: 'Install App' })).toBeHidden();
+    await expect(fieldApp.getByRole('button', { name: 'Install Field App' })).toBeVisible();
+    await expect(fieldApp.getByText('Open the Field App')).toHaveCount(0);
+    await expect(fieldApp.getByRole('link', { name: 'Install App', exact: true })).toHaveCount(0);
+  });
 
-    await page.setViewportSize({ width: 375, height: 812 });
-    await expect(fieldApp.getByRole('link', { name: 'Install App' })).toBeVisible();
-    await expect(fieldApp.getByRole('link', { name: 'Open the Field App' })).toBeHidden();
+  test('desktop click on Install Field App opens a QR modal, not the camera flow', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const fieldApp = page.locator('[data-section="field-app"]');
+    await fieldApp.scrollIntoViewIfNeeded();
+    await fieldApp.getByRole('button', { name: 'Install Field App' }).click();
+    await expect(page.getByText('Scan with your phone to install the AFS Field App')).toBeVisible();
+    expect(page.url()).not.toContain('/field/contractor');
+    await page.getByRole('img', { name: 'QR code linking to the AFS Field App' }).waitFor();
   });
 
   test('field-app steps use single-digit numbers and the updated step 2/3 copy', async ({ page }) => {
@@ -419,15 +439,23 @@ test.describe('Homepage overhaul (hpd-008)', () => {
     expect(box?.height).toBeGreaterThanOrEqual(500);
   });
 
-  test('final-CTA buttons are all the same crimson style, and hail button reads "Check Hail View"', async ({
+  test('final-CTA has exactly two buttons (Custom Profiles and Check Hail View removed), same crimson style', async ({
     page,
   }) => {
+    // 2026-09-19 revision pass, item 7: HailView and Custom Profiles both
+    // have their own dedicated homepage entry points now (the hail-view
+    // section's own CTA, and the top-level nav item), so this final CTA
+    // band no longer needs to repeat them.
     await page.goto('/');
     const finalCTA = page.locator('[data-section="final-cta"]');
-    await expect(finalCTA.getByRole('link', { name: 'Check Hail View' })).toHaveAttribute('href', '/hailview');
-    await expect(finalCTA.getByRole('link', { name: 'Check Hail Impact' })).toHaveCount(0);
+    await expect(finalCTA.getByRole('link', { name: 'Start a Quote' })).toHaveAttribute('href', '/design-studio');
+    await expect(finalCTA.getByRole('link', { name: 'Talk to AFS' })).toHaveAttribute('href', '/contact');
+    await expect(finalCTA.getByRole('link', { name: 'Check Hail View' })).toHaveCount(0);
+    await expect(finalCTA.getByRole('link', { name: 'Custom Profiles' })).toHaveCount(0);
 
-    const classes = await finalCTA.getByRole('link').evaluateAll((links) => links.map((l) => l.className));
+    const links = finalCTA.getByRole('link');
+    await expect(links).toHaveCount(2);
+    const classes = await links.evaluateAll((els) => els.map((l) => l.className));
     expect(new Set(classes).size).toBe(1);
     expect(classes[0]).toContain('bg-afs-crimson');
   });
@@ -442,10 +470,13 @@ test.describe('Homepage link integrity', () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
 
-    // Open the Resources dropdown so its two links (conditionally rendered,
-    // not present in the DOM until opened) are collectable below.
+    // HailView moved to its own top-level nav item (2026-09-19 revision
+    // pass, item 2) -- no longer inside the Resources dropdown, which now
+    // has just its one remaining "Resources" link.
+    await expect(page.locator('header').getByRole('link', { name: 'HailView', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Resources' }).click();
-    await expect(page.getByRole('menuitem', { name: 'HailView' })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'HailView' })).toHaveCount(0);
+    await expect(page.getByRole('menuitem', { name: 'Resources', exact: true })).toBeVisible();
 
     const hrefs = await page.evaluate(() =>
       Array.from(document.querySelectorAll('a[href]'))

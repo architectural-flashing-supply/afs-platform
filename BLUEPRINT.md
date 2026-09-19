@@ -466,6 +466,36 @@ needed once real footage lands. Verified via temp preview
 route/Playwright specs (deleted before commit); full detail in
 STATE_OF_THE_BUILD.md's 2026-09-17 session entry.
 
+### Phase 9 addendum — 2026-09-19 revision pass (12 items)
+The HailView DATA BLOCKER above is resolved — real portrait (490×940)
+video/webm/poster wired in, section rewritten with new copy and a single
+"Check My Address" CTA, own top-level nav item (was inside Resources).
+`PhoneMockupVideo.tsx` converted from one continuous clip to a real
+3-clip crossfading playlist (`field-app.mp4` → `field-step-2.mp4` →
+`field-step-3.mp4` → loop), step overlays synced directly to the active
+clip index. New shared `InstallFieldAppButton.tsx` (+ `lib/pwa/
+install-prompt.ts`, `lib/pwa/platform.ts`) replaces the old breakpoint-
+split "Open the Field App"/"Install App" links — branches on real
+platform (native install prompt on Android/Chrome via a hard-nav handoff
+to `/field/contractor?install=1` so the correct manifest is linked; an
+iOS Safari instructional sheet; a QR modal, generated with the `qrcode`
+package, on desktop). Most homepage sections (all except hero, HailView,
+footer, and `ShopFloorProof` — video-background, not flat-color)
+converted from dark gunmetal to a new light palette (`afs-bg-light`
+`#F7F7F5`, `afs-bg-light-raised`, `afs-border-light`), reusing the
+existing `afs-ink-900`/`afs-ink-700` text tokens rather than adding new
+ones. New `RevealOnScroll.tsx` (framer-motion isn't installed — a small
+IntersectionObserver + CSS component instead) adds viewport-triggered,
+staggered entrance animations to 5 sections. New `lib/site-url.ts`
+(`getSiteUrl()`) replaces 7 hardcoded `afs-website-alpha.vercel.app`
+fallbacks across order/driver/pickup/dispatch API routes — real finding:
+that URL is a live deployment of what looks like this same site, but does
+not belong to this project's own Vercel account scope at all. One
+sub-item (moving "the hero's bottom image") held — `HeroSection.tsx` has
+never had a third image in its real git history, so this needs Reid's
+clarification rather than a guess. Full item-by-item PASS/FAIL detail:
+STATE_OF_THE_BUILD.md's 2026-09-19 session entry.
+
 ---
 
 ## 6. ENVIRONMENT VARIABLES

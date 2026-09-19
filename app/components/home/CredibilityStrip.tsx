@@ -10,7 +10,7 @@ const ITEMS: { label: string; href: string }[] = [
 
 export default function CredibilityStrip() {
   return (
-    <nav aria-label="Key capabilities" className="border-y border-[var(--afs-border)] bg-afs-bg-surface">
+    <nav aria-label="Key capabilities" className="border-y border-afs-border-light bg-afs-bg-light">
       <ul className="mx-auto grid max-w-6xl grid-cols-2 gap-x-4 gap-y-5 px-6 py-6 sm:flex sm:flex-row sm:flex-wrap sm:items-center sm:justify-center sm:gap-x-3 sm:gap-y-0">
         {ITEMS.map((item, index) => (
           <li
@@ -21,12 +21,12 @@ export default function CredibilityStrip() {
           >
             <Link
               href={item.href}
-              className="font-heading text-xs font-semibold uppercase tracking-wider text-afs-chrome-mid transition-colors hover:text-afs-chrome-high sm:text-sm"
+              className="font-heading text-xs font-semibold uppercase tracking-wider text-afs-ink-700 transition-colors hover:text-afs-ink-900 sm:text-sm"
             >
               {item.label}
             </Link>
             {index < ITEMS.length - 1 && (
-              <span className="mx-3 hidden text-afs-chrome-dim sm:inline" aria-hidden="true">
+              <span className="mx-3 hidden text-afs-ink-700/50 sm:inline" aria-hidden="true">
                 &middot;
               </span>
             )}
