@@ -249,9 +249,20 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
    this project's Vercel account/scope at all (`vercel inspect` fails
    against it under `reids-projects-b3405b97`) despite serving what looks
    like a copy of this same site — see STATE_OF_THE_BUILD.md's 2026-09-19
-   entry for the full investigation. Client-side code that needs the
-   current origin should use `window.location.origin` directly instead
-   (works correctly on preview deployments too, no env-inlining needed).
+   entry for the full investigation. **Resolved, same day (Pass #2):** it's
+   a second real Vercel project, `steveharyckis-projects/afs-website`,
+   connected to this same GitHub repo since a 2026-07-01 multi-project
+   setup (four differently-named Vercel projects were created from this
+   repo at once) and still actively auto-deploying today — every deploy on
+   it triggers under Reid's own Vercel username (`reid-9664`), and its
+   build is currently byte-identical to real production. Not an outside
+   party; an old, never-disconnected leftover. Whether it holds its own
+   stale copy of Supabase/Stripe secrets is still open — PENDING REID to
+   decide whether to disconnect/delete it and whether to rotate keys. Full
+   forensic trail: STATE_OF_THE_BUILD.md's 2026-09-19 (Pass #2) entry.
+   Client-side code that needs the current origin should use
+   `window.location.origin` directly instead (works correctly on preview
+   deployments too, no env-inlining needed).
 
 10. **Homepage/marketing videos are pre-rendered to their display aspect,
     never re-cropped or scaled in CSS.** Every real video asset used in a
@@ -265,6 +276,21 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
     ratio (see PhoneMockupVideo.tsx's own comment for a worked example: a
     -90°-rotation-flagged landscape source baked into a genuine upright
     portrait file), not adjusting the CSS around it.
+
+11. **The homepage delivery-area map is a real contiguous-US polygon,
+    never a radius circle.** `NationwideMapLeaflet.tsx` draws
+    `public/data/us-contiguous.geojson` — a single MultiPolygon covering
+    the lower 48 + DC, stopping at the actual Canadian/Mexican borders —
+    fit to its own computed bounds. A decorative `Circle` centered on the
+    Burnet, TX shop was tried first (Pass #1) and explicitly replaced
+    (Pass #2, 2026-09-19) because it bore no relation to the real
+    coastline. If this file ever needs regenerating (a finer simplification
+    level, a different state set), the approach is: `us-atlas`'s
+    `states-10m.json` + `topojson-client`'s `merge()` over every state
+    EXCEPT Alaska/Hawaii/the territories, coordinates rounded to ~3
+    decimals to stay under 100KB — both packages are dev-time-only tools
+    for producing this one static file, never runtime dependencies. Full
+    detail: STATE_OF_THE_BUILD.md's 2026-09-19 (Pass #2) entry.
 
 ---
 

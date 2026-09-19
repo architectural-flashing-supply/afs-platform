@@ -12297,4 +12297,229 @@ before concluding there was nothing to remove, not assumed absent.
    just the Playwright step, or a `webServer` entry added to
    `playwright.config.ts` so Playwright manages that lifecycle itself.
 
+---
+
+## SESSION: 2026-09-19 — Homepage Revision Pass #2
+
+8-item revision pass, immediately following the 12-item pass documented
+above. All 8 items shipped; nothing held.
+
+**1. Hero — PASS.** `HeroSection.tsx`: "Custom Metal Fabrication" (kept its
+enlarged `text-3xl sm:text-4xl` crimson style) moved from the right column
+to the left column, directly above "Engineered for architects. Trusted by
+contractors."; removed entirely from the right column, and the right
+column's `<h1>` lost its now-unnecessary `mt-3` (no longer has a preceding
+sibling to space against) — no empty gap. `RevealOnScroll.tsx` gained two
+new optional props, `durationMs`/`staggerMs`, mapped to CSS custom
+properties (`--reveal-duration`, `--reveal-stagger`) only when actually
+passed — every existing caller stays on `globals.css`'s hardcoded 500ms/
+80ms default by omitting them, so this pass's byte-for-byte "same timing
+tokens as last run" requirement holds for every *other* section (item 7).
+`globals.css`'s `.reveal-group` rules were converted from hardcoded
+`500ms`/`Nms` values to `var(--reveal-duration, 500ms)` /
+`calc(var(--reveal-stagger, 80ms) * N)`. Hero's own two text columns wrap
+in `<RevealOnScroll durationMs={600} staggerMs={120}>` for the ~600ms/
+~120ms-stagger entrance the task asked for. Verified: `pnpm tsc --noEmit`
+clean, Playwright screenshots at 1440/375px both locally and on production
+(`prod-pass2-hero-1440.png`/`-375.png`).
+
+**2. Image move — PASS.** Read both source photos directly (not inferred
+from filename) before touching anything: `rf2.jpeg` shows a coil-stock/
+roll-forming trailer in the foreground with a genuine standing-seam metal
+roof visible on the garage in the background — confirmed a match for its
+existing alt text and caption. `shop1.png` confirmed as the Thalmann
+bending-line shop-floor photo. `app/page.tsx`: the `rf2.jpeg`
+`SectionImageBreak` (previously below design-to-delivery, before pathways)
+was deleted entirely; the `shop1.png` `SectionImageBreak` (previously
+directly below the hero/carousel) was removed from its old position and
+re-inserted in `rf2.jpeg`'s exact old slot. No other reference to
+`rf2.jpeg` remained anywhere in `app/`/`components/`/`tests/` (grepped
+clean) — nothing else needed updating.
+
+**3. Client carousel — PASS.** `components/home/ClientCarousel.tsx`:
+"Trusted By Industry Leaders" heading `font-semibold` (600) → `font-bold`
+(700).
+
+**4. Field App banner — PASS.** Identified by screenshot first, per the
+task's own instruction, rather than guessed: the "banner/strip directly
+below the phone mockup" is `CredibilityStrip.tsx` (the "4 Ways to Start ·
+9 Materials · Custom Profiles · SMACNA Standards Compliant · Nationwide
+Delivery" nav strip), which sits immediately after `FieldAppStory` in
+`app/page.tsx`'s section order — not a new component. Background changed
+to a new `afs-bg-band` token (`#F1F2F4` — see item 5, same requested hex,
+distinct from the existing `afs-bg-light`/`#F7F7F5`, added to
+`tailwind.config.js` rather than hardcoded per CLAUDE.md rule 4); link
+text `text-xs font-semibold` → `text-base font-bold sm:text-lg` (2 full
+Tailwind size steps up, 600→700 weight). Phone playlist verified via a
+Playwright script that polled `currentSrc` on the active (opacity-100)
+`<video>` element every second and logged each transition: confirmed
+`field-app.webm` (clip 1) → `field-step-2.webm` (clip 2, the newly
+re-rendered drawing time-lapse — file `mtime` also independently confirms
+it was re-encoded today) → `field-step-3.webm` (clip 3) → back to
+`field-app.webm`. No code change was needed for the new clip content
+itself, exactly as the task predicted.
+
+**5. "Four Ways to Start" — PASS.** This heading belongs to
+`DesignStudioHub.tsx` (`id="design-studio"`, the Scan Plans/Photo to Quote/
+FlashDraft/Quick Quote tab section) — not `CustomerPathways.tsx`, which
+despite its `slug="pathways"` actually renders a different heading, "Built
+for How You Work" (Contractors/Architects/Purchasing). Disambiguated by
+screenshot before editing (same evidence capture as item 4) since the
+task's own parenthetical `(pathways)` hint didn't match the literal
+heading text it also gave. Background changed to the same new
+`afs-bg-band` (`#F1F2F4`) token. WCAG AA re-checked, not assumed: `#F1F2F4`
+is barely darker than the previous `#F7F7F5`, so contrast for
+`afs-ink-900`/`afs-ink-700` text only *increased* fractionally; card
+borders (`afs-border-light`, `#D8D8D4`) still read clearly against both
+the new section background and the unchanged card background
+(`afs-bg-light-raised`, `#EFEFEC`).
+
+**6. Delivery map polygon — PASS.** `NationwideMapLeaflet.tsx`'s decorative
+`Circle` (a 2,000-mile radius ring centered on Burnet that bore no
+relation to the real US coastline) replaced with a real contiguous-US
+outline. Generated once via the free `us-atlas` npm package
+(ISC license, US Census TIGER/Line-derived `states-10m.json`) +
+`topojson-client`'s `merge()` over every state geometry EXCEPT Alaska,
+Hawaii, and the five inhabited territories (Puerto Rico, Guam, American
+Samoa, N. Mariana Islands, USVI) — 49 geometries merged (48 states + DC).
+Coordinates rounded to 3 decimals (~110m precision) to shrink the
+committed file; final `public/data/us-contiguous.geojson` is 70.7KB, under
+the 100KB budget. `us-atlas`/`topojson-client`/`topojson-simplify` were
+only ever dev-time tools used to produce this one static file — added as
+devDependencies, used, then removed again (`pnpm remove`); `package.json`/
+`pnpm-lock.yaml` diff against the original is a no-op besides one
+alphabetical reorder of an unrelated existing entry, confirmed via `git
+diff` before committing, so no lockfile-drift risk carried into the
+deploy (see the lockfile-drift lesson two sessions up). Fetched from
+`/data/us-contiguous.geojson` at runtime (a `fetch()` in a `useEffect`,
+not a bundled TS import — it's a static public asset, not app code) and
+rendered via react-leaflet's `<GeoJSON>` with the same literal-hex styling
+precedent the old `Circle` already established (`pathOptions` mirrors
+`afs-crimson` `#C0001A`, same CANVAS_COLORS-class exception documented in
+CLAUDE.md rule 4 — Leaflet's SVG renderer can't consume Tailwind classes
+or CSS vars). Same fill color/opacity as the old circle (`fillOpacity:
+0.05`, stroke `opacity: 0.25`), thin `weight: 1.5` stroke. Map view now
+fits the polygon's own real computed bounds (`L.geoJSON(...).getBounds()`
+via a small `FitToPolygonBounds` helper) instead of a hand-typed
+approximate bounding box — the old `CONTINENTAL_US_BOUNDS` constant and
+`FitToContinentalUS` component are gone. `NATIONWIDE_RADIUS_METERS`
+removed from `nationwide-locations.ts` (confirmed unused elsewhere via
+grep before deleting). Verified: polygon bbox `{minLat: 24.515, maxLat:
+49.385}` — satisfies the checkpoint's `<=49.5`/`>=24.4` bounds; Playwright
+screenshots at 1440/375px, locally and in production, show the outline
+stopping cleanly at the real Canadian and Mexican borders, coast to coast.
+
+**7. Scroll-triggered reveals extended — PASS.** `RevealOnScroll` wired
+into every section item 7 named that didn't already have it, or only had
+it on part of its content: `CredibilityStrip` (wraps the `<ul>`, `as="ul"`,
+so each `<li>` staggers), `DesignStudioHub` (wraps the full content
+column — heading, tab row, and tab panel all stagger together),
+`DesignToDelivery` (wraps just the "How It Works" / "From capture to
+delivery" intro block — its own bespoke per-step scroll-linked rail-fill
+animation, driven by a dedicated `IntersectionObserver` per `<li>`, was
+left alone rather than double-wrapped, since it's already a more elaborate
+entrance treatment than the generic system and nesting risked visual
+conflict), `CustomerPathways`, `ProfilePassportExplainer`, `NationwideMap`
+(wraps the eyebrow/heading/location-list/map-container column — does NOT
+change the map's own always-mounted-no-viewport-gating behavior that
+`tests/e2e/homepage.spec.ts`'s "renders the HQ marker" test depends on,
+since CSS opacity never removes an element from the DOM and Playwright's
+`toBeVisible()` doesn't check computed opacity), `ShopFloorProof` (the
+heading/subhead block gained its own `RevealOnScroll` alongside the
+already-existing one on the stats `<dl>` — previously only the stats
+faded in), `FinalCTA` (the whole content column now wraps — previously
+only the 2-button action row faded in, leaving the "Ready When You Are"
+headline and "Texas Crafted..." tagline static). Verified with a full-page
+scroll Playwright check: **14** `.reveal-group` instances found on the
+page, all reached `is-visible` with every direct child at computed
+`opacity: 1`, **CLS 0.0034** (well under the 0.1 budget), **zero console
+errors**.
+
+**8. `afs-website-alpha.vercel.app` investigation — COMPLETE, real finding,
+nothing modified.** `gh repo view`: this repo is
+`architectural-flashing-supply/afs-platform`. `gh api .../deployments`
+shows normal history (all `vercel[bot]`-created GitHub Deployment records,
+Production/Preview, matching real commit cadence) plus one notable
+artifact: on 2026-07-01, two near-simultaneous batches of exactly 4
+deployment records each, for 4 *differently-named* environments —
+"Production – afs-platform", "Production – afs", "Production – afs-web",
+"Production – afs-website" — meaning this GitHub repo was, at project
+inception, connected to 4 separate Vercel projects at once (evidence
+saved: `scratch-verify/alpha-deployments.json`). `gh api .../hooks`:
+empty — expected, since Vercel's GitHub integration is a GitHub App, not
+a classic webhook. `vercel teams ls`: this CLI session has access to a
+**second** Vercel team beyond `reids-projects-b3405b97` — one called
+`steveharyckis-projects`. `vercel project ls --scope
+steveharyckis-projects`: that team has a project named `afs-website` whose
+Latest Production URL is **exactly**
+`https://afs-website-alpha.vercel.app`, last updated within the hour at
+investigation time. `vercel ls afs-website --scope
+steveharyckis-projects`: roughly hourly Production deployments, matching
+this repo's own push cadence — and critically, every one of them lists
+**`Username: reid-9664`** as the trigger, i.e. Reid's own Vercel identity,
+not an unknown third party. `curl -I` on both
+`afs-website-alpha.vercel.app` and `afs-website-eight.vercel.app`: both
+return byte-identical font-preload `Link` headers (same static asset
+content hashes), meaning the alpha deployment is running the exact same
+build as this session's own real production, currently in sync —
+different `X-Vercel-Id` region/cache-node values are expected (separate
+infra) and don't indicate different content. **Conclusion:** this is not
+an unauthorized third party or a security breach in the sense of a
+stranger's account — it's a second, real Vercel project
+(`steveharyckis-projects/afs-website`) auto-deploying from the same
+GitHub repo in parallel with the intended one
+(`reids-projects-b3405b97/afs-website`, aliased to
+`afs-website-eight.vercel.app`, the real production per `CLAUDE.md`), and
+Reid's own account has access to trigger/view it. Left over from the
+2026-07-01 multi-project setup and never disconnected. **Genuine open
+question, not resolved by this investigation:** whether
+`steveharyckis-projects/afs-website` has its *own*, independently
+configured (and possibly stale) copy of Supabase/Stripe/other secrets —
+`vercel env ls --scope steveharyckis-projects` could not be checked
+cleanly from this working directory (the local `.vercel/project.json` link
+pins `vercel env ls` to `reids-projects-b3405b97/afs-website` regardless
+of `--scope`, and re-linking this directory to inspect the other project
+was correctly avoided per the task's explicit "do NOT ... modify
+anything"). **PENDING REID:** decide whether
+`steveharyckis-projects/afs-website` should be disconnected from the repo
+(stop auto-deploying) or deleted outright, and if it's ever held real
+Supabase/Stripe keys, treat those as exposed and rotate them — this
+investigation deliberately took no destructive or disconnecting action.
+
+### END-OF-RUN VERIFICATION
+
+- `pnpm tsc --noEmit`: clean throughout (checked after items 1-3, after
+  items 4-6, and again after item 7).
+- Local full `npx playwright test tests/e2e/homepage.spec.ts`: 46 passed,
+  2 failed — the same 2 pre-existing, unrelated failures documented in the
+  session above this one (hero CTA href expecting `/about/services` but
+  actually `/design-studio`; header logo width expecting `76` but actually
+  `160`) — confirmed via `git diff` that neither `HeroSection.tsx`'s CTA
+  `href` nor any header/logo component was touched by this session's real
+  changes, so these are carried-forward gaps, not regressions.
+- `deploy.ps1 -SkipTests` (tsc → build → `vercel --prod`): hit the same
+  known `.next/trace` `EPERM` lock on the first attempt (an orphaned child
+  `next dev` process — `node .../next/dist/server/lib/start-server.js` —
+  survived killing its parent shell on Windows and kept the file handle
+  open); identified and killed the specific orphaned PIDs via `Get-
+  CimInstance Win32_Process` command-line inspection (not a blind kill of
+  all `node` processes, several unrelated ones were left alone), cleared
+  `.next`, re-ran clean. All 3 steps passed; aliased to
+  `https://afs-website-eight.vercel.app`.
+- Production verification (`https://afs-website-eight.vercel.app`,
+  `PLAYWRIGHT_BASE_URL` override): items 1-7 re-screenshotted at 1440/375px
+  directly against the live deployment (`scratch-verify/prod-pass2-*.png`)
+  — zero failed `/videos/`, `/images/`, or `/data/` asset requests at
+  either breakpoint; `rf2.jpeg` confirmed absent from the live DOM,
+  `shop1.png` confirmed present exactly once.
+- `git add . && git commit && git push` via `deploy.ps1`'s own step 5:
+  commit `e4074ba`, 21 files changed, includes `public/data/
+  us-contiguous.geojson` (new).
+
+**Human browser verification: PENDING REID** — automation confirmed layout,
+asset loading, console cleanliness, and CLS on real Chromium, but final
+visual sign-off (subjective "tasteful" judgment on the animation timing,
+real-device rendering of the map polygon at odd viewport sizes, and the
+item 8 alpha-deployment decision) is Reid's to make.
+
 

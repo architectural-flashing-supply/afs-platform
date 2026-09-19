@@ -7766,6 +7766,42 @@ entry.
 
 ---
 
+## SESSION: 2026-09-19 — Homepage Revision Pass #2
+
+8-item pass immediately following the 12-item pass above; all 8 shipped,
+nothing held. Hero eyebrow moved to the left column above the headline
+with a new 600ms/120ms-stagger entrance (a per-instance timing override
+added to `RevealOnScroll`, every other section stays on the 500ms/80ms
+default). Resolved the prior session's held image question: confirmed
+`rf2.jpeg` (standing-seam roof, trailer in foreground) and `shop1.png`
+(shop floor) by direct inspection, then swapped their positions in
+`app/page.tsx`. Carousel heading bolded. The "banner below the phone
+mockup" (item 4) and the "Four Ways to Start" section (item 5) were both
+correctly identified by screenshot rather than guessed from the task's
+own slightly misleading component-name hints — `CredibilityStrip.tsx` and
+`DesignStudioHub.tsx` respectively, not `CustomerPathways.tsx` despite its
+`slug="pathways"`. Delivery map's old radius `Circle` replaced with a real
+contiguous-US polygon (`public/data/us-contiguous.geojson`, generated once
+from the free `us-atlas` package, 70.7KB) that stops at the actual
+Canadian/Mexican borders. Viewport-entrance reveals extended to every
+remaining homepage section. **Real finding, not resolved, needs Reid's
+decision:** the `afs-website-alpha.vercel.app` investigation (opened last
+session) is now conclusive — it's a second real Vercel project,
+`steveharyckis-projects/afs-website`, auto-deploying this same GitHub repo
+in parallel with the real production project, currently in sync
+(byte-identical build), and every deploy on it is triggered under Reid's
+own Vercel username (`reid-9664`) — so it's an old, never-disconnected
+leftover from initial project setup (four differently-named Vercel
+projects were all created from this repo on 2026-07-01), not an outside
+party. Whether it holds its own stale copy of Supabase/Stripe secrets
+could not be checked without re-linking this working directory's own
+`.vercel/project.json` (avoided, per the task's explicit no-modification
+instruction). Full detail, full PASS/FAIL breakdown, and the complete
+alpha-deployment forensic trail: `STATE_OF_THE_BUILD.md`'s matching
+2026-09-19 (Pass #2) entry.
+
+---
+
 ## PRIOR HISTORY
 
 This file previously contained several thousand lines of session-by-session

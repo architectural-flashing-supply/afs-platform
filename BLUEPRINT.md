@@ -496,6 +496,25 @@ never had a third image in its real git history, so this needs Reid's
 clarification rather than a guess. Full item-by-item PASS/FAIL detail:
 STATE_OF_THE_BUILD.md's 2026-09-19 session entry.
 
+**Revision Pass #2 (2026-09-19, same day):** the held hero item resolved
+(`rf2.jpeg`/`shop1.png` `SectionImageBreak`s swapped, confirmed by direct
+photo inspection first). `RevealOnScroll.tsx` extended with optional
+per-instance `durationMs`/`staggerMs` props and wired into every remaining
+homepage section (`CredibilityStrip`, `DesignStudioHub`, `DesignToDelivery`
+intro block, `CustomerPathways`, `ProfilePassportExplainer`,
+`NationwideMap`, plus filling gaps in `ShopFloorProof` and `FinalCTA` that
+only partially animated) — 14 reveal-group instances total, all verified
+reaching `opacity: 1` with CLS 0.0034. `NationwideMapLeaflet.tsx`'s old
+radius `Circle` replaced with a real contiguous-US polygon
+(`public/data/us-contiguous.geojson`, 70.7KB, generated once from the free
+`us-atlas` package — see CLAUDE.md's new delivery-area rule). The
+`afs-website-alpha.vercel.app` finding from the prior pass is now fully
+resolved: it's a second real Vercel project,
+`steveharyckis-projects/afs-website`, connected to this same GitHub repo
+since a 2026-07-01 multi-project setup and still auto-deploying today
+under Reid's own Vercel identity — not an unknown third party. Full detail:
+STATE_OF_THE_BUILD.md's 2026-09-19 (Pass #2) session entry.
+
 ---
 
 ## 6. ENVIRONMENT VARIABLES
