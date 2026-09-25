@@ -138,29 +138,46 @@ interface QuoteRequestRow {
   line_items: unknown;
 }
 
+// F-01 (audit 2026-09-24). These validators used `typeof x === 'number'`,
+// which is TRUE for NaN and for Infinity. That mattered because
+// `JSON.parse('{"x": 1e999}')` yields Infinity — so a corrupt or tampered
+// localStorage autosave entry could load non-finite geometry straight onto
+// the canvas, with no crafted API request involved, and from there into the
+// machine payload where it serialised to `null`. Number.isFinite rejects
+// NaN, ±Infinity, and non-numbers in a single call.
+function isFinitePoint(p: unknown): p is Point {
+  if (!p || typeof p !== 'object') return false;
+  const pt = p as Point;
+  if (!Number.isFinite(pt.x) || !Number.isFinite(pt.y)) return false;
+  // radius is optional, but when present it drives the bend feature sent to
+  // the machine, so it gets the same treatment.
+  if (pt.radius !== undefined && pt.radius !== null && !Number.isFinite(pt.radius)) return false;
+  return true;
+}
+
 function isPointArray(value: unknown): value is Point[] {
-  return (
-    Array.isArray(value) &&
-    value.length >= 2 &&
-    value.every(
-      (p) => !!p && typeof p === 'object' && typeof (p as Point).x === 'number' && typeof (p as Point).y === 'number'
-    )
-  );
+  return Array.isArray(value) && value.length >= 2 && value.every(isFinitePoint);
 }
 
 // Same shape check as isPointArray but without the >=2 length requirement —
 // an autosaved profile may be mid-draw (0 or 1 points) rather than complete.
 function isPointArrayShape(value: unknown): value is Point[] {
-  return (
-    Array.isArray(value) &&
-    value.every(
-      (p) => !!p && typeof p === 'object' && typeof (p as Point).x === 'number' && typeof (p as Point).y === 'number'
-    )
-  );
+  return Array.isArray(value) && value.every(isFinitePoint);
 }
 
+// F-01: this previously accepted ANY non-null object, including `{}` and
+// `[]` — a hem missing lengthIn then produced `undefined * 25.4 = NaN` in
+// the machine adapter. Now checks the real Hem shape field by field.
 function isHemShape(value: unknown): value is Hem | null {
-  return value === null || (typeof value === 'object' && value !== null);
+  if (value === null) return true;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const h = value as Hem;
+  return (
+    (h.type === 'open' || h.type === 'smashed' || h.type === 'teardrop') &&
+    (h.kick === 'inside' || h.kick === 'outside') &&
+    Number.isFinite(h.gapIn) &&
+    Number.isFinite(h.lengthIn)
+  );
 }
 
 // Guards the autosaved `finish` field (afs-jf-002) against a stale/corrupt

@@ -14,18 +14,36 @@
 -- ProfilePassportExplainer.tsx) for the FlashDraft-drawn-and-locked
 -- saved_configurations feature, which is what this migration extends.
 --
--- **NOT YET APPLIED TO THE LIVE DATABASE.** This session has no Supabase
--- access to the real afs-website project (only unrelated projects are
--- visible via the connected Supabase MCP tools), so this file could only be
--- authored and reviewed here, never run or verified against live data.
--- Someone with real project access must apply it (Supabase SQL editor or
--- `supabase db push`) before the Profile Passport feature works AT ALL —
--- the app code shipped alongside this migration (app/studio/draft/page.tsx's
--- performSave, every app/api/profile-passport/* route) writes/reads these
--- columns unconditionally. Until this migration runs, FlashDraft's Save/
--- Lock Profile & Save/Duplicate will fail outright (Postgres rejects an
--- insert/update referencing a column that doesn't exist yet) and every
--- Profile Passport route will error. Apply this FIRST.
+-- **APPLIED TO THE LIVE DATABASE — VERIFIED 2026-09-24. DO NOT RE-RUN.**
+--
+-- This header previously read "NOT YET APPLIED TO THE LIVE DATABASE" and
+-- warned that Profile Passport would "fail outright" until someone ran it.
+-- That was true of the authoring session's own knowledge, but it is not
+-- true of the database: the FlashDraft production-readiness audit
+-- (2026-09-24, see STATE_OF_THE_BUILD.md's matching entry) probed the live
+-- database directly and confirmed this migration and 025 are both applied.
+--
+-- Evidence, read from live rather than inferred:
+--   * saved_configurations returns real rows carrying company_id,
+--     is_locked, a populated job_info JSONB, category, subcategory, and a
+--     base64 thumbnail_image — every column added by this file and by 025.
+--   * Exactly four policies are live on saved_configurations —
+--     profile_passport_select/_insert/_update/_delete — whose predicates
+--     match this file's source verbatim, including the company_role arrays
+--     that separate Editor-tier UPDATE rights from owner/admin-only DELETE.
+--   * RLS is enabled on all seven FlashDraft-relevant tables.
+--
+-- The original header's stated CAUSE was correct: the Supabase MCP
+-- connection exposes only unrelated projects, not afs-website, so that
+-- session genuinely could not verify. The audit reached the live database
+-- through the project's own credentials instead.
+--
+-- WHY THIS CORRECTION MATTERS: re-running this file is NOT harmless. The
+-- ADD COLUMN statements are idempotent (IF NOT EXISTS), but the backfill
+-- UPDATEs below would re-run against live data, and the DROP POLICY IF
+-- EXISTS "users_own_configs" plus the four CREATE POLICY statements would
+-- fail on the already-existing policies. A future session reading the old
+-- header would have had every reason to try.
 --
 -- WHAT THIS CHANGES, AND WHY IT'S A REAL BEHAVIOR CHANGE, NOT JUST AN
 -- ADDITIVE ONE: saved_configurations today is scoped per-user

@@ -12523,3 +12523,562 @@ real-device rendering of the map polygon at odd viewport sizes, and the
 item 8 alpha-deployment decision) is Reid's to make.
 
 
+
+---
+
+## SESSION: 2026-09-24 — FLASHDRAFT PRODUCTION-READINESS AUDIT
+
+Full-surface audit of FlashDraft across functionality, the PathfinderEdge
+integration, persistence, RLS, UI state, error handling, and test coverage.
+Deliverable: `FLASHDRAFT_AUDIT_REPORT.docx` (repo root). **No application
+code was modified by this session** — it was an audit, and the fixes it
+identifies are left for a subsequent build run so they can be tested
+properly rather than bolted onto a read-only pass.
+
+**GATE: NEEDS FIXES.** One blocking defect, four P1s, five P2s, one
+premise correction. Nothing found suggests a carelessly built system; the
+blocking item is a single missed edge case in an otherwise well-guarded
+integration.
+
+### THE HEADLINE — `syncDate`/`forceSyncDate` DO NOT EXIST
+
+The audit was commissioned with "syncDate/forceSyncDate is the primary
+concern" and asked whether those fields were being set on the outgoing
+PathfinderEdge payload. **They are not being set, and they must not be —
+these fields do not exist in the PathfinderEdge API at all.** Established
+three independent ways:
+
+- Repo-wide case-insensitive grep for `syncdate|forcesync|force_sync|
+  sync_date` across `.ts`/`.tsx`/`.md`/`.json`/`.sql`: **zero matches.**
+  The concept has never existed in this codebase.
+- The vendor's `profile-object` doc enumerates the complete schema —
+  required `profileName`/`features`; optional `description`/
+  `owningCatalogId`/`category`/`subCategory`/`paintedSide`; server-assigned
+  `blankWidth`/`profileId`/`revision`/timestamps. No sync-date field of
+  any kind.
+- The vendor's `machine-sync` doc states verbatim: *"The Published API has
+  no endpoint that sends a profile to a machine, and no way to trigger,
+  force, or expedite a sync."*
+
+So there is no defect to fix here, and **no mechanism exists — or can be
+built against this API — to push or expedite a job to the Thalmann.**
+Machines pull on their own polling schedule. A profile reaches the DS2801
+when three conditions hold: it's in a subscribed catalog (20115), it isn't
+archived, and the machine is powered on and connected. This is an
+operational expectation to reset, not code to change. `submitJobToMachine`/
+`getJobStatus` returning `not_configured` with an explanatory message is
+**correct** and should not be "fixed."
+
+### BLOCKING — NON-FINITE GEOMETRY REACHES THE MACHINE CATALOG AS `null`
+
+**Confirmed by executing the real module, not inferred from reading it.**
+
+Every numeric guard protecting the outgoing payload is written `if (x <= 0)
+throw` — and `NaN <= 0` and `Infinity <= 0` are both **false**, so no guard
+fires. `JSON.stringify` then serialises both to the literal `null`. The
+result is a structurally valid POST into catalog 20115 — the one catalog
+the physical DS2801 polls automatically — carrying
+`{"type":"Straight","length":null}` and `{"type":"Angle","angle":null}`.
+
+Measured, not assumed:
+
+```
+flashDraftToMachineProfile({points:[{x:0,y:0},{x:'abc',y:5},{x:10,y:5}]})
+  -> blankWidthMm = NaN, bends[0].leftLegMm = NaN, angle = NaN  (no throw)
+(NaN <= 0) -> false        (Infinity <= 0) -> false
+JSON.stringify({length: NaN}) -> {"length":null}
+```
+
+Three reachable vectors, all confirmed:
+1. `app/api/studio/send-to-pathfinder/route.ts:84` validates only
+   `Array.isArray(points) && length >= 2` — never element types.
+2. **No crafted request needed:** `JSON.parse('{"x": 1e999}')` yields
+   `Infinity`, and `typeof Infinity === 'number'`, so
+   `isPointArrayShape` (`app/studio/draft/page.tsx:153`) accepts it. A
+   corrupt localStorage autosave entry loads non-finite geometry straight
+   onto the canvas.
+3. `isHemShape` (`page.tsx:162`) returns `true` for `{}` and `[]` — a hem
+   missing `lengthMm` gives `undefined * 25.4 = NaN` down the same path.
+
+Guards at `lib/integrations/pathfinder-edge.ts:312, 321, 327, 352, 364`.
+Fix: `!Number.isFinite(x) || x <= 0` at every guard, finiteness validation
+at the route boundary, tighten both restore validators, and a final
+pre-POST assertion so no future call site can reintroduce it.
+
+Severity is bounded by the admin-role gate on the route
+(`send-to-pathfinder/route.ts:74-78`) — but vector 2 needs only a corrupt
+autosave entry in an admin's own browser.
+
+### P1 FINDINGS
+
+**No timeout or retry on any PathfinderEdge call.** `pathfinderFetch`
+(`pathfinder-edge.ts:160-169`) is a bare `fetch()` with no `AbortSignal`.
+Grep for `AbortSignal|AbortController|timeout|retry|signal:` across the
+integration, the adapter and the route: **none found.** A hung vendor
+endpoint holds the route open until the platform timeout, surfacing as the
+generic "Network error" branch (`page.tsx:3194`) that can't be told apart
+from a refused connection. The send isn't idempotent, so retrying after an
+ambiguous timeout can duplicate a machine-catalog profile.
+
+**profileId resolution silently breaks past 100 profiles — catalog is at
+71.** `pathfinder-edge.ts:450` hardcodes `skip=0&take=100`, matching by
+exact name and taking the highest id, because the vendor's POST response
+doesn't echo `profileId`. **Measured live:** `take=100` returns 71;
+`take=200` also returns 71, so 71 is the true catalog size — **71% of the
+ceiling.** The listing order is neither ascending-by-id nor alphabetical
+(both checked programmatically), so which 100 rows survive isn't
+reasonable-about. Past 100 the push succeeds while `profileId` records
+`null`, permanently severing the shop record from the machine profile.
+Name matching is already ambiguous live: "Omega" appears twice, plus "Copy
+of Omega" and "Copy of Copy of Omega 2".
+
+**Every `pathfinder_profile_id` FlashDraft recorded is now dangling.**
+`shop_profile_library` holds `32914399`/`32914398` (source_tool
+`afs-flashdraft`, 2026-08-23). `GET /api/v1/profiles/32914399` → **404**.
+Control probe `GET /api/v1/profiles/32948263` (an id from the live
+listing) → **200**, isolating the failure to the profiles rather than to
+credentials or the endpoint. Neither id, and no FlashDraft-pushed profile
+name, appears anywhere in the live 71-row catalog. Max live id is
+32948263 — *higher* than the recorded ids, so the catalog stayed in
+active use since. **The round trip therefore cannot currently be
+demonstrated end-to-end against production data.** Whether these were
+archived during housekeeping isn't determinable from the API (the vendor
+archives rather than hard-deletes, and archived rows are excluded from
+listings). **NEEDS REID.**
+
+**Zero React error boundaries anywhere in the application.** No
+`error.tsx`, no `global-error.tsx`, no `ErrorBoundary`, no
+`componentDidCatch` — confirmed by both grep and filesystem search across
+`app/` and `components/`. An uncaught render error in the 4,595-line
+canvas page or the three.js viewers (`ProfileViewer3D.tsx`, 963 LOC)
+white-screens the route. The localStorage autosave means the *geometry*
+survives a manual reload, which softens but doesn't close this.
+
+**The three core canvas tests don't execute.** `E2E_TEST_EMAIL`/
+`E2E_TEST_PASSWORD` aren't set, so draw-to-submit, Alt+drag invariance,
+and Lock-and-Save all skip. Nothing at any level covers the
+send-to-PathfinderEdge path, and there is **no unit test over
+`flashDraftToMachineProfile` or `buildFeatures`** — despite `bendAngleAt`
+having been revised three times on its semantics. A single table-driven
+test over those pure functions would have caught the blocking finding
+above. **NEEDS REID** (a real Supabase admin account; none exists in the
+repo and this session did not fabricate one).
+
+### P2 FINDINGS
+
+- **`admin/pathfinder/push-profile` takes an unvalidated profile and an
+  arbitrary `catalogId`** (`route.ts:23-28` — a TS `as` cast, erased at
+  runtime). Any admin can write to any catalog including 20118. Contrast
+  the FlashDraft route, which correctly pins `AFS_MACHINE_CATALOG_ID`.
+- **Vendor responses are cast, not validated** (`pathfinder-edge.ts:460`).
+  A shape change throws a `TypeError` into the generic catch and is
+  reported as "Network error," sending an operator after connectivity
+  during a contract change. `PATHFINDER_DEBUG_CAPTURE` records only the
+  *outgoing* request, never the response — so there's no server-side
+  record to reconstruct from.
+- **Bend-angle and `hemDirection` mappings remain unproven, and the API
+  cannot settle them.** Confirmed this session: `GET /api/v1/profiles/:id`
+  returns only summary metadata (`profileId`, `profileName`,
+  `description`, `owningCatalogId`, `category`, `subCategory`,
+  `blankWidth`, `bendCount`, `hemCount`) — **no `features` array.**
+  Geometry can't be verified by read-back at all; only the thumbnail
+  endpoint or the vendor UI can close this. The staircase report
+  (profileId 32911526) stays unevaluated. **NEEDS REID** — closing it
+  requires an attended write to the machine-subscribed catalog.
+- **`hailview.spec.ts:17` overrides the suite-wide baseURL** with its own
+  variable defaulting to `:3000`, ignoring `PLAYWRIGHT_BASE_URL`. Caused
+  8 of this run's 10 failures. Fix: fall back to `PLAYWRIGHT_BASE_URL`
+  before the literal, and adopt `playwright.config.ts`'s `webServer`
+  option — which also resolves the `deploy.ps1` step-2/step-4
+  precondition conflict recorded in the 2026-09-19 entry above.
+
+### GOVERNANCE CORRECTION — MIGRATIONS 024/025 ARE LIVE
+
+`024_profile_passport_company_scope.sql`'s own header asserted **"NOT YET
+APPLIED TO THE LIVE DATABASE"** and warned that Profile Passport "will fail
+outright." **Both 024 and 025 are applied.** Verified by direct probe of the live database:
+
+- `saved_configurations` returns real rows carrying `company_id`,
+  `is_locked`, a populated `job_info` JSONB, `category`, `subcategory`,
+  and a base64 `thumbnail_image` — every column added by 024 and 025.
+- Exactly **four** policies live on `saved_configurations` —
+  `profile_passport_select`/`_insert`/`_update`/`_delete` — whose
+  predicates match the migration source **verbatim**, including the
+  `company_role` arrays separating Editor-tier update rights from
+  owner/admin-only delete.
+- RLS confirmed **enabled on all seven** FlashDraft-relevant tables:
+  `saved_configurations` (4 policies), `shop_profile_library` (1,
+  admin-only ALL), `machine_profiles` (2), `canonical_profiles` (2),
+  `machine_jobs` (1), `profiles` (2), `companies` (2).
+
+The header's stated *cause* was correct at the time — the Supabase MCP
+connection exposes only three unrelated projects, not afs-website. This
+audit reached the live database through the project's own credentials
+instead. The migration header has been corrected in place; left
+uncorrected, a future session could re-run a migration containing a
+destructive `DROP POLICY` plus backfill `UPDATE`s.
+
+**Scope of the staleness — checked, not assumed.** This correction applies
+to migration **024's own header only**. The nearby `## PROFILE PASSPORT —
+SCHEMA + RLS (hp-015): HALTED — NOT APPLIED LIVE (2026-09-10)` entry in
+this file was checked against the live database and is **accurate — leave
+it alone.** That entry concerns migration **023** (`custom_profiles`,
+`profile_revisions`), and an `information_schema` query confirms neither
+table exists live. 023 and 024 share the "Profile Passport" name but are
+entirely unrelated tables — a collision 024's own header already
+documents. An earlier draft of this audit entry asserted that this file
+also repeated the stale claim; that assertion was wrong and was removed
+before publication rather than left to propagate.
+
+This is the second time this project has been bitten by assumed
+migration-apply status, in opposite directions: the 2026-08-20 entry
+records migration 015 being wrongly recorded as *unapplied*, and
+establishes the governing rule — **this database has no migration ledger**
+(no `schema_migrations` table; migrations are applied by hand via the
+Dashboard SQL Editor), so live-apply status **must be verified via
+`information_schema` every time it matters** and never assumed from a
+file's presence, git history, or a prior note in this doc. That rule is
+what this audit applied, and it is what caught the stale header.
+
+### GOVERNANCE CORRECTION — "PATHFINDEREDGE HAS NO API" WAS WRONG IN FOUR FILES
+
+`lib/integrations/pathfinder-edge.ts`'s own header has said since
+2026-08-18 that the "no discoverable REST API" claim was wrong (the
+original probe used the wrong auth format — the key goes in
+`Authorization` **raw**, no `Bearer`/`X-API-Key` prefix). That correction
+never propagated out of the source file, so four governance documents
+still described a live, production-used integration as a dead stub.
+Re-confirmed live this session — `GET /api/v1/catalogs` → **200 in
+2.46s**, returning catalogs 20115 "afs" and 20118 "Profiles for Pricing"
+— and corrected in all four:
+
+- **`CLAUDE.md`** — the MACHINE INTEGRATION block read "No discoverable
+  REST API was found at this base URL; these vars are wired but unused."
+  Now records the integration as live, documents the raw-`Authorization`
+  auth format, adds the previously-undocumented `PATHFINDER_DEBUG_CAPTURE`
+  var, and states the machine-sync model plus an explicit "there are no
+  `syncDate`/`forceSyncDate` fields; do not add them" — so the question
+  this audit was commissioned over cannot be re-opened from the one file
+  every run reads first.
+- **`BLUEPRINT.md`** (Phase 9) — "a PathfinderEdge integration stub (no
+  discoverable REST API)" → corrected with the live evidence.
+- **`ARCHITECTURE.md`** (§11) — stated the machine "is not integrated via
+  any third-party API" because PathfinderEdge "turned out to have no
+  discoverable integration surface." This **contradicted §12 of the same
+  file**, which already described real pushes to catalog 20115. §11 now
+  carries a dated correction block: the machine has *two* independent job
+  paths (the Bridge's `.ds1`, and the direct catalog push). What
+  PathfinderEdge genuinely lacks is a job-submission/job-status surface
+  and any sync trigger — not an API altogether.
+- **`024_profile_passport_company_scope.sql`** — the migration-apply
+  correction above.
+
+Worth noting as a pattern rather than four separate slips: in every case
+the *source code* was correct and current, and the *governance* lagged.
+`pathfinder-edge.ts` carried an explicit, well-written correction for over
+a month that no governance file ever picked up.
+
+
+### COMPANY_ID SCOPING — CRITERION CORRECTED, NO DEFECT FOUND
+
+The brief required "every query must include `company_id` filtering — flag
+any that don't." Applied literally to FlashDraft that would generate a
+long list of false findings, so the actual model is worth stating: this
+system has **two** data domains. Customer-facing tables are company-scoped
+(`saved_configurations`, `projects`, `saved_project_templates`,
+`credit_applications`). Shop-internal tables are **not, and should not
+be** (`shop_profile_library`, `machine_profiles`,
+`machine_profile_bends`, `canonical_profiles`, `machine_jobs`) — that's
+AFS's own fabrication data, not customer tenant data. There is exactly one
+AFS; scoping a machine profile to a customer company would be incoherent.
+
+Judged correctly — company scoping where data is customer-owned,
+admin-role gating where it's AFS-internal — **FlashDraft passes, no
+missing-scope defect found.** The brief's specific requirement that
+`company_id` come from the session and never the request body is satisfied
+and defended twice: `app/api/profile-passport/profiles/route.ts` derives
+it from `getPassportUserContext`, and the RLS INSERT policy independently
+enforces the same constraint at the database layer.
+
+Service-role usage in three studio routes was checked individually and
+each is justified: `machine_profiles` RLS requires an authenticated
+session even for `is_public` rows, so anonymous FlashDraft visitors can't
+read public library geometry through a session client. The privacy rule is
+re-implemented in application code (`load-profile/[id]/route.ts:47` — 404
+unless active *and* (public or admin)). A correct compensating control,
+not a gap.
+
+### TEST BASELINE
+
+`npx playwright test --reporter=list`, real dev server, real Supabase and
+PathfinderEdge credentials, **no mocks or fixtures introduced**:
+
+```
+62 passed, 10 failed, 13 skipped   (85 defined, 11.9 min)
+pnpm tsc --noEmit -> exit 0, zero errors
+```
+
+- **Zero FlashDraft tests failed.** 4 passed (3 regression repros from
+  2026-09-14 plus the 21-template test); 3 skipped on missing credentials.
+- 8 of the 10 failures are the `hailview.spec.ts` baseURL artifact above.
+- The other 2 are the **same** pre-existing homepage gaps recorded in the
+  2026-09-19 entries (hero CTA expecting `/about/services`; header logo
+  expecting 76px) — confirmed still present, still unrelated to FlashDraft.
+- The 13 skips are all credential-gated: auth setup, 3 checkout, Command
+  Center, and the 3 core FlashDraft canvas specs.
+
+Environmental note: port 3000 was held by an unresponsive orphaned process
+(same failure class as the `.next/trace` orphan documented 2026-09-19), so
+the dev server bound to 3002 and the suite ran with `PLAYWRIGHT_BASE_URL`
+set accordingly.
+
+### THE SIX LAWS ARE CANONICAL — AND THEIR OWN RULE BLOCKS DEPLOYMENT
+
+The brief cited `/topics/elite-test-harness-framework.md` and
+`/topics/testing-harness-canon.md` as the standard. **Neither exists** —
+confirmed by a bounded search of `Documents` and `.claude`, which also
+found **no `topics` directory anywhere**.
+
+**The Six Laws themselves ARE canonical, though** — defined as **Contract
+19 ("Six Laws Automation")** in `FORGE/ALL FORGE FILES/projects/forge-2/
+BEHAVIORAL_CONTRACTS.md`, and the brief's enumeration matches that source
+exactly (SCHEMA / API / UI / DATA / WIRING / VERIFICATION). An earlier
+draft of this entry claimed the closest real artifact was benavora's
+Three-Laws-plus-Six-Mechanisms doc; that came from a depth-limited search
+that missed the `ALL FORGE FILES` tree, and is corrected here.
+
+Assessed against the real canon: **SCHEMA pass, API partial, UI pass,
+DATA pass, WIRING pass, VERIFICATION partial.**
+
+**Contract 19's own pass rule is stricter than a tally:** *"Laws 1-5 must
+ALL pass before deployment. Law 6 is the final human gate."* **Law 2 (API)
+does not pass** — auth and authorisation are correct on every route
+audited, but input validation is defective, and that defect is the
+blocking finding above. So **by FORGE's own standard this build is not
+deployable until Law 2 passes** — an independent corroboration of the
+NEEDS FIXES gate, reached from the canon rather than from auditor
+judgement. The two agree.
+
+Law 6 is separately unmet and **cannot be closed by any audit session,
+including this one**: human browser verification is recorded PENDING REID
+across many FlashDraft entries in this file, and the machine round trip is
+currently unverifiable at all (see the dangling-profileId finding above).
+
+**On the brief's governance list:** it named `AGENTS.md` and
+`SCHEMA_REGISTRY.md`; neither exists in this repo. `SCHEMA_REGISTRY.md` is
+referenced by Contract 19 itself, so that list appears drawn from the
+**FORGE-2 template** rather than from afs-website's own stack (which
+`CLAUDE.md` defines as an eleven-document set). This session updated the
+governance documents that actually exist and did **not** create the two
+that don't.
+
+### WHAT VERIFIED WELL
+
+Admin gating correct and independently re-checked server-side on all three
+PathfinderEdge-touching routes. RLS enabled and matching source on all
+seven tables. `company_id` never from request body, enforced at two
+layers. Machine-bridge auth uses `timingSafeEqual` with a length
+pre-check, and its failure logger records secret *presence and length*
+without ever logging the value. Canvas autosave has a correct hydration
+guard preventing the initial empty state from racing the restore. Undo/redo
+snapshots all three fields after a documented earlier bug. The shop-record
+write is explicitly designed never to throw, so bookkeeping can't roll back
+a response reflecting a real physical machine push — correct ordering.
+`tsc --noEmit` clean. Unproven vendor mappings are flagged as unproven
+in-code rather than presented as settled.
+
+### END-OF-RUN VERIFICATION
+
+- `pnpm tsc --noEmit`: **exit 0, zero errors.**
+- Full Playwright baseline: **62 passed / 10 failed / 13 skipped**, raw
+  output captured; zero FlashDraft failures.
+- Live PathfinderEdge probes, **read-only — no POST issued at any point**,
+  because a write to catalog 20115 is collected automatically by the
+  physical DS2801 and is not an acceptable side effect of an unattended
+  session. This is the same reasoning `pathfinder-edge.ts`'s own
+  `composeDescription` comment already records for declining a live
+  over-length test; this audit followed it.
+  `GET /api/v1/catalogs` → 200 in 2.46s, `[20115 "afs", 20118 "Profiles
+  for Pricing"]`.
+- Live Supabase probes: schema presence read from real rows; RLS status
+  and policy predicates queried directly.
+- Two findings established by **executing** code rather than reading it
+  (the non-finite path and the localStorage vector).
+- Deliverable written and validated: `FLASHDRAFT_AUDIT_REPORT.docx`
+  (38,932 bytes, valid OOXML, content spot-checked after generation).
+
+**No application code was modified.** The eleven remediation actions are
+scoped in the report, ordered by priority, with the three requiring Reid
+(test account, attended verification push, catalog-20115 housekeeping
+question) called out separately.
+
+---
+
+## PHASE 3 — FLASHDRAFT AUDIT & F-01 REMEDIATION (2026-09-24)
+
+Status: **F-01 RESOLVED — code gates green; deploy still gated on Law 6**
+Gate: **NEEDS FIXES → Law 2 (API) now passes; Law 6 (VERIFICATION) still
+PENDING REID**
+
+### Audit completed 2026-09-24
+
+13 findings. Corrected severity distribution (an earlier draft of this
+entry miscounted): **1 BLOCKING (F-01), 5 P1 (F-03…F-07), 4 P2 (F-08,
+F-09, F-10, F-12), 2 governance (F-11, F-13), 1 INFO (F-02)** = 13.
+
+- Full detail: `FLASHDRAFT_AUDIT_REPORT.docx`; baseline in
+  `FLASHDRAFT_AUDIT_TEST_BASELINE.txt`.
+- `syncDate`/`forceSyncDate`: **FALSE PREMISE** — the fields do not exist
+  in the PathfinderEdge API. Payload is correct as built. Machines pull;
+  there is no way to trigger, force, or expedite a sync.
+- RLS: verified live, all 7 FlashDraft tables, policies match source.
+- Schema: migrations 024 & 025 confirmed applied (headers were stale, now
+  corrected).
+- TypeScript strict: PASS, zero errors.
+- Playwright baseline: 62/85 pass, 13 skipped on missing credentials, 8
+  HailView failures environmental (that spec overrides `baseURL` to a port
+  the suite isn't running on), 2 pre-existing homepage gaps.
+
+### F-01 BLOCKING DEFECT — FIXED AND REGRESSION-TESTED
+
+**Was:** every dimension guard read `if (x <= 0) throw`. That is **false
+for NaN and Infinity**, so non-finite geometry passed every guard and
+`JSON.stringify` serialised it to literal `null` — a structurally valid
+POST into catalog 20115 (the catalog the physical DS2801 polls
+automatically) carrying `{"type":"Straight","length":null}`.
+
+**Fixed across 5 files:**
+
+1. **`lib/integrations/pathfinder-edge.ts`** — the central fix, and the one
+   that matters most. Added `assertPositiveDimension` (finiteness checked
+   **first**, because any comparison against NaN returns false) and
+   `assertFiniteAngle` (finite + the documented −180..180 range, *without*
+   a positivity check — bend angles are legitimately negative and
+   legitimately zero). Every guard in `buildFeatures` now routes through
+   these. `hemFeature`'s `gapMm → hemHeight` path, missed in the original
+   finding, is guarded too (zero allowed, negative and non-finite
+   rejected). Added `assertBodyAllFinite`, a recursive walk of the fully
+   composed body immediately before serialisation — deliberately redundant
+   with the per-feature guards, so a future feature type or call site
+   cannot reintroduce this silently.
+2. **`app/api/studio/send-to-pathfinder/route.ts`** — the length-only check
+   now also validates every point's `x`/`y`/`radius` and both hems'
+   dimensions, returning a **400 naming the offending point** rather than
+   a generic failure. Adapter throws are caught and surfaced as 400s
+   instead of falling through to the handler's generic 500.
+3. **`lib/integrations/flashdraft-to-pathfinder.ts`** — validates at the
+   adapter itself, **not only at the route**, because the route is not its
+   only caller: `approve-quote-request/route.ts` builds profiles from
+   stored `quote_request` line items, where geometry comes out of the
+   database and is equally unvalidated.
+4. **`app/studio/draft/page.tsx`** — `isPointArray`/`isPointArrayShape`
+   used `typeof x === 'number'`, which is **true for NaN and Infinity**;
+   both now share one `isFinitePoint` helper. `isHemShape` accepted **any**
+   non-null object including `{}` and `[]` (a hem missing `lengthIn` gave
+   `undefined * 25.4 = NaN`) and now checks the real `Hem` shape field by
+   field. This closes the vector that needed **no crafted request at all**
+   — `JSON.parse('{"x": 1e999}')` yields `Infinity`, so a corrupt
+   localStorage autosave entry was sufficient.
+5. **`lib/integrations/flashdraft-to-pathfinder.test.ts`** (new) — 17
+   tests.
+
+**Four call sites, not one.** `pushProfileToPathfinder` is called from
+`send-to-pathfinder`, `command-center/approve`,
+`command-center/approve-quote-request`, and `admin/pathfinder/push-profile`.
+Only the first was in the original finding. Fixing the shared client covers
+all four — which is why the central guard, not the route guard, is the real
+remediation. The Command Center path's adapter throw is contained by that
+route's existing outer try/catch (generic 500, message not specific — noted,
+not restructured, as that route is outside this fix's scope; the critical
+property, that bad geometry never reaches the machine, holds).
+
+**The regression tests were proven to actually catch the bug.** Running the
+new suite against the pre-fix code (restored from HEAD): **11 failed / 6
+passed**. Against the fixed code: **17 passed**. The 6 that pass in both are
+the happy-path and root-cause-documentation cases, correctly unaffected.
+A regression test that does not fail against the defect proves nothing, so
+this was verified rather than assumed.
+
+**No false rejections.** Confirmed a realistic autosave entry still
+restores; mid-draw states (0 and 1 point) still allowed, as
+`isPointArrayShape`'s own comment requires; all three hem types accepted.
+The sole hem constructor (`page.tsx:2760`) always sets all four fields and
+every mutation spreads `...current`, so no legitimately-created hem can
+fail the stricter check. Worth noting the adjacent `setHemGap` handler
+already used `Number.isFinite` — the fix matches idiom the file had
+already established.
+
+### GATES — run, not assumed
+
+```
+pnpm tsc --noEmit                    -> exit 0, zero errors
+npx vitest run                       -> 39/39 passed (2 files)
+  new F-01 suite                     -> 17/17 passed
+  same suite vs pre-fix code         -> 11 failed  (proves it catches it)
+FlashDraft E2E (fixed code)          -> 4 passed, 3 skipped — no regression
+                                        (identical to pre-fix baseline)
+```
+
+### Law 2 (API) Verdict: **STILL PARTIAL — F-01 resolved, F-08 open (admin push-profile: unvalidated body, caller-supplied catalogId)**
+
+- ✓ Auth present and correct on every route
+- ✓ Admin gating correct on Pathfinder routes
+- ✓ `company_id` from session, never body
+- ✓ F-01 closed — input validation now enforced at three layers (route
+  boundary, shared adapter, integration client + pre-send backstop)
+- ✗ **F-08 still open** — `app/api/admin/pathfinder/push-profile/route.ts:23`
+  casts the request body (`raw as { profile?: MachineProfile; catalogId?:
+  string }`, erased at runtime, no field validation) and takes
+  `catalogId` **from the caller** rather than pinning
+  `AFS_MACHINE_CATALOG_ID` the way the FlashDraft route does.
+
+**CORRECTION (same day).** An earlier version of this entry recorded Law 2
+as PARTIAL → PASS. **That was wrong.** The audit's own Law 2 basis cites
+**F-01 AND F-08** — closing only F-01 does not satisfy the law. Law 2 is an
+input-validation law, and an admin-authenticated route that accepts an
+unvalidated profile body and an arbitrary target catalog is exactly the
+defect class the law exists to catch.
+
+**Therefore Contract 19's Laws 1–5 are NOT all green, and production deploy
+remains blocked on Law 2 AND Law 6.** Law 2 closes when F-08 is fixed
+(validate the body at runtime; pin or validate `catalogId`). Law 6 is a
+separate human gate.
+
+### Law 6 (VERIFICATION) Verdict: **PENDING REID — deploy still gated**
+
+Law 6 is a human gate and **cannot be closed by any session, including this
+one.** The round trip remains unverifiable: recorded profileIds 32914399
+and 32914398 both return 404 while a control id from the live listing
+returns 200, so those profiles are genuinely gone (archived or deleted
+during housekeeping — unknown). No new push was made to verify, because a
+write to catalog 20115 is collected automatically by the physical machine
+and is not an acceptable unattended side effect.
+
+**So: the blocking defect is fixed and the automated gates are green, but
+this is not "ready to deploy" on this session's own authority.** Law 6
+belongs to Reid.
+
+### Open questions for Reid (unchanged by this fix)
+
+- Who maintains catalog 20115 housekeeping, and why were the 2026-08-23
+  FlashDraft profiles removed?
+- Can you perform an attended test push of one asymmetric hemmed profile
+  and verify it against the thumbnail endpoint? (Closes **F-10** — the
+  bend-angle and `hemDirection` mappings remain unproven, and `GET
+  /api/v1/profiles/:id` returns no `features` array, so read-back cannot
+  settle them.)
+- A Supabase test account with the `admin` role is still needed to unlock
+  the three core canvas E2E tests (**F-07**). Those three remain skipped;
+  this fix did not change that.
+
+### Still open from the audit — not addressed by this pass
+
+**F-03** (no timeout/retry on any PathfinderEdge call), **F-04**
+(profileId resolution hardcodes a 100-row window; live catalog measured at
+**71**), **F-05** (dangling profileIds), **F-06** (zero error boundaries
+anywhere in the app), **F-07** (core canvas tests don't run), **F-08**
+(admin push-profile takes an unvalidated profile and arbitrary catalogId),
+**F-09** (vendor responses cast, not validated), **F-10**, **F-12**
+(hailview baseURL override). These are scoped with remediation steps in the
+.docx report and were deliberately left for their own passes rather than
+bundled into a blocking-defect fix.

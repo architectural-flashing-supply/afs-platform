@@ -142,8 +142,44 @@ function toMachineProfileHem(input: FlashDraftHemInput | null | undefined): Mach
   };
 }
 
+// F-01 (audit 2026-09-24). This adapter previously propagated non-finite
+// coordinates silently: dist() uses Math.hypot, so one NaN or Infinity in
+// produced NaN blankWidthMm, NaN leg lengths and a NaN bend angle, with no
+// throw anywhere. Those then passed pathfinder-edge's `<= 0` guards (false
+// for NaN) and serialised to `null` in the POST.
+//
+// This is validated HERE, not only at the API route, because the route is
+// not the only caller — app/api/admin/command-center/approve-quote-request/
+// route.ts builds profiles from stored quote_request line items, where the
+// geometry came out of the database rather than off a live canvas and is
+// equally unvalidated. Guarding the shared adapter covers both.
+function assertFinitePoints(points: FlashDraftPointInput[]): void {
+  points.forEach((p, i) => {
+    if (!p || typeof p !== 'object' || !Number.isFinite(p.x) || !Number.isFinite(p.y)) {
+      throw new Error(
+        `Point ${i + 1} has non-finite coordinates (x=${String(p?.x)}, y=${String(p?.y)}) — cannot build a machine profile.`
+      );
+    }
+    if (p.radius !== undefined && p.radius !== null && !Number.isFinite(p.radius)) {
+      throw new Error(`Point ${i + 1} has a non-finite bend radius (${String(p.radius)}).`);
+    }
+  });
+}
+
+function assertFiniteHem(hem: FlashDraftHemInput | null | undefined, label: string): void {
+  if (!hem) return;
+  if (typeof hem !== 'object' || !Number.isFinite(hem.lengthIn) || !Number.isFinite(hem.gapIn)) {
+    throw new Error(
+      `${label} hem has non-finite dimensions (lengthIn=${String(hem?.lengthIn)}, gapIn=${String(hem?.gapIn)}).`
+    );
+  }
+}
+
 export function flashDraftToMachineProfile(input: FlashDraftProfileInput): MachineProfile {
   const { points, material } = input;
+  assertFinitePoints(points);
+  assertFiniteHem(input.hemStart, 'Start');
+  assertFiniteHem(input.hemEnd, 'End');
   const hemStart = toMachineProfileHem(input.hemStart);
   const hemEnd = toMachineProfileHem(input.hemEnd);
 

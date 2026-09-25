@@ -1,0 +1,677 @@
+FlashDraft Production-Readiness Audit — Playwright baseline
+Date: 2026-09-24 | Commit: 075c952
+Command: PLAYWRIGHT_BASE_URL=http://localhost:3002 npx playwright test --reporter=list
+Result: 62 passed, 10 failed, 13 skipped (85 defined, 11.9 min)
+TypeScript gate: pnpm tsc --noEmit -> exit 0, zero errors
+
+NOTE: port 3000 was held by an unresponsive orphaned process, so the dev
+server bound to 3002. hailview.spec.ts:17 overrides baseURL to :3000 and
+does not honour PLAYWRIGHT_BASE_URL -- its 8 failures are that artifact
+(audit finding F-12), not HailView defects. The 2 homepage failures are
+pre-existing gaps already recorded in STATE_OF_THE_BUILD.md. Zero
+FlashDraft tests failed.
+
+================================ RAW OUTPUT ================================
+
+Running 85 tests using 1 worker
+
+  -   1 [setup] › tests\e2e\auth.setup.ts:5:6 › authenticate
+  -   2 [chromium] › tests\e2e\checkout.spec.ts:21:7 › Checkout › with no quote id, checkout is unreachable and shows no price
+  -   3 [chromium] › tests\e2e\checkout.spec.ts:32:7 › Checkout › an unauthenticated visitor with a quote id is redirected to /login before any price renders
+  -   4 [chromium] › tests\e2e\checkout.spec.ts:43:9 › Checkout › authenticated › a quote id the account does not own still never reaches Stripe or shows a price
+  -   5 [chromium] › tests\e2e\command-center.spec.ts:27:7 › Admin Command Center › renders the Pending Approval tab and its job cards without a server error
+  ✓   6 [chromium] › tests\e2e\flashdraft-regression.spec.ts:23:7 › FlashDraft regression — 2026-09-14 › BUG 2 repro: clicking leg A then leg B must not change zoom/pan (3.6s)
+  ✓   7 [chromium] › tests\e2e\flashdraft-regression.spec.ts:51:7 › FlashDraft regression — 2026-09-14 › BUG 1 repro: double-click on a leg endpoint opens the hem popup (1.8s)
+  ✓   8 [chromium] › tests\e2e\flashdraft-regression.spec.ts:73:7 › FlashDraft regression — 2026-09-14 › BUG 3 repro: inches ArrowUp increments by 1/16", not a whole inch (1.5s)
+  -   9 [chromium] › tests\e2e\flashdraft.spec.ts:39:7 › FlashDraft canvas › draws a two-leg profile, shows a nonzero blank width and bend count, and opens the 3D submit confirmation
+  -  10 [chromium] › tests\e2e\flashdraft.spec.ts:82:7 › FlashDraft canvas › Alt+drag moves the whole profile without changing any leg length or the blank width
+  -  11 [chromium] › tests\e2e\flashdraft.spec.ts:122:7 › FlashDraft canvas › Lock Profile & Save to Passport stops the canvas from accepting further clicks/drags, and the profile saves
+  ✓  12 [chromium] › tests\e2e\flashdraft.spec.ts:187:7 › FlashDraft templates (afs-fl-020) › renders 21 template buttons, loads distinguishable placeholder geometry, and opens VariantPicker for Coping Cap and Valley (1.8s)
+  ✘  13 [chromium] › tests\e2e\hailview.spec.ts:25:7 › HailView — real address, real scoring, all four material types › asphalt shingle produces a real, in-range computed score (35.0s)
+  ✘  14 [chromium] › tests\e2e\hailview.spec.ts:25:7 › HailView — real address, real scoring, all four material types › asphalt shingle produces a real, in-range computed score (retry #1) (35.1s)
+  ✘  15 [chromium] › tests\e2e\hailview.spec.ts:55:7 › HailView — real address, real scoring, all four material types › email-my-result form degrades gracefully when Resend is not configured (35.1s)
+  ✘  16 [chromium] › tests\e2e\hailview.spec.ts:55:7 › HailView — real address, real scoring, all four material types › email-my-result form degrades gracefully when Resend is not configured (retry #1) (35.1s)
+  ✘  17 [chromium] › tests\e2e\hailview.spec.ts:69:7 › HailView — real address, real scoring, all four material types › metal roofing (R-panel, 26ga) produces a real, in-range computed score (35.1s)
+  ✘  18 [chromium] › tests\e2e\hailview.spec.ts:69:7 › HailView — real address, real scoring, all four material types › metal roofing (R-panel, 26ga) produces a real, in-range computed score (retry #1) (22.3s)
+  ✘  19 [chromium] › tests\e2e\hailview.spec.ts:88:7 › HailView — real address, real scoring, all four material types › TPO/PVC membrane (60mil) produces a real, in-range computed score (35.1s)
+  ✘  20 [chromium] › tests\e2e\hailview.spec.ts:88:7 › HailView — real address, real scoring, all four material types › TPO/PVC membrane (60mil) produces a real, in-range computed score (retry #1) (35.3s)
+  ✘  21 [chromium] › tests\e2e\hailview.spec.ts:104:7 › HailView — real address, real scoring, all four material types › wood shake produces a real, in-range computed score (35.1s)
+  ✘  22 [chromium] › tests\e2e\hailview.spec.ts:104:7 › HailView — real address, real scoring, all four material types › wood shake produces a real, in-range computed score (retry #1) (35.1s)
+  ✘  23 [chromium] › tests\e2e\hailview.spec.ts:126:7 › HailView — interactive map (afs-hv-006) › address marker pulses, real storm markers plot, map frames all points (35.1s)
+  ✘  24 [chromium] › tests\e2e\hailview.spec.ts:126:7 › HailView — interactive map (afs-hv-006) › address marker pulses, real storm markers plot, map frames all points (retry #1) (35.1s)
+  ✘  25 [chromium] › tests\e2e\hailview.spec.ts:166:7 › HailView — interactive map (afs-hv-006) › storm marker click shows its real date and size from the already-displayed data (35.1s)
+  ✘  26 [chromium] › tests\e2e\hailview.spec.ts:166:7 › HailView — interactive map (afs-hv-006) › storm marker click shows its real date and size from the already-displayed data (retry #1) (35.1s)
+  ✘  27 [chromium] › tests\e2e\hailview.spec.ts:189:7 › HailView — interactive map (afs-hv-006) › reduced motion renders a static ring, not an animated one (35.0s)
+  ✘  28 [chromium] › tests\e2e\hailview.spec.ts:189:7 › HailView — interactive map (afs-hv-006) › reduced motion renders a static ring, not an animated one (retry #1) (35.1s)
+  ✓  29 [chromium] › tests\e2e\homepage.spec.ts:68:9 › Homepage — mobile-375x812 › renders all eleven data-section elements, in document order (1.7s)
+  ✓  30 [chromium] › tests\e2e\homepage.spec.ts:76:9 › Homepage — mobile-375x812 › hero shop-floor video declares an mp4 source and a poster (645ms)
+  ✓  31 [chromium] › tests\e2e\homepage.spec.ts:86:9 › Homepage — mobile-375x812 › field-app phone-mockup declares a 3-clip playlist, each with an mp4 source and poster (836ms)
+  ✓  32 [chromium] › tests\e2e\homepage.spec.ts:114:9 › Homepage — mobile-375x812 › hero renders with zero console errors and no canvas element (5.5s)
+  ✓  33 [chromium] › tests\e2e\homepage.spec.ts:126:9 › Homepage — mobile-375x812 › DesignStudioHub: clicking each card updates the detail panel; Start links resolve (4.5s)
+  ✓  34 [chromium] › tests\e2e\homepage.spec.ts:146:9 › Homepage — mobile-375x812 › NASA JSC case-study card renders the supplied photo with the expected alt text (743ms)
+  ✓  35 [chromium] › tests\e2e\homepage.spec.ts:158:9 › Homepage — mobile-375x812 › NationwideMap renders the HQ marker (2.9s)
+  ✓  36 [chromium] › tests\e2e\homepage.spec.ts:166:9 › Homepage — mobile-375x812 › no customer-facing price pattern renders anywhere on the page (761ms)
+  ✓  37 [chromium] › tests\e2e\homepage.spec.ts:172:11 › Homepage — mobile-375x812 › reduced motion › hero video never autoplays (1.0s)
+  ✓  38 [chromium] › tests\e2e\homepage.spec.ts:68:9 › Homepage — tablet-768x1024 › renders all eleven data-section elements, in document order (842ms)
+  ✓  39 [chromium] › tests\e2e\homepage.spec.ts:76:9 › Homepage — tablet-768x1024 › hero shop-floor video declares an mp4 source and a poster (794ms)
+  ✓  40 [chromium] › tests\e2e\homepage.spec.ts:86:9 › Homepage — tablet-768x1024 › field-app phone-mockup declares a 3-clip playlist, each with an mp4 source and poster (901ms)
+  ✓  41 [chromium] › tests\e2e\homepage.spec.ts:114:9 › Homepage — tablet-768x1024 › hero renders with zero console errors and no canvas element (4.5s)
+  ✓  42 [chromium] › tests\e2e\homepage.spec.ts:126:9 › Homepage — tablet-768x1024 › DesignStudioHub: clicking each card updates the detail panel; Start links resolve (2.2s)
+  ✓  43 [chromium] › tests\e2e\homepage.spec.ts:146:9 › Homepage — tablet-768x1024 › NASA JSC case-study card renders the supplied photo with the expected alt text (515ms)
+  ✓  44 [chromium] › tests\e2e\homepage.spec.ts:158:9 › Homepage — tablet-768x1024 › NationwideMap renders the HQ marker (1.8s)
+  ✓  45 [chromium] › tests\e2e\homepage.spec.ts:166:9 › Homepage — tablet-768x1024 › no customer-facing price pattern renders anywhere on the page (606ms)
+  ✓  46 [chromium] › tests\e2e\homepage.spec.ts:172:11 › Homepage — tablet-768x1024 › reduced motion › hero video never autoplays (668ms)
+  ✓  47 [chromium] › tests\e2e\homepage.spec.ts:68:9 › Homepage — desktop-1440x900 › renders all eleven data-section elements, in document order (606ms)
+  ✓  48 [chromium] › tests\e2e\homepage.spec.ts:76:9 › Homepage — desktop-1440x900 › hero shop-floor video declares an mp4 source and a poster (620ms)
+  ✓  49 [chromium] › tests\e2e\homepage.spec.ts:86:9 › Homepage — desktop-1440x900 › field-app phone-mockup declares a 3-clip playlist, each with an mp4 source and poster (780ms)
+  ✓  50 [chromium] › tests\e2e\homepage.spec.ts:114:9 › Homepage — desktop-1440x900 › hero renders with zero console errors and no canvas element (3.4s)
+  ✓  51 [chromium] › tests\e2e\homepage.spec.ts:126:9 › Homepage — desktop-1440x900 › DesignStudioHub: clicking each card updates the detail panel; Start links resolve (2.5s)
+  ✓  52 [chromium] › tests\e2e\homepage.spec.ts:146:9 › Homepage — desktop-1440x900 › NASA JSC case-study card renders the supplied photo with the expected alt text (710ms)
+  ✓  53 [chromium] › tests\e2e\homepage.spec.ts:158:9 › Homepage — desktop-1440x900 › NationwideMap renders the HQ marker (3.4s)
+  ✓  54 [chromium] › tests\e2e\homepage.spec.ts:166:9 › Homepage — desktop-1440x900 › no customer-facing price pattern renders anywhere on the page (632ms)
+  ✓  55 [chromium] › tests\e2e\homepage.spec.ts:172:11 › Homepage — desktop-1440x900 › reduced motion › hero video never autoplays (879ms)
+  ✓  56 [chromium] › tests\e2e\homepage.spec.ts:191:7 › Homepage navigation and footer › Start a Quote is visible in the header nav (659ms)
+  ✓  57 [chromium] › tests\e2e\homepage.spec.ts:196:7 › Homepage navigation and footer › HailView is its own top-level nav item, not inside the Resources menu (689ms)
+  ✓  58 [chromium] › tests\e2e\homepage.spec.ts:208:7 › Homepage navigation and footer › FAQ and Contact appear in the footer (564ms)
+  ✓  59 [chromium] › tests\e2e\homepage.spec.ts:215:7 › Homepage navigation and footer › mobile hamburger opens and closes the menu (699ms)
+  ✘  60 [chromium] › tests\e2e\homepage.spec.ts:237:7 › Homepage CTAs retargeted off the removed profile-explorer section (hpc-003) › hero dual CTAs resolve to /quote and /about/services (5.5s)
+  ✘  61 [chromium] › tests\e2e\homepage.spec.ts:237:7 › Homepage CTAs retargeted off the removed profile-explorer section (hpc-003) › hero dual CTAs resolve to /quote and /about/services (retry #1) (7.1s)
+  ✘  62 [chromium] › tests\e2e\homepage.spec.ts:252:7 › Homepage overhaul (hpd-008) › header logo has no separate sidebar, the mark renders oversized (76px), and the tagline is present (5.7s)
+  ✘  63 [chromium] › tests\e2e\homepage.spec.ts:252:7 › Homepage overhaul (hpd-008) › header logo has no separate sidebar, the mark renders oversized (76px), and the tagline is present (retry #1) (7.3s)
+  ✓  64 [chromium] › tests\e2e\homepage.spec.ts:264:7 › Homepage overhaul (hpd-008) › footer renders the real AFS logo image, not text branding (687ms)
+  ✓  65 [chromium] › tests\e2e\homepage.spec.ts:275:7 › Homepage overhaul (hpd-008) › hero right column has Reid's real blueprint background image, filling the section (bg-cover) (792ms)
+  ✓  66 [chromium] › tests\e2e\homepage.spec.ts:288:7 › Homepage overhaul (hpd-008) › hero right column has a uniform translucent wash plus an extra fade on the right edge only (807ms)
+  ✓  67 [chromium] › tests\e2e\homepage.spec.ts:304:7 › Homepage overhaul (hpd-008) › hero left video overlay reads the new headline, no feed-bend/release pill (651ms)
+  ✓  68 [chromium] › tests\e2e\homepage.spec.ts:317:7 › Homepage overhaul (hpd-008) › field-app phone-mockup video has no bezel padding around it (fills to the frame border) (846ms)
+  ✓  69 [chromium] › tests\e2e\homepage.spec.ts:341:7 › Homepage overhaul (hpd-008) › client-carousel sits directly below the hero, as a thin banner (780ms)
+  ✓  70 [chromium] › tests\e2e\homepage.spec.ts:359:7 › Homepage overhaul (hpd-008) › field-app step highlighting tracks the real 3-clip playlist: 1 at start, 2 after clip 1 ends (~6s) (7.5s)
+  ✓  71 [chromium] › tests\e2e\homepage.spec.ts:382:7 › Homepage overhaul (hpd-008) › client carousel spells "Hays ISD" correctly and scrolls slowly (14s cycle) (793ms)
+  ✓  72 [chromium] › tests\e2e\homepage.spec.ts:394:7 › Homepage overhaul (hpd-008) › field-app has one "Install Field App" button (no breakpoint-split labels) (727ms)
+  ✓  73 [chromium] › tests\e2e\homepage.spec.ts:406:7 › Homepage overhaul (hpd-008) › desktop click on Install Field App opens a QR modal, not the camera flow (846ms)
+  ✓  74 [chromium] › tests\e2e\homepage.spec.ts:417:7 › Homepage overhaul (hpd-008) › field-app steps use single-digit numbers and the updated step 2/3 copy (571ms)
+  ✓  75 [chromium] › tests\e2e\homepage.spec.ts:426:7 › Homepage overhaul (hpd-008) › design-to-delivery has no photo/camera reference in step 1 (642ms)
+  ✓  76 [chromium] › tests\e2e\homepage.spec.ts:434:7 › Homepage overhaul (hpd-008) › nationwide map is expanded to at least 500px tall (1.5s)
+  ✓  77 [chromium] › tests\e2e\homepage.spec.ts:442:7 › Homepage overhaul (hpd-008) › final-CTA has exactly two buttons (Custom Profiles and Check Hail View removed), same crimson style (692ms)
+  ✓  78 [chromium] › tests\e2e\homepage.spec.ts:465:7 › Homepage link integrity › every homepage CTA and every nav/footer link returns 200 (18.1s)
+  ✓  79 [chromium] › tests\e2e\no-configurator.spec.ts:14:9 › Configurator elimination — redirects › /configure redirects (permanent) to /studio/draft (74ms)
+  ✓  80 [chromium] › tests\e2e\no-configurator.spec.ts:14:9 › Configurator elimination — redirects › /configure/some/path redirects (permanent) to /studio/draft (78ms)
+  ✓  81 [chromium] › tests\e2e\no-configurator.spec.ts:14:9 › Configurator elimination — redirects › /configurator redirects (permanent) to /studio/draft (61ms)
+  ✓  82 [chromium] › tests\e2e\no-configurator.spec.ts:14:9 › Configurator elimination — redirects › /configurator/some/path redirects (permanent) to /studio/draft (67ms)
+  ✓  83 [chromium] › tests\e2e\no-configurator.spec.ts:21:7 › Configurator elimination — redirects › /configure resolves to a real 200 page when redirects are followed (281ms)
+  ✓  84 [chromium] › tests\e2e\no-configurator.spec.ts:36:9 › Configurator elimination — no rendered link remains › / contains no href to /configure or /configurator (723ms)
+  ✓  85 [chromium] › tests\e2e\no-configurator.spec.ts:36:9 › Configurator elimination — no rendered link remains › /studio contains no href to /configure or /configurator (795ms)
+  ✓  86 [chromium] › tests\e2e\no-configurator.spec.ts:36:9 › Configurator elimination — no rendered link remains › /design-studio contains no href to /configure or /configurator (653ms)
+  ✓  87 [chromium] › tests\e2e\no-configurator.spec.ts:36:9 › Configurator elimination — no rendered link remains › /products/roofing/valley-flashing contains no href to /configure or /configurator (9.6s)
+  ✓  88 [chromium] › tests\e2e\no-configurator.spec.ts:48:7 › Configurator elimination — no rendered link remains › DesignStudioHub renders exactly four method tabs, none labeled Configurator (840ms)
+  -  89 [chromium] › tests\e2e\production-queue.spec.ts:22:7 › Production Queue › quick advance updates order status
+  -  90 [chromium] › tests\e2e\production-queue.spec.ts:50:7 › Production Queue › rush orders appear at top of queue
+  -  91 [chromium] › tests\e2e\production-queue.spec.ts:67:7 › Production Queue › admin order detail shows status advancer
+  -  92 [chromium] › tests\e2e\production-queue.spec.ts:81:7 › Production Queue › pre-ship photo upload triggers customer notification
+  -  93 [chromium] › tests\e2e\quote-request.spec.ts:16:7 › Quote Request Wizard › submits the minimum valid item and confirms with an AFS-QR request number, never showing a price
+  ✓  94 [chromium] › tests\e2e\services.spec.ts:8:7 › /about/services accordion › clicking "Learn More" expands the panel and scrolls it into view (813ms)
+  ✓  95 [chromium] › tests\e2e\services.spec.ts:25:7 › /about/services accordion › Submittal Services card shows the full supplied description text (946ms)
+
+
+  1) [chromium] › tests\e2e\hailview.spec.ts:25:7 › HailView — real address, real scoring, all four material types › asphalt shingle produces a real, in-range computed score 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+    Call log:
+      - navigating to "http://localhost:3000/hailview", waiting until "load"
+
+
+      24 | test.describe('HailView — real address, real scoring, all four material types', () => {
+      25 |   test('asphalt shingle produces a real, in-range computed score', async ({ page }) => {
+    > 26 |     await page.goto('/hailview');
+         |                ^
+      27 |     await page.locator('#hailview-address').fill(TEST_ADDRESS);
+      28 |     await page.locator('#hailview-material').selectOption('asphalt_shingle');
+      29 |     await page.locator('#hailview-roof-age').fill('15');
+        at C:\Users\manag\Documents\afs-website\tests\e2e\hailview.spec.ts:26:16
+
+    Error Context: test-results\hailview-HailView-—-real-a-a8f67-eal-in-range-computed-score-chromium\error-context.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+    Call log:
+      - navigating to "http://localhost:3000/hailview", waiting until "load"
+
+
+      24 | test.describe('HailView — real address, real scoring, all four material types', () => {
+      25 |   test('asphalt shingle produces a real, in-range computed score', async ({ page }) => {
+    > 26 |     await page.goto('/hailview');
+         |                ^
+      27 |     await page.locator('#hailview-address').fill(TEST_ADDRESS);
+      28 |     await page.locator('#hailview-material').selectOption('asphalt_shingle');
+      29 |     await page.locator('#hailview-roof-age').fill('15');
+        at C:\Users\manag\Documents\afs-website\tests\e2e\hailview.spec.ts:26:16
+
+    Error Context: test-results\hailview-HailView-—-real-a-a8f67-eal-in-range-computed-score-chromium-retry1\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\hailview-HailView-—-real-a-a8f67-eal-in-range-computed-score-chromium-retry1\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\hailview-HailView-—-real-a-a8f67-eal-in-range-computed-score-chromium-retry1\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [chromium] › tests\e2e\hailview.spec.ts:55:7 › HailView — real address, real scoring, all four material types › email-my-result form degrades gracefully when Resend is not configured 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+    Call log:
+      - navigating to "http://localhost:3000/hailview", waiting until "load"
+
+
+      54 |   // it does not fabricate a "sent" assertion this environment cannot produce.
+      55 |   test('email-my-result form degrades gracefully when Resend is not configured', async ({ page }) => {
+    > 56 |     await page.goto('/hailview');
+         |                ^
+      57 |     await page.locator('#hailview-address').fill(TEST_ADDRESS);
+      58 |     await page.locator('#hailview-material').selectOption('asphalt_shingle');
+      59 |     await page.locator('#hailview-roof-age').fill('15');
+        at C:\Users\manag\Documents\afs-website\tests\e2e\hailview.spec.ts:56:16
+
+    Error Context: test-results\hailview-HailView-—-real-a-c8c30-en-Resend-is-not-configured-chromium\error-context.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+    Call log:
+      - navigating to "http://localhost:3000/hailview", waiting until "load"
+
+
+      54 |   // it does not fabricate a "sent" assertion this environment cannot produce.
+      55 |   test('email-my-result form degrades gracefully when Resend is not configured', async ({ page }) => {
+    > 56 |     await page.goto('/hailview');
+         |                ^
+      57 |     await page.locator('#hailview-address').fill(TEST_ADDRESS);
+      58 |     await page.locator('#hailview-material').selectOption('asphalt_shingle');
+      59 |     await page.locator('#hailview-roof-age').fill('15');
+        at C:\Users\manag\Documents\afs-website\tests\e2e\hailview.spec.ts:56:16
+
+    Error Context: test-results\hailview-HailView-—-real-a-c8c30-en-Resend-is-not-configured-chromium-retry1\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\hailview-HailView-—-real-a-c8c30-en-Resend-is-not-configured-chromium-retry1\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\hailview-HailView-—-real-a-c8c30-en-Resend-is-not-configured-chromium-retry1\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [chromium] › tests\e2e\hailview.spec.ts:69:7 › HailView — real address, real scoring, all four material types › metal roofing (R-panel, 26ga) produces a real, in-range computed score 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+    Call log:
+      - navigating to "http://localhost:3000/hailview", waiting until "load"
+
+
+      68 |
+      69 |   test('metal roofing (R-panel, 26ga) produces a real, in-range computed score', async ({ page }) => {
+    > 70 |     await page.goto('/hailview');
+         |                ^
+      71 |     await page.locator('#hailview-address').fill(TEST_ADDRESS);
+      72 |     await page.locator('#hailview-material').selectOption('metal');
+      73 |     await page.locator('#hailview-metal-subtype').selectOption('metal_r_panel');
+        at C:\Users\manag\Documents\afs-website\tests\e2e\hailview.spec.ts:70:16
+
+    Error Context: test-results\hailview-HailView-—-real-a-22d6c-eal-in-range-computed-score-chromium\error-context.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: page.goto: net::ERR_ABORTED at http://localhost:3000/hailview
+    Call log:
+      - navigating to "http://localhost:3000/hailview", waiting until "load"
+
+
+      68 |
+      69 |   test('metal roofing (R-panel, 26ga) produces a real, in-range computed score', async ({ page }) => {
+    > 70 |     await page.goto('/hailview');
+         |                ^
+      71 |     await page.locator('#hailview-address').fill(TEST_ADDRESS);
+      72 |     await page.locator('#hailview-material').selectOption('metal');
+      73 |     await page.locator('#hailview-metal-subtype').selectOption('metal_r_panel');
+        at C:\Users\manag\Documents\afs-website\tests\e2e\hailview.spec.ts:70:16
+
+    Error Context: test-results\hailview-HailView-—-real-a-22d6c-eal-in-range-computed-score-chromium-retry1\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\hailview-HailView-—-real-a-22d6c-eal-in-range-computed-score-chromium-retry1\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\hailview-HailView-—-real-a-22d6c-eal-in-range-computed-score-chromium-retry1\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [chromium] › tests\e2e\hailview.spec.ts:88:7 › HailView — real address, real scoring, all four material types › TPO/PVC membrane (60mil) produces a real, in-range computed score 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+    Call log:
+      - navigating to "http://localhost:3000/hailview", waiting until "load"
+
+
+      87 |
+      88 |   test('TPO/PVC membrane (60mil) produces a real, in-range computed score', async ({ page }) => {
+    > 89 |     await page.goto('/hailview');
+         |                ^
+      90 |     await page.locator('#hailview-address').fill(TEST_ADDRESS);
+      91 |     await page.locator('#hailview-material').selectOption('tpo_pvc_membrane');
+      92 |     await page.locator('#hailview-mil').selectOption('60');
+        at C:\Users\manag\Documents\afs-website\tests\e2e\hailview.spec.ts:89:16
+
+    Error Context: test-results\hailview-HailView-—-real-a-cc7d5-eal-in-range-computed-score-chromium\error-context.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+    Call log:
+      - navigating to "http://localhost:3000/hailview", waiting until "load"
+
+
+      87 |
+      88 |   test('TPO/PVC membrane (60mil) produces a real, in-range computed score', async ({ page }) => {
+    > 89 |     await page.goto('/hailview');
+         |                ^
+      90 |     await page.locator('#hailview-address').fill(TEST_ADDRESS);
+      91 |     await page.locator('#hailview-material').selectOption('tpo_pvc_membrane');
+      92 |     await page.locator('#hailview-mil').selectOption('60');
+        at C:\Users\manag\Documents\afs-website\tests\e2e\hailview.spec.ts:89:16
+
+    Error Context: test-results\hailview-HailView-—-real-a-cc7d5-eal-in-range-computed-score-chromium-retry1\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\hailview-HailView-—-real-a-cc7d5-eal-in-range-computed-score-chromium-retry1\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\hailview-HailView-—-real-a-cc7d5-eal-in-range-computed-score-chromium-retry1\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [chromium] › tests\e2e\hailview.spec.ts:104:7 › HailView — real address, real scoring, all four material types › wood shake produces a real, in-range computed score 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+    Call log:
+      - navigating to "http://localhost:3000/hailview", waiting until "load"
+
+
+      103 |
+      104 |   test('wood shake produces a real, in-range computed score', async ({ page }) => {
+    > 105 |     await page.goto('/hailview');
+          |                ^
+      106 |     await page.locator('#hailview-address').fill(TEST_ADDRESS);
+      107 |     await page.locator('#hailview-material').selectOption('wood_shake');
+      108 |     await page.locator('#hailview-roof-age').fill('15');
+        at C:\Users\manag\Documents\afs-website\tests\e2e\hailview.spec.ts:105:16
+
+    Error Context: test-results\hailview-HailView-—-real-a-d776b-eal-in-range-computed-score-chromium\error-context.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+    Call log:
+      - navigating to "http://localhost:3000/hailview", waiting until "load"
+
+
+      103 |
+      104 |   test('wood shake produces a real, in-range computed score', async ({ page }) => {
+    > 105 |     await page.goto('/hailview');
+          |                ^
+      106 |     await page.locator('#hailview-address').fill(TEST_ADDRESS);
+      107 |     await page.locator('#hailview-material').selectOption('wood_shake');
+      108 |     await page.locator('#hailview-roof-age').fill('15');
+        at C:\Users\manag\Documents\afs-website\tests\e2e\hailview.spec.ts:105:16
+
+    Error Context: test-results\hailview-HailView-—-real-a-d776b-eal-in-range-computed-score-chromium-retry1\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\hailview-HailView-—-real-a-d776b-eal-in-range-computed-score-chromium-retry1\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\hailview-HailView-—-real-a-d776b-eal-in-range-computed-score-chromium-retry1\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) [chromium] › tests\e2e\hailview.spec.ts:126:7 › HailView — interactive map (afs-hv-006) › address marker pulses, real storm markers plot, map frames all points 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+    Call log:
+      - navigating to "http://localhost:3000/hailview", waiting until "load"
+
+
+      126 |   test('address marker pulses, real storm markers plot, map frames all points', async ({ page }) => {
+      127 |     const responsePromise = page.waitForResponse((res) => res.url().includes('/api/hailview/storm-history'));
+    > 128 |     await page.goto('/hailview');
+          |                ^
+      129 |     await page.locator('#hailview-address').fill(TEST_ADDRESS);
+      130 |     await page.locator('#hailview-material').selectOption('asphalt_shingle');
+      131 |     await page.locator('#hailview-roof-age').fill('15');
+        at C:\Users\manag\Documents\afs-website\tests\e2e\hailview.spec.ts:128:16
+
+    Error: page.waitForResponse: Test timeout of 30000ms exceeded.
+
+      125 | test.describe('HailView — interactive map (afs-hv-006)', () => {
+      126 |   test('address marker pulses, real storm markers plot, map frames all points', async ({ page }) => {
+    > 127 |     const responsePromise = page.waitForResponse((res) => res.url().includes('/api/hailview/storm-history'));
+          |                                  ^
+      128 |     await page.goto('/hailview');
+      129 |     await page.locator('#hailview-address').fill(TEST_ADDRESS);
+      130 |     await page.locator('#hailview-material').selectOption('asphalt_shingle');
+        at C:\Users\manag\Documents\afs-website\tests\e2e\hailview.spec.ts:127:34
+
+    Error Context: test-results\hailview-HailView-—-intera-c79ce--plot-map-frames-all-points-chromium\error-context.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+    Call log:
+      - navigating to "http://localhost:3000/hailview", waiting until "load"
+
+
+      126 |   test('address marker pulses, real storm markers plot, map frames all points', async ({ page }) => {
+      127 |     const responsePromise = page.waitForResponse((res) => res.url().includes('/api/hailview/storm-history'));
+    > 128 |     await page.goto('/hailview');
+          |                ^
+      129 |     await page.locator('#hailview-address').fill(TEST_ADDRESS);
+      130 |     await page.locator('#hailview-material').selectOption('asphalt_shingle');
+      131 |     await page.locator('#hailview-roof-age').fill('15');
+        at C:\Users\manag\Documents\afs-website\tests\e2e\hailview.spec.ts:128:16
+
+    Error: page.waitForResponse: Test timeout of 30000ms exceeded.
+
+      125 | test.describe('HailView — interactive map (afs-hv-006)', () => {
+      126 |   test('address marker pulses, real storm markers plot, map frames all points', async ({ page }) => {
+    > 127 |     const responsePromise = page.waitForResponse((res) => res.url().includes('/api/hailview/storm-history'));
+          |                                  ^
+      128 |     await page.goto('/hailview');
+      129 |     await page.locator('#hailview-address').fill(TEST_ADDRESS);
+      130 |     await page.locator('#hailview-material').selectOption('asphalt_shingle');
+        at C:\Users\manag\Documents\afs-website\tests\e2e\hailview.spec.ts:127:34
+
+    Error Context: test-results\hailview-HailView-—-intera-c79ce--plot-map-frames-all-points-chromium-retry1\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\hailview-HailView-—-intera-c79ce--plot-map-frames-all-points-chromium-retry1\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\hailview-HailView-—-intera-c79ce--plot-map-frames-all-points-chromium-retry1\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  7) [chromium] › tests\e2e\hailview.spec.ts:166:7 › HailView — interactive map (afs-hv-006) › storm marker click shows its real date and size from the already-displayed data 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+    Call log:
+      - navigating to "http://localhost:3000/hailview", waiting until "load"
+
+
+      166 |   test('storm marker click shows its real date and size from the already-displayed data', async ({ page }) => {
+      167 |     const responsePromise = page.waitForResponse((res) => res.url().includes('/api/hailview/storm-history'));
+    > 168 |     await page.goto('/hailview');
+          |                ^
+      169 |     await page.locator('#hailview-address').fill(TEST_ADDRESS);
+      170 |     await page.locator('#hailview-material').selectOption('asphalt_shingle');
+      171 |     await page.locator('#hailview-roof-age').fill('15');
+        at C:\Users\manag\Documents\afs-website\tests\e2e\hailview.spec.ts:168:16
+
+    Error: page.waitForResponse: Test timeout of 30000ms exceeded.
+
+      165 |
+      166 |   test('storm marker click shows its real date and size from the already-displayed data', async ({ page }) => {
+    > 167 |     const responsePromise = page.waitForResponse((res) => res.url().includes('/api/hailview/storm-history'));
+          |                                  ^
+      168 |     await page.goto('/hailview');
+      169 |     await page.locator('#hailview-address').fill(TEST_ADDRESS);
+      170 |     await page.locator('#hailview-material').selectOption('asphalt_shingle');
+        at C:\Users\manag\Documents\afs-website\tests\e2e\hailview.spec.ts:167:34
+
+    Error Context: test-results\hailview-HailView-—-intera-a1b6a--the-already-displayed-data-chromium\error-context.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+    Call log:
+      - navigating to "http://localhost:3000/hailview", waiting until "load"
+
+
+      166 |   test('storm marker click shows its real date and size from the already-displayed data', async ({ page }) => {
+      167 |     const responsePromise = page.waitForResponse((res) => res.url().includes('/api/hailview/storm-history'));
+    > 168 |     await page.goto('/hailview');
+          |                ^
+      169 |     await page.locator('#hailview-address').fill(TEST_ADDRESS);
+      170 |     await page.locator('#hailview-material').selectOption('asphalt_shingle');
+      171 |     await page.locator('#hailview-roof-age').fill('15');
+        at C:\Users\manag\Documents\afs-website\tests\e2e\hailview.spec.ts:168:16
+
+    Error: page.waitForResponse: Test timeout of 30000ms exceeded.
+
+      165 |
+      166 |   test('storm marker click shows its real date and size from the already-displayed data', async ({ page }) => {
+    > 167 |     const responsePromise = page.waitForResponse((res) => res.url().includes('/api/hailview/storm-history'));
+          |                                  ^
+      168 |     await page.goto('/hailview');
+      169 |     await page.locator('#hailview-address').fill(TEST_ADDRESS);
+      170 |     await page.locator('#hailview-material').selectOption('asphalt_shingle');
+        at C:\Users\manag\Documents\afs-website\tests\e2e\hailview.spec.ts:167:34
+
+    Error Context: test-results\hailview-HailView-—-intera-a1b6a--the-already-displayed-data-chromium-retry1\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\hailview-HailView-—-intera-a1b6a--the-already-displayed-data-chromium-retry1\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\hailview-HailView-—-intera-a1b6a--the-already-displayed-data-chromium-retry1\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  8) [chromium] › tests\e2e\hailview.spec.ts:189:7 › HailView — interactive map (afs-hv-006) › reduced motion renders a static ring, not an animated one 
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+    Call log:
+      - navigating to "http://localhost:3000/hailview", waiting until "load"
+
+
+      189 |   test('reduced motion renders a static ring, not an animated one', async ({ page }) => {
+      190 |     await page.emulateMedia({ reducedMotion: 'reduce' });
+    > 191 |     await page.goto('/hailview');
+          |                ^
+      192 |     await page.locator('#hailview-address').fill(TEST_ADDRESS);
+      193 |     await page.locator('#hailview-material').selectOption('asphalt_shingle');
+      194 |     await page.locator('#hailview-roof-age').fill('15');
+        at C:\Users\manag\Documents\afs-website\tests\e2e\hailview.spec.ts:191:16
+
+    Error Context: test-results\hailview-HailView-—-intera-e6dbd-ic-ring-not-an-animated-one-chromium\error-context.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Test timeout of 30000ms exceeded.
+
+    Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+    Call log:
+      - navigating to "http://localhost:3000/hailview", waiting until "load"
+
+
+      189 |   test('reduced motion renders a static ring, not an animated one', async ({ page }) => {
+      190 |     await page.emulateMedia({ reducedMotion: 'reduce' });
+    > 191 |     await page.goto('/hailview');
+          |                ^
+      192 |     await page.locator('#hailview-address').fill(TEST_ADDRESS);
+      193 |     await page.locator('#hailview-material').selectOption('asphalt_shingle');
+      194 |     await page.locator('#hailview-roof-age').fill('15');
+        at C:\Users\manag\Documents\afs-website\tests\e2e\hailview.spec.ts:191:16
+
+    Error Context: test-results\hailview-HailView-—-intera-e6dbd-ic-ring-not-an-animated-one-chromium-retry1\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\hailview-HailView-—-intera-e6dbd-ic-ring-not-an-animated-one-chromium-retry1\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\hailview-HailView-—-intera-e6dbd-ic-ring-not-an-animated-one-chromium-retry1\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  9) [chromium] › tests\e2e\homepage.spec.ts:237:7 › Homepage CTAs retargeted off the removed profile-explorer section (hpc-003) › hero dual CTAs resolve to /quote and /about/services 
+
+    Error: expect(locator).toHaveAttribute(expected) failed
+
+    Locator:  locator('[data-section="hero"]').getByRole('link', { name: 'View Our Work' })
+    Expected: "/about/services"
+    Received: "/design-studio"
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveAttribute" with timeout 5000ms
+      - waiting for locator('[data-section="hero"]').getByRole('link', { name: 'View Our Work' })
+        14 × locator resolved to <a href="/design-studio" class="rounded border-2 border-afs-chrome-high px-8 py-4 text-center font-label text-sm font-semibold text-afs-chrome-high transition-colors hover:bg-white/10">View Our Work</a>
+           - unexpected value "/design-studio"
+
+
+      244 |
+      245 |     const secondaryCTA = hero.getByRole('link', { name: 'View Our Work' });
+    > 246 |     await expect(secondaryCTA).toHaveAttribute('href', '/about/services');
+          |                                ^
+      247 |   });
+      248 |
+      249 | });
+        at C:\Users\manag\Documents\afs-website\tests\e2e\homepage.spec.ts:246:32
+
+    Error Context: test-results\homepage-Homepage-CTAs-ret-d43a6-to-quote-and-about-services-chromium\error-context.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(locator).toHaveAttribute(expected) failed
+
+    Locator:  locator('[data-section="hero"]').getByRole('link', { name: 'View Our Work' })
+    Expected: "/about/services"
+    Received: "/design-studio"
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveAttribute" with timeout 5000ms
+      - waiting for locator('[data-section="hero"]').getByRole('link', { name: 'View Our Work' })
+        14 × locator resolved to <a href="/design-studio" class="rounded border-2 border-afs-chrome-high px-8 py-4 text-center font-label text-sm font-semibold text-afs-chrome-high transition-colors hover:bg-white/10">View Our Work</a>
+           - unexpected value "/design-studio"
+
+
+      244 |
+      245 |     const secondaryCTA = hero.getByRole('link', { name: 'View Our Work' });
+    > 246 |     await expect(secondaryCTA).toHaveAttribute('href', '/about/services');
+          |                                ^
+      247 |   });
+      248 |
+      249 | });
+        at C:\Users\manag\Documents\afs-website\tests\e2e\homepage.spec.ts:246:32
+
+    Error Context: test-results\homepage-Homepage-CTAs-ret-d43a6-to-quote-and-about-services-chromium-retry1\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\homepage-Homepage-CTAs-ret-d43a6-to-quote-and-about-services-chromium-retry1\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\homepage-Homepage-CTAs-ret-d43a6-to-quote-and-about-services-chromium-retry1\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  10) [chromium] › tests\e2e\homepage.spec.ts:252:7 › Homepage overhaul (hpd-008) › header logo has no separate sidebar, the mark renders oversized (76px), and the tagline is present 
+
+    Error: expect(locator).toHaveAttribute(expected) failed
+
+    Locator:  locator('header').locator('img')
+    Expected: "76"
+    Received: "160"
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveAttribute" with timeout 5000ms
+      - waiting for locator('header').locator('img')
+        14 × locator resolved to <img width="160" height="80" data-nimg="1" decoding="async" fetchpriority="high" class="object-contain" alt="Architectural Flashing Supply" src="/_next/image?url=%2Fafs-logo.png&w=384&q=75" srcset="/_next/image?url=%2Fafs-logo.png&w=256&q=75 1x, /_next/image?url=%2Fafs-logo.png&w=384&q=75 2x"/>
+           - unexpected value "160"
+
+
+      258 |     const headerLogoImg = header.locator('img');
+      259 |     await expect(headerLogoImg).toHaveCount(1);
+    > 260 |     await expect(headerLogoImg).toHaveAttribute('width', '76');
+          |                                 ^
+      261 |     await expect(header.getByText('Architectural Flashing Supply', { exact: false })).toBeVisible();
+      262 |   });
+      263 |
+        at C:\Users\manag\Documents\afs-website\tests\e2e\homepage.spec.ts:260:33
+
+    Error Context: test-results\homepage-Homepage-overhaul-ef312--and-the-tagline-is-present-chromium\error-context.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(locator).toHaveAttribute(expected) failed
+
+    Locator:  locator('header').locator('img')
+    Expected: "76"
+    Received: "160"
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveAttribute" with timeout 5000ms
+      - waiting for locator('header').locator('img')
+        14 × locator resolved to <img width="160" height="80" data-nimg="1" decoding="async" fetchpriority="high" class="object-contain" alt="Architectural Flashing Supply" src="/_next/image?url=%2Fafs-logo.png&w=384&q=75" srcset="/_next/image?url=%2Fafs-logo.png&w=256&q=75 1x, /_next/image?url=%2Fafs-logo.png&w=384&q=75 2x"/>
+           - unexpected value "160"
+
+
+      258 |     const headerLogoImg = header.locator('img');
+      259 |     await expect(headerLogoImg).toHaveCount(1);
+    > 260 |     await expect(headerLogoImg).toHaveAttribute('width', '76');
+          |                                 ^
+      261 |     await expect(header.getByText('Architectural Flashing Supply', { exact: false })).toBeVisible();
+      262 |   });
+      263 |
+        at C:\Users\manag\Documents\afs-website\tests\e2e\homepage.spec.ts:260:33
+
+    Error Context: test-results\homepage-Homepage-overhaul-ef312--and-the-tagline-is-present-chromium-retry1\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\homepage-Homepage-overhaul-ef312--and-the-tagline-is-present-chromium-retry1\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\homepage-Homepage-overhaul-ef312--and-the-tagline-is-present-chromium-retry1\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  10 failed
+    [chromium] › tests\e2e\hailview.spec.ts:25:7 › HailView — real address, real scoring, all four material types › asphalt shingle produces a real, in-range computed score 
+    [chromium] › tests\e2e\hailview.spec.ts:55:7 › HailView — real address, real scoring, all four material types › email-my-result form degrades gracefully when Resend is not configured 
+    [chromium] › tests\e2e\hailview.spec.ts:69:7 › HailView — real address, real scoring, all four material types › metal roofing (R-panel, 26ga) produces a real, in-range computed score 
+    [chromium] › tests\e2e\hailview.spec.ts:88:7 › HailView — real address, real scoring, all four material types › TPO/PVC membrane (60mil) produces a real, in-range computed score 
+    [chromium] › tests\e2e\hailview.spec.ts:104:7 › HailView — real address, real scoring, all four material types › wood shake produces a real, in-range computed score 
+    [chromium] › tests\e2e\hailview.spec.ts:126:7 › HailView — interactive map (afs-hv-006) › address marker pulses, real storm markers plot, map frames all points 
+    [chromium] › tests\e2e\hailview.spec.ts:166:7 › HailView — interactive map (afs-hv-006) › storm marker click shows its real date and size from the already-displayed data 
+    [chromium] › tests\e2e\hailview.spec.ts:189:7 › HailView — interactive map (afs-hv-006) › reduced motion renders a static ring, not an animated one 
+    [chromium] › tests\e2e\homepage.spec.ts:237:7 › Homepage CTAs retargeted off the removed profile-explorer section (hpc-003) › hero dual CTAs resolve to /quote and /about/services 
+    [chromium] › tests\e2e\homepage.spec.ts:252:7 › Homepage overhaul (hpd-008) › header logo has no separate sidebar, the mark renders oversized (76px), and the tagline is present 
+  13 skipped
+  62 passed (11.9m)
