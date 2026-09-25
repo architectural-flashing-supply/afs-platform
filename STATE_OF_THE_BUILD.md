@@ -13082,3 +13082,43 @@ anywhere in the app), **F-07** (core canvas tests don't run), **F-08**
 (hailview baseURL override). These are scoped with remediation steps in the
 .docx report and were deliberately left for their own passes rather than
 bundled into a blocking-defect fix.
+
+### PREVIEW DEPLOYMENT — fix/f-01 (2026-09-24)
+
+```
+Branch alias (stable):  https://afs-website-git-fix-f-01-reids-projects-b3405b97.vercel.app
+Immutable deployment:   https://afs-website-3tosubvai-reids-projects-b3405b97.vercel.app
+Deployment id:          dpl_FM1kdKELJwBuHoV8BbByF7RojZB7
+Target:                 preview          Status: ● Ready
+Commit:                 14f5538          Tag: f-01-fixed-2026-09-24
+```
+
+**Preview only — `--prod` was never passed, and nothing was promoted.**
+Production still serves the pre-fix build at
+`https://afs-website-eight.vercel.app`.
+
+**How this preview actually got built, accurately:** two `vercel` CLI
+invocations both **failed** at the file-upload stage with an identical
+Vercel API error — `FetchError: invalid json response body at
+https://api.vercel.com/v2/files ... Unexpected token 'I', "Internal S"`,
+i.e. the API returned an HTML 500 where JSON was expected (uploads of
+~326MB and ~231MB respectively). The preview that exists was produced by
+**Vercel's GitHub integration** off the `git push -u origin fix/f-01`, not
+by the CLI. Confirmed by the deployment's own branch alias
+(`afs-website-git-fix-f-01-…`), not assumed from timing.
+
+Two things worth Reid's attention, neither fixed here:
+- The CLI is **v51.7.0 against a current v59.16.0** and prompts to update
+  on every run. Not upgraded — changing deploy tooling wasn't in scope.
+- The upload payload is **~326MB**, which is very large for this app.
+  `.vercelignore` excludes only a handful of working-tree items and does
+  not exclude `.next/`, the ~30 root-level audit/proof PNGs, or
+  `machine-data/`. That size is a plausible contributor to the API failure
+  and is worth trimming regardless.
+
+**Both routes return 302 on an unauthenticated curl** — that is Vercel's
+deployment protection on previews, not a fault in the build. Reid will
+reach it normally while signed in to the Vercel account.
+
+**This preview is exactly what Law 6 needs and what no session can sign
+off.** Deploy remains blocked on **Law 2** (F-08 still open) **and Law 6**.

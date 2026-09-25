@@ -7963,6 +7963,22 @@ still skipped pending a Supabase admin test account.
 ---
 
 
+**Preview deployment (fix/f-01):** `https://afs-website-git-fix-f-01-reids-projects-b3405b97.vercel.app`
+(immutable: `https://afs-website-3tosubvai-reids-projects-b3405b97.vercel.app`, dpl_FM1kdKELJwBuHoV8BbByF7RojZB7, commit 14f5538, tag
+`f-01-fixed-2026-09-24`). **Preview only — `--prod` never passed, nothing
+promoted; production still serves the pre-fix build.** Honest provenance:
+both `vercel` CLI runs FAILED on upload with a Vercel API HTML-500
+(`/v2/files`, ~326MB and ~231MB payloads); the preview that exists was built
+by the **GitHub integration** off the branch push — confirmed via its
+`afs-website-git-fix-f-01-…` alias, not inferred from timing. Unauthenticated
+curl returns 302 = preview deployment protection, not a build fault. Noted
+for Reid, not fixed: Vercel CLI is v51.7.0 vs current v59.16.0, and
+`.vercelignore` doesn’t exclude `.next/`, the ~30 root proof PNGs, or
+`machine-data/`, hence the ~326MB upload. **Deploy stays blocked on Law 2
+(F-08 open) AND Law 6 (human gate).**
+
+---
+
 ## PRIOR HISTORY
 
 This file previously contained several thousand lines of session-by-session
