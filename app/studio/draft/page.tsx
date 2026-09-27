@@ -3188,6 +3188,11 @@ export default function FlashDraftPage() {
           jobName: jobName.trim() || null,
           requestedDeliveryDate: requestedDeliveryDate || null,
           finish: isAluminum ? (finish || null) : null,
+          // PathfinderEdge profile-level paintedSide. Only meaningful when
+          // the part is actually painted (paintFaceSelectable gates the UI
+          // control itself); unpainted sends null, which the adapter maps to
+          // the spec's "None".
+          paintFace: paintFaceSelectable ? paintFace : null,
           thicknessIn,
           quantity: Number(quantity) || null,
           lengthFt: lengthFtDecimal || null,

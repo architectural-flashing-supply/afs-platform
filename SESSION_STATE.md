@@ -7993,3 +7993,456 @@ directly — not this file's prose description of it.
 ---
 
 *SESSION_STATE.md | AFS — Architectural Flashing Supply | Reid Whitesides | Rewritten 2026-08-11 |*
+
+---
+
+## PathfinderEdge send diagnosis (2026-09-25)
+
+Read-only diagnosis requested on the premise that "AFS profiles are no
+longer being sent into PathfinderEdge." **The premise is false.** No
+send path is broken. Every claim below is backed by a query row, a
+catalog read, a file:line, or a commit.
+
+### Finding 1 — all five `approved_for_machine` jobs in question WERE pushed
+
+`machine_jobs` has 9 rows at `status='approved_for_machine'`, not 5.
+The 5 named in the task (four at 2026-09-25 ~22:18 UTC, one 2026-08-20)
+each have a matching `admin_audit_log` row recording a **successful**
+push with a server-assigned profileId:
+
+| machine_job id | profile_name | approved_at (UTC) | PathfinderEdge profileId |
+|---|---|---|---|
+| 96d8b0ae-bdb1-4420-9a51-bb6e91df2e92 | Stainless 22 ga | 2026-09-25T22:18:47 | 32950788 |
+| 01d1a574-2d34-4faa-89e7-f8d6eea7fe24 | Profile-2026-09-25T20:27:42.603Z | 2026-09-25T22:18:52 | 32950790 |
+| af1aa03d-7716-4acf-a8c3-1596e9de1aef | Kynar 22 ga - Reposition Ventures Group | 2026-09-25T22:18:54 | 32950791 |
+| 173ec77d-7ef7-41ff-9d03-d6555e4c8b90 | Anodized 0.063" - Reposition Ventures Group | 2026-09-25T22:18:57 | 32950792 |
+| c6b2f29e-d554-4653-9457-9081ec0ea0fd | Custom FlashDraft Profile — Lead Coated Copper — 18 ga | 2026-08-20T05:31:32 | 32911531 |
+
+All five have `delivery_method='pathfinder_edge'`, `machine_profile_id=null`,
+`rejection_reason=null`, `used_fallback_geometry=false`.
+
+`machine_profile_id=null` is CORRECT and is not a symptom — it means
+"no `machine_profiles` library match, geometry came from the job's own
+`custom_bends`". See approve/route.ts:67-96 for that documented
+precedence. It has nothing to do with PathfinderEdge delivery.
+
+Audit-log action for all five: `approve_quote_request_to_machine`, i.e.
+`app/api/admin/command-center/approve-quote-request/route.ts`. Each
+`after_value.pathfinderMessage` reads `Profile "<name>" created in
+catalog 20115 as profileId <id>.`
+
+### Finding 2 — four of the five are live in catalog 20115 right now
+
+`GET https://afs.pathfinderedge.com/api/v1/profiles?catalog=20115&take=100`
+returned HTTP 200 and 75 profiles. profileIds 32950788, 32950790,
+32950791, 32950792 are all present, in `owningCatalogId: 20115` — the one
+catalog the Thalmann DS2801 subscribes to.
+
+Their geometry arrived intact. `GET /api/v1/profiles/<id>` reports a
+`blankWidth` that reconciles to 4 decimal places against the legs, bend
+radii and hem leader-Straights recorded in `machine_jobs.notes` /
+`custom_bends`:
+
+- 32950788: 32.247 (legs) = **32.2475** reported
+- 32950790: 210.578 (4 legs) + 3 x 0.5 (radii) = 212.078 = **212.0776**
+- 32950791: 34.546 (legs) + 0.5 (radius) + 0.5 + 0.5 (hem leaders) = 36.046 = **36.0461**
+- 32950792: 30.504 (legs) + 0.375 (radius) + 2.000 (hem leader) = 32.879 = **32.8798**
+
+CAUTION FOR FUTURE READERS: these four report `bendCount: 0` in the
+PathfinderEdge profile summary despite carrying 1-3 real bends. That is
+NOT dropped geometry. PathfinderEdge's `bendCount` counts `Angle`
+features only; a bend with a non-zero radius is emitted as a `Radius`
+feature (pathfinder-edge.ts:384-393) and is not counted. The blankWidth
+arithmetic above — which only reconciles if the radii ARE present —
+is the proof. The 2026-08-19 push 32911522 shows `bendCount: 2` because
+its bends had no radius and went out as `Angle`.
+
+### Finding 3 — the older AFS profiles were deleted inside PathfinderEdge
+
+`shop_profile_library` rows from 2026-08-21..23 record real resolved
+`pathfinder_profile_id` values: 32913103, 32913206, 32914223, 32914396,
+32914398, 32914399. Plus 32911531 from Finding 1. **None of these seven
+appear in catalog 20115's current 75-profile listing.**
+
+pushProfileToPathfinder only resolves a profileId by finding the profile
+in that catalog's own listing immediately after the POST
+(pathfinder-edge.ts:532-553), so each of these demonstrably existed in
+catalog 20115 at push time. They have since been removed on the
+PathfinderEdge side. This is the most likely origin of the "nothing is
+arriving any more" impression: the older AFS-pushed profiles are gone
+from the catalog view, while the pushes themselves never stopped.
+
+UNVERIFIED: who deleted them and when. The public API exposes no audit
+or deleted-record endpoint, and no deletion is initiated anywhere in
+this codebase (no DELETE call to PathfinderEdge exists).
+
+### Finding 4 — the control that actually disappeared: FlashDraft's direct Send button
+
+FlashDraft's own "Send to PathfinderEdge" button (added by commit
+14d7399, 2026-08-18, "feat: add direct Send to PathfinderEdge button in
+FlashDraft") still exists at `app/studio/draft/page.tsx:3950-3962` and
+its route `app/api/studio/send-to-pathfinder/route.ts` is intact and
+unmodified since. What changed is its visibility gate.
+
+Commit **3d35653 (2026-09-18)**, "FlashDraft Phase 3b: admin-context-gated
+PathfinderEdge, Command Center integration", added a second gate:
+
+```
+app/studio/draft/page.tsx:3950   {isAdmin && adminContext && (
+```
+
+`adminContext` is set only when the page is opened with `?admin=1`
+(page.tsx:3069). page.tsx:1286-1287 records the change in its own words:
+"isAdmin alone used to be the only gate (Phase 3b removed that)."
+
+So opening `/studio/draft` directly — the normal way — now renders no
+Send button at all. The two entry points that do set it are
+`components/layout/AdminTopBar.tsx:43` (`/studio/draft?admin=1`) and
+`components/admin/CommandCenterJobCard.tsx:74`
+(`/studio/draft?admin=1&loadJob=1`).
+
+IMPORTANT / honest limit: this gate landed 2026-09-18, but the last
+direct FlashDraft send was 2026-08-23 (shop_profile_library, pfid
+32914399). The gate therefore did NOT cause the 8/23 -> 9/18 gap; it only
+explains why the button is invisible today. UNVERIFIED: why no direct
+send occurred between 2026-08-23 and 2026-09-18.
+
+### Finding 5 — no push has failed since 2026-08-19
+
+`admin_audit_log` contains exactly 6 `*_pathfinder_failed` rows, all
+2026-08-18/19: two HTTP 401 (auth format, since fixed) and four HTTP 400
+`["Valid angle values are -180° - 180°."]` (since fixed by the signed-
+interior-angle work in flashdraft-to-pathfinder.ts:125-133). None after
+2026-08-19T19:56 UTC.
+
+### Runtime-log limitation
+
+`vercel logs --environment production --since 30h -n 1000 -x` returned
+exactly ONE retained line (`11:52:33.95 GET /studio/draft`,
+afs-website-eight.vercel.app). Vercel runtime-log retention on this plan
+is far shorter than 30h, so the 2026-09-25 20:20-22:20 UTC window is not
+recoverable from Vercel. The `admin_audit_log` rows in Finding 1 are the
+durable record of that window and are what this diagnosis relies on.
+UNVERIFIED from logs alone: whether the 22:18 approvals were issued
+against production or a local/preview host. The audit rows and the live
+catalog entries confirm the pushes happened; they do not identify the host.
+
+### Conclusion
+
+No code fix is required for "profiles are not being sent" — they are.
+The two real, separable items are (a) profiles being deleted on the
+PathfinderEdge side, which is an operational question for Seth, not a
+code defect, and (b) FlashDraft's direct Send button being reachable
+only via `?admin=1`, which is a deliberate Phase 3b design decision that
+may simply need to be communicated or surfaced more clearly.
+
+*Diagnosis was read-only: no POST/DELETE to PathfinderEdge, no database
+writes, no code changes.*
+
+---
+
+## Controlled sync experiment (2026-09-25)
+
+One API-created replica of a known-good hand-made PathfinderEdge profile,
+built from Straight/Angle features only (no Radius, no hems, no
+description), to test whether the Radius-vs-Angle encoding is what has
+prevented every AFS API-created profile from syncing to the Thalmann
+DS2801. Exactly one POST was made. Nothing was deleted.
+
+### Blocker hit first: the named control is invisible to the API
+
+The reference profile "jyfjhkhfhvkhvc" (hand-made, Blank Width 2 3/8",
+Bend Count 2, Hem Count 0, reported to sync in ~1 minute) **could not be
+found through the public API.**
+
+- `GET /api/v1/catalogs` -> exactly two catalogs: 20115 ("afs") and
+  20118 ("Profiles for Pricing").
+- `GET /api/v1/profiles?catalog=20115&skip=0&take=500` -> HTTP 200,
+  **75** profiles, no name containing "jyf". `skip=75` returns `[]`.
+- `GET /api/v1/profiles?catalog=20118&...` -> 53 profiles, no match.
+- A `search=` query parameter is silently IGNORED (returns the unfiltered
+  list starting at profileId 32854609), so name filtering is not
+  available server-side.
+- Highest profileId visible in catalog 20115 before this experiment:
+  **32950792** — which is AFS's own 22:18 UTC push from earlier today.
+  The API listing contained nothing newer than that from any source.
+
+This is a significant, unexplained observation and it is NOT the same
+question as the sync failure: it means a profile Reid can see in the
+PathfinderEdge UI was not enumerable through the REST API at the time of
+this experiment. UNVERIFIED whether the cause is listing lag, a catalog
+the API key cannot see, a different tenant, or a name spelled differently
+in the UI than as relayed. The experiment proceeded because the replica
+payload was fully specified by its geometry and did not depend on
+resolving the control's profileId.
+
+### Payload sent (the exact body, verbatim)
+
+```json
+{
+  "profileName": "AFS-CONTROL-ANGLE-TEST-0925",
+  "owningCatalogId": 20115,
+  "features": [
+    { "type": "Straight", "length": 0.625 },
+    { "type": "Angle", "angle": -105 },
+    { "type": "Straight", "length": 0.5 },
+    { "type": "Angle", "angle": -75 },
+    { "type": "Straight", "length": 1.25 }
+  ]
+}
+```
+
+Units are INCHES, confirmed independently by the returned blankWidth of
+2.375 equalling 0.625 + 0.5 + 1.25 exactly. Field names and the
+alternating Straight/non-Straight ordering follow the vendor schema
+already encoded in `lib/integrations/pathfinder-edge.ts:272-281` and the
+historical bodies in `diagnostics/pathfinder-capture-*.json`; no field
+was invented.
+
+### Response
+
+`POST /api/v1/profiles` -> **HTTP 200 OK**
+
+```json
+{"profileId":32950795,"profileName":"AFS-CONTROL-ANGLE-TEST-0925",
+ "description":null,"owningCatalogId":20115,"category":null,
+ "subCategory":null,"blankWidth":2.375,"bendCount":2,"hemCount":0}
+```
+
+New profileId: **32950795**, in catalog 20115.
+
+NOTE FOR A FUTURE FIX (not applied — this run made no code changes):
+`pathfinder-edge.ts:526-531` states "the POST response echoes profile
+fields but never the server-assigned profileId," and the code therefore
+performs a follow-up catalog-listing GET to resolve it. That comment is
+**wrong** — the POST response above carries `profileId` directly. The
+extra listing round-trip is unnecessary and is also the reason two
+August sends recorded a null `pathfinder_profile_id`.
+
+### Summary comparison — replica vs control
+
+| Field | Replica 32950795 (API-created) | Control "jyfjhkhfhvkhvc" (hand-made) | Match |
+|---|---|---|---|
+| blankWidth | 2.375 | 2.375 (2 3/8") | PASS |
+| bendCount | 2 | 2 | PASS |
+| hemCount | 0 | 0 | PASS |
+
+All three PASS criteria met. Control values are as relayed by Reid, NOT
+read from the API — the control could not be fetched (see blocker above).
+
+Verified against the API's own `GET /api/v1/profiles/32950795`, which
+returns the identical summary, and the profile is enumerable in the
+catalog-20115 listing.
+
+**This establishes that the Angle encoding produces a profile the API
+reports as structurally identical to a hand-made one** — bendCount 2, not
+the bendCount 0 that every prior Radius-encoded AFS push produced (cf.
+32950788/90/91/92, all bendCount 0 despite carrying real bends).
+
+### Thumbnails
+
+- `diagnostics/thumb-replica-32950795.png` (1375 bytes) — the new replica.
+  Renders as a real two-bend profile.
+- `diagnostics/thumb-handmade-32926826.png` (727 bytes) — "Z Flashing",
+  hand-made, bendCount 2 / hemCount 0, the closest available structural
+  analogue to the control.
+- `diagnostics/thumb-handmade-32854609.png` (885 bytes) — "test 2",
+  hand-made, blankWidth 2.375 / bendCount 2 / hemCount 1.
+
+`GET /api/v1/profiles/<id>/thumbnail` returns HTTP 200 `image/png` and IS
+a real endpoint (undocumented in this codebase until now).
+
+### Thalmann result: PENDING REID
+
+Whether profileId 32950795 actually syncs to the DS2801 is the entire
+point of this experiment and cannot be observed from here — the vendor
+API exposes no sync-status endpoint (see CLAUDE.md's machine-sync block).
+Reid was watching the machine at the time of the POST.
+
+- If it DOES sync: the Radius feature encoding is the root cause, and the
+  fix is to emit `Angle` (optionally carrying the radius separately)
+  rather than `Radius` in `buildFeatures` (`pathfinder-edge.ts:384-393`).
+- If it does NOT sync: the encoding is exonerated, and the next suspect
+  is whatever distinguishes API-created records from UI-created ones —
+  which the "control is invisible to the API" observation above suggests
+  may be a store/scope split rather than anything in the payload.
+
+*Read-only apart from the single authorised POST. No DELETE, no database
+writes, no code changes, no commits.*
+
+---
+
+## PathfinderEdge spec-conformance fix — F-02 (2026-09-27)
+
+Rewrote FlashDraft's PathfinderEdge feature encoding to conform to AMS
+Controls' published "Pathfinder Edge – Profile Object Format" spec
+(https://www.amscontrols.com/wp-content/uploads/2021/02/Profile-Object.pdf,
+6 pages, fetched and read in full this run). Branch:
+`fix/pathfinder-spec-encoding`, cut from `fix/f-01`.
+
+Context: AFS POSTs have always succeeded, but no AFS-created profile has
+ever synced to the Thalmann, and PathfinderEdge flags them
+"Thalmann:fail" (cannot be made on any connected machine). This run
+treats that as an encoding-conformance defect and fixes it against the
+spec rather than by experiment.
+
+### Deviation table — encoder vs spec, before this fix
+
+| # | Concern | Spec says | Encoder did | Verdict |
+|---|---|---|---|---|
+| 1 | Ordinary fold feature type | `Angle` for simple bends (p.1). `Radius` is ONLY "a long, curving arc" executed as many shallow bends (p.3) | Emitted `Radius` whenever `radiusMm > 0` — which is EVERY FlashDraft bend, since FlashDraft assigns a default corner radius by material | **WRONG — primary defect.** PathfinderEdge reported bendCount 0 and the part unmanufacturable |
+| 2 | `angle` magnitude | The BEND angle, "the amount to bend" = 180 − interior. Spec's own V example: interior 45° gives `Angle: 135` | Sent this codebase's signed INTERIOR angle unconverted | **WRONG.** Invisible on 90° folds (90 either way), wrong on everything else |
+| 3 | `angle` sign / orientation | minus = right (clockwise), plus = left (counter-clockwise) (p.1) | atan2 computed in FlashDraft's y-DOWN world space, passed through with no handedness correction | **WRONG — this is the mirroring.** y-down inverts the sign vs the spec's orientation |
+| 4 | `hemDirection` | Positive = left, Negative = right of the material (p.2) | Fixed map `kick === 'outside' ? 'Positive' : 'Negative'`, ignoring geometry | **WRONG.** FlashDraft's kick is outside/inside relative to the profile's convex face, which depends on the adjacent bend direction — the fixed map is right only half the time |
+| 5 | `hemHeight` units | Inches, like every length (p.4) | `mmToIn(hem.gapMm)` | **CORRECT** — kept as-is |
+| 6 | Hem return length | "The 'length' of the hem is just another segment" — an adjacent `Straight` (p.1, p.5-6) | Already emitted a leader Straight beside each hem | **CORRECT** — kept as-is |
+| 7 | `ClosedHem` fields | `{type, hemDirection}` only, no hemHeight (p.2) | Matched | **CORRECT** |
+| 8 | `radiusQuality` | `Coarse`/`Medium`/`Fine` (p.4) | Hardcoded `'Medium'` placeholder | Moot — no Radius is emitted at all now |
+| 9 | `hemClampOffset` | "length to leave outside the clamp during the clamp close" (p.3) | Hardcoded `0` placeholder, no source data | **STILL A PLACEHOLDER.** TearDropHem only. Unchanged this run; flagged |
+| 10 | `paintedSide` | Optional profile field: `Positive`/`Negative`/`None` = left/right of the FIRST segment (p.5) | Never sent at all | **MISSING — now added** |
+| 11 | Alternation / first+last Straight | Odd feature count, first and last always Straight (p.1) | Satisfied by construction | **CORRECT** |
+| 12 | `profileId` from POST | — | Ignored the POST response, always re-resolved via a 100-row catalog listing match on name | **WASTEFUL + LOSSY.** Response carries `profileId` directly (confirmed 2026-09-25); listing now fallback only |
+
+### Changes made
+
+- **`lib/integrations/pathfinder-edge.ts`**
+  - `buildFeatures` rewritten. Every ordinary fold emits `Angle`. `Radius`
+    is emitted ONLY when a bend sets the new explicit `isCurvedArc` flag —
+    nothing sets it today (FlashDraft has no curved-arc concept), so no
+    Radius feature can currently be produced by any call site. The
+    capability is gated explicitly rather than inferred from `radiusMm > 0`.
+  - New exported `toSpecBendAngle(interiorSigned)` — interior to spec bend
+    angle, with both the 180-minus-interior magnitude correction and the
+    sign inversion, plus explicit handling of the collinear (0) and
+    hairpin (180) boundaries.
+  - `hemDirection(kick, adjacentBendAngle)` now resolves outside/inside
+    against the adjacent bend's direction instead of a fixed constant.
+  - `MachineProfileBend` gains `specBendAngleDegrees` and `isCurvedArc`.
+    `bendAngleDegrees` deliberately keeps its existing INTERIOR-angle
+    meaning, because `machine_jobs.custom_bends`, `machine_profile_bends`
+    and every geometry summary already store it that way — the spec
+    conversion is localised to the one module that speaks PathfinderEdge.
+  - `MachineProfile` gains `paintedSide`; the POST body now includes it
+    (and omits `description` when empty) rather than sending nulls.
+  - `profileId` is read from the POST response; the catalog-listing lookup
+    is retained only as a fallback.
+  - All F-01 finiteness guards (`assertPositiveDimension`,
+    `assertFiniteAngle`, `assertBodyAllFinite`) are intact and now also
+    cover the spec bend angle.
+- **`lib/integrations/flashdraft-to-pathfinder.ts`**
+  - New `specBendAngleAt(prev, curr, next)` computes the spec bend angle
+    directly from segment headings (the turn between headings IS the bend
+    angle — no 180-minus step, no boundary special cases), negated to
+    correct y-down handedness. Set on every bend as `specBendAngleDegrees`.
+  - New `toPaintedSide(paintFace)` maps FlashDraft's `'up' | 'down' | null`
+    onto `Negative` / `Positive` / `None`.
+- **`app/api/studio/send-to-pathfinder/route.ts`**, **`app/studio/draft/page.tsx`**
+  — thread `paintFace` from FlashDraft's existing paint-face selection
+  through to the adapter.
+- **`lib/integrations/pathfinder-spec-encoding.test.ts`** — new, 27 cases.
+
+### Conflict with a prior recorded finding — resolved in favour of the spec
+
+`flashdraft-to-pathfinder.ts`'s existing `bendAngleAt` comment argues from
+profileId 32912069 that "PathfinderEdge wants the signed INTERIOR angle,
+not a turn-angle conversion of it." That conclusion is **superseded**. It
+rested on reading a rendered angle off PathfinderEdge's viewer, which
+cannot distinguish a 45° interior from its 135° supplement without knowing
+which vertex the viewer annotates. The spec is explicit and primary
+("It refers to the bend angle", with a labelled draw-angle vs bend-angle
+diagram on p.2), and the interior-angle encoding is what has been shipping
+while every part came back "Thalmann:fail". The old function is retained
+only as the interior-angle source for the database.
+
+### Test results
+
+`pnpm test:unit` — **64 passed / 64** across 3 files (27 new).
+`pnpm tsc --noEmit` — exit 0. `pnpm run build` — exit 0.
+
+New coverage: spec U-channel (asserts the exact 5-feature array from p.1),
+spec "V Shaped Thingy" (asserts 135 not 45, and the full 7-feature
+hem/angle shape from p.5-6), the 12x12 verification part, left-vs-right
+sign convention, paintedSide mapping, hemDirection flipping with bend
+direction, no-Radius-for-ordinary-folds, and all three F-01 guards.
+
+### Verification send — exactly ONE POST
+
+Body built through the real encoder (`flashDraftToMachineProfile` then
+`buildFeatures`), not hand-written:
+
+```json
+{
+  "profileName": "AFS-SPEC-TEST-12x12",
+  "owningCatalogId": 20115,
+  "paintedSide": "None",
+  "features": [
+    { "type": "Straight", "length": 0.5 },
+    { "type": "OpenHem", "hemHeight": 0.1875, "hemDirection": "Negative" },
+    { "type": "Straight", "length": 12 },
+    { "type": "Angle", "angle": 90 },
+    { "type": "Straight", "length": 12 },
+    { "type": "OpenHem", "hemHeight": 0.1875, "hemDirection": "Negative" },
+    { "type": "Straight", "length": 0.5 }
+  ]
+}
+```
+
+`POST /api/v1/profiles` gave **HTTP 200**, response
+`{"profileId":32950803,...,"blankWidth":25.0,"bendCount":1,"hemCount":2}`
+
+New profileId: **32950803**.
+
+| Field | Expected | Actual | |
+|---|---|---|---|
+| bendCount | 1 | **1** | PASS |
+| hemCount | 2 | **2** | PASS |
+| blankWidth | 25 (0.5 + 12 + 12 + 0.5) | **25** | PASS |
+
+This is the first AFS-created profile ever to report a non-zero bendCount
+from a FlashDraft-drawn fold.
+
+### Thumbnail
+
+`GET /api/v1/profiles/32950803/thumbnail` gave HTTP 200 image/png, saved to
+`diagnostics/thumb-spec-test-32950803.png`.
+
+**Orientation: NOT mirrored — the fix works.** The FlashDraft input was
+(0,-12) to (0,0) to (12,0) in y-down world, i.e. a vertical leg descending
+on the LEFT into a corner at the bottom, then a horizontal leg running
+RIGHT along the bottom. PathfinderEdge's render shows exactly that: an "L"
+with the corner bottom-left, vertical leg up the left side, horizontal leg
+along the bottom to the right. A mirrored render would have put the corner
+bottom-right.
+
+**Hem direction: NOT VISUALLY CONFIRMED.** At 0.5" of hem return against a
+25" blank the hems occupy ~2% of a 200px thumbnail and cannot be resolved.
+Both hems are present (hemCount 2) and both were sent `Negative`, but
+whether that is the intended fold side needs Reid's eye in the
+PathfinderEdge editor at real zoom. The kick-to-left/right derivation is
+geometrically reasoned, not empirically confirmed.
+
+### Still unconfirmed after this run
+
+- `hemDirection` outside/inside to Positive/Negative mapping (above).
+- `paintedSide` 'up' to Negative / 'down' to Positive. Derived from
+  FlashDraft's own stripe-normal maths (`draw-profile-scene.ts:279-286`) in
+  y-down space; nobody has checked a pushed painted part against
+  PathfinderEdge's render to confirm which physical face FlashDraft's "up"
+  label means.
+- `hemClampOffset` remains a hardcoded 0 for TearDropHem — no source data
+  exists anywhere in this codebase.
+- The Command Center approval path (`approve-quote-request`) sends no
+  paintedSide: `quote_requests` has no `paint_face` column, so the
+  selection is not persisted for that path. Direct FlashDraft sends do
+  carry it.
+- The spec contradicts itself on p.2, pairing "Positive/left" with
+  "clockwise" while p.1 pairs "+/left" with "counter clockwise". The
+  left/right half is consistent across p.1, p.2 and p.5, so this code keys
+  off left/right throughout.
+
+**Thalmann result: PENDING REID (check manufacturability icon + machine)** —
+specifically whether profileId 32950803 now shows a green/pass
+manufacturability indicator instead of "Thalmann:fail", and whether it
+reaches the DS2801. Nothing about sync is observable from this side.
+
+*One POST only. No DELETE, no database writes, not deployed, not merged.*

@@ -13122,3 +13122,120 @@ reach it normally while signed in to the Vercel account.
 
 **This preview is exactly what Law 6 needs and what no session can sign
 off.** Deploy remains blocked on **Law 2** (F-08 still open) **and Law 6**.
+
+---
+
+## 2026-09-27 — F-02: PathfinderEdge Profile Object Format conformance
+
+**Status: encoder fixed and spec-conformant; machine sync PENDING REID.**
+Branch `fix/pathfinder-spec-encoding` (from `fix/f-01`). Not merged, not
+deployed.
+
+### The defect
+
+Every AFS-created PathfinderEdge profile has been rejected by
+PathfinderEdge's own manufacturability check ("Thalmann:fail" — cannot be
+made on any connected machine), and none has ever synced to the DS2801,
+while hand-made editor profiles sync in about a minute. POSTs always
+returned 200, so this never surfaced as an error anywhere in the app.
+
+Root cause was encoding, in three independent ways, measured against AMS
+Controls' published "Pathfinder Edge – Profile Object Format"
+(https://www.amscontrols.com/wp-content/uploads/2021/02/Profile-Object.pdf
+— fetched and read in full this run; it is 6 pages and is the
+authoritative source, superseding inference from the live API):
+
+1. **Every fold was sent as a `Radius` feature.** The spec reserves
+   `Radius` for "a long, curving arc" that the machine executes as a
+   series of shallow bends around an imaginary circle (p.3). An ordinary
+   fold — even one with a corner radius — is an `Angle` (p.1). The old
+   encoder chose `Radius` whenever `radiusMm > 0`, and FlashDraft assigns
+   a default corner radius by material to *every* bend, so *every* AFS
+   fold went out as an arc. This is why PathfinderEdge reported
+   `bendCount: 0` on AFS profiles: it counts `Angle` features.
+2. **The angle value was the interior angle, not the bend angle.** The
+   spec's `angle` is "the amount to bend" = 180 − interior; its own
+   worked "V Shaped Thingy" example sends `Angle: 135` for a 45° interior
+   (p.5-6). A 90° fold is 90 either way, which is exactly why this hid for
+   so long.
+3. **The sign was inverted, which is the mirroring.** FlashDraft's world
+   coordinates are y-DOWN (`app/studio/draft/page.tsx:1467-1474` —
+   `worldToScreen` is a pure scale+translate with no y flip), so an
+   atan2-derived signed angle has the opposite handedness from the spec's
+   (p.1: minus = right/clockwise, plus = left/counter-clockwise). This is
+   the documented cause of PathfinderEdge rendering AFS parts as a mirror
+   image of the FlashDraft drawing.
+
+Plus two smaller deviations: `hemDirection` was a fixed per-kick constant
+that ignored geometry, and the optional profile-level `paintedSide` was
+never sent at all. Full 12-row deviation table in SESSION_STATE.md's
+2026-09-27 entry.
+
+### The fix
+
+`buildFeatures` in `lib/integrations/pathfinder-edge.ts` now emits `Angle`
+for every ordinary fold. `Radius` survives only behind a new explicit
+`MachineProfileBend.isCurvedArc` flag that **nothing currently sets** —
+FlashDraft has no curved-arc concept, so no Radius feature can be produced
+by any present call site. The capability is gated explicitly rather than
+inferred from `radiusMm > 0`, which is what caused this.
+
+Bend angles are computed directly from segment headings by the new
+`specBendAngleAt` in `flashdraft-to-pathfinder.ts` (the turn between
+headings *is* the bend angle) and carried on a new
+`specBendAngleDegrees` field. `bendAngleDegrees` deliberately keeps its
+existing INTERIOR-angle meaning — `machine_jobs.custom_bends`,
+`machine_profile_bends` and every geometry summary already store it that
+way, so the spec conversion is localised to the one module that speaks
+PathfinderEdge rather than changing what the database means.
+`toSpecBendAngle` covers the fallback/library paths that have no points.
+
+`hemDirection` now resolves FlashDraft's outside/inside kick against the
+adjacent bend's direction. `paintedSide` is threaded from FlashDraft's
+existing paint-face selection through `send-to-pathfinder` to the adapter.
+`profileId` is now read from the POST response (the listing lookup is a
+fallback only). All F-01 finiteness guards are intact and now also cover
+the spec bend angle.
+
+### A prior recorded conclusion is superseded
+
+`flashdraft-to-pathfinder.ts`'s `bendAngleAt` comment cites profileId
+32912069 as proof that "PathfinderEdge wants the signed INTERIOR angle."
+That is now believed wrong. It rested on reading a rendered angle off
+PathfinderEdge's viewer, which cannot distinguish a 45° interior from its
+135° supplement without knowing which vertex the viewer annotates — the
+same non-discriminating-evidence trap that comment itself documents having
+fallen into once before. The spec is explicit and primary, and the
+interior-angle encoding is what shipped while every part came back
+"Thalmann:fail".
+
+### Verification
+
+`pnpm tsc --noEmit` exit 0. `pnpm test:unit` 64/64 across 3 files (27 new
+in `lib/integrations/pathfinder-spec-encoding.test.ts`, asserting exact
+feature arrays against both of the spec's own worked examples).
+`pnpm run build` exit 0.
+
+ONE POST to catalog 20115, body built through the real encoder:
+profileId **32950803**, "AFS-SPEC-TEST-12x12" — a 12"x12" 90° part with
+3/16" open hems at both ends. PathfinderEdge reports **bendCount 1,
+hemCount 2, blankWidth 25** against expected 1 / 2 / 25 — all PASS, and
+the first non-zero bendCount ever returned for an AFS-created FlashDraft
+fold. Its thumbnail (`diagnostics/thumb-spec-test-32950803.png`) renders
+the L in the same orientation as the FlashDraft drawing, corner
+bottom-left — **not mirrored**.
+
+### Open / unconfirmed
+
+- **Thalmann result: PENDING REID (check manufacturability icon +
+  machine)** — whether 32950803 now passes the manufacturability check
+  instead of "Thalmann:fail", and whether it reaches the DS2801. No
+  sync-status endpoint exists, so this is unobservable from the codebase.
+- Hem fold direction is not visually confirmed: at 0.5" against a 25"
+  blank the hems are ~2% of the thumbnail and unresolvable. Needs Reid's
+  eye at real zoom in the editor.
+- `paintedSide` 'up'/'down' to Negative/Positive is geometrically derived
+  from FlashDraft's own stripe-normal maths, not visually confirmed.
+- `hemClampOffset` stays a hardcoded 0 for TearDropHem — no source data.
+- The Command Center approval path sends no `paintedSide`:
+  `quote_requests` has no `paint_face` column.

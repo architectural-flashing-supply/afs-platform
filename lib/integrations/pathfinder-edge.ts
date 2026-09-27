@@ -69,8 +69,29 @@ export interface MachineProfileBend {
   stepNumber: number;
   leftLegMm: number | null;
   rightLegMm: number | null;
+  // This codebase's INTERIOR/included angle, signed in FlashDraft's own
+  // y-DOWN world coordinates. This is NOT what PathfinderEdge's `angle`
+  // field means — see specBendAngleDegrees below and buildFeatures's
+  // toSpecBendAngle. Kept as-is because it is what machine_jobs.custom_bends,
+  // machine_profile_bends and every geometry summary already store.
   bendAngleDegrees: number | null;
   radiusMm: number | null;
+  // PathfinderEdge's own BEND angle for this fold, already in the spec's
+  // orientation and sign convention (+ = left/counter-clockwise, - =
+  // right/clockwise, magnitude = 180 - interior). Set directly by
+  // flashDraftToMachineProfile, which has the real point geometry and can
+  // compute it unambiguously from segment headings. When absent (the
+  // fallback/library paths, which have no points), buildFeatures derives it
+  // from bendAngleDegrees instead.
+  specBendAngleDegrees?: number | null;
+  // TRUE only for a deliberate long curving arc that the machine should
+  // execute as a series of shallow bends (PathfinderEdge `Radius`). An
+  // ordinary fold with a corner radius is NOT this. FlashDraft has no
+  // curved-arc concept at all, so nothing sets this today and no Radius
+  // feature is ever emitted — see buildFeatures. Present so the capability
+  // is gated explicitly rather than inferred from `radiusMm > 0`, which is
+  // what made every AFS profile unmanufacturable.
+  isCurvedArc?: boolean;
 }
 
 // A hem at one profile endpoint, carried in mm like the rest of
@@ -106,7 +127,13 @@ export interface MachineProfile {
   poNumber?: string | null;
   requestedBy?: string | null;
   finish?: string | null;
+  // PathfinderEdge profile-level `paintedSide` (spec p.5): which side of the
+  // FIRST segment is painted. 'Positive' = left of the first segment,
+  // 'Negative' = right, 'None' = unpainted. Omitted entirely when null.
+  paintedSide?: PaintedSide | null;
 }
+
+export type PaintedSide = 'Positive' | 'Negative' | 'None';
 
 export interface PathfinderProfile extends PathfinderResult {
   profileId: string | null;
@@ -286,8 +313,33 @@ interface PathfinderFeature {
 // to. 'outside' -> 'Positive' chosen arbitrarily but applied
 // consistently; flagged in STATE_OF_THE_BUILD.md pending a real pushed
 // hem checked against PathfinderEdge's own profile thumbnail/render.
-function hemDirection(kick: HemKick): 'Positive' | 'Negative' {
-  return kick === 'outside' ? 'Positive' : 'Negative';
+// SPEC (Profile-Object.pdf p.2): hemDirection "defines to which side of the
+// material the hem is bent" — Positive = left, Negative = right. (The PDF's
+// own parenthetical pairs "left" with "clockwise" here, contradicting its
+// Angle section, which pairs "+ / left" with "counter clockwise". The
+// left/right half is consistent across both sections and across
+// paintedSide's "left (Positive) or right (Negative)", so left/right is
+// what this code keys off.)
+//
+// FlashDraft's HemKick is 'outside' | 'inside' — relative to the profile's
+// own convex face, NOT to left/right. Resolving it therefore needs the
+// adjacent bend: if the profile turns LEFT at that end, its convex/outside
+// face is on the RIGHT, and vice versa. The previous implementation ignored
+// geometry entirely and returned a fixed Positive/Negative per kick, which
+// is right only half the time.
+//
+// adjacentBendAngle is the spec-signed bend angle of the bend nearest this
+// hem (the first bend for hemStart, the last for hemEnd). With no bends at
+// all the profile is a flat strip with no convex face, so 'outside' has no
+// geometric meaning — 'Positive' is an arbitrary but documented default.
+function hemDirection(kick: HemKick, adjacentBendAngle: number | null): 'Positive' | 'Negative' {
+  if (adjacentBendAngle == null || adjacentBendAngle === 0) {
+    return kick === 'outside' ? 'Positive' : 'Negative';
+  }
+  const turnsLeft = adjacentBendAngle > 0;
+  const outsideIsLeft = !turnsLeft;
+  const wantLeft = kick === 'outside' ? outsideIsLeft : !outsideIsLeft;
+  return wantLeft ? 'Positive' : 'Negative';
 }
 
 // The hem itself, as a PathfinderEdge feature — does NOT include the
@@ -300,8 +352,8 @@ function hemDirection(kick: HemKick): 'Positive' | 'Negative' {
 // source data anywhere in this codebase (TearDropHem only) — 0 is a
 // placeholder default, not a measured value, same precedent as
 // radiusQuality below.
-function hemFeature(hem: MachineProfileHem): PathfinderFeature {
-  const direction = hemDirection(hem.kick);
+function hemFeature(hem: MachineProfileHem, adjacentBendAngle: number | null): PathfinderFeature {
+  const direction = hemDirection(hem.kick, adjacentBendAngle);
   if (hem.type === 'open') {
     // F-01: gapMm reaches the wire as hemHeight, so it needs the same
     // finiteness guard as every other dimension. Zero is allowed here (a
@@ -344,14 +396,80 @@ function hemFeature(hem: MachineProfileHem): PathfinderFeature {
 //
 // radiusQuality has no source data anywhere — 'Medium' below is a
 // placeholder default, not a measured value.
+// Converts this codebase's signed INTERIOR angle (FlashDraft's y-down world
+// convention) into PathfinderEdge's BEND angle (spec p.1: "the amount to
+// bend", sign - for right/clockwise, + for left/counter-clockwise).
+//
+// Two separate corrections happen here, and they were the two defects that
+// made every AFS-created profile unmanufacturable ("Thalmann:fail"):
+//
+//   MAGNITUDE. The spec wants 180 - interior, not the interior angle. An
+//   ordinary 90° fold happens to be 90 either way, which is why this went
+//   unnoticed; the spec's own "V Shaped Thingy" (interior 45°) is Angle 135,
+//   and a FlashDraft V used to go out as 45.
+//
+//   SIGN. FlashDraft's world coordinates are y-DOWN (app/studio/draft/
+//   page.tsx's worldToScreen is a pure scale+translate with no y flip), so
+//   an atan2-derived signed angle has the opposite handedness from the
+//   spec's orientation. Negating is what un-mirrors the profile — this is
+//   the cause of PathfinderEdge rendering AFS parts as a mirror image of
+//   the FlashDraft drawing.
+//
+// BOUNDARIES: interior ±180 means "straight through, no bend" -> 0.
+// interior 0 means a flat hairpin -> 180 (a half turn; +180 by convention,
+// since a fully-folded hairpin has no meaningful handedness in 2D).
+export function toSpecBendAngle(interiorSignedDegrees: number): number {
+  const interior = interiorSignedDegrees;
+  if (Math.abs(interior) === 180) return 0;
+  if (interior === 0) return 180;
+  return -Math.sign(interior) * (180 - Math.abs(interior));
+}
+
+// Resolves the spec bend angle for one bend, preferring the value the
+// producer computed directly from real point geometry.
+function specBendAngleOf(bend: MachineProfileBend, label: string): number {
+  const direct = bend.specBendAngleDegrees;
+  if (direct !== undefined && direct !== null) {
+    return assertFiniteAngle(direct, label);
+  }
+  return assertFiniteAngle(toSpecBendAngle(bend.bendAngleDegrees ?? 180), label);
+}
+
+// Builds the alternating Straight / non-Straight feature list the spec
+// requires (p.1: "every Profile will have an odd number of Features in its
+// list, and the first and last Feature will always be legs").
+//
+// FEATURE CHOICE (the F-02 fix). Every ordinary fold is an `Angle`. A
+// `Radius` is reserved for what the spec actually describes it as (p.3): "a
+// long, curving arc", executed at the machine as many shallow bends around
+// an imaginary circle. A normal fold that merely has a corner radius is NOT
+// that. This encoder previously emitted `Radius` for every bend whose
+// radiusMm > 0 — which is every FlashDraft bend, since FlashDraft assigns a
+// default corner radius by material — and PathfinderEdge consequently
+// reported bendCount 0 and flagged the parts unmanufacturable. FlashDraft
+// has no curved-arc concept at all, so `isCurvedArc` is never set and no
+// Radius feature is emitted from any current call site; the branch is kept,
+// explicitly gated, for a future real arc feature.
+//
+// Hem placement follows the spec's own worked example verbatim (p.5-6): the
+// hem's return length is just another Straight adjacent to it, so a hemmed
+// end reads [Straight(return), Hem, Straight(leg) ... Straight(leg), Hem,
+// Straight(return)]. That also satisfies the start-and-end-with-Straight
+// rule.
 function buildFeatures(profile: MachineProfile): PathfinderFeature[] {
   const bends = profile.bends ?? [];
   const features: PathfinderFeature[] = [];
 
+  // Resolved up front: the hems need the adjacent bend's direction to map
+  // FlashDraft's outside/inside kick onto the spec's left/right.
+  const specAngles = bends.map((b, i) => specBendAngleOf(b, `Bend ${i + 1}'s angle`));
+  const firstBendAngle = specAngles.length ? specAngles[0] : null;
+  const lastBendAngle = specAngles.length ? specAngles[specAngles.length - 1] : null;
+
   if (profile.hemStart) {
     const leaderIn = assertPositiveDimension(mmToIn(profile.hemStart.lengthMm), "Start hem's lengthMm");
     features.push({ type: 'Straight', length: leaderIn });
-    features.push(hemFeature(profile.hemStart));
+    features.push(hemFeature(profile.hemStart, firstBendAngle));
   }
 
   if (bends.length === 0) {
@@ -371,20 +489,13 @@ function buildFeatures(profile: MachineProfile): PathfinderFeature[] {
 
     for (let i = 0; i < bends.length; i++) {
       const bend = bends[i];
-      const radiusMm = bend.radiusMm ?? 0;
-      // bendAngleDegrees is this codebase's INTERIOR/included angle (see
-      // geometry.ts's own doc comment) — passed straight through as the
-      // PathfinderEdge "angle" feature, which the doc describes only as
-      // "bend angle in degrees, -180 to 180" with no turtle-turn framing.
-      // This mapping is a best-effort interpretation, NOT confirmed by
-      // the round-trip test below (that test only covers a bendless
-      // profile, to isolate the units question) — flagged as open in
-      // STATE_OF_THE_BUILD.md pending a real bend push+visual check.
-      const angle = assertFiniteAngle(bend.bendAngleDegrees ?? 180, `Bend ${i + 1}'s angle`);
-      if (radiusMm > 0) {
+      const angle = specAngles[i];
+
+      if (bend.isCurvedArc === true) {
+        const radiusMm = bend.radiusMm ?? 0;
         features.push({
           type: 'Radius',
-          radius: assertPositiveDimension(mmToIn(radiusMm), `Bend ${i + 1}'s radius`),
+          radius: assertPositiveDimension(mmToIn(radiusMm), `Bend ${i + 1}'s arc radius`),
           radiusQuality: 'Medium',
           angle,
         });
@@ -400,11 +511,19 @@ function buildFeatures(profile: MachineProfile): PathfinderFeature[] {
 
   if (profile.hemEnd) {
     const leaderIn = assertPositiveDimension(mmToIn(profile.hemEnd.lengthMm), "End hem's lengthMm");
-    features.push(hemFeature(profile.hemEnd));
+    features.push(hemFeature(profile.hemEnd, lastBendAngle));
     features.push({ type: 'Straight', length: leaderIn });
   }
 
   return features;
+}
+
+// Test-only seam onto buildFeatures. buildFeatures stays private because
+// nothing outside this module should be composing PathfinderEdge feature
+// arrays; the conformance suite needs to assert the exact array, so it gets
+// an explicit named export rather than reaching into module internals.
+export function buildFeaturesForTest(profile: MachineProfile): PathfinderFeature[] {
+  return buildFeatures(profile);
 }
 
 // Composes the job-identity portion of the outgoing `description`:
@@ -468,10 +587,22 @@ export async function pushProfileToPathfinder(profile: MachineProfile, catalogId
   }
 
   const profileName = profile.nameEn;
-  const body = {
+  const description = composeDescription(profile);
+  // paintedSide is profile-level and OPTIONAL (spec p.5) — omitted entirely
+  // rather than sent as null when the caller has no paint selection, so the
+  // body stays exactly what the spec documents. `description` is likewise
+  // dropped when empty.
+  const body: {
+    profileName: string;
+    description?: string;
+    owningCatalogId: number;
+    paintedSide?: PaintedSide;
+    features: PathfinderFeature[];
+  } = {
     profileName,
-    description: composeDescription(profile),
+    ...(description ? { description } : {}),
     owningCatalogId,
+    ...(profile.paintedSide ? { paintedSide: profile.paintedSide } : {}),
     features,
   };
 
@@ -523,12 +654,33 @@ export async function pushProfileToPathfinder(profile: MachineProfile, catalogId
       };
     }
 
-    // Confirmed via the publicapi doc: the POST response echoes profile
-    // fields but never the server-assigned profileId. Resolving it needs a
-    // follow-up catalog-scoped list call, matched by profileName — if two
-    // profiles in the same catalog share the exact name, this picks the
-    // highest profileId (most-recently-created) as a best-effort
-    // disambiguation; the real API gives no stronger guarantee than that.
+    // The POST response DOES carry the server-assigned profileId. This
+    // file previously asserted the opposite and always performed a
+    // follow-up catalog listing to recover it — confirmed wrong by the
+    // controlled experiment of 2026-09-25, whose 200 response body was
+    // `{"profileId":32950795,...}`. Reading it here is exact, costs no
+    // extra round trip, and cannot mis-resolve when two profiles share a
+    // name. The listing lookup is kept ONLY as a fallback for a response
+    // that omits or malforms the field.
+    const postText = await postRes.text().catch(() => '');
+    let created: { profileId?: unknown } | null = null;
+    try {
+      created = postText ? (JSON.parse(postText) as { profileId?: unknown }) : null;
+    } catch {
+      created = null;
+    }
+    const directId =
+      created && (typeof created.profileId === 'number' || typeof created.profileId === 'string')
+        ? String(created.profileId)
+        : null;
+    if (directId) {
+      return {
+        status: 'connected',
+        message: `Profile "${profileName}" created in catalog ${owningCatalogId} as profileId ${directId}.`,
+        profileId: directId,
+      };
+    }
+
     const listRes = await pathfinderFetch(
       config,
       `/api/v1/profiles?catalog=${owningCatalogId}&skip=0&take=100`,
@@ -548,7 +700,7 @@ export async function pushProfileToPathfinder(profile: MachineProfile, catalogId
     return {
       status: 'connected',
       message: resolved
-        ? `Profile "${profileName}" created in catalog ${owningCatalogId} as profileId ${resolved.profileId}.`
+        ? `Profile "${profileName}" created in catalog ${owningCatalogId} as profileId ${resolved.profileId} (resolved via listing fallback).`
         : `Profile "${profileName}" created in catalog ${owningCatalogId}, but its assigned profileId could not be resolved (not found among the first 100 profiles listed for that catalog).`,
       profileId: resolved ? String(resolved.profileId) : null,
     };

@@ -11,7 +11,12 @@
  */
 
 import type { HemType, HemKick } from '@/lib/types/profile';
-import type { MachineProfile, MachineProfileBend, MachineProfileHem } from '@/lib/integrations/pathfinder-edge';
+import type {
+  MachineProfile,
+  MachineProfileBend,
+  MachineProfileHem,
+  PaintedSide,
+} from '@/lib/integrations/pathfinder-edge';
 
 const MM_PER_INCH = 25.4;
 
@@ -43,7 +48,16 @@ export interface FlashDraftProfileInput {
   poNumber?: string | null;
   requestedBy?: string | null;
   finish?: string | null;
+  // FlashDraft's own paint-face selection (app/studio/draft/page.tsx's
+  // `paintFace` state). null/undefined means the part is not painted, which
+  // maps to the spec's paintedSide "None".
+  paintFace?: FlashDraftPaintFace | null;
 }
+
+// Mirrors lib/utils/paint-appearance.ts's PaintFace. Declared structurally
+// here rather than imported so this adapter keeps depending only on types,
+// matching how HemType/HemKick are already handled above.
+export type FlashDraftPaintFace = 'up' | 'down';
 
 // Same fallback radius-by-material rule as app/studio/draft/page.tsx's
 // own defaultBendRadiusIn — duplicated rather than imported. This
@@ -132,6 +146,57 @@ function bendAngleAt(prev: FlashDraftPointInput, curr: FlashDraftPointInput, nex
   return Math.sign(turn) * (180 - Math.abs(turn));
 }
 
+// PathfinderEdge's BEND angle for the corner at `curr`, in the spec's own
+// orientation and sign convention (spec p.1: "the amount to bend", - for
+// right/clockwise, + for left/counter-clockwise).
+//
+// Computed directly from the two segment headings rather than derived from
+// the interior angle, because the turn between headings IS the bend angle —
+// no 180-minus-interior step, no boundary special cases, nothing to get
+// backwards.
+//
+// The negation is the un-mirroring step. FlashDraft world coordinates are
+// y-DOWN (app/studio/draft/page.tsx's worldToScreen applies no y flip), so
+// an atan2 difference in this space has the opposite handedness from the
+// spec's. Without it PathfinderEdge renders the part mirrored, which is
+// exactly what AFS profiles have been doing.
+//
+// Worked check against the spec's own 3" U-channel example (p.1), drawn in
+// y-down world coords as (0,-3) -> (0,0) -> (3,0) -> (3,-3): both corners
+// come out +90, giving [Straight(3), Angle(90), Straight(3), Angle(90),
+// Straight(3)] — the spec's exact feature list.
+export function specBendAngleAt(
+  prev: FlashDraftPointInput,
+  curr: FlashDraftPointInput,
+  next: FlashDraftPointInput
+): number {
+  const headingIn = Math.atan2(curr.y - prev.y, curr.x - prev.x);
+  const headingOut = Math.atan2(next.y - curr.y, next.x - curr.x);
+  const turn = wrapDeg(((headingOut - headingIn) * 180) / Math.PI);
+  // -0 is a real JS value and would serialise as `-0`; normalise it away.
+  return turn === 0 ? 0 : -turn;
+}
+
+// FlashDraft's paint face -> the spec's paintedSide, which is defined
+// (p.5) as the left (Positive) or right (Negative) side of the FIRST
+// segment in the feature list.
+//
+// FlashDraft draws its painted-side stripe by offsetting along the segment
+// normal (-dy, dx) in its y-DOWN world space, with paintFace 'up' taking
+// the +1 sign (lib/flashdraft/draw-profile-scene.ts:279-286). In y-down
+// coordinates that normal points to the RIGHT of travel, so 'up' is the
+// spec's Negative and 'down' is Positive.
+//
+// UNCONFIRMED VISUALLY, exactly like hemDirection's kick mapping: the
+// left/right derivation above is sound, but nobody has yet checked a pushed
+// painted part against PathfinderEdge's own render to confirm which face
+// FlashDraft's 'up' label actually means to an operator. Flagged in
+// STATE_OF_THE_BUILD.md.
+export function toPaintedSide(paintFace: FlashDraftPaintFace | null | undefined): PaintedSide {
+  if (!paintFace) return 'None';
+  return paintFace === 'up' ? 'Negative' : 'Positive';
+}
+
 function toMachineProfileHem(input: FlashDraftHemInput | null | undefined): MachineProfileHem | null {
   if (!input) return null;
   return {
@@ -203,6 +268,10 @@ export function flashDraftToMachineProfile(input: FlashDraftProfileInput): Machi
       leftLegMm: dist(points[i - 1], points[i]) * MM_PER_INCH,
       rightLegMm: dist(points[i], points[i + 1]) * MM_PER_INCH,
       bendAngleDegrees: bendAngleAt(points[i - 1], points[i], points[i + 1]),
+      // The value PathfinderEdge actually receives. bendAngleDegrees above
+      // stays the interior angle because that is what the database and every
+      // geometry summary already store — see MachineProfileBend's own doc.
+      specBendAngleDegrees: specBendAngleAt(points[i - 1], points[i], points[i + 1]),
       radiusMm: radiusIn * MM_PER_INCH,
     });
   }
@@ -220,5 +289,6 @@ export function flashDraftToMachineProfile(input: FlashDraftProfileInput): Machi
     poNumber: input.poNumber ?? null,
     requestedBy: input.requestedBy ?? null,
     finish: input.finish ?? null,
+    paintedSide: toPaintedSide(input.paintFace),
   };
 }

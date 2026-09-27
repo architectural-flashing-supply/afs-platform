@@ -44,6 +44,10 @@ interface RequestBody {
   jobName?: string | null;
   requestedDeliveryDate?: string | null;
   finish?: string | null;
+  // FlashDraft's paint-face selection -> the spec's profile-level
+  // paintedSide (see flashdraft-to-pathfinder.ts's toPaintedSide). null when
+  // the part is not painted.
+  paintFace?: 'up' | 'down' | null;
   // Data-URI PNG snapshot of the FlashDraft canvas at the moment of send —
   // captured client-side via canvasRef.current.toDataURL('image/png') in
   // app/studio/draft/page.tsx's sendToPathfinder(). This IS FlashDraft's own
@@ -141,6 +145,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         poNumber: body.poNumber ?? null,
         requestedBy: body.requestedBy ?? null,
         finish: body.finish ?? null,
+        paintFace: body.paintFace === 'up' || body.paintFace === 'down' ? body.paintFace : null,
       });
     } catch (err) {
       return NextResponse.json(
