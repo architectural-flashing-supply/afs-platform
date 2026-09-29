@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
-import { ALL_MATERIALS, GAUGES_BY_MATERIAL, MATERIAL_SHORTHAND } from '@/lib/data/catalog';
+import { ALL_MATERIALS, GAUGES_BY_MATERIAL, MATERIAL_SHORTHAND, normalizeMaterialLabel, gaugesForMaterial } from '@/lib/data/catalog';
 import {
   colorPaletteForMaterial,
   requiresFinishChoice,
@@ -331,7 +331,8 @@ function buildFallbackProfileName(
   clientName: string | null,
   poNumber: string | null
 ): string {
-  const shortMaterial = material ? (MATERIAL_SHORTHAND[material] ?? material) : 'Profile';
+  const canonicalMaterial = material ? normalizeMaterialLabel(material) : '';
+  const shortMaterial = canonicalMaterial ? (MATERIAL_SHORTHAND[canonicalMaterial] ?? canonicalMaterial) : 'Profile';
   const materialGauge = [shortMaterial, gauge || null].filter(Boolean).join(' ');
   const identitySegment = jobName || businessName || clientName || null;
   const poSegment = poNumber ? `PO ${poNumber}` : null;
@@ -1209,7 +1210,7 @@ export default function FlashDraftPage() {
   // of always resetting to 'up' at final submit confirmation.
   const [paintFace, setPaintFace] = useState<PaintFace>('up');
 
-  const gaugeOptions = material ? GAUGES_BY_MATERIAL[material] ?? [] : [];
+  const gaugeOptions = material ? gaugesForMaterial(material) : [];
   // 'painted_steel' materials always require a McElroy color selection.
   // 'aluminum' materials require a Finish choice first (afs-jf-002,
   // supersedes afs-cv-002's blanket "aluminum always means PAC-CLAD"

@@ -94,7 +94,7 @@ const PROFILE_TYPES = [
 
 const MATERIALS = [
   'Galvanized Steel',
-  'Galvanized Galvalume',
+  'Galvalume',
   'Copper',
   'Lead Coated Copper',
   'Anodized Aluminum',
@@ -106,7 +106,7 @@ const MATERIALS = [
 
 const GAUGES: Record<string, string[]> = {
   'Galvanized Steel':           ['26 ga', '24 ga', '22 ga', '20 ga', '18 ga'],
-  'Galvanized Galvalume':       ['26 ga', '24 ga', '22 ga', '20 ga', '18 ga'],
+  'Galvalume':                 ['26 ga', '24 ga', '22 ga', '20 ga', '18 ga'],
   'Copper':                     ['16 oz', '20 oz'],
   'Lead Coated Copper':         ['16 oz', '18 ga'],
   'Anodized Aluminum':          ['0.032"', '0.040"', '0.050"', '0.063"', '18 ga'],

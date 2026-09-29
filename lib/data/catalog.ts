@@ -42,7 +42,7 @@ export interface Finish {
 
 export const ALL_MATERIALS = [
   'Galvanized Steel',
-  'Galvanized Galvalume',
+  'Galvalume',
   'Copper',
   'Lead Coated Copper',
   'Anodized Aluminum',
@@ -51,6 +51,53 @@ export const ALL_MATERIALS = [
   'Kynar 500 (Painted Steel)',
   'Vintage Steel',
 ] as const;
+
+/**
+ * Read-time aliases for material labels that have been RENAMED. Rows written
+ * before a rename keep the old string forever — saved_configurations,
+ * quote_requests, machine_jobs, shop_profile_library and orders all store the
+ * label as free text, and the 026 migration rewrites the rows that existed at
+ * the time it ran, not the ones a stale client writes afterwards. So every
+ * read path normalizes through `normalizeMaterialLabel` rather than trusting
+ * the stored string.
+ *
+ * 2026-09-29: "Galvanized Galvalume" -> "Galvalume". Galvalume IS an
+ * aluminum-zinc coating on steel, so "Galvanized Galvalume" named the coating
+ * twice. The standalone "Galvanized Steel" option is a DIFFERENT material
+ * (G90 zinc coating) and is deliberately untouched.
+ *
+ * Keys are matched loosely — case, spacing, hyphens and underscores are all
+ * normalized away first — so 'galvanized-galvalume' and
+ * 'galvanized_galvalume' resolve the same as the display spelling.
+ */
+export const LEGACY_MATERIAL_ALIASES: Record<string, string> = {
+  galvanizedgalvalume: 'Galvalume',
+};
+
+function materialAliasKey(raw: string): string {
+  return raw.toLowerCase().replace(/[\s_-]+/g, '');
+}
+
+/**
+ * Resolves any stored material string — current or legacy — to its canonical
+ * ALL_MATERIALS label. Unknown strings are returned unchanged (trimmed), so a
+ * material this catalog has never heard of still displays as whatever the row
+ * actually holds instead of vanishing.
+ */
+export function normalizeMaterialLabel(raw: string | null | undefined): string {
+  if (!raw) return '';
+  const trimmed = raw.trim();
+  const canonical = (ALL_MATERIALS as readonly string[]).find(
+    (m) => materialAliasKey(m) === materialAliasKey(trimmed),
+  );
+  if (canonical) return canonical;
+  return LEGACY_MATERIAL_ALIASES[materialAliasKey(trimmed)] ?? trimmed;
+}
+
+/** Gauge list for a material label, tolerating legacy stored spellings. */
+export function gaugesForMaterial(material: string | null | undefined): string[] {
+  return GAUGES_BY_MATERIAL[normalizeMaterialLabel(material)] ?? [];
+}
 
 // Shorthand for the PathfinderEdge fallback title generator (afs-jf-006) —
 // both send paths (FlashDraft's own "Send to PathfinderEdge" button and
@@ -63,7 +110,7 @@ export const ALL_MATERIALS = [
 // "Anodized Aluminum" -> "Anodized" precedent set by this task.
 export const MATERIAL_SHORTHAND: Record<string, string> = {
   'Galvanized Steel': 'Galvanized',
-  'Galvanized Galvalume': 'Galvalume',
+  'Galvalume': 'Galvalume',
   Copper: 'Copper',
   'Lead Coated Copper': 'Lead Coated',
   'Anodized Aluminum': 'Anodized',
@@ -77,7 +124,7 @@ export const MATERIAL_SHORTHAND: Record<string, string> = {
 // supplier data (see CLAUDE.md Data Blockers). Used to drive AI material guidance.
 export const MATERIAL_STOCK_STATUS: Record<string, StockType> = {
   'Galvanized Steel': 'stock',
-  'Galvanized Galvalume': 'fabricated',
+  'Galvalume': 'fabricated',
   'Copper': 'fabricated',
   'Lead Coated Copper': 'special_order',
   'Anodized Aluminum': 'stock',
@@ -104,7 +151,7 @@ export const ACCESSORIES: Accessory[] = [
 
 export const GAUGES_BY_MATERIAL: Record<string, string[]> = {
   'Galvanized Steel':           ['26 ga', '24 ga', '22 ga', '20 ga', '18 ga'],
-  'Galvanized Galvalume':       ['26 ga', '24 ga', '22 ga', '20 ga', '18 ga'],
+  'Galvalume':                 ['26 ga', '24 ga', '22 ga', '20 ga', '18 ga'],
   'Copper':                     ['16 oz', '20 oz'],
   'Lead Coated Copper':         ['16 oz', '18 ga'],
   'Anodized Aluminum':          ['0.032"', '0.040"', '0.050"', '0.063"', '18 ga'],
@@ -148,7 +195,7 @@ export const CATEGORIES: CatalogCategory[] = [
       'Low-slope roof edges',
       'Roof-to-wall intersections',
     ],
-    materials: ['Galvanized Steel', 'Galvanized Galvalume', 'Copper', 'Anodized Aluminum', 'Stainless Steel'],
+    materials: ['Galvanized Steel', 'Galvalume', 'Copper', 'Anodized Aluminum', 'Stainless Steel'],
     gradientClass: GRADIENT_GALVANIZED,
   },
   {
@@ -262,7 +309,7 @@ export const CATEGORIES: CatalogCategory[] = [
       'Low-slope to steep-slope roof systems',
       'Wind-uplift-rated roof coverage',
     ],
-    materials: ['Galvanized Steel', 'Galvanized Galvalume', 'Copper', 'Anodized Aluminum', 'Stainless Steel', 'Zinc', 'Kynar 500 (Painted Steel)'],
+    materials: ['Galvanized Steel', 'Galvalume', 'Copper', 'Anodized Aluminum', 'Stainless Steel', 'Zinc', 'Kynar 500 (Painted Steel)'],
     gradientClass: GRADIENT_ROOF_PANEL,
   },
 ];
@@ -292,7 +339,7 @@ export const PRODUCTS: CatalogProduct[] = [
     name: 'Valley Flashing',
     description:
       'Open valley flashing formed to your roof pitch and valley width, with hemmed edges for rigidity and clean water shed.',
-    materials: ['Galvanized Steel', 'Galvanized Galvalume', 'Copper'],
+    materials: ['Galvanized Steel', 'Galvalume', 'Copper'],
     stockType: 'fabricated',
     leadTimeDays: 5,
     rushEligible: true,
@@ -534,7 +581,7 @@ export const PRODUCTS: CatalogProduct[] = [
     name: 'Single-Lock Panel',
     description:
       'Field-seamed standing seam panel with a simpler single-fold leg geometry, more tolerant of minor field variation than a double-locked panel. Appropriate for 3:12+ slope roofs with lower wind exposure.',
-    materials: ['Galvanized Steel', 'Anodized Aluminum', 'Galvanized Galvalume', 'Kynar 500 (Painted Steel)'],
+    materials: ['Galvanized Steel', 'Anodized Aluminum', 'Galvalume', 'Kynar 500 (Painted Steel)'],
     stockType: 'fabricated',
     leadTimeDays: 7,
     rushEligible: true,
@@ -553,7 +600,7 @@ export const PRODUCTS: CatalogProduct[] = [
     name: 'Snap-Lock Panel',
     description:
       'Factory-formed standing seam panel with a formed bulb/hook male leg that engages a matching female pocket by hand pressure — no seamer required. Lower wind-uplift rating than mechanically seamed panels, so slope and exposure are the deciding factors.',
-    materials: ['Anodized Aluminum', 'Galvanized Steel', 'Kynar 500 (Painted Steel)', 'Galvanized Galvalume'],
+    materials: ['Anodized Aluminum', 'Galvanized Steel', 'Kynar 500 (Painted Steel)', 'Galvalume'],
     stockType: 'fabricated',
     leadTimeDays: 6,
     rushEligible: true,

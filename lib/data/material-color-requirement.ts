@@ -10,7 +10,7 @@
  * Neither of the two surfaces query the live `materials` table directly;
  * each renders its own local string array, and those local labels differ
  * slightly in wording from the seeded `materials.name` values (e.g.
- * "Galvanized Galvalume" here vs. "Galvalume Steel" in the DB, "Kynar 500
+ * "Galvalume" here vs. "Galvalume Steel" in the DB, "Kynar 500
  * (Painted Steel)" here vs. "Kynar 500 Painted Steel" in the DB). This maps
  * by the same underlying material, not by exact string equality against a
  * different table — every entry below was cross-checked against the real
@@ -18,6 +18,7 @@
  */
 
 import { pacclad_anodized } from './metal-colors';
+import { normalizeMaterialLabel } from './catalog';
 
 export type MaterialCategory =
   | 'galvanized'
@@ -30,7 +31,7 @@ export type MaterialCategory =
 
 export const MATERIAL_LABEL_TO_CATEGORY: Record<string, MaterialCategory> = {
   'Galvanized Steel': 'galvanized',
-  'Galvanized Galvalume': 'galvalume',
+  'Galvalume': 'galvalume',
   Copper: 'copper',
   'Lead Coated Copper': 'copper',
   'Anodized Aluminum': 'aluminum',
@@ -39,6 +40,17 @@ export const MATERIAL_LABEL_TO_CATEGORY: Record<string, MaterialCategory> = {
   'Kynar 500 (Painted Steel)': 'painted_steel',
   'Vintage Steel': 'painted_steel',
 };
+
+/**
+ * Category for a material label, tolerating legacy stored spellings (e.g. the
+ * pre-2026-09-29 "Galvanized Galvalume", now "Galvalume"). Every lookup in
+ * this module goes through here so a row written before a rename still
+ * resolves to the right palette and finish rules instead of falling through
+ * to undefined.
+ */
+function categoryFor(materialLabel: string): MaterialCategory | undefined {
+  return MATERIAL_LABEL_TO_CATEGORY[normalizeMaterialLabel(materialLabel)];
+}
 
 export type ColorPalette = 'mcelroy' | 'pacclad' | 'pacclad_anodized';
 
@@ -58,7 +70,7 @@ export type AluminumFinish = 'Anodized' | 'Painted';
  * category (Anodized Aluminum, the only seeded aluminum material).
  */
 export function requiresFinishChoice(materialLabel: string): boolean {
-  return MATERIAL_LABEL_TO_CATEGORY[materialLabel] === 'aluminum';
+  return categoryFor(materialLabel) === 'aluminum';
 }
 
 /**
@@ -69,7 +81,7 @@ export function requiresFinishChoice(materialLabel: string): boolean {
  * whether it HAS been satisfied.
  */
 export function materialRequiresColorValue(materialLabel: string): boolean {
-  const category = MATERIAL_LABEL_TO_CATEGORY[materialLabel];
+  const category = categoryFor(materialLabel);
   return category === 'painted_steel' || category === 'aluminum';
 }
 
@@ -96,7 +108,7 @@ export function colorPaletteForMaterial(
   materialLabel: string,
   finish?: AluminumFinish | null
 ): ColorPalette | null {
-  const category = MATERIAL_LABEL_TO_CATEGORY[materialLabel];
+  const category = categoryFor(materialLabel);
   if (category === 'painted_steel') return 'mcelroy';
   if (category === 'aluminum') {
     if (finish === 'Painted') return 'pacclad';
@@ -133,7 +145,7 @@ export function isColorRequirementSatisfied(
   finish: AluminumFinish | null,
   color: string
 ): boolean {
-  const category = MATERIAL_LABEL_TO_CATEGORY[materialLabel];
+  const category = categoryFor(materialLabel);
   if (category === 'painted_steel') return color.trim() !== '';
   if (category === 'aluminum') return finish != null && color.trim() !== '';
   return true;
@@ -141,7 +153,7 @@ export function isColorRequirementSatisfied(
 
 /** User-facing message for when isColorRequirementSatisfied is false. */
 export function colorRequirementErrorMessage(materialLabel: string, finish: AluminumFinish | null): string {
-  const category = MATERIAL_LABEL_TO_CATEGORY[materialLabel];
+  const category = categoryFor(materialLabel);
   if (category === 'aluminum') {
     if (!finish) return 'Select a Finish (Anodized or Painted) before submitting.';
     if (finish === 'Painted') return 'Select a PAC-CLAD color before submitting.';

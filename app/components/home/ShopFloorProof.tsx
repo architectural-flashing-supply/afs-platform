@@ -6,7 +6,7 @@ import RevealOnScroll from './RevealOnScroll';
 // Proof stats sourced from governance docs, not invented:
 // - 9 materials (2026-09-19 revision pass, item 8): lib/data/catalog.ts's
 //   real ALL_MATERIALS/GAUGES_BY_MATERIAL catalog -- Galvanized Steel,
-//   Galvanized Galvalume, Copper, Lead Coated Copper, Anodized Aluminum,
+//   Galvalume, Copper, Lead Coated Copper, Anodized Aluminum,
 //   Stainless Steel, Zinc, Kynar 500 (Painted Steel), Vintage Steel. The
 //   prior "5" was CLAUDE.md's older, simplified fabrication list, not the
 //   full catalog this site's own configurator actually offers.
