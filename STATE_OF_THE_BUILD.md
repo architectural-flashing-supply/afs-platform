@@ -34,6 +34,324 @@ summary, not a replacement for it.
 
 ---
 
+## ENVIRONMENT HYGIENE — ONE CANONICAL VERCEL PROJECT + WORKING LOGIN (lr-01): VERIFIED (2026-09-29)
+
+Every claim below is backed by real command output or a live HTTP result
+captured this run. Nothing is carried forward from a prior session — several
+prior claims in this file and in CLAUDE.md were found to be **backwards** and
+are corrected here.
+
+### 1. Inventory (live, `vercel` CLI + Vercel REST API)
+
+```
+vercel whoami   -> reid-9664
+vercel teams ls -> reids-projects-b3405b97 (reid's projects, pro)
+                   steveharyckis-projects  (steveharycki's projects, pro)
+```
+
+Both scopes contain a project named `afs-website`, and BOTH were connected to
+`github.com/architectural-flashing-supply/afs-platform` (repoId 1286478145),
+both with `productionBranch: main`, both sitting on commit `075c952` at the
+start of this run.
+
+| | STRAY | CANONICAL |
+|---|---|---|
+| Scope | `reids-projects-b3405b97` | `steveharyckis-projects` |
+| Team ID | `team_LakHkpsa9gL4kTe1WZIHBJaR` | `team_dfBIZiaZlYIIHoq6UPOJaRJm` |
+| Project ID | `prj_POXBIS4e5hE88zekvufE6aODCUeP` | `prj_In4blcKRV8BoeaYg9y3nsskdOCpD` |
+| Created | 2026-09-16 | 2026-07-01 |
+| Production alias | `afs-website-eight.vercel.app` | **`afs-website-alpha.vercel.app`** |
+
+**Proof that `afs-website-alpha.vercel.app` is the steveharyckis-projects
+production alias tracking `main`:** the Vercel API returns it as
+`targets.production.alias[0]` for `prj_In4blcKRV8BoeaYg9y3nsskdOCpD`, whose
+production deployment carries `githubCommitRef=main` and
+`githubCommitSha=075c952` (equal to `git rev-parse HEAD` at run start).
+Independently corroborated by `vercel alias ls --scope steveharyckis-projects`,
+in which `afs-website-alpha.vercel.app` and
+`afs-website-git-main-steveharyckis-projects.vercel.app` resolve to the **same**
+source deployment, `afs-website-5a12juj4e-steveharyckis-projects.vercel.app`.
+
+**Correction to prior governance.** CLAUDE.md rule #9 and this file's
+2026-09-19 entries asserted that `afs-website-eight.vercel.app` was real
+production and that `afs-website-alpha.vercel.app` "does not belong to this
+project's Vercel account/scope at all." Both statements are wrong. Alpha is a
+real, *older* project (2026-07-01 vs 2026-09-16) in a team the signed-in user
+belongs to, and it is now the designated canonical review environment. Rule #9
+has been rewritten.
+
+### 2. Relink
+
+`vercel link --scope steveharyckis-projects --project afs-website --yes`
+→ `.vercel/project.json` is now
+`{"projectId":"prj_In4blcKRV8BoeaYg9y3nsskdOCpD","orgId":"team_dfBIZiaZlYIIHoq6UPOJaRJm","projectName":"afs-website"}`.
+It had previously pointed at the STRAY (`prj_POXBIS...` / `team_LakHk...`).
+
+Side effect caught and reverted: `vercel link` appended `.env*` to
+`.gitignore`. `.env.local` was already covered by `.gitignore:15`, and `.env*`
+would additionally have shadowed the **tracked** `.env.example`. Reverted;
+`.gitignore` is unchanged from HEAD.
+
+### 3. Environment variable comparison — NAMES AND COVERAGE ONLY
+
+No value was pulled, decrypted or printed. Queried with `decrypt=false` against
+each project's explicit `projectId` + `teamId`. **NOTE:** `vercel env ls
+--scope <scope>` silently ignores `--scope` and reports whatever project the
+local `.vercel` directory is linked to (its own output header gave it away), so
+the CLI cannot be used for this comparison — the REST API was used instead.
+
+```
+STRAY  reids-projects-b3405b97/afs-website   -- 11 names, ALL [production] only
+TEAM   steveharyckis-projects/afs-website    -- 13 names, ALL [preview, production]
+```
+
+**Present only in the STRAY (1):**
+- `PATHFINDER_EDGE_MACHINE_SERIAL`
+
+**Present only in the TEAM project (3):**
+- `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+
+**Coverage differs (10)** — each is `[production]` only on the stray but
+`[preview, production]` on the team project: `AFS_BRIDGE_SECRET`,
+`ANTHROPIC_API_KEY`, `GOOGLE_MAPS_API_KEY`, `NEXT_PUBLIC_APP_URL`,
+`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
+`NEXT_PUBLIC_SUPABASE_URL`, `PATHFINDER_EDGE_API_KEY`,
+`PATHFINDER_EDGE_BASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`.
+
+**DECISIONS FOR REID (not actioned this run):**
+
+1. `PATHFINDER_EDGE_MACHINE_SERIAL` exists only on the now-disconnected stray.
+   If anything on alpha ever needs it, it must be added to the team project —
+   it will not arrive by itself. (Nothing reads it at runtime today; the
+   PathfinderEdge integration is a stub, see ARCHITECTURE.md §12.)
+2. The stray still holds its own copies of `SUPABASE_SERVICE_ROLE_KEY`,
+   `ANTHROPIC_API_KEY`, `AFS_BRIDGE_SECRET`, `PATHFINDER_EDGE_API_KEY` and both
+   Google Maps keys. Disconnecting it from GitHub stops it building new code;
+   it does **not** remove those secrets. Whether to delete the project and/or
+   rotate those keys is Reid's call.
+3. Neither project defines any `development`-target variable, and neither
+   defines `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `TWILIO_*`, `TAXJAR_API_KEY`,
+   `METALS_API_KEY` or `CRON_SECRET` — all of which BLUEPRINT.md §6 lists.
+   Features depending on them degrade rather than work on alpha (the Playwright
+   suite's "email-my-result form degrades gracefully when Resend is not
+   configured" test exists for exactly this).
+4. `NEXT_PUBLIC_APP_URL` on the team project is stored as `sensitive`, so its
+   value **cannot be read back** through the API by design. An attempt to
+   overwrite it with `https://afs-website-alpha.vercel.app` returned **HTTP 403
+   — "Additional permissions are required to create production environment
+   variables"**; the accompanying delete also returned 403, so nothing was
+   changed. Reid (or a team owner) must set it manually. Until then
+   `getSiteUrl()` on alpha returns whatever that hidden value is, which per the
+   2026-09-19 notes is probably `https://afs-website-eight.vercel.app` — i.e.
+   server-generated absolute URLs on alpha may still point at the disconnected
+   project's domain. **This does not affect login**, which derives its redirect
+   from the request `origin`, not `getSiteUrl()`.
+
+### 4. Stray disconnected — NOT deleted
+
+`vercel git disconnect --scope reids-projects-b3405b97 --yes`. Because the CLI
+resolves the target project from the local `.vercel` link rather than from
+`--scope` (see §3), running it in this repo would have disconnected the **team**
+project; it was run from a temp directory containing a `.vercel/project.json`
+pointing explicitly at `prj_POXBIS...`.
+
+```
+BEFORE  STRAY | Git connection: github:architectural-flashing-supply/afs-platform (branch main)
+        TEAM  | Git connection: github:architectural-flashing-supply/afs-platform (branch main)
+
+  > Your Vercel project will no longer create deployments when you push to this repository.
+  > Disconnected architectural-flashing-supply/afs-platform.   (exit 0)
+
+AFTER   STRAY | Git connection: NONE
+        TEAM  | Git connection: github:architectural-flashing-supply/afs-platform (branch main)
+```
+
+The project still exists (`vercel project ls --scope reids-projects-b3405b97`
+still lists `afs-website` → `afs-website-eight.vercel.app`). **Behavioural proof
+the disconnect holds:** pushing commit `1f50497` produced production deployment
+`dpl_FG8fQ7woZX3cnfSr9xCBycaZK4fb` (sha `1f50497`, branch `main`, READY) on the
+team project, while the stray's newest deployment remained `df22fd1`, 2692
+minutes old.
+
+### 5. Login on alpha — two real root causes, both fixed
+
+Driven with `auth.admin.generateLink` (service role) against the real admin
+account, `steve@architecturalflashingsupply.com` (the only `role=admin` row in
+`profiles`). **No email was sent** — the admin API returns the link to the
+caller. All tokens masked in output.
+
+**Root cause A — Supabase Auth redirect allow-list (CONFIGURATION).** The
+project had `SITE_URL = http://localhost:3000` and an **empty**
+`URI_ALLOW_LIST`. Any `redirect_to` pointing at alpha was therefore silently
+discarded and replaced with `http://localhost:3000` — proven by the first hop
+chain, whose `Location` was `http://localhost:3000#access_token=...` and which
+then died on `ECONNREFUSED 127.0.0.1:3000`. **No login on alpha could ever have
+worked.** Fixed via the Supabase Management API:
+
+```
+site_url       : https://afs-website-alpha.vercel.app
+uri_allow_list : https://afs-website-alpha.vercel.app/**,
+                 https://afs-website-eight.vercel.app/**,
+                 http://localhost:3000/**
+```
+
+(`eight` and `localhost` deliberately retained so nothing already pointed at
+them breaks.)
+
+Note on diagnosis honesty: an intermediate probe that appeared to show the
+allow-list still failing was **my own bug** — a raw `fetch` nested `redirect_to`
+under `options`, where GoTrue expects it top-level. Re-run through the real
+`auth.admin.generateLink` SDK call, the allow-list fix is confirmed working:
+`honored redirect_to = https://afs-website-alpha.vercel.app/auth/callback?next=%2Fadmin`.
+
+**Root cause B — `app/auth/callback/route.ts` (CODE, one file, additive).**
+With the redirect honored, the chain still ended at
+`/login?error=auth_callback_failed`. Reason: server/admin-generated links carry
+no PKCE `code_verifier`, so GoTrue's `/verify` returns an **implicit-flow
+`#access_token=...` fragment**, and a URL fragment is never transmitted to a
+server — the route's only branch was `?code=` (`exchangeCodeForSession`), which
+could not possibly see it. Fixed by adding the documented server-side
+counterpart: a `token_hash` + `type` branch calling `verifyOtp()`, alongside the
+untouched `?code=` branch. Browser magic links (`signInWithOtp` via
+`createBrowserClient`, PKCE by default) still arrive as `?code=` and are
+unaffected. Committed as `1f50497`. This was reported before being applied, per
+the prompt's constraint, and qualifies as the permitted one-file
+configuration-shaped change.
+
+**Final hop chain (tokens masked), landing AUTHENTICATED on alpha:**
+
+```
+auth.admin.generateLink -> OK.  NO EMAIL SENT.
+  action_link        : https://lxfiziwsqezjjybeguqq.supabase.co/auth/v1/verify
+                       ?token=935d...fe52&type=magiclink
+                       &redirect_to=https%3A%2F%2Fafs-website-alpha.vercel.app%2Fauth%2Fcallback%3Fnext%3D%252Fadmin
+  honored redirect_to: https://afs-website-alpha.vercel.app/auth/callback?next=%2Fadmin
+
+HOP 1  URL        : https://afs-website-alpha.vercel.app/auth/callback?token_hash=935d...fe52&type=magiclink&next=%2Fadmin
+       STATUS     : 307 Temporary Redirect
+       LOCATION   : https://afs-website-alpha.vercel.app/admin
+       SET-COOKIE : sb-lxfiziwsqezjjybeguqq-auth-token=base...V9fQ
+       SESSION SET: YES
+
+HOP 2  URL        : https://afs-website-alpha.vercel.app/admin
+       STATUS     : 200 OK
+       LOCATION   : (none)
+
+FINAL URL  : https://afs-website-alpha.vercel.app/admin
+AUTH PROBE : GET /admin   -> 200 (no redirect to /login)
+AUTH PROBE : GET /account -> 200 (no redirect to /login)
+AUTHENTICATED ON ALPHA: YES
+```
+
+The `/admin` landing (rather than the requested `next` being honored as
+`/account`) also confirms the callback's admin-role branch ran against a real
+`profiles` lookup.
+
+### 6. E2E test user + the FlashDraft canvas tests
+
+Created `e2e-forge@architecturalflashingsupply.com` via `auth.admin.createUser`
+(service role, `email_confirm: true`), with a 36-character
+`crypto.randomBytes` password that is **never printed**, and a `profiles` row
+with `role = 'admin'`. The password was then proven to work against the real
+auth server via `signInWithPassword` (returned a real access token).
+`E2E_TEST_EMAIL` / `E2E_TEST_PASSWORD` written to `.env.local`, confirmed
+gitignored: `git check-ignore -v .env.local` → `.gitignore:15`.
+
+**Four real defects, every one invisible until credentials existed** (the whole
+`FlashDraft canvas` describe had always skipped):
+
+1. **`playwright.config.ts` never loaded `.env.local`.** There is no `dotenv`
+   dependency in this repo and the config had no loader, so credentials written
+   to `.env.local` reached nothing. Added a zero-dependency loader that does not
+   override anything already exported in the shell. *This is the direct answer
+   to "diagnose why the credentials are not reaching it."*
+2. **`auth.setup.ts` strict-mode violation.** `getByRole('button', { name:
+   /log in|sign in/i })` matched both `Sign In` (submit) and `Sign in with magic
+   link instead` (toggle). Latent since that toggle shipped. Anchored to
+   `/^(log in|sign in)$/i`.
+3. **The canvas describe never consumed `storageState`.** Unlike
+   `checkout.spec.ts`, `command-center.spec.ts` and `production-queue.spec.ts`,
+   it was gated on credentials but never used the session `auth.setup.ts`
+   produces — so `performSave` always hit "Sign in to save profiles to your
+   account." (`app/studio/draft/page.tsx:2558`). The save assertion could never
+   have passed. Added `test.use({ storageState })`.
+4. **Two stale assertions.** The test clicked through a `Profile Details` modal
+   that the app deliberately removed in Phase 3 / afs-pp-001 (see
+   `lockAndSaveProfile`'s own comment: "no modal, no form-filling"), and
+   asserted a success toast reading `Profile locked and saved to your Passport`,
+   a string that exists nowhere in the codebase — the real toast is `Profile
+   Saved & Locked` (`app/studio/draft/page.tsx:2661`). Both corrected to match
+   shipped behaviour.
+
+**Result — all three canvas tests EXECUTED (none skipped), against
+`https://afs-website-alpha.vercel.app`:**
+
+```
+PASS (1.7s)  FlashDraft canvas > draws a two-leg profile, shows a nonzero blank
+             width and bend count, and opens the 3D submit confirmation
+PASS (1.3s)  FlashDraft canvas > Alt+drag moves the whole profile without
+             changing any leg length or the blank width
+PASS (5.8s)  FlashDraft canvas > Lock Profile & Save to Passport stops the
+             canvas from accepting further clicks/drags, and the profile saves
+
+5 passed (19.3s)   [incl. the setup project and the templates spec]
+```
+
+Committed as `0af96fc`.
+
+### 7. Full suite state (context, not regressions)
+
+`npx playwright test` against alpha: **70 passed, 11 failed, 4 skipped.**
+
+Ten of those failures (all of `hailview.spec.ts`, two in `homepage.spec.ts`)
+were **proven pre-existing** by re-running them with this run's changes stashed
+— identical failures, and neither spec is credential-gated, so this run's env
+loader cannot have affected them. They are stale-expectation failures against
+the deployed site (e.g. `homepage.spec.ts:260` expects the header logo
+`width="76"`; alpha renders `width="160"`).
+
+The eleventh, `checkout.spec.ts:21` ("with no quote id, checkout is unreachable
+and shows no price"), is **newly executing** because of this run's env loader,
+and fails on a stale UI-copy assertion — it waits for a heading `Checkout
+Unavailable` that the page no longer renders. Left unfixed: out of lr-01's named
+scope. Note the two security-relevant tests in that same file **pass** — an
+unauthenticated visitor with a quote id is redirected to `/login` before any
+price renders, and a quote id the account does not own never reaches Stripe or
+shows a price.
+
+### 8. Gates
+
+- `npx tsc --noEmit` over the tracked codebase (`app/`, `lib/`, `components/`,
+  `types/`, `scripts/`, `middleware.ts`): **exit 0**.
+- `pnpm tsc --noEmit` as literally invoked: **exit 2**, with all four errors in
+  `diagnostics/spec-test-send.ts`. That file is **untracked** (`git ls-files
+  diagnostics` is empty) — local scratch debris from an earlier PathfinderEdge
+  session, referencing `buildFeaturesForTest`, `paintFace` and `paintedSide`,
+  none of which exist any more. Proven pre-existing by stashing this run's
+  changes and re-running: byte-identical errors at HEAD. It is not in the repo
+  and never reaches a Git deploy. Deliberately not deleted (someone else's
+  untracked working file) and `tsconfig.json` deliberately not edited to hide
+  it. **Cleanup is a decision for Reid:** delete
+  `diagnostics/spec-test-send.ts`, or repair it against the current
+  `lib/integrations/pathfinder-edge.ts` API.
+
+### 9. Not done / still open
+
+- `NEXT_PUBLIC_APP_URL` on the team project — blocked by HTTP 403, see §3.4.
+- Deleting the stray project and rotating the secrets it still holds — PENDING
+  REID, see §3.2.
+- Pre-existing secret-hygiene finding, unrelated to this prompt and not acted
+  on: `.env.local.backup` and `.env.local.new` are **tracked in git**
+  (`git ls-files` lists both) despite `.gitignore:40` covering the former —
+  they were committed before that rule existed. Worth a look from Reid.
+- No POST and no DELETE was made to PathfinderEdge anywhere in this run.
+- No production deploy was run from the working tree; alpha updated only via
+  `main` auto-deploy.
+
+---
+
 ## PROFILE PASSPORT — TABLE LAYOUT, PO COLUMN (afs-pp-005): IMPLEMENTED, UNCONFIRMED (2026-09-17)
 
 Third `ProfilesTab` layout in three consecutive passes — table (afs-pp-001)

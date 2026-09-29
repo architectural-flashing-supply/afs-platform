@@ -24,6 +24,100 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## ENVIRONMENT HYGIENE — ONE CANONICAL VERCEL PROJECT + WORKING LOGIN (lr-01) — 2026-09-29
+
+**Status: VERIFIED.** Every item below is backed by live command output or a
+live HTTP result, not by a prior session's summary. Full detail, including the
+complete env-var comparison and the masked magic-link hop chain, is in
+STATE_OF_THE_BUILD.md's lr-01 entry.
+
+**What was settled.** This repo was being auto-deployed by **two** Vercel
+projects, both connected to `architectural-flashing-supply/afs-platform`, both
+tracking `main`, both sitting on `075c952`:
+
+- `steveharyckis-projects/afs-website` → `afs-website-alpha.vercel.app`
+  (created 2026-07-01) — **now the canonical environment.**
+- `reids-projects-b3405b97/afs-website` → `afs-website-eight.vercel.app`
+  (created 2026-09-16) — **now disconnected from GitHub, NOT deleted.**
+
+The local `.vercel/project.json` had been linked to the *stray*; it is now
+linked to the team project (`orgId: team_dfBIZiaZlYIIHoq6UPOJaRJm`).
+
+**This inverts what CLAUDE.md rule #9 and the 2026-09-19 entries said.** They
+named `afs-website-eight.vercel.app` as real production and claimed alpha "does
+not belong to this project's Vercel account/scope at all." Both were wrong.
+Rule #9 has been rewritten; BLUEPRINT.md and ARCHITECTURE.md updated to match.
+
+**Proof the disconnect holds (behavioural, not just API state):** pushing
+`1f50497` produced a production deployment on the team project only; the
+stray's newest deployment stayed 2692 minutes old.
+
+**Login on alpha was completely broken, for two independent reasons — both
+found live, both fixed:**
+
+1. *Configuration.* Supabase Auth had `SITE_URL = http://localhost:3000` and an
+   **empty** `URI_ALLOW_LIST`. GoTrue does not error on a disallowed
+   `redirect_to` — it silently substitutes `SITE_URL` — so every magic link
+   redirected to `localhost:3000` and died on `ECONNREFUSED`. No hosted login
+   could ever have worked. Allow-list and site_url now point at alpha (with
+   `eight` and `localhost` retained).
+2. *Code, one file, additive.* `app/auth/callback/route.ts` only handled
+   `?code=` (PKCE). Server-generated links have no `code_verifier`, so GoTrue
+   returns an implicit `#access_token=...` fragment that never reaches a
+   server — those links always ended at `/login?error=auth_callback_failed`.
+   Added the documented `token_hash` + `verifyOtp()` branch alongside the
+   untouched `?code=` branch. Reported before applying, per the prompt's
+   constraint. Commit `1f50497`.
+
+Final chain now lands **authenticated**: callback → 307 with
+`sb-...-auth-token` set → `/admin` 200; `/account` also 200.
+
+**E2E test user + canvas tests.** Created
+`e2e-forge@architecturalflashingsupply.com` (admin role, 36-char random
+password, never printed, proven working via a real `signInWithPassword`);
+credentials in the gitignored `.env.local`. All **three** FlashDraft canvas
+tests now actually EXECUTE against alpha and pass. Getting there exposed four
+defects that the credential-skip had been hiding for as long as it existed:
+`playwright.config.ts` never loaded `.env.local` (no dotenv, no loader — this
+is why credentials "weren't reaching" the tests); `auth.setup.ts`'s login-button
+selector matched two buttons under strict mode; the canvas describe never
+consumed the `storageState` that `auth.setup.ts` produces, so `performSave`
+always hit "Sign in to save profiles to your account."; and two assertions
+referenced a modal and a toast string the app no longer has. Commit `0af96fc`.
+
+**Full suite for context:** 70 passed / 11 failed / 4 skipped. Ten failures
+(all `hailview.spec.ts`, two `homepage.spec.ts`) were **proven pre-existing** by
+re-running them with this run's changes stashed. The eleventh
+(`checkout.spec.ts:21`) is newly *executing* thanks to the env loader and fails
+on a stale UI-copy assertion — left alone as out of scope; the two
+security-relevant checkout tests in that file pass.
+
+**Gates.** `npx tsc --noEmit` over the tracked codebase: **exit 0**.
+`pnpm tsc --noEmit` as literally invoked: exit 2, all four errors in the
+**untracked** scratch file `diagnostics/spec-test-send.ts`, proven byte-identical
+at HEAD with this run's changes stashed. Not deleted (not this run's file) and
+`tsconfig.json` not edited to hide it.
+
+**Open, needs Reid.**
+1. `NEXT_PUBLIC_APP_URL` on the team project is `sensitive` (unreadable) and an
+   attempt to set it to alpha returned **HTTP 403 — additional permissions
+   required**. A team owner must set it manually; until then `getSiteUrl()` on
+   alpha may still emit the disconnected project's domain in server-generated
+   absolute URLs. Does not affect login.
+2. Whether to delete the stray project and rotate the secrets it still holds
+   (`SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`, `AFS_BRIDGE_SECRET`,
+   `PATHFINDER_EDGE_API_KEY`, both Maps keys). Disconnecting stops new builds;
+   it does not remove secrets.
+3. `PATHFINDER_EDGE_MACHINE_SERIAL` exists **only** on the stray. Nothing reads
+   it today (PathfinderEdge is a stub), but it will not migrate by itself.
+4. Pre-existing and unrelated, noticed in passing: `.env.local.backup` and
+   `.env.local.new` are **tracked in git** despite `.gitignore:40`.
+
+No POST and no DELETE was made to PathfinderEdge. No production deploy was run
+from the working tree.
+
+---
+
 ## PROFILE PASSPORT — TABLE LAYOUT, PO COLUMN (afs-pp-005) — 2026-09-17
 
 Third `ProfilesTab` layout in three passes: table → permanent sidebar →

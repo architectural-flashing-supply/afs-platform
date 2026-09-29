@@ -166,6 +166,57 @@ export async function middleware(request: NextRequest) {
 // Everything else → public
 ```
 
+### Auth Callback — Two Entry Shapes (lr-01, 2026-09-29)
+
+`app/auth/callback/route.ts` handles **both** shapes a Supabase email link can
+arrive in. Which one you get depends entirely on who generated the link, and
+the two are not interchangeable:
+
+```
+?code=<uuid>                       PKCE. Produced when the BROWSER initiates
+                                   (lib/supabase/client.ts's createBrowserClient
+                                   defaults to PKCE, so signInWithOtp on
+                                   app/(auth)/login/page.tsx stores a
+                                   code_verifier). Consumed with
+                                   exchangeCodeForSession().
+
+?token_hash=<hash>&type=magiclink  Implicit. Produced for any link generated
+                                   SERVER-side (auth.admin.generateLink, scripts,
+                                   admin tooling) -- no code_verifier exists, so
+                                   GoTrue's /verify redirects with an
+                                   `#access_token=...` FRAGMENT instead. A
+                                   fragment is never transmitted to a server, so
+                                   the ?code= branch can never see it. Consumed
+                                   with verifyOtp({ token_hash, type }).
+```
+
+Before lr-01 only the `?code=` branch existed, so every server-generated link
+dead-ended at `/login?error=auth_callback_failed`. Both branches then resolve
+the landing page identically: an `admin` role always goes to `/admin`
+regardless of `?next=`, matching the password sign-in redirect in
+`app/(auth)/login/page.tsx`.
+
+### Supabase Auth Redirect Allow-List — a real, silent failure mode
+
+GoTrue does **not** error on a `redirect_to` that is not in the allow-list. It
+silently substitutes `SITE_URL` and proceeds, so a misconfiguration looks like
+a working link that lands in the wrong place. Before lr-01 this project had
+`SITE_URL = http://localhost:3000` and an **empty** `URI_ALLOW_LIST`, which
+meant no hosted-environment login could ever have worked — every magic link
+redirected to `localhost:3000`. Current configuration:
+
+```
+site_url       : https://afs-website-alpha.vercel.app
+uri_allow_list : https://afs-website-alpha.vercel.app/**,
+                 https://afs-website-eight.vercel.app/**,
+                 http://localhost:3000/**
+```
+
+Adding a new hosted environment means adding it here too — the symptom of
+forgetting is a redirect to the canonical alias rather than an error message.
+
+---
+
 ### Role Hierarchy
 
 ```

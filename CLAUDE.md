@@ -241,28 +241,43 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
    that needs the app's own absolute URL calls `getSiteUrl()`
    (`NEXT_PUBLIC_APP_URL`, else `https://$VERCEL_URL`, else
    `http://localhost:3000`) — never a literal `'https://afs-website-...
-   .vercel.app'` string. `NEXT_PUBLIC_APP_URL` is set in Vercel production
-   env to `https://afs-website-eight.vercel.app`, the real production
-   alias — confirmed via `vercel project ls`/`vercel alias ls`
-   (2026-09-19). `afs-website-alpha.vercel.app`, which several routes had
-   hardcoded as their fallback before this rule, does **not** belong to
-   this project's Vercel account/scope at all (`vercel inspect` fails
-   against it under `reids-projects-b3405b97`) despite serving what looks
-   like a copy of this same site — see STATE_OF_THE_BUILD.md's 2026-09-19
-   entry for the full investigation. **Resolved, same day (Pass #2):** it's
-   a second real Vercel project, `steveharyckis-projects/afs-website`,
-   connected to this same GitHub repo since a 2026-07-01 multi-project
-   setup (four differently-named Vercel projects were created from this
-   repo at once) and still actively auto-deploying today — every deploy on
-   it triggers under Reid's own Vercel username (`reid-9664`), and its
-   build is currently byte-identical to real production. Not an outside
-   party; an old, never-disconnected leftover. Whether it holds its own
-   stale copy of Supabase/Stripe secrets is still open — PENDING REID to
-   decide whether to disconnect/delete it and whether to rotate keys. Full
-   forensic trail: STATE_OF_THE_BUILD.md's 2026-09-19 (Pass #2) entry.
-   Client-side code that needs the current origin should use
-   `window.location.origin` directly instead (works correctly on preview
-   deployments too, no env-inlining needed).
+   .vercel.app'` string. Client-side code that needs the current origin
+   should use `window.location.origin` directly instead (works correctly
+   on preview deployments too, no env-inlining needed).
+
+   **CANONICAL ENVIRONMENT (settled lr-01, 2026-09-29):
+   `https://afs-website-alpha.vercel.app`, project
+   `steveharyckis-projects/afs-website`
+   (`prj_In4blcKRV8BoeaYg9y3nsskdOCpD`, team
+   `team_dfBIZiaZlYIIHoq6UPOJaRJm`).** It is that project's production
+   alias tracking `main` — verified against the Vercel API
+   (`targets.production.alias[0]`, with `githubCommitRef=main`), and
+   corroborated by `vercel alias ls`, where `afs-website-alpha.vercel.app`
+   and `afs-website-git-main-steveharyckis-projects.vercel.app` resolve to
+   the same source deployment. The local `.vercel/project.json` is linked
+   to this project. `main` auto-deploys here; never run a production
+   deploy from the working tree.
+
+   **The other project, `reids-projects-b3405b97/afs-website`
+   (`prj_POXBIS4e5hE88zekvufE6aODCUeP`, alias
+   `afs-website-eight.vercel.app`), has been DISCONNECTED from GitHub —
+   NOT deleted.** `vercel git disconnect` was run against it on
+   2026-09-29; the Vercel API now reports no Git link for it, while the
+   team project still reports
+   `github:architectural-flashing-supply/afs-platform (branch main)`.
+   Proven live: pushing commit `1f50497` produced a production deployment
+   only on the team project, while the stray's newest deployment stayed
+   2692 minutes old. The project, its domains and its environment
+   variables all still exist and still serve the last build it made — it
+   simply no longer builds this repo. Deleting it, and deciding whether to
+   rotate the secrets it still holds, remains PENDING REID.
+
+   Earlier revisions of this rule had these two projects backwards (they
+   named `afs-website-eight.vercel.app` as real production and claimed
+   alpha did not belong to this account at all). Corrected here from live
+   command output — see STATE_OF_THE_BUILD.md's lr-01 entry for the full
+   inventory, the env-var comparison, and the Supabase Auth
+   redirect-allow-list fix that unblocked login on alpha.
 
 10. **Homepage/marketing videos are pre-rendered to their display aspect,
     never re-cropped or scaled in CSS.** Every real video asset used in a

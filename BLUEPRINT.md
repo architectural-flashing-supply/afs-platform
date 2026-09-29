@@ -515,6 +515,23 @@ since a 2026-07-01 multi-project setup and still auto-deploying today
 under Reid's own Vercel identity — not an unknown third party. Full detail:
 STATE_OF_THE_BUILD.md's 2026-09-19 (Pass #2) session entry.
 
+**Environment hygiene — one canonical Vercel project (lr-01, 2026-09-29).**
+The two-project ambiguity narrated above is settled, and the conclusion the
+2026-09-19 passes reached is **inverted**. The canonical environment is
+`https://afs-website-alpha.vercel.app`, the production alias of
+`steveharyckis-projects/afs-website` (`prj_In4blcKRV8BoeaYg9y3nsskdOCpD`),
+which tracks `main` — verified against the Vercel API
+(`targets.production.alias[0]`, `githubCommitRef=main`) and corroborated by
+`vercel alias ls`. The local `.vercel/project.json` is linked to it. The other
+project, `reids-projects-b3405b97/afs-website` (alias
+`afs-website-eight.vercel.app`), has been **disconnected from GitHub — not
+deleted**; the Vercel API now reports no Git link for it, and a push of commit
+`1f50497` produced a production deployment on the team project only. `main`
+auto-deploys to alpha; never run a production deploy from the working tree.
+Full inventory, the env-var name/coverage comparison, and the two Supabase Auth
+/ auth-callback fixes that made login work on alpha: STATE_OF_THE_BUILD.md's
+lr-01 entry.
+
 ---
 
 ## 6. ENVIRONMENT VARIABLES
