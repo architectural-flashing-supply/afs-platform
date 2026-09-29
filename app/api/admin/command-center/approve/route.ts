@@ -103,7 +103,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       bends,
     };
 
-    const pushResult = await pushProfileToPathfinder(machineProfile, AFS_MACHINE_CATALOG_ID);
+    // ONE DOOR: verified in the database before any network call (see
+    // pushProfileToPathfinder's header). The job is still 'pending_approval'
+    // here — it only becomes 'approved_for_machine' after a successful push.
+    const pushResult = await pushProfileToPathfinder(machineProfile, AFS_MACHINE_CATALOG_ID, {
+      kind: 'machine_job_approval',
+      machineJobId: jobRow.id,
+      adminId: user.id,
+    });
     if (pushResult.status !== 'connected') {
       // Job stays 'pending_approval' — nothing was actually sent, so
       // nothing should look approved. The admin can retry the same click

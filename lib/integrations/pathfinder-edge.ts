@@ -447,7 +447,113 @@ function composeDescription(profile: MachineProfile): string {
   return identity || reference;
 }
 
-export async function pushProfileToPathfinder(profile: MachineProfile, catalogId: string): Promise<PathfinderProfile> {
+/**
+ * THE SINGLE DOOR TO THE MACHINE.
+ *
+ * Catalog 20115 is subscribed by the physical Thalmann DS2801: anything that
+ * lands there is fabricable work, so reaching it must require a real, recorded
+ * Command Center approval — not a UI that merely hides a button.
+ *
+ * `pushProfileToPathfinder` therefore refuses to make any network call unless
+ * the caller hands it an `ApprovalContext` that this module VERIFIES IN THE
+ * DATABASE first, with the service role, immediately before the POST:
+ *
+ *   - `quote_request_approval` — the quote request must exist and still be
+ *     `status = 'submitted'`, i.e. genuinely awaiting approval. This is the
+ *     state `approve-quote-request` itself requires at its entry (route.ts's
+ *     `qr.status !== 'submitted'` check), re-verified here so the guard does
+ *     not depend on the route remembering to check.
+ *   - `machine_job_approval` — the machine job must exist and still be
+ *     `status = 'pending_approval'`.
+ *
+ * In both cases the acting admin must be a real admin profile. A caller with
+ * no approval context, a stale/absent record, or a non-admin actor gets an
+ * `error` result and NO REQUEST IS SENT.
+ *
+ * 2026-09-30: added when FlashDraft's direct "Send to PathfinderEdge" door
+ * (`app/api/studio/send-to-pathfinder`) was deleted. That route pushed to
+ * catalog 20115 on nothing but an admin session — no approval record, and it
+ * wrote no audit row, so a push through it left no trace in
+ * `admin_audit_log` at all. See STATE_OF_THE_BUILD.md's ONE DOOR entry.
+ */
+export type ApprovalContext =
+  | { kind: 'quote_request_approval'; quoteRequestId: string; adminId: string }
+  | { kind: 'machine_job_approval'; machineJobId: string; adminId: string };
+
+/**
+ * Verifies an ApprovalContext against the database. Returns null when the
+ * approval is real; an error message when it is not. Never throws — a
+ * verification failure must read as a refused push, not a 500.
+ */
+async function verifyApproval(approval: ApprovalContext): Promise<string | null> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceKey) {
+    return 'Approval could not be verified: Supabase service-role credentials are not configured. Refusing to push.';
+  }
+
+  const { createClient } = await import('@supabase/supabase-js');
+  const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
+
+  const { data: actor, error: actorError } = await admin
+    .from('profiles')
+    .select('id, role')
+    .eq('id', approval.adminId)
+    .maybeSingle();
+  if (actorError) return `Approval could not be verified (actor lookup failed): ${actorError.message}`;
+  if (!actor || (actor as { role: string | null }).role !== 'admin') {
+    return `Refusing to push: ${approval.adminId} is not an admin, so this is not a Command Center approval.`;
+  }
+
+  if (approval.kind === 'quote_request_approval') {
+    const { data, error } = await admin
+      .from('quote_requests')
+      .select('id, status')
+      .eq('id', approval.quoteRequestId)
+      .maybeSingle();
+    if (error) return `Approval could not be verified (quote request lookup failed): ${error.message}`;
+    if (!data) return `Refusing to push: quote request ${approval.quoteRequestId} does not exist.`;
+    const status = (data as { status: string }).status;
+    if (status !== 'submitted') {
+      return `Refusing to push: quote request ${approval.quoteRequestId} is "${status}", not "submitted" — it is not awaiting approval, so this push is not an approval.`;
+    }
+    return null;
+  }
+
+  const { data, error } = await admin
+    .from('machine_jobs')
+    .select('id, status')
+    .eq('id', approval.machineJobId)
+    .maybeSingle();
+  if (error) return `Approval could not be verified (machine job lookup failed): ${error.message}`;
+  if (!data) return `Refusing to push: machine job ${approval.machineJobId} does not exist.`;
+  const jobStatus = (data as { status: string }).status;
+  if (jobStatus !== 'pending_approval') {
+    return `Refusing to push: machine job ${approval.machineJobId} is "${jobStatus}", not "pending_approval" — it is not awaiting approval, so this push is not an approval.`;
+  }
+  return null;
+}
+
+export async function pushProfileToPathfinder(
+  profile: MachineProfile,
+  catalogId: string,
+  approval: ApprovalContext
+): Promise<PathfinderProfile> {
+  // The approval check runs FIRST — before config, before feature building,
+  // and unconditionally before any fetch. An unapproved push must not even
+  // reach the point where a misconfiguration could mask it.
+  if (!approval) {
+    return {
+      status: 'error',
+      message: 'Refusing to push: no approval context supplied. Only the Command Center approval path may push to the machine.',
+      profileId: null,
+    };
+  }
+  const approvalError = await verifyApproval(approval);
+  if (approvalError) {
+    return { status: 'error', message: approvalError, profileId: null };
+  }
+
   const config = getConfig();
   if (!config) return { ...notConfigured(), profileId: null };
 

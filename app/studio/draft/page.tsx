@@ -314,7 +314,7 @@ function isGauge18OrThicker(gauge: string): boolean {
 }
 
 // PathfinderEdge fallback title generator (afs-jf-006) — used by
-// sendToPathfinder() below ONLY when the user hasn't set a real canvas
+// submitQuoteRequest() below ONLY when the user hasn't set a real canvas
 // profile name (see that call site's own userSetProfileName check, which
 // this function does not duplicate or re-decide). Composed left to right:
 // short-material + gauge, then the first present of Job Name / Business
@@ -1189,8 +1189,6 @@ export default function FlashDraftPage() {
   // customer-visible FlashDraft just because the signed-in user has the
   // admin role.
   const [adminContext, setAdminContext] = useState(false);
-  const [pathfinderState, setPathfinderState] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
-  const [pathfinderMessage, setPathfinderMessage] = useState<string | null>(null);
   const [submitState, setSubmitState] = useState<SubmitState>('idle');
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [requestNumber, setRequestNumber] = useState<string | null>(null);
@@ -1611,7 +1609,7 @@ export default function FlashDraftPage() {
     // glyphs, and every label among them are drawn by the shared
     // drawProfileScene (lib/flashdraft/draw-profile-scene.ts) — the exact
     // same function the offscreen shop-snapshot render calls at submit time
-    // (see renderShopSnapshotDataUri in sendToPathfinder/submitQuoteRequest
+    // (see renderShopSnapshotDataUri in submitQuoteRequest
     // below), just with LIVE_CANVAS_LABEL_STYLE's small label sizes and this
     // draw pass's real interactive state. Visual output here is unchanged
     // from before afs-fl-017.
@@ -3198,7 +3196,8 @@ export default function FlashDraftPage() {
   // drag overlays — the shop-floor-bound geometryImage for
   // shop_profile_library.geometry_svg (afs-sv-009/afs-fl-017) needs to read
   // clearly from a few feet away, not just at on-screen editing zoom. Shared
-  // by both submit paths below (sendToPathfinder and submitQuoteRequest),
+  // by submitQuoteRequest below (FlashDraft's only submit path since the
+  // direct-send door was removed — see the ONE DOOR rule in CLAUDE.md),
   // which both write this same field. Never touches the live, on-screen
   // canvas — that one keeps drawing with LIVE_CANVAS_LABEL_STYLE, unchanged.
   const buildShopSnapshotImage = useCallback(
@@ -3244,83 +3243,6 @@ export default function FlashDraftPage() {
     ]
   );
 
-  // Sends the CURRENTLY DRAWN profile straight to PathfinderEdge —
-  // entirely separate from Submit for Quote / the quote-request pipeline.
-  // Does not touch machine_jobs or delivery_method at all.
-  const sendToPathfinder = async () => {
-    if (points.length < 2) {
-      setPathfinderState('error');
-      setPathfinderMessage('Draw at least one segment before sending.');
-      return;
-    }
-    setPathfinderState('sending');
-    setPathfinderMessage(null);
-    try {
-      // Shop-floor snapshot (larger, bold labels) rendered offscreen — see
-      // buildShopSnapshotImage above — reused as shop_profile_library.
-      // geometry_svg (afs-sv-009) so the shop record's thumbnail is legible
-      // at a glance, not a re-derived redraw of unrelated geometry.
-      const geometryImage = buildShopSnapshotImage(paintFace);
-      // Use the user's own canvas profile name when they've actually set
-      // one (i.e. renamed it away from the "Untitled Profile" default via
-      // the name editor or by loading a library/saved profile) — falls
-      // back to the same generated format as before this existed
-      // (afs-jf-003). Command Center's approve-quote-request route has its
-      // own, separately-verified concept of "user-set name" (see that
-      // route's resolveItemProfileName) — the two send paths are not
-      // assumed symmetric.
-      const trimmedProfileName = profileName.trim();
-      const userSetProfileName =
-        trimmedProfileName !== '' && trimmedProfileName !== 'Untitled Profile' ? trimmedProfileName : null;
-      const generatedProfileName = buildFallbackProfileName(
-        material || null,
-        gauge || null,
-        jobName.trim() || null,
-        clientBusinessName.trim() || null,
-        clientName.trim() || null,
-        poNumber.trim() || null
-      );
-      const res = await fetch('/api/studio/send-to-pathfinder', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          profileName: userSetProfileName ?? generatedProfileName,
-          points,
-          material: material || null,
-          gauge: gauge || null,
-          color: color.trim() || null,
-          clientBusinessName: clientBusinessName.trim() || null,
-          clientName: clientName.trim() || null,
-          poNumber: poNumber.trim() || null,
-          jobName: jobName.trim() || null,
-          requestedDeliveryDate: requestedDeliveryDate || null,
-          finish: isAluminum ? (finish || null) : null,
-          thicknessIn,
-          quantity: Number(quantity) || null,
-          lengthFt: lengthFtDecimal || null,
-          notes: notes.trim() || null,
-          geometryImage,
-          hemStart: hemStart
-            ? { type: hemStart.type, gapIn: hemStart.gapIn, lengthIn: hemStart.lengthIn, kick: hemStart.kick }
-            : null,
-          hemEnd: hemEnd
-            ? { type: hemEnd.type, gapIn: hemEnd.gapIn, lengthIn: hemEnd.lengthIn, kick: hemEnd.kick }
-            : null,
-        }),
-      });
-      const data = (await res.json()) as { profileId?: string | null; message?: string; error?: string };
-      if (!res.ok) {
-        setPathfinderState('error');
-        setPathfinderMessage(data.error ?? 'Could not send profile to PathfinderEdge.');
-        return;
-      }
-      setPathfinderState('success');
-      setPathfinderMessage(data.profileId ? `PathfinderEdge profileId: ${data.profileId}` : (data.message ?? 'Sent.'));
-    } catch {
-      setPathfinderState('error');
-      setPathfinderMessage('Network error. Please try again.');
-    }
-  };
 
   const buildBendSummary = (): string => {
     if (points.length < 2) return 'No profile drawn.';
@@ -3363,7 +3285,7 @@ export default function FlashDraftPage() {
         bendRadiiIn.push(getEffectiveRadius(i));
       }
 
-      // Same shop-floor snapshot sendToPathfinder() builds (see
+      // Shop-floor snapshot (see
       // buildShopSnapshotImage above) — stored on the line item so a later
       // Command Center approval (approve-quote-request/route.ts,
       // server-side, no live canvas to read) can reuse this exact rendered
@@ -3371,7 +3293,7 @@ export default function FlashDraftPage() {
       // re-rendering anything.
       const geometryImage = buildShopSnapshotImage(paintFace ?? null) ?? undefined;
 
-      // Same "user-set name" resolution sendToPathfinder() uses (afs-jf-003)
+      // "user-set name" resolution (afs-jf-003)
       // — only included on the line item when the user actually renamed the
       // canvas profile away from the default; the Command Center approval
       // route (approve-quote-request/route.ts's resolveItemProfileName)
@@ -4053,26 +3975,6 @@ export default function FlashDraftPage() {
                 Load Profiles
               </Link>
             </div>
-
-            {isAdmin && adminContext && (
-              <div className="border-t border-afs-chrome-dim/40 pt-2 mt-1 flex flex-col gap-1.5">
-                <p className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-mid">Admin</p>
-                <button
-                  type="button"
-                  onClick={sendToPathfinder}
-                  disabled={pathfinderState === 'sending'}
-                  className="border border-afs-accent-purple bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label text-xs font-semibold px-3 py-2.5 rounded transition-colors disabled:opacity-50"
-                >
-                  {pathfinderState === 'sending' ? 'Sending…' : 'Send to PathfinderEdge'}
-                </button>
-                {pathfinderState === 'success' && (
-                  <p className="font-body text-xs text-afs-success">{pathfinderMessage}</p>
-                )}
-                {pathfinderState === 'error' && (
-                  <p className="font-body text-xs text-afs-crimson">{pathfinderMessage}</p>
-                )}
-              </div>
-            )}
           </div>
         </div>
 

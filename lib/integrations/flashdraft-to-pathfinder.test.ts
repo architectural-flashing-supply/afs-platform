@@ -13,7 +13,30 @@
  * `pushProfileToPathfinder` cases below all reject BEFORE any fetch is
  * attempted, so nothing here can reach the real machine catalog.
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
+// ONE DOOR (2026-09-30): pushProfileToPathfinder now verifies its
+// ApprovalContext against the database before anything else. These tests are
+// about the GEOMETRY guards, so the approval lookup is stubbed to succeed —
+// an admin actor and a quote request still 'submitted'. The dedicated
+// single-door tests live in ./pathfinder-single-door.test.ts and stub it the
+// other way. Still no real network: supabase-js is mocked entirely.
+vi.mock('@supabase/supabase-js', () => ({
+  createClient: () => ({
+    from: (table: string) => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: async () =>
+            table === 'profiles'
+              ? { data: { id: 'admin-1', role: 'admin' }, error: null }
+              : { data: { id: 'qr-1', status: 'submitted' }, error: null },
+        }),
+      }),
+    }),
+  }),
+}));
+
+const APPROVAL = { kind: 'quote_request_approval' as const, quoteRequestId: 'qr-1', adminId: 'admin-1' };
 import { flashDraftToMachineProfile, type FlashDraftPointInput } from './flashdraft-to-pathfinder';
 import { pushProfileToPathfinder, type MachineProfile } from './pathfinder-edge';
 
@@ -109,6 +132,12 @@ describe('pushProfileToPathfinder — guards fire before any network call', () =
     // this host is never contacted.
     process.env.PATHFINDER_EDGE_BASE_URL = 'https://pathfinder.invalid';
     process.env.PATHFINDER_EDGE_API_KEY = 'test-key-not-real';
+    // ONE DOOR: the approval check runs before the geometry guards, so it
+    // needs service-role credentials present to get as far as verifying the
+    // (mocked) approval. supabase-js itself is mocked at the top of this
+    // file, so nothing is contacted.
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://stub.supabase.co';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'stub-service-key';
   });
 
   afterEach(() => {
@@ -132,8 +161,7 @@ describe('pushProfileToPathfinder — guards fire before any network call', () =
   it('rejects a NaN leg length rather than sending length: null', async () => {
     const result = await pushProfileToPathfinder(
       machineProfile({ bends: [{ stepNumber: 1, leftLegMm: NaN, rightLegMm: 254, bendAngleDegrees: 90, radiusMm: 0 }] }),
-      '20115'
-    );
+      '20115', APPROVAL);
     expect(result.status).toBe('error');
     expect(result.message).toMatch(/not a finite number/i);
     expect(result.profileId).toBeNull();
@@ -144,8 +172,7 @@ describe('pushProfileToPathfinder — guards fire before any network call', () =
       machineProfile({
         bends: [{ stepNumber: 1, leftLegMm: Infinity, rightLegMm: 254, bendAngleDegrees: 90, radiusMm: 0 }],
       }),
-      '20115'
-    );
+      '20115', APPROVAL);
     expect(result.status).toBe('error');
     expect(result.message).toMatch(/not a finite number/i);
   });
@@ -155,14 +182,13 @@ describe('pushProfileToPathfinder — guards fire before any network call', () =
       machineProfile({
         bends: [{ stepNumber: 1, leftLegMm: 254, rightLegMm: 254, bendAngleDegrees: NaN, radiusMm: 0 }],
       }),
-      '20115'
-    );
+      '20115', APPROVAL);
     expect(result.status).toBe('error');
     expect(result.message).toMatch(/not a finite number/i);
   });
 
   it('rejects a NaN blankWidthMm on a bendless profile', async () => {
-    const result = await pushProfileToPathfinder(machineProfile({ blankWidthMm: NaN, bends: [] }), '20115');
+    const result = await pushProfileToPathfinder(machineProfile({ blankWidthMm: NaN, bends: [] }), '20115', APPROVAL);
     expect(result.status).toBe('error');
     expect(result.message).toMatch(/not a finite number/i);
   });
@@ -170,8 +196,7 @@ describe('pushProfileToPathfinder — guards fire before any network call', () =
   it('rejects a NaN hem gap, which reaches the wire as hemHeight', async () => {
     const result = await pushProfileToPathfinder(
       machineProfile({ hemStart: { type: 'open', lengthMm: 12.7, gapMm: NaN, kick: 'outside' } }),
-      '20115'
-    );
+      '20115', APPROVAL);
     expect(result.status).toBe('error');
     expect(result.message).toMatch(/not a finite number/i);
   });
@@ -179,8 +204,7 @@ describe('pushProfileToPathfinder — guards fire before any network call', () =
   it('still rejects a plain zero-length leg (the original guard is intact)', async () => {
     const result = await pushProfileToPathfinder(
       machineProfile({ bends: [{ stepNumber: 1, leftLegMm: 0, rightLegMm: 254, bendAngleDegrees: 90, radiusMm: 0 }] }),
-      '20115'
-    );
+      '20115', APPROVAL);
     expect(result.status).toBe('error');
     expect(result.message).toMatch(/0 or less/i);
   });

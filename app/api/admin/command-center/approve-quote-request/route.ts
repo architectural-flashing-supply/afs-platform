@@ -514,7 +514,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const pathfinderResults: PathfinderProfile[] = [];
     for (const build of itemBuilds) {
-      const result = await pushProfileToPathfinder(build.machineProfile, AFS_MACHINE_CATALOG_ID);
+      // ONE DOOR: the push verifies this approval in the database before it
+      // sends anything (see pushProfileToPathfinder's own header). The quote
+      // request is still 'submitted' at this point — the status write to
+      // 'reviewing' happens further down, after every item has been pushed.
+      const result = await pushProfileToPathfinder(build.machineProfile, AFS_MACHINE_CATALOG_ID, {
+        kind: 'quote_request_approval',
+        quoteRequestId,
+        adminId: user.id,
+      });
       if (result.status !== 'connected') {
         await logAdminAction({
           adminId: user.id,
