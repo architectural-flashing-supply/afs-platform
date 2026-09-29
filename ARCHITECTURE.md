@@ -781,6 +781,115 @@ which, is a real open question this pass did not resolve — it was out of
 scope for the prompt that wired the approve button, and needs a decision,
 not a default.
 
+
+---
+
+## 13. FLASHDRAFT PROFILE GEOMETRY — THE SIGNED-BEND CONTRACT (lr-02, 2026-09-29)
+
+`lib/flashdraft/geometry.ts` is the single source of truth for turning a
+bend sequence back into a 2D polyline, and for what a "bend angle" means
+anywhere in FlashDraft. Three near-identical copies of the walk were
+consolidated into it earlier (see GEOMETRY_AUDIT.md); lr-02 added the
+sign, which is what the consolidation had been silently dropping.
+
+### The convention
+
+A bend's angle is the **signed interior angle** at that vertex, in
+degrees, range (-180, 180]:
+
+- **magnitude** = the included angle between the incoming and outgoing
+  legs. 180 = dead straight (no bend), 90 = a right-angle corner, small =
+  a tight fold, 0 = folded flat back on itself.
+- **sign** = the fold's handedness. This is the part that was being lost.
+
+`signedInteriorAngleDeg(prev, curr, next)` computes it. It is exactly the
+value FlashDraft's 2D canvas prints at each bend — `draw-profile-scene.ts`
+labels every interior point with `signedAngleBetween(v1, v2)`, the same
+math on the same two leg vectors.
+
+### Reconstructing the polyline
+
+`bendTurnDegrees(interior)` returns the turtle's change of heading:
+
+```
+turn = sign(interior) * (180 - |interior|)
+```
+
+with `interior === 0` treated as positive (a flat hairpin is a full 180
+fold-back, not "no bend" — `Math.sign(0) === 0` would collapse it to the
+wrong answer). `computeProfilePoints` walks each leg, applies this turn,
+repeats.
+
+**Backward compatibility is structural, not incidental.** For any angle
+`>= 0` the formula reduces to exactly `180 - angle`, the pre-lr-02 walk,
+bit for bit. Every caller that still supplies unsigned angles is therefore
+unchanged: `BendSequenceDiagram`, `MatchedProfile3DModal`,
+`/studio/profile-viewer/[profileId]`, `/upload`, and FlashDraft's own
+Load-from-Library walk all read the machine catalog, which stores unsigned
+interior angles. A vitest case in `lib/flashdraft/geometry.test.ts` asserts
+that equivalence against a literal reimplementation of the old walk.
+
+### Who supplies a sign
+
+| Consumer | Angle source | Signed? |
+|---|---|---|
+| 2D canvas labels (`draw-profile-scene.ts`) | live point list | YES (always was) |
+| `viewerBends` -> `ProfileViewer3D` (`app/studio/draft/page.tsx`) | live point list | YES (lr-02) |
+| `SubmitConfirmation3DModal` | `viewerBends`, via the draft page | YES (lr-02) |
+| `MatchedProfile3DModal` | machine catalog record | no — unsigned, unchanged |
+| `/studio/profile-viewer`, `/upload` | machine catalog / parsed upload | no — unsigned, unchanged |
+| `/api/studio/match-profile` query | live point list | **no, deliberately** |
+| `buildBendSummary` (quote text) | live point list | **no, deliberately** |
+| PathfinderEdge encoder | live point list | YES, but its OWN convention — see below |
+
+The match query and the quote-text summary stay unsigned **on purpose**:
+the machine catalog those are compared/quoted against stores unsigned
+interior angles, so signing the query would stop every catalog profile
+matching. Not an oversight.
+
+### The 3D viewers build from the same point list
+
+`ProfileViewer3D` — and therefore `SubmitConfirmation3DModal` and
+`MatchedProfile3DModal`, which are thin wrappers around it — reconstruct
+their cross-section through one shared entry point,
+`buildCrossSectionPoints(bends)`, and label each bend through one shared
+formatter, `formatBendAngleLabel(deg)`. The formatter is `.toFixed(0)`,
+not `Math.round`, to match the 2D canvas's own formatting exactly
+(they disagree on negative halves: `Math.round(-50.5)` is -50,
+`(-50.5).toFixed(0)` is "-51").
+
+### The y-down / y-up mirror
+
+FlashDraft's canvas is **y-DOWN** (screen coordinates). The 3D viewer
+renders in three.js XY, which is **y-UP**. `bendTurnDegrees`' sign
+convention reproduces the canvas's *on-screen appearance* in the y-up
+frame, which means the reconstructed polyline is the y-mirror of a
+literal y-down walk. That is correct and deliberate: it is what makes the
+3D model look like the thing the user drew rather than its reflection.
+The unit tests assert congruence under exactly that one global sign flip.
+
+### What was broken
+
+The 3D path fed `computeProfilePoints` the **unsigned** `bendAngleAt`
+(`Math.acos`, so 0..180 by construction), so every bend turned the same
+way. Reid's reported failing case — a 2D "W" with legs 21 3/4, 16 1/4,
+15 15/16, 22 3/16 and bends -50, +51, -53 — rendered in 3D as a curled
+triangle with three positive labels. `geometry.test.ts` reproduces that
+curl from the unsigned input and asserts the signed path zig-zags instead.
+
+### The PathfinderEdge encoder does NOT share this path
+
+`lib/integrations/flashdraft-to-pathfinder.ts` has its **own** local
+`bendAngleAt`, signed since commit `5947fec`, which returns
+`sign(turn) * (180 - |turn|)` over `turn = wrap(interiorSigned + 180)` —
+algebraically the **negation** of the canvas's signed interior angle.
+That negation is intentional: it converts FlashDraft's y-DOWN handedness
+to AMS Controls' published Profile Object Format handedness, which is the
+opposite. The encoder imports nothing from `lib/flashdraft/geometry.ts`
+and was never affected by the unsigned bug. **lr-02 audited it and did not
+change it.** See §12 and the held-back `fix/pathfinder-spec-encoding`
+branch.
+
 ---
 
 *ARCHITECTURE.md | AFS | Reid Whitesides | June 2026*

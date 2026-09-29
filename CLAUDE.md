@@ -312,6 +312,50 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
     for producing this one static file, never runtime dependencies. Full
     detail: STATE_OF_THE_BUILD.md's 2026-09-19 (Pass #2) entry.
 
+12. **A FlashDraft bend angle is the SIGNED interior angle, and
+    `lib/flashdraft/geometry.ts` is the only place that decides what a
+    bend angle means.** Range (-180, 180]: magnitude is the included
+    angle between the two legs (180 = straight through, 90 = a
+    right-angle corner, 0 = folded flat back), sign is the fold's
+    handedness. `signedInteriorAngleDeg()` computes it —
+    `bendTurnDegrees()` turns it into a turtle heading change,
+    `buildCrossSectionPoints()` walks it back out as a polyline, and
+    `formatBendAngleLabel()` (`.toFixed(0)`, never `Math.round`) prints
+    it. Every 3D viewer — `ProfileViewer3D` and the two modals built on
+    it, `SubmitConfirmation3DModal` and `MatchedProfile3DModal` — goes
+    through those, so 3D geometry and 3D labels can never drift from the
+    2D canvas.
+
+    Never reintroduce an unsigned bend angle into a rendering path. That
+    was the lr-02 bug: `Math.acos` returns 0..180 by construction, so
+    every bend turned the same way and a "W" rendered as a curled
+    triangle with three positive labels.
+
+    **Two deliberate exceptions, both load-bearing.** (a) The
+    profile-MATCH query (`/api/studio/match-profile`) and
+    `buildBendSummary`'s quote text stay UNSIGNED — the machine catalog
+    stores unsigned interior angles, and signing the query would stop
+    every catalog profile matching. (b) The PathfinderEdge encoder
+    (`lib/integrations/flashdraft-to-pathfinder.ts`) has its own local,
+    already-signed `bendAngleAt` on AMS Controls' handedness, which is
+    the NEGATION of FlashDraft's y-down screen convention. It imports
+    nothing from `lib/flashdraft/geometry.ts` and must not be
+    "unified" with it. Full contract: ARCHITECTURE.md §13.
+
+13. **Both free endpoints of a FlashDraft profile extend; a hemmed end
+    does not.** Press-and-drag the FIRST point to prepend a leg, the LAST
+    point to append one. A last→first closing leg is never creatable by
+    any gesture. afs-sv-005's Shift+drag prepend was removed in full in
+    lr-02 — do not reintroduce a modifier-gated new-leg gesture. (Alt =
+    whole-profile move and Space/middle-click = pan are unaffected and
+    stay.) An end carrying a hem refuses to extend, with the tooltip
+    exactly `Remove the hem to extend from this end.` — **DESIGN DECISION
+    PENDING REID**: the alternative is to auto-drop the hem and extend
+    anyway, which is a destructive edit nobody has approved. Any prepend
+    must renumber every index-keyed piece of state in lockstep
+    (see `commitPrepend`'s field-by-field audit) and push exactly ONE
+    undo entry.
+
 ---
 
 ## MACHINE INTEGRATION — THALMANN DS2801 / AFS MACHINE BRIDGE

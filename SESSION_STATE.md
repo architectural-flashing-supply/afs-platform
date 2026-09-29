@@ -24,6 +24,113 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## BRANCH FOLD-IN + FLASHDRAFT GEOMETRY (lr-02) — 2026-09-29
+
+**Status: IMPLEMENTED, ALL GATES PASS, AWAITING REID'S OWN CONFIRMATION.**
+Per this file's verification standard, the two behavior changes here are
+interactive/visual, so the Playwright and vitest passes below are evidence
+to bring to Reid — not a substitute for him checking them. Full detail,
+including the field-by-field prepend audit and the encoder report:
+STATE_OF_THE_BUILD.md's lr-02 entry.
+
+### What landed on main
+
+- **`936bd72`** — merge of `fix/f-01` (F-01 finiteness guards + the shared
+  geometry validators). **Zero conflicts**; nothing needed resolving.
+- **`cbab076`** — both FlashDraft geometry fixes, written directly on
+  `main`. `fix/flashdraft-geometry` does not exist and never did, so
+  there was nothing to cherry-pick (`git branch -a` confirms).
+
+### A. Extend from either free endpoint
+
+Press-and-drag the FIRST point to prepend a leg, the LAST point to append
+one. A closing last-to-first leg is not creatable by any gesture. Both
+free ends get a `grab` cursor and a visible hollow ring handle.
+
+**afs-sv-005's Shift+drag prepend is gone in full** — gesture, ref,
+keydown/keyup wiring, hover branch and the on-screen hint text. It only
+ever existed because point 0 was a directly-draggable vertex with no free
+hit-radius left for an unambiguous "extend" press; point 0 is now excluded
+from `hitTestVertex` the way the last point always has been. **afs-sv-003
+is not regressed** — its own follow-up already routes a leg-0 body drag to
+point 0, so both free ends stay reshapeable, by the same gesture, at both
+ends. Alt (whole-profile move) and Space/middle-click (pan) are untouched.
+
+### DECISION NEEDED FROM REID — hemmed ends block extension
+
+An end carrying a hem refuses to extend, with the tooltip exactly
+`Remove the hem to extend from this end.` The alternative is to silently
+drop the hem and extend anyway — a destructive edit to geometry the user
+explicitly created, which nobody approved. This pass took the
+non-destructive branch and flagged it rather than deciding it. Also
+recorded in CLAUDE.md rule 13, BLUEPRINT.md's Phase 9 addendum and
+STATE_OF_THE_BUILD.md, so it cannot quietly disappear.
+
+### B. 3D bend direction
+
+The 2D canvas has always labelled bends with the SIGNED interior angle;
+the 3D feed used the UNSIGNED one (`Math.acos`, 0..180 by construction),
+so every bend turned the same way. Reid's "W" — legs 21 3/4, 16 1/4,
+15 15/16, 22 3/16; bends -50, +51, -53 — rendered as a curled triangle
+with three positive labels.
+
+`lib/flashdraft/geometry.ts` now owns the shared contract:
+`bendTurnDegrees`, `signedInteriorAngleDeg`, `formatBendAngleLabel` and
+`buildCrossSectionPoints`. `ProfileViewer3D` — and through it
+`SubmitConfirmation3DModal` and `MatchedProfile3DModal`, which are thin
+wrappers around it — builds its cross-section and its labels from those.
+For any angle >= 0 the new turn rule is bit-for-bit the old
+`180 - angle`, so every unsigned caller is unchanged; a vitest case
+asserts that against a literal reimplementation of the pre-fix walk.
+Contract in full: ARCHITECTURE.md section 13.
+
+### REPORT (asked for, not acted on) — the PathfinderEdge encoder
+
+**It does NOT share the faulty code path, and it was not changed.**
+`lib/integrations/flashdraft-to-pathfinder.ts` has its own local
+`bendAngleAt`, signed since commit `5947fec` (already on `main`,
+independent of the held-back `df22fd1`), on AMS Controls' handedness —
+algebraically the negation of FlashDraft's y-down screen convention, which
+is deliberate. It imports nothing from `lib/flashdraft/geometry.ts`. No
+POST and no DELETE was issued to PathfinderEdge anywhere in this run.
+
+### Branches
+
+- `fix/f-01` — **deleted**, locally and on the remote, after the merge
+  landed on `main` and was pushed.
+- `fix/flashdraft-geometry` — never existed; nothing to delete.
+- **`fix/pathfinder-spec-encoding` — KEPT, deliberately.** It holds
+  `df22fd1`, the F-02 PathfinderEdge spec-encoding fix. That commit
+  changes what the physical Thalmann DS2801 actually bends, so it merges
+  only after an **attended Thalmann test**, which has not happened. Do not
+  fold this branch in, and do not delete it. Proof it is not on `main`:
+  `git merge-base --is-ancestor df22fd1 main` exits **1**.
+
+### Gates
+
+- `pnpm tsc --noEmit` — exit 0.
+- `pnpm test:unit` — 60/60 pass, none skipped (39 pre-existing F-01, 21
+  new in `lib/flashdraft/geometry.test.ts`).
+- Full local Playwright suite — 83 passed, 3 failed, 5 skipped. All 9
+  `flashdraft-regression.spec.ts` cases pass (3 pre-existing + 6 new).
+  The 3 failures are `homepage.spec.ts` x2 and `checkout.spec.ts` x1, and
+  were **confirmed to fail identically on clean `main` with lr-02's work
+  stashed** — pre-existing, unrelated, and out of this prompt's scope.
+  The 5 skips are data-dependent skips in `production-queue.spec.ts`
+  (no orders currently in the queue), not credential-gated and not from
+  any test added this run.
+
+### Open items carried forward
+
+- Reid to confirm the canvas gesture and the 3D render himself.
+- Reid to decide the hemmed-end-blocks-extension question above.
+- `fix/pathfinder-spec-encoding` still waiting on an attended Thalmann test.
+- 3 pre-existing E2E failures (homepage header logo width, homepage hero
+  CTA target, checkout "Checkout Unavailable" heading) are unowned — they
+  predate lr-02 and no prompt has picked them up yet.
+
+---
+
 ## ENVIRONMENT HYGIENE — ONE CANONICAL VERCEL PROJECT + WORKING LOGIN (lr-01) — 2026-09-29
 
 **Status: VERIFIED.** Every item below is backed by live command output or a

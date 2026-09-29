@@ -34,6 +34,252 @@ summary, not a replacement for it.
 
 ---
 
+## BRANCH FOLD-IN + FLASHDRAFT GEOMETRY (lr-02) — 2026-09-29
+
+Status per the VERIFICATION STANDARD above: **IMPLEMENTED, GATES PASS,
+AWAITING REID'S OWN CONFIRMATION.** Everything below is backed by real
+command output captured this run. The canvas gesture change and the 3D
+render are *interactive/visual*, so by this file's own standard they are
+NOT "DONE" until Reid has looked at them himself. The automated evidence
+is listed so he has something concrete to check against.
+
+### 1. fix/f-01 merged into main
+
+```
+git merge fix/f-01 --no-ff
+  -> Merge made by the 'ort' strategy.
+  -> 13 files changed, 1982 insertions(+), 70 deletions(-)
+  -> merge commit 936bd72
+```
+
+**Zero conflicted files.** ARCHITECTURE.md, BLUEPRINT.md, CLAUDE.md,
+SESSION_STATE.md and STATE_OF_THE_BUILD.md all auto-merged; no resolution
+was required anywhere, so nothing had to be chosen between two sides. The
+branch carried only `14f5538` (the F-01 finiteness guards and the shared
+geometry validators) and `ad896f8` (its preview-URL doc note) — `df22fd1`
+lives on `fix/pathfinder-spec-encoding`, not here.
+
+Post-merge gates: `pnpm tsc --noEmit` exit 0; `pnpm test:unit` 39/39 pass
+(2 files) — the pre-existing F-01 suite,
+`lib/integrations/flashdraft-to-pathfinder.test.ts`, green.
+
+### 2. fix/flashdraft-geometry does not exist
+
+```
+git branch -a
+  feat/command-center-redesign   remotes/origin/HEAD -> origin/main
+  feat/field-app-spec            remotes/origin/feat/command-center-redesign
+  feat/homepage-redesign         remotes/origin/feat/homepage-redesign
+  fix/f-01                       remotes/origin/fix/f-01
+  fix/pathfinder-spec-encoding   remotes/origin/fix/pathfinder-spec-encoding
+* main                           remotes/origin/main
+```
+
+No `fix/flashdraft-geometry`, locally or on the remote, exactly as the
+queue predicted at authoring time. Both geometry fixes were therefore
+implemented directly on `main` (commit `cbab076`), not cherry-picked.
+
+### 3A. Start-point extension
+
+**Before.** Press-and-drag on the LAST point appended a leg. Point 0 was a
+directly-draggable vertex (afs-sv-003) that moved in place. Prepending
+required **Shift+drag anywhere on the canvas** (afs-sv-005), advertised in
+the hint strip under the toolbar.
+
+**After.** Press-and-drag on **either** free endpoint extends from that
+end — the first point prepends, the last point appends. A closing
+last-to-first leg is not creatable by any gesture (prepend inserts at
+index 0, append pushes at the end; neither ever joins the two free ends).
+
+**Shift+drag removed in full** — the `handlePointerDown` branch, the
+`handlePointerMove` hover branch, the `shiftPressed` ref, its keydown and
+keyup wiring, and both the visible hint text and its `title` attribute.
+`grep -n "shiftPressed" app/studio/draft/page.tsx` now returns only
+documentation lines explaining the removal.
+
+**How the afs-sv-003 conflict was resolved without dropping either side's
+intent.** afs-sv-005's whole reason for reaching for a modifier was that
+point 0 had no free hit-radius left: it was included in `hitTestVertex`,
+so a press there already meant "move this vertex." lr-02 excludes point 0
+from `hitTestVertex` (the loop now runs `1 .. length-2`, excluding BOTH
+free ends). That does **not** regress afs-sv-003, whose stated intent was
+"the first leg must be draggable at its free end": afs-sv-003's own
+follow-up added the `legIndex === 0 ? 0 : legIndex + 1` special case to
+the leg-body reshape path, so grabbing leg 0's BODY drags point 0 — the
+exact mirror of how grabbing the last leg's body drags the last point.
+Both free ends stay reshapeable; both are reshaped the same way; both
+mean "extend" when grabbed directly. The symmetry is now real rather than
+special-cased.
+
+**Affordance.** Both free endpoints get `cursor: grab` on hover (a new
+branch in `handlePointerMove`, checked before interior-vertex and segment
+hover, because each free end sits on top of its own end segment and would
+otherwise read as a plain segment hover) and a visible hollow ring handle
+(`END_HANDLE_RADIUS_PX = 8`, inside `HIT_RADIUS_PX = 10` so the drawn
+affordance never overstates the responsive area), drawn by
+`drawProfileScene` in `lib/flashdraft/draw-profile-scene.ts`.
+
+**DESIGN DECISION PENDING REID — a hemmed end blocks extension.** An end
+carrying a hem refuses to extend, with the tooltip exactly:
+
+> Remove the hem to extend from this end.
+
+The candidate is simply never armed, so the press falls through to
+ordinary selection and no leg can grow from that end. **The alternative
+is to silently drop the hem and extend anyway — a destructive edit to
+geometry the user explicitly created, which nobody has approved.** This
+pass took the non-destructive branch and is flagging it rather than
+deciding it. Reid's call. Recorded in CLAUDE.md rule 13 and BLUEPRINT.md's
+Phase 9 addendum as well, so it cannot be lost.
+
+**Index shifting on prepend.** Inserting at index 0 renumbers every point
+and every leg. `commitPrepend` handles it, with a field-by-field audit in
+its own doc comment:
+
+| State | Handling |
+|---|---|
+| selection (`selectedBendPoint`, `selectedSegment`) | shifted +1 (and a prepend drag no longer clears it, unlike append, precisely so there is something to shift) |
+| typed leg length (`segmentLengthInput`), typed angle (`angleInputDraft`) | keyed to those two selections, so shifting them keeps both pointed at the same physical leg/bend |
+| per-bend radii | stored ON each `Point` (`p.radius`), so they travel with their own point; the new head gets none (it is a free end), the old head becomes a real bend and picks up the material default via `getEffectiveRadius` |
+| per-bend angles | never stored — derived from the point list on every read |
+| blank width, bend count, all canvas labels, the 3D cross-section, the match query | all derived from `points`, so all recompute |
+| `hemStart` / `hemEnd` | anchored to "first"/"last", not to indices. And `hemStart` is structurally guaranteed null here: a hemmed end blocks extension outright |
+| undo / redo stacks | store whole point arrays, never indices |
+
+**Undo is exactly one step.** `commitPoints` pushes the pre-drag points
+once and nothing else on this path touches `past`.
+
+### 3B. 3D bend direction
+
+**Root cause, found in the code and reproduced in a test.** The 2D canvas
+has always labelled each bend with the **signed** interior angle —
+`draw-profile-scene.ts`'s angle-indicator loop prints
+`signedAngleBetween(v1, v2).toFixed(0)`. The 3D feed (`viewerBends` in
+`app/studio/draft/page.tsx`) used the **unsigned** `bendAngleAt`, which is
+`Math.acos`-based and therefore 0..180 by construction.
+`computeProfilePoints` then turned by `180 - angle`, always positive, so
+every bend turned the same way regardless of how the user actually folded
+it.
+
+**Reid's failing case, reproduced as a test before the fix and green
+after it.** A 2D "W" — legs 21 3/4, 16 1/4, 15 15/16, 22 3/16; bends
+-50, +51, -53. `lib/flashdraft/geometry.test.ts` holds two halves of the
+proof:
+
+- `computeProfilePoints — unsigned callers are unaffected` asserts the
+  current walk is `toEqual`-identical to a literal reimplementation of the
+  pre-fix `heading += 180 - angle` walk for any non-negative angle. That
+  pins down exactly what the old code did.
+- `REGRESSION: the unsigned reconstruction curls instead of zig-zagging`
+  feeds that same old input (the W's angles with their signs stripped,
+  i.e. what the pre-fix draft page produced) through the helper and
+  asserts all three turns go the same way and the shape closes up; then
+  asserts the signed path alternates `[1, -1, 1]` and spans further.
+  Together those two reproduce the reported curl and confirm the fix.
+
+**The contract, now shared.** `lib/flashdraft/geometry.ts` gained
+`bendTurnDegrees` (`sign(interior) * (180 - |interior|)`, with a literal 0
+treated as positive so a flat hairpin stays a 180 fold-back rather than
+collapsing to "no bend" via `Math.sign(0) === 0`),
+`signedInteriorAngleDeg`, `formatBendAngleLabel` and
+`buildCrossSectionPoints`. `ProfileViewer3D` reconstructs and labels
+through the last two; `SubmitConfirmation3DModal` and
+`MatchedProfile3DModal` are thin wrappers around `ProfileViewer3D`, so all
+three build the cross-section from the same point list through the same
+code. `app/studio/draft/page.tsx` feeds signed angles in.
+
+**3D labels now match 2D exactly, signs included.** `bendAngleLabel` was
+`Math.round(bend.angle)` over an unsigned angle; it is now
+`formatBendAngleLabel(bend.angle)`, which is `.toFixed(0)` — the same
+formatter the 2D canvas uses. `Math.round` and `.toFixed(0)` disagree on
+negative halves (`Math.round(-50.5)` is -50, `(-50.5).toFixed(0)` is
+"-51"), which is exactly the class of drift this closes.
+
+**Nothing unsigned regressed.** For any angle >= 0, `bendTurnDegrees`
+reduces to `180 - angle` bit-for-bit, so `BendSequenceDiagram`,
+`MatchedProfile3DModal`, `/studio/profile-viewer/[profileId]`, `/upload`
+and FlashDraft's Load-from-Library walk — all of which read unsigned
+interior angles out of the machine catalog — are unchanged. The
+equivalence is asserted, not assumed.
+
+**Two consumers stay unsigned on purpose.** The profile-MATCH query
+(`/api/studio/match-profile`) and `buildBendSummary`'s quote text still
+call the unsigned `bendAngleAt`: the machine catalog stores unsigned
+interior angles, so signing the query would stop every catalog profile
+matching. Documented at the call site and in ARCHITECTURE.md section 13.
+
+### 3C. REPORTED, NOT CHANGED — does the PathfinderEdge encoder share the faulty path?
+
+**No. It does not share the faulty code path, and it was not touched.**
+
+`lib/integrations/flashdraft-to-pathfinder.ts` has its **own** local
+`bendAngleAt`, which has been signed since commit `5947fec` ("fix:
+PathfinderEdge bend angle is signed interior, not turn-angle (4th
+revision)") — already on `main` before this run, independent of the
+held-back `df22fd1`:
+
+```
+git log --oneline -L 125,133:lib/integrations/flashdraft-to-pathfinder.ts
+  5947fec fix: PathfinderEdge bend angle is signed interior, not turn-angle (4th revision)
+  4397255 fix: PathfinderEdge bend angle was unsigned AND wrong turn-vs-interior model
+```
+
+It returns `Math.sign(turn) * (180 - |turn|)` over
+`turn = wrapDeg(interiorSigned + 180)`, which is algebraically the
+**negation** of the canvas's signed interior angle — deliberate, because
+FlashDraft's world coordinates are y-DOWN and AMS Controls' published
+Profile Object Format has the opposite handedness. The encoder imports
+nothing from `lib/flashdraft/geometry.ts` and calls neither
+`computeProfilePoints` nor the draft page's `bendAngleAt`. It was never
+affected by the unsigned bug and lr-02 changed none of it. No POST and no
+DELETE was issued to PathfinderEdge at any point in this run.
+
+### 4. Branch cleanup
+
+`fix/f-01` deleted locally and on the remote after the merge landed on
+`main` and was pushed. `fix/flashdraft-geometry` never existed, so there
+was nothing to delete.
+
+**`fix/pathfinder-spec-encoding` is KEPT, deliberately.** It holds
+`df22fd1` — the F-02 PathfinderEdge spec-encoding fix (Radius-vs-Angle
+feature selection, bend-vs-interior angle, sign handedness, geometry-aware
+`hemDirection`, `paintedSide`, and reading `profileId` from the POST
+response). That commit drives what the physical Thalmann DS2801 actually
+bends, and merging it is gated on an **attended Thalmann test** that has
+not happened. It must not reach `main` until it does. Proof it has not:
+
+```
+git merge-base --is-ancestor df22fd1 main; echo $?
+  1
+```
+
+### 5. Gates and tests
+
+- `pnpm tsc --noEmit` — exit 0 (run after the merge, after the geometry
+  fixes, and again after the governance pass).
+- `pnpm test:unit` — **60 passed / 60**, 3 files. 39 pre-existing (the
+  F-01 suite) plus 21 new in `lib/flashdraft/geometry.test.ts` covering
+  the W, L and Z profiles: turn direction per bend, label signs,
+  congruence of the reconstructed cross-section to the 2D point list, and
+  the two regression/equivalence cases described in 3B. None skipped.
+- `tests/e2e/flashdraft-regression.spec.ts` — 6 new cases added to the
+  existing 3: prepend from the first point (proved by asserting the
+  autosave point list's `slice(1)` still equals the pre-drag list, which
+  is the only way to distinguish a prepend from an append — both raise the
+  bend count by one); append from the last point unchanged; Shift+drag
+  creates no new leg; a hemmed end blocks extension and shows the exact
+  tooltip; undo restores in one step; and a prepended profile round-trips
+  through the F-01 autosave validators across a real page reload.
+- Pre-existing, unrelated failures: `homepage.spec.ts` x2 (header logo
+  `width` is 160, the spec expects 76; the hero "View Our Work" CTA
+  resolves to `/design-studio`, the spec expects otherwise) and
+  `checkout.spec.ts` x1 ("Checkout Unavailable" heading not found). All
+  three were confirmed to fail **identically on clean `main` with lr-02's
+  work stashed** — they are not caused by this pass, and fixing them was
+  not in this prompt's scope.
+
+---
+
 ## ENVIRONMENT HYGIENE — ONE CANONICAL VERCEL PROJECT + WORKING LOGIN (lr-01): VERIFIED (2026-09-29)
 
 Every claim below is backed by real command output or a live HTTP result

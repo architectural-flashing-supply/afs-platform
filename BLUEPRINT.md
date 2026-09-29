@@ -539,6 +539,43 @@ Full inventory, the env-var name/coverage comparison, and the two Supabase Auth
 / auth-callback fixes that made login work on alpha: STATE_OF_THE_BUILD.md's
 lr-01 entry.
 
+**FlashDraft geometry — extend from either endpoint + signed 3D bends
+(lr-02, 2026-09-29).** Two behavior changes, both directly on `main`.
+
+*Canvas gesture.* Press-and-drag on **either** free endpoint now extends
+the profile from that end — the FIRST point prepends a leg, the LAST point
+appends one (unchanged). Neither can create a closing last→first leg. Both
+free ends get a `grab` cursor and a visible hollow ring handle drawn by
+`drawProfileScene`. **afs-sv-005's Shift+drag prepend is removed in full**
+(gesture, `shiftPressed` ref, keydown/keyup wiring, hover branch, and the
+on-screen hint text) — it only existed because point 0 was a
+directly-draggable vertex with no free hit-radius for an unambiguous
+"extend" press, and point 0 is now excluded from `hitTestVertex` the way
+the last point always has been. afs-sv-003 is not regressed: its own
+follow-up already routes a leg-0 body drag to point 0, so both free ends
+stay reshapeable by the same gesture at both ends. Prepend renumbers every
+point and leg, so `commitPrepend` shifts the selection (and with it the
+typed leg length and typed angle, which key off it) and pushes exactly one
+undo entry.
+
+*Hem blocks extension — DESIGN DECISION PENDING REID.* An end carrying a
+hem refuses to extend, with the tooltip "Remove the hem to extend from
+this end." The alternative — silently dropping the hem and extending
+anyway — is a destructive edit nobody approved, so this pass took the
+non-destructive branch and flagged it. Reid's call.
+
+*3D bend direction.* The 2D canvas has always labelled bends with the
+SIGNED interior angle; the 3D path fed `computeProfilePoints` the UNSIGNED
+one, so every bend turned the same way and Reid's "W" rendered as a curled
+triangle. `lib/flashdraft/geometry.ts` now owns the shared contract
+(`bendTurnDegrees`, `signedInteriorAngleDeg`, `formatBendAngleLabel`,
+`buildCrossSectionPoints`); `ProfileViewer3D` and the two modals built on
+it reconstruct through it. For any angle ≥ 0 the new turn rule is
+bit-for-bit the old `180 - angle`, so unsigned callers are untouched. Full
+contract, including which consumers stay unsigned on purpose and why the
+PathfinderEdge encoder is a separate already-signed path: ARCHITECTURE.md
+§13.
+
 ---
 
 ## 6. ENVIRONMENT VARIABLES
