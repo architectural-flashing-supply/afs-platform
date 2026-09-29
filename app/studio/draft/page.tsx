@@ -16,7 +16,7 @@ import FinishColorField from '@/components/quote/FinishColorField';
 import { gaugeToThicknessMm } from '@/lib/utils/gauge-thickness';
 import { formatInches } from '@/lib/utils/format-inches';
 import ProfileViewer3D, { type ProfileBend } from '@/components/studio/ProfileViewer3D';
-import { computeProfilePoints } from '@/lib/flashdraft/geometry';
+import { computeProfilePoints, signedInteriorAngleDeg } from '@/lib/flashdraft/geometry';
 import { drawHemGlyph, HEM_GLYPH_R } from '@/lib/flashdraft/hem-glyph';
 import { ADMIN_JOB_HANDOFF_KEY, type AdminJobHandoffPayload } from '@/lib/flashdraft/admin-job-handoff';
 import {
@@ -374,6 +374,33 @@ function signedAngleBetween(v1: Point, v2: Point): number {
   while (deg > 180) deg -= 360;
   while (deg <= -180) deg += 360;
   return deg;
+}
+
+// The value the 2D canvas actually PRINTS at each bend — see
+// draw-profile-scene.ts's angle-indicator loop, which labels every
+// interior point with exactly `signedAngleBetween(v1, v2).toFixed(0)`.
+// Magnitude is the included angle between the two legs; the sign is the
+// fold's handedness.
+//
+// lr-02: the 3D path (viewerBends below -> ProfileViewer3D ->
+// SubmitConfirmation3DModal / MatchedProfile3DModal) used the UNSIGNED
+// bendAngleAt instead, so every bend's handedness was thrown away before
+// the cross-section was reconstructed and all of them turned the same
+// way. Reid's 2D "W" (legs 21 3/4, 16 1/4, 15 15/16, 22 3/16; bends -50,
+// +51, -53) rendered in 3D as a curled triangle with three positive
+// labels. Feeding THIS function's value through instead makes the 3D
+// cross-section congruent to the 2D drawing and the 3D labels identical
+// to the 2D ones, sign included — see lib/flashdraft/geometry.ts's
+// bendTurnDegrees for the turn rule that consumes the sign.
+//
+// Deliberately NOT applied to the profile-MATCH request below or to
+// buildBendSummary: the machine catalog stores unsigned interior angles,
+// so signing the match query would stop every catalog profile matching.
+// The PathfinderEdge encoder is a separate, already-signed code path of
+// its own (lib/integrations/flashdraft-to-pathfinder.ts's own local
+// bendAngleAt, signed since 5947fec) and is untouched here.
+function signedBendAngleAt(prev: Point, curr: Point, next: Point): number {
+  return signedInteriorAngleDeg(prev, curr, next);
 }
 
 // Wraps a degree value into (-180, 180] — same wrap rule as
@@ -1031,27 +1058,43 @@ export default function FlashDraftPage() {
   const moveProfileOriginRef = useRef<{ mouse: Point; points: Point[] } | null>(null);
   const hasMovedProfileRef = useRef(false);
 
-  // --- Prepend a new leg from the free end of the FIRST leg (afs-sv-005) ---
-  // Mirror of the "click near the last point continues the line" gesture
-  // below, which always APPENDS. Point 0 can't reuse that exact mechanism:
-  // unlike the true last point (deliberately excluded from hitTestVertex so
-  // grabbing it means "extend"), point 0 IS a fully hit-testable, directly
-  // draggable vertex (afs-sv-003 — grabbing it moves it in place). There is
-  // no empty hit-radius left at point 0's own screen position where a plain
-  // click/drag could unambiguously mean "start a new leg" instead of "move
-  // this one." Resolved the same way afs-sv-004 resolved an equivalent
-  // ambiguity for whole-profile move: reuse this file's existing
-  // modifier-key-for-a-distinct-drag-meaning convention (spacePressed ->
-  // pan, altPressed -> whole-move) instead of inventing a new interaction
-  // paradigm or touching hitTestVertex/the sv-003 fix. Shift+drag anywhere
-  // on the canvas (checked before vertex/segment hit-testing, so it always
-  // takes priority) arms the exact same click-and-drag-drawing state
-  // (dragAnchorRef/isDragDrawing/dragPreview) the append gesture uses, just
-  // anchored at points[0] instead of the last point — prependDragRef is the
-  // only new piece of state, recording which end the live preview and the
-  // eventual commit should extend from.
-  const shiftPressed = useRef(false);
+  // --- Extend from EITHER free endpoint (lr-02, supersedes afs-sv-005) ---
+  // Press-and-drag on the FIRST point prepends a new leg; press-and-drag on
+  // the LAST point appends one. The two ends are now symmetric, driven by
+  // the one shared continueLineCandidateRef gesture below, whose `prepend`
+  // field says which end this drag is growing from. prependDragRef carries
+  // that same decision from candidate-resolution time through to the commit
+  // in handlePointerUp (and into the draw loop, so the live dashed preview
+  // anchors at the right end).
+  //
+  // Supersedes afs-sv-005's Shift+drag, which was REMOVED in full (gesture,
+  // shiftPressed ref, keydown/keyup wiring, hover branch and on-screen hint
+  // text). afs-sv-005 reached for a modifier only because point 0 was a
+  // hit-testable, directly-draggable vertex (afs-sv-003) with no free
+  // hit-radius left over for an unambiguous "extend" gesture. That premise
+  // no longer holds: point 0 is now excluded from hitTestVertex exactly the
+  // way the last point always has been, so both free endpoints have a clear
+  // hit-radius that means "extend." afs-sv-003's own intent — that the first
+  // leg is reshapeable at ITS free end, not just the tail — survives
+  // untouched through the leg-body-reshape path, whose `legIndex === 0 ? 0`
+  // special case already drags point 0 rather than point 1 (the afs-sv-003
+  // follow-up). Grabbing leg 0's body moves point 0, precisely mirroring how
+  // grabbing the last leg's body moves the last point.
+  //
+  // A closing last->first leg is never creatable by any of this: prepend
+  // inserts at index 0 and append pushes at the end, so neither can ever
+  // join the two free ends.
   const prependDragRef = useRef(false);
+
+  // An end carrying a hem cannot be extended from — the hem IS that end's
+  // terminal geometry, and growing a new leg past it would leave the fold
+  // stranded mid-profile with no defined meaning in the machine payload.
+  // Blocked at the gesture level (handlePointerDown simply never arms the
+  // candidate) with this exact tooltip, rather than silently doing nothing.
+  // DESIGN DECISION PENDING REID — recorded in STATE_OF_THE_BUILD.md: the
+  // alternative (auto-drop the hem and extend anyway) is a destructive edit
+  // nobody has approved, so this run takes the non-destructive branch.
+  const HEM_BLOCKS_EXTENSION_TOOLTIP = 'Remove the hem to extend from this end.';
 
   // --- Click-and-drag drawing state ---
   const dragAnchorRef = useRef<Point | null>(null);
@@ -1331,6 +1374,52 @@ export default function FlashDraftPage() {
     [points, hemStart, hemEnd]
   );
 
+  // lr-02 — prepend a new leg at the HEAD of the profile. Inserting at
+  // index 0 shifts every existing point one index later and every existing
+  // leg one index later with it, so every other piece of index-keyed state
+  // has to move in lockstep or it silently starts describing the wrong
+  // vertex/leg. Audited, field by field:
+  //
+  //  - per-bend radii: stored ON each Point (`p.radius`), so they travel
+  //    with their own point for free. The new head point gets no radius
+  //    (it is a free end, not a bend); the OLD head point becomes a real
+  //    interior bend and picks up the material default via
+  //    getEffectiveRadius, which is correct — it had no bend radius of its
+  //    own to preserve, because it had no bend.
+  //  - per-bend angles: never stored. Derived from the point list on every
+  //    read (bendAngleAt / signedBendAngleAt), so they re-derive correctly.
+  //  - blank width, bend count, every canvas label, the 3D cross-section
+  //    and the profile-match query: all likewise derived from `points`
+  //    (blankWidthInLive, bendCountLive, the two debounced effects), so
+  //    they all recompute from the shifted list with no extra plumbing.
+  //  - typed leg length (segmentLengthInput) and typed angle
+  //    (angleInputDraft): keyed to selectedSegment / selectedBendPoint
+  //    rather than to an index of their own, so shifting those two
+  //    selections below keeps both pointed at the same physical leg/bend
+  //    the user was typing into.
+  //  - hemStart / hemEnd: anchored to "the first point" and "the last
+  //    point," not to numeric indices, so neither needs renumbering. And
+  //    hemStart is guaranteed null on this path anyway — a hemmed end
+  //    blocks extension outright (HEM_BLOCKS_EXTENSION_TOOLTIP), so a
+  //    prepend can never run against a hemmed head in the first place.
+  //  - undo/redo stacks: store whole point arrays, never indices.
+  //
+  // Exactly ONE undo entry: commitPoints pushes the pre-drag points once,
+  // and nothing else here touches `past`. Undo therefore removes the whole
+  // prepended leg in a single step.
+  const commitPrepend = useCallback(
+    (newHeadPoint: Point) => {
+      commitPoints([newHeadPoint, ...points]);
+      setSelectedBendPoint((i) => (i === null ? null : i + 1));
+      // Re-applied AFTER commitPoints, which unconditionally nulls segment
+      // selection — the shifted value has to win, so it is set last.
+      setSelectedSegment((i) => (i === null ? null : i + 1));
+      setHoveredVertex(null);
+      setHoveredSegment(null);
+    },
+    [commitPoints, points]
+  );
+
   // Refactored from the previous version, which nested every side-effecting
   // setState call (setPoints, setHemStart, ...) INSIDE the functional
   // updater passed to setPast/setFuture — a real anti-pattern (updaters are
@@ -1418,9 +1507,6 @@ export default function FlashDraftPage() {
       if (e.key === 'Alt') {
         altPressed.current = true;
       }
-      if (e.key === 'Shift') {
-        shiftPressed.current = true;
-      }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         undo();
@@ -1446,7 +1532,6 @@ export default function FlashDraftPage() {
     function handleKeyUp(e: KeyboardEvent) {
       if (e.code === 'Space') spacePressed.current = false;
       if (e.key === 'Alt') altPressed.current = false;
-      if (e.key === 'Shift') shiftPressed.current = false;
     }
     document.addEventListener('keydown', handleKeyDown);
     document.addEventListener('keyup', handleKeyUp);
@@ -1645,7 +1730,8 @@ export default function FlashDraftPage() {
       const bends: ProfileBend[] = [];
       for (let i = 1; i < points.length - 1; i++) {
         bends.push({
-          angle: bendAngleAt(points[i - 1], points[i], points[i + 1]),
+          // SIGNED (lr-02) — see signedBendAngleAt's own comment.
+          angle: signedBendAngleAt(points[i - 1], points[i], points[i + 1]),
           leftLeg: dist(points[i - 1], points[i]) * MM_PER_INCH,
           rightLeg: dist(points[i], points[i + 1]) * MM_PER_INCH,
           radius: (points[i].radius ?? defaultBendRadiusIn(material)) * MM_PER_INCH,
@@ -1683,22 +1769,21 @@ export default function FlashDraftPage() {
     (screenPos: Point, canvas: HTMLCanvasElement): number | null => {
       let hit: number | null = null;
       let minDist = ANGLE_ARC_HIT_PX;
-      // Starts at 0, not 1: point 0 (the first leg's start) is a fully
-      // draggable endpoint exactly like every interior bend point — see the
-      // `mirrored` branch of clampDragAngle and the idx===0 branch of the
-      // draggingVertexIndex handler in handlePointerMove for the matching
-      // drag math. Excluding it here was the root cause of the first leg
-      // being undraggable at that end (afs-sv-003): a click there fell
-      // through to the leg-0 body-drag path, which always drags the FAR
-      // vertex (point 1), stretching the leg instead of moving point 0.
+      // lr-02: BOTH free endpoints are excluded — index 0 and index
+      // points.length - 1. A press near either one is deliberately claimed
+      // by the extend-from-this-end gesture in handlePointerDown (prepend
+      // at the head, append at the tail), checked before segment
+      // hit-testing; see that branch's own comment.
       //
-      // Still stops at points.length - 1 (the LAST point stays excluded):
-      // a click near it is deliberately claimed by the "continue drawing
-      // from the last point" gesture in handlePointerDown, checked before
-      // segment hit-testing — see that gesture's own comment. That gesture
-      // is keyed specifically to points.length - 1, not point 0, so it has
-      // no bearing on including point 0 here.
-      for (let i = 0; i < points.length - 1; i++) {
+      // Point 0 used to be INCLUDED here (afs-sv-003, which fixed "the
+      // first leg is undraggable at that end"). That fix is not lost by
+      // excluding it: afs-sv-003's own follow-up added the
+      // `legIndex === 0 ? 0 : legIndex + 1` special case to the leg-body
+      // reshape path below, so grabbing leg 0's BODY drags point 0 — the
+      // exact mirror of how grabbing the last leg's body drags the last
+      // point. Both free ends stay reshapeable; both are now reshaped the
+      // same way, and grabbed-directly means "extend" at both.
+      for (let i = 1; i < points.length - 1; i++) {
         const center = worldToScreen(points[i], canvas);
         const d = Math.hypot(screenPos.x - center.x, screenPos.y - center.y);
         if (d < minDist) {
@@ -1771,30 +1856,6 @@ export default function FlashDraftPage() {
       return;
     }
 
-    // Prepend a new leg from point 0's free end (afs-sv-005) — see the doc
-    // comment on prependDragRef's declaration for why Shift+drag was
-    // chosen. Checked before vertex/segment hit-testing (same priority as
-    // the Alt branch above) so it always wins over grabbing point 0
-    // directly to move it — that gesture (afs-sv-003) only ever runs while
-    // Shift is NOT held. Arms the same click-and-drag-drawing state the
-    // append gesture (below, "click near the LAST point") uses, anchored
-    // at points[0] instead; the anchor and preview point are only ever
-    // read from live state at commit time (see handlePointerUp), so
-    // exactly where on the canvas this drag starts doesn't matter, mirror
-    // of how Alt+drag above works "anywhere on the canvas."
-    if (shiftPressed.current && points.length > 0) {
-      setSelectedBendPoint(null);
-      setSelectedSegment(null);
-      const anchor = points[0];
-      dragAnchorRef.current = anchor;
-      dragDownScreenRef.current = screenPos;
-      prependDragRef.current = true;
-      setIsDragDrawing(true);
-      setDragPreview({ point: anchor, length: 0, angleDeg: 0 });
-      setDragScreenPos(screenPos);
-      return;
-    }
-
     const vertexHit = hitTestVertex(screenPos, canvas);
     if (vertexHit !== null) {
       // Point 0 is a draggable endpoint, not a bend vertex — it has no leg
@@ -1827,19 +1888,43 @@ export default function FlashDraftPage() {
       return;
     }
 
-    // A click/drag near the LAST point is ambiguous, same as the vertex and
-    // leg-body hits above: it might be the start of "continue the line"
-    // (drag away to extend), or it might just be a plain click meaning
-    // "select this." Recorded as a deferred candidate (see
-    // continueLineCandidateRef's own comment) rather than committing to
-    // "continue the line" immediately — falls through to the normal
-    // segment hit-testing below, which finds this same segment (the last
-    // point sits exactly on the last segment too), so a plain click here
+    // A click/drag near EITHER free endpoint is ambiguous, same as the
+    // vertex and leg-body hits above: it might be the start of "extend the
+    // profile from this end" (drag away), or it might just be a plain click
+    // meaning "select this." Recorded as a deferred candidate (see
+    // continueLineCandidateRef's own comment) rather than committing
+    // immediately — falls through to the normal segment hit-testing below,
+    // which finds the segment that endpoint sits on, so a plain click here
     // selects it exactly like clicking anywhere else on the profile.
+    //
+    // lr-02: previously the LAST point only. The first point now arms the
+    // identical candidate with prepend=true. Whichever end the press is
+    // NEARER wins when both are in range at once (a short profile zoomed
+    // far out can put both inside HIT_RADIUS_PX); `prepend` is only ever
+    // true for a profile with a real leg to prepend to, since a 1-point
+    // profile's two "ends" are the same point and appending is the sane
+    // reading of a drag away from it.
+    const firstScreen = worldToScreen(points[0], canvas);
     const lastScreen = worldToScreen(points[points.length - 1], canvas);
+    const distToFirst = Math.hypot(screenPos.x - firstScreen.x, screenPos.y - firstScreen.y);
     const distToLast = Math.hypot(screenPos.x - lastScreen.x, screenPos.y - lastScreen.y);
-    if (distToLast <= HIT_RADIUS_PX) {
-      continueLineCandidateRef.current = { anchor: points[points.length - 1], downScreenPos: screenPos, prepend: false };
+    const nearFirst = points.length >= 2 && distToFirst <= HIT_RADIUS_PX;
+    const nearLast = distToLast <= HIT_RADIUS_PX;
+    if (nearFirst || nearLast) {
+      const prepend = nearFirst && (!nearLast || distToFirst < distToLast);
+      // A hemmed end is not extendable — see HEM_BLOCKS_EXTENSION_TOOLTIP's
+      // own comment (DESIGN DECISION PENDING REID). The candidate is simply
+      // never armed, so the press falls through to ordinary selection and
+      // no leg can be grown from this end; the tooltip says why.
+      if (prepend ? hemStart : hemEnd) {
+        canvas.title = HEM_BLOCKS_EXTENSION_TOOLTIP;
+      } else {
+        continueLineCandidateRef.current = {
+          anchor: prepend ? points[0] : points[points.length - 1],
+          downScreenPos: screenPos,
+          prepend,
+        };
+      }
     }
 
     const segmentHit = hitTestSegmentAt(screenPos, canvas);
@@ -2024,8 +2109,16 @@ export default function FlashDraftPage() {
       // armed on the very same pointerdown (the last point sits on the
       // last segment too).
       legBodyDragCandidateRef.current = null;
-      setSelectedBendPoint(null);
-      setSelectedSegment(null);
+      // An APPEND drag drops whatever selection handlePointerDown guessed,
+      // unchanged from before lr-02. A PREPEND drag deliberately keeps it:
+      // the press that started this gesture landed on the head endpoint,
+      // which also selected the leg that endpoint belongs to, and that leg
+      // is still a real leg afterwards — just renumbered. commitPrepend
+      // shifts the selection to follow it rather than throwing it away.
+      if (!candidate.prepend) {
+        setSelectedBendPoint(null);
+        setSelectedSegment(null);
+      }
       dragAnchorRef.current = candidate.anchor;
       dragDownScreenRef.current = candidate.downScreenPos;
       prependDragRef.current = candidate.prepend;
@@ -2098,17 +2191,29 @@ export default function FlashDraftPage() {
       return;
     }
 
-    // Shift held but not yet dragging — suppress vertex/segment hover so it
-    // doesn't visually compete with point 0's own move affordance; cursor
-    // stays the default crosshair (same "ready to draw" cue plain drawing
-    // already uses), since this gesture also draws a new segment, just
-    // prepended instead of appended (afs-sv-005).
-    if (shiftPressed.current && points.length > 0) {
-      canvas.style.cursor = 'crosshair';
-      canvas.title = '';
-      setHoveredVertex(null);
-      setHoveredSegment(null);
-      return;
+    // Free-endpoint hover (lr-02) — checked BEFORE the interior-vertex and
+    // segment hover below, because both free endpoints are excluded from
+    // hitTestVertex now and each one sits directly on top of its own end
+    // segment, so without this they would read as a plain segment hover.
+    // Gives both ends the same `grab` affordance an interior vertex gets
+    // (the visible ring handle itself is drawn by drawProfileScene), and
+    // surfaces the hem block as a tooltip on hover rather than only on a
+    // press the user has already committed to.
+    if (points.length > 0) {
+      const firstScreen = worldToScreen(points[0], canvas);
+      const lastScreen = worldToScreen(points[points.length - 1], canvas);
+      const distToFirst = Math.hypot(screenPos.x - firstScreen.x, screenPos.y - firstScreen.y);
+      const distToLast = Math.hypot(screenPos.x - lastScreen.x, screenPos.y - lastScreen.y);
+      const nearFirst = points.length >= 2 && distToFirst <= HIT_RADIUS_PX;
+      const nearLast = distToLast <= HIT_RADIUS_PX;
+      if (nearFirst || nearLast) {
+        const atStart = nearFirst && (!nearLast || distToFirst < distToLast);
+        canvas.style.cursor = 'grab';
+        canvas.title = (atStart ? hemStart : hemEnd) ? HEM_BLOCKS_EXTENSION_TOOLTIP : '';
+        setHoveredVertex(null);
+        setHoveredSegment(null);
+        return;
+      }
     }
 
     const vertexHover = hitTestVertex(screenPos, canvas);
@@ -2215,15 +2320,16 @@ export default function FlashDraftPage() {
             : [dragAnchorRef.current]
         );
       } else if (dragPreview.length >= MIN_DRAG_SEGMENT_IN) {
-        // afs-sv-005: a prepend drag inserts the new point at the FRONT —
-        // every existing point shifts one index later, which is exactly
-        // why selectedBendPoint/selectedSegment were already cleared when
-        // this gesture was armed in handlePointerDown (a selection left
-        // pointing at its old index would now silently reference the
-        // wrong vertex/leg). commitPoints's own setSelectedSegment(null)
-        // covers segment selection either way; the append branch needs no
-        // equivalent care since it never shifts any existing index.
-        commitPoints(wasPrependDrag ? [dragPreview.point, ...points] : [...points, dragPreview.point]);
+        // lr-02: a prepend drag inserts the new point at the FRONT, which
+        // renumbers every existing point and leg — see commitPrepend for
+        // the full field-by-field audit of what has to shift with them.
+        // Append pushes at the tail and renumbers nothing, so it stays on
+        // plain commitPoints.
+        if (wasPrependDrag) {
+          commitPrepend(dragPreview.point);
+        } else {
+          commitPoints([...points, dragPreview.point]);
+        }
       }
       setIsDragDrawing(false);
       dragAnchorRef.current = null;
@@ -3572,10 +3678,10 @@ export default function FlashDraftPage() {
         </div>
         <p
           className="font-body text-[10px] text-afs-chrome-dim mt-1 hidden md:block"
-          title="Click empty space to draw · click a segment or bend to select it · double-click an endpoint for a hem · Alt+drag to move the whole profile · Shift+drag to start a new leg from the first leg's free end"
+          title="Click empty space to draw · drag either end handle to extend the profile from that end · click a segment or bend to select it · double-click an endpoint for a hem · Alt+drag to move the whole profile"
         >
-          Click empty space to draw · click a segment or bend to select it · double-click an endpoint for a hem ·
-          Alt+drag to move the whole profile · Shift+drag to start a new leg from the first leg&apos;s free end
+          Click empty space to draw · drag either end handle to extend the profile from that end · click a segment or
+          bend to select it · double-click an endpoint for a hem · Alt+drag to move the whole profile
         </p>
       </div>
 

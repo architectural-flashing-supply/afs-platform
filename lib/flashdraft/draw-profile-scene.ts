@@ -46,6 +46,13 @@ function distWorld(a: ScenePoint, b: ScenePoint): number {
   return Math.hypot(b.x - a.x, b.y - a.y);
 }
 
+// Radius of the hollow ring drawn around each free (un-hemmed) endpoint to
+// mark it as a grab handle for the extend-from-this-end gesture (lr-02).
+// Sized to sit just outside the 4px vertex dot and comfortably inside
+// page.tsx's own HIT_RADIUS_PX, so the drawn affordance never overstates
+// the area that actually responds.
+const END_HANDLE_RADIUS_PX = 8;
+
 export interface ProfileSceneColors {
   background: string;
   grid: string;
@@ -353,6 +360,32 @@ export function drawProfileScene(params: DrawProfileSceneParams): void {
     ctx.arc(s.x, s.y, i === interaction.draggingVertexIndex ? 12 : 4, 0, Math.PI * 2);
     ctx.fill();
   });
+
+  // Free-endpoint grab handles (lr-02). Both ends of the profile can be
+  // press-and-dragged to extend it — the head prepends a leg, the tail
+  // appends one — and that affordance was previously invisible: both ends
+  // drew the same 4px dot every interior bend point draws. A hollow ring
+  // around the dot marks the two grabbable ends without adding a second
+  // visual language (same colors.point crimson, same center). An end
+  // carrying a hem is NOT extendable (the pointer handlers refuse it and
+  // show "Remove the hem to extend from this end."), so it gets no ring —
+  // its hem glyph is already drawn there instead, and a grab ring would
+  // promise a gesture that will not fire.
+  if (points.length >= 2) {
+    const freeEnds: number[] = [];
+    if (!hemStart) freeEnds.push(0);
+    if (!hemEnd) freeEnds.push(points.length - 1);
+    ctx.save();
+    ctx.strokeStyle = colors.point;
+    ctx.lineWidth = 2;
+    for (const i of freeEnds) {
+      const s = worldToScreen(points[i]);
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, END_HANDLE_RADIUS_PX, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
 
   // Angle indicators.
   const gaugeIsThick = isGauge18OrThicker(gauge);

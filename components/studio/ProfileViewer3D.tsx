@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { formatInches } from '@/lib/utils/format-inches';
-import { computeProfilePoints } from '@/lib/flashdraft/geometry';
+import { buildCrossSectionPoints, formatBendAngleLabel } from '@/lib/flashdraft/geometry';
 import type { Hem } from '@/lib/types/profile';
 
 export interface ProfileBend {
@@ -144,15 +144,23 @@ function mmToIn(mm: number): number {
  * rather than being read as a full fold-back — preserving this file's
  * own prior edge-case behavior bit-for-bit rather than silently
  * adopting BendSequenceDiagram/loadFromLibrary's `??`-based default.
+ *
+ * lr-02: `bend.angle` is now a SIGNED interior angle wherever the caller
+ * has a real 2D point list to derive it from (FlashDraft's draft canvas
+ * and, through it, SubmitConfirmation3DModal). computeProfilePoints reads
+ * that sign as the fold's handedness (see bendTurnDegrees there), so the
+ * extruded cross-section is congruent to what the user drew instead of
+ * curling every bend the same way. Callers whose bends come out of the
+ * machine catalog (MatchedProfile3DModal, /studio/profile-viewer,
+ * /upload) still pass unsigned angles and are bit-for-bit unchanged —
+ * bendTurnDegrees reduces to the old `180 - angle` for any angle >= 0.
+ *
+ * `bend.angle || 180` below is deliberately left as-is: `||` is falsy-based,
+ * so it treats a literal 0 as missing, and a NEGATIVE angle is truthy and
+ * passes straight through with its sign intact.
  */
 function buildProfilePoints(bends: ProfileBend[]): Point2D[] {
-  return computeProfilePoints(
-    bends.map((b) => ({
-      legIn: b.leftLeg || 0,
-      nextLegIn: b.rightLeg || 0,
-      bendAngleDegrees: b.angle || 180,
-    }))
-  ).points;
+  return buildCrossSectionPoints(bends);
 }
 
 function segNormal(a: Point2D, b: Point2D): Point2D {
@@ -373,8 +381,18 @@ function buildHemGeometries(
   return geometries;
 }
 
+/**
+ * lr-02: must match the 2D canvas's own angle label EXACTLY, sign included
+ * — that label is `${signedAngleBetween(v1, v2).toFixed(0)}°` (see
+ * lib/flashdraft/draw-profile-scene.ts's angle-indicator loop), so this
+ * uses `.toFixed(0)` rather than `Math.round`. The two disagree on
+ * negative halves (`Math.round(-50.5)` is -50, `(-50.5).toFixed(0)` is
+ * "-51"), which is exactly the class of mismatch this is here to prevent.
+ * Previously `Math.round(bend.angle)` over an unsigned angle, so every 3D
+ * label read positive no matter which way the fold actually went.
+ */
 function bendAngleLabel(bend: ProfileBend): string {
-  return `${Math.round(bend.angle)}°`;
+  return formatBendAngleLabel(bend.angle);
 }
 
 /**
