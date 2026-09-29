@@ -92,11 +92,12 @@ re-running them with this run's changes stashed. The eleventh
 on a stale UI-copy assertion — left alone as out of scope; the two
 security-relevant checkout tests in that file pass.
 
-**Gates.** `npx tsc --noEmit` over the tracked codebase: **exit 0**.
-`pnpm tsc --noEmit` as literally invoked: exit 2, all four errors in the
-**untracked** scratch file `diagnostics/spec-test-send.ts`, proven byte-identical
-at HEAD with this run's changes stashed. Not deleted (not this run's file) and
-`tsconfig.json` not edited to hide it.
+**Gates.** `pnpm tsc --noEmit`: **exit 0.** It first exited 2, with all four
+errors in the **untracked** scratch file `diagnostics/spec-test-send.ts`
+(proven byte-identical at HEAD with this run's changes stashed). Resolved in
+commit `576fe2c` by adding the gitignored, zero-tracked-file `diagnostics`
+directory to `tsconfig.json`'s `exclude`, next to the existing `tests` and
+`playwright.config.ts` entries — the scratch file itself was left alone.
 
 **Open, needs Reid.**
 1. `NEXT_PUBLIC_APP_URL` on the team project is `sensitive` (unreadable) and an
@@ -115,6 +116,34 @@ at HEAD with this run's changes stashed. Not deleted (not this run's file) and
 
 No POST and no DELETE was made to PathfinderEdge. No production deploy was run
 from the working tree.
+
+**Re-run of lr-01 (same day, via `forge-1.ps1`) — everything above re-verified
+live; nothing had drifted.** The one-way steps were deliberately *not* repeated
+(`vercel git disconnect` was already applied and holding; re-creating the E2E
+user would have duplicated it), so each claimed end-state was re-queried
+instead. Re-confirmed from the Vercel REST API: the stray still reports
+`GIT CONNECTION: NONE` with its production deployment frozen at `075c952`,
+while the canonical project is still Git-connected and has since deployed
+`0e40ebb` — i.e. every commit pushed after lr-01 landed on alpha *only*. The
+env-var comparison reproduced name-for-name. Both magic-link shapes were driven
+again: the `token_hash` callback lands authenticated on alpha (307 → `/admin`
+with the session cookie, `/admin` and `/account` both 200), while the raw
+`action_link` ends at `/login?error=auth_callback_failed` — expected, not a
+regression, since that path returns an implicit-flow `#fragment` no server can
+read. All three canvas tests executed and passed again.
+
+Two things worth carrying forward from the re-run. **First**, `vercel link`
+mutates the working tree every time — it appends `.env*` to `.gitignore`
+(which would shadow the *tracked* `.env.example`) and rewrites `.env.local`
+with a fresh `VERCEL_OIDC_TOKEN`. Check `git status` after running it; the
+`.gitignore` edit was reverted again this pass. **Second**, a new finding
+recorded in STATE_OF_THE_BUILD.md §10: all four Supabase email templates use
+`{{ .ConfirmationURL }}`, which is correct *today* only because every auth
+email this app sends comes from the PKCE browser client. The first
+server-generated auth email anyone adds (an admin "invite teammate" flow being
+the likely one) will silently fail at `/login?error=auth_callback_failed`; the
+fix then is to switch that one template to `{{ .TokenHash }}`, **not** to edit
+`app/auth/callback/route.ts`, which already handles both shapes.
 
 ---
 

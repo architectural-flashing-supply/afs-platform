@@ -325,17 +325,15 @@ shows a price.
 
 - `npx tsc --noEmit` over the tracked codebase (`app/`, `lib/`, `components/`,
   `types/`, `scripts/`, `middleware.ts`): **exit 0**.
-- `pnpm tsc --noEmit` as literally invoked: **exit 2**, with all four errors in
-  `diagnostics/spec-test-send.ts`. That file is **untracked** (`git ls-files
-  diagnostics` is empty) — local scratch debris from an earlier PathfinderEdge
-  session, referencing `buildFeaturesForTest`, `paintFace` and `paintedSide`,
-  none of which exist any more. Proven pre-existing by stashing this run's
-  changes and re-running: byte-identical errors at HEAD. It is not in the repo
-  and never reaches a Git deploy. Deliberately not deleted (someone else's
-  untracked working file) and `tsconfig.json` deliberately not edited to hide
-  it. **Cleanup is a decision for Reid:** delete
-  `diagnostics/spec-test-send.ts`, or repair it against the current
-  `lib/integrations/pathfinder-edge.ts` API.
+- `pnpm tsc --noEmit` as literally invoked: **exit 0 (RESOLVED, commit
+  `576fe2c`).** It previously exited 2, with all four errors in
+  `diagnostics/spec-test-send.ts` — untracked scratch debris from an earlier
+  PathfinderEdge session, referencing `buildFeaturesForTest`, `paintFace` and
+  `paintedSide`, none of which exist any more. Rather than delete someone
+  else's working file, `diagnostics` (gitignored at `.gitignore:44`, zero
+  tracked files) was added to `tsconfig.json`'s `exclude`, alongside the
+  pre-existing `tests` and `playwright.config.ts` entries. The compile gate now
+  measures the tracked tree only, which is what it was always meant to mean.
 
 ### 9. Not done / still open
 
@@ -349,6 +347,75 @@ shows a price.
 - No POST and no DELETE was made to PathfinderEdge anywhere in this run.
 - No production deploy was run from the working tree; alpha updated only via
   `main` auto-deploy.
+
+### 10. Independent re-verification pass (lr-01 re-run, 2026-09-29)
+
+lr-01 was re-issued through `forge-1.ps1` after the original run. Rather than
+re-execute the one-way steps (`vercel git disconnect` was already applied;
+re-creating the E2E user would have duplicated it), every claimed end-state was
+re-queried live. **All of §1–§6 re-confirmed; nothing had drifted.** New facts
+from this pass:
+
+- **Stray/canonical split re-confirmed from the Vercel REST API**, not carried
+  forward: stray `prj_POXBIS...` → `GIT CONNECTION: NONE`, production
+  deployment still frozen at sha `075c952` (the last commit before lr-01);
+  canonical `prj_In4blcKRV8BoeaYg9y3nsskdOCpD` → still
+  `github:architectural-flashing-supply/afs-platform (branch main)`, production
+  deployment sha `0e40ebb`, `READY`. The three commits pushed since `075c952`
+  landed **only** on the canonical project — the disconnect is holding in
+  behaviour, not just in configuration. `vercel alias ls` again shows
+  `afs-website-alpha.vercel.app` and
+  `afs-website-git-main-steveharyckis-projects.vercel.app` resolving to the
+  same source deployment.
+- **The env-var comparison reproduced identically** (11 stray names, all
+  `[production]`; 13 team names, all `[preview, production]`; same
+  only-in-stray/only-in-team/coverage-diff lists as §3). Queried with
+  `decrypt=false`; no value was pulled or printed. The §3 decisions for Reid
+  are unchanged and still open.
+- **`vercel link` re-confirmed to mutate `.gitignore`** (appends `.env*`, which
+  would shadow the *tracked* `.env.example`) and to rewrite `.env.local` with a
+  fresh `VERCEL_OIDC_TOKEN`. Reverted again; `.gitignore` is byte-identical to
+  HEAD (`git hash-object` before and after both `cecb53a…`). **Anyone re-running
+  `vercel link` in this repo must check `git status` afterwards.**
+- **Both magic-link shapes were driven end-to-end this pass, and they differ —
+  this is worth understanding before anyone "fixes" it again.** Following the
+  raw `action_link` that `generateLink` returns (i.e. GoTrue's
+  `/auth/v1/verify?token=…`) lands on `/login?error=auth_callback_failed`,
+  because GoTrue answers a non-PKCE link with an implicit-flow
+  `#access_token=…` **fragment**, and a fragment is never transmitted to a
+  server — no server route can ever read it. Following the documented
+  server-side counterpart, `/auth/callback?token_hash=<hashed_token>&type=…`,
+  returns `307 → /admin` with `sb-…-auth-token` set, and `/admin` + `/account`
+  both then answer `200` with no redirect to `/login`. **That is not a
+  regression and needs no code change** — it is precisely the asymmetry root
+  cause B describes, and the `token_hash` branch exists to close it.
+- **Supabase Auth config verified live via the Management API:** `site_url =
+  https://afs-website-alpha.vercel.app`, `uri_allow_list =
+  https://afs-website-alpha.vercel.app/**, https://afs-website-eight.vercel.app/**,
+  http://localhost:3000/**`. The §5 configuration fix is intact.
+- **New finding — all four email templates use `{{ .ConfirmationURL }}`, and
+  that is CORRECT here, but only by a margin worth writing down.**
+  `{{ .ConfirmationURL }}` resolves to the `/verify?token=…` endpoint, which is
+  the fragment path above. It is safe today because **every** auth email this
+  app actually sends originates from the PKCE browser client — `signInWithOtp`
+  (`app/(auth)/login/page.tsx:88`) and `resetPasswordForEmail`
+  (`app/(auth)/forgot-password/page.tsx:27`), both `'use client'` files
+  importing `lib/supabase/client.ts`'s `createBrowserClient` — so GoTrue
+  returns `?code=` and the untouched `exchangeCodeForSession` branch handles
+  it. `grep` confirms no server-side `inviteUserByEmail` / `generateLink` /
+  server `signInWithOtp` call exists anywhere in `app/`, `lib/` or
+  `components/`. **The trap:** the first server-generated auth email anyone
+  adds (an admin "invite teammate" flow being the obvious candidate) will send
+  a non-PKCE link, hit the fragment path, and fail silently at
+  `/login?error=auth_callback_failed`. The fix at that point is to switch that
+  template to `{{ .TokenHash }}` (`…/auth/callback?token_hash={{ .TokenHash }}&type=…`),
+  **not** to touch `app/auth/callback/route.ts`, which already handles both
+  shapes.
+- **Gates this pass:** `pnpm tsc --noEmit` → **exit 0** (see §8).
+  `npx playwright test tests/e2e/flashdraft.spec.ts` against alpha → **5
+  passed**, with all three `FlashDraft canvas` tests EXECUTED, none skipped.
+- No POST and no DELETE was issued to PathfinderEdge. No production deploy was
+  run from the working tree.
 
 ---
 

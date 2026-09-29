@@ -256,7 +256,12 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
    and `afs-website-git-main-steveharyckis-projects.vercel.app` resolve to
    the same source deployment. The local `.vercel/project.json` is linked
    to this project. `main` auto-deploys here; never run a production
-   deploy from the working tree.
+   deploy from the working tree. **Note when re-running `vercel link`:**
+   it mutates the working tree every time — it appends `.env*` to
+   `.gitignore` (which would shadow the TRACKED `.env.example`) and
+   rewrites `.env.local` with a fresh `VERCEL_OIDC_TOKEN`. Check
+   `git status` afterwards and revert the `.gitignore` edit; do not
+   commit it.
 
    **The other project, `reids-projects-b3405b97/afs-website`
    (`prj_POXBIS4e5hE88zekvufE6aODCUeP`, alias

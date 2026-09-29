@@ -196,6 +196,30 @@ the landing page identically: an `admin` role always goes to `/admin`
 regardless of `?next=`, matching the password sign-in redirect in
 `app/(auth)/login/page.tsx`.
 
+**The email template decides which shape a real user gets — and today all four
+templates use `{{ .ConfirmationURL }}`.** That macro resolves to GoTrue's
+`/verify?token=...` endpoint, i.e. the fragment path above. It is correct as
+things stand, because every auth email this app actually sends is initiated by
+the PKCE browser client — `signInWithOtp` (`app/(auth)/login/page.tsx`) and
+`resetPasswordForEmail` (`app/(auth)/forgot-password/page.tsx`), both
+`'use client'` — so GoTrue returns `?code=` and the PKCE branch handles it.
+There is no server-side `inviteUserByEmail` / `generateLink` / server
+`signInWithOtp` anywhere in `app/`, `lib/` or `components/`.
+
+**This is a trap for the next person to add one.** The first server-generated
+auth email (an admin "invite teammate" flow being the obvious candidate) will
+produce a non-PKCE link, hit the fragment, and fail silently at
+`/login?error=auth_callback_failed` — with a link that looks perfectly valid.
+The fix at that point is to change **that template** to emit the token_hash
+shape:
+
+```
+{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=magiclink
+```
+
+Do **not** "fix" `app/auth/callback/route.ts` for this — it already handles
+both shapes correctly, and a fragment genuinely cannot reach it.
+
 ### Supabase Auth Redirect Allow-List — a real, silent failure mode
 
 GoTrue does **not** error on a `redirect_to` that is not in the allow-list. It
