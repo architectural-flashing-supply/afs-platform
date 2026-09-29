@@ -327,10 +327,38 @@ Env vars (see .env.example):
   AFS_BRIDGE_SECRET               Shared Bearer secret between afs-website's
                                    app/api/machine-bridge/* routes and the
                                    bridge's own .env — must match exactly.
-  PATHFINDER_EDGE_API_KEY         PathfinderEdge integration — stubbed, see
-  PATHFINDER_EDGE_BASE_URL        lib/integrations/pathfinder-edge.ts. No
-  PATHFINDER_EDGE_MACHINE_SERIAL  discoverable REST API was found at this
-                                   base URL; these vars are wired but unused.
+  PATHFINDER_EDGE_API_KEY         PathfinderEdge integration — LIVE AND IN
+  PATHFINDER_EDGE_BASE_URL        REAL USE, not a stub. See
+  PATHFINDER_EDGE_MACHINE_SERIAL  lib/integrations/pathfinder-edge.ts.
+                                   (This block previously read "no
+                                   discoverable REST API ... wired but
+                                   unused." That was wrong — a probe used
+                                   the wrong auth format. Corrected
+                                   2026-09-24 from live evidence: GET
+                                   /api/v1/catalogs returns 200 with real
+                                   data. The API key goes in the
+                                   Authorization header RAW, with NO
+                                   scheme prefix — not "Bearer <key>",
+                                   not "X-API-Key". Base URL is the
+                                   per-tenant root,
+                                   https://afs.pathfinderedge.com.)
+
+  PATHFINDER_DEBUG_CAPTURE        Set to 1 to write each outgoing
+                                   PathfinderEdge POST body to
+                                   diagnostics/. Off by default; a write
+                                   failure here can never block a push.
+
+  **Machine sync — how a profile actually reaches the Thalmann.** Machines
+  PULL; nothing pushes to them. There is no job-submission endpoint, no
+  job-status endpoint, and NO WAY TO TRIGGER, FORCE, OR EXPEDITE A SYNC —
+  confirmed against the vendor's own machine-sync doc. A profile reaches
+  the DS2801 when three conditions hold: it sits in a catalog the machine
+  subscribes to (20115, "afs" — the only one it subscribes to), it is not
+  archived, and the machine is powered on and connected. `submitJobToMachine`
+  and `getJobStatus` returning `not_configured` is CORRECT — do not "fix"
+  them by inventing endpoints. There are no `syncDate`/`forceSyncDate`
+  fields in this API; do not add them. Full detail:
+  STATE_OF_THE_BUILD.md's 2026-09-24 FlashDraft audit entry.
 
 Gitignored locally:
   machine-data/    The raw Thalmann DS2801 database (ds2801db.bdb) and

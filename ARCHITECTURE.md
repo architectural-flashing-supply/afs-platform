@@ -612,11 +612,26 @@ Both routes verify `Authorization: Bearer {CRON_SECRET}` header before executing
 
 ## 11. MACHINE BRIDGE ARCHITECTURE
 
-The Thalmann DS2801 bending machine (serial P0700707) is not integrated
-via any third-party API — it's fed by **AFS Machine Bridge**, a
-standalone Node.js polling service that afs-website's team built and
-owns, because the paid alternative (PathfinderEdge, ~$350/mo) turned out
-to have no discoverable integration surface (see §12). This is a
+The Thalmann DS2801 bending machine (serial P0700707) is fed by **AFS
+Machine Bridge**, a standalone Node.js polling service that afs-website's
+team built and owns.
+
+> **Corrected 2026-09-24 (FlashDraft audit).** This paragraph previously
+> stated the machine "is not integrated via any third-party API" because
+> PathfinderEdge "turned out to have no discoverable integration surface."
+> That is **wrong and contradicts §12 of this same file.** PathfinderEdge
+> has a real, working, documented REST API which this codebase uses in
+> production — the original probe simply used the wrong auth format (the
+> key goes in `Authorization` RAW, with no `Bearer`/`X-API-Key` prefix).
+> Re-confirmed live during the audit: `GET /api/v1/catalogs` → 200 in
+> 2.46s. So the machine now has **two** independent paths to a job: this
+> Bridge's human-reviewed `.ds1` file, and a direct push to
+> PathfinderEdge catalog 20115, which the machine polls automatically
+> (§12, and `lib/integrations/pathfinder-edge.ts`). What PathfinderEdge
+> genuinely lacks is a *job-submission/job-status* surface and any way to
+> trigger or expedite a sync — not an API altogether.
+
+This is a
 **separate project, not part of this repo**: own `package.json`, own git
 repository. Dev-machine copy: `C:\Users\manag\Documents\afs-machine-bridge`.
 Its own README documents installing a copy at `C:\afs-machine-bridge` on

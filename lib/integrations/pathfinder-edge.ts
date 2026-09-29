@@ -129,6 +129,67 @@ function mmToIn(mm: number): number {
   return Math.round((mm / MM_PER_INCH) * 10000) / 10000;
 }
 
+// F-01 (audit 2026-09-24). Every dimension guard in buildFeatures below used
+// to read `if (x <= 0) throw`. That is FALSE for NaN and for Infinity — so a
+// non-finite value passed every guard, and JSON.stringify then serialised it
+// to the literal `null`, producing a structurally valid POST into catalog
+// 20115 (the catalog the physical Thalmann DS2801 polls automatically)
+// carrying `{"type":"Straight","length":null}`. Confirmed by executed repro,
+// not inferred.
+//
+// The ordering matters: Number.isFinite is checked FIRST, because any
+// comparison against NaN silently returns false and would let it through.
+// Every dimension that reaches the wire goes through this one function so
+// the rule cannot drift apart across call sites.
+function assertPositiveDimension(value: number, label: string): number {
+  if (!Number.isFinite(value)) {
+    throw new Error(
+      `${label} is not a finite number (got ${String(value)}) — refusing to build a machine feature from it.`
+    );
+  }
+  if (value <= 0) {
+    throw new Error(`${label} resolves to 0 or less — cannot build a valid Straight feature.`);
+  }
+  return value;
+}
+
+// Bend angles are legitimately negative and legitimately zero (a flat
+// hairpin — see flashdraft-to-pathfinder.ts's bendAngleAt boundary notes),
+// so they get a finiteness check WITHOUT the positivity check that would be
+// wrong for them. PathfinderEdge documents the field as -180 to 180.
+function assertFiniteAngle(value: number, label: string): number {
+  if (!Number.isFinite(value)) {
+    throw new Error(
+      `${label} is not a finite number (got ${String(value)}) — refusing to build a machine feature from it.`
+    );
+  }
+  if (value < -180 || value > 180) {
+    throw new Error(`${label} is ${value}°, outside PathfinderEdge's documented -180..180 range.`);
+  }
+  return value;
+}
+
+// Last line of defence, run on the fully composed body immediately before
+// it is serialised and sent. Walks every numeric leaf and rejects any
+// non-finite one. This is deliberately redundant with the per-feature
+// guards above: it is what stops a FUTURE call site, or a future feature
+// type, from reintroducing F-01 without anyone noticing.
+function assertBodyAllFinite(body: unknown, path = 'body'): void {
+  if (typeof body === 'number') {
+    if (!Number.isFinite(body)) {
+      throw new Error(`${path} is ${String(body)} — a non-finite number must never reach PathfinderEdge.`);
+    }
+    return;
+  }
+  if (Array.isArray(body)) {
+    body.forEach((v, i) => assertBodyAllFinite(v, `${path}[${i}]`));
+    return;
+  }
+  if (body && typeof body === 'object') {
+    for (const [k, v] of Object.entries(body)) assertBodyAllFinite(v, `${path}.${k}`);
+  }
+}
+
 const NOT_CONFIGURED_MESSAGE =
   'PathfinderEdge integration not configured — PATHFINDER_EDGE_API_KEY / PATHFINDER_EDGE_BASE_URL are not set.';
 
@@ -242,7 +303,20 @@ function hemDirection(kick: HemKick): 'Positive' | 'Negative' {
 function hemFeature(hem: MachineProfileHem): PathfinderFeature {
   const direction = hemDirection(hem.kick);
   if (hem.type === 'open') {
-    return { type: 'OpenHem', hemHeight: mmToIn(hem.gapMm), hemDirection: direction };
+    // F-01: gapMm reaches the wire as hemHeight, so it needs the same
+    // finiteness guard as every other dimension. Zero is allowed here (a
+    // fully-collapsed gap is a real, if unusual, open hem) — only
+    // non-finite and negative values are rejected.
+    const hemHeight = mmToIn(hem.gapMm);
+    if (!Number.isFinite(hemHeight)) {
+      throw new Error(
+        `Open hem's gapMm is not a finite number (got ${String(hem.gapMm)}) — refusing to build a machine feature from it.`
+      );
+    }
+    if (hemHeight < 0) {
+      throw new Error(`Open hem's gapMm is negative (${hemHeight}") — not fabricable.`);
+    }
+    return { type: 'OpenHem', hemHeight, hemDirection: direction };
   }
   if (hem.type === 'smashed') {
     return { type: 'ClosedHem', hemDirection: direction };
@@ -275,25 +349,24 @@ function buildFeatures(profile: MachineProfile): PathfinderFeature[] {
   const features: PathfinderFeature[] = [];
 
   if (profile.hemStart) {
-    const leaderIn = mmToIn(profile.hemStart.lengthMm);
-    if (leaderIn <= 0) {
-      throw new Error("Start hem's lengthMm resolves to 0 or less — cannot build a valid Straight feature.");
-    }
+    const leaderIn = assertPositiveDimension(mmToIn(profile.hemStart.lengthMm), "Start hem's lengthMm");
     features.push({ type: 'Straight', length: leaderIn });
     features.push(hemFeature(profile.hemStart));
   }
 
   if (bends.length === 0) {
     const lengthIn = mmToIn(profile.blankWidthMm ?? 0);
+    if (!Number.isFinite(lengthIn)) {
+      throw new Error(
+        `blankWidthMm is not a finite number (got ${String(profile.blankWidthMm)}) — refusing to build a machine feature from it.`
+      );
+    }
     if (lengthIn <= 0) {
       throw new Error('Profile has no bends and no positive blankWidthMm — nothing to push.');
     }
     features.push({ type: 'Straight', length: lengthIn });
   } else {
-    const firstLegIn = mmToIn(bends[0].leftLegMm ?? 0);
-    if (firstLegIn <= 0) {
-      throw new Error("First leg's length resolves to 0 or less — cannot build a valid Straight feature.");
-    }
+    const firstLegIn = assertPositiveDimension(mmToIn(bends[0].leftLegMm ?? 0), "First leg's length");
     features.push({ type: 'Straight', length: firstLegIn });
 
     for (let i = 0; i < bends.length; i++) {
@@ -307,31 +380,26 @@ function buildFeatures(profile: MachineProfile): PathfinderFeature[] {
       // the round-trip test below (that test only covers a bendless
       // profile, to isolate the units question) — flagged as open in
       // STATE_OF_THE_BUILD.md pending a real bend push+visual check.
+      const angle = assertFiniteAngle(bend.bendAngleDegrees ?? 180, `Bend ${i + 1}'s angle`);
       if (radiusMm > 0) {
         features.push({
           type: 'Radius',
-          radius: mmToIn(radiusMm),
+          radius: assertPositiveDimension(mmToIn(radiusMm), `Bend ${i + 1}'s radius`),
           radiusQuality: 'Medium',
-          angle: bend.bendAngleDegrees ?? 180,
+          angle,
         });
       } else {
-        features.push({ type: 'Angle', angle: bend.bendAngleDegrees ?? 180 });
+        features.push({ type: 'Angle', angle });
       }
 
       const nextLegMm = i < bends.length - 1 ? (bends[i + 1].leftLegMm ?? 0) : (bend.rightLegMm ?? 0);
-      const nextLegIn = mmToIn(nextLegMm);
-      if (nextLegIn <= 0) {
-        throw new Error(`Bend ${i + 1}'s trailing leg resolves to 0 or less — cannot build a valid Straight feature.`);
-      }
+      const nextLegIn = assertPositiveDimension(mmToIn(nextLegMm), `Bend ${i + 1}'s trailing leg`);
       features.push({ type: 'Straight', length: nextLegIn });
     }
   }
 
   if (profile.hemEnd) {
-    const leaderIn = mmToIn(profile.hemEnd.lengthMm);
-    if (leaderIn <= 0) {
-      throw new Error("End hem's lengthMm resolves to 0 or less — cannot build a valid Straight feature.");
-    }
+    const leaderIn = assertPositiveDimension(mmToIn(profile.hemEnd.lengthMm), "End hem's lengthMm");
     features.push(hemFeature(profile.hemEnd));
     features.push({ type: 'Straight', length: leaderIn });
   }
@@ -406,6 +474,22 @@ export async function pushProfileToPathfinder(profile: MachineProfile, catalogId
     owningCatalogId,
     features,
   };
+
+  // F-01 backstop. buildFeatures already guards every dimension it builds,
+  // but this walks the fully-composed body one last time before it is
+  // serialised — so a future feature type or a future call site cannot
+  // reintroduce a non-finite number without tripping here first. Returned
+  // as a normal error result (not thrown) so it surfaces to the operator
+  // exactly like any other pre-flight failure.
+  try {
+    assertBodyAllFinite(body);
+  } catch (err) {
+    return {
+      status: 'error',
+      message: err instanceof Error ? err.message : 'Outgoing profile body failed its finiteness check.',
+      profileId: null,
+    };
+  }
 
   // Permanent, opt-in diagnostic capture — replaces an ad-hoc console.log
   // used for a one-off manual capture. Silent/zero-overhead unless

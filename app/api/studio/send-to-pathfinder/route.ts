@@ -84,23 +84,70 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (!Array.isArray(body.points) || body.points.length < 2) {
       return NextResponse.json({ error: 'Draw at least one segment (2 points) before sending.' }, { status: 400 });
     }
+    // F-01 (audit 2026-09-24). The length check above was the ONLY
+    // validation here — element types were never checked, so a point whose
+    // x/y was non-numeric, NaN, or Infinity flowed straight through into
+    // the machine payload and serialised to `null`. Number.isFinite
+    // rejects NaN, ±Infinity, and any non-number in one call. `radius` is
+    // optional but reaches the wire when present, so it is checked too.
+    const badPoint = body.points.findIndex(
+      (p) =>
+        !p ||
+        typeof p !== 'object' ||
+        !Number.isFinite(p.x) ||
+        !Number.isFinite(p.y) ||
+        (p.radius !== undefined && p.radius !== null && !Number.isFinite(p.radius))
+    );
+    if (badPoint !== -1) {
+      return NextResponse.json(
+        { error: `Point ${badPoint + 1} has invalid coordinates — the drawing could not be read. Please redraw it.` },
+        { status: 400 }
+      );
+    }
+    // Same rule for hem dimensions, which reach the wire as feature
+    // lengths and hemHeight.
+    for (const [label, hem] of [
+      ['Start', body.hemStart],
+      ['End', body.hemEnd],
+    ] as const) {
+      if (hem == null) continue;
+      if (typeof hem !== 'object' || !Number.isFinite(hem.lengthIn) || !Number.isFinite(hem.gapIn)) {
+        return NextResponse.json(
+          { error: `${label} hem has invalid dimensions — the drawing could not be read. Please redraw it.` },
+          { status: 400 }
+        );
+      }
+    }
     if (typeof body.profileName !== 'string' || !body.profileName.trim()) {
       return NextResponse.json({ error: 'profileName is required.' }, { status: 400 });
     }
 
-    const machineProfile = flashDraftToMachineProfile({
-      profileName: body.profileName,
-      points: body.points,
-      material: body.material ?? null,
-      thicknessIn: typeof body.thicknessIn === 'number' ? body.thicknessIn : 0,
-      hemStart: body.hemStart ?? null,
-      hemEnd: body.hemEnd ?? null,
-      clientBusinessName: body.clientBusinessName ?? null,
-      clientName: body.clientName ?? null,
-      poNumber: body.poNumber ?? null,
-      requestedBy: body.requestedBy ?? null,
-      finish: body.finish ?? null,
-    });
+    // The adapter enforces the same finiteness rule independently (F-01,
+    // defence in depth — it has a second caller that doesn't come through
+    // this route). Anything it rejects is bad input, not a server fault,
+    // so it surfaces as a 400 with the adapter's own specific message
+    // rather than falling through to this handler's generic 500.
+    let machineProfile;
+    try {
+      machineProfile = flashDraftToMachineProfile({
+        profileName: body.profileName,
+        points: body.points,
+        material: body.material ?? null,
+        thicknessIn: typeof body.thicknessIn === 'number' ? body.thicknessIn : 0,
+        hemStart: body.hemStart ?? null,
+        hemEnd: body.hemEnd ?? null,
+        clientBusinessName: body.clientBusinessName ?? null,
+        clientName: body.clientName ?? null,
+        poNumber: body.poNumber ?? null,
+        requestedBy: body.requestedBy ?? null,
+        finish: body.finish ?? null,
+      });
+    } catch (err) {
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : 'The drawing could not be converted for the machine.' },
+        { status: 400 }
+      );
+    }
 
     const result = await pushProfileToPathfinder(machineProfile, AFS_MACHINE_CATALOG_ID);
     if (result.status !== 'connected') {

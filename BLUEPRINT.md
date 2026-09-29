@@ -245,8 +245,15 @@ per-bend radius handles), the 3D Profile Viewer
 upload results page, and a standalone shareable route at
 `/studio/profile-viewer/[profileId]`), the Thalmann DS2801 machine profile
 library import (911 real shop profiles, 70 public / 841 private — see
-SCHEMA.md), a PathfinderEdge integration stub (no discoverable REST API —
-see ARCHITECTURE.md), and the AFS Machine Bridge + admin Command Center
+SCHEMA.md), a **live, working PathfinderEdge integration** (this line
+previously read "integration stub (no discoverable REST API)" — that was
+wrong, from a probe using the wrong auth format, and is corrected here
+2026-09-24 against live evidence: `GET /api/v1/catalogs` returns 200 with
+real catalog data, and real profiles have been pushed from FlashDraft.
+Note the API has no way to trigger or expedite a machine sync, and no
+`syncDate`/`forceSyncDate` fields — machines pull on their own schedule.
+See `lib/integrations/pathfinder-edge.ts` and STATE_OF_THE_BUILD.md's
+2026-09-24 audit entry), and the AFS Machine Bridge + admin Command Center
 (`/admin/command-center`) for routing admin-approved jobs to a `.ds1` bend
 program file. See STATE_OF_THE_BUILD.md for exact build status and the
 Machine Bridge's current audited (not yet fully working) state.
