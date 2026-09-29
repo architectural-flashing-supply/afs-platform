@@ -8261,3 +8261,42 @@ directly — not this file's prose description of it.
 ---
 
 *SESSION_STATE.md | AFS — Architectural Flashing Supply | Reid Whitesides | Rewritten 2026-08-11 |*
+
+---
+
+## 2026-09-29 — lr-02 build-gate hang: root cause and the queue fix (lr-03 / lr-04)
+
+**Cause (proven, not inferred).** lr-02 halted on its `build` gate. The build did not
+fail — it *hung*. Two leftover Next.js `node` processes, started by the agent's own
+Playwright/dev runs earlier in the same prompt, still held `.next` locked, so
+`pnpm run build` never completed and blew past forge-1.ps1's 900s build-gate timeout
+(the hard timeout kills the whole process tree and reports `TIMEOUT`, which reads like a
+slow build rather than a lock). After killing those processes and deleting `.next`,
+`pnpm run build` exited **0 in 107s** on the same tree — no code change involved.
+
+**Queue change (`FORGE\projects\afs-website\queue.yaml`, lr-03 and lr-04 only).**
+
+1. A `FINAL CLEANUP (mandatory, before you finish)` paragraph is appended to both prompt
+   texts: stop every node/next/playwright process started for this repo, and verify none
+   remain with
+   `Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -match 'afs-website' }`.
+2. A `shell` gate is inserted as the **first** gate of each — ahead of `compile` — that
+   kills any `node.exe` whose command line matches `afs-website`, removes `.next` if
+   present, and exits 0. It is a cleanup step, not an assertion: it can only ever pass, so
+   it cannot mask a real failure in the gates that follow it. The kill filter deliberately
+   excludes command lines matching `claude-code`, so it can never take out the Build Agent
+   running the queue.
+
+Both edits use only gate keys forge-1.ps1 actually reads (`type:` / `run:`, verified against
+`Run-Gate` and the gate loop). lr-01, lr-02, every id, every description, the prompt order and
+all other gates are untouched.
+
+**Verified:** `.\forge-1.ps1 -project afs-website -dryRun` from the FORGE root — 4 prompts,
+all four named in the PREFLIGHT VERIFICATION block, every gate type validated,
+**Passed: 4 / Failed: 0 / Halted: False**. lr-03's gate order is now
+`shell(cleanup) -> compile -> shell(vitest) -> build -> shell(F-06)`; lr-04's is
+`shell(cleanup) -> compile -> build -> shell(deliverables) -> shell(clean-tree)`.
+
+Note: `FORGE\projects\` is gitignored in the FORGE repo, so the queue file itself is not
+committed anywhere — this entry is its record.
+
