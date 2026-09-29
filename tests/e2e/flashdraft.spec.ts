@@ -36,6 +36,16 @@ async function drawTwoLegProfile(page: Page, cx: number, cy: number) {
 test.describe('FlashDraft canvas', () => {
   test.skip(!hasCreds, 'E2E_TEST_EMAIL/E2E_TEST_PASSWORD not set — see tests/e2e/README.md');
 
+  // The Lock & Save test hits performSave, which requires a real session
+  // (app/studio/draft/page.tsx:2558 -- 'Sign in to save profiles to your
+  // account.'). This describe was gated on credentials but never consumed
+  // the storageState auth.setup.ts produces, the way checkout.spec.ts,
+  // command-center.spec.ts and production-queue.spec.ts all do -- so the
+  // save assertion could never have passed. Invisible until now, because
+  // without credentials the whole block skipped. See STATE_OF_THE_BUILD.md's
+  // lr-01 entry.
+  test.use({ storageState: 'tests/e2e/.auth/user.json' });
+
   test('draws a two-leg profile, shows a nonzero blank width and bend count, and opens the 3D submit confirmation', async ({
     page,
   }) => {
@@ -136,18 +146,24 @@ test.describe('FlashDraft canvas', () => {
     await expect(page.getByText('Bend Count: 1')).toBeVisible();
 
     await page.getByRole('button', { name: 'Lock Profile & Save to Passport' }).click();
-    await expect(page.getByRole('heading', { name: 'Profile Details' })).toBeVisible();
-    // Profile Name is pre-filled ("Untitled Profile"); Category/Subcategory
-    // are optional (see ProfileDetailsModal's handleSave) -- OK alone saves.
-    // exact: true -- a template button's accessible name loosely matched
-    // "OK" as a substring without it, a real strict-mode violation found
-    // live (not assumed) while smoke-testing this modal.
-    await page.getByRole('button', { name: 'OK', exact: true }).click();
+    // Zero-friction save (Phase 3, afs-pp-001): lockAndSaveProfile calls
+    // performSave directly with an auto-generated name and
+    // Job-Info-or-default subcategory -- no modal, no form-filling. This
+    // test previously clicked through a 'Profile Details' modal + OK; that
+    // modal flow was superseded in the app (see app/studio/draft/page.tsx's
+    // lockAndSaveProfile comment) and the stale assertion only surfaced now
+    // that credentials exist for this spec to actually run. See
+    // STATE_OF_THE_BUILD.md's lr-01 entry.
 
     // Confirms performSave's success path actually ran (a real DB write,
     // not just the button toggling some local-only "locked" flag) and that
     // it recognized lockOnSave and locked as a result.
-    await expect(page.getByText('Profile locked and saved to your Passport')).toBeVisible();
+    // Real success toast is 'Profile Saved & Locked' (page.tsx:2661); the
+    // string asserted here previously ('Profile locked and saved to your
+    // Passport') exists nowhere in the app. .first() -- the same words also
+    // render on the inline button flash at page.tsx:3867. Stale for the same
+    // reason as the modal assertion above: this block always skipped.
+    await expect(page.getByText('Profile Saved & Locked').first()).toBeVisible();
     await expect(page.getByText('Profile Locked & Saved')).toBeVisible();
 
     const bendCountBefore = await page.getByText(/^Bend Count:/).textContent();

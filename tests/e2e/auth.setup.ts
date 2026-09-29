@@ -22,7 +22,11 @@ setup('authenticate', async ({ page }) => {
   await page.goto('/login');
   await page.getByLabel(/email/i).fill(email);
   await page.getByLabel(/password/i).fill(password);
-  await page.getByRole('button', { name: /log in|sign in/i }).click();
+  // Anchored (^...$): the login page also renders a 'Sign in with magic link
+  // instead' toggle, which an unanchored /log in|sign in/i also matches --
+  // Playwright strict mode then fails on two hits. Latent since that toggle
+  // shipped; only surfaced once credentials existed for this setup to run.
+  await page.getByRole('button', { name: /^(log in|sign in)$/i }).click();
   await expect(page).not.toHaveURL(/\/login/);
 
   await page.context().storageState({ path: authFile });

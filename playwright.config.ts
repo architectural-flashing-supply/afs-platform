@@ -1,4 +1,27 @@
 import { defineConfig, devices } from '@playwright/test';
+import fs from 'node:fs';
+import path from 'node:path';
+
+// Playwright does not read .env.local (this repo has no dotenv dependency and
+// the config had no loader of its own), so E2E_TEST_EMAIL/E2E_TEST_PASSWORD
+// written there never reached auth.setup.ts or the specs, and every
+// credential-gated test reported "skipped". Load it here, without adding a
+// dependency, and without overriding anything already exported in the shell
+// (so `$env:E2E_TEST_EMAIL=...` still wins). See STATE_OF_THE_BUILD.md's lr-01
+// entry.
+const envLocalPath = path.join(__dirname, '.env.local');
+if (fs.existsSync(envLocalPath)) {
+  for (const rawLine of fs.readFileSync(envLocalPath, 'utf8').split('\n')) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    const eq = line.indexOf('=');
+    if (eq < 1) continue;
+    const key = line.slice(0, eq).trim();
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue;
+    if (process.env[key] !== undefined) continue;
+    process.env[key] = line.slice(eq + 1).trim().replace(/^["']|["']$/g, '');
+  }
+}
 
 export default defineConfig({
   testDir: './tests/e2e',
