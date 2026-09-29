@@ -8340,3 +8340,43 @@ with `SUPABASE_ACCESS_TOKEN` (project `lxfiziwsqezjjybeguqq`) — the MCP Supaba
 connector does NOT have this project (it lists only benavora, DialStars and
 brightbox-homes-admin). That should be written into CLAUDE.md on the next
 governance pass.
+
+---
+
+## 2026-09-30 — ONE DOOR TO THE MACHINE (commit 0842275) + two diagnoses
+
+**PART A finding contradicts the premise.** Every one of the 11 AFS-created
+profiles in PathfinderEdge catalog 20115 since 2026-09-25 has a matching
+Command Center approval: 11 profiles, 11 `approve_quote_request_to_machine`
+audit rows, 11 `machine_jobs` rows at `approved_for_machine`. Nothing bypassed
+approval. The other recent profiles in that catalog (`AMS TESTwwwwwwwww`,
+`AFS-SPEC-TEST-12x12`, the eight `Copy of ...` entries) have no DB or audit row
+and were made by a human in the vendor's own web UI. Full table with ids:
+STATE_OF_THE_BUILD.md's 2026-09-30 entry.
+
+**PART C: the W approval did not fail.** AFS-QR-2026-00060 was approved at
+21:38:05 and the profile IS live in catalog 20115 as profileId 32953857 (audit
+row `73658aee-...`). No failure row exists for it. The local encoder repro
+produced a valid payload whose angles are exactly `-signedInteriorAngleDeg()`,
+per CLAUDE.md rule #12 exception (b). The real defect is that
+`approve-quote-request` is **one-shot and self-locking**: success moves the
+request `'submitted'` -> `'reviewing'`, and any second click then returns
+**409 "Quote request is not pending approval."** rendered as small crimson
+text. A successful approval and an already-approved re-click look identical to
+a real send failure, and the UI never confirms the profileId.
+
+**PART B shipped.** `pushProfileToPathfinder` now requires an `ApprovalContext`
+that it verifies in the database (service role) before any network call. Four
+doors closed — the three named routes plus
+`scripts/pathfinder-roundtrip-test.ts`, which POSTed into catalog 20115 with no
+approval at all and was found by the new static test rather than by grep. Tests:
+a static caller scan plus six runtime rejection cases with a fetch spy that
+throws if called. 79/79 unit, tsc 0, build 0.
+
+**No POST or DELETE was made to PathfinderEdge in this session** — every vendor
+call was a GET, and the encoder repro ran offline.
+
+**Remaining scope NOT done** (75-minute cap reached after Part B): PART B step
+5's alpha E2E, PART C 9-10 (loud failures), PART D 11-14, PART E 16-18. Notes
+for each, including that PART D14's newest-first rule would remove rush-first
+queue priority and needs Reid's sign-off, are in STATE_OF_THE_BUILD.md.

@@ -893,3 +893,49 @@ branch.
 ---
 
 *ARCHITECTURE.md | AFS | Reid Whitesides | June 2026*
+
+
+---
+
+## ONE DOOR TO THE MACHINE (2026-09-30)
+
+`pushProfileToPathfinder(profile, catalogId, approval)` is the only path into
+PathfinderEdge catalog 20115, and it is gated by a database-verified
+`ApprovalContext` rather than by UI state. See CLAUDE.md rule #14 for the
+contract and the enforcement test; STATE_OF_THE_BUILD.md's 2026-09-30 entry
+for the evidence and the four deleted doors.
+
+Flow, as it now stands:
+
+```
+FlashDraft  --save + "Submit for Quote"-->  quote_requests (status 'submitted')
+                                                  |
+                                    Command Center "Pending Approval" tab
+                                    (lib/data/pending-quote-requests.ts,
+                                     reads status='submitted' only)
+                                                  |
+                       "Approve & Send to Machine"  (the ONLY door)
+                                                  |
+              pushProfileToPathfinder(..., {kind:'quote_request_approval'})
+                       |-- verifies quote request is still 'submitted'
+                       |-- verifies actor is role='admin'
+                       |-- only then POSTs /api/v1/profiles to catalog 20115
+                                                  |
+                     machine_jobs row 'approved_for_machine'
+                   + admin_audit_log approve_quote_request_to_machine
+                   + quote_requests.status -> 'reviewing'
+                                                  |
+                           the DS2801 PULLS it on its own schedule
+                           (no push, no trigger — see CLAUDE.md)
+```
+
+Nothing between "Submit for Quote" and that approval click touches
+PathfinderEdge. `submitJobToMachine`/`getJobStatus` remain `not_configured`
+and correct — machines pull; there is no job-submission endpoint.
+
+Known rough edge, diagnosed but not yet fixed: the approval is one-shot. Success
+sets `quote_requests.status = 'reviewing'`, which no longer satisfies the
+route's own `status === 'submitted'` entry check, so a second click returns
+409 "Quote request is not pending approval." The UI shows that as small crimson
+text and never confirms the created profileId, making a successful approval
+indistinguishable from a failed send.

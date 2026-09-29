@@ -13904,3 +13904,157 @@ verification counts — idempotency proven, not assumed.
   Galvalume-bearing option, `Galvanized Steel` still present, and selecting
   Galvalume offers `26/24/22/20/18 ga` — identical to `Galvanized Steel`'s list
   and to the old entry's.
+
+---
+
+## 2026-09-30 — ONE DOOR TO THE MACHINE + weekend-profile and W-approval diagnosis
+
+### PART A — how weekend profiles reached PathfinderEdge (the premise was wrong)
+
+**Every AFS-created profile in catalog 20115 since 2026-09-25 went through a
+real Command Center approval.** None bypassed it. Evidence: catalog 20115 read
+via GET `/api/v1/profiles?catalog=20115` (HTTP 200, 93 profiles), correlated
+against `shop_profile_library.pathfinder_profile_id`, `machine_jobs` and
+`admin_audit_log`.
+
+| PathfinderEdge profileId | Name | Created by route | Approval row (admin_audit_log id) |
+|---|---|---|---|
+| 32953909 | POLISH INFO CENTER | approve-quote-request | YES — `57f86d1d-5d78-4816-990c-e6a63e7df9ac` |
+| 32953868 | Profile-2026-09-29T21:56:42.289Z | approve-quote-request | YES — `9593ff00-3022-4624-8848-5d675941d9ea` |
+| 32953857 | Profile-2026-09-29T21:47:24.064Z (**the W**) | approve-quote-request | YES — `73658aee-eb59-4f3e-aa57-dffc14cb4481` |
+| 32953806 | Galvanized 26 ga | approve-quote-request | YES — `dab3c6e8-b909-4d5b-b70f-5922b496477a` |
+| 32952202 | AAAA Profile | approve-quote-request | YES — `dbc48891-c214-4ac3-8119-a38459feb40f` |
+| 32950797 | Profile-2026-09-26T00:28:36.049Z | approve-quote-request | YES — `5d0c959b-14f5-417c-ba83-ecbeae779a22` |
+| 32950796 | Profile-2026-09-27T19:22:08.728Z | approve-quote-request | YES — `91b16e7a-974a-4e2d-ab70-6365ec629408` |
+| 32950792 | Anodized 0.063 in - Reposition Ventures Group | approve-quote-request | YES — `3af49bdd-f60c-4b11-891f-01cf07a3205a` |
+| 32950791 | Kynar 22 ga - Reposition Ventures Group | approve-quote-request | YES — `5e37170d-c7f3-47e7-8a86-8dfd7b01273f` |
+| 32950790 | Profile-2026-09-25T20:27:42.603Z | approve-quote-request | YES — `db3c48dd-5c0c-434e-9de1-40c8e92d00ba` |
+| 32950788 | Stainless 22 ga | approve-quote-request | YES — `0fc0b947-2520-4513-a7e5-9c02bbb7f428` |
+
+11 app-created profiles, 11 `approve_quote_request_to_machine` audit rows, 11
+`machine_jobs` rows with `status='approved_for_machine'` and
+`approved_by='db4ff5ab-5259-4d30-a36b-c1fd509bc4da'`. A perfect 1:1:1 match.
+`admin_audit_log` contains **no other action types at all** since 2026-09-24.
+
+**The other recent profiles in catalog 20115 were NOT created by this app** —
+no DB row, no audit row: `AMS TESTwwwwwwwww` (32952378),
+`AFS-SPEC-TEST-12x12` (32950803), `AFS-CONTROL-ANGLE-TEST-0925` (32950800,
+32950795), `AFS-COPY-TEST-2` (32950801), and eight `Copy of ...` profiles.
+`Copy of X` is PathfinderEdge's own duplicate function, so these were created
+by a human working directly in the vendor web UI, not by afs-website.
+
+**Caveat that matters:** the approval that gates the machine is Steve's ADMIN
+approval, not a customer's acceptance of a quote. A profile reaches the
+Thalmann as soon as an admin clicks "Approve and Send to Machine" — there is no
+customer-acceptance step in between. **Reported as a design question, not
+changed** (task PART B step 5).
+
+### PART C — why the W approval "failed": it did not fail
+
+Quote request `b98be55c-c991-47e5-8e99-d00e3bf45904` (**AFS-QR-2026-00060**),
+FlashDraft, submitted 21:37:37, reviewed 21:38:05, now `status='reviewing'`.
+Stored geometry matches the description exactly — legs 18.61, 9.52, 13.86,
+31.02 inches; hemStart open 0.875 in gap; hemEnd open 1.1875 in gap; Anodized
+Aluminum 0.050 in; colour Charcoal, finish Painted.
+
+- `machine_jobs` row `2f9e9072-6c78-4e87-94c6-aa6c57e0ef4d`,
+  `status='approved_for_machine'`, `approved_at='2026-09-29 21:38:05.153+00'`.
+- Audit row `73658aee-...` records: Profile "Profile-2026-09-29T21:47:24.064Z"
+  created in catalog 20115 as profileId **32953857**.
+- That profileId **is present in catalog 20115** (confirmed by read-only GET).
+- There is **no `approve_quote_request_pathfinder_failed` row for it**. The only
+  six such rows in the entire table are from 2026-08-18/19 on a different
+  quote request (`f4ac5034-...`): four `400 — ["Valid angle values are -180 -
+  180."]` (the since-fixed unsigned-angle bug) and two `401`s.
+
+**Encoder repro, run locally against the stored geometry with no network:** the
+payload is structurally valid — blankWidth 1854.46 mm, three bends at
+-36.64, +56.97, -26.01 degrees, radii 9.525 mm, hems 22.225 mm / 30.1625 mm
+gap, every number finite. Those angles are exactly `-signedInteriorAngleDeg()`
+(sum = 0.000 for all three), i.e. precisely the AMS-handedness negation
+CLAUDE.md rule #12 exception (b) documents. The encoder is correct.
+
+Note: the bend values quoted in the task (-50, +51, -53) belong to the lr-02
+test W, which has different legs (21 3/4, 16 1/4, 15 15/16, 22 3/16). This
+profile's own 2D labels are 37, -57, 26 degrees, and the 3D viewer derives
+from the same helper, so 2D and 3D agree.
+
+**Root cause of the perceived failure — the approval is one-shot and
+self-locking.** `approve-quote-request/route.ts:450` rejects anything whose
+status is not `'submitted'` with **409 "Quote request is not pending
+approval."**; on success line ~632 sets `status: 'reviewing'`. So a successful
+approval moves the request out of `'submitted'`, and any second click — on a
+stale tab, or after the card vanished with no success confirmation — returns
+that 409. `PendingQuoteRequestCard.tsx:212` renders it as small crimson body
+text. **A successful approval and an already-approved re-click are visually
+indistinguishable from a genuine send failure.** Nothing in the UI ever says
+"sent, profileId 32953857".
+
+Note also that `quote_requests` has no post-approval status: all 40
+non-cancelled requests sit in `'reviewing'`, 7 in `'submitted'`. There is no
+`'approved'` state to move to.
+
+### PART B — ONE DOOR, enforced server-side (commit `0842275`)
+
+`pushProfileToPathfinder(profile, catalogId, approval)` now takes a required
+`ApprovalContext` and verifies it **in the database, with the service role,
+before any network call**:
+
+- `quote_request_approval` — the quote request must exist and still be
+  `'submitted'`;
+- `machine_job_approval` — the machine job must exist and still be
+  `'pending_approval'`;
+- in both cases the acting user must be a real `role='admin'` profile.
+
+Missing, stale, or non-admin approval means `status:'error'` and nothing sent.
+The check runs first, ahead of config and feature building, so a
+misconfiguration cannot mask an unapproved push. Verification failure is itself
+a refusal — if the guard cannot check, it does not push.
+
+**Four doors closed, not three.** The fourth was found by the new static test,
+not by grep:
+
+| Removed | What it did |
+|---|---|
+| `app/api/studio/send-to-pathfinder/route.ts` | FlashDraft direct admin button — pushed to 20115 on nothing but an admin session, and wrote **no audit row at all** |
+| `app/api/admin/pathfinder/push-profile/route.ts` | raw admin push; no UI referenced it (confirmed by grep across `app/`, `components/`, `lib/`) |
+| `app/api/admin/pathfinder/submit-job/route.ts` | `submitJobToMachine` wrapper, always `not_configured`; no UI referenced it |
+| `scripts/pathfinder-roundtrip-test.ts` | **POSTed a live test profile into catalog 20115 with no approval of any kind.** Its one finding (feature `length` is mm) is already recorded in governance |
+
+Client side: FlashDraft's `sendToPathfinder()` function, its
+`/api/studio/send-to-pathfinder` fetch, the admin-gated "Send to
+PathfinderEdge" button, and the now-dead `pathfinderState`/`pathfinderMessage`
+state are all gone from `app/studio/draft/page.tsx`.
+
+**Tests** — `lib/integrations/pathfinder-single-door.test.ts`:
+- STATIC: walks `app/ components/ lib/ scripts/ tests/`, strips comments, and
+  fails if any file outside the two approval routes calls the push. This is
+  what catches a fifth door being added later.
+- RUNTIME: six rejection cases (stale request, missing request, non-admin
+  actor, non-pending job, no approval context, unverifiable credentials), each
+  asserting a `fetch` spy was **never called** — the spy throws if invoked.
+- 79/79 unit tests pass; `pnpm tsc --noEmit` 0; `pnpm run build` 0.
+
+### NOT DONE — remaining scope, honestly stated
+
+The 75-minute cap was reached after Part B. **Not started:** PART B step 5's
+end-to-end alpha verification and its E2E spec; PART C steps 9-10 (making
+approval failures loud — the diagnosis above is complete but the UI fix is
+not); PART D 11-14 (Machine Bridge dot removal, e2e test-data deletion, test
+isolation, newest-first ordering); PART E 16-18 (gauge removals, category
+filter reorder, single source of truth). PART E 15 (Galvalume rename) was
+completed earlier on 2026-09-29 — see that entry.
+
+Facts gathered for the not-done items, so the next pass need not re-derive them:
+- **D11:** `components/admin/MachineBridgeStatusDot.tsx`, rendered at
+  `components/layout/AdminTopBar.tsx:98`, polls `/api/machine-bridge/status`
+  every 30 s (`CHECK_INTERVAL_MS = 30_000`) with no `document.hidden` guard.
+- **D14:** both lists sort `is_rush` DESC *before* time —
+  `lib/data/pending-quote-requests.ts:97-98` and
+  `lib/data/machine-jobs.ts:82-83`. Making creation time the sole sort, as the
+  task requires, **removes rush-first priority from the shop queue** — that
+  consequence needs Reid's sign-off before it ships.
+- **E18:** the single source of truth already exists — `lib/data/catalog.ts`
+  (`ALL_MATERIALS`, `GAUGES_BY_MATERIAL`, `MATERIAL_SHORTHAND`,
+  `MATERIAL_STOCK_STATUS`). `app/quote/page.tsx:95-115` still keeps its own
+  duplicate `MATERIALS`/`GAUGES` copies, which is the thing to collapse.

@@ -356,6 +356,44 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
     (see `commitPrepend`'s field-by-field audit) and push exactly ONE
     undo entry.
 
+14. **ONE DOOR TO THE MACHINE. A verified Command Center approval is the
+    only way anything reaches PathfinderEdge catalog 20115.** That catalog is
+    polled by the physical Thalmann DS2801, so a profile landing there is
+    fabricable work. `pushProfileToPathfinder` (`lib/integrations/
+    pathfinder-edge.ts`) therefore takes a REQUIRED third argument, an
+    `ApprovalContext`, and VERIFIES IT IN THE DATABASE with the service role
+    before any network call — `quote_request_approval` needs a quote request
+    still at `status='submitted'`; `machine_job_approval` needs a machine job
+    still at `status='pending_approval'`; both need the acting user to be a
+    real `role='admin'` profile. Missing, stale, or non-admin approval means
+    the push returns an error and sends NOTHING. If the guard cannot verify,
+    it refuses — an unverifiable approval is never treated as a valid one.
+
+    **Exactly two files may call it:**
+    `app/api/admin/command-center/approve-quote-request/route.ts` and
+    `app/api/admin/command-center/approve/route.ts`. This is enforced by a
+    STATIC test (`lib/integrations/pathfinder-single-door.test.ts`) that walks
+    `app/ components/ lib/ scripts/ tests/` and fails if any other file calls
+    it. Do not add a caller — and do not add the file to that allow-list to
+    make the test pass. Hiding a button is not enforcement; the database check
+    is.
+
+    Four doors were deleted on 2026-09-30 to establish this:
+    `app/api/studio/send-to-pathfinder` (FlashDraft's direct button — pushed on
+    nothing but an admin session and wrote no audit row at all),
+    `app/api/admin/pathfinder/push-profile`,
+    `app/api/admin/pathfinder/submit-job`, and
+    `scripts/pathfinder-roundtrip-test.ts` (POSTed a live test profile into
+    20115 with no approval; the static test found it, grep had not). None of
+    them are coming back. Full evidence, including the audit-log proof that
+    every profile in 20115 since 2026-09-25 did go through approval:
+    STATE_OF_THE_BUILD.md's 2026-09-30 entry.
+
+    **Open design question, NOT resolved:** the gate is an ADMIN approval, not
+    a customer's acceptance of a quote. A profile reaches the Thalmann the
+    moment an admin clicks "Approve & Send to Machine"; there is no
+    customer-acceptance step between quote and machine. PENDING REID.
+
 ---
 
 ## MACHINE INTEGRATION — THALMANN DS2801 / AFS MACHINE BRIDGE
