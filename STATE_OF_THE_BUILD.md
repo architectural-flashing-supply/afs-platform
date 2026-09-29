@@ -13811,3 +13811,96 @@ reach it normally while signed in to the Vercel account.
 
 **This preview is exactly what Law 6 needs and what no session can sign
 off.** Deploy remains blocked on **Law 2** (F-08 still open) **and Law 6**.
+
+---
+
+## 2026-09-29 — Material rename: "Galvanized Galvalume" → "Galvalume"
+
+Galvalume is itself an aluminum-zinc (AZ55/AZ50) coating on steel, so the old
+label named the coating twice. Renamed to a single option, display label
+exactly **"Galvalume"**, with the old entry's gauges, stock status, shorthand,
+category, pricing inputs and 3D appearance all unchanged.
+
+**The standalone "Galvanized Steel" material is a DIFFERENT material** (G90
+zinc coating, `materials.slug = 'galvanized-steel'`, category `galvanized`) and
+was deliberately left untouched. It is still in `ALL_MATERIALS`, still maps to
+category `galvanized`, and has its own row in the `materials` table.
+
+### Code (commit `5eea2dc`)
+
+| File | What changed |
+|---|---|
+| `lib/data/catalog.ts:45` | `ALL_MATERIALS` — the FlashDraft dropdown source |
+| `lib/data/catalog.ts:66` | `MATERIAL_SHORTHAND` key (PathfinderEdge description composition) |
+| `lib/data/catalog.ts:80` | `MATERIAL_STOCK_STATUS` key |
+| `lib/data/catalog.ts:107` | `GAUGES_BY_MATERIAL` key — gauges themselves unchanged |
+| `lib/data/catalog.ts:151,265,295,537,556` | five `PRODUCTS[].materials` arrays |
+| `lib/data/material-color-requirement.ts:33` | `MATERIAL_LABEL_TO_CATEGORY` key → `'galvalume'` (unchanged category) |
+| `app/quote/page.tsx:97,109` | Quote Builder's own local `MATERIALS` / `GAUGES` copies |
+| `app/components/home/ShopFloorProof.tsx:9` | nine-material provenance comment |
+
+`components/studio/ProfileViewer3D.tsx:115` needed **no** change: its appearance
+rule is `/galvani[sz]ed|galvalume/i`, which the new label matches on the same
+first rule the old one did — identical colour, metalness and roughness.
+
+Left as-is, with reasons: `lib/chatbot/knowledge/materials.ts:54`
+(`id: 'mat-galvanized-galvalume'`) is a knowledge-base article id whose article
+genuinely covers **both** galvanized steel and Galvalume — not a material
+option. `supabase/migrations/002_seed_afs_data.sql` keeps its historical
+`'Galvalume Steel'` seed text; migration 026 supersedes it and historical
+migrations are never rewritten. Occurrences in SESSION_STATE.md /
+STATE_OF_THE_BUILD.md are a record of what was true then.
+
+### Read-time alias
+
+`normalizeMaterialLabel()` and `gaugesForMaterial()` (new exports in
+`lib/data/catalog.ts`, backed by `LEGACY_MATERIAL_ALIASES`) resolve any stored
+legacy spelling — `Galvanized Galvalume`, `galvanized-galvalume`,
+`galvanized_galvalume`, any casing or spacing — to `Galvalume`. Unknown strings
+pass through unchanged so an unrecognised material still displays as whatever
+the row holds. Wired into FlashDraft's material/gauge reads
+(`app/studio/draft/page.tsx:334-335, 1213`) and into every category lookup via
+`categoryFor()` in `lib/data/material-color-requirement.ts`. The alias exists
+because the migration rewrites the rows that existed when it ran, not rows a
+stale client writes afterwards — belt and braces, not alternatives.
+
+### Migration `026_rename_galvanized_galvalume_to_galvalume.sql`
+
+Idempotent; applied via the Supabase Management API query endpoint using
+`SUPABASE_ACCESS_TOKEN` from `.env.local` (project `lxfiziwsqezjjybeguqq`).
+Note: CLAUDE.md does not currently document a migration-application method for
+this project — this is the method the repo's environment is actually set up
+for, and that gap should be written into CLAUDE.md.
+
+Row counts, measured live before and after:
+
+| Table | Total rows | Old value BEFORE | Old value AFTER | New value AFTER |
+|---|---|---|---|---|
+| `materials` | 9 | 1 (name + slug) | 0 | 1 |
+| `machine_jobs` | 30 | 5 | 0 | 5 |
+| `quote_requests` | 59 | 5 (`line_items` jsonb) | 0 | 5 |
+| `saved_configurations` | 25 | 0 | 0 | 0 |
+| `shop_profile_library` | 16 | 0 | 0 | 0 |
+| `orders` | 0 | 0 | 0 | 0 |
+
+`orders` has no material column at all (verified against `information_schema`);
+material reaches an order through its linked `quote_request` / `machine_job`
+rows. Re-running the whole migration a second time produced byte-identical
+verification counts — idempotency proven, not assumed.
+
+### Verification
+
+- `pnpm tsc --noEmit` exit 0 after each change.
+- `pnpm test:unit` — 4 files, **69 tests passed**, including 9 new tests in
+  `lib/data/catalog.test.ts` (new label present, old label absent, gauges/stock/
+  shorthand/category preserved, every legacy spelling resolves, unknown values
+  pass through, `Galvanized Steel` untouched).
+- `pnpm run build` exit 0.
+- Alpha deployment READY at commit `5eea2dc`
+  (`afs-website-admcmz4o4-steveharyckis-projects.vercel.app`, Production).
+- Playwright `tests/e2e/galvalume-rename.spec.ts` against
+  `https://afs-website-alpha.vercel.app` — **3 passed**: dropdown shows
+  "Galvalume", does not show "Galvanized Galvalume", exactly one
+  Galvalume-bearing option, `Galvanized Steel` still present, and selecting
+  Galvalume offers `26/24/22/20/18 ga` — identical to `Galvanized Steel`'s list
+  and to the old entry's.

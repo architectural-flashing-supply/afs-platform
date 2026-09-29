@@ -8300,3 +8300,43 @@ all four named in the PREFLIGHT VERIFICATION block, every gate type validated,
 Note: `FORGE\projects\` is gitignored in the FORGE repo, so the queue file itself is not
 committed anywhere — this entry is its record.
 
+
+---
+
+## 2026-09-29 — Material rename: "Galvanized Galvalume" → "Galvalume"
+
+Renamed the FlashDraft material everywhere it is defined, displayed or stored.
+Galvalume is itself an aluminum-zinc coating on steel, so the old label named
+the coating twice. One option, label exactly **"Galvalume"**, identical gauges
+(`26/24/22/20/18 ga`), stock status (`fabricated`), shorthand (`Galvalume`),
+category (`galvalume`) and 3D appearance.
+
+**"Galvanized Steel" exists as a separate, standalone material and was NOT
+touched** — different coating (G90 zinc), own `materials` row, own category.
+
+- **Code** (`5eea2dc`): `lib/data/catalog.ts` (ALL_MATERIALS, MATERIAL_SHORTHAND,
+  MATERIAL_STOCK_STATUS, GAUGES_BY_MATERIAL, five PRODUCTS materials arrays),
+  `lib/data/material-color-requirement.ts`, `app/quote/page.tsx`,
+  `app/studio/draft/page.tsx`, `app/components/home/ShopFloorProof.tsx`.
+  `ProfileViewer3D`'s appearance regex already matched — no change, same look.
+- **Read-time alias**: `normalizeMaterialLabel()` / `gaugesForMaterial()` in
+  `lib/data/catalog.ts` resolve `Galvanized Galvalume`, `galvanized-galvalume`
+  and `galvanized_galvalume` (any casing/spacing) to `Galvalume`, so rows
+  written before the rename — or by a stale client after it — still display
+  correctly.
+- **Migration** `supabase/migrations/026_rename_galvanized_galvalume_to_galvalume.sql`,
+  idempotent, applied via the Supabase Management API with
+  `SUPABASE_ACCESS_TOKEN`. Rows rewritten: `materials` 1, `machine_jobs` 5,
+  `quote_requests` 5; `saved_configurations` 0, `shop_profile_library` 0,
+  `orders` 0 (no material column). Old value = 0 rows in every table
+  afterwards; new-value counts match the prior old counts exactly. Second run
+  produced identical counts.
+- **Verified**: tsc 0, `pnpm test:unit` 69/69 (9 new), build 0, alpha READY at
+  `5eea2dc`, Playwright `galvalume-rename.spec.ts` 3/3 against alpha.
+
+**Gap worth closing:** CLAUDE.md documents no migration-application method for
+this project. The working method is the Supabase Management API query endpoint
+with `SUPABASE_ACCESS_TOKEN` (project `lxfiziwsqezjjybeguqq`) — the MCP Supabase
+connector does NOT have this project (it lists only benavora, DialStars and
+brightbox-homes-admin). That should be written into CLAUDE.md on the next
+governance pass.
