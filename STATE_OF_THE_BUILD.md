@@ -34,6 +34,64 @@ summary, not a replacement for it.
 
 ---
 
+## lr-02 RE-VERIFICATION PASS — 2026-09-29 (second run)
+
+`forge-1.ps1` dispatched the lr-02 prompt a second time. **No code was
+changed in this pass, because none needed changing** — every lr-02
+deliverable was already on `main` from the first run and each one was
+re-confirmed against live systems rather than against the entry below.
+Recorded here so the re-run is not mistaken for a no-op or for duplicate
+work.
+
+Re-confirmed this run, from real command output:
+
+- **Hold-back rule holds.** `git merge-base --is-ancestor df22fd1 main`
+  exits **1**. `git branch -a --contains df22fd1` returns only
+  `fix/pathfinder-spec-encoding` and its remote — the branch is intact and
+  the encoder commit has not leaked into `main`.
+- **Branch cleanup stuck.** `git branch -a` shows no `fix/f-01` locally or
+  on the remote; `fix/flashdraft-geometry` still does not exist;
+  `fix/pathfinder-spec-encoding` is still present on both.
+- **`pnpm tsc --noEmit` exit 0.**
+- **`pnpm test:unit` — 60 passed / 60, 3 files, zero skipped.** Matches the
+  figure recorded in the first-run entry below exactly.
+- **`tests/e2e/flashdraft-regression.spec.ts` against alpha — 10 passed /
+  10, zero skipped**, including all five lr-02 gestures (first-point
+  prepend, unchanged last-point append, Shift+drag creating no leg, the
+  hemmed-end block with its exact tooltip, and one-step undo) plus the
+  F-01 autosave round-trip.
+- **Alpha was serving the commit under test.** The alias
+  `afs-website-alpha.vercel.app` resolved to
+  `dpl_C3Uys4tRo6aSa1zEX6bMhbE8unxs`, and the Vercel REST API reported
+  `readyState = READY`, `target = production`, `commitRef = main`,
+  `commitSha = f1b56b3f42a48193725387147f84afe9ecdc4812` — byte-identical
+  to local `main` HEAD. The E2E run above was started only after that
+  check, so it exercised the pushed commit and not a stale build.
+- **Encoder still independent, still untouched.**
+  `lib/integrations/flashdraft-to-pathfinder.ts` imports only from
+  `@/lib/types/profile` and `@/lib/integrations/pathfinder-edge` — nothing
+  from `lib/flashdraft/geometry.ts`. Its last three commits are `14f5538`,
+  `9ee4549`, `5947fec`; `cbab076` is not among them, so the geometry fix
+  did not touch it.
+- **No PathfinderEdge write of any kind** was issued this run — reads only,
+  and in fact no catalog call at all was needed to verify the above.
+- **FORGE queue untouched.** `queue.yaml` is unmodified in the FORGE repo's
+  `git status` and its mtime predates this run.
+
+One figure was checked and deliberately **left alone**: the "`pnpm
+test:unit` 39/39 pass (2 files)" line in the first-run entry below reads as
+a mismatch against today's 60/60 across 3 files, but it is correct as
+written — it records CHECKPOINT 1, before `lib/flashdraft/geometry.test.ts`
+existed (17 encoder + 22 HailView = 39; the 21 new geometry tests bring it
+to 60). It is a checkpoint figure, not a stale one.
+
+Still open, unchanged by this pass: Reid's own confirmation of the canvas
+gesture and the 3D render, the hem-blocks-extension design decision, the
+attended Thalmann test gating `df22fd1`, and the three unowned pre-existing
+E2E failures.
+
+---
+
 ## BRANCH FOLD-IN + FLASHDRAFT GEOMETRY (lr-02) — 2026-09-29
 
 Status per the VERIFICATION STANDARD above: **IMPLEMENTED, GATES PASS,

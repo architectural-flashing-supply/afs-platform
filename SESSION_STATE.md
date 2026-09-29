@@ -24,6 +24,44 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## lr-02 RE-VERIFICATION PASS — 2026-09-29 (second run)
+
+`forge-1.ps1` ran the lr-02 prompt a second time. **Nothing was
+implemented, because nothing was outstanding** — all lr-02 work was already
+on `main` (`936bd72` merge, `cbab076` geometry, `f1b56b3` governance) and
+`main` was already in sync with `origin/main`. This pass re-verified the
+end state against live systems instead of trusting the previous entry, per
+this file's verification standard.
+
+Everything re-confirmed green: `pnpm tsc --noEmit` exit 0; `pnpm test:unit`
+60/60 across 3 files with zero skips; `tests/e2e/flashdraft-regression.spec.ts`
+10/10 against `https://afs-website-alpha.vercel.app` with zero skips.
+Alpha was confirmed to be serving the exact commit under test before that
+E2E run — the alias resolved to `dpl_C3Uys4tRo6aSa1zEX6bMhbE8unxs`, which
+the Vercel REST API reported as `READY` on `commitSha f1b56b3…`, identical
+to local `main` HEAD. `git merge-base --is-ancestor df22fd1 main` exits 1,
+so the held-back encoder commit is still out of `main` and
+`fix/pathfinder-spec-encoding` is still intact on both local and remote.
+No PathfinderEdge write was issued. The FORGE queue was not modified.
+
+**Carried forward, unchanged — these are the open items for the next
+session:**
+
+- **Reid's own confirmation** of the canvas extend-from-either-endpoint
+  gesture and of the 3D render of his "W" case. Both are interactive/visual,
+  so automated passes are evidence only, not sign-off.
+- **The hem-blocks-extension DESIGN DECISION is still PENDING REID** —
+  today a hemmed end refuses to extend with the tooltip `Remove the hem to
+  extend from this end.`; the alternative (auto-drop the hem and extend) is
+  a destructive edit nobody has approved.
+- **`fix/pathfinder-spec-encoding` is still KEPT** pending the attended
+  Thalmann test. Do not merge `df22fd1` without it.
+- **3 pre-existing E2E failures remain unowned** (homepage header logo
+  width, homepage hero CTA target, checkout "Checkout Unavailable"
+  heading) — they predate lr-02 and no prompt has picked them up.
+
+---
+
 ## BRANCH FOLD-IN + FLASHDRAFT GEOMETRY (lr-02) — 2026-09-29
 
 **Status: IMPLEMENTED, ALL GATES PASS, AWAITING REID'S OWN CONFIRMATION.**
