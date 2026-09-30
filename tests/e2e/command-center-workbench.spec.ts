@@ -5,6 +5,7 @@ import {
   deleteJob,
   forceStage,
   readJob,
+  remainingOrphanAuditRows,
   remainingTagged,
 } from './helpers/db';
 
@@ -110,6 +111,11 @@ test.describe('Command Center V2 — Workbench and Job screen', () => {
     for (const id of created) await deleteJob(id);
     // Prove the tables are clean, not merely that the deletes ran.
     expect(await remainingTagged(TEST_TAG)).toBe(0);
+    // And that no audit row outlived the job it describes. admin_audit_log has
+    // no FK to quote_requests, so this is the only thing that catches an
+    // orphan — 20 accumulated across this prompt's runs before deleteJob swept
+    // them too.
+    expect(await remainingOrphanAuditRows()).toBe(0);
   });
 
   test('the Workbench renders the five lanes and the summary line', async ({ page }) => {

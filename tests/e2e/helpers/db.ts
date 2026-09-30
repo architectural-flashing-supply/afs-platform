@@ -118,14 +118,41 @@ export async function readJob(id: string): Promise<{
   return rows[0];
 }
 
-/** Deletes a job and everything that points at it. Order matters (FKs). */
+/**
+ * Deletes a job and everything that points at it. Order matters (FKs).
+ *
+ * The audit rows go too. `admin_audit_log` has no FK to `quote_requests`, so
+ * deleting the job used to leave its audit rows behind as orphans pointing at
+ * a resource_id that no longer resolved — 20 of them accumulated across v2-02's
+ * runs (set_job_rush_on/off, draft_followup,
+ * record_customer_approval_by_phone) and had to be swept by hand. A spec that
+ * asserts its own cleanup should not need a human to finish the job.
+ *
+ * Scoped to THIS job's id only: a row belonging to any other resource, test or
+ * real, is never in range.
+ */
 export async function deleteJob(id: string): Promise<void> {
   const q = uuid(id);
   await sql(`update shop_profile_library set quote_request_id = null, machine_job_id = null
              where quote_request_id = '${q}';`);
   await sql(`delete from machine_jobs where quote_request_id = '${q}';`);
   await sql(`update takeoff_uploads set request_id = null where request_id = '${q}';`);
+  await sql(`delete from admin_audit_log where resource_id = '${q}';`);
   await sql(`delete from quote_requests where id = '${q}';`);
+}
+
+/**
+ * Audit rows still owned by jobs this spec deleted. Must be 0 after cleanup —
+ * the companion assertion to remainingTagged().
+ */
+export async function remainingOrphanAuditRows(): Promise<number> {
+  const rows = await sql<{ n: number }>(
+    `select count(*)::int as n from admin_audit_log a
+     where a.resource_type = 'quote_request'
+       and a.created_at > now() - interval '6 hours'
+       and not exists (select 1 from quote_requests q where q.id = a.resource_id);`
+  );
+  return rows[0].n;
 }
 
 /** How many rows this spec's tag still owns. Must be 0 after cleanup. */
