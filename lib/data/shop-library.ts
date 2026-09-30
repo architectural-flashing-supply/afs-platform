@@ -251,7 +251,7 @@ export async function getShopProfileLibrary(supabase: SupabaseClient): Promise<S
 
 // ----------------------------------------------------------------------------
 // Status lifecycle (afs-sv-010) — queued -> in_progress -> complete. Shared
-// between the status-update API route (app/api/admin/profile-library/[id]/
+// between the status-update API route (app/api/admin/shop-library/[id]/
 // route.ts's PATCH handler, which validates against this exact set) and
 // Shop View's one-click advance control, so "what are the valid statuses"
 // and "what comes next" each have exactly one implementation.

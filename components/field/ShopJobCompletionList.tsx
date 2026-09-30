@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Button from '@/components/ui/Button';
 import DeliveryPhotoCapture from '@/components/field/DeliveryPhotoCapture';
-import type { FieldShopQueueRow } from '@/lib/data/shop-profile-library';
+import type { FieldShopQueueRow } from '@/lib/data/shop-library';
 
 type JobState = 'idle' | 'submitting' | 'done' | 'failed';
 

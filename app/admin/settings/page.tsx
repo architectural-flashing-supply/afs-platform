@@ -196,7 +196,7 @@ export default async function AdminSettingsPage() {
               blurb: 'Fabrication stage per order. Shop View is the tablet version.',
             },
             {
-              href: '/admin/profile-library',
+              href: '/admin/shop-library',
               title: 'Shop profile library',
               blurb: 'What has been sent to the Thalmann, and its machine profile number.',
             },

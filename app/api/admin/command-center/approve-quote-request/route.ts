@@ -15,7 +15,7 @@ import {
 } from '@/lib/integrations/pathfinder-edge';
 import { flashDraftToMachineProfile, type FlashDraftHemInput } from '@/lib/integrations/flashdraft-to-pathfinder';
 import { generateProfileSVG, slugToProfileType } from '@/lib/utils/profile-svg';
-import { insertShopProfileLibraryRecord } from '@/lib/data/shop-profile-library';
+import { insertShopProfileLibraryRecord } from '@/lib/data/shop-library';
 
 interface FlashDraftPoint {
   x: number;

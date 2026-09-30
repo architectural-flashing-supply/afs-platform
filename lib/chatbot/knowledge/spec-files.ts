@@ -15,7 +15,7 @@ import type { KnowledgeChunk } from './types';
 // CLAUDE.md's RFQ model (no dollar amounts appear anywhere in this file).
 export const specFilesKnowledge: KnowledgeChunk[] = [
   {
-    id: 'spec-custom-profile-library',
+    id: 'spec-custom-profiles',
     category: 'AFS Platform Features',
     subcategory: 'Custom Profile Library',
     topic: 'Saved Custom Profile Library — past custom designs, searchable and reorderable',

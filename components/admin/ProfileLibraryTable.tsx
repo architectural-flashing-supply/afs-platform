@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { sourceToolLabel } from '@/lib/data/quote-request-source-tool';
-import { compareShopProfileLibraryQueueOrder, type ShopProfileLibraryRow } from '@/lib/data/shop-profile-library';
+import { compareShopProfileLibraryQueueOrder, type ShopProfileLibraryRow } from '@/lib/data/shop-library';
 
 interface ProfileLibraryTableProps {
   rows: ShopProfileLibraryRow[];
@@ -118,7 +118,7 @@ export default function ProfileLibraryTable({ rows: initialRows }: ProfileLibrar
   // set, independent of the table's search/filter/column-sort above, since
   // "shop priority" is a global ordering, not a property of whatever subset
   // is currently visible. Reuses the exact comparator Shop View's queue
-  // strip sorts by (lib/data/shop-profile-library.ts), so the two surfaces
+  // strip sorts by (lib/data/shop-library.ts), so the two surfaces
   // can never disagree about what order the shop should work jobs in.
   const queueOrder = useMemo(() => [...rows].sort(compareShopProfileLibraryQueueOrder), [rows]);
   const queueRank = useMemo(() => {
@@ -148,7 +148,7 @@ export default function ProfileLibraryTable({ rows: initialRows }: ProfileLibrar
     setRows((prev) => prev.map((r) => ({ ...r, queuePosition: newPositionById.get(r.id) ?? r.queuePosition })));
 
     try {
-      const res = await fetch('/api/admin/profile-library/reorder', {
+      const res = await fetch('/api/admin/shop-library/reorder', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orderedIds: reordered.map((r) => r.id) }),
@@ -173,7 +173,7 @@ export default function ProfileLibraryTable({ rows: initialRows }: ProfileLibrar
     setDeleting(true);
     setDeleteError(null);
     try {
-      const res = await fetch(`/api/admin/profile-library/${confirmDeleteId}`, { method: 'DELETE' });
+      const res = await fetch(`/api/admin/shop-library/${confirmDeleteId}`, { method: 'DELETE' });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
         setDeleteError(data.error ?? 'Could not delete this row.');

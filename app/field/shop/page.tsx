@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { createClient } from '@/lib/supabase/server';
 import { requireFieldRole } from '@/lib/field/auth';
-import { getFieldShopQueue } from '@/lib/data/shop-profile-library';
+import { getFieldShopQueue } from '@/lib/data/shop-library';
 import ShopJobCompletionList from '@/components/field/ShopJobCompletionList';
 
 // Route-scoped PWA install (afs-fl-010) -- overrides the root layout's

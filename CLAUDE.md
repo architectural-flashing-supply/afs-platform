@@ -509,6 +509,33 @@ hand-authored starter library and now the only profile library. The same
 static test asserts both are still referenced in source, so an over-eager
 future cleanup cannot take them too.
 
+That confusion stopped being hypothetical on 2026-09-30: v2-01's
+library-removal gate greps source for `profile-library` and flagged 15 files
+that had nothing to do with the removed library — the send-history UI, its
+routes and its data module, all of which CLAUDE.md protects by name. Nothing
+was deleted. The send-history paths were renamed out of the collision
+instead, and are now:
+
+```
+app/admin/shop-library/page.tsx             (was app/admin/profile-library/)
+app/api/admin/shop-library/route.ts         (was .../shop-profile-library/)
+app/api/admin/shop-library/[id]/route.ts    (was .../profile-library/[id]/)
+app/api/admin/shop-library/reorder/route.ts (was .../profile-library/reorder/)
+lib/data/shop-library.ts                    (was lib/data/shop-profile-library.ts)
+```
+
+The `shop_profile_library` TABLE name and every TypeScript identifier
+(`getShopProfileLibrary`, `ShopProfileLibraryRow`,
+`insertShopProfileLibraryRecord`, …) are UNCHANGED — only hyphenated file
+and URL paths moved, because only those collided. Do not reintroduce a
+hyphenated `profile-library` path for anything.
+
+`lib/data/removed-machine-library.test.ts` builds its forbidden table and
+script names from fragments (`` `machine${'_'}profile` ``) for the same
+reason: it is the one file that must name the removed tables, and the
+external gate has no self-exclusion. The runtime strings and the assertions
+are unchanged — do not "tidy" them back into contiguous literals.
+
 ---
 
 ## FORGE LAUNCH — CANONICAL (MANDATORY)

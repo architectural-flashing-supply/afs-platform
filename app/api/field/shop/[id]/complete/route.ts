@@ -12,7 +12,7 @@ interface FieldShopCompleteResponse {
 /**
  * Shop-floor "Mark Complete" tap (afs-fl-003) — components/field/
  * ShopJobCompletionList.tsx's only write path. Same status/completed_at
- * write afs-cv-004's app/api/admin/profile-library/[id]/route.ts PATCH
+ * write afs-cv-004's app/api/admin/shop-library/[id]/route.ts PATCH
  * handler already does for the queued -> in_progress -> complete
  * lifecycle's final step (status literal confirmed by grepping
  * components/admin/ShopViewBoard.tsx directly: 'complete', not

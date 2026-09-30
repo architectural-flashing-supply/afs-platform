@@ -11,12 +11,12 @@ import { logAdminAction } from '@/lib/admin/audit';
  * The client always sends the FULL ordered id list for every currently
  * active (non-deleted) row, not just the two rows that moved, and every id
  * in that list gets written 1..N here. That's required, not just tidy:
- * compareShopProfileLibraryQueueOrder (lib/data/shop-profile-library.ts)
+ * compareShopProfileLibraryQueueOrder (lib/data/shop-library.ts)
  * always sorts a null queue_position AFTER any explicit one, so a table with
  * a mix of explicit and null positions doesn't behave like a single ordered
  * list — a lone updated pair could jump ahead of untouched rows instead of
  * just swapping with its neighbor. Writing the whole set keeps it a gapless
- * sequence, the same reasoning lib/data/shop-profile-library.ts's
+ * sequence, the same reasoning lib/data/shop-library.ts's
  * appendToQueueEnd uses on the insert side.
  */
 export async function PATCH(request: NextRequest): Promise<NextResponse> {

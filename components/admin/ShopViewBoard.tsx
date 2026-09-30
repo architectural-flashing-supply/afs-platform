@@ -10,7 +10,7 @@ import {
   nextShopProfileLibraryStatus,
   shopProfileLibraryStatusLabel,
   type ShopProfileLibraryFullRow,
-} from '@/lib/data/shop-profile-library';
+} from '@/lib/data/shop-library';
 
 interface ShopViewBoardProps {
   initialRows: ShopProfileLibraryFullRow[];
@@ -75,7 +75,7 @@ export default function ShopViewBoard({ initialRows }: ShopViewBoardProps) {
   useEffect(() => {
     const poll = async () => {
       try {
-        const res = await fetch('/api/admin/shop-profile-library', { cache: 'no-store' });
+        const res = await fetch('/api/admin/shop-library', { cache: 'no-store' });
         if (!res.ok) return;
         const data = (await res.json()) as { rows?: ShopProfileLibraryFullRow[] };
         if (Array.isArray(data.rows)) setRows(data.rows);
@@ -129,7 +129,7 @@ export default function ShopViewBoard({ initialRows }: ShopViewBoardProps) {
     const previousCompletedAt = focusedRow.completedAt;
     // Marking a job complete here (via the queued -> in_progress -> complete
     // lifecycle's final step) sets status AND completed_at together — see
-    // app/api/admin/profile-library/[id]/route.ts's PATCH handler, which is
+    // app/api/admin/shop-library/[id]/route.ts's PATCH handler, which is
     // where that write actually happens. completed_at is purely an event
     // record for a future automation chain (delivery/invoice/email) to
     // consume later; this action itself fires none of those side effects.
@@ -142,7 +142,7 @@ export default function ShopViewBoard({ initialRows }: ShopViewBoardProps) {
     );
 
     try {
-      const res = await fetch(`/api/admin/profile-library/${rowId}`, {
+      const res = await fetch(`/api/admin/shop-library/${rowId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: next }),

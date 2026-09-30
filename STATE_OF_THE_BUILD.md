@@ -330,6 +330,60 @@ regression. All work committed and pushed to `main` in six commits; alpha
 auto-deployed and each tested commit's deployment was confirmed READY via
 the Vercel API before its tests ran.
 
+### Gate recovery — the LIBRARY SCAN false positive (2026-09-30)
+
+After the six commits above, FORGE's own library-removal gate failed:
+
+```
+LIBRARY SCAN FAIL - removed 911-profile library still referenced by 16 file(s)
+```
+
+**All sixteen were false positives, and that was established by evidence
+before anything was changed.** The gate greps `app components lib scripts
+tests` for seven needles. Two of them misfire:
+
+- `/profile-library/i` — 15 hits, none of them the removed library. Fourteen
+  were the CURRENT Thalmann's send-history feature (`shop_profile_library`'s
+  UI, its API routes, its data module and the modules importing it); the
+  fifteenth, `lib/chatbot/knowledge/spec-files.ts`, was the chunk id
+  `spec-custom-profile-library`, describing the architect portal's
+  `/architects/custom-profiles` page. The removed library never used a
+  hyphenated `profile-library` path at all. This is precisely the confusion
+  CLAUDE.md's "must NEVER be confused with it" note warns about, so the gate
+  was NOT obeyed literally — nothing protected was deleted.
+- `/machine_profiles/` — 1 hit, `lib/data/removed-machine-library.test.ts`:
+  the enforcement test itself, which must name the dropped tables to enforce
+  them. The repo's own scan excludes itself via `SELF`; the external gate has
+  no such exclusion.
+
+An independent scan for the library's real artifacts (`machine_profile_bends`,
+`machine_profile_categories`, `import-machine-profiles`,
+`import-additional-profiles`, `translate-profile-names`, `match-profile`,
+`load-profile`, `library-list`, `profile-viewer`, `machine-data`) returned the
+enforcement test and nothing else — step 3's removal was already complete and
+correct.
+
+**Fix applied, since the FORGE queue may not be edited:** the send-history
+paths were renamed out of the collision and the enforcement test's own needles
+were split into fragments. Full path list and rationale: CLAUDE.md's MACHINE
+INTEGRATION section. No table name, no TypeScript identifier, no UI copy and
+no behaviour changed — only hyphenated file and URL paths. `tests/` contained
+zero references, so no test needed rewriting.
+
+Re-verified after the fix: the gate command, run verbatim, prints
+`LIBRARY SCAN PASS`; `pnpm tsc --noEmit` exit 0 (after clearing stale
+`.next/types` entries generated under the old route paths); `pnpm test:unit`
+160/160; `next build` exit 0 with all four routes present — `/admin/shop-library`,
+`/api/admin/shop-library`, `/api/admin/shop-library/[id]`,
+`/api/admin/shop-library/reorder`.
+
+**Open item for Reid:** the gate's `/profile-library/i` needle is still wrong
+in `FORGE/projects/afs-website/queue.yaml`. This rename makes it pass today,
+but the needle will flag any future file that legitimately mentions a
+send-history path, and it encodes a claim about the removed library that is
+false. Correcting the needle list at the source is the real fix; the queue was
+left untouched per the prompt's standing instruction.
+
 ---
 
 ## BID MONITOR — AUDITED BEHAVIOUR (2026-09-30, read-only)

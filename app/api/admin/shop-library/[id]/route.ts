@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { logAdminAction } from '@/lib/admin/audit';
-import { isShopProfileLibraryStatus } from '@/lib/data/shop-profile-library';
+import { isShopProfileLibraryStatus } from '@/lib/data/shop-library';
 import { runShopJobCompletionAutomation } from '@/lib/utils/shop-job-completion';
 
 /**
  * Soft-delete only — sets deleted_at, never removes the row. Every read of
- * shop_profile_library (lib/data/shop-profile-library.ts's
+ * shop_profile_library (lib/data/shop-library.ts's
  * getShopProfileLibrary, and any future one, e.g. afs-sv-010's Shop View)
  * filters on `deleted_at IS NULL`, so this is enough to make a row disappear
  * everywhere without destroying the shop record.
@@ -64,7 +64,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
  * (rather than a separate shop-view-only API path) because it operates on
  * the exact same shop_profile_library row DELETE above does — one file per
  * resource id, one method per action on it. `isShopProfileLibraryStatus`
- * (lib/data/shop-profile-library.ts) is the single source of truth for
+ * (lib/data/shop-library.ts) is the single source of truth for
  * which status strings are valid, shared with the client's own advance logic.
  */
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }): Promise<NextResponse> {

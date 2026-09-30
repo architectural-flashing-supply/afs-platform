@@ -89,7 +89,7 @@ order_number` (the column `completion_events.order_number` is copied from,
 per `app/api/field/shop/[id]/complete/route.ts` line 77) is declared in
 `supabase/migrations/016_source_tool_and_shop_profile_library.sql` line 35
 but is never set by the only insert path that creates these rows —
-`insertShopProfileLibraryRecord` in `lib/data/shop-profile-library.ts`
+`insertShopProfileLibraryRecord` in `lib/data/shop-library.ts`
 (lines 114–159) writes `order_number: input.orderNumber ?? null` at line
 126, and the caller at `app/api/admin/command-center/approve-quote-
 request/route.ts` lines 553–577 never passes `orderNumber` in that call. So

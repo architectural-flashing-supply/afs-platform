@@ -197,8 +197,8 @@ Strips per sheet are **derived, not stored**: `floor(48 / blank_width_in)` from 
 | `machine_profiles` | **911** |
 | `machine_profile_bends` | **4,537** (FK `profile_id`) |
 | `machine_profile_categories` | 46 (FK `category_id`) |
-| `app/admin/profile-library/page.tsx` | UI |
-| `app/api/admin/profile-library/[id]/route.ts`, `.../reorder/route.ts` | routes |
+| `app/admin/shop-library/page.tsx` | UI |
+| `app/api/admin/shop-library/[id]/route.ts`, `.../reorder/route.ts` | routes |
 | `scripts/import-machine-profiles.ts`, `import-additional-profiles.ts`, `fix-profile-names.ts`, `translate-profile-names.ts` | importers |
 | `machine-data/` (gitignored) | `AFS_Profile_A-Profiles.ds1`, `AFS_Profile_Breast_plates.ds1`, `DS2801Profile_A-Profiles_001.ds1`, `DS2801Profile_Breast_plates_001.ds1`, `afs-additional-profiles.json`, `ds2801db.bdb` |
 
@@ -333,4 +333,4 @@ Every phase: `pnpm tsc --noEmit` 0, `pnpm test:unit` green, migrations idempoten
 5. **Deleting 911 profiles + 4,537 bends is irreversible.** Mitigated by archive + `pg_dump` outside the repo, and by the verified fact that no `machine_jobs` row references them — but the raw `.ds1`/`.bdb` files in `machine-data/` are the only copies of the old machine's database.
 6. **The single door must survive the rewrite.** V2 adds email-driven approval; the guard requires a verified in-database approval record before any push (CLAUDE.md rule #14). An email Approve click must *create* that record, not bypass it.
 7. **Graph subscriptions expire (~3 days).** Without a renewal job, inbound mail silently stops becoming jobs — the exact failure class that looks like "nothing arrived today".
-8. **Removing the second nav level orphans real tools.** `bid-monitor`, `building-codes`, `credit-applications`, `gbp-photos`, `geometry-test`, `quickbooks`, `pricing`, `profile-library`, `orders-crm` are all real pages. V2's nav lists none of them; each needs a home under More or a documented direct-URL-only status (the `?tab=bids` precedent, `page.tsx:24-38`).
+8. **Removing the second nav level orphans real tools.** `bid-monitor`, `building-codes`, `credit-applications`, `gbp-photos`, `geometry-test`, `quickbooks`, `pricing`, `shop-library`, `orders-crm` are all real pages. V2's nav lists none of them; each needs a home under More or a documented direct-URL-only status (the `?tab=bids` precedent, `page.tsx:24-38`).

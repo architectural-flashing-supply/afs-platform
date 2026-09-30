@@ -40,7 +40,7 @@ const SCAN_DIRS = ['app', 'components', 'lib', 'scripts', 'tests'];
 /**
  * Strips // and /* *\/ comments so a doc-comment MENTIONING the function is
  * not mistaken for a call to it. Several modules legitimately reference it by
- * name in prose (lib/data/shop-profile-library.ts, flashdraft-to-pathfinder.ts).
+ * name in prose (lib/data/shop-library.ts, flashdraft-to-pathfinder.ts).
  */
 function stripComments(src: string): string {
   return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');

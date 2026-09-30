@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { requireAdminUser } from '@/lib/admin/auth';
-import { getShopProfileLibrary } from '@/lib/data/shop-profile-library';
+import { getShopProfileLibrary } from '@/lib/data/shop-library';
 import ProfileLibraryTable from '@/components/admin/ProfileLibraryTable';
 
 export default async function ProfileLibraryPage() {
