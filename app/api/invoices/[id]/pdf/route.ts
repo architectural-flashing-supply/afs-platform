@@ -2,8 +2,24 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { buildSimplePdf } from '@/lib/utils/simple-pdf';
 import { buildInvoicePdfLines, type InvoiceLineItemRecord, type InvoiceProfileRecord } from '@/lib/utils/invoice-pdf';
-import { toInvoiceRow } from '@/lib/data/invoices';
+import { buildQuoteInvoicePdf } from '@/lib/documents/quote-invoice-pdf';
+import { resolveInvoice, toInvoiceRow } from '@/lib/data/invoices';
+import type { QuoteLine } from '@/lib/pricing/types';
 
+/**
+ * THE CUSTOMER'S INVOICE PDF — for both kinds of invoice.
+ *
+ * `id` resolves to a real `invoices` row first (an approved quote that became
+ * an invoice, migration 035) and falls back to the order derivation that was
+ * here before it. Either way the query is scoped to the signed-in user's own
+ * records, which is what makes this route safe to hand a raw id.
+ *
+ * A REAL INVOICE RENDERS FROM ITS OWN FROZEN SNAPSHOT — the same
+ * `buildQuoteInvoicePdf` that drew the quote, from the same line items. That is
+ * what "the quote becomes the invoice with no retyping" looks like on paper:
+ * the customer's invoice PDF is their quote PDF with a different heading and a
+ * different number.
+ */
 export async function GET(request: NextRequest, { params }: { params: { id: string } }): Promise<NextResponse> {
   try {
     const supabase = await createClient();
@@ -14,16 +30,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: order } = await supabase
-      .from('orders')
-      .select(
-        'id, order_number, total, subtotal, freight, tax, rush_surcharge, payment_method, net_terms, delivery_address, created_at, invoice_paid_at'
-      )
-      .eq('id', params.id)
-      .eq('user_id', user.id)
-      .maybeSingle();
-
-    if (!order) {
+    const resolved = await resolveInvoice(supabase, params.id, user.id);
+    if (resolved.kind === 'none') {
       return NextResponse.json({ error: 'Invoice not found.' }, { status: 404 });
     }
 
@@ -33,6 +41,37 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       .eq('id', user.id)
       .single();
 
+    if (resolved.kind === 'invoice') {
+      const record = resolved.record;
+      const pdfBuffer = buildQuoteInvoicePdf({
+        kind: 'invoice',
+        number: record.invoice_number,
+        issuedAt: record.issued_at,
+        secondaryDate: record.due_date,
+        jobName: null,
+        party: {
+          name: record.customer_name ?? (profile?.full_name as string | undefined) ?? null,
+          company: record.customer_company ?? (profile?.company as string | undefined) ?? null,
+          email: record.customer_email ?? (profile?.email as string | undefined) ?? null,
+          poNumber: record.po_number,
+        },
+        lines: (record.line_items ?? []) as QuoteLine[],
+        subtotalCents: record.subtotal_cents,
+        totalCents: record.total_cents,
+        footnote: record.paid_at ? 'Paid — thank you.' : null,
+      });
+      return new NextResponse(pdfBuffer as unknown as BodyInit, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="${record.invoice_number}.pdf"`,
+          'Content-Length': String(pdfBuffer.length),
+        },
+      });
+    }
+
+    // The pre-existing order derivation, unchanged.
+    const order = resolved.order as unknown as Parameters<typeof buildInvoicePdfLines>[0];
     const { data: lineItemsRaw } = await supabase
       .from('order_line_items')
       .select('description, length_ft, quantity, unit, unit_price, line_total')
@@ -40,7 +79,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       .order('sort_order', { ascending: true });
     const lineItems = (lineItemsRaw ?? []) as InvoiceLineItemRecord[];
 
-    const invoice = toInvoiceRow(order);
+    const invoice = toInvoiceRow(order as unknown as Parameters<typeof toInvoiceRow>[0]);
 
     // Shared with lib/utils/invoice-pdf.ts's generateInvoicePDF() (used by
     // the dispatch/invoice-send routes) so the layout is defined exactly

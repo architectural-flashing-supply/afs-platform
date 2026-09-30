@@ -126,13 +126,20 @@ export default async function AccountInvoicesPage({
               {invoices.map((invoice) => (
                 <tr key={invoice.id} className="border-b border-afs-chrome-dim last:border-b-0 hover:bg-afs-bg-surface transition-colors">
                   <td className="font-data text-sm text-afs-chrome-high px-4 py-3">{invoice.invoiceNumber}</td>
+                  {/* An invoice raised from an approved quote has no order
+                      behind it (migration 035) — the cell says so rather than
+                      linking to an order id that does not exist. */}
                   <td className="px-4 py-3">
-                    <Link
-                      href={`/account/orders/${invoice.orderId}`}
-                      className="font-data text-sm text-afs-crimson hover:text-afs-crimson-hover"
-                    >
-                      {invoice.orderNumber}
-                    </Link>
+                    {invoice.orderId && invoice.orderNumber ? (
+                      <Link
+                        href={`/account/orders/${invoice.orderId}`}
+                        className="font-data text-sm text-afs-crimson hover:text-afs-crimson-hover"
+                      >
+                        {invoice.orderNumber}
+                      </Link>
+                    ) : (
+                      <span className="font-body text-sm text-afs-chrome-mid">From an approved quote</span>
+                    )}
                   </td>
                   <td className="font-data text-sm text-afs-chrome-mid px-4 py-3">{formatDate(invoice.date)}</td>
                   <td className="font-data text-sm text-afs-chrome-high text-right px-4 py-3">{currency.format(invoice.amount)}</td>
