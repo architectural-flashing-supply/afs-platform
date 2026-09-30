@@ -9,6 +9,7 @@ import LightWorkingArea from '@/components/admin/LightWorkingArea';
 import JobActionPanel from '@/components/admin/JobActionPanel';
 import PastProfileThumb from '@/components/admin/PastProfileThumb';
 import SourceIcon from '@/components/admin/SourceIcon';
+import PanelErrorBoundary from '@/components/ui/PanelErrorBoundary';
 
 /**
  * THE JOB SCREEN — three columns, exactly as the approved prototype draws them
@@ -82,6 +83,15 @@ export default async function JobScreenPage({ params }: { params: { id: string }
 
         <div className="grid gap-4 lg:grid-cols-3 grid-cols-1">
           {/* ============ COLUMN 1 — THE REQUEST ============ */}
+          {/* F-06: each column is its own boundary. A thrown render in the
+              profile drawing or the action panel must not take the request text
+              with it — the estimator can still read what the customer asked for
+              and, in column 3, still send the quote. */}
+          <PanelErrorBoundary
+            label="The request"
+            testId="job-panel-error-request"
+            guidance="Nothing was changed. The profile and the action panel beside this one still work; reload the page to try again."
+          >
           <section className="bg-afs-bg-card border border-afs-border-light rounded-xl p-5 flex flex-col gap-3.5">
             <h2 className="font-heading text-2xl text-afs-ink-900">The request</h2>
 
@@ -183,8 +193,14 @@ export default async function JobScreenPage({ params }: { params: { id: string }
               </p>
             )}
           </section>
+          </PanelErrorBoundary>
 
           {/* ============ COLUMN 2 — THE PROFILE ============ */}
+          <PanelErrorBoundary
+            label="The profile"
+            testId="job-panel-error-profile"
+            guidance="Nothing was changed. The request and the action panel either side of this one still work, and Open in FlashDraft still shows the real drawing."
+          >
           <section className="bg-afs-bg-card border border-afs-border-light rounded-xl p-5 flex flex-col gap-3.5">
             <h2 className="font-heading text-2xl text-afs-ink-900">The profile</h2>
 
@@ -256,9 +272,16 @@ export default async function JobScreenPage({ params }: { params: { id: string }
               </p>
             )}
           </section>
+          </PanelErrorBoundary>
 
           {/* ============ COLUMN 3 — THE ACTION ============ */}
-          <JobActionPanel job={job} />
+          <PanelErrorBoundary
+            label="The next step for this job"
+            testId="job-panel-error-action"
+            guidance="Nothing was sent and no quote, invoice or machine push happened. Reload the page before trying the action again."
+          >
+            <JobActionPanel job={job} />
+          </PanelErrorBoundary>
         </div>
       </div>
     </LightWorkingArea>

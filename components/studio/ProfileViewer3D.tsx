@@ -6,6 +6,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { formatInches } from '@/lib/utils/format-inches';
 import { buildCrossSectionPoints, formatBendAngleLabel } from '@/lib/flashdraft/geometry';
+import ProfileCrossSection2D from '@/components/studio/ProfileCrossSection2D';
 import type { Hem } from '@/lib/types/profile';
 
 export interface ProfileBend {
@@ -48,6 +49,13 @@ export interface ProfileViewer3DProps {
   autoRotateSpeed?: number;
   /** How long auto-rotation runs before stopping. Defaults preserve existing behavior. */
   autoRotateDurationMs?: number;
+  /**
+   * Palette for the 2D fallback rendered when WebGL is unavailable (F-06).
+   * Defaults to 'dark', because this viewer's own overlay chrome is gunmetal
+   * (afs-bg-raised/90 panels, afs-chrome-mid labels) — i.e. every place it is
+   * mounted today is a dark surface. A light-surface caller passes 'light'.
+   */
+  fallbackTone?: 'light' | 'dark';
 }
 
 interface Point2D {
@@ -474,6 +482,7 @@ export default function ProfileViewer3D({
   hemEnd,
   autoRotateSpeed = 4,
   autoRotateDurationMs = 3000,
+  fallbackTone = 'dark',
 }: ProfileViewer3DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -496,6 +505,21 @@ export default function ProfileViewer3D({
 
   const [dimensionsOn, setDimensionsOn] = useState(true);
   const [hintVisible, setHintVisible] = useState(true);
+  /**
+   * F-06 — WebGL IS NOT GUARANTEED, SO THE VIEWER DEGRADES TO 2D.
+   *
+   * `new THREE.WebGLRenderer()` throws when the browser refuses a WebGL context:
+   * a blacklisted GPU driver on a shop tablet, a hardened/kiosk browser, a
+   * remote-desktop session, software rendering disabled by policy, or too many
+   * live contexts on one page. Before this, that throw escaped the effect and
+   * left an empty grey box with a "Rotate • Zoom • Pan" hint floating over it —
+   * no shape, no dimensions, and no explanation.
+   *
+   * When it is non-null, this component renders `ProfileCrossSection2D` instead:
+   * the same geometry, the same labels, no WebGL. The string is the plain-English
+   * reason shown to the operator, not the exception text.
+   */
+  const [webglFailure, setWebglFailure] = useState<string | null>(null);
 
   const animateCameraTo = useCallback((preset: CameraPreset) => {
     const camera = cameraRef.current;
@@ -550,7 +574,24 @@ export default function ProfileViewer3D({
     // it for a camera that no longer exists.
     hasAutoFitRef.current = false;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    // F-06: the one line in this file that can fail for reasons that have
+    // nothing to do with the profile being drawn. Caught here rather than
+    // allowed to escape the effect, so the component can fall back to the flat
+    // 2D view instead of leaving an empty container behind. The two objects
+    // created above this point are disposed on the way out — an early return
+    // skips this effect's own cleanup function entirely.
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+    } catch (err) {
+      domeGeometry.dispose();
+      domeMaterial.dispose();
+      sceneRef.current = null;
+      cameraRef.current = null;
+      console.error('[ProfileViewer3D] WebGL unavailable — falling back to the 2D cross-section view:', err);
+      setWebglFailure('3D view is not available in this browser, so this is the flat 2D drawing instead. The shape, the leg lengths and the bend angles are the same.');
+      return;
+    }
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setClearColor('#8A8A8A', 1); // afs-fl-029: lightened from #6A6A6A (afs-fl-026's value), see domeMaterial comment above
@@ -910,6 +951,24 @@ export default function ProfileViewer3D({
       }
     }
   }, [bends, blankWidth, material, thicknessMm, dimensionsOn, paintFace, paintColor, bareColor, hemStart, hemEnd]);
+
+  // F-06: WebGL refused a context. Render the same profile flat rather than an
+  // empty grey box. The two effects above both bail on their own null refs, so
+  // nothing keeps trying to drive a renderer that was never created.
+  if (webglFailure) {
+    return (
+      <ProfileCrossSection2D
+        bends={bends}
+        blankWidth={blankWidth}
+        material={material}
+        gauge={gauge}
+        profileName={profileName}
+        tone={fallbackTone}
+        reason={webglFailure}
+        className={className}
+      />
+    );
+  }
 
   return (
     <div className={`relative ${className ?? ''}`} style={{ minHeight: 500 }}>
