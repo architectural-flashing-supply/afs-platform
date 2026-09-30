@@ -424,6 +424,79 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
     moment an admin clicks "Approve & Send to Machine"; there is no
     customer-acceptance step between quote and machine. PENDING REID.
 
+    **"Customer approved by phone" is NOT a fifth door, and must never become
+    one.** `app/api/admin/command-center/approve-by-phone/route.ts` records
+    that a customer said yes on the telephone. It writes the approval record
+    the guard READS — `job_stage='approved'`, `approval_channel='phone'`,
+    `approved_by`, `approved_at`, plus an audit row — and it deliberately
+    LEAVES `status='submitted'` alone so the guard's own condition still holds
+    when someone later presses "Send to machine". It imports nothing from
+    `lib/integrations/pathfinder-edge.ts` and makes no outbound request. If a
+    future change makes it push directly, the static single-door test fails,
+    and that failure is correct. Do not add it to the allow-list.
+
+15. **RUSH IS NEVER INFERRED. Two sources, and Postgres enforces it.**
+    `quote_requests.is_rush` may be set by the customer's explicit checkbox at
+    intake (`app/api/quote-requests/route.ts`) or by an admin's explicit toggle
+    (`app/api/admin/command-center/set-rush/route.ts`). Never from a delivery
+    date, a keyword like "ASAP", the customer's note, or how long a job has
+    been waiting.
+
+    Migration 034's `quote_requests_rush_needs_explicit_source` CHECK refuses
+    `is_rush = true` unless `rush_source` is `'customer_checkbox'` or
+    `'admin_toggle'`. There is no third value, so an inference has nothing it
+    could write. `lib/data/rush-explicit-only.test.ts` is a STATIC test that
+    fails if any file outside the four known writers assigns `is_rush`, or if
+    a writer gains an inference-shaped expression on the assignment line.
+
+    **The constraint's `IS NOT NULL` half is load-bearing.** The naive
+    `CHECK (is_rush = false OR rush_source IN (...))` was applied live and
+    ACCEPTED a rush with a NULL source — `false OR UNKNOWN` is UNKNOWN, and a
+    CHECK accepts UNKNOWN. Do not simplify it back. Full detail: SCHEMA.md
+    TABLE 15.
+
+    **Rush pins to the top of the SHOP QUEUES ONLY** — `lib/data/machine-jobs.ts`
+    and `lib/data/orders.ts`, the lists read by whoever decides what to bend
+    next. Everywhere else, including the Workbench and the office pending list,
+    ordering is newest arrival first and rush changes nothing but the badge.
+
+16. **A send is never reported as successful without the PathfinderEdge
+    profile number that was actually returned.** `pushProfileToPathfinder` can
+    return `status: 'connected'` with `profileId: null` — the profile really
+    was created, but the follow-up GET that resolves its number did not find
+    it. That is NOT a success and it is NOT a failure: it is
+    `send_status='unconfirmed'`, reported in plain English, with **no retry
+    offered**, because a retry would duplicate a real profile in catalog 20115.
+    A genuine failure writes `send_status='failed'` plus the real reason and an
+    audit row, and the card reads "Send failed — retry" after a reload. An
+    already-sent job answers 200 with "This job has already been sent to the
+    machine. Nothing was sent again." — never a bare 409. Full table:
+    ARCHITECTURE.md's APPROVAL FEEDBACK section.
+
+17. **ONE confidence pattern — `lib/ai/takeoff-confidence.ts`. Do not write a
+    second.** The `high | medium | low` vocabulary, the per-item `aiNote`, the
+    `overallConfidence` and the `confidence !== 'high'` "unsure" threshold all
+    live there. `app/api/takeoff/route.ts` PRODUCES that shape and imports the
+    module; the Command Center Job screen CONSUMES it and imports the same
+    module. A local `type X = 'high' | 'medium' | 'low'` anywhere is the drift
+    this prevents, and a unit test fails on one. When a job has no AI
+    extraction behind it, the panel says so rather than badging the customer's
+    own numbers with a confidence they never earned.
+
+18. **Gunmetal header, light working area — converted per screen, by the
+    page.** The Workbench and the Job screen render inside
+    `components/admin/LightWorkingArea.tsx`; every other admin page is still
+    gunmetal and converts when it is rebuilt (its text uses the light-on-dark
+    `afs-chrome-*` tokens and would be unreadable otherwise). The PAGE opts in —
+    the shell does not decide from the pathname — because
+    `/admin/command-center` serves both the light Workbench and the pre-V2 dark
+    `?tab=` views under one pathname. New light tokens are `afs-bg-lane`,
+    `afs-bg-card`, `afs-line-strong`, `afs-green-deep` / `afs-green-ink` /
+    `afs-green-soft`, `afs-amber-bg` / `afs-amber-ink`, with their measured
+    contrast ratios recorded beside them in `tailwind.config.js`. Reuse
+    `afs-bg-band`, `afs-bg-light-raised`, `afs-border-light`, `afs-ink-900` and
+    `afs-ink-700` rather than adding near-duplicates.
+
 ---
 
 ## MACHINE INTEGRATION — THALMANN DS2801 / AFS MACHINE BRIDGE

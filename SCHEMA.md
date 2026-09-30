@@ -98,6 +98,7 @@ supabase/migrations/
   031_drop_machine_profile_library.sql    DROPS machine_profile_bends/machine_profiles/machine_profile_categories and machine_jobs.machine_profile_id (see MACHINE INTEGRATION TABLES) — APPLIED LIVE 2026-09-30
   032_quote_requests_job_stage.sql        Adds quote_requests.job_stage + CHECK + index, and backfills it (see TABLE 15) — APPLIED LIVE 2026-09-30, verified via information_schema
   033_building_codes_public_read.sql      Adds an anonymous SELECT policy on building_code_jurisdictions so the public /resources/building-codes page can read it; writes stay admin-only — APPLIED LIVE 2026-09-30 (022 itself was applied in the same run, 480 rows)
+  034_command_center_v2_workbench.sql     Adds 15 columns to quote_requests for the Workbench and Job screen — per-stage clocks, the returned PathfinderEdge profile numbers, send-failure state, rush provenance, approval channel and the follow-up draft — plus four CHECK constraints and two partial indexes (see TABLE 15) — APPLIED LIVE 2026-09-30, applied twice to prove idempotency, verified via information_schema + pg_constraint, and the rush constraint exercised four ways
   023_profile_passport.sql             Profile Passport — custom_profiles + profile_revisions (see PROFILE PASSPORT TABLES below), adds orders.custom_profile_id (see TABLE 18) — FILE ONLY, not applied live (no linked Supabase project, no SUPABASE_ACCESS_TOKEN; see STATE_OF_THE_BUILD.md)
 ```
 
@@ -563,6 +564,57 @@ CREATE POLICY "admin_all_projects" ON projects
 ---
 
 ## TABLE 15 — quote_requests
+
+**Migration 034 (`034_command_center_v2_workbench.sql`, APPLIED LIVE
+2026-09-30) adds fifteen columns**, all nullable, all `ADD COLUMN IF NOT
+EXISTS`. They exist because the Workbench card and the Job screen have to
+state things truthfully that this table had no source for.
+
+| Column | Type | What it is for |
+|---|---|---|
+| `stage_changed_at` | timestamptz | When `job_stage` last moved. **`quote_requests` has no `updated_at` at all**, so before this there was literally no source for "how long has this been waiting". Backfilled from `COALESCE(reviewed_at, quoted_at, submitted_at)`. |
+| `approved_at` | timestamptz | "Customer approved 20 minutes ago" |
+| `approval_channel` | text | `phone` \| `email` \| `admin`. CHECK-constrained. How the approval arrived — what makes "Customer approved by phone" an auditable record rather than an unexplained stage jump. |
+| `approved_by` | uuid → profiles | Which admin recorded it |
+| `sent_to_machine_at` | timestamptz | "Sent to the machine an hour ago" |
+| `done_at` | timestamptz | The Done lane's 14-day auto-archive is measured from here |
+| `pathfinder_profile_ids` | text[] | **The profile numbers PathfinderEdge ACTUALLY returned**, one per line item, in line-item order. Empty/NULL means no send is confirmed, and neither the card nor the Job screen will claim a number. |
+| `send_status` | text | NULL \| `failed` \| `unconfirmed`. CHECK-constrained. `failed` = nothing reached the machine, retry is safe. `unconfirmed` = the profile WAS created but its number did not come back, so do **not** retry — a retry would duplicate a real profile in catalog 20115. |
+| `send_error` | text | The real reason, shown to the admin verbatim |
+| `send_attempted_at` | timestamptz | When the last send was tried |
+| `rush_source` | text | `customer_checkbox` \| `admin_toggle`. CHECK-constrained. See the rush constraint below. |
+| `rush_set_by` | uuid → profiles | Who turned rush on |
+| `rush_set_at` | timestamptz | When |
+| `followup_draft` | text | The drafted follow-up for a stale quote, stored so it survives a reload |
+| `followup_drafted_at` | timestamptz | When it was drafted |
+
+**Four CHECK constraints, and one of them has a trap worth recording.**
+
+```sql
+quote_requests_send_status_check       send_status IS NULL OR send_status IN ('failed','unconfirmed')
+quote_requests_approval_channel_check  approval_channel IS NULL OR approval_channel IN ('phone','email','admin')
+quote_requests_rush_source_check       rush_source IS NULL OR rush_source IN ('customer_checkbox','admin_toggle')
+quote_requests_rush_needs_explicit_source
+    NOT is_rush OR (rush_source IS NOT NULL AND rush_source IN ('customer_checkbox','admin_toggle'))
+```
+
+The last one is what makes "rush is never inferred" a database fact rather
+than a code convention: `is_rush = true` is impossible without one of the two
+explicit sources, and there is no third value a would-be inference could
+write.
+
+**The `IS NOT NULL` half is load-bearing and was learned the hard way.** The
+constraint was first written as `CHECK (is_rush = false OR rush_source IN
+(...))` and applied live — and an insert of `is_rush = true, rush_source =
+NULL` **SUCCEEDED**. With a NULL the `IN` yields UNKNOWN, `false OR UNKNOWN`
+is UNKNOWN, and a CHECK constraint accepts UNKNOWN. Corrected to the form
+above and re-proven four ways against the live database: no source REFUSED, an
+invented source (`inferred_from_due_date`) REFUSED, `customer_checkbox`
+ACCEPTED, `admin_toggle` ACCEPTED. Do not simplify it back.
+
+**Two partial indexes:** `idx_quote_requests_done_at` (the Done lane's archive
+filter) and `idx_quote_requests_send_status` (finding jobs that need
+attention).
 
 **Migration 016 (`016_source_tool_and_shop_profile_library.sql`) adds
 `source_tool TEXT NOT NULL DEFAULT 'unknown'`** (nullable-safe `ADD

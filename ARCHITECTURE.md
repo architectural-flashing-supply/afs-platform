@@ -514,6 +514,129 @@ still requires `quote_requests.status = 'submitted'` when it verifies the
 approval in the database, because a re-push is not a fresh approval (see ONE
 DOOR TO THE MACHINE below). The fix is the *answer given*, not the gate.
 
+### THE WORKBENCH AND THE JOB SCREEN (Command Center V2, v2-02)
+
+`/admin/command-center` with no `?tab` is the Workbench: five lanes, one Job
+card per `quote_requests` row, built by `lib/data/workbench.ts`'s
+`getWorkbench()`. The Job screen is `/admin/command-center/job/<id>`, built by
+`lib/data/job-screen.ts`'s `getJobScreen()`.
+
+**Four invariants live in the data layer, not in a component**, so each is a
+unit test rather than something only a browser can tell you:
+
+1. **Newest arrival at the top, everywhere.** Every lane orders by
+   `submitted_at DESC` and by nothing else.
+2. **One action per card.** `WorkbenchCard.action` is a single value or
+   `null`, never a list.
+3. **Done auto-archives after 14 days**, measured from `done_at` (falling back
+   to `stage_changed_at`). Filtered out of the lane, never deleted, and the
+   count of what was hidden is stated on screen.
+4. **No base64 in a list.** `getWorkbench` does not read `points` or
+   `geometryImage`. The Job screen renders the drawing from real `points` as an
+   inline SVG, and past-profile thumbnails lazy-load one at a time from
+   `/api/admin/command-center/profile-thumbnail/[id]` behind an
+   `IntersectionObserver`.
+
+**The per-stage clocks are real columns, not derived.** `quote_requests` has
+no `updated_at`, so "customer approved 20 minutes ago" had no source at all
+before migration 034 added `stage_changed_at`, `approved_at`,
+`sent_to_machine_at` and `done_at`. `lib/utils/waiting-time.ts` turns them into
+the phrase, and takes `now` as an argument so server and client cannot disagree.
+
+**Rush never reorders the Workbench.** It pins to the top of the SHOP QUEUES
+only — `lib/data/machine-jobs.ts` and `lib/data/orders.ts`. See RUSH PROVENANCE
+below.
+
+**The light working area is opted into by the page**, not decided by the shell
+from the pathname: `/admin/command-center` serves both the light Workbench (no
+`?tab`) and the pre-V2 dark views (`?tab=dashboard|pending|sent|completed|bids`,
+direct-URL only) under one pathname. `components/admin/LightWorkingArea.tsx`
+wraps the two converted screens; every other admin page is still gunmetal and
+converts when it is rebuilt.
+
+### APPROVAL FEEDBACK — WHAT THE ADMIN IS TOLD, AND WHY
+
+`approve-quote-request` has four distinct outcomes and says a different true
+thing for each. The rule behind all four: **a send is never reported as
+successful without the profile number PathfinderEdge actually returned.**
+
+| Outcome | HTTP | What is written | What is said |
+|---|---|---|---|
+| Sent, every push returned a number | 200 | `pathfinder_profile_ids`, `sent_to_machine_at`, `job_stage='shop'`, `send_status=NULL` | "Sent to the machine — profile #N." |
+| Already sent | 200 | nothing | "This job has already been sent to the machine. Nothing was sent again." |
+| Push failed | 502 | `send_status='failed'` + `send_error` + an `admin_audit_log` row | names the real reason, and that nothing was sent |
+| **Sent but unconfirmed** | 200 | `send_status='unconfirmed'` + `send_error` | says the profile exists but its number did not come back, and NOT to retry |
+
+The fourth row is the one that is easy to miss. `pushProfileToPathfinder`
+returns `status: 'connected'` with `profileId: null` when the follow-up GET
+that resolves the server-assigned number does not find the row — the profile
+really was created. Before v2-02 the route printed `profile #null` and called
+it a success. It is now reported as unconfirmed, with **no retry offered**,
+because a retry would duplicate a real profile in catalog 20115.
+
+A failed send is STATE, not a toast: `send_status` survives a reload, so the
+card reads "Send failed — retry" until someone deals with it.
+
+### RUSH PROVENANCE — TWO SOURCES, ENFORCED IN POSTGRES
+
+`quote_requests.is_rush` may be set by exactly two things: the customer's
+checkbox at intake (`app/api/quote-requests/route.ts`) and an admin's explicit
+toggle (`app/api/admin/command-center/set-rush/route.ts`). It is never inferred
+from a date, a keyword, a note, or how long a job has waited.
+
+Three layers hold that:
+
+1. **Postgres.** Migration 034's `quote_requests_rush_needs_explicit_source`
+   CHECK refuses `is_rush = true` unless `rush_source` is `'customer_checkbox'`
+   or `'admin_toggle'`. There is no third value, and adding one needs a
+   migration.
+2. **A static test.** `lib/data/rush-explicit-only.test.ts` walks
+   `app/ components/ lib/ scripts/` and fails if any file other than the four
+   known writers assigns `is_rush`, or if any of those writers gains an
+   inference-shaped expression on the assignment line.
+3. **The routes.** A non-boolean `isRush` is a 400, not a guess.
+
+**A note on the CHECK's spelling, because it is load-bearing.** The obvious
+form — `CHECK (is_rush = false OR rush_source IN (...))` — was written first
+and PROVEN WRONG against the live database: with a NULL `rush_source` the `IN`
+yields UNKNOWN, `false OR UNKNOWN` is UNKNOWN, and a CHECK constraint accepts
+UNKNOWN. An insert that should have been impossible succeeded. The committed
+form is `CHECK (NOT is_rush OR (rush_source IS NOT NULL AND rush_source IN
+(...)))`. Do not "simplify" it back.
+
+### ONE CONFIDENCE PATTERN (v2-02)
+
+`lib/ai/takeoff-confidence.ts` holds the `high | medium | low` vocabulary, the
+per-item `aiNote`, the `overallConfidence`, and the `confidence !== 'high'`
+threshold that drives the Job screen's amber "unsure" highlight.
+
+That pattern was *already* what `app/api/takeoff/route.ts` produced — its
+system prompt has asked for it since the route was built, and
+`takeoff_uploads.result_items` / `.overall_confidence` store it. v2-02 did not
+invent a second one; it moved the definition into a shared module and made the
+PRODUCER import it too, so producer and consumer cannot drift. The route now
+also normalises `overallConfidence` through the shared guard, so an
+unrecognised value reads as `low` rather than silently reading as confident.
+
+**When there is no AI reading, the panel says so.** A FlashDraft job the
+customer specified themselves has no extraction behind it, and running the
+submitted spec through a confidence badge it never earned would be inventing
+precision.
+
+### "CUSTOMER APPROVED BY PHONE" IS NOT A BYPASS
+
+`/api/admin/command-center/approve-by-phone` records a real customer approval
+that arrived by telephone. It writes the approval record the single-door guard
+reads — `job_stage='approved'`, `approval_channel='phone'`, `approved_by`,
+`approved_at`, plus an `admin_audit_log` row — and it **deliberately leaves
+`status='submitted'` alone**, precisely so the guard's own condition still
+holds when "Send to machine" is pressed afterwards.
+
+It imports nothing from `lib/integrations/pathfinder-edge.ts` and makes no
+outbound request. The machine send is still a separate, deliberate click
+through the one door. What the phone route records is *how the approval
+arrived*, not a way around needing one.
+
 ### Machine Job Lifecycle (Parallel to Order Lifecycle)
 
 A `machine_jobs` row tracks whether an order/quote request's bend program

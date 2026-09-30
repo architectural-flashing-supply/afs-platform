@@ -34,6 +34,208 @@ summary, not a replacement for it.
 
 ---
 
+## COMMAND CENTER V2 — PROMPT v2-02 (2026-09-30)
+
+The Workbench and the Job screen. Everything below was verified in this
+session against the live database or the live alpha deployment; per the
+VERIFICATION STANDARD above, the interactive parts are **IMPLEMENTED, VERIFIED
+BY PLAYWRIGHT AGAINST ALPHA** and still want Reid's own eyes.
+
+### 1. The Workbench — IMPLEMENTED, VERIFIED AGAINST ALPHA
+
+`/admin/command-center` with no `?tab` is now the five-lane Workbench.
+Rendered lane names, read out of the live page:
+**New · Quoted · Approved · In the shop · Done**, with the prototype's
+sub-labels (Needs a quote / Waiting on the customer / Ready for the machine /
+At the Thalmann / Delivered).
+
+Cards carry a source icon, the customer, the item, how long it has been
+waiting, and exactly ONE action. Approved cards carry a 2px green border, a
+green count badge and the `.afs-beacon` pulse (disabled under
+`prefers-reduced-motion`, where the border and badge still identify the lane —
+no information lives only in the movement). Done auto-archives after 14 days
+and the page STATES how many it hid rather than truncating silently.
+
+**Nothing was deleted to make room.** The KPI dashboard moved to
+`?tab=dashboard` and the three machine tabs and the bids view are untouched,
+all four reachable by direct URL — the same pattern this page already used for
+`?tab=bids`.
+
+**Deviations from the prototype, both deliberate and both reported rather than
+quietly made:**
+
+- The greeting follows the SHOP clock (`America/Chicago`), not a hardcoded
+  "Good morning". The prototype is a static mock; a real screen that says
+  "Good morning" at 4pm reads as broken to the non-technical reader this build
+  is for. Vercel runs in UTC, so reading the server's own hours would have
+  greeted a Texas morning as afternoon.
+- The third summary chip is "N jobs in the shop", not the prototype's
+  "N deliveries scheduled". There is no delivery-scheduling data in the
+  database at all until Phase 5 — `machine_jobs` has no scheduling columns — so
+  that chip could only ever have read "0 deliveries scheduled", which implies a
+  feature that is not there.
+
+### 2. The Job screen — IMPLEMENTED, VERIFIED AGAINST ALPHA
+
+`/admin/command-center/job/<id>`, three columns:
+
+1. **The request** — the source line, the customer's own words verbatim, the
+   drawing rendered from real `points`, the uploaded photo/drawing, and
+   **"What the AI read"** with amber highlighting on anything the AI was not
+   sure about.
+2. **The profile** — the drawing, item + spec, **Open in FlashDraft**, and this
+   customer's past profiles as lazy-loaded thumbnails.
+3. **The stage-specific action panel**, plus a five-stage stepper.
+
+**The confidence highlighting REUSES the takeoff pattern rather than inventing
+a second one.** `lib/ai/takeoff-confidence.ts` now holds the vocabulary and the
+`confidence !== 'high'` threshold, and `app/api/takeoff/route.ts` — the
+PRODUCER — imports it. Verified live on alpha with a real
+`takeoff_uploads.result_items` row in the shape that route writes: **6 rows
+rendered `data-unsure="false"` and 3 rendered `data-unsure="true"`**, with the
+prototype's own footnote sentence below them. The route also now normalises
+`overallConfidence` through the shared guard, so an unrecognised value reads as
+`low` instead of silently reading as confident.
+
+**"Open in FlashDraft" resolves through `geometry_fingerprint`** (migration
+028) to a real `saved_configurations` row and the existing `?modifyProfile=`
+route. When there is no match it SAYS SO — opening an empty canvas that looks
+like the customer's drawing is worse than admitting the drawing was never
+saved.
+
+**What is deliberately NOT built, and is stated on screen rather than mocked:**
+the priced quote table and the pre-written quote email (they need `price_book`,
+Phase 3), the invoice checklist (there is still no `invoices` table — the
+spec's own first risk), and delivery scheduling (Phase 5). Building fake
+versions would have put invented dollar amounts in front of an estimator.
+
+### 3. Approval feedback is honest — IMPLEMENTED
+
+Four outcomes, four different true things said. Full table: ARCHITECTURE.md's
+APPROVAL FEEDBACK section.
+
+**The defect fixed that was not in the prompt's list:** the route reported
+`profile #null` as a success. `pushProfileToPathfinder` returns
+`status: 'connected'` with `profileId: null` when the follow-up GET that
+resolves the server-assigned number does not find the row — the profile really
+was created. That is now `send_status='unconfirmed'`, reported plainly, with
+**no retry offered**, because a retry would duplicate a real profile in catalog
+20115.
+
+A failed send is now STATE (`send_status='failed'` + `send_error`), so the card
+reads "Send failed — retry" after a reload instead of the failure evaporating.
+The already-sent path returns 200 with "This job has already been sent to the
+machine. Nothing was sent again." — proven live over HTTP, see the E2E results
+below.
+
+### 4. Rush — ENFORCED IN POSTGRES, PROVEN FOUR WAYS
+
+Migration 034's `quote_requests_rush_needs_explicit_source` CHECK.
+
+**The first spelling of that constraint was WRONG, and that was found by
+testing it rather than by reading it.** `CHECK (is_rush = false OR rush_source
+IN (...))` was applied live, and this insert **SUCCEEDED**:
+
+```
+insert into quote_requests (request_number, guest_email, line_items, is_rush)
+values ('V202-RUSH-PROOF-1', ..., '[]'::jsonb, true) returning id;
+-> 31dca2a2-20e6-4dee-b77b-311f9ec9d41e
+```
+
+With a NULL `rush_source` the `IN` yields UNKNOWN, `false OR UNKNOWN` is
+UNKNOWN, and a CHECK constraint ACCEPTS UNKNOWN. The row was deleted, the
+constraint rewritten as `NOT is_rush OR (rush_source IS NOT NULL AND
+rush_source IN (...))`, and re-proven four ways against the live database:
+
+| Attempt | Result |
+|---|---|
+| `is_rush=true`, no source | **REFUSED** — `23514 ... violates check constraint "quote_requests_rush_needs_explicit_source"` |
+| `is_rush=true`, `rush_source='inferred_from_due_date'` | **REFUSED** — same constraint |
+| `is_rush=true`, `rush_source='customer_checkbox'` | ACCEPTED |
+| `is_rush=true`, `rush_source='admin_toggle'` | ACCEPTED |
+
+All four proof rows were deleted; `quote_requests` back to 0.
+
+Rush ordering was also corrected: `lib/data/pending-quote-requests.ts` used to
+sort `is_rush DESC` first. That is an office list of requests waiting for a
+quote, not a shop queue, so a rush item jumping the newest arrival just buried
+the thing that came in five minutes ago. It now orders by `submitted_at DESC`
+only. The machine queue and the production/driver queues keep their rush pin.
+
+### 5. Follow-up drafting and "Customer approved by phone" — IMPLEMENTED
+
+Follow-up drafting writes the message, stores it on the job so it survives a
+reload, and **does not send it** — quote mail is specified to go out through
+Microsoft Graph AS Steve so it lands in his own Sent Items and stays in the
+thread, and none of that exists (the spec's own §2.4 audit: "Microsoft Graph /
+Outlook: NOTHING"). Pushing it through Resend instead would put it outside his
+mailbox and outside the thread, which is the one outcome the spec rules out.
+The screen says plainly that sending is not connected yet.
+
+"Customer approved by phone" goes THROUGH the verified door. It writes the
+approval record the single-door guard reads and deliberately leaves
+`status='submitted'` alone so the guard's own condition still holds. Proven
+live: after a phone approval the row reads `job_stage='approved'`,
+`approval_channel='phone'`, `status='submitted'`, `pathfinder_profile_ids=[]`,
+`send_status=NULL`, and the audit log holds
+`record_customer_approval_by_phone` and **neither** of the two rows a real push
+attempt would have written.
+
+### 6. FlashDraft and field-app submissions both arrive as New
+
+Both insert routes now write `job_stage: 'new'` explicitly rather than leaning
+on migration 032's column DEFAULT, so the lane a submission lands in is visible
+at the insert. Both proven live on alpha.
+
+### Migration 034 — APPLIED LIVE, VERIFIED, IDEMPOTENT
+
+Applied twice in a row with no error. Verified by querying the database, not by
+reading the file: all 15 columns present in `information_schema.columns`, all
+four CHECK constraints present in `pg_constraint` with their exact definitions,
+and the rush constraint exercised as above.
+
+### Gates
+
+- `pnpm tsc --noEmit` — **exit 0**
+- `pnpm test:unit` — **219 passed, 14 files** (up from 160/10; +59 tests across
+  `workbench.test.ts`, `takeoff-confidence.test.ts`, `rush-explicit-only.test.ts`,
+  `followup-draft.test.ts`)
+- `next build` — exit 0, with `/admin/command-center/job/[id]`,
+  `/api/admin/command-center/approve-by-phone`, `.../set-rush` and
+  `.../draft-followup` all present
+- Playwright against alpha — **7/7 passed** on
+  `tests/e2e/command-center-workbench.spec.ts`, run after confirming the pushed
+  commit's deployment reported READY via the Vercel API
+
+**One fix to the test infrastructure:** `vitest.config.mts` had no `@` alias, so
+any `lib/` module written with `@/lib/...` imports — normal everywhere else in
+this codebase — could not be unit-tested at all. `lib/data/workbench.ts` hit it
+immediately. The alias now mirrors `tsconfig.json`'s paths.
+
+### Test data
+
+Every row the E2E suite created was deleted. Verified live afterwards:
+`quote_requests` 0, `machine_jobs` 0, `takeoff_uploads` 0, tagged rows 0,
+`shop_profile_library` still 20.
+
+### Tricia's address — the v2-01 "conflict" was a MISREADING, and is now resolved
+
+v2-01 recorded a conflict it could not resolve: "`queue.yaml` still contains 2
+misspelled `trica@` addresses. The global rule says fix every occurrence; the
+governance rule says DO NOT EDIT THE FORGE QUEUE."
+
+**Those are two different files.** The FORGE queue is
+`C:\Users\manag\Documents\FORGE\projects\afs-website\queue.yaml` — it holds 8
+`trica@` hits, all of them the gates' own search needles and rule text, and it
+was correctly left alone. The 2 genuine misspellings were in
+`C:\Users\manag\Documents\afs-website\queue.yaml`, an OLD v2.0 platform-scaffold
+queue that is a TRACKED FILE IN THIS REPO and is not the FORGE queue at all.
+No rule protected it. Both occurrences are fixed. An address-shaped scan of the
+tracked tree now returns zero hits outside SESSION_STATE.md's own prose about
+the misspelling.
+
+---
+
 ## COMMAND CENTER V2 — PROMPT v2-01 (2026-09-30)
 
 Seven steps, all executed. Everything below was verified against the live

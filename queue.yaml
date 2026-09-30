@@ -791,13 +791,13 @@ prompts:
          Real AFS contact info:
            209 Sure Cast Drive, Burnet, Texas 78611
            (512) 372-4900
-           trica@architecturalflashingsupply.com
+           tricia@architecturalflashingsupply.com
          Google Maps embed placeholder (map of Burnet TX)
          Query param: ?order={id} pre-fills order reference
 
       3. app/(public)/legal/privacy/page.tsx
          Placeholder: "Privacy Policy — Coming Soon"
-         "Contact us at trica@architecturalflashingsupply.com for privacy inquiries"
+         "Contact us at tricia@architecturalflashingsupply.com for privacy inquiries"
          LAUNCH BLOCKER note in UI
 
       4. app/(public)/legal/terms/page.tsx

@@ -24,7 +24,72 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
-## COMMAND CENTER V2 — PROMPT v2-01 (2026-09-30) — CURRENT HANDOFF
+## COMMAND CENTER V2 — PROMPT v2-02 (2026-09-30) — CURRENT HANDOFF
+
+Ran as FORGE queue prompt v2-02. Built in two checkpointed parts, each
+committed, pushed, deployed to alpha and verified there before the next part
+started. Full detail: STATE_OF_THE_BUILD.md's "COMMAND CENTER V2 — PROMPT
+v2-02" entry.
+
+**What shipped**
+
+1. **The Workbench** — `/admin/command-center`, five lanes (New · Quoted ·
+   Approved · In the shop · Done), one Job card per request, newest arrival at
+   the top everywhere, one action per card, pulsing green Approved cards with an
+   on-card "Send to machine", 14-day auto-archive of Done, and a summary line
+   above the lanes. Gunmetal header, light working area.
+2. **The Job screen** — `/admin/command-center/job/<id>`, three columns and a
+   five-stage stepper.
+3. **Honest approval feedback**, including a defect nobody had listed: a send
+   with a null returned `profileId` was being reported as `profile #null`
+   success. It is now `unconfirmed`, with no retry offered.
+4. **Rush enforced in Postgres**, plus a static test and route-level refusal.
+5. **Follow-up drafting** (drafts, does not send, and says so) and **"Customer
+   approved by phone"** (through the verified door, not around it).
+6. **FlashDraft and field-app submissions** both land as New cards.
+
+**Three things worth carrying forward**
+
+- **A CHECK constraint was written, applied, and PROVEN WRONG by exercising it.**
+  `CHECK (is_rush = false OR rush_source IN (...))` accepted a rush with a NULL
+  source, because `false OR UNKNOWN` is UNKNOWN and a CHECK accepts UNKNOWN. If
+  the constraint had only been read rather than tested, "rush cannot be set by
+  inference" would have gone into the governance docs as a claim with nothing
+  behind it. Fixed with an explicit `IS NOT NULL` and re-proven four ways.
+- **`vitest.config.mts` had no `@` path alias**, so any `lib/` module using the
+  codebase's normal `@/lib/...` imports could not be unit-tested at all. Fixed;
+  mirror future `tsconfig.json` path changes there.
+- **The v2-01 "two conflicting rules" note about `trica@` was a misreading.**
+  There are two different `queue.yaml` files. The FORGE queue
+  (`FORGE\projects\afs-website\queue.yaml`) holds 8 hits, all search needles and
+  rule text, correctly untouched. The 2 real misspellings were in the repo's own
+  tracked `queue.yaml` — an old v2.0 scaffold queue, not the FORGE queue, and
+  protected by no rule. Fixed. There was never a conflict.
+
+**Deliberate deviations from the approved prototype, both reported not hidden**
+
+- The greeting follows the shop clock (`America/Chicago`) rather than being a
+  hardcoded "Good morning". Vercel runs in UTC, so the server's own hours would
+  greet a Texas morning as afternoon.
+- The third summary chip is "N jobs in the shop", not "N deliveries scheduled".
+  There is no delivery data in the database until Phase 5, so that chip could
+  only ever have read zero and implied a feature that is not there.
+- The text green is darkened from the prototype's single `#1E7F45` to `#17683A`
+  for text on the pale green panel, where the original measures 4.3:1 and misses
+  the 4.5:1 body-text rule. `#1E7F45` is kept as the button fill.
+
+**Deliberately NOT built, and said so on screen instead of mocked:** the priced
+quote table and quote email (need `price_book`, Phase 3), the invoice checklist
+(there is still no `invoices` table — the spec's own first risk), delivery
+scheduling (Phase 5).
+
+**Not user-confirmed yet** (per this file's VERIFICATION STANDARD): the
+Workbench and the Job screen are verified by Playwright against alpha (7/7) and
+by screenshots, which is evidence for Reid, not a substitute for his own look.
+
+---
+
+## COMMAND CENTER V2 — PROMPT v2-01 (2026-09-30)
 
 Ran as FORGE queue prompt v2-01. All seven steps executed, each with its own
 checkpoint verification before moving on, and each part committed and pushed
@@ -104,12 +169,20 @@ flagged rather than silently resolved:**
   rule says fix every occurrence in code and docs; the governance rule says
   DO NOT EDIT THE FORGE QUEUE. The queue prohibition won. Every other
   occurrence in the repo is fixed.
+  **CORRECTED IN v2-02: this was never a conflict.** Those 2 occurrences were
+  in the REPO's own tracked `queue.yaml` — an old v2.0 platform-scaffold queue —
+  not in the FORGE queue at `FORGE\projects\afs-website\queue.yaml`, which is a
+  different file and holds 8 hits that really are the gates' search needles. No
+  rule protected the repo file. Both are now fixed.
 - **The admin working area is still gunmetal, not light.** The design rule
   asks for a light working area; flipping it in this prompt would make
   twenty existing admin pages unreadable, since their text uses the
   light-on-dark `afs-chrome-*` tokens. Deferred to v2-02, when the pages
   that live in that area get rebuilt. The gunmetal header is in place and
   every new surface was contrast-checked.
+  **RESOLVED IN v2-02 for the two screens it rebuilt.** The Workbench and the
+  Job screen render light; the other twenty pages stay gunmetal until they are
+  rebuilt. See CLAUDE.md rule #18.
 
 **Not user-confirmed yet** (per this file's own VERIFICATION STANDARD): the
 one-level nav and the hemmed-end extension are verified by Playwright
