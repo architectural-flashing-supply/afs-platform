@@ -41,6 +41,12 @@ const ALLOWED_WRITERS: Record<string, string> = {
   'app/api/admin/command-center/set-rush/route.ts': 'the explicit admin toggle',
   'app/api/admin/command-center/approve-quote-request/route.ts':
     'copies the already-decided value onto machine_jobs; decides nothing',
+  'lib/pricing/ledger.ts':
+    'records the already-decided value on a pricing_ledger row; decides nothing. ' +
+    'Added deliberately in v2-03 — the ledger has to carry the rush flag because ' +
+    'dynamic pricing needs to know whether a quote was a rush job, and recording a ' +
+    'fact is not the same as deciding it. `is_rush: entry.isRush ?? null` reads one ' +
+    'boolean straight off the caller and can reach no date, note or keyword.',
 };
 
 function walk(dir: string, out: string[] = []): string[] {
