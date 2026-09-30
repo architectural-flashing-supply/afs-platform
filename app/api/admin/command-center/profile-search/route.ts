@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { buildSearchArgs, type ProfileSearchResult } from '@/lib/data/profile-search';
+import {
+  buildSearchArgs,
+  mapSearchRow,
+  type ProfileSearchFnRow,
+  type ProfileSearchResult,
+} from '@/lib/data/profile-search';
 
 /**
  * ADMIN profile search across ALL customers (Part 2, 2026-09-30).
@@ -11,34 +16,18 @@ import { buildSearchArgs, type ProfileSearchResult } from '@/lib/data/profile-se
  * to anyone whose profiles.role is not 'admin'.
  *
  * The query is the parameterized Postgres function admin_profile_search
- * (029), which re-checks admin itself — defence in depth, so this route
- * forgetting the check could not open the door.
+ * (029, extended with an id list in 038), which re-checks admin itself —
+ * defence in depth, so this route forgetting the check could not open the
+ * door.
  *
  * EGRESS: rows carry no geometry and no thumbnail_image, only hasThumbnail,
- * so the client lazy-loads each thumbnail from ./thumbnail/<id> as it
- * actually scrolls into view.
+ * so the client lazy-loads each thumbnail from ../profile-thumbnail/<id> as
+ * it actually scrolls into view. The row->result mapping is the shared
+ * `mapSearchRow` (v2-05) rather than a copy, because there are now three
+ * callers of the same function and a private copy in each is how one of them
+ * quietly starts returning a different shape.
  */
 export const dynamic = 'force-dynamic';
-
-interface SearchFnRow {
-  id: string;
-  name: string;
-  company: string | null;
-  person: string | null;
-  profile_type: string | null;
-  material: string | null;
-  gauge: string | null;
-  length_ft: number | null;
-  quantity: number | null;
-  created_at: string;
-  geometry_fingerprint: string | null;
-  same_shape_count: number;
-  bend_count: number;
-  hem_count: number;
-  status: string | null;
-  pathfinder_profile_id: string | null;
-  has_thumbnail: boolean;
-}
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
@@ -64,26 +53,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Search failed.', detail: error.message }, { status: 500 });
     }
 
-    const rows = (data ?? []) as SearchFnRow[];
-    const results: ProfileSearchResult[] = rows.map((r) => ({
-      id: r.id,
-      name: r.name,
-      company: r.company,
-      person: r.person,
-      profileType: r.profile_type,
-      material: r.material,
-      gauge: r.gauge,
-      lengthFt: r.length_ft,
-      quantity: r.quantity,
-      createdAt: r.created_at,
-      fingerprint: r.geometry_fingerprint,
-      sameShapeCount: r.same_shape_count,
-      bendCount: r.bend_count,
-      hemCount: r.hem_count,
-      status: r.status,
-      pathfinderProfileId: r.pathfinder_profile_id,
-      hasThumbnail: r.has_thumbnail,
-    }));
+    const results: ProfileSearchResult[] = ((data ?? []) as ProfileSearchFnRow[]).map(mapSearchRow);
 
     return NextResponse.json({ results, limit: args.p_limit, offset: args.p_offset });
   } catch {

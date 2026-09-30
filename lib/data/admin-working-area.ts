@@ -31,6 +31,8 @@ export const LIGHT_WORKING_AREA_SCREENS: { screen: string; route: string }[] = [
   // v2-04 rebuilt both of these to the approved prototype, so they convert now.
   { screen: 'Shop View', route: '/admin/shop-view' },
   { screen: 'Deliveries', route: '/admin/deliveries' },
+  // v2-05 replaced the interim results table with the approved thumbnail rail.
+  { screen: 'Search', route: '/admin/search' },
 ];
 
 /**

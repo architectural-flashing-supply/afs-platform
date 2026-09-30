@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
-  buildSearchArgs, parseField, parseStatus, parseDate, parseLimit, parseOffset,
-  SEARCH_FIELDS, SEARCH_STATUSES, MAX_LIMIT, DEFAULT_LIMIT,
+  buildSearchArgs, buildIdSearchArgs, parseField, parseStatus, parseDate, parseLimit, parseOffset,
+  mapSearchRow, statusLabel,
+  SEARCH_FIELDS, SEARCH_STATUSES, MAX_LIMIT, DEFAULT_LIMIT, RECENT_PROFILE_LIMIT,
+  PROFILE_SEARCH_RESULT_KEYS, type ProfileSearchFnRow,
 } from './profile-search';
 
 /** Turns a plain object into the getter buildSearchArgs expects. */
@@ -77,7 +79,7 @@ describe('profile search — buildSearchArgs is total and typed', () => {
     }))).toEqual({
       p_q: 'Reposition', p_field: 'company', p_material: 'Galvalume', p_gauge: '24 ga',
       p_date_from: '2026-09-01', p_date_to: '2026-09-30', p_status: 'sent_to_machine',
-      p_limit: 12, p_offset: 24,
+      p_limit: 12, p_offset: 24, p_ids: null,
     });
   });
 
@@ -85,7 +87,7 @@ describe('profile search — buildSearchArgs is total and typed', () => {
     expect(buildSearchArgs(bag({}))).toEqual({
       p_q: '', p_field: 'all', p_material: null, p_gauge: null,
       p_date_from: null, p_date_to: null, p_status: null,
-      p_limit: DEFAULT_LIMIT, p_offset: 0,
+      p_limit: DEFAULT_LIMIT, p_offset: 0, p_ids: null,
     });
   });
 
@@ -173,5 +175,93 @@ describe('Part 7 — gauge lists are the single source of truth', () => {
       expect(GAUGES_BY_MATERIAL['Galvanized Steel']).toContain('18 ga');
       expect(GAUGES_BY_MATERIAL['Stainless Steel']).toContain('18 ga');
     });
+  });
+});
+
+/* ===================================================================
+ * v2-05 — the Search UI's reuse of this same layer.
+ * =================================================================== */
+
+describe('the id list (Recent and Pinned reuse the ONE search function)', () => {
+  it('is never taken from the query string', () => {
+    // A browser must not be able to name the ids it wants back; the list
+    // comes from the caller's own shortcut rows, server-side.
+    expect(buildSearchArgs(bag({ ids: 'a,b,c', p_ids: 'x' })).p_ids).toBeNull();
+  });
+
+  it('carries the ids in the order given, with every other filter off', () => {
+    const ids = ['11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222'];
+    const args = buildIdSearchArgs(ids);
+    expect(args.p_ids).toEqual(ids);
+    expect(args.p_q).toBe('');
+    expect(args.p_material).toBeNull();
+    expect(args.p_status).toBeNull();
+    expect(args.p_limit).toBe(MAX_LIMIT);
+  });
+
+  it('keeps an empty list empty — "these zero profiles", not "everything"', () => {
+    expect(buildIdSearchArgs([]).p_ids).toEqual([]);
+  });
+
+  it('keeps Recent at the approved ten', () => {
+    expect(RECENT_PROFILE_LIMIT).toBe(10);
+  });
+});
+
+describe('EGRESS — a list response carries no image data', () => {
+  const row: ProfileSearchFnRow = {
+    id: '11111111-1111-1111-1111-111111111111',
+    name: 'Drip Edge A',
+    company: 'Acme Roofing',
+    person: 'Mike',
+    profile_type: 'drip-edge',
+    material: 'Galvalume',
+    gauge: '24 ga',
+    length_ft: 10,
+    quantity: 4,
+    created_at: '2026-09-30T12:00:00.000Z',
+    geometry_fingerprint: 'abc123',
+    same_shape_count: 3,
+    bend_count: 2,
+    hem_count: 1,
+    status: 'sent_to_machine',
+    pathfinder_profile_id: '32999777',
+    has_thumbnail: true,
+  };
+
+  it('maps to exactly the advertised keys and no others', () => {
+    expect(Object.keys(mapSearchRow(row)).sort()).toEqual([...PROFILE_SEARCH_RESULT_KEYS].sort());
+  });
+
+  it('carries a hasThumbnail FLAG, never the image', () => {
+    const mapped = mapSearchRow(row) as unknown as Record<string, unknown>;
+    expect(mapped.hasThumbnail).toBe(true);
+    for (const key of Object.keys(mapped)) {
+      expect(key).not.toMatch(/thumbnailImage|thumbnail_image|image|svg|dataUri|geometry_svg/i);
+    }
+    // And nothing that IS in the payload looks like a data URI.
+    for (const value of Object.values(mapped)) {
+      if (typeof value === 'string') expect(value.startsWith('data:')).toBe(false);
+    }
+  });
+
+  it('names no image-shaped key in the advertised key list either', () => {
+    for (const key of PROFILE_SEARCH_RESULT_KEYS) {
+      expect(key).not.toMatch(/image|svg|thumbnailData/i);
+    }
+  });
+});
+
+describe('plain-English status text', () => {
+  it('says what a non-technical reader would say', () => {
+    expect(statusLabel('sent_to_machine')).toBe('Sent to the machine');
+    expect(statusLabel('submitted')).toBe('Quoted');
+    expect(statusLabel('ordered')).toBe('Ordered');
+  });
+  it('says nothing at all when there is no status', () => {
+    expect(statusLabel(null)).toBeNull();
+  });
+  it('never shows a raw underscore to the user', () => {
+    expect(statusLabel('some_future_status')).not.toContain('_');
   });
 });
