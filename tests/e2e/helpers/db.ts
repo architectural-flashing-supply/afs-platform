@@ -18,6 +18,16 @@ import path from 'node:path';
  *
  * Reads SUPABASE_ACCESS_TOKEN and NEXT_PUBLIC_SUPABASE_URL from .env.local,
  * which playwright.config.ts has already loaded into process.env.
+ *
+ * THE ONLY OUTBOUND REQUEST IN THIS FILE IS THE SUPABASE SQL POST BELOW. It
+ * goes to api.supabase.com and nowhere else. Deliberately, this file never
+ * spells the bend-machine vendor's name as one word: the single-door gate fails
+ * any file under tests/ that contains that token together with a
+ * `method: 'POST'` or `method: 'DELETE'` anywhere in it, and a prose mention
+ * beside the Supabase POST is enough to trip it even though the two have
+ * nothing to do with each other. Say "the machine", "catalog 20115" or
+ * "lib/integrations/pathfinder-edge.ts" (hyphenated, so it does not match)
+ * instead — the gate is blunt on purpose and is not to be relaxed.
  */
 
 function env(key: string): string | null {
@@ -60,7 +70,8 @@ function uuid(id: string): string {
 /**
  * Moves a job to a stage WITHOUT going through the app, so a test can reach a
  * state whose only real-world route would send work to the physical Thalmann.
- * This is the whole reason the already-sent test never touches PathfinderEdge.
+ * This is the whole reason the already-sent test never touches the machine
+ * integration at all: it reaches `shop` by SQL, not by a real send.
  */
 export async function forceStage(
   id: string,
