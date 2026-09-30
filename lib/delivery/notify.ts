@@ -149,12 +149,19 @@ export async function notifyDeliveryScheduled(
           : sent.status === 'not_configured'
             ? 'not_configured'
             : 'failed';
-    await recordNotification(supabase, {
-      recipient: to,
-      channel: 'email',
-      status: sent.delivered ? 'sent' : 'failed',
-      error: sent.delivered ? null : sent.message,
-    });
+    // A CAPTURED test message gets NO `notifications` row. That table's own
+    // status CHECK is ('sent','delivered','failed'), so the only value a
+    // capture could take is 'failed' — which would be a lie about a message
+    // nobody tried to send. The capture is recorded in full in
+    // `outbound_emails` instead, which is the table built to hold it.
+    if (sent.status !== 'captured_test_mode') {
+      await recordNotification(supabase, {
+        recipient: to,
+        channel: 'email',
+        status: sent.delivered ? 'sent' : 'failed',
+        error: sent.delivered ? null : sent.message,
+      });
+    }
   }
 
   // --- SMS: the existing sender, the existing opt-in gate -----------------
