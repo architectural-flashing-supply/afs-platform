@@ -262,6 +262,17 @@ export default function ProfileSearchPanel({
   }, []);
 
   // ------------------------------------------------------------ actions
+  /**
+   * Set while focus is being moved back onto a thumbnail after Escape.
+   *
+   * Focusing a thumbnail opens its preview — that is how Tab and the arrow
+   * keys work. But Escape has to close the preview and put focus back on the
+   * thumbnail it belonged to, and those two rules fight: the refocus would
+   * immediately reopen what Escape just closed, so Escape would appear to do
+   * nothing at all. (Found by the E2E, not by reading the code.)
+   */
+  const suppressFocusOpen = useRef(false);
+
   function focusItem(id: string): void {
     const el = railRef.current?.querySelector<HTMLButtonElement>(`[data-rail-id="${id}"]`);
     el?.focus();
@@ -272,8 +283,15 @@ export default function ProfileSearchPanel({
     if (e.key === 'Escape') {
       if (activeId) {
         const id = activeId;
+        suppressFocusOpen.current = true;
         intent.closeNow();
         focusItem(id);
+        // focus() dispatches synchronously, so the flag is already spent;
+        // the frame is a belt for any future batching change.
+        suppressFocusOpen.current = false;
+        requestAnimationFrame(() => {
+          suppressFocusOpen.current = false;
+        });
         e.preventDefault();
         // One press does one thing. When this panel is inside FlashDraft's
         // drawer, the drawer also closes on Escape — so an Escape that
@@ -484,7 +502,11 @@ export default function ProfileSearchPanel({
                       // Put Select one press away for keyboard and touch alike.
                       requestAnimationFrame(() => selectRef.current?.focus());
                     }}
-                    onFocus={() => intent.openNow(p.id)}
+                    onFocus={() => {
+                      // Escape's own refocus must not reopen what it closed.
+                      if (suppressFocusOpen.current) return;
+                      intent.openNow(p.id);
+                    }}
                     className={`shrink-0 min-h-[112px] w-full bg-afs-bg-card rounded p-2 flex flex-col items-center gap-1 text-center transition-colors focus:outline-none focus:ring-2 focus:ring-afs-crimson ${
                       isActive
                         ? 'border-2 border-afs-crimson'

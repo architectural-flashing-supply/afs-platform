@@ -46,19 +46,39 @@ export function dbConfigured(): boolean {
   return Boolean(env('SUPABASE_ACCESS_TOKEN') && env('NEXT_PUBLIC_SUPABASE_URL'));
 }
 
+/**
+ * The Management API SQL endpoint is RATE LIMITED, and a spec's fixture setup
+ * is exactly the burst that trips it — v2-05's first run failed four tests on
+ * `ThrottlerException: Too Many Requests` before a single assertion ran, which
+ * reads as a broken feature and is not one. So: a bounded backoff on 429 only.
+ * Every other status still fails immediately, because a 400 is a bug in the
+ * query and retrying it would only hide it.
+ *
+ * The real fix is fewer calls — batch statements into one query, which this
+ * endpoint accepts — and the retry is the seatbelt, not the plan.
+ */
+const THROTTLE_BACKOFF_MS = [1_000, 3_000, 8_000];
+
 export async function sql<T = Record<string, unknown>>(query: string): Promise<T[]> {
   const token = env('SUPABASE_ACCESS_TOKEN');
   const url = env('NEXT_PUBLIC_SUPABASE_URL');
   if (!token || !url) throw new Error('SUPABASE_ACCESS_TOKEN / NEXT_PUBLIC_SUPABASE_URL not set');
   const ref = new URL(url).hostname.split('.')[0];
-  const res = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query }),
-  });
-  const text = await res.text();
-  if (!res.ok) throw new Error(`SQL ${res.status}: ${text.slice(0, 600)}`);
-  return JSON.parse(text) as T[];
+
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query }),
+    });
+    const text = await res.text();
+    if (res.ok) return JSON.parse(text) as T[];
+    if (res.status === 429 && attempt < THROTTLE_BACKOFF_MS.length) {
+      await new Promise((r) => setTimeout(r, THROTTLE_BACKOFF_MS[attempt]));
+      continue;
+    }
+    throw new Error(`SQL ${res.status}: ${text.slice(0, 600)}`);
+  }
 }
 
 /** A uuid, checked before it is ever interpolated into SQL. */
