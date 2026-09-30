@@ -8706,3 +8706,92 @@ routes present.
 mis-flagging legitimate send-history files. Fixing the needle list at the
 source is the real remedy; the queue was left untouched per the standing
 instruction.
+
+---
+
+## COMMAND CENTER V2 — QUEUE GATE REPAIR + v2-01 CONFIRMED COMPLETE (2026-09-30)
+
+FORGE halted on v2-01 *after* all seven steps were built, committed and pushed
+(`558e240`). Both halts were gate defects, not build defects. This pass repaired
+the gates, proved every gate in the queue parses, and verified v2-01's real
+completion against the live database. **The queue was not executed.**
+
+Backup taken first: `FORGE/projects/afs-website/queue.v2.pre-repair.yaml`,
+md5 `0916c3593ef29fa4ad7f1afad728b13e`, identical to the pre-repair `queue.yaml`.
+
+### Root cause shared by both halts
+
+A `shell` gate's `run:` text is written verbatim to a temp `.ps1` and executed by
+`powershell.exe -File` (forge-1.ps1 ~line 520). Windows PowerShell 5.1 re-quotes
+native-command arguments, and a `\"` inside a `node -e "…"` payload does not
+survive: the quote is consumed and the backslash is displaced. Measured
+empirically this pass — a lone backslash (`\s`, `\n`, `\r?\n`) passes through
+intact; **an embedded double quote never does.** That is the whole rule.
+
+`-dryRun` validates gate *shape* but never executes a shell gate, so a syntax
+bug in any gate is invisible to preflight. That is why both defects reached a
+live run.
+
+### Five gates fixed
+
+| # | Gate | Before | After |
+|---|---|---|---|
+| 1 | v2-01 `JOB_STAGE` | `new RegExp(\"'\"+s+\"'\")` — node got `new RegExp(" "+s+" \)`, `SyntaxError: Invalid or unexpected token`. Also tested `/check/i` against *all* migration text, so any unrelated CHECK anywhere satisfied it. | Quote built with `String.fromCharCode(39)`; no double quote in the payload. Now requires a real `job_stage` **column definition**, then finds CHECK clauses (4-line window) that actually name `job_stage`, and requires one clause to contain all five quoted literals. Comments can no longer satisfy it. |
+| 2 | v2-01 `LIBRARY SCAN` | `/profile-library/i` matched the **kept** send-history feature (`app/admin/profile-library`, `shop_profile_library`) — the false positive that forced the `shop-library` rename. | Needle list now mirrors `lib/data/removed-machine-library.test.ts` exactly: the three dropped tables, the deleted routes/components/scripts, `machine-data/`. `/profile-library/i` is gone. Adds self-exclusion for the enforcement test, a ≥200-file floor so a blind scan cannot pass, an assertion that `shop_profile_library` and `canonical_profiles` are still present, and a **needle-vs-kept clash check** that fails the gate if any needle would ever match a protected name again. |
+| 3 | v2-01 `HEM/SPELLING` | Flagged `tests/e2e/flashdraft-regression.spec.ts` — whose only match is a **comment** quoting the removed tooltip to document that it is gone (CLAUDE.md rule 13). `/trica@/i` also matched any prose discussing the misspelling. | Skips comment lines for the hem-block text, and matches only an address-shaped `trica@<domain>.<tld>`. History comments are now explicitly allowed. |
+| 4 | v2-02 `SINGLE-DOOR` | `['\\\"](POST\|DELETE)['\\\"]` — **unreported second syntax bug**, found by the new validator, not by any run. It fails PowerShell parsing outright (`The string is missing the terminator`), so v2-02 would have halted exactly as v2-01 did. | Quote class replaced with `.?`, which also catches backtick and unquoted forms. No double quote in the payload. |
+| 5 | v2-03 `TRICIA` | Same `/trica@/i` overbreadth as #3. | Same address-shaped match, with file:line and the offending text in the failure output. |
+
+### Syntax validation — new, and now the standing check
+
+Every `run:` block in all six prompts (26 shell gates) is extracted and checked
+three ways *without executing it*:
+
+1. **PowerShell parse** — `[System.Management.Automation.Language.Parser]::ParseInput`, zero errors required.
+2. **node payload** — the `-e` argument is extracted, rejected if it contains a double quote or a trailing backslash, then compiled with `node --check`.
+3. **forge-1.ps1's script-ref precondition** — the runner takes the *first* `<path>.<mjs|cjs|js|ts|ps1|py>` token in the gate text and hard-fails the gate if that file is missing. Five gates reference a spec the owning prompt creates (`command-center-workbench`, `quote-approve-invoice`, `shop-deliveries`, `profile-search`, `contrast-check.mjs`); each is named in its own prompt body, so absence today is the precondition working, not a defect.
+
+**Result: 26/26 gates parse, 0 failing.** Harness:
+`scratchpad/extract-gates.js` + `scratchpad/validate-gates.ps1`.
+
+Syntax validation is necessary but not sufficient — gate #3 above parsed
+perfectly and still failed on real data. **Every read-only gate was therefore
+also executed live**, which is the only thing that catches a logic
+false-positive. All five scan gates print PASS.
+
+### v2-01 confirmed complete — 26/26 live checks
+
+Read-only, against the live Supabase project and the real filesystem:
+
+- **job_stage column** — `text`, `DEFAULT 'new'::text`, nullable. Present.
+- **CHECK constraint** — `quote_requests_job_stage_check`: `job_stage IS NULL OR job_stage = ANY (ARRAY['new','quoted','approved','shop','done'])`. All five literals verified individually.
+- **Index** — `idx_quote_requests_job_stage` present.
+- **Clean slate** — all ten tables 0 rows: `quote_requests`, `quotes`, `orders`, `machine_jobs`, `takeoff_uploads`, `notifications`, `delivery_notifications`, `driver_locations`, `vault_documents`, `saved_configurations`.
+- **911 library** — `machine_profiles`, `machine_profile_bends`, `machine_profile_categories` all dropped; `machine_jobs.machine_profile_id` dropped. Protected `shop_profile_library` and `canonical_profiles` both still present.
+- **Source scan** — 487 files, zero references to the removed library (corrected gate logic).
+- **E2E account** — password sign-in HTTP 200 with access token; profile `role='admin'`.
+- **Backups** — `afs-backups/2026-10-01`: 117 files, 32.02 MB, no zero-byte files. `afs-assets/old-machine-files`: 14 archived files.
+
+### Two findings recorded rather than acted on
+
+- **No `trica@` misspelling exists to fix.** Every occurrence in the queue and in
+  the tree already reads `tricia@architecturalflashingsupply.com`. The eight
+  `trica@` hits in `queue.yaml` are the gates' own search needles and the rule
+  text quoting the misspelling. Replacing those would invert both gates into
+  searching for the *correct* spelling and fail on every valid address — so they
+  were deliberately left alone. Repo-wide address-shaped scan: zero hits.
+- **`FORGE/projects/afs-website/queue.yaml` is untracked in the FORGE repo**
+  (which is on `master`, with most of its tree untracked). The repaired queue and
+  its backup therefore live on disk only; this entry is the versioned record.
+
+This closes the "Still open for Reid" item from the previous entry — the
+`/profile-library/i` needle is fixed at source.
+
+### Preflight
+
+`.\forge-1.ps1 -project afs-website -dryRun` — 6 prompts listed by name
+(v2-01 … v2-06), **Passed: 6, Failed: 0, Halted: False**. Report:
+`FORGE/reports/afs-website_2026-09-30_11-14-09.md`.
+
+**Resume at v2-02.** v2-01 is complete and verified; re-running it would re-run
+a destructive clean slate against an already-clean database.
