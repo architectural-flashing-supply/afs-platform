@@ -214,11 +214,18 @@ export default function CommandCenterJobCard({ job }: { job: MachineJobRow }) {
             <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-2 block">
               {modal === 'reject' ? 'Reason (required)' : 'Message to customer (required)'}
             </label>
+            {/* Placeholder is afs-chrome-silver, not afs-chrome-dim: measured on
+                this textarea's own afs-bg-overlay (#4E5568), chrome-dim
+                (#7A8299) is 1.94:1 and misses the 4.5:1 body-text rule badly,
+                while chrome-silver (#C8D0E0) is 4.80:1 and still reads dimmer
+                than the white typed text at 7.44:1. The same swap is wanted in
+                the other 22 files still using chrome-dim as a placeholder — see
+                STATE_OF_THE_BUILD.md's v2-02 entry. */}
             <textarea
               rows={4}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 font-body text-sm text-afs-chrome-high placeholder:text-afs-chrome-dim focus:outline-none focus:border-afs-crimson transition-colors mb-4"
+              className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 font-body text-sm text-afs-chrome-high placeholder:text-afs-chrome-silver focus:outline-none focus:border-afs-crimson transition-colors mb-4"
               placeholder={modal === 'reject' ? 'Why is this job being rejected?' : 'What needs to change?'}
             />
             <div className="flex gap-3 justify-end">
