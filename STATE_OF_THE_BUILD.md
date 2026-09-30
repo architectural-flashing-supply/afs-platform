@@ -34,6 +34,281 @@ summary, not a replacement for it.
 
 ---
 
+## COMMAND CENTER V2 — PROMPT v2-04 (2026-09-30)
+
+Shop View and Deliveries — the end of the journey. Everything below was
+verified in this session against the live database or the live alpha
+deployment, with the real output pasted into the run report. Per the
+VERIFICATION STANDARD above, the interactive parts are **IMPLEMENTED, VERIFIED
+BY PLAYWRIGHT AGAINST ALPHA** and still want Reid's own eyes.
+
+Commits: `958f1c8` (Shop View), `f3c28a7` (Deliveries), `aa0e79f` (the Friday
+case in the gate).
+
+### 1. Shop View — IMPLEMENTED, VERIFIED AGAINST ALPHA
+
+`/admin/shop-view`, rebuilt to the approved prototype's `shopView` and moved
+into the light working area: a 40px queue-position number, the drawing, item ×
+qty at 30px, the spec, the customer, the machine profile number, the status,
+and ONE button — **Start bending**, then **Mark finished**. Buttons are
+`min-h-[72px]` at 20px text, because this runs on an operator's tablet and has
+to be readable and hittable at arm's length.
+
+Live card text, read off alpha:
+
+```
+13 | No drawing | E2E-TEST-V2-04-CP1 × 5 | E2E-TEST-V2-04-GAUGE, ... , 10 ft |
+E2E Checkpoint One · Machine profile #32999777 · Queued | Start bending
+
+(after Start bending)
+... · Machine profile #32999777 · Bending now | Mark finished
+```
+
+**No new queue table and no new status vocabulary.** `shop_profile_library`
+(migration 016) was already the record of what has been sent to the current
+Thalmann; `queue_position` (017) was already the order; and the existing
+`queued -> in_progress -> complete` lifecycle maps one-to-one onto the
+prototype's Queued / Bending now / Finished. One column was added —
+`started_at` (migration 037) — because `completed_at` recorded the finish and
+nothing recorded the start, so "Bending now" could not say since when.
+
+**The buttons reuse the route that already existed.** Both press
+`PATCH /api/admin/shop-library/[id]`, the same handler the old board used, so
+the audit row, the status write and `runShopJobCompletionAutomation` are
+untouched. Nothing was duplicated to add two labels.
+
+**`components/admin/ShopViewBoard.tsx` was DELETED** and the page no longer
+renders a single-job focus panel. Three reasons, all of them defects rather
+than preferences: the approved UX is a queue of large cards; it polled
+`/api/admin/shop-library`, whose payload includes `geometry_svg` — a base64
+PNG measured live at **70KB to 786KB per row, about 6MB across the twenty live
+rows** — every thirty seconds; and its poll did not stop when the tab was
+hidden, so a tablet left on all day polled all day. Everything an operator read
+off those cards is on the new ones (spec, customer, machine profile number,
+drawing, painted side, hem and special instructions). The queue REORDERING
+controls were never on that page — they are on `/admin/shop-library`, which
+still uses the old route unchanged.
+
+### 2. Mark finished books the next BUSINESS day — VERIFIED AGAINST ALPHA
+
+Live from the E2E run against alpha:
+
+```
+PROOF | after Start bending: {"status":"in_progress",
+        "started_at":"2026-09-30 21:55:44.334+00","completed_at":null,
+        "queue_position":9003}
+PROOF | auto-scheduled delivery: {"finishedOn":"2026-09-30",
+        "expectedDay":"2026-10-01",
+        "delivery":{"scheduled_date":"2026-10-01","time_window":"08-10",
+        "status":"scheduled","auto_scheduled":true, ...}}
+PROOF | scheduled day of week (0=Sun, 6=Sat): 4
+PROOF | Friday finish -> next business day:
+        {"friday":"2026-10-02","afterFriday":"2026-10-05","dow":1}
+```
+
+The expected day is computed by **Postgres**, not by the code under test, so
+the live assertion is two independent implementations agreeing. The Friday
+case — the one a naive `+1 day` gets wrong every single week — cannot be
+produced by finishing a job today, so it is asserted against that same Postgres
+arithmetic (Friday 2 Oct -> **Monday** 5 Oct, dow 1), and
+`lib/delivery/business-days.test.ts` asserts the app's own function returns the
+same date, including for a **Friday evening in Texas that is already Saturday
+in UTC** (`2026-10-03T01:00:00Z` -> shop date `2026-10-02` -> `2026-10-05`).
+
+That time-zone case is the reason `shopDateOnly()` exists. Vercel runs in UTC
+and the shop is in Burnet, Texas; a Tuesday-evening finish taken from the raw
+server date would book Thursday. The bug hides itself, because on a Friday the
+weekend skip lands on Monday either way.
+
+### 3. The customer is told, through the services that already existed
+
+`lib/delivery/notify.ts` adds no sender, no template file and no second test
+mode. Live, captured, on alpha:
+
+```
+PROOF | captured delivery email: ["delivery_scheduled ->
+        e2e-forge@architecturalflashingsupply.com [captured_test_mode]
+        Your AFS delivery is scheduled for Thu, Oct 1"]
+PROOF | messages really sent to anybody: 0
+notify_note: "Test job: the email to e2e-forge@... was recorded and NOT sent.
+              No phone number on this job, so no text was sent."
+```
+
+Reused by file path, not by resemblance: `lib/email/outbound.ts`
+(`sendTrackedEmail`, which wraps `lib/resend/send.ts`, writes
+`outbound_emails`, and captures on the reserved `E2E-TEST-` prefix),
+`lib/resend/templates/base.ts` (`baseEmailTemplate` + `ctaButton`),
+`lib/twilio/sms.ts` (`sendSms`, behind the same `phone && sms_opt_in` gate the
+dispatch route uses), the `notifications` table, `lib/pricing/ledger.ts`
+(`ledgerTestTag`), and `lib/utils/shop-job-completion.ts`
+(`findOrderForShopJob`, exported for this so the tracking link resolves through
+the SAME FK chain that file already documents).
+
+**The tracking link stopped being copied.** It was inlined in three places
+(`app/api/orders/[id]/dispatch/route.ts:110`,
+`app/api/driver/location/route.ts:153`, `lib/utils/shop-job-completion.ts:124`).
+Rather than add a fourth, all three now call `trackingUrlFor()` in
+`lib/delivery/tracking-url.ts`. The URL, the public route and the token column
+are unchanged.
+
+**A found bug, not a reasoned-about one.** The first checkpoint run on alpha
+wrote a `notifications` row reading `type='delivery_scheduled'`,
+`status='failed'`, `error='Test mode: this message was recorded and NOT sent'`.
+That table's status CHECK is `('sent','delivered','failed')`, so a capture has
+no honest value to take — it was calling a message it never attempted a
+failure. Captured messages now get NO `notifications` row; the capture is
+recorded in full in `outbound_emails`, which is the table built to hold it. The
+two rows the pre-fix run wrote were deleted; the runs afterwards wrote none,
+which is how the fix was confirmed rather than assumed.
+
+### 4. Deliveries — IMPLEMENTED, VERIFIED AGAINST ALPHA
+
+`/admin/deliveries`, in the light working area: five business-day columns with
+per-day stops (customer, item × qty, window, **Mark delivered**, **Change
+day**), a **Not scheduled yet** panel with **Schedule delivery**, and the
+prototype's day + time-window window.
+
+The v2-01 version of this page said, in so many words, that the week view was
+Phase 5 and the table did not exist, and listed finished shop rows read-only so
+the nav item would not 404. That honest placeholder has done its job and is
+gone.
+
+Live from alpha:
+
+```
+PROOF | weekend refusal: {"saturday":"2026-10-03","status":400}
+PROOF | scheduled by hand: {"scheduled_date":"2026-10-01",
+        "time_window":"13-15","auto_scheduled":false, ...}
+PROOF | after Change day:  {"scheduled_date":"2026-10-05",
+        "time_window":"13-15","auto_scheduled":false, ...}
+PROOF | beyond-week notice: 1 more delivery is booked beyond this week,
+        the next on Wed, Oct 14.
+```
+
+- **The week starts TODAY**, not tomorrow. The prototype hardcoded Thu 1 Oct –
+  Wed 7 Oct, the five business days after the day it was drawn; a delivery going
+  out this morning has to be on the screen this morning, and the prototype's
+  sample data simply had none. Stated here because it is a deliberate deviation
+  from "the prototype wins".
+- **A day beyond the five on screen is counted and named**, never dropped off
+  the end. A screen showing five days and saying nothing about the sixth reads
+  as "there is nothing else".
+- **The picker offers only weekdays**, and the ten days are computed ON THE
+  SERVER in the shop's zone — a browser in another zone, or a tablet with a
+  wrong clock, would compute a different "today". The server refuses a weekend
+  anyway (400, "Deliveries go out Monday to Friday."), so the picker is not the
+  only guard.
+- **Scheduling and rescheduling are one write.** `deliveries.shop_job_id` is
+  UNIQUE, and after a Change day the E2E asserts the row count is still **1**.
+  `auto_scheduled` flips to false once a person picks the day, and the screen
+  prints "set by the shop" only while it is true.
+- **A job still bending is refused a day** (409, "This job has not come off the
+  machine yet"), and a delivered stop cannot be moved (409). Both verified live.
+
+### 5. Mark delivered -> the Job is Done — VERIFIED AGAINST ALPHA
+
+```
+PROOF | after Mark delivered: {"status":"delivered",
+        "delivered_at":"2026-09-30 21:55:52.789+00", ...}
+PROOF | job stage after delivery: {"job_stage":"done","status":"submitted"}
+PROOF | second Mark delivered: {"ok":true,"alreadyDelivered":true,
+        "jobDone":false,
+        "message":"This one was already marked delivered. Nothing changed."}
+```
+
+The Workbench agrees: the E2E asserts the card for that request number now
+carries `data-stage="done"`.
+
+**A Job is Done only when EVERY piece of it has gone out.**
+`approve-quote-request` writes one shop row PER LINE ITEM, so a three-item
+request is three stops; marking the first says "two more pieces of this job
+still have to go out" rather than telling Steve the job is finished. A piece
+with no delivery row at all counts as outstanding, because it has not even been
+given a day.
+
+The stage move goes through `planStageTransition`, so a second click is a
+NO-OP with a plain-English sentence and not a 409 that reads as a failure. The
+delivered write is a conditional UPDATE on `status = 'scheduled'`, so two
+simultaneous clicks cannot both win.
+
+Note `status` stays `'submitted'` — untouched, exactly as the Approve link and
+"approved by phone" leave it, so the single-door guard's own condition is never
+disturbed by this screen.
+
+### 6. Rush pins in the shop queue and NOWHERE ELSE — PROVEN ON ALPHA
+
+Rule #15 previously named two shop queues; v2-04 adds the third, so both halves
+are now provable against the SAME two rows. The rush fixture was given the
+LATER queue position and submitted EARLIER, so the two screens must disagree:
+
+```
+PROOF | shop queue index — rush / normal:
+        {"rushIndex":0,"normalIndex":13,
+         "rushQueuePosition":9002,"normalQueuePosition":9001}
+PROOF | workbench shop lane index — rush / normal:
+        {"wbRush":1,"wbNormal":0,"laneSize":2}
+```
+
+Shop View put the rush job at index **0** — above its pair AND above all twelve
+real queued rows — from queue position 9002. The Workbench put the NORMAL job
+at index 0, because it is newest arrival first and rush is not consulted there
+at all. Deliveries is a calendar and does not pin either: stops sort by time
+window, and the unscheduled panel by plain queue order. Asserted as pure
+comparators in `lib/data/shop-queue.test.ts`, on shared fixture data, so the
+difference is the comparator and nothing else.
+
+`is_rush` is never read off `shop_profile_library` — it has no such column. It
+comes from `quote_requests.is_rush`, the only place Postgres enforces an
+explicit source, so a direct FlashDraft send with no Job behind it is never
+rush.
+
+### 7. Egress
+
+- Neither `lib/data/shop-queue.ts` nor `lib/data/deliveries.ts` selects
+  `geometry_svg`. The queue returns `hasDrawing`; each card fetches its own
+  image once it scrolls into view via `app/api/admin/shop-queue/drawing/[id]`,
+  the same lazy pattern `PastProfileThumb.tsx` uses.
+- Shop View's 30-second poll is torn down on `visibilitychange` and does a
+  fresh read the moment the tab returns.
+- Deliveries does not poll at all; `router.refresh()` after a write is the whole
+  refresh story.
+
+### 8. The single door is untouched
+
+No caller was added to `pushProfileToPathfinder`, the static test
+(`lib/integrations/pathfinder-single-door.test.ts`) was not weakened, and
+**nothing in this prompt made a POST or DELETE request to PathfinderEdge.** The
+E2E never presses "Send to machine": a Job reaches the shop lane by SQL, for the
+same reason `forceStage` exists — the real route into that lane pushes a profile
+into catalog 20115, which the physical Thalmann polls. `pnpm test:unit` passed
+with all 22 files green, the single-door test among them.
+
+### 9. Test data
+
+Every row the spec created was deleted and the counts asserted back to zero, in
+`afterAll` and again by hand afterwards:
+
+```
+PROOF | rows left behind: {"shopRows":0,"deliveries":0,
+        "completionEvents":0,"orphanAuditRows":0}
+
+live re-check:
+ e2e_notifications 0 | deliveries 0 | shop_test_rows 0 | qr_test_rows 0
+ outbound_emails_total 0 | shop_rows_real 20
+```
+
+The 20 real `shop_profile_library` rows are untouched.
+
+### 10. Tricia's address
+
+`git grep -nEi "trica@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"` returns **zero
+address-shaped matches anywhere in the repo**, including `queue.yaml`. Every
+remaining `trica@` string is prose in SESSION_STATE.md and this file discussing
+the misspelling, which v2-03 already settled. Nothing to fix, and nothing was
+changed.
+
+---
+
 ## COMMAND CENTER V2 — PROMPT v2-03 (2026-09-30)
 
 The price book, the pricing history, quotes and invoices as real records, and

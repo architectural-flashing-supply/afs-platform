@@ -1349,5 +1349,165 @@ cached answer to any of those is a wrong answer.
 - **Freight and tax** are CLAUDE.md DATA BLOCKERS. The quote and the invoice
   state that both are quoted separately once the delivery address is confirmed,
   rather than printing a guessed line item.
-- **Delivery scheduling** is Phase 5. The `shop` panel still says so.
+- ~~**Delivery scheduling** is Phase 5. The `shop` panel still says so.~~
+  **BUILT in v2-04 — see section 15 below.**
 - **Outlook / Microsoft Graph** is Phase 4. Quote mail goes through Resend today.
+
+---
+
+## 15. SHOP VIEW AND DELIVERIES (Command Center V2, v2-04)
+
+The last two screens of the approved prototype, and the end of the journey: a
+job that has been sent to the machine gets bent, gets a day, and gets delivered.
+
+### The path, end to end
+
+```
+Shop View (/admin/shop-view)
+  Start bending
+    -> PATCH /api/admin/shop-library/[id]  { status: 'in_progress' }
+       shop_profile_library.status = 'in_progress', started_at = now()
+  Mark finished
+    -> PATCH /api/admin/shop-library/[id]  { status: 'complete' }
+       shop_profile_library.status = 'complete', completed_at = now()
+       -> runShopJobCompletionAutomation()   (UNCHANGED, afs-fl-014:
+          orders.delivery_scheduled_at + the invoice email, when a real order
+          exists behind the job)
+       -> autoScheduleDeliveryOnFinish()     (NEW, v2-04)
+          deliveries row: next BUSINESS day, window '08-10', auto_scheduled
+          -> notifyDeliveryScheduled()       (the EXISTING services)
+
+Deliveries (/admin/deliveries)
+  Schedule delivery / Change day
+    -> POST /api/admin/deliveries/schedule    { shopJobId, scheduledDate,
+                                                timeWindow, notify }
+  Mark delivered
+    -> POST /api/admin/deliveries/mark-delivered { deliveryId }
+       deliveries.status = 'delivered', delivered_at
+       -> planStageTransition(stage, 'done') -> quote_requests.job_stage='done'
+```
+
+### ONE completion path, two surfaces
+
+`autoScheduleDeliveryOnFinish` (`lib/delivery/auto-schedule.ts`) is called from
+BOTH completion routes — Shop View's PATCH and the mobile field app's
+`POST /api/field/shop/[id]/complete` — for the same reason
+`runShopJobCompletionAutomation` already was: the tablet by the machine and the
+phone in somebody's pocket must not behave differently. It never throws and
+never blocks: a job that has genuinely been bent is finished whether or not
+scheduling worked, and the operator is told in a sentence, not shown a failure.
+
+It is also IDEMPOTENT. `deliveries.shop_job_id` is UNIQUE and the function
+checks for an existing row first, so a job finished, un-finished and finished
+again keeps the day somebody may already have moved by hand. It never
+overwrites a human's choice with tomorrow morning.
+
+### THERE IS NO SECOND NOTIFICATION PATH
+
+`lib/delivery/notify.ts` is plumbing only. Every service it calls already
+existed:
+
+| What | Where it already lived |
+|---|---|
+| Outbound email + `outbound_emails` + test-mode capture | `lib/email/outbound.ts` (`sendTrackedEmail`) |
+| The Resend transport | `lib/resend/send.ts` |
+| The email shell and the crimson CTA button | `lib/resend/templates/base.ts` (`baseEmailTemplate`, `ctaButton`) |
+| SMS | `lib/twilio/sms.ts` (`sendSms`) |
+| The `notifications` row | the same insert `app/api/orders/[id]/dispatch/route.ts` writes |
+| "Is this a test job" | `lib/pricing/ledger.ts` (`ledgerTestTag`) |
+| Resolving the order behind a shop job | `lib/utils/shop-job-completion.ts` (`findOrderForShopJob`) |
+
+**The tracking link stopped being copied.** The
+`getSiteUrl() + '/track/' + orders.tracking_token` formula was written out by
+hand in three places — `app/api/orders/[id]/dispatch/route.ts`,
+`app/api/driver/location/route.ts` and `lib/utils/shop-job-completion.ts`.
+Deliveries needed a fourth, which is one more than a formula should have, so all
+three now call `trackingUrlFor()` in `lib/delivery/tracking-url.ts`. The URL,
+the public route it points at and the token column are unchanged. It returns
+`null` when there is no token, and callers must handle that: a V2 Job that never
+became a paid `orders` row has nothing to track, and a notification linking to a
+dead page is worse than one that just gives the day and the window.
+
+**A captured test message gets NO `notifications` row.** That table's status
+CHECK is `('sent','delivered','failed')`, so the only value a capture could take
+is `failed` — a lie about a message nobody tried to send. The capture is
+recorded in full in `outbound_emails`, which is the table built to hold it. This
+was found live: the first checkpoint run on alpha wrote exactly such a row
+(`type='delivery_scheduled'`, `status='failed'`, error "Test mode: this message
+was recorded and NOT sent"), which is why the rule exists rather than being
+assumed. A tagged job never reaches Twilio at all either, because the rule that
+protects a customer's inbox has to protect their phone too.
+
+### Rush: where the pin lives, and where it does not
+
+CLAUDE.md rule #15 says rush pins to the top of the SHOP QUEUES only. v2-04 is
+where the third such queue appears, so both halves are now testable against the
+same two rows:
+
+| Screen | Comparator | Rush |
+|---|---|---|
+| Shop View | `compareShopQueue` (`lib/data/shop-queue.ts`) | **pinned to the top**, then queue order |
+| Deliveries — stops in a day | `compareStops` (`lib/data/deliveries.ts`) | ignored; time window decides |
+| Deliveries — Not scheduled yet | `compareUnscheduled` | ignored; plain queue order |
+| Workbench | `getWorkbench` | ignored; newest arrival first |
+
+`is_rush` is never read off `shop_profile_library` — that table has no such
+column and must not get one. It is read from the Job (`quote_requests.is_rush`),
+which is the only place Postgres enforces that a rush has an explicit source
+(`quote_requests_rush_needs_explicit_source`). A shop row with no Job behind it
+is therefore never rush, which is correct: nobody ticked anything.
+
+### When a Job really becomes Done
+
+`approve-quote-request` writes one `shop_profile_library` row PER LINE ITEM, so
+a three-item request is three stops. Mark delivered moves the Job to `done` only
+when EVERY piece of it has gone out — a piece with no delivery row at all counts
+as outstanding, because it has not even been given a day. Marking the first of
+three says "two more pieces of this job still have to go out" rather than
+telling Steve the job is finished.
+
+The stage move goes through `planStageTransition` (`lib/data/job-stage.ts`), so a
+second click is a NO-OP with a plain-English sentence rather than a 409 that
+reads as a failure. The delivered write itself is a conditional UPDATE on
+`status = 'scheduled'`, so two simultaneous clicks cannot both win — the same
+shape the Approve link's single-use check uses.
+
+### What the scheduling route refuses, and why it refuses rather than corrects
+
+- **A day that is not a working day.** The four windows are 8am to 5pm on a
+  weekday; quietly moving a Saturday request to Monday would tell the customer
+  one thing and the shop another. Verified live on alpha: a Saturday POST
+  returns 400 "Deliveries go out Monday to Friday."
+- **A job that has not come off the machine.** A day cannot be promised for work
+  that is still bending. 409, with that sentence.
+- **A delivery that has already been delivered.** Moving a stop that was dropped
+  off would rewrite history. 409.
+
+The day picker only offers weekdays, so the server's refusals are a second line
+rather than the only one. The ten selectable days are computed ON THE SERVER, in
+the shop's own zone — a browser in another time zone, or a tablet with a wrong
+clock, would otherwise compute a different "today".
+
+### Egress
+
+- `shop_profile_library.geometry_svg` is misnamed: it holds a **base64 PNG data
+  URI**, measured live at 70KB-786KB per row. Neither `lib/data/shop-queue.ts`
+  nor `lib/data/deliveries.ts` ever selects it. The queue returns `hasDrawing`,
+  and each card fetches its own image once it scrolls into view via
+  `app/api/admin/shop-queue/drawing/[id]` — the same lazy pattern
+  `PastProfileThumb.tsx` uses for the Job screen.
+- **Shop View's poll pauses when the tab is hidden.** The tablet sits on all
+  day; the interval is torn down on `visibilitychange` and a fresh read happens
+  the moment the tab returns, which is also the moment it matters. The board
+  this replaced polled unconditionally, and polled the base64 with it.
+- Deliveries does not poll at all. It is an office screen somebody opens, acts
+  on and leaves; `router.refresh()` after a write is the whole refresh story.
+
+### Two things named "mark delivered", and they are not the same
+
+`app/api/admin/command-center/mark-delivered` predates this work and has nothing
+to do with a customer delivery: it records that a `.ds1` file a human reviewed
+was copied into the Thalmann's live folder (`machine_jobs`
+`staged_for_review -> sent_to_machine`). The customer one is
+`app/api/admin/deliveries/mark-delivered`, on the deliveries resource where it
+belongs. Both remain, and the newer one's header says so.

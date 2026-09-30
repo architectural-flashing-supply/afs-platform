@@ -455,10 +455,22 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
     CHECK accepts UNKNOWN. Do not simplify it back. Full detail: SCHEMA.md
     TABLE 15.
 
-    **Rush pins to the top of the SHOP QUEUES ONLY** — `lib/data/machine-jobs.ts`
-    and `lib/data/orders.ts`, the lists read by whoever decides what to bend
-    next. Everywhere else, including the Workbench and the office pending list,
-    ordering is newest arrival first and rush changes nothing but the badge.
+    **Rush pins to the top of the SHOP QUEUES ONLY** — `lib/data/machine-jobs.ts`,
+    `lib/data/orders.ts` and, as of v2-04, `lib/data/shop-queue.ts`'s
+    `compareShopQueue`: the lists read by whoever decides what to bend next.
+    Everywhere else, including the Workbench, the office pending list and the
+    Deliveries screen, ordering is newest arrival first (or, on a calendar, by
+    day and time window) and rush changes nothing but the badge. Deliveries is
+    NOT a shop queue: a rush job whose day is Thursday does not become a Tuesday
+    stop by being urgent. Both halves are asserted against the same two rows in
+    `lib/data/shop-queue.test.ts`, and live on alpha by
+    `tests/e2e/shop-deliveries.spec.ts`.
+
+    **`is_rush` is never read off `shop_profile_library`.** That table has no
+    such column and must not get one. It is read from the Job
+    (`quote_requests.is_rush`), which is the only place the CHECK above applies.
+    A shop row with no Job behind it — a direct FlashDraft send — is therefore
+    never rush, which is correct: nobody ticked anything.
 
 16. **A send is never reported as successful without the PathfinderEdge
     profile number that was actually returned.** `pushProfileToPathfinder` can
@@ -484,11 +496,13 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
     own numbers with a confidence they never earned.
 
 18. **Gunmetal header, light working area — converted per screen, by the
-    page.** The Workbench and the Job screen render inside
-    `components/admin/LightWorkingArea.tsx`; every other admin page is still
-    gunmetal and converts when it is rebuilt (its text uses the light-on-dark
-    `afs-chrome-*` tokens and would be unreadable otherwise). The PAGE opts in —
-    the shell does not decide from the pathname — because
+    page.** The Workbench, the Job screen and — as of v2-04 — Shop View and
+    Deliveries render inside `components/admin/LightWorkingArea.tsx`; the list
+    is data in `lib/data/admin-working-area.ts` and is unit-tested, so "which
+    screens are light" is an assertion rather than a memory. Every other admin
+    page is still gunmetal and converts when it is rebuilt (its text uses the
+    light-on-dark `afs-chrome-*` tokens and would be unreadable otherwise). The
+    PAGE opts in — the shell does not decide from the pathname — because
     `/admin/command-center` serves both the light Workbench and the pre-V2 dark
     `?tab=` views under one pathname. New light tokens are `afs-bg-lane`,
     `afs-bg-card`, `afs-line-strong`, `afs-green-deep` / `afs-green-ink` /
@@ -642,6 +656,89 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
     every one of these ratios from `tailwind.config.js` and asserts BOTH premises
     (the five dim-looking tokens all fail on white; ink-700 passes on all four
     light surfaces), so a retheme cannot make the rule silently vacuous.
+
+24. **A DELIVERY DAY IS A BUSINESS DAY, WORKED OUT IN THE SHOP'S OWN TIME ZONE,
+    AND `lib/delivery/business-days.ts` IS THE ONLY PLACE THAT DECIDES IT.**
+    Marking a job finished in Shop View auto-schedules its delivery for the NEXT
+    BUSINESS DAY. That one sentence has two ways of being implemented wrongly,
+    and both live in that one file so both have one test:
+
+    (a) **The weekend.** Friday's next business day is MONDAY — so is Saturday's
+    and Sunday's. A naive `+1 day` books a day nobody is driving, and the
+    customer finds out by nobody turning up.
+
+    (b) **The time zone.** Vercel runs in UTC; the shop is in Burnet, Texas. A
+    job finished at 7pm Central on a Tuesday is already 01:00 UTC Wednesday, so
+    "tomorrow" from the raw server clock would be Thursday. Every date is derived
+    through `shopDateOnly()` in `SHOP_TIME_ZONE` (`lib/utils/waiting-time.ts`,
+    already this codebase's one shop clock), never from raw `Date` parts. This
+    bug hides itself: on a Friday the weekend skip lands on Monday either way,
+    so it only shows up as a Tuesday-evening finish booked for Thursday.
+
+    Dates are plain `YYYY-MM-DD` strings, matching `deliveries.scheduled_date`'s
+    `date` type — a date-only value has no instant and no offset, and keeping it
+    a string is what stops one creeping in. **Holidays are deliberately NOT
+    modelled:** no holiday calendar has been supplied (see DATA BLOCKERS), and
+    inventing one would put a guess in the code. Weekends are a fact; an
+    auto-scheduled delivery is always reschedulable by hand from Deliveries.
+
+    **The four windows are `'08-10'`, `'10-12'`, `'13-15'`, `'15-17'` — keys,
+    never labels.** The English lives in `lib/delivery/windows.ts` and nowhere
+    else, so rewording a window is not a migration and no en dash ever ends up
+    inside a database CHECK constraint. `deliveries.shop_job_id` is UNIQUE, so a
+    double click cannot book the same work twice; a reschedule is an UPDATE of
+    that one row. Full detail: SCHEMA.md's DELIVERIES section and
+    ARCHITECTURE.md section 15.
+
+25. **TELLING A CUSTOMER SOMETHING GOES THROUGH THE SERVICES THAT ALREADY EXIST.
+    `lib/delivery/notify.ts` IS PLUMBING, NOT A SECOND PATH.** Email through
+    `lib/email/outbound.ts`'s `sendTrackedEmail` (which wraps
+    `lib/resend/send.ts`, writes `outbound_emails`, and CAPTURES rather than
+    sends for a job carrying the reserved `E2E-TEST-` prefix — rule #21), the
+    shell and the button from `lib/resend/templates/base.ts`, SMS through
+    `lib/twilio/sms.ts` behind the same `phone && sms_opt_in` gate the dispatch
+    route and the 10-mile alert use, and the same `notifications` row. Do not add
+    a second sender, a second template file, or a second test-mode switch.
+
+    **The tracking link has ONE formula, in `lib/delivery/tracking-url.ts`.** It
+    was inlined in three places (`app/api/orders/[id]/dispatch/route.ts`,
+    `app/api/driver/location/route.ts`, `lib/utils/shop-job-completion.ts`);
+    v2-04 needed a fourth caller and pointed all of them at the shared function
+    instead of copying it again. It returns `null` when there is no
+    `orders.tracking_token`, and callers must handle that — a V2 Job that never
+    became a paid order has nothing to track, and a link to a dead page is worse
+    than plainly giving the day and the window.
+
+    **A CAPTURED test message gets NO `notifications` row.** That table's status
+    CHECK is `('sent','delivered','failed')`, so the only value a capture could
+    take is `failed`, which would be a lie about a message nobody tried to send;
+    the capture is recorded in full in `outbound_emails` instead. Found live on
+    alpha, not reasoned about — the first checkpoint run wrote exactly that row.
+    A tagged job never reaches Twilio either: the rule protecting a customer's
+    inbox has to protect their phone too, or the prefix is half a promise.
+
+    **Nothing is reported as sent that was not sent.** Resend is unconfigured on
+    this deployment, so the honest answer today is "the message is saved here,
+    nothing left the building", and that is the sentence the Deliveries screen
+    prints — read back out of `deliveries.notify_note`, which is written from the
+    result the notifier returned rather than from having called it.
+
+26. **A LIST VIEW NEVER RETURNS `shop_profile_library.geometry_svg`, AND A
+    POLLING SCREEN PAUSES WHEN THE TAB IS HIDDEN.** That column is misnamed: it
+    holds a base64 PNG data URI, measured against the live database at
+    70KB-786KB per row — about 6MB across the twenty rows that exist. The old
+    Shop View board polled all of it every thirty seconds, and kept polling
+    while the tablet's screen was off.
+
+    `lib/data/shop-queue.ts` returns `hasDrawing` and each card fetches its own
+    image once it scrolls into view, through
+    `app/api/admin/shop-queue/drawing/[id]` — the same lazy pattern
+    `components/admin/PastProfileThumb.tsx` established for the Job screen and
+    `app/api/admin/command-center/profile-thumbnail/[id]` for Search. Reuse that
+    pattern rather than writing a third one. `/api/admin/shop-library`'s GET
+    still returns the full row including the base64 and is still correct for the
+    Profile Library table, which renders one screen on demand — do not point a
+    polling surface at it.
 
 ---
 

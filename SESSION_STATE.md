@@ -24,7 +24,107 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
-## COMMAND CENTER V2 — PROMPT v2-03 (2026-09-30) — CURRENT HANDOFF
+## COMMAND CENTER V2 — PROMPT v2-04 (2026-09-30) — CURRENT HANDOFF
+
+Shop View and Deliveries: the end of the journey. A job that has been sent to
+the machine now gets bent, gets a day, gets delivered, and the Job lands in
+Done. Full detail and every piece of live output:
+STATE_OF_THE_BUILD.md's v2-04 entry. Architecture:
+ARCHITECTURE.md section 15. Schema: SCHEMA.md's DELIVERIES section.
+
+Commits: `958f1c8` Shop View, `f3c28a7` Deliveries, `aa0e79f` the Friday case
+in the gate, plus the governance commit that follows this file.
+
+### WHAT SHIPPED
+
+- **`/admin/shop-view`** rebuilt to the approved prototype and moved into the
+  light working area: queue order with a position number, the drawing, item ×
+  qty, the spec, the customer, the machine profile number, the status, and ONE
+  button — **Start bending** then **Mark finished**. 72px buttons, 30px item
+  line, because it runs on an operator's tablet.
+- **Mark finished books the delivery for the next BUSINESS day** and tells the
+  customer, through `lib/email/outbound.ts`, `lib/resend/templates/base.ts`,
+  `lib/twilio/sms.ts` and the `notifications` table. No second notification
+  path. The same function fires from the mobile field app's Mark Complete, so
+  the two surfaces cannot disagree.
+- **`/admin/deliveries`** is a real five-day week: per-day stops with **Mark
+  delivered** and **Change day**, a **Not scheduled yet** panel with **Schedule
+  delivery**, and the day + time-window window. The v2-01 honest placeholder is
+  gone.
+- **Mark delivered moves the Job to Done** via `planStageTransition`, and only
+  once every piece of that Job has gone out.
+- **Migration 037**: the `deliveries` table (admin-only RLS, UNIQUE on
+  `shop_job_id`, delivered-needs-a-time CHECK) plus
+  `shop_profile_library.started_at`. Applied live, run twice to prove
+  idempotency, verified through `information_schema`, `pg_constraint` and
+  `pg_policies`.
+
+### THINGS A LATER SESSION WOULD OTHERWISE RE-DISCOVER
+
+1. **`shop_profile_library.geometry_svg` is NOT an SVG.** It holds a base64 PNG
+   data URI, 70KB–786KB per row, ~6MB across the twenty live rows. Never select
+   it in a list view. `hasDrawing` + the lazy
+   `app/api/admin/shop-queue/drawing/[id]` route is the pattern. CLAUDE.md rule
+   #26.
+2. **`components/admin/ShopViewBoard.tsx` was deleted.** Nothing else
+   referenced it. Its queue-reordering siblings were never on that page — they
+   are on `/admin/shop-library`, which still uses `/api/admin/shop-library`
+   unchanged. Six stale source comments pointing at the deleted file were
+   corrected; the historical mentions in this file and STATE_OF_THE_BUILD.md are
+   records and were left alone.
+3. **The next-business-day sum must be done in the shop's time zone.** Vercel
+   is UTC, the shop is Central. The bug hides on a Friday (both answers are
+   Monday) and only shows up as a Tuesday-evening finish booked for Thursday.
+   `shopDateOnly()` exists for exactly this. CLAUDE.md rule #24.
+4. **A captured test email must not write a `notifications` row.** That table's
+   status CHECK is `('sent','delivered','failed')`, so a capture would have to
+   claim `failed` about a message nobody attempted. Found live on alpha in the
+   first checkpoint run, fixed, and confirmed by the later runs writing none.
+   CLAUDE.md rule #25.
+5. **`deliveries.test_tag` is the FULL first word of the job name**, not the
+   bare prefix — `ledgerTestTag()` returns `E2E-TEST-V2-04-JOURNEY`, not
+   `E2E-TEST-V2-04`. A cleanup sweep matching on equality looks like it works
+   and deletes nothing. `tests/e2e/helpers/shop-db.ts` matches on the prefix and
+   says why.
+6. **Two different things are called "mark delivered".**
+   `app/api/admin/command-center/mark-delivered` is the MACHINE one (a reviewed
+   `.ds1` was copied into the Thalmann's folder). The customer one is
+   `app/api/admin/deliveries/mark-delivered`. Both remain; both headers say so.
+
+### STILL OPEN — NOT TOUCHED BY THIS PROMPT
+
+- **PENDING REID: the 22 files outside the Command Center still using
+  `afs-chrome-dim` as a placeholder colour** (rule #18 / the v2-02
+  re-verification list). Untouched, as instructed.
+- **PENDING REID: no customer-acceptance step between an admin approval and the
+  machine** (rule #14's open design question). Unchanged.
+- **PENDING REID: the stray Vercel project** `reids-projects-b3405b97/
+  afs-website` is disconnected from GitHub but not deleted, and still holds
+  environment variables. Unchanged.
+- **Holidays are not modelled** in the business-day calculation, on purpose —
+  no holiday calendar has been supplied (DATA BLOCKERS). An auto-scheduled
+  delivery is always reschedulable by hand, which is how a holiday is handled
+  today. If Reid supplies the shop's closure days, `lib/delivery/
+  business-days.ts` is the one file that changes.
+- **Phase 4 (Outlook / Microsoft Graph)** is still blocked on Reid's Entra app
+  registration and admin consent. Quote and delivery mail go through Resend,
+  which is still unconfigured on alpha — so every message is recorded and
+  honestly reported as not sent rather than claimed as delivered.
+- **Phase 6 (the Search UI)** is still UI-only work on a server side that is
+  already done and tested.
+
+### GATES, AS EXECUTED THIS SESSION
+
+```
+pnpm tsc --noEmit            exit 0
+pnpm run build               exit 0 (both new pages and all four new routes present)
+pnpm test:unit               22 files, 350 tests, all passed
+playwright (against alpha)   4 passed — tests/e2e/shop-deliveries.spec.ts
+```
+
+---
+
+## COMMAND CENTER V2 — PROMPT v2-03 (2026-09-30)
 
 The price book, the pricing history, quotes and invoices as real records, and
 the signed Approve link in the quote email. Full detail:

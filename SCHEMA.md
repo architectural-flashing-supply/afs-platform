@@ -2704,6 +2704,119 @@ The four statuses are four different true things:
 
 ---
 
+## DELIVERIES AND THE SHOP QUEUE (migration 037_deliveries_and_shop_queue.sql)
+
+**Command Center V2 prompt v2-04 — Shop View and Deliveries.** Two additions,
+both small on purpose: the shop queue already existed.
+
+### shop_profile_library.started_at (COLUMN ADDED)
+
+```sql
+ALTER TABLE shop_profile_library ADD COLUMN IF NOT EXISTS started_at timestamptz;
+```
+
+`completed_at` already recorded the finish. Nothing recorded the START, so
+"Bending now" could not say since when, and a job that had been on the machine
+for ten minutes was indistinguishable from one that had been on it since
+Tuesday. Written in the SAME UPDATE as the status by
+`app/api/admin/shop-library/[id]/route.ts`'s PATCH, on the
+`queued -> in_progress` move only — re-advancing a job that was already started
+never resets its clock.
+
+**There is no new queue table and no new status vocabulary.**
+`shop_profile_library` (migration 016) is still the record of what has been sent
+to the current Thalmann; `queue_position` (017) is still the order; and the
+existing `queued -> in_progress -> complete` lifecycle
+(`SHOP_PROFILE_LIBRARY_STATUSES`, `lib/data/shop-library.ts`) maps one-to-one
+onto the approved prototype's **Queued / Bending now / Finished**.
+
+### TABLE — deliveries
+
+```sql
+CREATE TABLE deliveries (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  shop_job_id      uuid NOT NULL REFERENCES shop_profile_library(id) ON DELETE CASCADE,
+  quote_request_id uuid REFERENCES quote_requests(id) ON DELETE SET NULL,
+  scheduled_date   date NOT NULL,
+  time_window      text NOT NULL,
+  status           text NOT NULL DEFAULT 'scheduled',
+  auto_scheduled   boolean NOT NULL DEFAULT false,
+  scheduled_by     uuid REFERENCES profiles(id),
+  scheduled_at     timestamptz NOT NULL DEFAULT now(),
+  delivered_at     timestamptz,
+  delivered_by     uuid REFERENCES profiles(id),
+  notified_at      timestamptz,
+  notify_note      text,
+  test_tag         text,
+  created_at       timestamptz NOT NULL DEFAULT now(),
+  updated_at       timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT deliveries_shop_job_id_key UNIQUE (shop_job_id),
+  CONSTRAINT deliveries_time_window_check
+    CHECK (time_window IN ('08-10','10-12','13-15','15-17')),
+  CONSTRAINT deliveries_status_check CHECK (status IN ('scheduled','delivered')),
+  CONSTRAINT deliveries_delivered_needs_time
+    CHECK (status <> 'delivered' OR delivered_at IS NOT NULL)
+);
+CREATE INDEX idx_deliveries_scheduled_date     ON deliveries (scheduled_date);
+CREATE INDEX idx_deliveries_quote_request_id   ON deliveries (quote_request_id);
+CREATE INDEX idx_deliveries_status             ON deliveries (status);
+ALTER TABLE deliveries ENABLE ROW LEVEL SECURITY;
+CREATE POLICY admin_all_deliveries ON deliveries FOR ALL USING (is_admin());
+```
+
+**ONE DELIVERY PER SHOP JOB, ENFORCED BY POSTGRES.** `shop_job_id` is UNIQUE,
+so a double click on Schedule delivery cannot book the same piece of work
+twice — the same reason `invoices.quote_id` is unique (CLAUDE.md rule #21). A
+reschedule is an UPDATE of that one row, not a second row; the E2E asserts the
+count is still 1 after a change of day.
+
+**THE WINDOW IS STORED AS A KEY, NEVER AS ITS LABEL.** `'08-10'` /
+`'10-12'` / `'13-15'` / `'15-17'`; the English (`8–10 AM`, `10 AM–12 PM`,
+`1–3 PM`, `3–5 PM`) lives in `lib/delivery/windows.ts` and nowhere else. A
+label in a CHECK constraint would make a wording change a migration, and would
+put an en dash inside a database constraint.
+
+**`deliveries_delivered_needs_time` is not decoration.** A row claiming
+delivery with nothing behind it is exactly the kind of half-written state a
+screen then reports as fact. Delivered always carries the time it happened.
+
+**`auto_scheduled` records WHY the row exists** — `true` when Mark finished
+booked it for the next business day, `false` once a person picked the day. The
+Deliveries screen prints "set by the shop" from it, so "nobody chose this"
+stays visible rather than being inferred.
+
+**RLS is admin-only, and that is the whole policy list.** A delivery is
+back-office scheduling. The customer learns their day and window from the
+notification the schedule sends, and follows the truck through the pre-existing
+public tracker (`app/track/[orderId]`, backed by `orders.tracking_token` and
+007's SECURITY DEFINER `get_tracking_data()`) — neither of which reads this
+table. No customer-facing policy exists, deliberately: none is the correct
+answer rather than a permissive one nobody needs.
+
+**`test_tag` is the same reserved-prefix contract the pricing ledger uses.** It
+is written from `ledgerTestTag(shop_profile_library.job_name)`
+(`lib/pricing/ledger.ts`), which returns the first whitespace-delimited word of
+a job name starting with `E2E-TEST-`. It is what makes an E2E row findable and
+deletable. Unlike `pricing_ledger`, `deliveries` is mutable by design (a
+reschedule is an UPDATE), so there is no append-only trigger here and no
+`_real` view — a delivery feeds no analytics dataset.
+
+### Where the next-business-day answer comes from
+
+`lib/delivery/business-days.ts`, and only there. Two things it exists to get
+right, both of which have their own test:
+
+1. **The weekend.** Friday's next business day is MONDAY. So is Saturday's and
+   Sunday's. A naive `+1 day` books a day nobody is driving.
+2. **The time zone.** Vercel runs in UTC; the shop is in Burnet, Texas. A job
+   finished at 7pm Central on a Tuesday is already 01:00 UTC Wednesday, so
+   "tomorrow" from the raw server date would be Thursday. Every date is derived
+   in `SHOP_TIME_ZONE` (`lib/utils/waiting-time.ts`).
+
+Holidays are NOT modelled, on purpose — no holiday calendar has been supplied
+(CLAUDE.md's DATA BLOCKERS), and inventing one would put a guess in the code.
+Weekends are a fact; an auto-scheduled delivery is always reschedulable by hand.
+
 ---
 
 *SCHEMA.md | AFS | Reid Whitesides | June 2026*
