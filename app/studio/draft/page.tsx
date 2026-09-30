@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { ALL_MATERIALS, GAUGES_BY_MATERIAL, MATERIAL_SHORTHAND, normalizeMaterialLabel, gaugesForMaterial } from '@/lib/data/catalog';
+import { geometryFingerprint } from '@/lib/flashdraft/geometry-fingerprint';
 import {
   colorPaletteForMaterial,
   requiresFinishChoice,
@@ -995,6 +996,12 @@ export default function FlashDraftPage() {
   // INSERT instead of an UPDATE, so the original is never touched.
   const [sourceProfileId, setSourceProfileId] = useState<string | null>(null);
   const [modifiedFromName, setModifiedFromName] = useState<string | null>(null);
+  // Part 2: the TEMPLATE KEY this drawing started from, set by
+  // loadTemplateGeometry and persisted to saved_configurations.profile_type.
+  // Stays null for a profile drawn freehand or loaded from a legacy row —
+  // "Untyped" is an honest answer and the search UI shows it as such. It is
+  // never inferred from the geometry or the name.
+  const [profileType, setProfileType] = useState<string | null>(null);
   const [profileCategoryId, setProfileCategoryId] = useState<string | null>(null);
   const [profileSubcategory, setProfileSubcategory] = useState('');
   // Lock Profile & Save to Passport: once locked, every geometry-mutating
@@ -2575,7 +2582,7 @@ export default function FlashDraftPage() {
   // Shared by both the direct single-shape templates and VariantPicker
   // selections below — the only difference between the two is where the
   // (label, points) pair comes from.
-  const loadTemplateGeometry = (label: string, templatePoints: Point[]) => {
+  const loadTemplateGeometry = (label: string, templatePoints: Point[], templateId?: string) => {
     if (points.length > 0) {
       const confirmed = window.confirm('Load template? This will replace your current work.');
       if (!confirmed) return;
@@ -2586,6 +2593,10 @@ export default function FlashDraftPage() {
     setPoints(worldPoints);
     setSelectedSegment(null);
     setProfileName(label);
+    // Part 2: record the template key. Falls back to the label slug when a
+    // caller has no id (VariantPicker variants), so the type is still a
+    // real, stable token rather than nothing.
+    setProfileType(templateId ?? label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''));
 
     const canvas = canvasRef.current;
     if (canvas) {
@@ -2598,7 +2609,7 @@ export default function FlashDraftPage() {
 
   const loadTemplate = (template: ProfileTemplate) => {
     if (!template.points) return;
-    loadTemplateGeometry(template.label, template.points);
+    loadTemplateGeometry(template.label, template.points, template.id);
   };
 
   const handleVariantSelect = (variant: ProfileTemplateVariant) => {
@@ -2784,6 +2795,13 @@ export default function FlashDraftPage() {
         // branch below — re-saving a profile must never rewrite where it
         // came from.
         ...(sourceProfileId && (!savedProfileId || asDuplicate) ? { source_profile_id: sourceProfileId } : {}),
+        // Part 2 (028_profile_search.sql). profile_type is whatever template
+        // this drawing started from, or NULL. geometry_fingerprint comes from
+        // the ONE implementation in lib/flashdraft/geometry-fingerprint.ts —
+        // the same function the server-side backfill uses, so a row saved
+        // here and a row backfilled there can never disagree.
+        profile_type: profileType,
+        geometry_fingerprint: geometryFingerprint({ points, hemStart, hemEnd }),
       };
       if (savedProfileId && !asDuplicate) {
         const { error } = await supabase.from('saved_configurations').update(payload).eq('id', savedProfileId);
