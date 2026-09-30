@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AFS Command Center — Clickable Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --header:#2E3238; --header-2:#22262B; --header-line:#8A9099; --on-header:#FFFFFF;
+  --bg:#EDEFF1; --lane:#E1E5E9; --surface:#FFFFFF; --sunk:#F4F5F7; --line:#CDD2D8; --line-strong:#8C939B;
+  --text:#15181C; --text-2:#434A53;
+  --red:#B3122B; --red-hover:#8F0E22; --on-red:#FFFFFF;
+  --green:#1E7F45; --green-soft:#E3F2E9; --on-green:#FFFFFF;
+  --amber-bg:#FFF1B8; --amber-text:#7A4200;
+  --focus:#0B5FFF;
+  --shadow:0 10px 30px rgba(21,24,28,.14);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --header:#1B1E22; --header-2:#14171A; --header-line:#6B737C; --on-header:#FFFFFF;
+    --bg:#121417; --lane:#191C20; --surface:#1F2328; --sunk:#16191D; --line:#353B43; --line-strong:#7A838D;
+    --text:#F2F4F6; --text-2:#C7CDD4;
+    --red:#C8102E; --red-hover:#A30D25; --on-red:#FFFFFF;
+    --green:#1E7F45; --green-soft:#16301F; --on-green:#FFFFFF;
+    --amber-bg:#4A3A06; --amber-text:#FFE08A;
+    --focus:#6EA8FF; --shadow:0 10px 30px rgba(0,0,0,.5);
+  }
+}
+:root[data-theme="dark"]{
+  --header:#1B1E22; --header-2:#14171A; --header-line:#6B737C; --on-header:#FFFFFF;
+  --bg:#121417; --lane:#191C20; --surface:#1F2328; --sunk:#16191D; --line:#353B43; --line-strong:#7A838D;
+  --text:#F2F4F6; --text-2:#C7CDD4;
+  --red:#C8102E; --red-hover:#A30D25; --on-red:#FFFFFF;
+  --green:#1E7F45; --green-soft:#16301F; --on-green:#FFFFFF;
+  --amber-bg:#4A3A06; --amber-text:#FFE08A;
+  --focus:#6EA8FF; --shadow:0 10px 30px rgba(0,0,0,.5);
+}
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font-family:Barlow,"Helvetica Neue",Arial,sans-serif;font-size:16px;line-height:1.45}
+button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+h1,h2,h3{font-family:"Barlow Condensed","Arial Narrow",sans-serif;margin:0;line-height:1.1}
+svg{max-width:100%}
+
+/* header */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--header);color:var(--on-header)}
+.top-in{display:flex;align-items:center;gap:28px;padding:0 32px;min-height:64px;flex-wrap:wrap}
+.brand{display:flex;align-items:baseline;gap:10px;background:none;border:0;color:var(--on-header);cursor:pointer;padding:0}
+.brand b{font-family:"Barlow Condensed",sans-serif;font-size:28px}
+.brand span{font-family:"Barlow Condensed",sans-serif;font-size:15px;font-weight:600;letter-spacing:.06em}
+.nav{display:flex;gap:4px;align-items:stretch}
+.nav button{background:none;border:0;color:var(--on-header);padding:20px 12px 17px;border-bottom:3px solid transparent;cursor:pointer;font-weight:500}
+.nav button[aria-current="page"]{border-bottom-color:#E0263D;font-weight:700}
+.top-right{margin-left:auto;display:flex;align-items:center;gap:12px;position:relative}
+.top-right label{font-size:14px}
+.top-right input{width:260px;height:40px;border:1px solid var(--header-line);border-radius:6px;background:var(--header-2);color:var(--on-header);padding:0 12px}
+.top-right input::placeholder{color:#D5D9DF;opacity:1}
+.ghost-dark{height:40px;padding:0 14px;background:transparent;color:var(--on-header);border:1px solid var(--header-line);border-radius:6px;cursor:pointer}
+.menu{position:absolute;right:0;top:48px;background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);min-width:200px;padding:6px;display:flex;flex-direction:column}
+.menu button{background:none;border:0;text-align:left;padding:10px 12px;border-radius:6px;cursor:pointer}
+.menu button:hover{background:var(--sunk)}
+
+main{padding:24px 32px 40px;max-width:1600px;margin:0 auto}
+.muted{color:var(--text-2)}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+
+/* buttons */
+.btn{min-height:44px;padding:0 18px;border-radius:6px;border:1px solid var(--line-strong);background:var(--surface);color:var(--text);font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none}
+.btn:hover{background:var(--sunk)}
+.btn-red{background:var(--red);border-color:var(--red);color:var(--on-red)}
+.btn-red:hover{background:var(--red-hover)}
+.btn-green{background:var(--green);border-color:var(--green);color:var(--on-green)}
+.btn-green:hover{filter:brightness(.92);background:var(--green)}
+.btn-big{min-height:56px;font-size:19px;width:100%}
+.link{background:none;border:0;color:var(--red);font-weight:600;cursor:pointer;padding:0;text-decoration:underline}
+
+/* summary */
+.hello{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+.hello h1{font-size:34px}
+.chip{border-radius:999px;padding:7px 14px;font-size:15px;font-weight:600;background:var(--surface);border:1px solid var(--line)}
+.chip-green{background:var(--green);border-color:var(--green);color:var(--on-green)}
+
+/* lanes */
+.lanes{display:grid;grid-template-columns:repeat(5,minmax(230px,1fr));gap:14px;overflow-x:auto;padding-bottom:6px}
+.lane{background:var(--lane);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px;min-height:420px}
+.lane-head{display:flex;justify-content:space-between;align-items:center;padding:2px 4px 0}
+.lane-head h2{font-size:22px}
+.count{min-width:28px;height:28px;border-radius:14px;background:var(--text);color:var(--bg);font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 8px}
+.count.go{background:var(--green);color:var(--on-green)}
+.lane-sub{font-size:14px;color:var(--text-2);padding:0 4px 4px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;display:flex;flex-direction:column}
+.card.approved{border:2px solid var(--green)}
+.card-main{background:none;border:0;text-align:left;padding:12px 14px 6px;cursor:pointer;display:flex;flex-direction:column;gap:6px;border-radius:10px 10px 0 0}
+.card-main:hover .card-cust{text-decoration:underline}
+.card-top{display:flex;gap:8px;align-items:center}
+.src{width:28px;height:28px;border-radius:6px;background:var(--sunk);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.card-cust{font-weight:700;font-size:15px;line-height:1.2}
+.card-title{font-size:15px}
+.card-meta{font-size:13px;font-weight:600;color:var(--text-2)}
+.card-meta.warn{color:var(--amber-text)}
+.card-meta.good{color:var(--green)}
+.card-act{padding:6px 14px 14px}
+.card-act .btn{width:100%;min-height:40px}
+.beacon{animation:pulse 2s ease-out infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(30,127,69,.55)}70%{box-shadow:0 0 0 12px rgba(30,127,69,0)}100%{box-shadow:0 0 0 0 rgba(30,127,69,0)}}
+@media (prefers-reduced-motion: reduce){.beacon{animation:none}}
+.empty{font-size:14px;color:var(--text-2);padding:8px 4px}
+
+/* job */
+.back{margin-bottom:6px}
+.job-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+.job-head h1{font-size:34px}
+.steps{list-style:none;margin:0;padding:0;display:flex;gap:6px;flex-wrap:wrap}
+.steps li{border-radius:999px;padding:6px 12px;font-size:14px;font-weight:600;border:1px solid var(--line);background:var(--surface)}
+.steps li.done{background:var(--sunk);color:var(--text-2)}
+.steps li.now{background:var(--red);border-color:var(--red);color:var(--on-red)}
+.cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+@media (max-width:1100px){.cols{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:14px}
+.panel h2{font-size:24px}
+.panel h3{font-family:Barlow,sans-serif;font-size:15px;font-weight:700}
+.quote-box{background:var(--sunk);border-radius:8px;padding:14px 16px;font-size:16px}
+dl.read{display:grid;grid-template-columns:110px 1fr;gap:8px 12px;margin:0;font-size:15px}
+dl.read dt{color:var(--text-2)}
+dl.read dd{margin:0;font-weight:600}
+dl.read dd.unsure{background:var(--amber-bg);color:var(--amber-text);border-radius:4px;padding:1px 8px}
+.drawing{background:var(--sunk);border-radius:8px;display:flex;align-items:center;justify-content:center;min-height:240px}
+.drawing path{stroke:var(--text)}
+.thumbs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.thumb{height:72px;background:var(--sunk);border:1px solid var(--line);border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.thumb path{stroke:var(--text)}
+table.q{width:100%;border-collapse:collapse;font-size:15px}
+table.q th{text-align:left;font-size:13px;color:var(--text-2);font-weight:600;padding-bottom:6px}
+table.q td{padding:9px 0;border-top:1px solid var(--line);vertical-align:top}
+table.q tr.total td{border-top:2px solid var(--text);font-weight:700}
+.num{text-align:right}
+.qty{width:70px;height:36px;border:1px solid var(--line-strong);border-radius:6px;padding:0 8px;background:var(--surface)}
+.status{border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:6px}
+.status.green{background:var(--green-soft)}
+.status.gray{background:var(--sunk)}
+.check{display:flex;gap:8px;align-items:center;font-weight:600}
+.check svg{flex-shrink:0}
+.photo{height:140px;border-radius:8px;background:var(--sunk);border:1px dashed var(--line-strong);display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--text-2)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* search */
+.search-wrap{display:grid;grid-template-columns:300px 150px minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:1000px){.search-wrap{grid-template-columns:1fr}}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:14px;font-weight:600}
+.field input,.field select,.field textarea{min-height:44px;border:1px solid var(--line-strong);border-radius:6px;padding:0 12px;background:var(--surface)}
+.field textarea{padding:10px 12px;min-height:150px;resize:vertical}
+.field input::placeholder{color:var(--text-2);opacity:1}
+.rail{display:flex;flex-direction:column;gap:10px;max-height:640px;overflow-y:auto;padding:2px}
+.rail button{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px}
+.rail button[aria-pressed="true"]{border:2px solid var(--red)}
+.rail button path{stroke:var(--text)}
+.rail span{font-size:13px;font-weight:600;text-align:center;line-height:1.2}
+.same{font-size:12px;color:var(--text-2)}
+
+/* shop + deliveries + tables */
+.list{display:flex;flex-direction:column;gap:12px}
+.shop-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:grid;grid-template-columns:56px 140px minmax(0,1fr) auto;gap:18px;align-items:center}
+@media (max-width:900px){.shop-card{grid-template-columns:1fr}}
+.qnum{font-family:"Barlow Condensed",sans-serif;font-size:40px;font-weight:700;text-align:center}
+.mini{height:110px;background:var(--sunk);border-radius:8px;display:flex;align-items:center;justify-content:center}
+.mini path{stroke:var(--text)}
+.week{display:grid;grid-template-columns:repeat(5,minmax(160px,1fr));gap:12px;overflow-x:auto}
+.day{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px;min-height:260px;display:flex;flex-direction:column;gap:10px}
+.day h3{font-family:Barlow,sans-serif;font-size:15px;font-weight:700}
+.stop{background:var(--sunk);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:6px;font-size:14px}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px}
+@media (max-width:1000px){.grid2{grid-template-columns:1fr}}
+table.t{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+table.t th{text-align:left;font-size:13px;color:var(--text-2);font-weight:600;padding:10px 14px;background:var(--sunk)}
+table.t td{padding:12px 14px;border-top:1px solid var(--line)}
+.tscroll{overflow-x:auto}
+.cell-in{width:110px;height:36px;border:1px solid var(--line-strong);border-radius:6px;padding:0 8px;background:var(--surface)}
+.pill{display:inline-block;border-radius:999px;padding:3px 10px;font-size:13px;font-weight:600;background:var(--sunk);border:1px solid var(--line)}
+.pill.new{background:var(--red);border-color:var(--red);color:var(--on-red)}
+.pill.approved{background:var(--green);border-color:var(--green);color:var(--on-green)}
+.soon{border:1px dashed var(--line-strong);border-radius:10px;padding:16px;background:var(--surface)}
+.page-title{font-size:34px;margin-bottom:14px}
+.section{margin-top:26px;display:flex;flex-direction:column;gap:12px}
+.section h2{font-size:24px}
+.switch{display:flex;gap:10px;align-items:center;font-weight:600}
+.switch input{width:20px;height:20px}
+
+/* modal + toast */
+.scrim{position:fixed;inset:0;background:rgba(10,12,14,.55);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px}
+.modal{background:var(--surface);color:var(--text);border-radius:12px;box-shadow:var(--shadow);width:min(720px,100%);max-height:90vh;overflow:auto;padding:22px;display:flex;flex-direction:column;gap:14px}
+.modal.wide{width:min(1000px,100%)}
+.modal h2{font-size:26px}
+.fd-tools{display:flex;gap:8px;flex-wrap:wrap}
+.fd-tools span{border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:13px;background:var(--sunk)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--text);color:var(--bg);border-radius:10px;padding:12px 16px;display:flex;gap:16px;align-items:center;z-index:60;box-shadow:var(--shadow);max-width:calc(100% - 32px)}
+.toast button{background:none;border:0;color:var(--bg);font-weight:700;text-decoration:underline;cursor:pointer}
+.proto{font-size:13px;color:var(--text-2);text-align:center;margin-top:28px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+(function(){
+"use strict";
+var P = {
+  drip:"M14 36 L62 36 L62 66 L72 74", coping:"M8 72 L8 34 L92 34 L92 72", snap:"M14 78 L8 72 L8 30 L92 30 L92 72 L86 78",
+  counter:"M22 20 L22 60 L66 60 L74 68", valley:"M8 32 L50 62 L92 32", z:"M14 30 L40 30 L40 70 L86 70",
+  gravel:"M12 42 L54 42 L54 30 M54 42 L54 72 L64 80", fascia:"M58 24 L22 24 L22 76 L32 84", jchan:"M34 20 L34 76 L70 76 L70 56"
+};
+function draw(key,size,sw){ return '<svg viewBox="0 0 100 100" width="'+size+'" height="'+size+'" aria-hidden="true"><path d="'+P[key]+'" fill="none" stroke-width="'+(sw||3)+'" stroke-linecap="round" stroke-linejoin="round"></path></svg>'; }
+var ICON = {
+  email:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>',
+  flashdraft:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 18l6-10 4 6 6-8"/></svg>',
+  photo:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+  check:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>'
+};
+var SRC_LABEL = {email:"From email", flashdraft:"From FlashDraft", photo:"From the field app"};
+var STAGES = [
+  {key:"new", name:"New", sub:"Needs a quote"},
+  {key:"quoted", name:"Quoted", sub:"Waiting on the customer"},
+  {key:"approved", name:"Approved", sub:"Ready for the machine"},
+  {key:"shop", name:"In the shop", sub:"At the Thalmann"},
+  {key:"done", name:"Done", sub:"Delivered"}
+];
+var TRICIA = "trica@architecturalflashingsupply.com";
+var jobs = [
+  {id:"hc", customer:"Hill Country Roofing", contact:"Mike", email:"mike@example.com", source:"email", stage:"new", item:"Drip edge", spec:"24 ga Charcoal Kynar, 10 ft, 2 bends", qty:40, profile:"drip", age:"2 hours ago",
+   request:{text:"Hey Steve, need 40 more of the drip edge we got last month, same charcoal color, 24 gauge, 10 ft lengths. Can you get them to the Dripping Springs job by Friday?",
+   read:[["Profile","Drip edge, matched to last month's order"],["Quantity","40"],["Gauge","24 ga"],["Length","10 ft"],["Color","Charcoal Kynar, please confirm",1],["Needed by","Friday, Dripping Springs job"]]}},
+  {id:"mb", customer:"Martinez Builders", contact:"Ana", email:"ana@example.com", source:"flashdraft", stage:"new", item:"Custom coping", spec:"24 ga Sandstone Kynar, 10 ft, 4 bends", qty:12, profile:"coping", age:"5 hours ago",
+   request:{text:"Parapet cap for the Wimberley job. Wall is 10 inches wide. Painted side up.", read:[["Profile","Custom coping, drawn in FlashDraft"],["Quantity","12"],["Material","24 ga Sandstone Kynar"],["Painted side","Up"]]}},
+  {id:"jo", customer:"Ortega Roofing (field)", contact:"J. Ortega", email:"jortega@example.com", source:"photo", stage:"new", item:"Counterflashing", spec:"26 ga Galvalume, 10 ft, 3 bends", qty:25, profile:"counter", age:"yesterday",
+   request:{text:"Chimney counterflashing on the Leander house. Need 25 pieces.", read:[["Profile","Counterflashing, from photos"],["Quantity","25"],["Material","Galvalume, gauge not stated",1],["Face height","About 4 in, from the photo",1]]}},
+  {id:"lk", customer:"Lakeway Custom Homes", contact:"Dana", email:"dana@example.com", source:"email", stage:"quoted", item:"Valley flashing", spec:"Copper 16 oz, 10 ft, 1 bend", qty:20, profile:"valley", sent:"1 day ago",
+   request:{text:"Need 20 copper valleys, 16 oz, for the lake house.", read:[["Profile","Valley flashing"],["Quantity","20"],["Material","Copper 16 oz"]]}},
+  {id:"bb", customer:"Bluebonnet Exteriors", contact:"Ray", email:"ray@example.com", source:"email", stage:"quoted", item:"Z-closure", spec:"26 ga Galvalume, 10 ft, 2 bends", qty:60, profile:"z", sent:"4 days ago", stale:true,
+   request:{text:"Price on 60 Z-closures, Galvalume.", read:[["Profile","Z-closure"],["Quantity","60"],["Material","Galvalume"]]}},
+  {id:"cp", customer:"Cedar Park Contractors", contact:"Lee", email:"lee@example.com", source:"email", stage:"approved", item:"Gravel stop", spec:"Anodized Aluminum .040, 10 ft, 3 bends", qty:30, profile:"gravel", approved:"20 minutes ago",
+   request:{text:"30 gravel stops, anodized, same as the school job.", read:[["Profile","Gravel stop"],["Quantity","30"],["Material","Anodized Aluminum"]]}},
+  {id:"pf", customer:"Pflugerville Metal Works", contact:"Sam", email:"sam@example.com", source:"flashdraft", stage:"approved", item:"Fascia", spec:"24 ga Bronze Kynar, 10 ft, 2 bends", qty:18, profile:"fascia", approved:"1 hour ago",
+   request:{text:"Fascia for the retail strip, bronze.", read:[["Profile","Fascia, drawn in FlashDraft"],["Quantity","18"],["Material","24 ga Bronze Kynar"]]}},
+  {id:"rr", customer:"Round Rock Roofing", contact:"Chris", email:"chris@example.com", source:"email", stage:"shop", item:"Snap coping", spec:"24 ga Galvalume, 10 ft, 5 bends", qty:24, profile:"snap", shop:"bending", pe:"32960114", delivery:{day:"Fri, Oct 2", win:"8–10 AM"},
+   request:{text:"24 snap copings for the church.", read:[["Profile","Snap coping"],["Quantity","24"]]}},
+  {id:"gt", customer:"Georgetown Siding Co.", contact:"Pat", email:"pat@example.com", source:"flashdraft", stage:"shop", item:"J-channel", spec:"24 ga White Kynar, 10 ft, 2 bends", qty:50, profile:"jchan", shop:"queued", pe:"32960121",
+   request:{text:"J-channel for the siding job, white.", read:[["Profile","J-channel, drawn in FlashDraft"],["Quantity","50"]]}},
+  {id:"lh", customer:"Liberty Hill Homes", contact:"Jo", email:"jo@example.com", source:"email", stage:"done", item:"Drip edge", spec:"26 ga Galvalume, 10 ft, 2 bends", qty:40, profile:"drip", pe:"32959870", delivered:"Tuesday, Sep 29",
+   request:{text:"40 drip edge, Galvalume.", read:[["Profile","Drip edge"],["Quantity","40"]]}}
+];
+var library = [
+  {id:"l1", name:"Drip edge 4 in", customer:"Hill Country Roofing", person:"Mike", type:"Drip edge", mat:"24 ga Charcoal Kynar", key:"drip", used:6, date:"Aug 28"},
+  {id:"l2", name:"Valley 18 in", customer:"Hill Country Roofing", person:"Mike", type:"Valley", mat:"Copper 16 oz", key:"valley", used:2, date:"Jul 14"},
+  {id:"l3", name:"Receiver J 1 in", customer:"Hill Country Roofing", person:"Mike", type:"J-channel", mat:"24 ga Kynar", key:"jchan", used:1, date:"Jun 3"},
+  {id:"l4", name:"Parapet cap 10 in wall", customer:"Martinez Builders", person:"Ana", type:"Coping", mat:"24 ga Kynar", key:"coping", used:3, date:"Aug 2"},
+  {id:"l5", name:"Chimney counter", customer:"Ortega Roofing", person:"J. Ortega", type:"Counterflashing", mat:"26 ga Galvalume", key:"counter", used:4, date:"Jul 30"},
+  {id:"l6", name:"Gravel stop school job", customer:"Cedar Park Contractors", person:"Lee", type:"Gravel stop", mat:"Anodized Aluminum", key:"gravel", used:2, date:"May 19"},
+  {id:"l7", name:"Retail fascia", customer:"Pflugerville Metal Works", person:"Sam", type:"Fascia", mat:"24 ga Bronze Kynar", key:"fascia", used:1, date:"Sep 12"},
+  {id:"l8", name:"Snap coping church", customer:"Round Rock Roofing", person:"Chris", type:"Coping", mat:"24 ga Galvalume", key:"snap", used:5, date:"Sep 20"},
+  {id:"l9", name:"Z-closure standard", customer:"Bluebonnet Exteriors", person:"Ray", type:"Z-closure", mat:"26 ga Galvalume", key:"z", used:9, date:"Sep 1"}
+];
+var S = {view:"workbench", jobId:null, menu:false, modal:null, toast:null, q:"", field:"all", mat:"any", hover:"l1", custName:null};
+var undoSnap = null, toastTimer = null;
+function esc(s){ return String(s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];}); }
+function job(id){ for(var i=0;i<jobs.length;i++){ if(jobs[i].id===id) return jobs[i]; } return null; }
+function byStage(k){ return jobs.filter(function(j){return j.stage===k;}); }
+function snapshot(){ return JSON.stringify(jobs); }
+
+function header(){
+  var navs = [["workbench","Workbench"],["shop","Shop View"],["deliveries","Deliveries"]];
+  var cur = (S.view==="job"?"workbench":S.view);
+  return '<header class="top"><div class="top-in">'+
+    '<button class="brand" data-go="workbench" aria-label="Command Center home"><b>AFS</b><span>Command Center</span></button>'+
+    '<nav class="nav" aria-label="Main">'+navs.map(function(n){return '<button data-go="'+n[0]+'"'+(cur===n[0]?' aria-current="page"':'')+'>'+n[1]+'</button>';}).join("")+'</nav>'+
+    '<div class="top-right"><label for="topq">Search</label><input id="topq" type="search" placeholder="Customer, profile, or job" value="'+esc(S.view==="search"?S.q:"")+'">'+
+    '<button class="ghost-dark" data-act="menu" aria-expanded="'+S.menu+'">More</button><span style="font-weight:600">Steve</span>'+
+    (S.menu?'<div class="menu" role="menu"><button role="menuitem" data-go="customers">Customers</button><button role="menuitem" data-go="settings">Settings</button></div>':'')+
+    '</div></div></header>';
+}
+
+function card(j){
+  var meta="", cls="", metaCls="", act="";
+  if(j.stage==="new"){ meta=SRC_LABEL[j.source]+", "+j.age; act='<button class="btn btn-red" data-open="'+j.id+'">Start quote</button>'; }
+  if(j.stage==="quoted"){ meta="Quote sent "+j.sent+(j.stale?", no reply yet":""); metaCls=j.stale?"warn":""; act=j.stale?'<button class="btn" data-act="followup" data-id="'+j.id+'">Follow up</button>':''; }
+  if(j.stage==="approved"){ meta="Customer approved "+j.approved; metaCls="good"; cls="approved beacon"; act='<button class="btn btn-green" data-act="send" data-id="'+j.id+'">Send to machine</button>'; }
+  if(j.stage==="shop"){ meta=j.shop==="bending"?"Bending now":(j.shop==="complete"?"Finished, ready to deliver":"Queued at the Thalmann"); act=j.delivery?'':'<button class="btn" data-act="schedule" data-id="'+j.id+'">Schedule delivery</button>'; if(j.delivery){ meta+=". Delivery "+j.delivery.day+", "+j.delivery.win; } }
+  if(j.stage==="done"){ meta="Delivered "+j.delivered; }
+  return '<article class="card '+cls+'"><button class="card-main" data-open="'+j.id+'">'+
+    '<span class="card-top"><span class="src" title="'+SRC_LABEL[j.source]+'">'+ICON[j.source]+'<span class="sr">'+SRC_LABEL[j.source]+'</span></span><span class="card-cust">'+esc(j.customer)+'</span></span>'+
+    '<span class="card-title">'+esc(j.item)+', '+esc(j.spec.split(",")[0])+' × '+j.qty+'</span>'+
+    '<span class="card-meta '+metaCls+'">'+esc(meta)+'</span></button>'+
+    (act?'<div class="card-act">'+act+'</div>':'<div style="height:8px"></div>')+'</article>';
+}
+
+function workbench(){
+  var n=byStage("new").length, a=byStage("approved").length, d=jobs.filter(function(j){return j.delivery && j.stage==="shop";}).length;
+  return '<div class="hello"><h1>Good morning, Steve.</h1>'+
+    '<span class="chip">'+n+(n===1?' quote':' quotes')+' to write</span>'+
+    (a?'<span class="chip chip-green">'+a+(a===1?' approval':' approvals')+' ready for the machine</span>':'')+
+    '<span class="chip">'+d+(d===1?' delivery':' deliveries')+' scheduled</span></div>'+
+    '<div class="lanes">'+STAGES.map(function(s){
+      var list=byStage(s.key);
+      return '<section class="lane" aria-labelledby="lane-'+s.key+'"><div class="lane-head"><h2 id="lane-'+s.key+'">'+s.name+'</h2><span class="count'+(s.key==="approved"&&list.length?' go':'')+'">'+list.length+'</span></div>'+
+        '<div class="lane-sub">'+s.sub+'</div>'+(list.length?list.map(card).join(""):'<div class="empty">Nothing here right now.</div>')+'</section>';
+    }).join("")+'</div>';
+}
+
+function steps(stage){
+  var idx=STAGES.map(function(s){return s.key;}).indexOf(stage);
+  return '<ol class="steps" aria-label="Job stage">'+STAGES.map(function(s,i){return '<li class="'+(i<idx?"done":(i===idx?"now":""))+'"'+(i===idx?' aria-current="step"':'')+'>'+s.name+'</li>';}).join("")+'</ol>';
+}
+
+function requestPanel(j){
+  var body="";
+  if(j.source==="email"){ body='<div class="muted" style="font-size:14px">From <b style="color:var(--text)">'+esc(j.contact)+', '+esc(j.customer)+'</b>, by email</div><div class="quote-box">'+esc(j.request.text)+'</div>'; }
+  if(j.source==="flashdraft"){ body='<div class="muted" style="font-size:14px">Drawn in FlashDraft by <b style="color:var(--text)">'+esc(j.contact)+'</b></div><div class="drawing" style="min-height:160px">'+draw(j.profile,150)+'</div><div class="quote-box">Customer note: '+esc(j.request.text)+'</div>'; }
+  if(j.source==="photo"){ body='<div class="muted" style="font-size:14px">Sent from the field app by <b style="color:var(--text)">'+esc(j.contact)+'</b></div><div class="two"><div class="photo">Photo 1</div><div class="photo">Photo 2</div></div><div class="quote-box">'+esc(j.request.text)+'</div>'; }
+  var read='<h3>What the AI read</h3><dl class="read">'+j.request.read.map(function(r){return '<dt>'+esc(r[0])+'</dt><dd'+(r[2]?' class="unsure"':'')+'>'+esc(r[1])+'</dd>';}).join("")+'</dl>'+
+    (j.request.read.some(function(r){return r[2];})?'<div class="muted" style="font-size:13px">Highlighted items are ones the AI is less sure about. Check them before sending.</div>':'');
+  return '<section class="panel"><h2>The request</h2>'+body+read+'</section>';
+}
+
+function profilePanel(j){
+  var past=library.filter(function(l){return j.customer.indexOf(l.customer.split(" (")[0])===0 || l.customer===j.customer;});
+  return '<section class="panel"><h2>The profile</h2><div class="drawing">'+draw(j.profile,220)+'</div>'+
+    '<div><b>'+esc(j.item)+'</b><div class="muted" style="font-size:15px">'+esc(j.spec)+'</div></div>'+
+    '<button class="btn" data-act="fd" data-key="'+j.profile+'" data-name="'+esc(j.item)+'">Open in FlashDraft</button>'+
+    '<h3>'+esc(j.customer.split(" (")[0])+"'s past profiles</h3>"+
+    (past.length?'<div class="thumbs">'+past.map(function(l){return '<button class="thumb" data-act="fd" data-key="'+l.key+'" data-name="'+esc(l.name)+'" aria-label="Open '+esc(l.name)+' in FlashDraft">'+draw(l.key,46,5)+'</button>';}).join("")+'</div>':'<div class="muted">No past profiles for this customer yet.</div>')+
+    '</section>';
+}
+
+function quoteTable(j,editable){
+  return '<table class="q"><thead><tr><th>Item</th><th>Qty</th><th class="num">Amount</th></tr></thead><tbody>'+
+    '<tr><td><b>'+esc(j.item)+'</b><div class="muted" style="font-size:13px">'+esc(j.spec)+'</div></td><td>'+(editable?'<label class="sr" for="qty">Quantity</label><input id="qty" class="qty" type="number" min="1" value="'+j.qty+'" data-qty="'+j.id+'">':j.qty)+'</td><td class="num">[AMOUNT]</td></tr>'+
+    '<tr><td class="muted">Subtotal</td><td></td><td class="num">[SUBTOTAL]</td></tr><tr><td class="muted">Sales tax</td><td></td><td class="num">[TAX]</td></tr>'+
+    '<tr class="total"><td>Total</td><td></td><td class="num">[TOTAL]</td></tr></tbody></table>';
+}
+
+function actionPanel(j){
+  var s=j.stage, h='';
+  if(s==="new"){
+    h='<h2>The quote</h2>'+quoteTable(j,true)+'<div class="muted" style="font-size:13px">Priced from your price book: per bend, cut from 10 × 4 ft sheets.</div>'+
+      '<div class="quote-box" style="font-size:14px"><div><span class="muted">To:</span> '+esc(j.contact)+', '+esc(j.customer)+'</div><div><span class="muted">Subject:</span> Your quote for '+esc(j.item.toLowerCase())+'</div><p style="margin:8px 0 0">Hi '+esc(j.contact)+', here is your quote for '+j.qty+' pieces of '+esc(j.item.toLowerCase())+'. Click Approve in this email and we will get them into production.</p><div class="muted" style="font-size:13px;margin-top:6px">Includes an Approve button. Sends from your Outlook.</div></div>'+
+      '<div style="flex-grow:1"></div><button class="btn btn-red btn-big" data-act="sendquote" data-id="'+j.id+'">Send quote</button><button class="link" data-act="draft">Save as draft</button>';
+  }
+  if(s==="quoted"){
+    h='<h2>Quote sent</h2><div class="status gray"><div class="check">'+ICON.check+' Quote emailed '+j.sent+'</div><div class="muted">Waiting for '+esc(j.contact)+' to click Approve.</div></div>'+quoteTable(j,false)+
+      '<div style="flex-grow:1"></div><button class="btn btn-big" data-act="followup" data-id="'+j.id+'">Follow up</button><button class="btn" data-act="markapproved" data-id="'+j.id+'">Customer approved by phone</button>';
+  }
+  if(s==="approved"){
+    h='<h2>Approved</h2><div class="status green"><div class="check" style="color:var(--green)">'+ICON.check+' '+esc(j.contact)+' clicked Approve '+j.approved+'</div>'+
+      '<div class="check">'+ICON.check+' Invoice created from the quote</div><div class="check">'+ICON.check+' Invoice emailed to Tricia</div><div class="muted" style="font-size:13px">'+TRICIA+'</div></div>'+quoteTable(j,false)+
+      '<div style="flex-grow:1"></div><button class="btn btn-green btn-big" data-act="send" data-id="'+j.id+'">Send to machine</button>';
+  }
+  if(s==="shop"){
+    var st=j.shop==="bending"?"Bending now":(j.shop==="complete"?"Finished and ready to deliver":"Queued at the Thalmann");
+    h='<h2>In the shop</h2><div class="status gray"><div class="check">'+ICON.check+' Sent to the machine as profile #'+j.pe+'</div><div><b>'+st+'</b></div></div>'+
+      '<h3>Delivery</h3>'+(j.delivery?'<div class="status green"><div class="check" style="color:var(--green)">'+ICON.check+' '+j.delivery.day+', '+j.delivery.win+'</div><div class="muted">'+esc(j.contact)+' was notified with a tracking link.</div></div><button class="btn" data-act="schedule" data-id="'+j.id+'">Change delivery</button>':
+      '<div class="muted">Not scheduled yet. It schedules itself when the shop marks the job finished, or you can set it now.</div><button class="btn btn-red" data-act="schedule" data-id="'+j.id+'">Schedule delivery</button>');
+  }
+  if(s==="done"){
+    h='<h2>Done</h2><div class="status green"><div class="check" style="color:var(--green)">'+ICON.check+' Delivered '+j.delivered+'</div><div class="check">'+ICON.check+' Invoice emailed to Tricia</div></div>'+quoteTable(j,false)+
+      '<div style="flex-grow:1"></div><button class="btn btn-big" data-act="reorder" data-id="'+j.id+'">Start a reorder</button><div class="muted" style="font-size:13px">Done jobs leave the Workbench after 14 days. Search still finds them.</div>';
+  }
+  return '<section class="panel">'+h+'</section>';
+}
+
+function jobView(){
+  var j=job(S.jobId); if(!j) return workbench();
+  return '<div class="back"><button class="link" data-go="workbench">Back to Workbench</button></div>'+
+    '<div class="job-head"><h1>'+esc(j.customer)+': '+esc(j.item.toLowerCase())+'</h1>'+steps(j.stage)+'</div>'+
+    '<div class="cols">'+requestPanel(j)+profilePanel(j)+actionPanel(j)+'</div>';
+}
+
+function searchView(){
+  var q=S.q.trim().toLowerCase();
+  var res=library.filter(function(l){
+    if(S.mat!=="any" && l.mat.toLowerCase().indexOf(S.mat)<0) return false;
+    if(!q) return true;
+    var hay={all:[l.name,l.customer,l.person,l.type].join(" "), name:l.name, company:l.customer, person:l.person, type:l.type}[S.field];
+    return hay.toLowerCase().indexOf(q)>=0;
+  });
+  var sel=null; for(var i=0;i<res.length;i++){ if(res[i].id===S.hover) sel=res[i]; } if(!sel && res.length) sel=res[0];
+  var fields=[["all","Everything"],["name","Profile name"],["company","Company"],["person","Person"],["type","Profile type"]];
+  var mats=[["any","Any material"],["galvalume","Galvalume"],["kynar","Kynar"],["copper","Copper"],["anodized","Anodized"]];
+  return '<h1 class="page-title">Find a past profile</h1><div class="search-wrap">'+
+    '<div class="panel"><div class="field"><label for="sq">Search</label><input id="sq" type="search" value="'+esc(S.q)+'" placeholder="Try drip, Mike, or coping"></div>'+
+    '<div class="field"><label for="sf">Search in</label><select id="sf">'+fields.map(function(f){return '<option value="'+f[0]+'"'+(S.field===f[0]?' selected':'')+'>'+f[1]+'</option>';}).join("")+'</select></div>'+
+    '<div class="field"><label for="sm">Material</label><select id="sm">'+mats.map(function(f){return '<option value="'+f[0]+'"'+(S.mat===f[0]?' selected':'')+'>'+f[1]+'</option>';}).join("")+'</select></div>'+
+    '<div class="muted" style="font-size:14px">'+res.length+(res.length===1?' profile':' profiles')+' found. Hover a thumbnail to preview it.</div></div>'+
+    '<div class="rail" aria-label="Results">'+(res.length?res.map(function(l){return '<button data-hover="'+l.id+'" aria-pressed="'+(sel&&sel.id===l.id)+'">'+draw(l.key,86,4)+'<span>'+esc(l.name)+'</span>'+(l.used>1?'<span class="same">Same shape used '+l.used+'×</span>':'')+'</button>';}).join(""):'<div class="empty">No matches. Try a shorter word.</div>')+'</div>'+
+    (sel?'<section class="panel"><div class="drawing" style="min-height:320px">'+draw(sel.key,280)+'</div><h2>'+esc(sel.name)+'</h2>'+
+      '<dl class="read"><dt>Customer</dt><dd>'+esc(sel.customer)+'</dd><dt>Person</dt><dd>'+esc(sel.person)+'</dd><dt>Type</dt><dd>'+esc(sel.type)+'</dd><dt>Material</dt><dd>'+esc(sel.mat)+'</dd><dt>Last made</dt><dd>'+esc(sel.date)+'</dd></dl>'+
+      '<button class="btn btn-red btn-big" data-act="fd" data-key="'+sel.key+'" data-name="'+esc(sel.name)+'">Select</button></section>':'<div></div>')+
+    '</div>';
+}
+
+function shopView(){
+  var list=byStage("shop");
+  return '<h1 class="page-title">Shop View</h1><p class="muted" style="margin-top:-6px">What the Thalmann is working on, in order. Built for the tablet next to the machine.</p>'+
+    '<div class="list">'+(list.length?list.map(function(j,i){
+      var st=j.shop==="bending"?"Bending now":(j.shop==="complete"?"Finished":"Queued");
+      var btn=j.shop==="queued"?'<button class="btn btn-red" data-act="start" data-id="'+j.id+'">Start bending</button>':(j.shop==="bending"?'<button class="btn btn-green" data-act="complete" data-id="'+j.id+'">Mark finished</button>':'<span class="pill approved">Finished</span>');
+      return '<article class="shop-card"><div class="qnum" aria-label="Queue position">'+(i+1)+'</div><div class="mini">'+draw(j.profile,96)+'</div>'+
+        '<div><h2 style="font-size:24px">'+esc(j.item)+' × '+j.qty+'</h2><div>'+esc(j.spec)+'</div><div class="muted" style="font-size:14px">'+esc(j.customer)+'. Machine profile #'+j.pe+'. Status: '+st+'</div></div>'+btn+'</article>';
+    }).join(""):'<div class="empty">The machine queue is empty.</div>')+'</div>';
+}
+
+function deliveriesView(){
+  var days=["Thu, Oct 1","Fri, Oct 2","Mon, Oct 5","Tue, Oct 6","Wed, Oct 7"];
+  var sched=jobs.filter(function(j){return j.delivery && j.stage==="shop";});
+  var ready=byStage("shop").filter(function(j){return !j.delivery;});
+  return '<h1 class="page-title">Deliveries</h1><div class="grid2"><div class="week">'+days.map(function(d){
+    var items=sched.filter(function(j){return j.delivery.day===d;});
+    return '<section class="day"><h3>'+d+'</h3>'+(items.length?items.map(function(j){return '<div class="stop"><b>'+esc(j.customer)+'</b><span>'+esc(j.item)+' × '+j.qty+'</span><span class="muted">'+j.delivery.win+'</span><button class="btn" data-act="delivered" data-id="'+j.id+'">Mark delivered</button></div>';}).join(""):'<div class="empty">No deliveries</div>')+'</section>';
+  }).join("")+'</div>'+
+  '<section class="panel"><h2>Not scheduled yet</h2>'+(ready.length?ready.map(function(j){return '<div class="stop"><b>'+esc(j.customer)+'</b><span>'+esc(j.item)+' × '+j.qty+'</span><button class="btn btn-red" data-act="schedule" data-id="'+j.id+'">Schedule delivery</button></div>';}).join(""):'<div class="empty">Everything in the shop has a delivery date.</div>')+'</section></div>';
+}
+
+function customersView(){
+  if(S.custName){
+    var name=S.custName, js=jobs.filter(function(j){return j.customer===name;}), ps=library.filter(function(l){return name.indexOf(l.customer)===0;});
+    return '<div class="back"><button class="link" data-go="customers">Back to Customers</button></div><h1 class="page-title">'+esc(name)+'</h1>'+
+      '<div class="section"><h2>Jobs</h2><div class="tscroll"><table class="t"><thead><tr><th>Job</th><th>Stage</th><th></th></tr></thead><tbody>'+js.map(function(j){var st=STAGES.filter(function(s){return s.key===j.stage;})[0];return '<tr><td>'+esc(j.item)+' × '+j.qty+'</td><td><span class="pill '+(j.stage==="new"?"new":(j.stage==="approved"?"approved":""))+'">'+st.name+'</span></td><td><button class="link" data-open="'+j.id+'">Open</button></td></tr>';}).join("")+'</tbody></table></div></div>'+
+      '<div class="section"><h2>Profiles</h2>'+(ps.length?'<div class="thumbs" style="grid-template-columns:repeat(auto-fill,minmax(120px,1fr))">'+ps.map(function(l){return '<button class="thumb" style="height:110px;flex-direction:column;gap:4px" data-act="fd" data-key="'+l.key+'" data-name="'+esc(l.name)+'">'+draw(l.key,60,4)+'<span style="font-size:12px;font-weight:600">'+esc(l.name)+'</span></button>';}).join("")+'</div>':'<div class="muted">No saved profiles yet.</div>')+'</div>';
+  }
+  var names=[]; jobs.forEach(function(j){ if(names.indexOf(j.customer)<0) names.push(j.customer); });
+  return '<h1 class="page-title">Customers</h1><div class="tscroll"><table class="t"><thead><tr><th>Customer</th><th>Contact</th><th>Open jobs</th><th></th></tr></thead><tbody>'+names.map(function(n){
+    var js=jobs.filter(function(j){return j.customer===n;}); var open=js.filter(function(j){return j.stage!=="done";}).length;
+    return '<tr><td><b>'+esc(n)+'</b></td><td>'+esc(js[0].contact)+'</td><td>'+open+'</td><td><button class="link" data-cust="'+esc(n)+'">View</button></td></tr>';
+  }).join("")+'</tbody></table></div>';
+}
+
+function settingsView(){
+  var rows=[["Galvalume","26 ga"],["Galvalume","24 ga"],["Kynar Painted","24 ga"],["Anodized Aluminum",".040"],["Copper","16 oz"],["Copper","20 oz"],["Lead Coated Copper","16 oz"],["Lead Coated Copper","20 oz"],["Zinc","0.7 mm"],["Stainless Steel","24 ga"]];
+  return '<h1 class="page-title">Settings</h1>'+
+    '<div class="section"><h2>Price book</h2><p class="muted" style="margin:0">Your current prices. Quotes fill in from this table. Change a number and every new quote uses it.</p>'+
+    '<div class="tscroll"><table class="t"><thead><tr><th>Material</th><th>Gauge</th><th>Sheet cost (10 × 4 ft)</th><th>Per bend</th><th>Per hem</th></tr></thead><tbody>'+rows.map(function(r,i){
+      return '<tr><td>'+r[0]+'</td><td>'+r[1]+'</td><td><label class="sr" for="c'+i+'">Sheet cost</label><input id="c'+i+'" class="cell-in" placeholder="$ —"></td><td><label class="sr" for="b'+i+'">Per bend</label><input id="b'+i+'" class="cell-in" placeholder="$ —"></td><td><label class="sr" for="h'+i+'">Per hem</label><input id="h'+i+'" class="cell-in" placeholder="$ —"></td></tr>';
+    }).join("")+'</tbody></table></div></div>'+
+    '<div class="section"><h2>Email</h2><div class="panel"><div class="check" style="color:var(--green)">'+ICON.check+' Connected to steve@architecturalflashingsupply.com (Outlook)</div>'+
+    '<label class="switch"><input type="checkbox" checked> Turn order and reorder emails into New jobs</label><label class="switch"><input type="checkbox" checked> Move a job to Approved when the customer approves by email</label><label class="switch"><input type="checkbox" checked> Text me when an approval comes in</label></div></div>'+
+    '<div class="section"><h2>Invoices</h2><div class="panel"><label class="switch"><input type="checkbox" checked> Email every approved invoice to Tricia automatically</label><div class="muted">'+TRICIA+'</div></div></div>'+
+    '<div class="section"><h2>Coming soon</h2><div class="row" style="align-items:stretch"><div class="soon" style="flex:1;min-width:260px"><b>Dynamic pricing</b><p class="muted" style="margin:6px 0 0">Learns from your past quotes to suggest prices. Uses the history your price book is collecting now.</p></div><div class="soon" style="flex:1;min-width:260px"><b>QuickBooks</b><p class="muted" style="margin:6px 0 0">Sends approved invoices straight into QuickBooks.</p></div></div></div>';
+}
+
+function modal(){
+  var m=S.modal; if(!m) return "";
+  var inner="";
+  if(m.type==="fd"){
+    inner='<h2>FlashDraft</h2><p class="muted" style="margin:0">'+esc(m.name)+' is loaded as a new draft. The original stays untouched.</p>'+
+      '<div class="fd-tools"><span>Draw</span><span>Select</span><span>Hem</span><span>Undo</span><span>2D</span><span>3D</span></div>'+
+      '<div class="drawing" style="min-height:360px">'+draw(m.key,320)+'</div><div class="row" style="justify-content:flex-end"><button class="btn" data-act="close">Cancel</button><button class="btn btn-red" data-act="fdsave">Use this profile</button></div>';
+  }
+  if(m.type==="followup"){
+    var j=job(m.id);
+    inner='<h2>Follow up with '+esc(j.contact)+'</h2><div class="field"><label for="fu">Message</label><textarea id="fu">Hi '+esc(j.contact)+', just checking in on the quote for '+j.qty+' '+esc(j.item.toLowerCase())+'. You can approve it right from the original email, or reply here with any changes.</textarea></div>'+
+      '<div class="row" style="justify-content:flex-end"><button class="btn" data-act="close">Cancel</button><button class="btn btn-red" data-act="sendfollow" data-id="'+j.id+'">Send follow-up</button></div>';
+  }
+  if(m.type==="schedule"){
+    var k=job(m.id); var days=["Thu, Oct 1","Fri, Oct 2","Mon, Oct 5","Tue, Oct 6","Wed, Oct 7"], wins=["8–10 AM","10 AM–12 PM","1–3 PM","3–5 PM"];
+    inner='<h2>Schedule delivery</h2><p style="margin:0"><b>'+esc(k.customer)+'</b>, '+esc(k.item)+' × '+k.qty+'</p>'+
+      '<div class="two"><div class="field"><label for="dd">Day</label><select id="dd">'+days.map(function(d){return '<option'+(k.delivery&&k.delivery.day===d?' selected':'')+'>'+d+'</option>';}).join("")+'</select></div>'+
+      '<div class="field"><label for="dw">Time window</label><select id="dw">'+wins.map(function(w){return '<option'+(k.delivery&&k.delivery.win===w?' selected':'')+'>'+w+'</option>';}).join("")+'</select></div></div>'+
+      '<label class="switch"><input type="checkbox" checked> Text and email '+esc(k.contact)+' a tracking link</label>'+
+      '<div class="row" style="justify-content:flex-end"><button class="btn" data-act="close">Cancel</button><button class="btn btn-red" data-act="dosched" data-id="'+k.id+'">Schedule delivery</button></div>';
+  }
+  return '<div class="scrim" data-act="scrim"><div class="modal'+(m.type==="fd"?" wide":"")+'" role="dialog" aria-modal="true">'+inner+'</div></div>';
+}
+
+function toast(){ if(!S.toast) return ""; return '<div class="toast" role="status"><span>'+esc(S.toast.text)+'</span>'+(S.toast.undo?'<button data-act="undo">Undo</button>':'')+'</div>'; }
+
+function render(){
+  var body={workbench:workbench,job:jobView,search:searchView,shop:shopView,deliveries:deliveriesView,customers:customersView,settings:settingsView}[S.view]();
+  document.getElementById("app").innerHTML=header()+'<main>'+body+'<p class="proto">Clickable prototype with sample jobs. Nothing here sends a real email or reaches the machine.</p></main>'+modal()+toast();
+}
+
+function say(text,undo){ S.toast={text:text,undo:!!undo}; clearTimeout(toastTimer); toastTimer=setTimeout(function(){S.toast=null;undoSnap=null;render();},9000); }
+function go(v){ S.view=v; S.menu=false; S.custName=null; window.scrollTo(0,0); render(); }
+
+document.addEventListener("click",function(e){
+  var t=e.target.closest("[data-go],[data-open],[data-act],[data-hover],[data-cust]"); if(!t) { if(S.menu){S.menu=false;render();} return; }
+  if(t.dataset.go){ go(t.dataset.go); return; }
+  if(t.dataset.open){ S.jobId=t.dataset.open; go("job"); return; }
+  if(t.dataset.cust){ S.view="customers"; S.custName=t.dataset.cust; S.menu=false; render(); return; }
+  if(t.dataset.hover){ S.hover=t.dataset.hover; render(); return; }
+  var a=t.dataset.act, id=t.dataset.id, j=id?job(id):null;
+  if(a==="menu"){ S.menu=!S.menu; render(); return; }
+  if(a==="scrim"){ if(e.target===t){ S.modal=null; render(); } return; }
+  if(a==="close"){ S.modal=null; render(); return; }
+  if(a==="fd"){ S.modal={type:"fd",key:t.dataset.key,name:t.dataset.name}; render(); return; }
+  if(a==="fdsave"){ S.modal=null; say("Profile loaded into FlashDraft as a new draft."); render(); return; }
+  if(a==="draft"){ say("Draft saved."); render(); return; }
+  if(a==="followup"){ S.modal={type:"followup",id:id}; render(); return; }
+  if(a==="sendfollow"){ j.sent="just now"; j.stale=false; S.modal=null; say("Follow-up sent to "+j.contact+"."); render(); return; }
+  if(a==="schedule"){ S.modal={type:"schedule",id:id}; render(); return; }
+  if(a==="dosched"){ j.delivery={day:document.getElementById("dd").value,win:document.getElementById("dw").value}; S.modal=null; say("Delivery scheduled for "+j.delivery.day+", "+j.delivery.win+". "+j.contact+" was notified."); render(); return; }
+  if(a==="undo"){ if(undoSnap){ jobs=JSON.parse(undoSnap); undoSnap=null; } S.toast=null; render(); return; }
+  if(a==="sendquote"){ undoSnap=snapshot(); j.stage="quoted"; j.sent="just now"; j.stale=false; say("Quote sent to "+j.contact+".",true); go("workbench"); return; }
+  if(a==="markapproved"){ j.stage="approved"; j.approved="just now"; say("Marked approved. Invoice emailed to Tricia."); render(); return; }
+  if(a==="send"){ undoSnap=snapshot(); j.stage="shop"; j.shop="queued"; j.pe=String(32960130+Math.floor(Math.random()*60)); say("Sent to the machine as profile #"+j.pe+".",true); if(S.view==="job"){render();}else{render();} return; }
+  if(a==="start"){ j.shop="bending"; say(j.item+" is bending now."); render(); return; }
+  if(a==="complete"){ j.shop="complete"; if(!j.delivery){ j.delivery={day:"Fri, Oct 2",win:"8–10 AM"}; } say("Marked finished. Delivery set for "+j.delivery.day+", "+j.delivery.win+", and "+j.contact+" was notified."); render(); return; }
+  if(a==="delivered"){ j.stage="done"; j.delivered="today"; say(j.customer+" marked delivered."); render(); return; }
+  if(a==="reorder"){ var n=JSON.parse(JSON.stringify(j)); n.id=j.id+"r"+Date.now(); n.stage="new"; n.age="just now"; n.source="email"; delete n.delivery; delete n.delivered; jobs.unshift(n); S.jobId=n.id; say("Reorder started from "+j.customer+"'s last job."); render(); return; }
+});
+document.addEventListener("mouseover",function(e){ var t=e.target.closest("[data-hover]"); if(t && S.hover!==t.dataset.hover){ S.hover=t.dataset.hover; render(); var b=document.querySelector('[data-hover="'+S.hover+'"]'); if(b) b.focus({preventScroll:true}); } });
+document.addEventListener("keydown",function(e){
+  if(e.target && e.target.id==="topq" && e.key==="Enter"){ S.q=e.target.value; S.view="search"; S.menu=false; render(); var el=document.getElementById("sq"); if(el){el.focus(); el.setSelectionRange(el.value.length,el.value.length);} }
+  if(e.key==="Escape" && (S.modal||S.menu)){ S.modal=null; S.menu=false; render(); }
+});
+document.addEventListener("input",function(e){
+  if(e.target.id==="sq"){ S.q=e.target.value; render(); var el=document.getElementById("sq"); el.focus(); el.setSelectionRange(el.value.length,el.value.length); }
+  if(e.target.dataset && e.target.dataset.qty){ var j=job(e.target.dataset.qty); var v=parseInt(e.target.value,10); if(v>0) j.qty=v; }
+});
+document.addEventListener("change",function(e){
+  if(e.target.id==="sf"){ S.field=e.target.value; render(); }
+  if(e.target.id==="sm"){ S.mat=e.target.value; render(); }
+});
+render();
+})();
+</script>
+</body>
+</html>

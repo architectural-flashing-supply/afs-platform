@@ -14261,3 +14261,70 @@ silently break the rule. Five tests cover it.
   yet.
 - **END-OF-RUN full Playwright suite against alpha** — not run this pass.
   Build and unit tests are green (128/128).
+
+---
+
+## 2026-09-30 — COMMAND CENTER V2 approved; Phase 0 audit + build spec complete
+
+Reid approved an interactive prototype for a Command Center rewrite. Phase 0
+was a READ-ONLY audit: no application code, no database writes, no
+PathfinderEdge calls.
+
+**Design of record:** `docs/design/command-center-v2-prototype.html` (copied
+verbatim, 50,097 bytes). Where the spec and the prototype disagree, the
+prototype wins.
+**Spec:** `docs/COMMAND_CENTER_V2_SPEC.md` and `.docx`.
+
+**The approved shape.** One-level nav (Workbench, Shop View, Deliveries,
+Search, More -> Customers/Settings). Workbench = five lanes New -> Quoted ->
+Approved -> In the shop -> Done. Every request from email, FlashDraft or the
+field app becomes ONE Job card. Job screen is three columns: the request +
+what the AI read (uncertain fields highlighted) | the profile + this
+customer's past profiles + Open in FlashDraft | the stage-specific action.
+Quote emails carry an Approve button; on approval the quote becomes the
+invoice and is emailed to Tricia automatically. Command Center approval stays
+the ONLY door to PathfinderEdge.
+
+**Removed by the design:** the Profile Library built from the 911 AI-read
+profiles of the old Thalmann (geometrically invalid), and the second nav
+level.
+
+**Audit findings that change the plan:**
+- **`invoices` does not exist as a table**, yet five routes are built against
+  it (`app/api/invoices/[id]/pdf`, `/send`, `/statement`,
+  `admin/invoices/[id]/mark-paid`, `app/account/invoices/page.tsx`). The
+  auto-invoice flow cannot be built until this is reconciled.
+- **No Microsoft Graph / Outlook code exists at all**, and no inbound mail
+  parsing. Phase 4 is entirely greenfield and blocked on Reid's Entra app
+  registration + admin consent.
+- **The 911-profile library is safe to remove**: `machine_jobs.
+  machine_profile_id` is NULL on all 34 rows, so nothing depends on it.
+  911 profiles + 4,537 bends + 46 categories, archived outside the repo first.
+- **`pricing_rules` is per-product with multipliers** — no bend, hem or sheet
+  concept. The prototype's price book is a NEW table, not a reshape.
+- **Photo-to-quote AI is reusable in architecture, not in prompt**: per-field
+  `confidence` + `aiNote` + `overallConfidence` map directly onto the "what
+  the AI read" panel. Intent classification, customer/past-job/quote matching
+  and threading are all new.
+
+**Job stage model:** `quote_requests` becomes the Job record with ONE new
+column, `job_stage` in (new, quoted, approved, shop, done), backfilled from
+today's statuses. `machine_jobs` stays the machine-side record. That single
+column also fixes the 409 self-lock diagnosed earlier today.
+
+**Six phases:** 1 foundation+cleanup, 2 Workbench+Job screen (carries the
+pending approval-feedback / rush / ordering fixes), 3 price book+quotes+
+invoices+auto-invoice, 4 Outlook+Approve+parser, 5 Shop View+Deliveries,
+6 Search UI (server side already done in `1646746`).
+
+**OPEN DECISIONS — both PENDING REID:**
+1. **Tricia's exact email address.** The prototype hardcodes
+   `trica@architecturalflashingsupply.com` — note `trica`, not `tricia`.
+   Almost certainly a typo; auto-emailing invoices to a wrong address is a
+   live-money error. Must be confirmed before Phase 3.
+2. **Which existing jobs/profiles are real and must be kept.** 45 of 64
+   quote requests, 14 of 18 saved profiles and 35 of 58 takeoff uploads
+   belong to `steve@architecturalflashingsupply.com`, and the data cannot
+   distinguish real customer work from Steve's own testing. The
+   backup-then-wipe step is unspecifiable until this is answered. NOTHING was
+   deleted.
