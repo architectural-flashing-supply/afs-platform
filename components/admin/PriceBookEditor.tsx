@@ -165,8 +165,15 @@ export default function PriceBookEditor({
               <th scope="col" className="font-label text-sm font-bold text-afs-ink-900 text-left p-3">
                 Gauge
               </th>
+              {/* nowrap so "Sheet cost (10 × 4 ft)" does not fold onto three
+                  lines and squeeze the money columns into two-line chips. The
+                  table already scrolls horizontally below 720px. */}
               {FIELDS.map((f) => (
-                <th key={f} scope="col" className="font-label text-sm font-bold text-afs-ink-900 text-right p-3">
+                <th
+                  key={f}
+                  scope="col"
+                  className="font-label text-sm font-bold text-afs-ink-900 text-right p-3 whitespace-nowrap"
+                >
                   {PRICE_BOOK_FIELD_LABELS[f]}
                 </th>
               ))}
@@ -393,7 +400,7 @@ function PriceCell({
       <span
         data-testid="price-blank"
         data-field={field}
-        className="inline-block font-label text-sm font-bold text-afs-amber-ink bg-afs-amber-bg rounded px-2 py-1"
+        className="inline-block font-label text-sm font-bold text-afs-amber-ink bg-afs-amber-bg rounded px-2 py-1 whitespace-nowrap"
       >
         <span aria-hidden="true">Not set</span>
         <span className="sr-only">
