@@ -66,33 +66,44 @@ function walk(dir: string, out: string[] = []): string[] {
 describe('ONE DOOR — static: only the approval path references the push', () => {
   const files = SCAN_DIRS.flatMap((d) => walk(join(REPO_ROOT, d)));
 
+  /**
+   * Read ONCE, at collection time. Each test below used to re-read all ~500
+   * files, so this block made three full passes over the source tree and
+   * intermittently exceeded vitest's 5s default timeout when run alongside the
+   * other unit files — the guard failing on its own I/O, not on a real
+   * offender. The allow-list and every assertion are unchanged.
+   */
+  const sources = files.map((f) => ({
+    rel: relative(REPO_ROOT, f).split(sep).join('/'),
+    contents: readFileSync(f, 'utf8'),
+  }));
+
   it('scanned a meaningful number of files (guards against a broken walk)', () => {
     expect(files.length).toBeGreaterThan(200);
   });
 
   it('no file outside the Command Center approval path calls pushProfileToPathfinder', () => {
-    const offenders = files.filter((f) => {
-      const rel = relative(REPO_ROOT, f).split(sep).join('/');
-      if (ALLOWED_CALLERS.includes(rel)) return false;
-      return /pushProfileToPathfinder\s*\(/.test(stripComments(readFileSync(f, 'utf8')));
+    const offenders = sources.filter((s) => {
+      if (ALLOWED_CALLERS.includes(s.rel)) return false;
+      return /pushProfileToPathfinder\s*\(/.test(stripComments(s.contents));
     });
-    expect(offenders.map((f) => relative(REPO_ROOT, f).split(sep).join('/'))).toEqual([]);
+    expect(offenders.map((s) => s.rel)).toEqual([]);
   });
 
   it('the deleted direct-send routes are really gone', () => {
-    const rels = files.map((f) => relative(REPO_ROOT, f).split(sep).join('/'));
+    const rels = sources.map((s) => s.rel);
     expect(rels).not.toContain('app/api/studio/send-to-pathfinder/route.ts');
     expect(rels).not.toContain('app/api/admin/pathfinder/push-profile/route.ts');
     expect(rels).not.toContain('app/api/admin/pathfinder/submit-job/route.ts');
   });
 
   it('no client code fetches a direct-send endpoint any more', () => {
-    const offenders = files.filter((f) =>
+    const offenders = sources.filter((s) =>
       /['"`]\/api\/(studio\/send-to-pathfinder|admin\/pathfinder\/(push-profile|submit-job))/.test(
-        readFileSync(f, 'utf8'),
+        s.contents,
       ),
     );
-    expect(offenders.map((f) => relative(REPO_ROOT, f).split(sep).join('/'))).toEqual([]);
+    expect(offenders.map((s) => s.rel)).toEqual([]);
   });
 });
 

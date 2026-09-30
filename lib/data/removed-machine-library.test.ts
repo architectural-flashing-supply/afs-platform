@@ -91,12 +91,25 @@ function sourceFiles(dir: string): string[] {
 const ALL_FILES = SCAN_DIRS.flatMap(sourceFiles);
 const SELF = join('lib', 'data', 'removed-machine-library.test.ts');
 
+/**
+ * Every scanned file, read ONCE at collection time.
+ *
+ * Each assertion below used to re-read all ~500 files itself, so one run of
+ * this block made five full passes over the source tree. On its own that is
+ * fast (~150ms), but running alongside the other unit files it intermittently
+ * exceeded vitest's 5s default timeout, and the guard then failed on its own
+ * I/O instead of on a real offender. The needles, the assertions and the
+ * self-exclusion are unchanged — only the reading is now shared.
+ */
+const SOURCES: ReadonlyArray<{ rel: string; contents: string }> = ALL_FILES.map((file) => ({
+  rel: relative(REPO_ROOT, file),
+  contents: readFileSync(file, 'utf8'),
+}));
+
 function offenders(needles: string[]): string[] {
   const hits: string[] = [];
-  for (const file of ALL_FILES) {
-    const rel = relative(REPO_ROOT, file);
+  for (const { rel, contents } of SOURCES) {
     if (rel === SELF || rel === SELF.split(sep).join('/')) continue;
-    const contents = readFileSync(file, 'utf8');
     for (const needle of needles) {
       if (contents.includes(needle)) hits.push(`${rel} -> ${needle}`);
     }
@@ -146,7 +159,7 @@ describe('the 911-entry machine profile library stays removed', () => {
     // hand-authored starter library.
     const kept = ['shop_profile_library', 'canonical_profiles'];
     for (const table of kept) {
-      const referenced = ALL_FILES.some((f) => readFileSync(f, 'utf8').includes(table));
+      const referenced = SOURCES.some((s) => s.contents.includes(table));
       expect(referenced, `${table} should still be referenced in source`).toBe(true);
     }
   });
