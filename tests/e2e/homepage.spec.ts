@@ -1,8 +1,9 @@
 import { test, expect, type Page } from '@playwright/test';
 
 // Real homepage assembly (app/page.tsx) composing the eleven hp-001..hp-014
-// section components (hpa-002's ProfileExplorer removed from the render
-// order as of hpc-003) behind the same NavBar/Footer chrome
+// section components (hpa-002's machine-library profile explorer was pulled
+// from the render order in hpc-003, and its component deleted outright in
+// Command Center V2 prompt v2-01) behind the same NavBar/Footer chrome
 // (components/layout/AppChrome.tsx) every other public page uses. No
 // E2E_TEST_EMAIL/E2E_TEST_PASSWORD gate is needed here — every assertion in
 // this file runs against the fully public, unauthenticated view (NavBar's

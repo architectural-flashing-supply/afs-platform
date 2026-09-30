@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
-// See app/api/studio/library-list/route.ts — same build-time prerender
-// failure, same fix.
+// force-dynamic: this route reads the database at request time, which the
+// build-time prerender pass cannot do.
 export const dynamic = 'force-dynamic';
 
 interface CanonicalProfileRow {
@@ -19,10 +19,9 @@ interface CanonicalProfileRow {
 }
 
 // Public resource — canonical profiles are hand-crafted reference geometry,
-// not shop job history, so (unlike machine_profiles) there is no private-row
-// concept here. Service role client is used anyway so anonymous FlashDraft
-// visitors can browse without an auth.uid() session, same rationale as
-// app/api/studio/library-list/route.ts.
+// not shop job history, so there is no private-row concept here. The
+// service-role client is used anyway so anonymous FlashDraft visitors can
+// browse without an auth.uid() session for RLS to match.
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const admin = createAdminClient();
   const { searchParams } = new URL(request.url);

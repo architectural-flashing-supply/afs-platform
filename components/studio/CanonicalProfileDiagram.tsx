@@ -7,8 +7,8 @@ const PADDING = 12;
 
 // Canonical profiles store their final, exact polyline — no bend-angle
 // turtle-graphics reconstruction needed (contrast BendSequenceDiagram, which
-// reconstructs an approximate shape from machine_profile_bends at render
-// time). This component only ever connects the dots.
+// reconstructs an approximate shape from a bend list at render time). This
+// component only ever connects the dots.
 export default function CanonicalProfileDiagram({
   points,
   width = 240,

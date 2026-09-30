@@ -52,7 +52,6 @@ interface MachineJobSource {
   id: string;
   order_id: string | null;
   quote_request_id: string | null;
-  machine_profile_id: string | null;
   custom_bends: MachineJobBend[] | null;
   profile_name: string;
   material: string | null;
@@ -76,7 +75,7 @@ export async function getMachineJobs(supabase: SupabaseClient, tab: MachineJobTa
   const { data: jobs, error } = await supabase
     .from('machine_jobs')
     .select(
-      'id, order_id, quote_request_id, machine_profile_id, custom_bends, profile_name, material, gauge, quantity, blank_width_mm, is_rush, notes, status, rejection_reason, requested_by, approved_at, staged_at, delivered_at, created_at, used_fallback_geometry, delivery_method'
+      'id, order_id, quote_request_id, custom_bends, profile_name, material, gauge, quantity, blank_width_mm, is_rush, notes, status, rejection_reason, requested_by, approved_at, staged_at, delivered_at, created_at, used_fallback_geometry, delivery_method'
     )
     .in('status', STATUSES_BY_TAB[tab])
     .order('is_rush', { ascending: false })
@@ -88,22 +87,14 @@ export async function getMachineJobs(supabase: SupabaseClient, tab: MachineJobTa
 
   const quoteRequestIds = jobRows.map((j) => j.quote_request_id).filter((v): v is string => !!v);
   const orderIds = jobRows.map((j) => j.order_id).filter((v): v is string => !!v);
-  const profileIds = jobRows.map((j) => j.machine_profile_id).filter((v): v is string => !!v);
   const requesterIds = jobRows.map((j) => j.requested_by).filter((v): v is string => !!v);
 
-  const [{ data: quoteRequests }, { data: orders }, { data: bendRows }] = await Promise.all([
+  const [{ data: quoteRequests }, { data: orders }] = await Promise.all([
     quoteRequestIds.length
       ? supabase.from('quote_requests').select('id, request_number, user_id, guest_email').in('id', quoteRequestIds)
       : Promise.resolve({ data: [] }),
     orderIds.length
       ? supabase.from('orders').select('id, order_number, user_id').in('id', orderIds)
-      : Promise.resolve({ data: [] }),
-    profileIds.length
-      ? supabase
-          .from('machine_profile_bends')
-          .select('profile_id, left_leg_mm, right_leg_mm, bend_angle_degrees, radius_mm')
-          .in('profile_id', profileIds)
-          .order('step_number', { ascending: true })
       : Promise.resolve({ data: [] }),
   ]);
 
@@ -126,24 +117,6 @@ export async function getMachineJobs(supabase: SupabaseClient, tab: MachineJobTa
   const profileMap = new Map<string, { fullName: string; company: string | null }>();
   for (const p of (profiles ?? []) as { id: string; full_name: string; company: string | null }[]) {
     profileMap.set(p.id, { fullName: p.full_name, company: p.company });
-  }
-
-  const bendsByProfile = new Map<string, MachineJobBend[]>();
-  for (const row of (bendRows ?? []) as {
-    profile_id: string;
-    left_leg_mm: number | null;
-    right_leg_mm: number | null;
-    bend_angle_degrees: number | null;
-    radius_mm: number | null;
-  }[]) {
-    const list = bendsByProfile.get(row.profile_id) ?? [];
-    list.push({
-      leftLegMm: row.left_leg_mm,
-      rightLegMm: row.right_leg_mm,
-      bendAngleDegrees: row.bend_angle_degrees,
-      radiusMm: row.radius_mm,
-    });
-    bendsByProfile.set(row.profile_id, list);
   }
 
   return jobRows.map((job) => {
@@ -170,7 +143,12 @@ export async function getMachineJobs(supabase: SupabaseClient, tab: MachineJobTa
       approvedAt: job.approved_at,
       stagedAt: job.staged_at,
       deliveredAt: job.delivered_at,
-      bends: job.machine_profile_id ? bendsByProfile.get(job.machine_profile_id) ?? [] : job.custom_bends ?? [],
+      // custom_bends (FlashDraft-drawn geometry) is now the ONLY bend
+      // source. The alternative used to be a match against the old 911-entry
+      // machine profile library, removed in Command Center V2 prompt v2-01
+      // — the linking column was NULL on every one of the 34 rows that
+      // existed, so nothing lost a bend sequence.
+      bends: job.custom_bends ?? [],
       usedFallbackGeometry: job.used_fallback_geometry,
       deliveryMethod: job.delivery_method,
     };

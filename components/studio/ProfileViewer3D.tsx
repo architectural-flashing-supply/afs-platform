@@ -151,8 +151,8 @@ function mmToIn(mm: number): number {
  * that sign as the fold's handedness (see bendTurnDegrees there), so the
  * extruded cross-section is congruent to what the user drew instead of
  * curling every bend the same way. Callers whose bends come out of the
- * machine catalog (MatchedProfile3DModal, /studio/profile-viewer,
- * /upload) still pass unsigned angles and are bit-for-bit unchanged —
+ * machine catalog (MatchedProfile3DModal, /upload) still pass unsigned
+ * angles and are bit-for-bit unchanged —
  * bendTurnDegrees reduces to the old `180 - angle` for any angle >= 0.
  *
  * `bend.angle || 180` below is deliberately left as-is: `||` is falsy-based,

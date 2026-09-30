@@ -1,17 +1,23 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { useState } from 'react';
+import { AFS_PROFILE_CATEGORIES } from '@/lib/data/profile-categories';
 
 export interface ProfileDetailsFormValues {
   name: string;
+  /**
+   * The chosen AFS product category, as a plain name from
+   * AFS_PROFILE_CATEGORIES, or null for "None".
+   *
+   * Historically this held a UUID pointing at the old machine profile
+   * library's category table; that library was removed in Command Center V2
+   * prompt v2-01, so the value is now the category name itself. The key is
+   * still called `categoryId` because it is the persisted field name inside
+   * `saved_configurations.dimensions`, and renaming a stored key buys
+   * nothing.
+   */
   categoryId: string | null;
   subcategory: string;
-}
-
-interface Category {
-  id: string;
-  name_en: string;
 }
 
 interface ProfileDetailsModalProps {
@@ -26,23 +32,7 @@ export default function ProfileDetailsModal({ initialValues, onCancel, onSave, s
   const [name, setName] = useState(initialValues.name);
   const [categoryId, setCategoryId] = useState(initialValues.categoryId ?? '');
   const [subcategory, setSubcategory] = useState(initialValues.subcategory);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [nameError, setNameError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const supabase = createClient();
-    supabase
-      .from('machine_profile_categories')
-      .select('id, name_en')
-      .eq('is_public', true)
-      .eq('is_active', true)
-      .order('name_en')
-      .then(({ data }) => {
-        setCategories((data ?? []) as Category[]);
-        setCategoriesLoading(false);
-      });
-  }, []);
 
   const handleSave = () => {
     if (!name.trim()) {
@@ -83,13 +73,12 @@ export default function ProfileDetailsModal({ initialValues, onCancel, onSave, s
               id="pd-category"
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
-              disabled={categoriesLoading}
-              className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 font-body text-sm text-afs-chrome-high focus:outline-none focus:border-afs-crimson transition-colors disabled:opacity-50"
+              className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 font-body text-sm text-afs-chrome-high focus:outline-none focus:border-afs-crimson transition-colors"
             >
-              <option value="">{categoriesLoading ? 'Loading…' : 'None'}</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name_en}
+              <option value="">None</option>
+              {AFS_PROFILE_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
                 </option>
               ))}
             </select>

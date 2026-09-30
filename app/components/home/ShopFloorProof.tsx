@@ -13,9 +13,10 @@ import RevealOnScroll from './RevealOnScroll';
 // - "Custom Profiles" (not a profile count): the 25-entry canonical_profiles
 //   catalog (SCHEMA.md's CANONICAL PROFILE LIBRARY TABLE) is a starter
 //   library, not a ceiling -- FlashDraft draws any custom geometry, so
-//   leading with a specific number undersold that. The private
-//   machine_profiles shop job history (911 profiles, only 70 public) is
-//   real customer project data and still not for site copy either way.
+//   leading with a specific number undersold that. (The old imported
+//   shop-job-history profile library was removed in Command Center V2
+//   prompt v2-01; it was real customer project data and was never for site
+//   copy either way.)
 // - Nationwide delivery: lib/chatbot/knowledge/afs-company.ts's
 //   company-service-area entry -- "ships nationwide within North America."
 const STATS = [

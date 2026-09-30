@@ -10,7 +10,7 @@ migrations/
   001_initial_schema.sql              All 36 tables, RLS policies, FK indexes
   002_seed_afs_data.sql               Materials, gauges, product_profiles reference data
   003_pricing_rules_cost_notes.sql    Adds pricing_rules.cost_notes (manual pricing mode)
-  004_machine_profiles.sql            Thalmann DS2801 machine profile library (Design Studio)
+  004_machine_profiles.sql            Old Thalmann machine profile library - DROPPED AGAIN by 031
   005_machine_jobs.sql                Machine Bridge job approval queue (Command Center)
   006_canonical_profiles.sql          Canonical profile library — hand-crafted profile geometry (Design Studio)
   007_delivery_tracking.sql           Delivery tracking map, Employee PWA, GBP photo queue
@@ -19,6 +19,8 @@ migrations/
   010_bid_monitor.sql                  Bid Monitor — sources/projects/keywords/alerts
   011_orders_quote_id_unique.sql       Adds UNIQUE(orders.quote_id) — real double-insert guard for createOrderFromQuote()
   012_machine_jobs_fallback_geometry.sql  Adds machine_jobs.used_fallback_geometry — visible flag for the approve-quote-request route's placeholder-dimension fallback
+  030_command_center_v2_clean_slate.sql  Command Center V2 clean slate (job data wipe)
+  031_drop_machine_profile_library.sql   Drops the old 911-entry machine profile library
   013_bid_documents.sql                Bid Documents — bid_documents/bid_document_sections/bid_document_line_items/bid_document_viewers (project-level GC bid pricing, Command Center "Bids" tab)
 ```
 
@@ -34,7 +36,9 @@ re-running against a database that already has the schema will error on
 3. Paste the contents of `001_initial_schema.sql`, run it
 4. Paste the contents of `002_seed_afs_data.sql`, run it
 5. Paste the contents of `003_pricing_rules_cost_notes.sql`, run it
-6. Paste the contents of `004_machine_profiles.sql`, run it
+6. Paste the contents of `004_machine_profiles.sql`, run it - then note that
+   `031_drop_machine_profile_library.sql` drops everything it creates. On a
+   fresh database you can simply skip both.
 7. Paste the contents of `005_machine_jobs.sql`, run it
 8. Paste the contents of `006_canonical_profiles.sql`, run it
 9. Paste the contents of `007_delivery_tracking.sql`, run it
@@ -50,46 +54,43 @@ re-running against a database that already has the schema will error on
     is confirmed to accept `'operator'`, and the operator accounts are created
     (see SPEC_DELIVERY_TRACKING_AND_EMPLOYEE_PWA.md §10).
 
-## 004_machine_profiles.sql — Design Studio machine profile library
+## 004_machine_profiles.sql -- REVERSED by 031 (do not repopulate)
 
-This migration was **not** run automatically — paste it into the SQL Editor
-yourself per Option A step 6 above, or apply it via `supabase db push` (Option
-B) once you've reviewed it. It adds three tables (`machine_profile_categories`,
-`machine_profiles`, `machine_profile_bends`) that back the Design Studio /
-FlashDraft profile-matching feature.
+004 created `machine_profile_categories`, `machine_profiles` and
+`machine_profile_bends`, and an importer filled them with 46 categories, 911
+profiles and 4,537 bend steps read out of the OLD Thalmann DS2801's own
+job-history database.
 
-After running it, populate the tables from the Thalmann DS2801 bending
-machine's own database:
+**All three tables were dropped by `031_drop_machine_profile_library.sql`
+(Command Center V2, 2026-09-30), and the importer scripts were deleted.** Two
+reasons, both decisive: the bend geometry was AI-read from a legacy database
+and was never geometrically validated, so matching a customer's drawing
+against it produced confident-looking nonsense; and most profile names are
+real customer, hospital and project names, which is not catalog content. See
+`docs/COMMAND_CENTER_V2_SPEC.md` section 2.8.
 
-```powershell
-pnpm run import:machine-profiles
-```
+The raw source files are archived OUTSIDE this repo, under
+`Documents/afs-assets/old-machine-files/` (verified byte-for-byte by size and
+sha256), together with JSON + restore-SQL dumps of all three tables. They are
+the only copies of that machine's database.
 
-This reads `machine-data/ds2801db.bdb` (a Microsoft Jet/Access database — the
-script uses the `mdb-reader` npm package rather than the system `mdbtools`
-CLI, since this repo's dev environment has no apt-get/mdbtools available),
-translates German category and profile names to English trade terminology,
-and upserts everything via the Supabase service role client (`.env.local`
-must have `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` set — the
-script loads `.env.local` itself, no extra flags needed). It's safe to re-run;
-every table has a natural-key unique constraint the script upserts against.
+`lib/data/removed-machine-library.test.ts` is a static test that fails if any
+source file references those tables, the deleted modules, or the deleted
+local machine-data folder. Do not add a query back and do not relax that test.
 
-**Read before running:** the source database is the shop's actual job
-history, not a clean generic catalog — most category and profile names are
-real customer/project names. Only categories 23 (Rheinzink-Profile) and 42-61
-(the numbered "00"-"19" series) are imported as `is_public = true`; everything
-else is imported `is_public = false` for admin/internal reference only. Within
-those public categories, any individual profile whose name doesn't resolve to
-a recognized generic term is also forced private as a safety net. See the
-comments at the top of `scripts/import-machine-profiles.ts` and the
-`004_machine_profiles.sql` migration for the full reasoning.
+Two things that sound similar and are deliberately kept:
+`shop_profile_library` (real send history to the CURRENT Thalmann, including
+`pathfinder_profile_id`) and `canonical_profiles` (the hand-authored starter
+library).
 
 ## 005_machine_jobs.sql — Machine Bridge job approval queue
 
 Also **not** run automatically — paste it into the SQL Editor per Option A
 step 7. Adds `machine_jobs` (the Command Center's approval queue, linking an
-order/quote request to either a `machine_profiles` library entry or a custom
-FlashDraft bend sequence) and `machine_bridge_status` (a one-row table the
+order/quote request to a FlashDraft bend sequence via `custom_bends`. It also
+had a `machine_profile_id` column pointing at the old machine profile library;
+migration 031 dropped that column, which was NULL on every row that ever
+existed) and `machine_bridge_status` (a one-row table the
 bridge pings so the Command Center can show a connection dot). Also relaxes
 `admin_audit_log.admin_id` to nullable, since the Machine Bridge's automated
 `job-delivered` report has no logged-in admin session to attribute its audit
@@ -109,11 +110,12 @@ real Thalmann machine.
 ## 006_canonical_profiles.sql — Canonical profile library
 
 Also **not** run automatically — paste it into the SQL Editor per Option A
-step 8. Adds `canonical_profiles`: a second, independent profile source
-alongside `machine_profiles` — hand-crafted, mathematically correct
+step 8. Adds `canonical_profiles`: hand-crafted, mathematically correct
 flashing profiles stored as pre-computed XY point sequences (`points`
-JSONB), plus a companion `bends` JSONB column for display/provenance. Unlike
-`machine_profiles`, there's no bend-angle reconstruction at read time and
+JSONB), plus a companion `bends` JSONB column for display/provenance. It
+began as a second profile source alongside the old imported machine
+library and, since migration 031 dropped that library, is now the only
+profile library. There's no bend-angle reconstruction at read time and
 no private-row concept — this is curated reference geometry, not shop job
 history, so RLS is a simple `public_read_canonical` (any active row,
 open to anyone) plus `admin_write_canonical` (via the existing `is_admin()`

@@ -17,8 +17,7 @@
  *
  * Unit-agnostic: leg lengths only scale the result linearly and heading
  * changes never depend on their magnitude, so any consistent unit works.
- * `legIn`/`nextLegIn` reflect FlashDraft's own inch-native call site (see
- * app/api/studio/match-profile/route.ts's own comment on that convention),
+ * `legIn`/`nextLegIn` reflect FlashDraft's own inch-native call sites,
  * not a hard requirement — the two mm-based call sites
  * (BendSequenceDiagram, ProfileViewer3D) pass mm values straight through
  * unconverted and get mm-unit points back, which is what preserves their

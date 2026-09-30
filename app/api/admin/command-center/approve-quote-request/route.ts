@@ -188,8 +188,7 @@ function bendAngleFromPoints(prev: FlashDraftPoint, curr: FlashDraftPoint, next:
 
 // Real per-bend geometry from FlashDraft's drawn points, converted from
 // world inches to mm. One CustomBend per interior point (points[1] ..
-// points[length-2]), matching machine_profile_bends' one-row-per-bend
-// convention. bendRadiiIn is indexed exactly how FlashDraft itself builds
+// points[length-2]), one row per bend. bendRadiiIn is indexed exactly how FlashDraft itself builds
 // it in page.tsx's submitQuoteRequest (bendRadiiIn[0] is points[1]'s
 // radius, etc.) — missing entries default to 0 (obviously wrong to a human
 // reviewer) rather than guessing a plausible-looking radius.

@@ -6,7 +6,6 @@ interface MachineJobRow {
   id: string;
   order_id: string | null;
   quote_request_id: string | null;
-  machine_profile_id: string | null;
   custom_bends: BendShape[] | null;
   profile_name: string;
   material: string | null;
@@ -21,14 +20,6 @@ interface BendShape {
   rightLegMm: number | null;
   bendAngleDegrees: number | null;
   radiusMm: number | null;
-}
-
-interface MachineProfileBendRow {
-  profile_id: string;
-  left_leg_mm: number | null;
-  right_leg_mm: number | null;
-  bend_angle_degrees: number | null;
-  radius_mm: number | null;
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -48,7 +39,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const { data: jobs, error: jobsError } = await supabase
     .from('machine_jobs')
     .select(
-      'id, order_id, quote_request_id, machine_profile_id, custom_bends, profile_name, material, gauge, quantity, blank_width_mm, notes'
+      'id, order_id, quote_request_id, custom_bends, profile_name, material, gauge, quantity, blank_width_mm, notes'
     )
     // delivery_method = 'machine_bridge' as well as the status check — a
     // job explicitly routed to PathfinderEdge (delivery_method =
@@ -65,7 +56,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ jobs: [] });
   }
 
-  const [{ data: quoteRequests }, { data: orders }, { data: bendRows }] = await Promise.all([
+  const [{ data: quoteRequests }, { data: orders }] = await Promise.all([
     supabase
       .from('quote_requests')
       .select('id, request_number')
@@ -74,11 +65,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       .from('orders')
       .select('id, order_number')
       .in('id', jobRows.map((j) => j.order_id).filter((v): v is string => !!v)),
-    supabase
-      .from('machine_profile_bends')
-      .select('profile_id, left_leg_mm, right_leg_mm, bend_angle_degrees, radius_mm')
-      .in('profile_id', jobRows.map((j) => j.machine_profile_id).filter((v): v is string => !!v))
-      .order('step_number', { ascending: true }),
   ]);
 
   const requestNumberByQuoteRequest = new Map<string, string>();
@@ -89,18 +75,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   for (const o of (orders ?? []) as { id: string; order_number: string }[]) {
     orderNumberByOrder.set(o.id, o.order_number);
   }
-  const bendsByProfile = new Map<string, BendShape[]>();
-  for (const row of (bendRows ?? []) as MachineProfileBendRow[]) {
-    const list = bendsByProfile.get(row.profile_id) ?? [];
-    list.push({
-      leftLegMm: row.left_leg_mm,
-      rightLegMm: row.right_leg_mm,
-      bendAngleDegrees: row.bend_angle_degrees,
-      radiusMm: row.radius_mm,
-    });
-    bendsByProfile.set(row.profile_id, list);
-  }
-
   const response = jobRows.map((job) => ({
     id: job.id,
     requestNumber:
@@ -112,7 +86,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     gauge: job.gauge,
     quantity: job.quantity,
     blankWidthMm: job.blank_width_mm,
-    bends: job.machine_profile_id ? bendsByProfile.get(job.machine_profile_id) ?? [] : job.custom_bends ?? [],
+    // custom_bends is the only bend source now — the old 911-entry machine
+    // profile library it could alternatively match against was removed in
+    // Command Center V2 prompt v2-01.
+    bends: job.custom_bends ?? [],
     notes: job.notes,
   }));
 

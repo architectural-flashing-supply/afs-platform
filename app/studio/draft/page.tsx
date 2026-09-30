@@ -25,14 +25,11 @@ import {
   renderShopSnapshotDataUri,
   LIVE_CANVAS_LABEL_STYLE,
 } from '@/lib/flashdraft/draw-profile-scene';
-import BendSequenceDiagram from '@/components/studio/BendSequenceDiagram';
 import SubmitConfirmation3DModal, { type PaintFace } from '@/components/studio/SubmitConfirmation3DModal';
-import MatchedProfile3DModal from '@/components/studio/MatchedProfile3DModal';
 import { isPaintedMaterial, resolveSelectedPaintColor, BARE_METAL_COLOR } from '@/lib/utils/paint-appearance';
 import ProfileDetailsModal, { type ProfileDetailsFormValues } from '@/components/studio/ProfileDetailsModal';
 import VariantPicker from '@/components/studio/VariantPicker';
 import Toast from '@/components/ui/Toast';
-import type { ProfileMatch, DiagramBend } from '@/app/api/studio/match-profile/route';
 import {
   type HemType,
   type Hem,
@@ -241,8 +238,6 @@ const PIXELS_PER_INCH = 20;
 const CANVAS_MIN_WIDTH = 600;
 const CANVAS_MIN_HEIGHT = 440;
 const HIT_RADIUS_PX = 10;
-const MATCH_DEBOUNCE_MS = 500;
-const MATCH_SPLIT_THRESHOLD = 70;
 
 const MIN_BEND_RADIUS_IN = 0.125;
 const MAX_BEND_RADIUS_IN = 4;
@@ -1035,8 +1030,6 @@ export default function FlashDraftPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
-  const [showMatched3DView, setShowMatched3DView] = useState(false);
-  const [splitDismissed, setSplitDismissed] = useState(false);
 
   const [canvasSize, setCanvasSize] = useState({ width: CANVAS_MIN_WIDTH, height: CANVAS_MIN_HEIGHT });
 
@@ -1186,11 +1179,6 @@ export default function FlashDraftPage() {
   // dismissing the box doesn't fight with the drawer's own open/close state.
   const [profileBoxCollapsed, setProfileBoxCollapsed] = useState(false);
 
-  const [matches, setMatches] = useState<ProfileMatch[]>([]);
-  const [matchLoading, setMatchLoading] = useState(false);
-  const [topMatchDiagramBends, setTopMatchDiagramBends] = useState<DiagramBend[] | null>(null);
-  const lastTopMatchIdRef = useRef<string | null>(null);
-
   const [viewerBends, setViewerBends] = useState<ProfileBend[]>(PLACEHOLDER_COPING_CAP_BENDS);
   const [viewerBlankWidthMm, setViewerBlankWidthMm] = useState(PLACEHOLDER_BLANK_WIDTH_MM);
 
@@ -1240,9 +1228,9 @@ export default function FlashDraftPage() {
   const lengthFtDecimal = (Number(lengthFeet) || 0) + (Number(lengthInches) || 0) / 12;
   const thicknessIn = gaugeToThicknessMm(gauge) / MM_PER_INCH;
 
-  // Autosave restore — runs once on mount, before the loadProfile/loadCanonical
+  // Autosave restore — runs once on mount, before the loadCanonical
   // handoff effect below, so an explicit "Load into FlashDraft" (from the
-  // machine library, Saved Profiles, or the canonical-profile handoff) always
+  // Profile Library, Saved Profiles, or the canonical-profile handoff) always
   // overwrites whatever this restores, exactly as it would overwrite anything
   // else already on the canvas.
   useEffect(() => {
@@ -1682,54 +1670,6 @@ export default function FlashDraftPage() {
     paintFace,
     resolvedPaintColor,
   ]);
-
-  // --- Debounced profile matching ---
-  useEffect(() => {
-    if (points.length < 3) {
-      setMatches([]);
-      setTopMatchDiagramBends(null);
-      return;
-    }
-    const handle = setTimeout(async () => {
-      setMatchLoading(true);
-      try {
-        const bends = [];
-        let blankWidth = 0;
-        for (let i = 1; i < points.length - 1; i++) {
-          bends.push({
-            angle: bendAngleAt(points[i - 1], points[i], points[i + 1]),
-            leftLeg: dist(points[i - 1], points[i]),
-            rightLeg: dist(points[i], points[i + 1]),
-          });
-        }
-        for (let i = 0; i < points.length - 1; i++) {
-          blankWidth += dist(points[i], points[i + 1]);
-        }
-        blankWidth += hemAllowanceIn(hemStart, thicknessIn) + hemAllowanceIn(hemEnd, thicknessIn);
-        const res = await fetch('/api/studio/match-profile', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ bends, blankWidth }),
-        });
-        if (res.ok) {
-          const data = (await res.json()) as { matches: ProfileMatch[]; topMatchDiagramBends: DiagramBend[] | null };
-          const nextMatches = data.matches ?? [];
-          setMatches(nextMatches);
-          setTopMatchDiagramBends(data.topMatchDiagramBends ?? null);
-          const nextTopId = nextMatches[0]?.profileId ?? null;
-          if (nextTopId !== lastTopMatchIdRef.current) {
-            lastTopMatchIdRef.current = nextTopId;
-            setSplitDismissed(false);
-          }
-        }
-      } catch {
-        // Non-critical — matching is a helper panel, not a required step.
-      } finally {
-        setMatchLoading(false);
-      }
-    }, MATCH_DEBOUNCE_MS);
-    return () => clearTimeout(handle);
-  }, [points, hemStart, hemEnd, thicknessIn]);
 
   // --- Debounced 3D-confirmation-modal sync (mirrors the profile-match bend shape, in mm) ---
   useEffect(() => {
@@ -2633,8 +2573,6 @@ export default function FlashDraftPage() {
     setIsLocked(false);
     setJustLocked(false);
     commitPoints([]);
-    setMatches([]);
-    setTopMatchDiagramBends(null);
     setHemStart(null);
     setHemEnd(null);
     setProfileName('Untitled Profile');
@@ -2737,9 +2675,9 @@ export default function FlashDraftPage() {
         is_locked: isLockedNow,
         thumbnail_image: thumbnailImage,
         // Plain display-only labels (024_profile_passport_company_scope.sql)
-        // — deliberately separate from dimensions.categoryId, a real FK into
-        // machine_profile_categories.id (see ProfileDetailsModal.tsx), which
-        // stays whatever the user actually picked there. Only the
+        // — deliberately separate from dimensions.categoryId, which holds a
+        // value from the curated AFS_PROFILE_CATEGORIES vocabulary (see
+        // ProfileDetailsModal.tsx) and stays whatever the user picked. Only the
         // zero-friction lock flow (afs-pp-001's own literal "Category (from
         // Job Info or 'General')" spec) ever sets these -- Job Info has no
         // category/subcategory concept of its own, so this is always just
@@ -2854,9 +2792,9 @@ export default function FlashDraftPage() {
   // Info has no category concept of its own (Business Name/Client Name/PO
   // Number/Job Name/Requested Delivery Date only), so `categoryId` is left
   // as whatever it already is (usually null) rather than writing the
-  // spec's literal "General" into it -- categoryId is a real FK-shaped
-  // reference into machine_profile_categories.id (see
-  // ProfileDetailsModal.tsx), not a free-text label, and it has no visible
+  // spec's literal "General" into it -- categoryId comes from the curated
+  // AFS_PROFILE_CATEGORIES vocabulary (see ProfileDetailsModal.tsx), not
+  // free text, and it has no visible
   // consumer in this phase's Profiles tab (Name/Date Created/Job Name/
   // Actions) to justify inventing a fake category row for it to point at.
   // subcategory IS free text, so "Custom" applies there exactly as spec'd.
@@ -2958,8 +2896,6 @@ export default function FlashDraftPage() {
   const clearCanvas = () => {
     if (isLocked) return;
     commitPoints([]);
-    setMatches([]);
-    setTopMatchDiagramBends(null);
     setHemStart(null);
     setHemEnd(null);
     try {
@@ -3079,49 +3015,6 @@ export default function FlashDraftPage() {
     setShowSavedProfiles(false);
   };
 
-  const loadFromLibrary = useCallback(async (profileId: string) => {
-    const res = await fetch(`/api/studio/load-profile/${profileId}`);
-    let bends: {
-      step_number: number;
-      left_leg_in: number | null;
-      right_leg_in: number | null;
-      bend_angle_degrees: number | null;
-    }[] = [];
-    if (res.ok) {
-      const data = (await res.json()) as {
-        bends: {
-          step_number: number;
-          left_leg_in: number | null;
-          right_leg_in: number | null;
-          bend_angle_degrees: number | null;
-        }[];
-      };
-      bends = data.bends ?? [];
-    }
-
-    // Best-effort geometry reconstruction: the source machine data records
-    // each bend's two adjacent leg lengths and included angle, not an
-    // explicit direction/connectivity graph, so this "turtle graphics" walk
-    // (draw the left leg, turn by the supplementary bend angle, repeat) is
-    // an approximation of the true folded shape, not an exact CAD trace.
-    // Centralized in lib/flashdraft/geometry.ts's computeProfilePoints —
-    // see GEOMETRY_AUDIT.md — shared with BendSequenceDiagram and
-    // ProfileViewer3D's identical reconstructions.
-    const { points: reconstructed } = computeProfilePoints(
-      bends.map((bend) => ({
-        legIn: bend.left_leg_in,
-        nextLegIn: bend.right_leg_in,
-        bendAngleDegrees: bend.bend_angle_degrees,
-      }))
-    );
-
-    setPast((p) => [...p, { points, hemStart, hemEnd }]);
-    setFuture([]);
-    setPoints(reconstructed);
-    setSelectedSegment(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // Canonical Profile Library's "Load into FlashDraft" hands off the
   // already-final `points` array via localStorage (see
   // components/studio/CanonicalProfileBrowser.tsx) rather than a profile id
@@ -3153,8 +3046,8 @@ export default function FlashDraftPage() {
   // before navigating here with ?admin=1&loadJob=<jobId> — same handoff
   // pattern as loadCanonicalFromHandoff above, chosen over a new API route
   // since the card already has the full job (including bends) as a prop.
-  // Same "turtle graphics" bends->points reconstruction loadFromLibrary and
-  // BendSequenceDiagram use, via the shared computeProfilePoints.
+  // Same "turtle graphics" bends->points reconstruction BendSequenceDiagram
+  // uses, via the shared computeProfilePoints.
   const loadFromAdminJobHandoff = useCallback(() => {
     let payload: AdminJobHandoffPayload | null = null;
     try {
@@ -3169,8 +3062,8 @@ export default function FlashDraftPage() {
     // machine_jobs bends are stored in millimeters (see MachineJobBend /
     // CommandCenterJobCard.tsx's own mmToIn), but computeProfilePoints's
     // legIn/nextLegIn feed directly into FlashDraft's points state, which
-    // is inches-denominated throughout this canvas (loadFromLibrary's
-    // source data is already in inches, hence no conversion there) — verified
+    // is inches-denominated throughout this canvas (canonical-profile
+    // geometry is already in inches, hence no conversion there) — verified
     // by the mm values otherwise landing as a wildly oversized "Blank
     // Width" (e.g. a 100mm leg read as 100", not 3.94") during this
     // feature's own verification pass.
@@ -3294,8 +3187,9 @@ export default function FlashDraftPage() {
   }, []);
 
   // Part 4 integration: /studio/library's "Load into FlashDraft" button
-  // links here with ?loadProfile=<id> (machine profiles) or ?loadCanonical=1
-  // (canonical profiles) — load it once on mount. /app/profile-passport's
+  // links here with ?loadCanonical=1 — load it once on mount. The old
+  // ?loadProfile=<id> branch pointed at the 911 AI-read machine library,
+  // removed in Command Center V2 prompt v2-01. /app/profile-passport's
   // Profiles tab (Phase 3, afs-pp-001) does the same with ?loadPassport=<id>
   // for the user's own saved_configurations rows. Read via
   // window.location.search (not next/navigation's useSearchParams) so this
@@ -3309,8 +3203,6 @@ export default function FlashDraftPage() {
   // ADMIN_JOB_HANDOFF_KEY.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const loadId = params.get('loadProfile');
-    if (loadId) loadFromLibrary(loadId);
     if (params.get('loadCanonical')) loadCanonicalFromHandoff();
     const passportId = params.get('loadPassport');
     if (passportId) loadFromPassportById(passportId);
@@ -3607,17 +3499,6 @@ export default function FlashDraftPage() {
   blankWidthInLive += hemAllowanceIn(hemStart, thicknessIn) + hemAllowanceIn(hemEnd, thicknessIn);
   const bendCountLive = Math.max(0, points.length - 2);
   const hemCountLive = (hemStart ? 1 : 0) + (hemEnd ? 1 : 0);
-
-  // Part 6 — split-screen match panel + its "View in 3D" target geometry.
-  const showSplit = !splitDismissed && matches.length > 0 && matches[0].score >= MATCH_SPLIT_THRESHOLD;
-  const matchedProfileBends: ProfileBend[] = (topMatchDiagramBends ?? []).map((b) => ({
-    leftLeg: b.leftLegMm ?? 0,
-    rightLeg: b.rightLegMm ?? 0,
-    angle: b.bendAngleDegrees ?? 180,
-    radius: b.radiusMm ?? 0,
-  }));
-  const matchedProfileBlankWidthMm =
-    matchedProfileBends.reduce((s, b) => s + b.leftLeg, 0) + (matchedProfileBends[matchedProfileBends.length - 1]?.rightLeg ?? 0);
 
   if (submitState === 'submitted') {
     return (
@@ -4015,13 +3896,6 @@ export default function FlashDraftPage() {
             />
           </div>
 
-          {/* Profile Match sidebar list removed (afs-fl-028) -- the
-              underlying matches/matchLoading/topMatchDiagramBends state and
-              fetch effect are UNCHANGED and still deliberately kept: they
-              also power the separate "Part 6" split-screen exact-match 3D
-              view (showSplit/MatchedProfile3DModal below), which this task
-              didn't ask to remove. Only this sidebar list is gone. */}
-
           {submitError && <p className="font-body text-sm text-afs-crimson">{submitError}</p>}
           {draftSavedNotice && <p className="font-body text-sm text-afs-success">Draft saved to this browser.</p>}
 
@@ -4151,7 +4025,7 @@ export default function FlashDraftPage() {
             <div
               ref={canvasWrapRef}
               className="relative min-h-0 overflow-hidden transition-[flex-basis] duration-300 ease-in-out"
-              style={{ flexBasis: showSplit ? '60%' : '100%', flexGrow: 0, flexShrink: 0, minWidth: 0 }}
+              style={{ flexBasis: '100%', flexGrow: 0, flexShrink: 0, minWidth: 0 }}
             >
               {viewMode === '3d' && (
                 <div className="absolute inset-0">
@@ -4568,67 +4442,6 @@ export default function FlashDraftPage() {
               />
             </div>
 
-            {/* PART 6 — split-screen matched-profile panel, always mounted
-                so the flex-basis/opacity change transitions smoothly. */}
-            <div
-              className="min-h-0 overflow-hidden transition-[flex-basis,opacity] duration-300 ease-in-out border-l border-afs-chrome-dim flex flex-col"
-              style={{ flexBasis: showSplit ? '40%' : '0%', opacity: showSplit ? 1 : 0, flexGrow: 0, flexShrink: 0 }}
-            >
-              {matches[0] && (
-                <div className="p-4 flex flex-col gap-3 overflow-y-auto h-full w-full">
-                  <div className="flex items-center justify-between">
-                    <p className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid">Machine Library Match</p>
-                    <button
-                      type="button"
-                      onClick={() => setSplitDismissed(true)}
-                      className="text-afs-chrome-dim hover:text-afs-crimson text-sm leading-none"
-                      aria-label="Dismiss match"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                  <h3 className="font-heading text-xl font-bold text-afs-chrome-high">{matches[0].nameEn}</h3>
-                  {topMatchDiagramBends && <BendSequenceDiagram bends={topMatchDiagramBends} />}
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-data text-sm font-semibold text-afs-chrome-high">{matches[0].score.toFixed(0)}% match</span>
-                    </div>
-                    <div className="h-1.5 bg-afs-bg-dim rounded-full overflow-hidden">
-                      <div
-                        className={`h-full ${
-                          matches[0].score >= 90 ? 'bg-afs-accent-green' : matches[0].score >= 70 ? 'bg-afs-amber' : 'bg-afs-crimson'
-                        }`}
-                        style={{ width: `${Math.min(100, matches[0].score)}%` }}
-                      />
-                    </div>
-                  </div>
-                  {matches[0].isExactMatch && (
-                    <p className="font-label text-xs font-bold text-afs-accent-green uppercase tracking-wide">
-                      EXACT MATCH — Machine program ready
-                    </p>
-                  )}
-                  <p className="font-body text-xs text-afs-chrome-dim">
-                    Fabricated {matches[0].fabricatedCount} time{matches[0].fabricatedCount === 1 ? '' : 's'} in shop history
-                  </p>
-                  <div className="flex flex-col gap-2 mt-auto">
-                    <button
-                      type="button"
-                      onClick={() => setShowMatched3DView(true)}
-                      className="bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label text-xs font-semibold px-3 py-2 rounded transition-colors"
-                    >
-                      → View in 3D
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSplitDismissed(true)}
-                      className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label text-xs font-semibold px-3 py-2 rounded transition-colors"
-                    >
-                      ✕ Dismiss
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
         </div>
       </div>
@@ -4714,20 +4527,6 @@ export default function FlashDraftPage() {
         onCancel={() => setShow3DConfirm(false)}
         onConfirm={handle3DConfirmed}
       />
-
-      {/* PART 6 — [→ View in 3D] on the split-screen match panel */}
-      {showMatched3DView && matches[0] && (
-        <MatchedProfile3DModal
-          profileName={matches[0].nameEn}
-          bends={matchedProfileBends}
-          blankWidthMm={matchedProfileBlankWidthMm}
-          material={material || 'Galvanized Steel'}
-          gauge={gauge || GAUGES_BY_MATERIAL['Galvanized Steel']?.[1] || '24 ga'}
-          thicknessMm={gaugeToThicknessMm(gauge || GAUGES_BY_MATERIAL['Galvanized Steel']?.[1])}
-          color={color}
-          onClose={() => setShowMatched3DView(false)}
-        />
-      )}
 
       {/* PART 1 — [New] confirmation dialog */}
       {showNewConfirm && (

@@ -121,9 +121,8 @@ export interface JobStatus extends PathfinderResult {
   state: 'unknown';
 }
 
-// mm -> inches, matching scripts/import-machine-profiles.ts's own mmToIn
-// convention (round to 4 decimal places rather than leaving raw floating-
-// point noise in an outbound request body).
+// mm -> inches: round to 4 decimal places rather than leaving raw
+// floating-point noise in an outbound request body.
 const MM_PER_INCH = 25.4;
 function mmToIn(mm: number): number {
   return Math.round((mm / MM_PER_INCH) * 10000) / 10000;

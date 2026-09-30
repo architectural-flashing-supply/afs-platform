@@ -12,7 +12,6 @@ interface MachineJobRow {
   id: string;
   status: string;
   profile_name: string;
-  machine_profile_id: string | null;
   custom_bends: MachineProfileBend[] | null;
   blank_width_mm: number | null;
   delivery_method: 'pathfinder_edge' | 'machine_bridge';
@@ -41,7 +40,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const { data: job, error: jobError } = await supabase
       .from('machine_jobs')
-      .select('id, status, profile_name, machine_profile_id, custom_bends, blank_width_mm, delivery_method')
+      .select('id, status, profile_name, custom_bends, blank_width_mm, delivery_method')
       .eq('id', jobId)
       .maybeSingle();
     if (jobError || !job) {
@@ -64,36 +63,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // machine_profile_id set -> a real library match, bends live in
-    // machine_profile_bends (step-ordered). Otherwise fall back to the
-    // job's own custom_bends (FlashDraft-drawn geometry) — same
-    // precedence lib/data/machine-jobs.ts's getMachineJobs already uses.
-    let bends: MachineProfileBend[];
-    if (jobRow.machine_profile_id) {
-      const { data: bendRows, error: bendsError } = await supabase
-        .from('machine_profile_bends')
-        .select('step_number, left_leg_mm, right_leg_mm, bend_angle_degrees, radius_mm')
-        .eq('profile_id', jobRow.machine_profile_id)
-        .order('step_number', { ascending: true });
-      if (bendsError) {
-        return NextResponse.json({ error: 'Could not load profile bend data.' }, { status: 500 });
-      }
-      bends = (bendRows ?? []).map((b) => ({
-        stepNumber: (b as { step_number: number }).step_number,
-        leftLegMm: (b as { left_leg_mm: number | null }).left_leg_mm,
-        rightLegMm: (b as { right_leg_mm: number | null }).right_leg_mm,
-        bendAngleDegrees: (b as { bend_angle_degrees: number | null }).bend_angle_degrees,
-        radiusMm: (b as { radius_mm: number | null }).radius_mm,
-      }));
-    } else {
-      bends = (jobRow.custom_bends ?? []).map((b, i) => ({
-        stepNumber: i + 1,
-        leftLegMm: b.leftLegMm,
-        rightLegMm: b.rightLegMm,
-        bendAngleDegrees: b.bendAngleDegrees,
-        radiusMm: b.radiusMm,
-      }));
-    }
+    // The job's own custom_bends (FlashDraft-drawn geometry) is the only
+    // bend source. Until Command Center V2 prompt v2-01 there was a second
+    // branch that read a step-ordered bend sequence from the old 911-entry
+    // machine profile library when the job linked to one; that library and
+    // its link column are gone, and the link was NULL on every job row that
+    // ever existed, so this is the same geometry every real job already used.
+    const bends: MachineProfileBend[] = (jobRow.custom_bends ?? []).map((b, i) => ({
+      stepNumber: i + 1,
+      leftLegMm: b.leftLegMm,
+      rightLegMm: b.rightLegMm,
+      bendAngleDegrees: b.bendAngleDegrees,
+      radiusMm: b.radiusMm,
+    }));
 
     const machineProfile: MachineProfile = {
       id: jobRow.id,

@@ -61,9 +61,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       name: profileName,
       is_locked: false,
       // Plain display labels (024_profile_passport_company_scope.sql) — NOT
-      // the same thing as dimensions.categoryId below, which is a real FK
-      // into machine_profile_categories.id. body.category is caller-supplied
-      // free text here, so it never gets written into that FK field.
+      // the same thing as dimensions.categoryId below, which holds a value
+      // from the curated AFS_PROFILE_CATEGORIES vocabulary. body.category is
+      // caller-supplied free text here, so the two never mix.
       category: body?.category?.trim() || 'General',
       subcategory: body?.subcategory?.trim() || 'Custom',
       job_info: body?.job_info ?? null,

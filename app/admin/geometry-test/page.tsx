@@ -5,33 +5,44 @@ import { requireAdminUser } from '@/lib/admin/auth';
 import { computeProfilePoints, type ProfileGeometryPoint } from '@/lib/flashdraft/geometry';
 import BendSequenceDiagram from '@/components/studio/BendSequenceDiagram';
 
-// Internal validation tool only — see GEOMETRY_AUDIT.md. Not linked from
-// NavBar.tsx or AdminShell.tsx's nav sections; reachable only by typing the
-// URL directly. `noindex` since this renders real (admin-only, but still
-// real) shop profile data, same posture as every other /admin page.
+// DEVELOPER-ONLY internal validation tool — see GEOMETRY_AUDIT.md. Hidden
+// from every navigation surface (AdminTopBar.tsx, AdminShell.tsx, NavBar.tsx)
+// and reachable only by typing the URL, on top of the /admin/** admin-role
+// gate plus the page-local requireAdminUser check below. Command Center V2
+// prompt v2-01 confirmed that hidden-and-admin-gated posture deliberately.
+// `noindex` because it renders real shop geometry.
 export const metadata: Metadata = {
   title: 'Geometry Test | AFS Admin',
   robots: { index: false, follow: false },
 };
 
-interface ProfileRow {
+// Source of truth for this page was the old 911-entry machine profile
+// library, whose geometry was AI-read from a legacy database and never
+// validated — removed in Command Center V2 prompt v2-01
+// (docs/COMMAND_CENTER_V2_SPEC.md §2.8). It now validates against
+// `canonical_profiles`, the hand-authored starter library, which is a
+// strictly better fixture for this purpose: every row carries BOTH an
+// authored point list and an authored bend list, so the page can show
+// computeProfilePoints()'s output next to the points a human intended and
+// any drift is visible rather than inferred.
+interface CanonicalRow {
   id: string;
-  name_en: string;
-  profile_number: string;
+  name: string;
+  slug: string;
+  category: string;
   blank_width_in: number | null;
-  blank_width_mm: number | null;
+  points: ProfileGeometryPoint[] | null;
+  bends:
+    | {
+        leftLegIn: number | null;
+        rightLegIn: number | null;
+        angleDegrees: number | null;
+        direction?: 'up' | 'down';
+      }[]
+    | null;
 }
 
-interface BendRow {
-  profile_id: string;
-  step_number: number;
-  left_leg_mm: number | null;
-  right_leg_mm: number | null;
-  left_leg_in: number | null;
-  right_leg_in: number | null;
-  bend_angle_degrees: number | null;
-  radius_mm: number | null;
-}
+const MM_PER_INCH = 25.4;
 
 function formatNum(value: number | null, digits = 3): string {
   return value === null ? '—' : value.toFixed(digits);
@@ -48,40 +59,19 @@ export default async function GeometryTestPage() {
   const supabase = await createClient();
   await requireAdminUser(supabase);
 
-  // Service-role client — same admin-bypass pattern as
-  // app/studio/library/page.tsx (machine_profiles RLS requires
-  // auth.uid() IS NOT NULL even on is_public rows, and this page only
-  // needs read access, not a customer-facing visibility rule).
+  // Service-role client: canonical profiles are public reference geometry,
+  // and this page only needs read access, not a visibility rule.
   const admin = createAdminClient();
 
   const { data: profileRows } = await admin
-    .from('machine_profiles')
-    .select('id, name_en, profile_number, blank_width_in, blank_width_mm')
-    .eq('is_public', true)
+    .from('canonical_profiles')
+    .select('id, name, slug, category, blank_width_in, points, bends')
     .eq('is_active', true)
-    .order('name_en')
+    .order('sort_order', { ascending: true })
     .limit(20)
-    .returns<ProfileRow[]>();
+    .returns<CanonicalRow[]>();
 
   const profiles = profileRows ?? [];
-  const profileIds = profiles.map((p) => p.id);
-
-  const { data: bendRows } =
-    profileIds.length > 0
-      ? await admin
-          .from('machine_profile_bends')
-          .select('profile_id, step_number, left_leg_mm, right_leg_mm, left_leg_in, right_leg_in, bend_angle_degrees, radius_mm')
-          .in('profile_id', profileIds)
-          .order('step_number', { ascending: true })
-          .returns<BendRow[]>()
-      : { data: [] as BendRow[] };
-
-  const bendsByProfile = new Map<string, BendRow[]>();
-  for (const row of bendRows ?? []) {
-    const list = bendsByProfile.get(row.profile_id) ?? [];
-    list.push(row);
-    bendsByProfile.set(row.profile_id, list);
-  }
 
   return (
     <div>
@@ -89,46 +79,49 @@ export default async function GeometryTestPage() {
         <p className="font-label text-afs-crimson text-xs tracking-widest uppercase mb-2">Internal Validation</p>
         <h1 className="font-heading text-3xl text-afs-chrome-high">Geometry Test</h1>
         <p className="font-body text-sm text-afs-chrome-mid mt-1 max-w-3xl">
-          First {profiles.length} public machine profiles, rendered via BendSequenceDiagram alongside their raw bend
-          data and the exact points computed by <code>computeProfilePoints()</code> — for cross-checking the geometry
-          algorithm against real data. See GEOMETRY_AUDIT.md. Not linked from any nav.
+          First {profiles.length} canonical profiles, rendered via BendSequenceDiagram alongside their raw bend data,
+          the points <code>computeProfilePoints()</code> derives from those bends, and the authored points stored on
+          the row — so any drift between the two is visible side by side. See GEOMETRY_AUDIT.md. Developer tool, not
+          linked from any nav.
         </p>
       </div>
 
       {profiles.length === 0 ? (
-        <p className="font-body text-sm text-afs-chrome-dim">No public, active machine profiles found.</p>
+        <p className="font-body text-sm text-afs-chrome-dim">No active canonical profiles found.</p>
       ) : (
         <div className="space-y-8">
           {profiles.map((profile) => {
-            const bends = bendsByProfile.get(profile.id) ?? [];
+            const bends = profile.bends ?? [];
             const { points } = computeProfilePoints(
               bends.map((b) => ({
-                legIn: b.left_leg_in,
-                nextLegIn: b.right_leg_in,
-                bendAngleDegrees: b.bend_angle_degrees,
+                legIn: b.leftLegIn,
+                nextLegIn: b.rightLegIn,
+                bendAngleDegrees: b.angleDegrees,
               }))
             );
+            const authored = profile.points ?? [];
 
             return (
               <section key={profile.id} className="bg-afs-bg-raised border border-[var(--afs-border)] rounded p-6">
                 <div className="flex items-baseline justify-between flex-wrap gap-2 mb-4">
                   <h2 className="font-heading text-xl text-afs-chrome-high">
-                    {profile.name_en} <span className="font-data text-sm text-afs-chrome-dim">#{profile.profile_number}</span>
+                    {profile.name} <span className="font-data text-sm text-afs-chrome-dim">{profile.category}</span>
                   </h2>
                   <p className="font-data text-sm text-afs-chrome-mid">
-                    Blank width: {formatNum(profile.blank_width_in, 3)}&quot; / {formatNum(profile.blank_width_mm, 2)}mm
+                    Blank width: {formatNum(profile.blank_width_in, 3)}&quot; /{' '}
+                    {formatNum(profile.blank_width_in === null ? null : profile.blank_width_in * MM_PER_INCH, 2)}mm
                   </p>
                 </div>
 
-                <div className="grid md:grid-cols-3 gap-6">
+                <div className="grid md:grid-cols-4 gap-6">
                   <div>
                     <p className="font-label text-xs text-afs-chrome-dim uppercase tracking-wider mb-2">Diagram</p>
                     <BendSequenceDiagram
                       bends={bends.map((b) => ({
-                        leftLegMm: b.left_leg_mm,
-                        rightLegMm: b.right_leg_mm,
-                        bendAngleDegrees: b.bend_angle_degrees,
-                        radiusMm: b.radius_mm,
+                        leftLegMm: b.leftLegIn === null ? null : b.leftLegIn * MM_PER_INCH,
+                        rightLegMm: b.rightLegIn === null ? null : b.rightLegIn * MM_PER_INCH,
+                        bendAngleDegrees: b.angleDegrees,
+                        radiusMm: null,
                       }))}
                       className="w-full h-48 bg-afs-bg-dim rounded"
                     />
@@ -148,12 +141,12 @@ export default async function GeometryTestPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {bends.map((b) => (
-                          <tr key={b.step_number} className="border-b border-[var(--afs-border)]">
-                            <td className="py-1 pr-2">{b.step_number}</td>
-                            <td className="py-1 pr-2">{formatNum(b.left_leg_in)}</td>
-                            <td className="py-1 pr-2">{formatNum(b.right_leg_in)}</td>
-                            <td className="py-1 pr-2">{formatNum(b.bend_angle_degrees, 1)}</td>
+                        {bends.map((b, i) => (
+                          <tr key={i} className="border-b border-[var(--afs-border)]">
+                            <td className="py-1 pr-2">{i + 1}</td>
+                            <td className="py-1 pr-2">{formatNum(b.leftLegIn)}</td>
+                            <td className="py-1 pr-2">{formatNum(b.rightLegIn)}</td>
+                            <td className="py-1 pr-2">{formatNum(b.angleDegrees, 1)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -166,6 +159,15 @@ export default async function GeometryTestPage() {
                     </p>
                     <pre className="font-data text-xs text-afs-chrome-mid whitespace-pre-wrap bg-afs-bg-dim rounded p-2 max-h-48 overflow-auto">
                       {formatPoints(points)}
+                    </pre>
+                  </div>
+
+                  <div>
+                    <p className="font-label text-xs text-afs-chrome-dim uppercase tracking-wider mb-2">
+                      Authored points on the row (in)
+                    </p>
+                    <pre className="font-data text-xs text-afs-chrome-mid whitespace-pre-wrap bg-afs-bg-dim rounded p-2 max-h-48 overflow-auto">
+                      {authored.length === 0 ? '—' : formatPoints(authored)}
                     </pre>
                   </div>
                 </div>

@@ -1,9 +1,10 @@
 /**
  * Seeds canonical_profiles (006_canonical_profiles.sql) with 25 hand-crafted
- * flashing profiles. Unlike machine_profiles (imported from the Thalmann
- * DS2801's own job-history database, then approximately reconstructed into
- * a polyline at read time — see lib/flashdraft/geometry.ts), these profiles
- * are defined here as an explicit turtle-graphics walk and their exact
+ * flashing profiles. Unlike the old imported machine profile library
+ * (removed in Command Center V2 prompt v2-01 — its geometry came out of the
+ * old Thalmann's job-history database and was only ever approximately
+ * reconstructed into a polyline at read time, see lib/flashdraft/geometry.ts),
+ * these profiles are defined here as an explicit turtle-graphics walk and their exact
  * resulting points are computed once, at seed time, and stored as-is. There
  * is no reconstruction step downstream — `points` in the database IS the
  * final geometry.
