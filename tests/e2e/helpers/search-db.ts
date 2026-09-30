@@ -175,6 +175,34 @@ export async function deleteSearchFixtures(userId: string, sinceIso: string): Pr
   );
 }
 
+/**
+ * Deletes AUTO-NAMED Passport rows this run caused — the ones FlashDraft
+ * writes with `generateAutoProfileName()` when a drawing has no name of its
+ * own (`Profile-<ISO timestamp>`).
+ *
+ * WHY IT IS HERE AND NOT ONLY IN THE SEARCH SPEC. flashdraft.spec.ts's "Lock
+ * Profile & Save to Passport" test has written one of these on every run since
+ * it was gated on real credentials, and never deleted it — found live on
+ * 2026-09-30 when a v2-05 cleanup check showed `saved_configurations` holding
+ * exactly one row nobody had asked for. "Every row the tests create is
+ * deleted" was therefore not true of that spec, and a table nobody counts is
+ * exactly where that kind of claim rots.
+ *
+ * Scoped twice over: to the E2E user, and to rows created since the run
+ * started. A real customer's profile is never in range — a real customer is
+ * never the E2E account, and a real profile is not called `Profile-<ISO>`.
+ */
+export async function deleteAutoNamedProfiles(userId: string, sinceIso: string): Promise<number> {
+  const rows = await sql<{ id: string }>(
+    `delete from saved_configurations
+      where user_id = '${uuid(userId)}'
+        and created_at >= ${timestamp(sinceIso)}
+        and name like 'Profile-%'
+      returning id;`
+  );
+  return rows.length;
+}
+
 /** Rows this spec could still own. Must be 0 after cleanup. */
 export async function remainingSearchRows(
   userId: string,

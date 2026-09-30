@@ -1,4 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
+import { dbConfigured } from './helpers/db';
+import { deleteAutoNamedProfiles, findUserId } from './helpers/search-db';
 
 // app/studio/draft is a public page (no login required to draw or match a
 // profile — only the eventual quote submission needs auth/guest email).
@@ -45,6 +47,22 @@ test.describe('FlashDraft canvas', () => {
   // without credentials the whole block skipped. See STATE_OF_THE_BUILD.md's
   // lr-01 entry.
   test.use({ storageState: 'tests/e2e/.auth/user.json' });
+
+  /**
+   * The Lock & Save test below writes a REAL Passport row and, until 2026-09-30,
+   * never deleted it — one `Profile-<ISO timestamp>` row accumulated per run,
+   * found only when a v2-05 cleanup check counted `saved_configurations` and
+   * saw a row nobody had asked for. Scoped to the E2E user and to this run's
+   * own window; see deleteAutoNamedProfiles for why that cannot reach a real
+   * customer.
+   */
+  const specStartedAt = new Date().toISOString();
+  test.afterAll(async () => {
+    if (!dbConfigured()) return;
+    const userId = await findUserId(process.env.E2E_TEST_EMAIL!);
+    const removed = await deleteAutoNamedProfiles(userId, specStartedAt);
+    console.log(`CLEANUP flashdraft auto-named profiles deleted: ${removed}`);
+  });
 
   test('draws a two-leg profile, shows a nonzero blank width and bend count, and opens the 3D submit confirmation', async ({
     page,
