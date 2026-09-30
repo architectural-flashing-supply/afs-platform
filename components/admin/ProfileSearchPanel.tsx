@@ -275,6 +275,10 @@ export default function ProfileSearchPanel({
         intent.closeNow();
         focusItem(id);
         e.preventDefault();
+        // One press does one thing. When this panel is inside FlashDraft's
+        // drawer, the drawer also closes on Escape — so an Escape that
+        // closed the preview must not also close the drawer behind it.
+        e.stopPropagation();
       }
       return;
     }

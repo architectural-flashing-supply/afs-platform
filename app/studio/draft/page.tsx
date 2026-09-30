@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { ALL_MATERIALS, GAUGES_BY_MATERIAL, MATERIAL_SHORTHAND, normalizeMaterialLabel, gaugesForMaterial } from '@/lib/data/catalog';
 import { geometryFingerprint } from '@/lib/flashdraft/geometry-fingerprint';
+import { canvasSignature, hasUnsavedCanvasWork } from '@/lib/flashdraft/unsaved-work';
+import ProfileSearchPanel from '@/components/admin/ProfileSearchPanel';
 import {
   colorPaletteForMaterial,
   requiresFinishChoice,
@@ -1199,6 +1201,26 @@ export default function FlashDraftPage() {
   // customer-visible FlashDraft just because the signed-in user has the
   // admin role.
   const [adminContext, setAdminContext] = useState(false);
+  // v2-05 — "Find a past profile", the Command Center's Search inside
+  // FlashDraft. Opens the same ProfileSearchPanel the /admin/search page
+  // renders; only adminContext sessions see the button.
+  const [showProfileSearch, setShowProfileSearch] = useState(false);
+  /**
+   * The canvas as it last reached storage, per lib/flashdraft/unsaved-work.ts.
+   *
+   * Selecting a profile from Search REPLACES what is on the canvas, so the
+   * work that is there has to be saved first — never silently discarded.
+   * This is a signature rather than a dirty flag because a flag in a file
+   * this size has to be reset by every save path and cleared by every load
+   * path, and one missed reset is either a lost drawing or a junk row.
+   *
+   * `null` means "nothing on this canvas has been written anywhere", which
+   * is the safe direction to be wrong in. It is set by a successful save and
+   * by every LOAD — a freshly loaded profile or template is not the user's
+   * unsaved work, and auto-saving an untouched copy of an existing row would
+   * fill the Passport with duplicates nobody made.
+   */
+  const [lastSavedSignature, setLastSavedSignature] = useState<string | null>(null);
   const [submitState, setSubmitState] = useState<SubmitState>('idle');
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [requestNumber, setRequestNumber] = useState<string | null>(null);
@@ -2548,6 +2570,12 @@ export default function FlashDraftPage() {
     // caller has no id (VariantPicker variants), so the type is still a
     // real, stable token rather than nothing.
     setProfileType(templateId ?? label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''));
+    // v2-05: a template straight off the shelf is not the user's work — it
+    // is one click to load again — so Search's auto-save does not write a
+    // pristine copy of it to the Passport. The first edit to it changes the
+    // signature and from then on it IS unsaved work. (Hems are untouched by
+    // a template load, so they carry into the signature as they stand.)
+    setLastSavedSignature(canvasSignature({ points: worldPoints, hemStart, hemEnd }));
 
     const canvas = canvasRef.current;
     if (canvas) {
@@ -2593,6 +2621,9 @@ export default function FlashDraftPage() {
     setProfileSubcategory('');
     setViewingFromPassport(false);
     setShowNewConfirm(false);
+    // Nothing on the canvas and nothing written: back to the starting state
+    // for the unsaved-work check too.
+    setLastSavedSignature(null);
   };
 
   const commitProfileName = () => {
@@ -2636,7 +2667,17 @@ export default function FlashDraftPage() {
   // direct performSave() call would still close over the OLD state value
   // (React doesn't re-render between them), so a state flag can't drive
   // this from a same-tick caller the way the old modal-based flow did.
-  const performSave = async (values: ProfileDetailsFormValues, asDuplicate: boolean, lock: boolean = false) => {
+  //
+  // RETURNS whether the write actually happened. v2-05 needs that: Search's
+  // Select auto-saves the canvas BEFORE it loads something over the top, and
+  // "did the save work" decides whether loading is safe or whether the user
+  // has to be told and nothing touched. Every pre-existing caller ignores
+  // the value, which is the same behaviour they had.
+  const performSave = async (
+    values: ProfileDetailsFormValues,
+    asDuplicate: boolean,
+    lock: boolean = false
+  ): Promise<boolean> => {
     setSavingProfile(true);
     setSaveError(null);
     try {
@@ -2651,7 +2692,7 @@ export default function FlashDraftPage() {
         // toast or this failure is otherwise silent.
         if (lock) setToast('Sign in to save profiles to your account.');
         setSavingProfile(false);
-        return;
+        return false;
       }
       // Phase 3 (afs-pp-001) -- company_id/is_locked/job_info are real
       // top-level columns added by
@@ -2765,6 +2806,10 @@ export default function FlashDraftPage() {
       setProfileSubcategory(values.subcategory);
       setRevision(nextRevision);
       setShowProfileDetails(false);
+      // What is on the canvas is now in the database. Recorded here and
+      // nowhere else on the success path, so "unsaved" can only mean an edit
+      // made since this moment (lib/flashdraft/unsaved-work.ts).
+      setLastSavedSignature(canvasSignature({ points, hemStart, hemEnd }));
       // `lock` only takes effect here, on an actual successful write -- a
       // failed save (network error, RLS rejection) below hits the catch
       // block instead and never locks.
@@ -2776,6 +2821,7 @@ export default function FlashDraftPage() {
       } else {
         setToast('Profile saved to your account');
       }
+      return true;
     } catch {
       setSaveError('Could not save profile. Please try again.');
       // The lock-and-save path has no modal to show `saveError` inline in
@@ -2784,6 +2830,7 @@ export default function FlashDraftPage() {
       // ProfileDetailsModal's own `error` prop, so this stays lock-only to
       // avoid showing the same failure twice there.
       if (lock) setToast('Could not save profile. Please try again.');
+      return false;
     } finally {
       setSavingProfile(false);
     }
@@ -2952,10 +2999,17 @@ export default function FlashDraftPage() {
 
     setPast((p) => [...p, { points, hemStart, hemEnd }]);
     setFuture([]);
-    setPoints(dims!.points as Point[]);
-    setHemStart(isHemShape(dims?.hemStart) ? (dims!.hemStart as Hem) : null);
-    setHemEnd(isHemShape(dims?.hemEnd) ? (dims!.hemEnd as Hem) : null);
+    const loadedPoints = dims!.points as Point[];
+    const loadedHemStart = isHemShape(dims?.hemStart) ? (dims!.hemStart as Hem) : null;
+    const loadedHemEnd = isHemShape(dims?.hemEnd) ? (dims!.hemEnd as Hem) : null;
+    setPoints(loadedPoints);
+    setHemStart(loadedHemStart);
+    setHemEnd(loadedHemEnd);
     setSelectedSegment(null);
+    // v2-05: this row IS the saved copy, so nothing here is unsaved work.
+    setLastSavedSignature(
+      canvasSignature({ points: loadedPoints, hemStart: loadedHemStart, hemEnd: loadedHemEnd })
+    );
     setSavedProfileId(row.id);
     setProfileName(row.name || 'Untitled Profile');
     setProfileCategoryId(dims?.categoryId ?? null);
@@ -3049,6 +3103,9 @@ export default function FlashDraftPage() {
     setFuture([]);
     setPoints(canonicalPoints);
     setSelectedSegment(null);
+    // v2-05: a canonical starter shape is recorded in canonical_profiles, not
+    // work this user did, so Search's auto-save leaves a pristine one alone.
+    setLastSavedSignature(canvasSignature({ points: canonicalPoints, hemStart, hemEnd }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -3091,6 +3148,9 @@ export default function FlashDraftPage() {
     setFuture([]);
     setPoints(reconstructed);
     setSelectedSegment(null);
+    // v2-05: the job's geometry is already recorded on the Job itself, so an
+    // untouched reconstruction of it is not unsaved work either.
+    setLastSavedSignature(canvasSignature({ points: reconstructed, hemStart, hemEnd }));
     setProfileName(payload.profileName);
     if (payload.material) setMaterial(payload.material);
     if (payload.gauge) setGauge(payload.gauge);
@@ -3153,10 +3213,21 @@ export default function FlashDraftPage() {
 
     setPast((p) => [...p, { points, hemStart, hemEnd }]);
     setFuture([]);
-    setPoints(dims!.points as Point[]);
-    setHemStart(isHemShape(dims?.hemStart) ? (dims!.hemStart as Hem) : null);
-    setHemEnd(isHemShape(dims?.hemEnd) ? (dims!.hemEnd as Hem) : null);
+    const loadedPoints = dims!.points as Point[];
+    const loadedHemStart = isHemShape(dims?.hemStart) ? (dims!.hemStart as Hem) : null;
+    const loadedHemEnd = isHemShape(dims?.hemEnd) ? (dims!.hemEnd as Hem) : null;
+    setPoints(loadedPoints);
+    setHemStart(loadedHemStart);
+    setHemEnd(loadedHemEnd);
     setSelectedSegment(null);
+    // v2-05: what was just loaded already exists in the database, so it is
+    // not unsaved work. Computed from the LOADED values rather than from
+    // state, because the setters above have not applied yet in this tick.
+    // Without this, picking two profiles in a row from Search would auto-save
+    // an untouched copy of the first as a new Passport row every time.
+    setLastSavedSignature(
+      canvasSignature({ points: loadedPoints, hemStart: loadedHemStart, hemEnd: loadedHemEnd })
+    );
 
     // NEW draft: no own row yet, never locked, lineage recorded.
     setSavedProfileId(null);
@@ -3196,6 +3267,53 @@ export default function FlashDraftPage() {
     setToast('Opened as a new editable draft — the original is unchanged');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /**
+   * v2-05 — Search's **Select**, from inside FlashDraft.
+   *
+   * THE ORDER IS THE POINT. Loading the chosen profile replaces whatever is
+   * on the canvas, so anything unsaved is written FIRST and the load only
+   * happens if that write succeeded. A failed save leaves the canvas exactly
+   * as it was and says so — "nothing was replaced" is a promise that has to
+   * survive a dropped connection, not just a happy path.
+   *
+   * The save is an ORDINARY save, not a special one: the same performSave
+   * every other save path uses, with the same auto-generated name
+   * lockAndSaveProfile uses when the drawing has not been named. So the work
+   * lands in the Passport where the user would go looking for it, rather
+   * than in some rescue bucket only this feature knows about.
+   *
+   * Then it loads through loadForModify — the SAME linked-new-draft contract
+   * as ?modifyProfile=, so the picked profile is never overwritten, the
+   * lineage banner appears, and source_profile_id is recorded on the next
+   * save. Nothing about "Select" is a second way of opening a profile.
+   */
+  const selectProfileFromSearch = async (profileId: string, pickedName: string): Promise<void> => {
+    let autoSaved = false;
+    if (hasUnsavedCanvasWork({ points, hemStart, hemEnd }, lastSavedSignature)) {
+      const saved = await performSave(
+        {
+          name: profileName !== 'Untitled Profile' ? profileName : generateAutoProfileName(),
+          categoryId: profileCategoryId,
+          subcategory: profileSubcategory || 'Custom',
+        },
+        false,
+        false
+      );
+      if (!saved) {
+        setToast('Could not save your drawing, so nothing was replaced. Try again.');
+        return;
+      }
+      autoSaved = true;
+    }
+    await loadForModify(profileId);
+    setShowProfileSearch(false);
+    // loadForModify sets its own toast; this one replaces it so the user is
+    // told BOTH things that just happened, in the order they happened.
+    if (autoSaved) {
+      setToast(`Saved your drawing first. Opened ${pickedName} as a new editable draft.`);
+    }
+  };
 
   // Part 4 integration: /studio/library's "Load into FlashDraft" button
   // links here with ?loadCanonical=1 — load it once on mount. The old
@@ -3591,6 +3709,29 @@ export default function FlashDraftPage() {
             New editable draft &mdash; modified from{' '}
             <span className="text-afs-accent-purple">{modifiedFromName ?? 'a saved profile'}</span>
             {' '}(rev {revision}). Saving creates a new profile; the original is unchanged.
+          </p>
+        </div>
+      )}
+
+      {/* v2-05 — FIND A PAST PROFILE, inside FlashDraft.
+          Shown only for a session opened FROM Command Center (?admin=1), the
+          same gate "Send to PathfinderEdge" uses — an admin who happens to
+          wander onto the public FlashDraft page does not get a
+          cross-customer search box. One button, its own strip, sized for a
+          real finger rather than squeezed into the icon toolbar. */}
+      {adminContext && (
+        <div className="px-4 py-2 border-b border-afs-chrome-base shrink-0 bg-afs-bg-base flex items-center gap-3 flex-wrap">
+          <button
+            type="button"
+            data-testid="open-profile-search"
+            onClick={() => setShowProfileSearch(true)}
+            className="min-h-[44px] px-5 bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label text-base font-semibold rounded focus:outline-none focus:ring-2 focus:ring-white"
+          >
+            Find a past profile
+          </button>
+          <p className="font-body text-xs text-afs-chrome-mid">
+            Search everything AFS has drawn. Picking one opens it as a new draft — and saves what you have here
+            first.
           </p>
         </div>
       )}
@@ -4583,6 +4724,60 @@ export default function FlashDraftPage() {
           saving={savingProfile}
           error={saveError}
         />
+      )}
+
+      {/* v2-05 — the Command Center's Search, over the canvas.
+          The SAME ProfileSearchPanel /admin/search renders, so the rail, the
+          hover-intent preview, the keyboard and touch handling and the
+          Recent/Pinned lists cannot drift between the two places you can
+          reach search from. Only what Select DOES differs, and that is the
+          one prop it takes.
+
+          The panel is light-on-white, so it sits on its own light sheet
+          rather than on FlashDraft's gunmetal chrome — the alternative was
+          re-theming the whole panel for one host, which is how two versions
+          of a screen start. */}
+      {showProfileSearch && (
+        <div
+          className="fixed inset-0 z-50 bg-afs-bg-dim/80 flex items-start justify-center overflow-y-auto p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Find a past profile"
+          data-testid="profile-search-drawer"
+          onKeyDown={(e) => {
+            // Escape closes the DRAWER only once the preview has handled it
+            // first (the panel stops propagation of its own Escape), so one
+            // press never does two things.
+            if (e.key === 'Escape') setShowProfileSearch(false);
+          }}
+        >
+          <div className="w-full max-w-[1400px] bg-afs-bg-band text-afs-ink-900 rounded p-5 my-4">
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div>
+                <h2 className="font-heading text-3xl text-afs-ink-900">Find a past profile</h2>
+                <p className="font-body text-[15px] text-afs-ink-700 mt-1">
+                  Picking one opens it here as a new draft. Anything unsaved on the canvas is saved to your
+                  profiles first — nothing is thrown away.
+                </p>
+              </div>
+              {/* This closes the DRAWER, not the hover preview. The preview
+                  itself has no close button, by design. */}
+              <button
+                type="button"
+                data-testid="close-profile-search"
+                onClick={() => setShowProfileSearch(false)}
+                className="min-h-[44px] px-4 border border-afs-line-strong rounded font-label text-base text-afs-ink-900 hover:bg-afs-bg-light-raised focus:outline-none focus:ring-2 focus:ring-afs-crimson"
+              >
+                Back to drawing
+              </button>
+            </div>
+            <ProfileSearchPanel
+              autoFocusInput
+              selectNote="Select opens this profile here as a new draft. Whatever is on the canvas is saved first, and the profile you picked is never changed."
+              onSelect={(profile) => selectProfileFromSearch(profile.id, profile.name)}
+            />
+          </div>
+        </div>
       )}
 
       <Toast message={toast} onDismiss={() => setToast(null)} />
