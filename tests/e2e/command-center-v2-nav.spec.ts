@@ -131,10 +131,45 @@ test.describe('Command Center header', () => {
 
   test('Settings absorbed Pricing and shows the QuickBooks coming-soon card', async ({ page }) => {
     await page.goto('/admin/settings');
-    await expect(page.getByRole('heading', { name: 'Pricing' })).toBeVisible();
+    // `exact` since v2-03 added a "Pricing history" section beside "Pricing" —
+    // a substring match now resolves to two headings and is ambiguous.
+    await expect(page.getByRole('heading', { name: 'Pricing', exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: /Price rules/ })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Coming soon' })).toBeVisible();
     await expect(page.getByRole('link', { name: /QuickBooks/ })).toBeVisible();
+  });
+
+  test('Settings carries the price book, the pricing history and the office invoice address', async ({
+    page,
+  }) => {
+    await page.goto('/admin/settings');
+
+    // The price book is what quotes are actually built from.
+    const priceBook = page.getByRole('link', { name: /Price book/ });
+    await expect(priceBook).toBeVisible();
+
+    // The pricing history: the dataset dynamic pricing will learn from, with
+    // its CSV export and the form that records a supplier's price change.
+    await expect(page.getByRole('heading', { name: 'Pricing history' })).toBeVisible();
+    await expect(page.locator('[data-testid="ledger-export"]')).toBeVisible();
+    await expect(page.locator('[data-testid="supplier-price-change-form"]')).toBeVisible();
+    await expect(page.getByText('cannot be edited or deleted, by anyone')).toBeVisible();
+
+    // The exact wording the v2-03 prompt asks for, on the card itself.
+    await expect(page.locator('[data-testid="dynamic-pricing-card"]')).toContainText(
+      'Dynamic pricing — coming soon (learning from this history)'
+    );
+
+    // The automatic invoice copy goes to Tricia, spelled correctly.
+    await expect(page.locator('[data-testid="office-invoice-email"]')).toHaveText(
+      'tricia@architecturalflashingsupply.com'
+    );
+
+    // And the price book opens.
+    await priceBook.click();
+    await expect(page).toHaveURL(/\/admin\/settings\/price-book/);
+    await expect(page.getByRole('heading', { name: 'Price book' })).toBeVisible();
+    await expect(page.getByText('Quotes you have already sent keep the prices they were built on')).toBeVisible();
   });
 
   test('Customers absorbed the orders CRM', async ({ page }) => {
