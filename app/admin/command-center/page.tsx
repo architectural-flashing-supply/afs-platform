@@ -22,7 +22,7 @@ import BidsCrmTab from '@/components/admin/BidsCrmTab';
 import CommandCenterDashboard from '@/components/admin/CommandCenterDashboard';
 import LightWorkingArea from '@/components/admin/LightWorkingArea';
 import WorkbenchLanes from '@/components/admin/WorkbenchLanes';
-import { getWorkbench, DONE_ARCHIVE_DAYS } from '@/lib/data/workbench';
+import { getWorkbench, summaryChips, DONE_ARCHIVE_DAYS } from '@/lib/data/workbench';
 
 // Phase 2 (Command Center redesign, afs-cc-001) — this page previously also
 // hosted `?tab=customers`/`?tab=orders` CRM views. Those had real dedicated
@@ -96,23 +96,20 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
         <div className="max-w-[1600px] mx-auto">
           <div className="flex items-center gap-3.5 flex-wrap mb-4">
             <h1 className="font-heading text-3xl text-afs-ink-900">{workbench.summary.greeting}</h1>
-            <span className="font-label text-[15px] font-semibold rounded-full px-3.5 py-1.5 bg-afs-bg-card border border-afs-border-light text-afs-ink-900">
-              {workbench.summary.quotesToWrite === 1
-                ? '1 quote to write'
-                : `${workbench.summary.quotesToWrite} quotes to write`}
-            </span>
-            {workbench.summary.approvalsReady > 0 && (
-              <span className="font-label text-[15px] font-semibold rounded-full px-3.5 py-1.5 bg-afs-green-deep text-afs-chrome-high">
-                {workbench.summary.approvalsReady === 1
-                  ? '1 approval ready for the machine'
-                  : `${workbench.summary.approvalsReady} approvals ready for the machine`}
+            {/* Wording lives in summaryChips() so the unit test asserts the
+                text that actually ships — see lib/data/workbench.ts. */}
+            {summaryChips(workbench.summary).map((chip) => (
+              <span
+                key={chip.text}
+                className={
+                  chip.tone === 'go'
+                    ? 'font-label text-[15px] font-semibold rounded-full px-3.5 py-1.5 bg-afs-green-deep text-afs-chrome-high'
+                    : 'font-label text-[15px] font-semibold rounded-full px-3.5 py-1.5 bg-afs-bg-card border border-afs-border-light text-afs-ink-900'
+                }
+              >
+                {chip.text}
               </span>
-            )}
-            <span className="font-label text-[15px] font-semibold rounded-full px-3.5 py-1.5 bg-afs-bg-card border border-afs-border-light text-afs-ink-900">
-              {workbench.summary.inTheShop === 1
-                ? '1 job in the shop'
-                : `${workbench.summary.inTheShop} jobs in the shop`}
-            </span>
+            ))}
           </div>
 
           <WorkbenchLanes lanes={workbench.lanes} />

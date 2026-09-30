@@ -91,8 +91,12 @@ export interface WorkbenchSummary {
   quotesToWrite: number;
   approvalsReady: number;
   inTheShop: number;
-  /** The whole line, assembled, so a test can assert one string. */
-  line: string;
+}
+
+/** One chip in the morning summary. `go` is the green "act on this" chip. */
+export interface SummaryChip {
+  text: string;
+  tone: 'plain' | 'go';
 }
 
 export interface Workbench {
@@ -294,16 +298,45 @@ export function buildSummary(
   adminFirstName: string,
   now: Date
 ): WorkbenchSummary {
-  const greeting = `${greetingFor(now)}, ${adminFirstName}.`;
-  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-  return {
-    greeting,
-    ...counts,
-    line:
-      `${greeting} ${plural(counts.quotesToWrite, 'quote', 'quotes')} to write. ` +
-      `${plural(counts.approvalsReady, 'approval', 'approvals')} ready for the machine. ` +
-      `${plural(counts.inTheShop, 'job', 'jobs')} in the shop.`,
-  };
+  return { greeting: `${greetingFor(now)}, ${adminFirstName}.`, ...counts };
+}
+
+/**
+ * The summary chips above the lanes, in render order, with the wording the page
+ * actually prints. app/admin/command-center/page.tsx renders from this and
+ * composes no text of its own, so the unit test below asserts what really
+ * ships.
+ *
+ * This replaced a `line` field on WorkbenchSummary that assembled all three
+ * counts into one sentence. Nothing ever rendered it — the page has always
+ * drawn three separate chips, per the approved prototype — so its unit test was
+ * asserting a string no user could see, and had drifted: it expected
+ * "0 approvals ready for the machine", which the UI deliberately never shows
+ * because the green chip is hidden at zero (prototype line 304).
+ */
+export function summaryChips(summary: WorkbenchSummary): SummaryChip[] {
+  const chips: SummaryChip[] = [
+    {
+      text: summary.quotesToWrite === 1 ? '1 quote to write' : `${summary.quotesToWrite} quotes to write`,
+      tone: 'plain',
+    },
+  ];
+  // Only when there is something to act on — an always-present "0 approvals"
+  // chip would make the green call-to-action meaningless.
+  if (summary.approvalsReady > 0) {
+    chips.push({
+      text:
+        summary.approvalsReady === 1
+          ? '1 approval ready for the machine'
+          : `${summary.approvalsReady} approvals ready for the machine`,
+      tone: 'go',
+    });
+  }
+  chips.push({
+    text: summary.inTheShop === 1 ? '1 job in the shop' : `${summary.inTheShop} jobs in the shop`,
+    tone: 'plain',
+  });
+  return chips;
 }
 
 const CARD_COLUMNS =

@@ -4,6 +4,7 @@ import {
   STALE_QUOTE_DAYS,
   buildCard,
   buildSummary,
+  summaryChips,
   describeCardItem,
   shopSubStateFromJobStatuses,
   shopSubStateLabel,
@@ -214,14 +215,43 @@ describe('sources', () => {
   });
 });
 
-describe('the summary line above the lanes', () => {
-  it('reads as one plain-English sentence set, singular and plural', () => {
-    expect(buildSummary({ quotesToWrite: 3, approvalsReady: 2, inTheShop: 1 }, 'Steve', NOW).line).toBe(
-      'Good afternoon, Steve. 3 quotes to write. 2 approvals ready for the machine. 1 job in the shop.'
+describe('the morning summary above the lanes', () => {
+  it('greets by time of day', () => {
+    expect(buildSummary({ quotesToWrite: 3, approvalsReady: 2, inTheShop: 1 }, 'Steve', NOW).greeting).toBe(
+      'Good afternoon, Steve.'
     );
-    expect(buildSummary({ quotesToWrite: 1, approvalsReady: 0, inTheShop: 0 }, 'Steve', new Date('2026-09-30T14:00:00.000Z')).line).toBe(
-      'Good morning, Steve. 1 quote to write. 0 approvals ready for the machine. 0 jobs in the shop.'
-    );
+    expect(
+      buildSummary({ quotesToWrite: 1, approvalsReady: 0, inTheShop: 0 }, 'Steve', new Date('2026-09-30T14:00:00.000Z'))
+        .greeting
+    ).toBe('Good morning, Steve.');
+  });
+
+  it('prints the chips the page really renders, plural', () => {
+    const chips = summaryChips(buildSummary({ quotesToWrite: 3, approvalsReady: 2, inTheShop: 4 }, 'Steve', NOW));
+    expect(chips.map((c) => c.text)).toEqual([
+      '3 quotes to write',
+      '2 approvals ready for the machine',
+      '4 jobs in the shop',
+    ]);
+    expect(chips.map((c) => c.tone)).toEqual(['plain', 'go', 'plain']);
+  });
+
+  it('prints the chips singular at one', () => {
+    const chips = summaryChips(buildSummary({ quotesToWrite: 1, approvalsReady: 1, inTheShop: 1 }, 'Steve', NOW));
+    expect(chips.map((c) => c.text)).toEqual([
+      '1 quote to write',
+      '1 approval ready for the machine',
+      '1 job in the shop',
+    ]);
+  });
+
+  it('omits the green chip entirely when nothing is ready for the machine', () => {
+    // The old `line` field asserted "0 approvals ready for the machine" — text
+    // the UI never shows. The chip is absent, not zeroed.
+    const chips = summaryChips(buildSummary({ quotesToWrite: 2, approvalsReady: 0, inTheShop: 0 }, 'Steve', NOW));
+    expect(chips.map((c) => c.text)).toEqual(['2 quotes to write', '0 jobs in the shop']);
+    expect(chips.some((c) => c.tone === 'go')).toBe(false);
+    expect(chips.some((c) => c.text.includes('approval'))).toBe(false);
   });
 });
 
