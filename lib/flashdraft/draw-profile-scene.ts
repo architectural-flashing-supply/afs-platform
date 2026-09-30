@@ -366,15 +366,17 @@ export function drawProfileScene(params: DrawProfileSceneParams): void {
   // appends one — and that affordance was previously invisible: both ends
   // drew the same 4px dot every interior bend point draws. A hollow ring
   // around the dot marks the two grabbable ends without adding a second
-  // visual language (same colors.point crimson, same center). An end
-  // carrying a hem is NOT extendable (the pointer handlers refuse it and
-  // show "Remove the hem to extend from this end."), so it gets no ring —
-  // its hem glyph is already drawn there instead, and a grab ring would
-  // promise a gesture that will not fire.
+  // visual language (same colors.point crimson, same center).
+  //
+  // A HEMMED END NOW GETS A RING TOO. It used to be skipped, because a hem
+  // blocked extension and a ring would have promised a gesture that never
+  // fired. Reid's decision (CLAUDE.md rule #13) is that a hemmed end DOES
+  // extend, carrying its hem to the new free end, so both ends are
+  // grabbable and both must look it. The ring sits around the endpoint and
+  // the hem glyph is drawn from that same point outward, so they read as
+  // one handle with a fold on it rather than fighting each other.
   if (points.length >= 2) {
-    const freeEnds: number[] = [];
-    if (!hemStart) freeEnds.push(0);
-    if (!hemEnd) freeEnds.push(points.length - 1);
+    const freeEnds: number[] = [0, points.length - 1];
     ctx.save();
     ctx.strokeStyle = colors.point;
     ctx.lineWidth = 2;

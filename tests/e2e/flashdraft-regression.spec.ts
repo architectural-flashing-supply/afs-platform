@@ -156,6 +156,38 @@ function bendCount(page: Page) {
   return page.getByText(/^Bend Count: \d+$/);
 }
 
+interface DraftHem {
+  type: string;
+  gapIn: number;
+  lengthIn: number;
+  kick: string;
+}
+
+/** Both endpoint hems as autosaved, so a test can compare them field by field. */
+async function readAutosaveHems(page: Page): Promise<{ hemStart: DraftHem | null; hemEnd: DraftHem | null }> {
+  return page.evaluate((key) => {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return { hemStart: null, hemEnd: null };
+    const parsed = JSON.parse(raw) as { hemStart?: DraftHem | null; hemEnd?: DraftHem | null };
+    return { hemStart: parsed.hemStart ?? null, hemEnd: parsed.hemEnd ?? null };
+  }, AUTOSAVE_KEY);
+}
+
+/** Puts an `open` hem on one endpoint and waits for autosave to record it. */
+async function addOpenHemAt(page: Page, x: number, y: number, endpoint: 'start' | 'end') {
+  await page.mouse.dblclick(x, y);
+  await expect(page.getByText(endpoint === 'start' ? 'Start Hem' : 'End Hem')).toBeVisible({ timeout: 5000 });
+  await page.getByRole('button', { name: 'open', exact: true }).click();
+  await expect
+    .poll(async () => {
+      const hems = await readAutosaveHems(page);
+      return Boolean(endpoint === 'start' ? hems.hemStart : hems.hemEnd);
+    }, { timeout: 10000 })
+    .toBe(true);
+  // Dismiss the popup so it cannot swallow the pointer events that follow.
+  await page.keyboard.press('Escape');
+}
+
 test.describe('FlashDraft geometry — lr-02 extend from either endpoint', () => {
   test('dragging the FIRST point prepends a leg at the head', async ({ page }) => {
     const { cx, cy } = await freshCanvas(page);
@@ -220,45 +252,103 @@ test.describe('FlashDraft geometry — lr-02 extend from either endpoint', () =>
     await page.screenshot({ path: 'test-results/evidence-lr02-shift-drag-no-new-leg.png' });
   });
 
-  test('a hemmed end blocks extension and shows the tooltip', async ({ page }) => {
+  // Reid's decision, CLAUDE.md rule #13: a hemmed end EXTENDS, and the hem
+  // MOVES to the new free end with its type, gap and direction intact. This
+  // replaces the previous test, which asserted the opposite — that the
+  // gesture was refused and the canvas showed
+  // "Remove the hem to extend from this end." That block is gone.
+  //
+  // What makes the hem travel is that hemStart/hemEnd are anchored
+  // POSITIONALLY ("the first point" / "the last point"), never to a stored
+  // index — so the assertion is that the hem is still present and
+  // field-for-field unchanged while the point list has grown a new head or
+  // tail. The hem now belongs to that new endpoint.
+  test('prepending from a HEMMED head extends, and the hem moves to the new head', async ({ page }) => {
+    const { cx, cy } = await freshCanvas(page);
+    await drawTwoLegProfile(page, cx, cy);
+    const before = await waitForAutosavePointCount(page, 3);
+    await expect(bendCount(page)).toHaveText('Bend Count: 1');
+
+    await addOpenHemAt(page, cx, cy, 'start');
+    const hemsBefore = await readAutosaveHems(page);
+    expect(hemsBefore.hemStart).not.toBeNull();
+    expect(hemsBefore.hemEnd).toBeNull();
+
+    // Drag away from the hemmed head. This used to do nothing at all.
+    await dragFrom(page, cx, cy, cx - 120, cy + 70);
+
+    // 1. The extension SUCCEEDED, as a real prepend: every previous point is
+    //    still there, in order, one index later, behind a genuinely new head.
+    const after = await waitForAutosavePointCount(page, 4);
+    expect(after.slice(1)).toEqual(before);
+    expect(after[0]).not.toEqual(before[0]);
+    await expect(bendCount(page)).toHaveText('Bend Count: 2');
+    // Still no closing last->first leg.
+    expect(after[0]).not.toEqual(after[after.length - 1]);
+
+    // 2. The hem is on the NEW free end, not destroyed and not stranded
+    //    mid-profile: hemStart is still set (it now describes the new
+    //    points[0]) and hemEnd is still empty.
+    const hemsAfter = await readAutosaveHems(page);
+    expect(hemsAfter.hemStart).not.toBeNull();
+    expect(hemsAfter.hemEnd).toBeNull();
+
+    // 3. Type, gap, fold length and kick direction all survived unchanged.
+    expect(hemsAfter.hemStart).toEqual(hemsBefore.hemStart);
+    expect(hemsAfter.hemStart?.type).toBe('open');
+
+    await page.screenshot({ path: 'test-results/evidence-v201-hem-travels-on-prepend.png' });
+
+    // 4. ONE undo restores both the geometry and the hem's original position.
+    await page.keyboard.press('Control+z');
+    const undone = await waitForAutosavePointCount(page, 3);
+    expect(undone).toEqual(before);
+    await expect(bendCount(page)).toHaveText('Bend Count: 1');
+    const hemsUndone = await readAutosaveHems(page);
+    expect(hemsUndone.hemStart).toEqual(hemsBefore.hemStart);
+    expect(hemsUndone.hemEnd).toBeNull();
+    await page.screenshot({ path: 'test-results/evidence-v201-hem-travel-single-undo.png' });
+  });
+
+  test('appending from a HEMMED tail extends, and the hem moves to the new tail', async ({ page }) => {
     const { cx, cy } = await freshCanvas(page);
     await drawTwoLegProfile(page, cx, cy);
     const before = await waitForAutosavePointCount(page, 3);
 
-    // Put an open hem on the START endpoint.
-    await page.mouse.dblclick(cx, cy);
-    await expect(page.getByText('Start Hem')).toBeVisible({ timeout: 5000 });
-    await page.getByRole('button', { name: 'open', exact: true }).click();
-    await expect
-      .poll(
-        async () =>
-          page.evaluate((key) => {
-            const raw = window.localStorage.getItem(key);
-            return raw ? Boolean((JSON.parse(raw) as { hemStart?: unknown }).hemStart) : false;
-          }, AUTOSAVE_KEY),
-        { timeout: 10000 }
-      )
-      .toBe(true);
-    // Dismiss the popup so it cannot swallow the pointer events below.
-    await page.keyboard.press('Escape');
+    // The last point sits where drawTwoLegProfile released its second drag.
+    await addOpenHemAt(page, cx + 30, cy - 179, 'end');
+    const hemsBefore = await readAutosaveHems(page);
+    expect(hemsBefore.hemEnd).not.toBeNull();
+    expect(hemsBefore.hemStart).toBeNull();
+
+    await dragFrom(page, cx + 30, cy - 179, cx + 160, cy - 250);
+
+    // Pushed at the TAIL: every previous point keeps its own index.
+    const after = await waitForAutosavePointCount(page, 4);
+    expect(after.slice(0, 3)).toEqual(before);
+    expect(after[3]).not.toEqual(before[2]);
+    await expect(bendCount(page)).toHaveText('Bend Count: 2');
+
+    const hemsAfter = await readAutosaveHems(page);
+    expect(hemsAfter.hemEnd).toEqual(hemsBefore.hemEnd);
+    expect(hemsAfter.hemStart).toBeNull();
+    await page.screenshot({ path: 'test-results/evidence-v201-hem-travels-on-append.png' });
+  });
+
+  test('a hemmed end shows NO blocking tooltip on hover', async ({ page }) => {
+    const { cx, cy } = await freshCanvas(page);
+    await drawTwoLegProfile(page, cx, cy);
+    await waitForAutosavePointCount(page, 3);
+    await addOpenHemAt(page, cx, cy, 'start');
 
     const canvas = page.locator('canvas');
-
-    // Hovering the hemmed end explains why it will not extend.
     await page.mouse.move(cx + 200, cy + 200);
     await page.mouse.move(cx, cy);
-    await expect(canvas).toHaveAttribute('title', 'Remove the hem to extend from this end.', { timeout: 5000 });
 
-    // And the gesture itself is refused — no leg is prepended.
-    await dragFrom(page, cx, cy, cx - 120, cy + 70);
-    await expect(bendCount(page)).toHaveText('Bend Count: 1');
-    const after = await readAutosavePoints(page);
-    expect(after?.length).toBe(before.length);
-
-    // The OTHER end is unaffected and still extends normally.
-    await dragFrom(page, cx + 30, cy - 179, cx + 160, cy - 250);
-    await expect(bendCount(page)).toHaveText('Bend Count: 2');
-    await page.screenshot({ path: 'test-results/evidence-lr02-hem-blocks-extension.png' });
+    // The tooltip is gone entirely, not reworded.
+    const title = await canvas.getAttribute('title');
+    expect(title ?? '').not.toContain('Remove the hem');
+    expect(title ?? '').toBe('');
   });
 
   test('undo restores the pre-drag state in exactly ONE step', async ({ page }) => {

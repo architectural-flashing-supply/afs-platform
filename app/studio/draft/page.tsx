@@ -1095,15 +1095,22 @@ export default function FlashDraftPage() {
   // join the two free ends.
   const prependDragRef = useRef(false);
 
-  // An end carrying a hem cannot be extended from — the hem IS that end's
-  // terminal geometry, and growing a new leg past it would leave the fold
-  // stranded mid-profile with no defined meaning in the machine payload.
-  // Blocked at the gesture level (handlePointerDown simply never arms the
-  // candidate) with this exact tooltip, rather than silently doing nothing.
-  // DESIGN DECISION PENDING REID — recorded in STATE_OF_THE_BUILD.md: the
-  // alternative (auto-drop the hem and extend anyway) is a destructive edit
-  // nobody has approved, so this run takes the non-destructive branch.
-  const HEM_BLOCKS_EXTENSION_TOOLTIP = 'Remove the hem to extend from this end.';
+  // A HEMMED END EXTENDS, AND THE HEM TRAVELS WITH IT.
+  //
+  // This used to be blocked outright, with the tooltip "Remove the hem to
+  // extend from this end." CLAUDE.md rule #13 recorded the choice between
+  // that block and auto-dropping the hem as DESIGN DECISION PENDING REID.
+  // Reid decided a third way, and it is neither: dragging from either free
+  // endpoint extends the profile even when that end carries a hem, and the
+  // HEM MOVES to the new free end with its type, gap, fold length and kick
+  // direction intact. Nothing is destroyed and nothing is refused.
+  //
+  // It needs no migration of hem state, because hemStart/hemEnd are anchored
+  // POSITIONALLY — "the first point" and "the last point" — never to a
+  // stored index. drawProfileScene renders them as renderHemAt(hemStart, 0, 1)
+  // and renderHemAt(hemEnd, last, last - 1), so after a prepend the same hem
+  // object is simply drawn at the new head, folding against its new
+  // neighbour. See commitPrepend for the field-by-field audit.
 
   // --- Click-and-drag drawing state ---
   const dragAnchorRef = useRef<Point | null>(null);
@@ -1400,10 +1407,19 @@ export default function FlashDraftPage() {
   //    selections below keeps both pointed at the same physical leg/bend
   //    the user was typing into.
   //  - hemStart / hemEnd: anchored to "the first point" and "the last
-  //    point," not to numeric indices, so neither needs renumbering. And
-  //    hemStart is guaranteed null on this path anyway — a hemmed end
-  //    blocks extension outright (HEM_BLOCKS_EXTENSION_TOOLTIP), so a
-  //    prepend can never run against a hemmed head in the first place.
+  //    point," not to numeric indices, so neither stores an index that
+  //    could go stale. This is now load-bearing rather than incidental: a
+  //    hemmed head CAN be prepended to (Reid's decision, CLAUDE.md rule
+  //    #13), and the required behaviour is that the hem MOVES to the new
+  //    free end keeping its type, gap, fold length and kick. Because the
+  //    anchor is positional, that happens by construction — the same hem
+  //    object is re-read as belonging to the new points[0], and
+  //    drawProfileScene's renderHemAt(hemStart, 0, 1) redraws it folding
+  //    against its new neighbour. No hem field is rewritten, so none can
+  //    be lost, and `past` already snapshots {points, hemStart, hemEnd}
+  //    together, so ONE undo restores both the geometry and the hem's
+  //    original position. Checked field by field: type, lengthIn, gapIn and
+  //    kick all live on the Hem object and all are untouched here.
   //  - undo/redo stacks: store whole point arrays, never indices.
   //
   // Exactly ONE undo entry: commitPoints pushes the pre-drag points once,
@@ -1866,19 +1882,15 @@ export default function FlashDraftPage() {
     const nearLast = distToLast <= HIT_RADIUS_PX;
     if (nearFirst || nearLast) {
       const prepend = nearFirst && (!nearLast || distToFirst < distToLast);
-      // A hemmed end is not extendable — see HEM_BLOCKS_EXTENSION_TOOLTIP's
-      // own comment (DESIGN DECISION PENDING REID). The candidate is simply
-      // never armed, so the press falls through to ordinary selection and
-      // no leg can be grown from this end; the tooltip says why.
-      if (prepend ? hemStart : hemEnd) {
-        canvas.title = HEM_BLOCKS_EXTENSION_TOOLTIP;
-      } else {
-        continueLineCandidateRef.current = {
-          anchor: prepend ? points[0] : points[points.length - 1],
-          downScreenPos: screenPos,
-          prepend,
-        };
-      }
+      // Armed unconditionally. A hem on this end no longer refuses the
+      // gesture — it rides along to the new free end (see the note on
+      // positional hem anchoring above). Still exactly these two ends and
+      // no others, so a last-to-first closing leg remains uncreatable.
+      continueLineCandidateRef.current = {
+        anchor: prepend ? points[0] : points[points.length - 1],
+        downScreenPos: screenPos,
+        prepend,
+      };
     }
 
     const segmentHit = hitTestSegmentAt(screenPos, canvas);
@@ -2150,9 +2162,8 @@ export default function FlashDraftPage() {
     // hitTestVertex now and each one sits directly on top of its own end
     // segment, so without this they would read as a plain segment hover.
     // Gives both ends the same `grab` affordance an interior vertex gets
-    // (the visible ring handle itself is drawn by drawProfileScene), and
-    // surfaces the hem block as a tooltip on hover rather than only on a
-    // press the user has already committed to.
+    // (the visible ring handle itself is drawn by drawProfileScene). There is
+    // no longer a tooltip to show here: a hemmed end extends like any other.
     if (points.length > 0) {
       const firstScreen = worldToScreen(points[0], canvas);
       const lastScreen = worldToScreen(points[points.length - 1], canvas);
@@ -2163,7 +2174,7 @@ export default function FlashDraftPage() {
       if (nearFirst || nearLast) {
         const atStart = nearFirst && (!nearLast || distToFirst < distToLast);
         canvas.style.cursor = 'grab';
-        canvas.title = (atStart ? hemStart : hemEnd) ? HEM_BLOCKS_EXTENSION_TOOLTIP : '';
+        canvas.title = '';
         setHoveredVertex(null);
         setHoveredSegment(null);
         return;
