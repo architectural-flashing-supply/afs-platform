@@ -4,7 +4,6 @@ import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import MachineBridgeStatusDot from '@/components/admin/MachineBridgeStatusDot';
 
 interface TopBarTab {
   label: string;
@@ -95,7 +94,6 @@ export default function AdminTopBar() {
 
       <div className="flex items-center gap-3 ml-auto shrink-0">
         <div className="hidden lg:block">
-          <MachineBridgeStatusDot />
         </div>
 
         <form onSubmit={handleSearchSubmit} className="hidden sm:block">

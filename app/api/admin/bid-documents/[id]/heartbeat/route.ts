@@ -4,7 +4,9 @@ import { requireOperatorApi } from '@/lib/auth/require-operator';
 
 /**
  * Called every 2 minutes by the builder page while mounted and claimed by
- * self (matching MachineBridgeStatusDot's own setInterval precedent). If
+ * self (a client-side setInterval; the MachineBridgeStatusDot that set this
+ * precedent was deleted 2026-09-30 with the rest of the retired Machine
+ * Bridge UI). If
  * someone else now holds the claim — another tab took over since this page
  * loaded — makes no write and reports stillClaimed: false so the client can
  * flip to read-only without waiting for the Realtime subscription

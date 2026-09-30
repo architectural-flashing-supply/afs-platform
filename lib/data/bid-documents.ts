@@ -5,7 +5,8 @@ export type BidDocumentStatus = 'draft' | 'sent' | 'awarded' | 'lost' | 'expired
 /**
  * A bid's claim is a soft, advisory lock (BID_DOCUMENT_SCOPE.md §3.1) — not
  * a security boundary. Computed lazily at read time, exactly the way
- * MachineBridgeStatusDot.tsx compares lastPingAt against CHECK_INTERVAL_MS —
+ * the deleted MachineBridgeStatusDot compared lastPingAt against a 30s
+ * CHECK_INTERVAL_MS —
  * no cron job ever clears claimed_by/claimed_at. The single source of truth
  * both the API routes and every list/detail render import, so the threshold
  * can never drift between them.

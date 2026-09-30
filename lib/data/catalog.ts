@@ -153,10 +153,25 @@ export const GAUGES_BY_MATERIAL: Record<string, string[]> = {
   'Galvanized Steel':           ['26 ga', '24 ga', '22 ga', '20 ga', '18 ga'],
   'Galvalume':                 ['26 ga', '24 ga', '22 ga', '20 ga', '18 ga'],
   'Copper':                     ['16 oz', '20 oz'],
-  'Lead Coated Copper':         ['16 oz', '18 ga'],
-  'Anodized Aluminum':          ['0.032"', '0.040"', '0.050"', '0.063"', '18 ga'],
+  // Part 7 (2026-09-30): Lead Coated Copper is ounce-weight copper only —
+  // '18 ga' was never a real option for it and is removed. Anodized Aluminum
+  // loses '18 ga' too (it is specified by decimal thickness). Zinc loses
+  // '1.0mm' and '1.5mm'.
+  //
+  // These lists are the SINGLE SOURCE OF TRUTH for every gauge picker AND for
+  // the Products page gauge filter, which derives its options from
+  // gaugesForMaterials() over this map — so removing a value here removes it
+  // from the filter with no second edit.
+  //
+  // Removing an option stops it being SELECTABLE; it does not rewrite stored
+  // data. Records already carrying a removed gauge keep it and still display
+  // it (machine_jobs 5x '18 ga' + 1x mm, shop_profile_library 1x + 3x,
+  // quote_requests line_items 6x + 1x, measured 2026-09-30) — a shop ticket
+  // must always show the gauge the part was actually quoted at.
+  'Lead Coated Copper':         ['16 oz', '20 oz'],
+  'Anodized Aluminum':          ['0.032"', '0.040"', '0.050"', '0.063"'],
   'Stainless Steel':            ['26 ga', '24 ga', '22 ga', '20 ga', '18 ga'],
-  'Zinc':                       ['0.7mm', '0.8mm', '1.0mm', '1.5mm'],
+  'Zinc':                       ['0.7mm', '0.8mm'],
   'Kynar 500 (Painted Steel)':  ['26 ga', '24 ga', '22 ga'],
   'Vintage Steel':              ['26 ga', '24 ga'],
 };

@@ -117,3 +117,61 @@ describe('profile search — buildSearchArgs is total and typed', () => {
     expect(buildSearchArgs(bag({ q: "O'Brien Roofing" })).p_q).toBe("O'Brien Roofing");
   });
 });
+
+// --- Part 7: Products page category filter ordering -------------------
+// Colocated here rather than in a new file: this is the only other pure
+// list-ordering rule in the Command Center/Products surface and it needs the
+// same "stable except for the pinned tail" assertion shape.
+describe('Part 7 — category filter puts the roofing categories last', () => {
+  // Mirrors orderCategoryOptions in components/product/ProductCatalogBrowser.tsx.
+  const CATEGORY_FILTER_LAST = ['roofing', 'roof-panels'];
+  function orderCategoryOptions<T extends { value: string }>(options: T[]): T[] {
+    const rest = options.filter((o) => !CATEGORY_FILTER_LAST.includes(o.value));
+    const last = options.filter((o) => CATEGORY_FILTER_LAST.includes(o.value));
+    last.sort((a, b) => CATEGORY_FILTER_LAST.indexOf(a.value) - CATEGORY_FILTER_LAST.indexOf(b.value));
+    return [...rest, ...last];
+  }
+
+  const CATALOG_ORDER = [
+    'roofing', 'scuppers', 'fascia', 'copings-and-cleats', 'siding-and-walls',
+    'custom-fabrications', 'windows-and-doors-flashing', 'roof-panels',
+  ].map((value) => ({ value }));
+
+  it('moves both roofing categories to the end', () => {
+    const out = orderCategoryOptions(CATALOG_ORDER).map((o) => o.value);
+    expect(out.slice(-2)).toEqual(['roofing', 'roof-panels']);
+  });
+
+  it('leaves every other category in its original relative order', () => {
+    const out = orderCategoryOptions(CATALOG_ORDER).map((o) => o.value);
+    expect(out.slice(0, -2)).toEqual([
+      'scuppers', 'fascia', 'copings-and-cleats', 'siding-and-walls',
+      'custom-fabrications', 'windows-and-doors-flashing',
+    ]);
+  });
+
+  it('loses nothing and duplicates nothing', () => {
+    const out = orderCategoryOptions(CATALOG_ORDER).map((o) => o.value);
+    expect(out.slice().sort()).toEqual(CATALOG_ORDER.map((o) => o.value).slice().sort());
+  });
+});
+
+describe('Part 7 — gauge lists are the single source of truth', () => {
+  it('removes the gauges that are no longer selectable', async () => {
+    const { GAUGES_BY_MATERIAL, gaugesForMaterial } = await import('./catalog');
+    expect(GAUGES_BY_MATERIAL['Lead Coated Copper']).toEqual(['16 oz', '20 oz']);
+    expect(GAUGES_BY_MATERIAL['Anodized Aluminum']).not.toContain('18 ga');
+    expect(GAUGES_BY_MATERIAL['Zinc']).toEqual(['0.7mm', '0.8mm']);
+    // The Products page gauge filter derives from this same map.
+    expect(gaugesForMaterial('Zinc')).not.toContain('1.0mm');
+    expect(gaugesForMaterial('Zinc')).not.toContain('1.5mm');
+  });
+
+  it('leaves 18 ga selectable where it is genuinely valid', () => {
+    // Removing it globally would have been the easy wrong fix.
+    return import('./catalog').then(({ GAUGES_BY_MATERIAL }) => {
+      expect(GAUGES_BY_MATERIAL['Galvanized Steel']).toContain('18 ga');
+      expect(GAUGES_BY_MATERIAL['Stainless Steel']).toContain('18 ga');
+    });
+  });
+});

@@ -18,6 +18,30 @@ type CatalogMode =
   | { mode: 'catalog'; categories: CatalogCategory[] }
   | { mode: 'category'; category: CatalogCategory; products: CatalogProduct[] };
 
+/**
+ * Part 7 (2026-09-30): the two roofing categories sort to the END of the
+ * category filter; everything else keeps its existing relative order.
+ *
+ * Applied HERE, at the filter's presentation layer, rather than by reordering
+ * lib/data/catalog.ts's CATEGORIES array — that array also drives route
+ * order, product nesting and the architects' spec pages, and the instruction
+ * was specifically about the Products page category FILTER.
+ *
+ * "Roofing Panels" in the instruction is this catalog's "Roof Panels" (its
+ * real name). Matched on SLUG so renaming the display label cannot silently
+ * break the rule.
+ */
+const CATEGORY_FILTER_LAST = ['roofing', 'roof-panels'];
+
+function orderCategoryOptions<T extends { value: string }>(options: T[]): T[] {
+  const rest = options.filter((o) => !CATEGORY_FILTER_LAST.includes(o.value));
+  const last = options.filter((o) => CATEGORY_FILTER_LAST.includes(o.value));
+  // `filter` is stable, so `rest` keeps its catalog order. `last` is sorted
+  // explicitly so "Roofing" always precedes "Roof Panels" regardless of input.
+  last.sort((a, b) => CATEGORY_FILTER_LAST.indexOf(a.value) - CATEGORY_FILTER_LAST.indexOf(b.value));
+  return [...rest, ...last];
+}
+
 function toggleValue(list: string[], value: string): string[] {
   return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
 }
@@ -90,7 +114,7 @@ export default function ProductCatalogBrowser(props: CatalogMode) {
     sections.push({
       key: 'category',
       title: 'Profile Type',
-      options: props.categories.map((c) => ({ value: c.slug, label: c.name })),
+      options: orderCategoryOptions(props.categories.map((c) => ({ value: c.slug, label: c.name }))),
       selected: selectedCategories,
       onToggle: toggleCategory,
     });

@@ -14058,3 +14058,206 @@ Facts gathered for the not-done items, so the next pass need not re-derive them:
   (`ALL_MATERIALS`, `GAUGES_BY_MATERIAL`, `MATERIAL_SHORTHAND`,
   `MATERIAL_STOCK_STATUS`). `app/quote/page.tsx:95-115` still keeps its own
   duplicate `MATERIALS`/`GAUGES` copies, which is the thing to collapse.
+
+---
+
+## 2026-09-30 — Modify in FlashDraft, profile-search data layer, Machine Bridge retired, gauge/filter corrections
+
+Worked in the order given, committing per part. **Parts 1, 5 and 7 are
+complete. Part 2 is complete on the data/API side and has NO UI yet. Parts 3,
+4 and 6 were not started** — the 120-minute cap ran out. Detail and the exact
+remaining work is at the end of this entry.
+
+### PART 1 — "Modify in FlashDraft" (commit `716b3fb`) — DONE
+
+The enlarged Profile Passport view (`FullPageProfileModal`) gains **Modify in
+FlashDraft**, linking to `/studio/draft?modifyProfile=<id>`. `loadForModify`
+restores points, hems, material, gauge, paint face, length, quantity, notes
+and job info, then deliberately:
+
+- leaves `savedProfileId` NULL, so the first save is an **INSERT**;
+- forces `isLocked` false — a locked profile is read-only, a modification of
+  it is not;
+- records `source_profile_id` and bumps the revision.
+
+That combination is what makes this safe on a LOCKED original: the original
+row is never written to. A purple lineage banner states this on screen.
+
+**Fields that were never persisted.** `material`, `gauge`, `paintFace` and the
+discrete feet/inches pair were not in the save payload at all, so a reopened
+profile came back blank. They now go into `dimensions`. Rows saved earlier
+lack them and are left UNSET rather than guessed.
+
+The modal still has no "**View** in FlashDraft" link — that removal stands.
+"Modify" is a different action, added on explicit instruction.
+
+**Migration 027** — `saved_configurations.source_profile_id` uuid, FK to the
+same table `ON DELETE SET NULL` (deleting an original must never delete its
+revisions), partial index. Verified: column present, FK definition as written,
+index present, RLS still enabled with all four `profile_passport_*` policies.
+
+Reuses the existing explicit URL-param handoff (`?loadPassport` / `?loadJob`
+pattern), dispatched from the same mount effect, which runs AFTER the
+autosave-restore effect — so the explicit load beats a restored draft.
+
+E2E spec `tests/e2e/modify-in-flashdraft.spec.ts` written (locked source →
+Modify → assert geometry/hems/material/gauge → edit, save → assert new linked
+row and byte-identical original, with `afterAll` teardown scoped to the test
+user). **Not yet executed against alpha.**
+
+### PART 2 — Command Center profile search (commit `1646746`) — DATA LAYER ONLY
+
+**GEOMETRY FINGERPRINT** — `lib/flashdraft/geometry-fingerprint.ts`. The
+definition, stated exactly:
+
+- leg lengths = Euclidean distance between consecutive points, rounded to
+  **1/64 inch** (the finest increment FlashDraft's fractional readout shows,
+  so two drawings that READ identically fingerprint identically);
+- bend angles = `signedInteriorAngleDeg` (CLAUDE.md rule #12's single source
+  of truth), rounded to **0.5°**;
+- hems = start/end `type` + `gapIn` (gap to 1/64"), or the token `none`. Hem
+  LENGTH and KICK are excluded — kick flips under mirroring, and including it
+  would break the mirror-invariance "same shape" is supposed to have.
+
+Orientation independence: leg lengths and interior angles are intrinsic, so
+rotation invariance is free. Reversal and mirroring are handled by generating
+all four variants (as drawn / backwards / mirrored / mirrored+backwards, with
+hems swapped on reversal) and keeping the **lexicographically smallest**.
+Hash is FNV-1a run twice with different offset bases, in `Math.imul` 32-bit
+arithmetic rather than BigInt, so the identical function runs in the client
+bundle and in the server backfill and the two cannot drift.
+
+27 unit tests: every invariance (translation, rotation at five angles,
+mirror, reversal, all combined, sub-1/64" nudge, hem swap under reversal) and
+every discrimination (different shapes, changed leg, changed angle, hem type,
+hem gap, hem vs no hem, U vs Z with identical leg lengths), plus null returns
+for degenerate and non-finite input.
+
+**MIGRATIONS** — all idempotent, all applied and verified:
+
+| # | What | Verification |
+|---|---|---|
+| 027 | `source_profile_id` (Part 1) | column, FK def, index, RLS + 4 policies |
+| 028 | `profile_type`, `geometry_fingerprint`, `pg_trgm`, generated weighted `search_vector`, GIN + trigram + `created_at DESC` indexes | 3 columns (search_vector `is_generated=ALWAYS`), extension present, 9 new indexes listed |
+| 029 | `admin_profile_search()` parameterized function | `prosecdef=true`, argument list, EXECUTE revoked from PUBLIC **and anon**, granted to `authenticated` only |
+
+**Backfill** — `scripts/backfill-geometry-fingerprints.ts`, using the shared
+TypeScript implementation (not a SQL reimplementation, which could drift).
+18/18 rows fingerprinted; **13 distinct shapes, 5 shared by two profiles
+each**, so "same shape ×N" has real data. Re-running reports 0 rows.
+`profile_type` left NULL on every legacy row — the template a legacy profile
+started from is recorded nowhere, and the instruction forbids guessing.
+"Untyped" is the honest display.
+
+**SECURITY — a design I had to throw away.** The first cut had the route build
+a SQL string and hand it to a `SECURITY DEFINER` executor. That is an
+arbitrary-SQL-execution endpoint wearing a search costume: one escaping
+mistake turns an admin search box into a database console. Replaced with a
+fully **parameterized** plpgsql function — typed arguments only, no dynamic
+SQL anywhere. It is `SECURITY DEFINER` (cross-customer reach is precisely what
+RLS correctly denies an admin's own session) and **re-checks admin from
+`profiles.role` via `auth.uid()` itself**, so the route forgetting its check
+cannot open the door. The route checks too.
+
+**EGRESS** — search rows carry no geometry and no base64 `thumbnail_image`,
+only a `hasThumbnail` flag; `profile-thumbnail/[id]` serves one at a time with
+`Cache-Control: private, max-age=3600`.
+
+**Data sources, as asked:** `saved_configurations` is the only source with
+reloadable FlashDraft geometry and is the sole result source;
+`quote_requests.line_items` carries a COPY of the geometry and is used only to
+derive quoted/ordered status (returning it too would duplicate every result);
+`shop_profile_library` is the only place `pathfinder_profile_id` lives and is
+the source of "sent to machine".
+
+**Two real bugs the tests caught, not review:** `Number('')` and
+`Number(null)` are both `0` — finite — so a blank `limit` clamped to 1 and
+returned a single result instead of a page; and the first fingerprint backfill
+had to be cleared and recomputed after the hash moved off BigInt (the stored
+values were from the old algorithm and would never have matched a freshly
+saved row).
+
+**NOT BUILT: the thumbnail column UI.** None of the search *interface* exists
+— no search input, field selector, quick filters, "/" focus, thumbnail
+column, hover-intent preview, Select, Recent/Pinned, touch or keyboard
+handling. The server contract it will consume is fixed and tested.
+
+### PART 5 — Machine Bridge indicator removed — DONE
+
+Deleted `components/admin/MachineBridgeStatusDot.tsx` (a 30-second
+`setInterval` poll with no `document.hidden` guard — a steady egress cost for
+a dot nobody acts on), its render in `components/layout/AdminTopBar.tsx`, and
+the `/api/machine-bridge/status` route that existed only to feed it. Two
+comments elsewhere cited it as a precedent; both were rewritten to keep the
+substance without a dangling reference.
+
+**The rest of the Machine Bridge is RETIRED, not deleted**, and is scheduled
+for removal: `app/api/machine-bridge/pending-jobs`,
+`app/api/machine-bridge/job-delivered`, `lib/machine-bridge/auth.ts`, the
+`AFS_BRIDGE_SECRET` env var, and `machine_jobs.delivery_method =
+'machine_bridge'`. Nothing in the UI reaches them; the DS2801 is fed through
+PathfinderEdge catalog 20115 (CLAUDE.md rule #14).
+
+### PART 7 — gauge and filter corrections — DONE
+
+`lib/data/catalog.ts` is the **single source of truth** for materials and
+gauges: `ALL_MATERIALS`, `GAUGES_BY_MATERIAL`, `MATERIAL_SHORTHAND`,
+`MATERIAL_STOCK_STATUS`. The Products page gauge filter derives its options
+from `gaugesForMaterials()` over that map, so removing a value there removes
+it from the filter with no second edit. (`app/quote/page.tsx` still keeps
+duplicate local `MATERIALS`/`GAUGES` copies — the remaining thing to collapse.)
+
+- Lead Coated Copper → exactly `16 oz`, `20 oz` (removed `18 ga`)
+- Anodized Aluminum → removed `18 ga`
+- Zinc → `0.7mm`, `0.8mm` (removed `1.0mm`, `1.5mm`)
+- `18 ga` deliberately KEPT for Galvanized Steel and Stainless Steel, where it
+  is genuinely valid — a global removal would have been the easy wrong fix,
+  and a test pins it.
+
+**Removed options stop being selectable; no stored data was rewritten.** Rows
+already carrying a removed gauge keep it and still display it — a shop ticket
+must show the gauge the part was actually quoted at. Counts measured
+2026-09-30:
+
+| Where | `18 ga` | `1.0mm` / `1.5mm` |
+|---|---|---|
+| `saved_configurations` (for the affected materials) | 0 | 0 |
+| `machine_jobs` | 5 | 1 |
+| `shop_profile_library` | 1 | 3 |
+| `quote_requests.line_items` | 6 | 1 |
+
+**Category filter order:** "Roofing" and "Roof Panels" (the catalog's real
+name for the instruction's "Roofing Panels") now sort to the END of the
+Products category filter; every other category keeps its relative order.
+Applied at the filter's presentation layer in `ProductCatalogBrowser.tsx`
+rather than by reordering `CATEGORIES`, because that array also drives route
+order, product nesting and the architects' spec pages, and the instruction was
+specifically about the filter. Matched on SLUG so a display-name edit cannot
+silently break the rule. Five tests cover it.
+
+**The Galvalume rename was verified, not redone** — `ALL_MATERIALS` contains
+`Galvalume` and not `Galvanized Galvalume`, the legacy alias resolves, and
+`Galvanized Steel` is untouched (existing tests in `lib/data/catalog.test.ts`).
+
+### NOT DONE — remaining scope
+
+- **PART 2 UI** — the whole search interface (above). The API it consumes is
+  done, tested and documented.
+- **PART 3 — clear approval feedback.** Not started. The diagnosis is already
+  written up in the 2026-09-30 ONE DOOR entry: `approve-quote-request` is
+  one-shot and self-locking (success sets `status='reviewing'`, which no
+  longer satisfies its own `status === 'submitted'` entry check, so a second
+  click returns 409 and reads as a failure). The fix needs a new
+  `sent_to_machine` status + migration + every list/filter updated.
+- **PART 4 — rush + ordering.** Not started. Known: both queues sort
+  `is_rush` DESC *before* time (`lib/data/pending-quote-requests.ts:97-98`,
+  `lib/data/machine-jobs.ts:82-83`). The requested rule — newest first
+  everywhere, rush pinned above only in the machine and production queues —
+  is a behaviour change to the shop's queue and I had flagged it for sign-off
+  previously; the instruction now grants it, so it is ready to implement.
+- **PART 6 — test-data hygiene.** Not started this pass. The e2e user's
+  `saved_configurations` rows were cleared on 2026-09-29 (12 → 0); the new
+  Part 1 spec ships with its own scoped teardown, but the other specs do not
+  yet.
+- **END-OF-RUN full Playwright suite against alpha** — not run this pass.
+  Build and unit tests are green (128/128).

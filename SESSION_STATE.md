@@ -8380,3 +8380,37 @@ call was a GET, and the encoder repro ran offline.
 5's alpha E2E, PART C 9-10 (loud failures), PART D 11-14, PART E 16-18. Notes
 for each, including that PART D14's newest-first rule would remove rush-first
 queue priority and needs Reid's sign-off, are in STATE_OF_THE_BUILD.md.
+
+---
+
+## 2026-09-30 — Modify in FlashDraft + profile-search data layer + Machine Bridge retired + gauge/filter fixes
+
+Parts worked in order, committed per part. **Done: 1, 5, 7. Part 2 data layer
+done, UI not built. Not started: 3, 4, 6.** 120-minute cap reached.
+
+- **Part 1 (`716b3fb`)** — "Modify in FlashDraft" in the enlarged Profile
+  Passport view opens `?modifyProfile=<id>` as a NEW, UNLOCKED draft linked by
+  `saved_configurations.source_profile_id` (migration 027). First save is an
+  INSERT, so a LOCKED original is never written to. material/gauge/paintFace/
+  feet+inches were never persisted before and now are; legacy rows leave them
+  unset rather than guessed.
+- **Part 2 (`1646746`)** — geometry fingerprint (1/64" legs, 0.5 deg signed
+  angles, hem type+gap; min over the four rotation/mirror/reversal variants;
+  FNV-1a via Math.imul so client and backfill share one implementation),
+  migrations 028/029, 18/18 rows backfilled (13 shapes, 5 shared), and an
+  admin-only search route over a PARAMETERIZED plpgsql function that
+  re-checks admin itself. **No search UI yet.**
+- **Part 5** — `MachineBridgeStatusDot` + its 30s poll + `/api/machine-bridge/
+  status` deleted. The rest of the Machine Bridge is recorded as RETIRED and
+  scheduled for removal.
+- **Part 7** — Lead Coated Copper `16 oz`/`20 oz`; `18 ga` off Anodized
+  Aluminum; Zinc `0.7mm`/`0.8mm`. `18 ga` kept where valid. No stored gauge
+  rewritten (machine_jobs 5+1, shop_profile_library 1+3, quote_requests 6+1
+  keep theirs). Roofing + Roof Panels moved to the end of the Products
+  category filter, by slug, at the presentation layer.
+
+Single source of truth for materials/gauges: `lib/data/catalog.ts`.
+`app/quote/page.tsx` still duplicates it — the remaining consolidation.
+
+128/128 unit tests, tsc 0, build 0. Full alpha suite NOT run this pass.
+Detail, verification output and the exact remaining work: STATE_OF_THE_BUILD.md.
