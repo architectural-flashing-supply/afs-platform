@@ -8752,7 +8752,7 @@ three ways *without executing it*:
 3. **forge-1.ps1's script-ref precondition** — the runner takes the *first* `<path>.<mjs|cjs|js|ts|ps1|py>` token in the gate text and hard-fails the gate if that file is missing. Five gates reference a spec the owning prompt creates (`command-center-workbench`, `quote-approve-invoice`, `shop-deliveries`, `profile-search`, `contrast-check.mjs`); each is named in its own prompt body, so absence today is the precondition working, not a defect.
 
 **Result: 26/26 gates parse, 0 failing.** Harness:
-`scratchpad/extract-gates.js` + `scratchpad/validate-gates.ps1`.
+`FORGE/tests/gate-validation/` — `extract-gates.js` + `validate-gates.ps1`, with the live-database verifier alongside them as `v201-live-check.mjs`. Re-run all three before any future queue edit.
 
 Syntax validation is necessary but not sufficient — gate #3 above parsed
 perfectly and still failed on real data. **Every read-only gate was therefore
