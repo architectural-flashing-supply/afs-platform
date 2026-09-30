@@ -221,7 +221,7 @@ export default function FlashChatPage() {
           ASTM material specifications, and decades of hands-on fabrication experience.
         </p>
         <p className="font-data text-afs-chrome-high text-sm mb-2">
-          (512) 372-4900 &nbsp;|&nbsp; trica@architecturalflashingsupply.com
+          (512) 372-4900 &nbsp;|&nbsp; tricia@architecturalflashingsupply.com
         </p>
         <p className="font-body text-sm text-afs-chrome-dim">
           For formal quotes and engineering decisions, always consult AFS directly.

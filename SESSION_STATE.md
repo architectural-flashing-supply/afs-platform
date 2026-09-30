@@ -8471,10 +8471,11 @@ invoices+auto-invoice, 4 Outlook+Approve+parser, 5 Shop View+Deliveries,
 6 Search UI (server side already done in `1646746`).
 
 **OPEN DECISIONS — both PENDING REID:**
-1. **Tricia's exact email address.** The prototype hardcodes
-   `trica@architecturalflashingsupply.com` — note `trica`, not `tricia`.
-   Almost certainly a typo; auto-emailing invoices to a wrong address is a
-   live-money error. Must be confirmed before Phase 3.
+1. **Tricia's exact email address.** The prototype hardcoded a misspelling
+   of it (a missing `i`); auto-emailing invoices to a wrong address is a
+   live-money error. **ANSWERED by Reid 2026-09-30:
+   `tricia@architecturalflashingsupply.com`** — corrected everywhere in code
+   and docs by prompt v2-01.
 2. **Which existing jobs/profiles are real and must be kept.** 45 of 64
    quote requests, 14 of 18 saved profiles and 35 of 58 takeoff uploads
    belong to `steve@architecturalflashingsupply.com`, and the data cannot
@@ -8536,9 +8537,10 @@ controlled there; the backup file on disk is the only copy of the LR queue.
 
 **BOTH OPEN DECISIONS RECORDED ABOVE ARE NOW ANSWERED BY REID:**
 1. **Tricia's address is `tricia@architecturalflashingsupply.com`.** The
-   prototype's `trica@` is a misspelling. Every prompt in the queue carries the
-   correct address as a global rule, and `v2-01` and `v2-03` both gate on zero
-   remaining `trica@` occurrences in code or docs.
+   prototype's spelling was a misspelling (a missing `i`). Every prompt in the
+   queue carries the correct address as a global rule, and `v2-01` and `v2-03`
+   both gate on zero remaining misspelled occurrences in code or docs. v2-01
+   fixed all 28 of them across 15 files.
 2. **No existing jobs are real.** This unblocks the backup-then-wipe that spec
    section 2.9 said was unspecifiable. `v2-01` performs it: `pg_dump` of every
    application table to `C:\Users\manag\Documents\afs-backups\2026-10-01\`

@@ -9,7 +9,7 @@ const MAX_HISTORY = 20;
 
 const CHATBOT_SYSTEM_PROMPT = `You are FlashChat, the AI assistant for Architectural Flashing Supply, a precision sheet metal fabrication shop in Burnet, Texas. You have deep expertise in architectural sheet metal, Division 7 specifications, and the full AFS product line.
 
-COMPANY: Architectural Flashing Supply, 209 Sure Cast Drive, Burnet TX 78611. Phone: (512) 372-4900. Email: trica@architecturalflashingsupply.com. Owner: Steve Harycki. Texas-made, delivering across North America.
+COMPANY: Architectural Flashing Supply, 209 Sure Cast Drive, Burnet TX 78611. Phone: (512) 372-4900. Email: tricia@architecturalflashingsupply.com. Owner: Steve Harycki. Texas-made, delivering across North America.
 
 YOUR EXPERTISE — DIVISION 07 FLASHING AND SHEET METAL:
 You have comprehensive knowledge of CSI MasterFormat Division 07 — Thermal and Moisture Protection, with specific depth in:
@@ -64,7 +64,7 @@ ROUTING RULES — CRITICAL:
 - Any profile — standard or custom geometry, cleat, or complex profile → direct to /studio/draft (FlashDraft)
 - Has drawings or photos → direct to /studio (Design Studio — Scan to Quote or Photo to Quote)
 - General inquiry, not ready to spec → answer questions, then offer to help specify and route appropriately
-- Always offer to connect them with Trica at trica@architecturalflashingsupply.com or (512) 372-4900 for complex projects
+- Always offer to connect them with Tricia at tricia@architecturalflashingsupply.com or (512) 372-4900 for complex projects
 
 ESCALATE when: customer is frustrated, has an order dispute, needs engineering judgment beyond standard practice, mentions legal issues, or asks about billing.
 
@@ -110,7 +110,7 @@ const AFS_SHOP_INFO_BLOCK = `AFS shop info:
 Architectural Flashing Supply
 209 Sure Cast Drive, Burnet, TX 78611
 Phone: (512) 372-4900
-Email: trica@architecturalflashingsupply.com
+Email: tricia@architecturalflashingsupply.com
 Owner: Steve Harycki
 Hours: not yet published — direct the customer to call or email.`;
 

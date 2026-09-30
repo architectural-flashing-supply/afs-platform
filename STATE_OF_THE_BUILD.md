@@ -11635,7 +11635,7 @@ built now; data populates the existing structure when received.
 read this pass (2026-09-05), not carried forward on faith:**
 - **AFS address, phone, email** (Checklist #5) are real and wired
   throughout the codebase: `209 Sure Cast Drive, Burnet, TX 78611`,
-  `(512) 372-4900`, `trica@`/`steve@architecturalflashingsupply.com` — see
+  `(512) 372-4900`, `tricia@`/`steve@architecturalflashingsupply.com` — see
   `lib/chatbot/knowledge/afs-company.ts`, and the same coordinate feeds
   `DeliveryTrackingMap.tsx`'s service-area origin and HailView's
   `DEFAULT_CENTER`. **Hours specifically were not found anywhere** in that
@@ -12726,8 +12726,9 @@ to a centered `mx-auto max-w-md grid-cols-2`. Evidence:
 AFS").
 
 **8. Removals/copy — PASS (standing-seam removal itself blocked on item
-5's held question).** Footer: `trica@architecturalflashingsupply.com`
-(the task said "tricia@..." — same address, typo) removed from
+5's held question).** Footer: `tricia@architecturalflashingsupply.com`
+(written with a misspelling at the time; corrected everywhere in v2-01)
+removed from
 `Footer.tsx` only; the same real address is still used correctly
 elsewhere on the site (contact page, legal pages, chat escalation — all
 untouched, out of scope). "Where precision meets production"
@@ -14318,10 +14319,11 @@ invoices+auto-invoice, 4 Outlook+Approve+parser, 5 Shop View+Deliveries,
 6 Search UI (server side already done in `1646746`).
 
 **OPEN DECISIONS — both PENDING REID:**
-1. **Tricia's exact email address.** The prototype hardcodes
-   `trica@architecturalflashingsupply.com` — note `trica`, not `tricia`.
-   Almost certainly a typo; auto-emailing invoices to a wrong address is a
-   live-money error. Must be confirmed before Phase 3.
+1. **Tricia's exact email address.** The prototype hardcoded a misspelling
+   of it (a missing `i`); auto-emailing invoices to a wrong address is a
+   live-money error. **ANSWERED by Reid 2026-09-30:
+   `tricia@architecturalflashingsupply.com`** — corrected everywhere in code
+   and docs by prompt v2-01.
 2. **Which existing jobs/profiles are real and must be kept.** 45 of 64
    quote requests, 14 of 18 saved profiles and 35 of 58 takeoff uploads
    belong to `steve@architecturalflashingsupply.com`, and the data cannot

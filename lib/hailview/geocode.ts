@@ -11,7 +11,7 @@ const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
 // "stock User-Agents as set by http libraries will not do." This is a new
 // string for AFS's own HailView tool, not reused from any other project.
 const NOMINATIM_USER_AGENT =
-  'AFS-HailView/1.0 (+https://architecturalflashingsupply.com; trica@architecturalflashingsupply.com)';
+  'AFS-HailView/1.0 (+https://architecturalflashingsupply.com; tricia@architecturalflashingsupply.com)';
 
 /**
  * Server-side Nominatim geocode. Returns null on any failure (empty

@@ -59,8 +59,8 @@ List (customer, contact, open jobs) → detail with a Jobs table and Profiles th
 - The **Profile Library built from the 911 AI-read profiles** of the old Thalmann (geometrically invalid — see §2.8)
 - The **second navigation level**
 
-### OPEN DECISION — Tricia's address
-The prototype hardcodes `TRICIA = "trica@architecturalflashingsupply.com"` (line 233). Note the spelling: **`trica`**, not `tricia`. Almost certainly a typo, and it must be confirmed before any invoice is auto-emailed. **PENDING REID.**
+### SETTLED — Tricia's address
+**`tricia@architecturalflashingsupply.com`.** The prototype hardcoded a misspelling of it (a missing `i`); Reid confirmed the correct spelling on 2026-09-30. Prompt `v2-01` corrected the prototype's `TRICIA` constant (line 233) along with every other occurrence in code and docs — the one deliberate deviation from "the prototype is copied verbatim", made because a wrong auto-invoice address is a live-money error.
 
 ---
 
@@ -328,8 +328,8 @@ Every phase: `pnpm tsc --noEmit` 0, `pnpm test:unit` green, migrations idempoten
 
 1. **`invoices` has routes but no table.** Five files are built against a relation that does not exist. Phase 3 must reconcile before extending, or the auto-invoice flow is built on sand.
 2. **Phase 4 depends on Reid's Entra work and admin consent.** Delegated `Mail.Send` is the only way sent mail stays in Steve's own Sent folder; nothing in Phase 4 can be verified end-to-end until consent is granted.
-3. **Which of Steve's 45 quote requests are real?** Unanswered, so the backup-then-wipe step is unspecifiable and the Workbench will show test jobs on day one.
-4. **Tricia's address is misspelled in the prototype** (`trica@`). Auto-emailing invoices to a wrong address is a live-money error.
+3. ~~**Which of Steve's 45 quote requests are real?**~~ **RESOLVED 2026-09-30:** none of them are. The backup-then-wipe ran in prompt `v2-01`; the Workbench starts empty.
+4. ~~**Tricia's address is misspelled in the prototype.**~~ **RESOLVED 2026-09-30:** corrected to `tricia@architecturalflashingsupply.com` everywhere in code and docs by prompt `v2-01`. Auto-emailing invoices to a wrong address would have been a live-money error.
 5. **Deleting 911 profiles + 4,537 bends is irreversible.** Mitigated by archive + `pg_dump` outside the repo, and by the verified fact that no `machine_jobs` row references them — but the raw `.ds1`/`.bdb` files in `machine-data/` are the only copies of the old machine's database.
 6. **The single door must survive the rewrite.** V2 adds email-driven approval; the guard requires a verified in-database approval record before any push (CLAUDE.md rule #14). An email Approve click must *create* that record, not bypass it.
 7. **Graph subscriptions expire (~3 days).** Without a renewal job, inbound mail silently stops becoming jobs — the exact failure class that looks like "nothing arrived today".

@@ -22,7 +22,7 @@ export const FAQ_CATEGORIES: FaqCategory[] = [
       },
       {
         q: 'How do I contact AFS?',
-        a: `Phone: (512) 372-4900 | General: trica@architecturalflashingsupply.com | Owner: steve@architecturalflashingsupply.com | Address: 209 Sure Cast Drive, Burnet, TX 78611`,
+        a: `Phone: (512) 372-4900 | General: tricia@architecturalflashingsupply.com | Owner: steve@architecturalflashingsupply.com | Address: 209 Sure Cast Drive, Burnet, TX 78611`,
       },
       {
         q: 'Do you serve customers outside of Texas?',
@@ -83,7 +83,7 @@ export const FAQ_CATEGORIES: FaqCategory[] = [
       },
       {
         q: 'Can AFS match existing flashing profiles on a renovation or historic preservation project?',
-        a: `Yes. Use our Photo to Quote feature to photograph the existing condition from multiple angles, or contact trica@architecturalflashingsupply.com with photos and at least one verified dimension. Our estimators will reverse-engineer the profile and follow up with a match quote.`,
+        a: `Yes. Use our Photo to Quote feature to photograph the existing condition from multiple angles, or contact tricia@architecturalflashingsupply.com with photos and at least one verified dimension. Our estimators will reverse-engineer the profile and follow up with a match quote.`,
       },
       {
         q: 'What file formats does AFS accept for drawing submissions?',
@@ -153,7 +153,7 @@ export const FAQ_CATEGORIES: FaqCategory[] = [
       },
       {
         q: 'Does AFS provide shop drawings?',
-        a: `Yes. AFS provides shop drawings prior to fabrication for approval on commercial projects. Shop drawings show profiles, dimensions, material, gauge, attachment details, and expansion joint locations. Contact trica@architecturalflashingsupply.com to discuss shop drawing requirements.`,
+        a: `Yes. AFS provides shop drawings prior to fabrication for approval on commercial projects. Shop drawings show profiles, dimensions, material, gauge, attachment details, and expansion joint locations. Contact tricia@architecturalflashingsupply.com to discuss shop drawing requirements.`,
       },
       {
         q: 'What information do I need to submit a quote?',
@@ -161,7 +161,7 @@ export const FAQ_CATEGORIES: FaqCategory[] = [
       },
       {
         q: 'Can I pick up my order at the AFS shop?',
-        a: `Yes. Will-call pickup available at 209 Sure Cast Drive, Burnet, TX 78611. Contact trica@architecturalflashingsupply.com to schedule.`,
+        a: `Yes. Will-call pickup available at 209 Sure Cast Drive, Burnet, TX 78611. Contact tricia@architecturalflashingsupply.com to schedule.`,
       },
     ],
   },

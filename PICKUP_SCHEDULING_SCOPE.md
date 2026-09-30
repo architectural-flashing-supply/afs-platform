@@ -132,7 +132,7 @@ against those blockers line by line:
   address/phone/hours" blocker in CLAUDE.md is about the *physical* address,
   not a notification inbox. `lib/bid-monitor/alerts.ts:40` already has a live
   precedent for "notify AFS of an event via email" —
-  `process.env.BID_MONITOR_ALERT_EMAIL || 'trica@architecturalflashingsupply.com'`
+  `process.env.BID_MONITOR_ALERT_EMAIL || 'tricia@architecturalflashingsupply.com'`
   — a working, already-used fallback address. Reuse that pattern; it is not
   blocked.
 
@@ -173,7 +173,7 @@ order row. Build it there instead:
      `dispatch/route.ts` already establishes for non-status audit trail
      entries.
    - **Notify AFS admin**: email via `lib/resend/send.ts`'s `sendEmail()` to
-     `process.env.PICKUP_ALERT_EMAIL || 'trica@architecturalflashingsupply.com'`
+     `process.env.PICKUP_ALERT_EMAIL || 'tricia@architecturalflashingsupply.com'`
      (mirroring `lib/bid-monitor/alerts.ts`'s exact fallback pattern) —
      "Pickup scheduled — Order {order_number} — {date} {window}."
    - **Customer confirmation email**: reuse `baseEmailTemplate`/`ctaButton`

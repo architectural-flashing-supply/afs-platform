@@ -15,10 +15,10 @@ export default function PrivacyPolicyPage() {
           <p className="font-body text-base text-afs-chrome-mid leading-relaxed">
             Privacy Policy coming soon. Contact{' '}
             <a
-              href="mailto:trica@architecturalflashingsupply.com"
+              href="mailto:tricia@architecturalflashingsupply.com"
               className="text-afs-crimson hover:text-afs-crimson-hover transition-colors"
             >
-              trica@architecturalflashingsupply.com
+              tricia@architecturalflashingsupply.com
             </a>{' '}
             for privacy inquiries.
           </p>

@@ -173,10 +173,10 @@ function ServiceAreaInfoPanel() {
         </a>
         <span className="text-gray-400 text-xs">|</span>
         <a
-          href="mailto:trica@architecturalflashingsupply.com"
+          href="mailto:tricia@architecturalflashingsupply.com"
           className="font-body text-xs text-afs-crimson hover:underline"
         >
-          trica@architecturalflashingsupply.com
+          tricia@architecturalflashingsupply.com
         </a>
       </span>
     </div>

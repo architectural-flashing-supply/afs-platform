@@ -21,7 +21,7 @@ const localBusinessJsonLd = {
     addressCountry: 'US',
   },
   telephone: '+1-512-372-4900',
-  email: 'trica@architecturalflashingsupply.com',
+  email: 'tricia@architecturalflashingsupply.com',
   description:
     'Precision sheet metal fabrication shop specializing in architectural flashing, coping caps, gutters, and custom sheet metal profiles. Serving Texas and North America from Burnet, TX.',
 };
@@ -42,8 +42,8 @@ const CONTACT_CARDS: ContactCard[] = [
   },
   {
     label: 'General',
-    value: 'trica@architecturalflashingsupply.com',
-    href: 'mailto:trica@architecturalflashingsupply.com',
+    value: 'tricia@architecturalflashingsupply.com',
+    href: 'mailto:tricia@architecturalflashingsupply.com',
   },
   {
     label: 'President',
