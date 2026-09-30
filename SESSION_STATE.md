@@ -8481,3 +8481,92 @@ invoices+auto-invoice, 4 Outlook+Approve+parser, 5 Shop View+Deliveries,
    distinguish real customer work from Steve's own testing. The
    backup-then-wipe step is unspecifiable until this is answered. NOTHING was
    deleted.
+
+---
+
+## 2026-09-30 — COMMAND CENTER V2 QUEUE AUTHORED (no build executed)
+
+The six-prompt **Command Center V2** queue was authored into
+`FORGE\projects\afs-website\queue.yaml` and validated by a dry-run preflight.
+**The queue was NOT executed.** No application code, schema or data changed in
+this session; the only tracked edit is this governance note.
+
+**Queue contents (execution order):**
+
+| ID | Scope |
+|---|---|
+| `v2-01` | Foundation: full backup, clean slate, remove the 911 AI-read library, one-level nav, `job_stage` model, hemmed-end extension |
+| `v2-02` | Workbench (five lanes) + three-column Job screen |
+| `v2-03` | Price book, append-only pricing-history ledger, quotes, invoices, signed Approve button, auto-invoice to Tricia |
+| `v2-04` | Shop View + Deliveries |
+| `v2-05` | Thumbnail-column Search UI on the `1646746` server side |
+| `v2-06` | Hardening (F-06, F-03, F-09, F-12), automated WCAG AA contrast gate, consolidation, State of the Build docx |
+
+Every prompt carries `max_retries: 2`, `on_fail: halt`, and a gate chain whose
+FIRST gate is a shell pre-clean (stop any `node.exe` whose command line contains
+`afs-website`, delete `.next`, exit 0) followed by `compile`, a `pnpm test:unit`
+shell gate, `build`, and prompt-specific shell assertions.
+
+**Preflight:** `forge-1.ps1 -project afs-website -dryRun` → 6 prompts listed by
+name, **Passed 6, Failed 0, Halted False**. Report:
+`FORGE\reports\afs-website_2026-09-30_01-03-31.md`.
+
+**The LR queue was backed up unchanged** to
+`FORGE\projects\afs-website\queue.lr.backup.yaml` before being replaced —
+md5 `ea75998f2d07beab797638bf11b5dae9` on both source and copy.
+`queue.field-app.backup.yaml` was left untouched. Note that the FORGE repo
+gitignores `projects/`, so neither the queue nor its backup is version
+controlled there; the backup file on disk is the only copy of the LR queue.
+
+**Two things learned from `forge-1.ps1`'s source that shaped the queue:**
+1. The built-in `test` gate type runs `pnpm test`, and **this repo has no `test`
+   script** (only `test:e2e`, `test:e2e:ui`, `test:unit`). It also scans only
+   `tests/`, `src/` and `e2e/` for specs, while this repo colocates unit tests
+   under `lib/**`. A `- type: test` gate would therefore have failed on every
+   prompt. The unit-test gate is a **shell gate running `pnpm test:unit`**.
+2. A shell gate whose command names a `.ts`/`.js`/`.mjs`/`.ps1`/`.py` file
+   **pre-checks that the file exists** before running. Five gates depend on
+   files their prompt must create, so each of those prompts carries an explicit
+   **GATE CONTRACT** block naming the exact path:
+   `tests/e2e/command-center-workbench.spec.ts`,
+   `tests/e2e/quote-approve-invoice.spec.ts`,
+   `tests/e2e/shop-deliveries.spec.ts`,
+   `tests/e2e/profile-search.spec.ts`, and
+   `scripts/audit/contrast-check.mjs`.
+
+**BOTH OPEN DECISIONS RECORDED ABOVE ARE NOW ANSWERED BY REID:**
+1. **Tricia's address is `tricia@architecturalflashingsupply.com`.** The
+   prototype's `trica@` is a misspelling. Every prompt in the queue carries the
+   correct address as a global rule, and `v2-01` and `v2-03` both gate on zero
+   remaining `trica@` occurrences in code or docs.
+2. **No existing jobs are real.** This unblocks the backup-then-wipe that spec
+   section 2.9 said was unspecifiable. `v2-01` performs it: `pg_dump` of every
+   application table to `C:\Users\manag\Documents\afs-backups\2026-10-01\`
+   (outside the repo) FIRST, gated on non-empty dump files, then the wipe —
+   keeping user accounts, the E2E account, catalog/product reference data, and
+   `shop_profile_library` send history.
+
+**A third pending decision is also now resolved — CLAUDE.md rule #13's hemmed-end
+question.** Reid chose neither of the two options recorded there (block, or
+auto-drop the hem): dragging a hemmed free endpoint now **extends, and the hem
+moves to the new free end** with its type, gap and direction preserved. Nothing
+is destroyed. `v2-01` implements it and updates rule #13 to record the decision
+as made.
+
+**Old machine source files** are archived by `v2-01` to
+`C:\Users\manag\Documents\afs-assets\old-machine-files\` — this path
+deliberately overrides the `afs-archive` path written in the spec.
+
+**DEFERRED — spec Phase 4 (Outlook / Microsoft 365 send + mail parser) is
+deliberately NOT in this queue.** It is blocked on **Microsoft 365 admin
+consent** and cannot be built until that is granted. `v2-03` therefore sends the
+quote email through the site's existing email service, and designs the pricing
+ledger so the future mail parser can write supplier price-change notices into it
+automatically. `v2-06` carries the Microsoft 365 connection plus the mail parser
+as the first named next action in the generated State of the Build document.
+
+**Launch command (not yet run):**
+```powershell
+cd C:\Users\manag\Documents\FORGE
+.\forge-1.ps1 -project afs-website
+```
