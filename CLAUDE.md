@@ -496,8 +496,9 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
     own numbers with a confidence they never earned.
 
 18. **Gunmetal header, light working area — converted per screen, by the
-    page.** The Workbench, the Job screen and — as of v2-04 — Shop View and
-    Deliveries render inside `components/admin/LightWorkingArea.tsx`; the list
+    page.** The Workbench, the Job screen, Shop View and Deliveries (v2-04)
+    and Search (v2-05) render inside
+    `components/admin/LightWorkingArea.tsx`; the list
     is data in `lib/data/admin-working-area.ts` and is unit-tested, so "which
     screens are light" is an assertion rather than a memory. Every other admin
     page is still gunmetal and converts when it is rebuilt (its text uses the
@@ -739,6 +740,48 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
     still returns the full row including the base64 and is still correct for the
     Profile Library table, which renders one screen on demand — do not point a
     polling surface at it.
+
+    **v2-05 made that lazy loader ONE component.** It had been written twice
+    (`PastProfileThumb.tsx`, `ShopJobDrawing.tsx`) and the Search rail would
+    have been a third, so it now lives in
+    `components/admin/LazyProfileThumb.tsx` and `PastProfileThumb` is a link
+    wrapped around it. Its module-level cache is keyed by profile id, which is
+    only safe because a saved profile's drawing NEVER changes in place — a
+    modification creates a new row (rule #13's lineage). If that ever stops
+    being true, the cache is wrong before anything else is.
+
+27. **ONE PROFILE SEARCH: one query, one panel, and Select saves your work
+    before it replaces it.** `admin_profile_search` (migration 029, extended in
+    038 with a nullable `p_ids uuid[]`) is the ONLY profile query. Recent and
+    Pinned reuse it through that argument — do not add a sibling function
+    returning the same seventeen columns, and do not let `p_ids` be readable
+    from a query string: it is built server-side from the caller's own shortcut
+    rows (`buildIdSearchArgs`), never from `buildSearchArgs`.
+    `components/admin/ProfileSearchPanel.tsx` is the ONE UI, rendered both at
+    `/admin/search` and inside FlashDraft's `?admin=1` drawer; only `onSelect`
+    differs.
+
+    **The enlarged preview has NO CLOSE BUTTON, and that is why the timing is a
+    tested module.** `lib/ui/hover-intent.ts`: 150 ms before it opens (a sweep
+    down the rail crosses every thumbnail and must open none of them), 300 ms of
+    grace before it closes, and entering the preview CANCELS the close rather
+    than restarting it — the preview sits across a gap from the rail and carries
+    the Select button, so a pointer must be able to travel onto it. Keyboard and
+    touch bypass both delays: an arrow key IS the intent, a tap IS the intent.
+    Do not add a close button, do not inline the timers, and remember that
+    Escape's refocus must not reopen what Escape just closed.
+
+    **Select AUTO-SAVES unsaved canvas work FIRST, and only loads if that
+    succeeded.** A failed save leaves the canvas exactly as it was and says
+    "nothing was replaced". The save is the ordinary `performSave`, so the work
+    lands in the Passport, and the load is the ordinary `loadForModify`, so the
+    picked profile is never overwritten. "Unsaved" is decided by
+    `lib/flashdraft/unsaved-work.ts`'s SIGNATURE, never a dirty flag, and never
+    `geometryFingerprint` — that hash is orientation-independent by design
+    (rule #12's neighbour), so a whole-profile drag would read as no change at
+    all. **Every load path must record the signature**; miss one and picking two
+    profiles in a row writes an untouched duplicate of the first into the
+    Passport. Full contract: ARCHITECTURE.md section 16.
 
 ---
 

@@ -34,6 +34,268 @@ summary, not a replacement for it.
 
 ---
 
+## COMMAND CENTER V2 — PROMPT v2-05 (2026-09-30)
+
+Search — the thumbnail rail, the hover-intent preview, and Select. Everything
+below was verified in this session against the live database or the live alpha
+deployment, with the real output pasted into the run report. Per the
+VERIFICATION STANDARD above, the interactive parts are **IMPLEMENTED, VERIFIED
+BY PLAYWRIGHT AGAINST ALPHA** and still want Reid's own eyes.
+
+Commits: `d6a20df` (the rail, Recent/Pinned, migration 038), `77cf503`
+(FlashDraft's drawer and the auto-save), `4fe8dd9` (the gate), `e4f0b7a` (the
+nav gate's title).
+
+### 1. THE SERVER SIDE WAS REUSED, NOT REBUILT
+
+The prompt's instruction was to build on what commit `1646746` already
+delivered. Reused, cited by path:
+
+```
+lib/data/profile-search.ts                                   typed args + normalization
+app/api/admin/command-center/profile-search/route.ts         the list endpoint
+app/api/admin/command-center/profile-thumbnail/[id]/route.ts one image, by id
+supabase/migrations/029_admin_profile_search_fn.sql          admin_profile_search()
+```
+
+`admin_profile_search` is still the only query. Recent and Pinned do **not**
+get a second one: migration 038 adds a single nullable `p_ids uuid[]` argument
+to that same function, and the rows come back in the order the ids were given
+(`array_position`). A sibling function returning the same seventeen columns
+would have been a copy that had to be kept in step forever.
+
+Three additions to `lib/data/profile-search.ts`, all so there is one of each
+thing rather than three: `buildIdSearchArgs` (the id list, never taken from a
+query string — a browser cannot name the ids it wants back), `mapSearchRow`
+(the row-to-result mapping the search route, the shortcuts route and the page
+all now share) and `PROFILE_SEARCH_RESULT_KEYS` (what a result may contain, as
+data the egress test asserts against).
+
+### 2. MIGRATION 038 — APPLIED, RUN TWICE, VERIFIED
+
+`admin_recent_profiles` and `admin_pinned_profiles`. Per-admin scratch state,
+not shared catalog content, so both are keyed `(admin_id, profile_id)` and both
+cascade away with either side — deleting a profile must not leave a shortcut
+pointing at nothing.
+
+Live verification (`information_schema`, `pg_class`, `pg_policy`,
+`pg_constraint`, `role_routine_grants`):
+
+```
+relname                 rls    policies
+admin_pinned_profiles   true   1
+admin_recent_profiles   true   1
+
+admin_recent_profiles_own / admin_pinned_profiles_own, cmd = ALL:
+  USING and WITH CHECK are both
+  ((admin_id = auth.uid()) AND (EXISTS (SELECT 1 FROM profiles p
+     WHERE ((p.id = auth.uid()) AND (p.role = 'admin'::text)))))
+
+admin_*_profiles_pkey            PRIMARY KEY (admin_id, profile_id)
+admin_*_profiles_admin_id_fkey   FK admin_id -> profiles(id) ON DELETE CASCADE
+admin_*_profiles_profile_id_fkey FK profile_id -> saved_configurations(id) ON DELETE CASCADE
+
+admin_profile_search args:
+  p_q text, p_field text, p_material text, p_gauge text, p_date_from date,
+  p_date_to date, p_status text, p_limit integer, p_offset integer, p_ids uuid[]
+  prosecdef = true
+EXECUTE granted to: service_role, authenticated, postgres   (anon: NOT granted)
+```
+
+The function was **DROPped and recreated**, not `CREATE OR REPLACE`d: adding an
+argument makes a new signature, so a replace would have left the nine-argument
+version behind as an overload and a call with all defaults would be ambiguous.
+The grants are re-applied in the same migration because the drop takes them
+with it. The whole file ran a second time with no error and no change.
+
+### 3. EGRESS — THE RULE THAT BITES HARDEST HERE
+
+A vertical thumbnail column is exactly the surface that would otherwise ship
+base64 in a list response. It does not, and that is asserted three ways:
+
+- `admin_profile_search` has **no `thumbnail_image` in its `RETURNS TABLE`**,
+  only `has_thumbnail boolean`. There is nothing for the route to forward.
+- `lib/data/profile-search.test.ts` asserts `mapSearchRow` produces exactly
+  `PROFILE_SEARCH_RESULT_KEYS`, that no key matches `/image|svg/i`, and that no
+  string value starts with `data:`.
+- The E2E captures the real response **off the wire** on alpha and asserts the
+  body contains no `data:image`, no `thumbnailImage` and no `iVBORw0KGgo`.
+
+Live response shape, 12 results, one row printed in full:
+
+```json
+{"results":[{"id":"...","name":"E2E-SEARCH Zorbix Drip","company":"Quafflewick Roofing",
+  "person":"Bartholomew Quince","profileType":"zorbix-drip","material":"Galvalume",
+  "gauge":"24 ga","lengthFt":10,"quantity":2,"createdAt":"...","fingerprint":null,
+  "sameShapeCount":1,"bendCount":1,"hemCount":0,"status":null,
+  "pathfinderProfileId":null,"hasThumbnail":true}],"limit":24,"offset":0}
+```
+
+Thumbnails lazy-load through `components/admin/LazyProfileThumb.tsx`. That
+loader had already been written twice (`PastProfileThumb.tsx` for the Job
+screen, `ShopJobDrawing.tsx` for Shop View); this needed a third caller, so it
+moved into one component and **`PastProfileThumb` is now a link wrapped around
+it**. One implementation, one in-memory cache keyed by id (a saved profile's
+drawing never changes in place — a modification creates a new row), one place
+a bug in it could live.
+
+Proved live rather than argued: with twelve results in the rail, the number of
+distinct `/profile-thumbnail/` requests on first paint is **greater than zero
+and fewer than twelve**, and scrolling the rail to the last item increases it.
+
+**There is no polling on this screen at all** — search runs when the user types
+— so the "pause when `document.hidden`" rule has nothing to apply to. That is
+the honest state of it, not an omission.
+
+### 4. THE HOVER-INTENT PREVIEW IS A TESTED STATE MACHINE
+
+`lib/ui/hover-intent.ts`, 15 unit tests on a deterministic clock. Two delays,
+doing two different jobs:
+
+- **150 ms in.** Sweeping a pointer down a rail of twenty thumbnails crosses
+  every one of them; opening on first contact would fire twenty previews for a
+  gesture that meant none of them.
+- **300 ms of grace out.** The preview is a panel BESIDE the rail carrying the
+  Select button, so the pointer has to leave the thumbnail and cross a gap to
+  reach it. Closing on `pointerleave` would make Select unclickable — the panel
+  would vanish from under the cursor mid-journey. Entering the preview
+  **cancels** the close rather than restarting it, so reading it is never on a
+  clock.
+
+It lives in its own module *because the preview has no close button*. With no X
+to press, the ways out — move away and stay away, Escape, choose something else
+— have to be completely reliable, and two inline `setTimeout`s in a 600-line
+component are not testable.
+
+Proved on alpha as a MEASUREMENT, not a hope: the E2E times how long the
+preview takes to appear (asserted >= 120 ms against the 150 ms delay) rather
+than racing a "not yet visible" check. The grace is walked the way a hand
+actually would — off the thumbnail into the gap (one move event, so nothing in
+between is entered), 200 ms, still open; onto the preview, 1.2 s, still open;
+Select asserted clickable. And the complement: leave and stay away, and it
+closes. The preview's buttons are asserted to be exactly `["Select", "Pin"]`,
+so a close button cannot quietly appear later.
+
+### 5. NOT A MOUSE-ONLY SCREEN
+
+`/` focuses the box from anywhere. Tab reaches the rail and focusing a
+thumbnail previews it. Arrow keys walk the rail with the preview following.
+Enter puts Select one press away — asserted by reading
+`document.activeElement` after the press. Escape closes and returns focus to
+the thumbnail. A touch tap opens immediately: a tap is not ambiguous, so making
+it sit out the hover delay would be a delay with nothing to resolve. The touch
+test performs **no mouse movement at all** and taps a Select button asserted to
+be at least 44px tall.
+
+### 6. SELECT — A LINKED NEW DRAFT, AND THE AUTO-SAVE
+
+From `/admin/search`, Select navigates to
+`/studio/draft?admin=1&modifyProfile=<id>` — the `?modifyProfile=` contract
+Part 1 already built, so the picked profile is never overwritten and the
+lineage banner appears.
+
+From inside FlashDraft's drawer it calls `loadForModify` directly, and **the
+order is the whole feature**: anything unsaved is written FIRST, and the load
+happens only if that write succeeded. A failed save leaves the canvas exactly
+as it was and says "Could not save your drawing, so nothing was replaced".
+
+The save is an ORDINARY save — the same `performSave` every other path uses,
+with the same auto-generated name the zero-friction lock flow uses for an
+unnamed drawing — so the work lands in the Passport where the user would look
+for it, not in a rescue bucket only this feature knows about. `performSave` now
+returns whether the write happened; every pre-existing caller ignores it and
+behaves exactly as before.
+
+**"Is there unsaved work" is a SIGNATURE, not a dirty flag**
+(`lib/flashdraft/unsaved-work.ts`). A boolean in a 4,600-line component has to
+be reset by every save path and cleared by every load path, and one missed
+reset is either a lost drawing or a junk row. It is deliberately NOT
+`geometryFingerprint`: that hash is orientation-independent on purpose, so
+dragging the whole profile across the canvas does not change it — right for
+"same shape used 3x", wrong for "did you change anything". The unit test
+asserts exactly that difference.
+
+**Every load path records the signature**, and that is load-bearing rather than
+tidy: a freshly loaded profile, template, canonical shape or job
+reconstruction is not the user's unsaved work, so without it, picking two
+profiles in a row from Search would write an untouched duplicate of the first
+into the Passport every single time.
+
+Proved in the DATABASE on alpha, not by believing a toast — the E2E draws a
+real two-leg profile, opens the drawer, picks a profile, and then reads back:
+
+```
+AUTO-SAVED ROW: [{"id":"0e30ac21-2cbb-43d6-abde-1a644343ae76",
+                  "name":"Profile-2026-09-30T23:24:53.772Z"}]
+```
+
+### 7. WHERE SEARCH IS REACHABLE FROM
+
+The header's search box (unchanged, `/admin/search?q=`) and **Find a past
+profile** inside FlashDraft, shown only for an `?admin=1` session — the same
+gate "Send to PathfinderEdge" uses, so an admin who wanders onto the public
+FlashDraft page does not get a cross-customer search box.
+
+**DEVIATION FROM THE SPEC PROSE, RESOLVED IN THE PROTOTYPE'S FAVOUR.**
+`docs/COMMAND_CENTER_V2_SPEC.md` section 1 writes the top bar as "Workbench ·
+Shop View · Deliveries · Search". The approved prototype's `header()`
+(line 276) has `navs = [workbench, shop, deliveries]` and Search as the
+labelled input in the top right — which is what v2-01 built and what is still
+there. `TOP_LEVEL_NAV` was therefore left alone. Where the two disagree the
+prototype wins, by the spec's own opening line.
+
+### 8. THE SEARCH SCREEN IS THE FIFTH LIGHT ONE
+
+`/admin/search` joins the Workbench, the Job screen, Shop View and Deliveries
+in `LIGHT_WORKING_AREA_SCREENS`, asserted in `lib/data/workbench.test.ts`.
+Placeholder text on it is **`afs-ink-700`** (10.3:1 on `afs-bg-card`), not
+`afs-chrome-silver`, which measures 1.55:1 there — CLAUDE.md rule #23, the
+light-surface half of the rule. Controls take `afs-line-strong` borders (3.1:1,
+the UI-component rule). The field labels take the prototype's own wording:
+"Everything", not "All"; "Profile type", not "Type".
+
+### 9. TWO BUGS THE GATE FOUND, NEITHER BY READING THE CODE
+
+1. **Escape appeared to do nothing.** It closed the preview and then put focus
+   back on the thumbnail — whose focus handler reopened it. Fixed with a
+   suppression flag around the refocus; the comment in
+   `ProfileSearchPanel.tsx` records why the two rules fight.
+2. **The touchscreen tests ran against an empty library.** They were a SIBLING
+   `describe`, so the fixtures created in the other describe's `beforeAll` did
+   not exist for them. Nested now.
+
+Two harness fixes with them. `tests/e2e/helpers/search-db.ts` inserts all
+twelve fixtures in ONE statement and deletes in one, because thirteen separate
+Management API calls tripped `ThrottlerException: Too Many Requests` and failed
+four tests before a single assertion ran — which reads as a broken feature and
+was not one. And `tests/e2e/helpers/db.ts`'s `sql()` now backs off on **429
+only**; every other status still fails immediately, because a 400 is a bug in
+the query and retrying it would hide it.
+
+### 10. PRE-EXISTING FAILURE FOUND, NOT CAUSED HERE, NOT FIXED HERE
+
+**`tests/e2e/modify-in-flashdraft.spec.ts` cannot run on this machine.** It
+builds a `supabase-js` client for its fixtures, and supabase-js constructs a
+realtime client on construction, which needs a global `WebSocket`:
+
+```
+Error: Node.js detected but native WebSocket not found.
+  at Function.getWebSocketConstructor (@supabase/realtime-js/src/lib/websocket-factory.ts:159)
+  at createClient (@supabase/supabase-js/src/index.ts:65)
+  at tests/e2e/modify-in-flashdraft.spec.ts:41
+```
+
+This repo runs Node **v20.20.2**; global `WebSocket` landed in Node 21/22. The
+failure is at `createClient`, before a single query, so the spec cannot work
+around it. Three tests fail or skip. v2-05's own spec hit this first and went
+to the Management API SQL channel every other V2 spec already uses.
+**Converting `modify-in-flashdraft.spec.ts` the same way is a small, obvious
+change that was deliberately NOT made in this prompt** — it would mean
+re-verifying a Part 1 spec's byte-for-byte comparisons, which is not this
+prompt's scope. PENDING.
+
+---
+
 ## COMMAND CENTER V2 — PROMPT v2-04 (2026-09-30)
 
 Shop View and Deliveries — the end of the journey. Everything below was

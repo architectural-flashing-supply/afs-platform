@@ -24,7 +24,79 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
-## COMMAND CENTER V2 — PROMPT v2-04 (2026-09-30) — CURRENT HANDOFF
+## COMMAND CENTER V2 — PROMPT v2-05 (2026-09-30) — CURRENT HANDOFF
+
+Search. You can find any profile AFS has ever drawn, see it full size without
+clicking, and put it on the canvas without losing what was already there. Full
+detail and every piece of live output: STATE_OF_THE_BUILD.md's v2-05 entry.
+Architecture: ARCHITECTURE.md section 16. Schema: SCHEMA.md's PROFILE SEARCH
+SHORTCUTS section.
+
+Commits: `d6a20df` the rail + Recent/Pinned + migration 038, `77cf503`
+FlashDraft's drawer and the auto-save, `4fe8dd9` the gate, `e4f0b7a` the nav
+gate's title, plus the governance commit that follows this file.
+
+### WHAT SHIPPED
+
+- **`/admin/search`** rebuilt to the approved prototype's `searchView` and
+  moved into the light working area: one box, a **Search in** selector, a
+  **Material** filter, a vertical rail of thumbnails, and an enlarged preview
+  beside it carrying **Select**. Recent and Pinned show when the box is empty.
+- **The server side was reused, not rebuilt.** Every result still comes from
+  `admin_profile_search` (migration 029, commit `1646746`). Recent and Pinned
+  reuse the SAME function through one added `p_ids uuid[]` argument rather
+  than getting a near-identical second query.
+- **Migration 038**: `admin_recent_profiles`, `admin_pinned_profiles`, both
+  RLS-enabled and per-admin, both cascading; plus that added argument. Applied
+  live, run twice, verified through `pg_policy`, `pg_constraint` and
+  `role_routine_grants`.
+- **Find a past profile inside FlashDraft** (`?admin=1` sessions only), and
+  **Select auto-saves the canvas FIRST** — proved by reading the new row back
+  out of the database, not by trusting a toast.
+- **The hover preview has no close button**, so the timing that replaces one is
+  a tested state machine: 150 ms to open, 300 ms of grace so the pointer can
+  reach the preview, and entering it cancels the close outright.
+- **Keyboard and touch are first-class**: `/`, Tab, arrows, Enter, Escape; a
+  tap opens immediately with no hover delay.
+
+### WHAT IS TRUE OF THE DATA NOW
+
+`saved_configurations` is **empty on alpha** (the v2-01 clean slate took the 18
+rows Part 2's backfill had fingerprinted). Search therefore has nothing real to
+find yet, and every screenshot of it will be of test fixtures until FlashDraft
+starts producing saved profiles again. That is not a fault in the feature; it
+is worth knowing before anyone looks at the screen and reports it empty.
+
+### WHAT REID SHOULD LOOK AT
+
+1. **The hover feel.** 150 ms in and 300 ms out are the spec's numbers and they
+   test correctly, but "correct" and "feels right under a real hand" are
+   different claims and only the second one matters. Both constants are at the
+   top of `lib/ui/hover-intent.ts`.
+2. **The auto-save name.** An unnamed drawing is saved as
+   `Profile-<ISO timestamp>`, reusing the zero-friction lock flow's format. It
+   is honest and unique but it is not memorable; if Steve would rather be
+   asked for a name at that moment, that is a small change.
+3. **Pin.** Pinning is per-admin and there is currently one admin. If pins
+   should be shared across the office, say so — the table is keyed on
+   `admin_id` and would need a decision, not a bug fix.
+
+### STILL OPEN AFTER THIS PROMPT
+
+- **`tests/e2e/modify-in-flashdraft.spec.ts` cannot run on Node 20.** It builds
+  a `supabase-js` client, which constructs a realtime client, which needs a
+  global `WebSocket` this Node does not have — it fails at `createClient`
+  before any query. Not caused by v2-05 and deliberately not fixed in it; the
+  conversion to the Management API SQL channel is obvious but would mean
+  re-verifying a Part 1 spec. PENDING.
+- **22 files outside the Command Center still use `afs-chrome-dim` as
+  placeholder text** (rule #18). Unchanged by this prompt. PENDING REID.
+- **The Approve gate is an ADMIN approval, not a customer acceptance**
+  (rule #14). Unchanged. PENDING REID.
+
+---
+
+## COMMAND CENTER V2 — PROMPT v2-04 (2026-09-30)
 
 Shop View and Deliveries: the end of the journey. A job that has been sent to
 the machine now gets bent, gets a day, gets delivered, and the Job lands in

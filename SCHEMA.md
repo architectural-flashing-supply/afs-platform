@@ -2817,6 +2817,96 @@ Holidays are NOT modelled, on purpose — no holiday calendar has been supplied
 (CLAUDE.md's DATA BLOCKERS), and inventing one would put a guess in the code.
 Weekends are a fact; an auto-scheduled delivery is always reschedulable by hand.
 
+## PROFILE SEARCH SHORTCUTS (migration 038_profile_search_shortcuts.sql)
+
+Command Center V2 prompt v2-05. Two small per-admin tables, and one argument
+added to an existing function. Nothing here is a new query path — the search
+itself is still `admin_profile_search` from migration 029.
+
+### TABLE — admin_recent_profiles
+
+| Column | Type | Notes |
+|---|---|---|
+| `admin_id` | `uuid` NOT NULL | FK -> `profiles(id)` ON DELETE CASCADE |
+| `profile_id` | `uuid` NOT NULL | FK -> `saved_configurations(id)` ON DELETE CASCADE |
+| `opened_at` | `timestamptz` NOT NULL DEFAULT now() | |
+
+PRIMARY KEY `(admin_id, profile_id)` — one row per admin per profile, so
+re-opening something updates its time instead of stacking duplicates.
+Index `idx_admin_recent_profiles_admin_opened (admin_id, opened_at DESC)`.
+
+**Trimmed to the ten newest by the ROUTE, not by a trigger.** Ten is a
+presentation decision (`RECENT_PROFILE_LIMIT` in `lib/data/profile-search.ts`),
+and burying it in the database would make "why did my eleventh disappear" a
+question only a DBA could answer.
+
+### TABLE — admin_pinned_profiles
+
+| Column | Type | Notes |
+|---|---|---|
+| `admin_id` | `uuid` NOT NULL | FK -> `profiles(id)` ON DELETE CASCADE |
+| `profile_id` | `uuid` NOT NULL | FK -> `saved_configurations(id)` ON DELETE CASCADE |
+| `pinned_at` | `timestamptz` NOT NULL DEFAULT now() | |
+
+PRIMARY KEY `(admin_id, profile_id)`; index
+`idx_admin_pinned_profiles_admin_pinned (admin_id, pinned_at DESC)`.
+
+### RLS — per admin, both tables, verified live
+
+Both have RLS enabled with exactly one `FOR ALL` policy each
+(`admin_recent_profiles_own`, `admin_pinned_profiles_own`), whose USING and
+WITH CHECK are identical:
+
+```sql
+admin_id = auth.uid()
+AND EXISTS (SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
+```
+
+Two conditions, both required. `admin_id = auth.uid()` alone would let a
+demoted account keep its lists; the role check alone would let one admin read
+another's. The shortcuts route runs every statement on the CALLER's session —
+never the service role — so a bug in that file cannot reach another admin's
+rows; the database would refuse it.
+
+**BOTH CASCADE FROM BOTH SIDES.** Deleting a profile must not leave a shortcut
+pointing at nothing, and deleting an admin must not leave their history behind.
+This also means an E2E that deletes its fixtures cleans these up for free — the
+spec asserts the counts back to zero anyway rather than assuming the FK fired.
+
+### FUNCTION CHANGE — admin_profile_search gains `p_ids uuid[]`
+
+Full signature after 038:
+
+```
+admin_profile_search(
+  p_q text, p_field text, p_material text, p_gauge text,
+  p_date_from date, p_date_to date, p_status text,
+  p_limit integer, p_offset integer, p_ids uuid[]
+) RETURNS TABLE (... 17 columns ...)   SECURITY DEFINER
+```
+
+- `p_ids IS NULL` — no id filter, behaves exactly as before.
+- `p_ids` given — `sc.id = ANY(p_ids)` REPLACES the text match entirely, and
+  the rows come back **in the order given** via
+  `array_position(p_ids, sc.id)`. An EMPTY array returns nothing, which is the
+  honest answer for "these zero profiles" rather than a silent fallback to
+  everything.
+
+Recent and Pinned use this. A second function returning the same seventeen
+columns would have been a copy of a sixty-line query that must never drift.
+
+**DROP-then-CREATE, not CREATE OR REPLACE.** Adding an argument makes a new
+signature; a replace would leave the nine-argument version in place as an
+overload, and a call with all defaults would then be ambiguous. Because the
+drop takes the grants with it, the migration re-applies them: REVOKE from
+PUBLIC and from `anon`, GRANT EXECUTE to `authenticated`. Verified live in
+`role_routine_grants` — `service_role`, `authenticated`, `postgres`; `anon` is
+absent.
+
+`thumbnail_image` is still NOT in the RETURNS TABLE, only `has_thumbnail`. The
+egress rule is upheld by the function's own signature, not by every caller
+remembering to omit a column.
+
 ---
 
 *SCHEMA.md | AFS | Reid Whitesides | June 2026*

@@ -1511,3 +1511,124 @@ was copied into the Thalmann's live folder (`machine_jobs`
 `staged_for_review -> sent_to_machine`). The customer one is
 `app/api/admin/deliveries/mark-delivered`, on the deliveries resource where it
 belongs. Both remain, and the newer one's header says so.
+
+---
+
+## 16. PROFILE SEARCH (Command Center V2, v2-05)
+
+### One query, three surfaces
+
+There is exactly ONE profile query in this system and it lives in Postgres:
+`admin_profile_search`, migration 029 (commit `1646746`), extended by migration
+038 with a nullable `p_ids uuid[]`. Everything that shows a profile card goes
+through it:
+
+```
+/admin/search                      -> ProfileSearchPanel -> GET  profile-search
+FlashDraft (?admin=1) drawer       -> ProfileSearchPanel -> GET  profile-search
+Recent and Pinned                  ->                       GET  profile-shortcuts
+                                                            -> the same function, p_ids
+```
+
+The panel is literally the same React component in both places
+(`components/admin/ProfileSearchPanel.tsx`). Only `onSelect` differs. A
+FlashDraft-flavoured copy of that screen is how two versions of a screen start.
+
+`lib/data/profile-search.ts` holds the shared vocabulary: `buildSearchArgs`
+(untrusted query string -> typed arguments; **`p_ids` is always null here**, so
+a browser can never name the ids it wants back), `buildIdSearchArgs` (the
+server-side id list), `mapSearchRow` (the one row-to-result mapping) and
+`PROFILE_SEARCH_RESULT_KEYS` (what a result may contain, as testable data).
+
+### Egress: a thumbnail column with no images in the list
+
+The function's `RETURNS TABLE` has no `thumbnail_image` — only
+`has_thumbnail boolean`. So the list response physically cannot carry base64,
+and every card fetches its own picture from
+`app/api/admin/command-center/profile-thumbnail/[id]` once an
+`IntersectionObserver` says it is on screen.
+
+That loader is `components/admin/LazyProfileThumb.tsx`, and it is now the only
+one: `PastProfileThumb.tsx` is a link wrapped around it. It keys a module-level
+cache by profile id, which is safe because a saved profile's drawing never
+changes in place — a modification creates a new row (Part 1's lineage rule).
+`ShopJobDrawing.tsx` remains separate; it reads a different table through a
+different endpoint.
+
+**No polling here.** Search runs when the user types, so the
+"pause when `document.hidden`" rule (Shop View's) has nothing to apply to.
+
+### Hover intent, and why it is its own module
+
+`lib/ui/hover-intent.ts`. 150 ms before a preview opens, 300 ms of grace before
+it closes, and entering the preview cancels the close outright rather than
+restarting it.
+
+The open delay exists because sweeping a pointer down a vertical rail crosses
+every thumbnail in it. The grace exists because the preview is a panel BESIDE
+the rail carrying the Select button, so the pointer must leave the thumbnail
+and cross a gap to reach it — a pointer-safe corridor expressed in time rather
+than geometry.
+
+It is a module with injectable timers, not two inline `setTimeout`s, **because
+the preview has no close button.** With no X to press, the ways out have to be
+completely reliable, which means they have to be testable without a browser.
+
+Keyboard and touch bypass both delays (`openNow` / `closeNow`): an arrow key IS
+the intent and a tap IS the intent, so making either wait would be a delay with
+no ambiguity to resolve.
+
+One subtlety worth keeping: **Escape's refocus must not reopen what Escape
+closed.** Focusing a thumbnail previews it, and Escape puts focus back on the
+thumbnail the preview belonged to; without a suppression flag around that
+refocus, Escape appears to do nothing at all.
+
+### Select: auto-save FIRST, then a linked new draft
+
+From `/admin/search`, Select navigates to
+`/studio/draft?admin=1&modifyProfile=<id>`. From FlashDraft's own drawer it
+calls `loadForModify(<id>)` directly. Both are the SAME contract — a new,
+unlocked draft with `source_profile_id` recorded, the picked profile untouched.
+
+Inside FlashDraft the order is load-bearing:
+
+```
+hasUnsavedCanvasWork(points/hems, lastSavedSignature)?
+  -> performSave(...)  ->  false: STOP. Say "nothing was replaced". Canvas untouched.
+                       ->  true : loadForModify(id), then say both things happened.
+```
+
+The save is an ordinary `performSave` with the zero-friction lock flow's
+auto-generated name, so the work lands in the Passport where the user would
+look for it. `performSave` returns whether the write happened; pre-existing
+callers ignore it.
+
+**`lib/flashdraft/unsaved-work.ts` answers "is there unsaved work" with a
+SIGNATURE, not a dirty flag.** A boolean in a 4,600-line component must be
+reset by every save path and cleared by every load path; one missed reset
+loses a drawing or writes a junk row. The signature re-derives the answer from
+the geometry itself, so it cannot drift.
+
+It is deliberately NOT `geometryFingerprint` (section 13's shape hash): that
+one is orientation-independent by design, so a whole-profile drag does not
+change it. Right for "same shape used 3x"; wrong for "did you change
+anything". Both facts are asserted side by side in `unsaved-work.test.ts`.
+
+**Every load path records the signature** — `loadForModify`,
+`loadFromPassportById`, `loadTemplateGeometry`, `loadCanonicalFromHandoff`,
+`loadFromAdminJobHandoff`. A freshly loaded profile or template is not the
+user's unsaved work; without this, picking two profiles in a row from Search
+would auto-save an untouched duplicate of the first every single time.
+
+### Who can see any of it
+
+Admin four times over, and none of the four is UI hiding: the `/admin` tree's
+role gate; `requireAdminUser` in the page; the route's own
+`profiles.role = 'admin'` check; and the SECURITY DEFINER function re-checking
+for itself via `auth.uid()`, so a route forgetting its check could not open the
+door. The shortcut tables add a fifth for their own rows — RLS requiring both
+`admin_id = auth.uid()` and the admin role.
+
+Inside FlashDraft, the button is gated on `adminContext` (`?admin=1`), the same
+gate "Send to PathfinderEdge" uses — an admin who happens to open the public
+FlashDraft page does not get a cross-customer search box.
