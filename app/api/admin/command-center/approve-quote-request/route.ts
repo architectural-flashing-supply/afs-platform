@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { logAdminAction } from '@/lib/admin/audit';
+import { planStageTransition, isJobStage, type JobStageValue } from '@/lib/data/job-stage';
 import { MATERIAL_SHORTHAND } from '@/lib/data/catalog';
 import { sendEmail } from '@/lib/resend/send';
 import { baseEmailTemplate } from '@/lib/resend/templates/base';
@@ -411,7 +412,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const { data: quoteRequest, error: qrError } = await supabase
       .from('quote_requests')
       .select(
-        'id, user_id, guest_email, line_items, is_rush, notes, status, requested_delivery, source_tool, color, client_business_name, client_name, po_number, requested_by, finish, job_name'
+        'id, user_id, guest_email, line_items, is_rush, notes, status, job_stage, requested_delivery, source_tool, color, client_business_name, client_name, po_number, requested_by, finish, job_name'
       )
       .eq('id', quoteRequestId)
       .maybeSingle();
@@ -426,6 +427,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       is_rush: boolean;
       notes: string | null;
       status: string;
+      // Command Center V2 Workbench lane (migration 032). NULL = archived.
+      job_stage: string | null;
       requested_delivery: string | null;
       source_tool: string | null;
       // McElroy/PAC-CLAD color name selected at intake (afs-cv-002) —
@@ -446,8 +449,41 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // chain (see JobIdentityFields.jobName above).
       job_name: string | null;
     };
+    // The one-shot 409 self-lock, fixed.
+    //
+    // Before: a SUCCESSFUL approval set status='reviewing', which no longer
+    // satisfied this route's own `status === 'submitted'` entry check, so a
+    // second click came back as `409 Quote request is not pending approval.`
+    // — a failure-shaped answer to "that already happened" (diagnosed
+    // 2026-09-30). job_stage makes already-sent detectable, and
+    // planStageTransition decides what to say about it.
+    //
+    // Note what is NOT changed: the PathfinderEdge single door still requires
+    // status='submitted' when it verifies this approval in the database
+    // (CLAUDE.md rule #14). A re-push is not a fresh approval, so an
+    // already-sent job is answered, never re-sent.
+    const currentStage: JobStageValue = isJobStage(qr.job_stage) ? qr.job_stage : null;
+    const transition = planStageTransition(currentStage, 'shop');
+
+    if (transition.outcome === 'noop') {
+      // Already at the machine. 200, not an error — nothing was sent again.
+      return NextResponse.json({ ok: true, alreadySent: true, message: transition.message });
+    }
+    if (transition.outcome === 'refused') {
+      return NextResponse.json({ error: transition.message }, { status: 409 });
+    }
     if (qr.status !== 'submitted') {
-      return NextResponse.json({ error: 'Quote request is not pending approval.' }, { status: 409 });
+      // Stage says this job may advance, but the row is no longer awaiting
+      // approval, so the single-door guard would refuse the push anyway. Say
+      // that plainly instead of letting the guard's message surface as a 502.
+      return NextResponse.json(
+        {
+          error:
+            'This job is no longer waiting for approval, so it cannot be sent to the machine from here. ' +
+            'Open the job to see where it is.',
+        },
+        { status: 409 }
+      );
     }
 
     const items = qr.line_items ?? [];
@@ -636,7 +672,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const { error: updateError } = await supabase
       .from('quote_requests')
-      .update({ status: 'reviewing', reviewed_at: now })
+      // job_stage advances to the stage planStageTransition approved at the
+      // top of this route — the job is physically at the Thalmann now.
+      .update({ status: 'reviewing', job_stage: transition.to, reviewed_at: now })
       .eq('id', quoteRequestId);
     if (updateError) {
       return NextResponse.json(
@@ -675,10 +713,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       action: 'approve_quote_request_to_machine_summary',
       resourceType: 'quote_request',
       resourceId: quoteRequestId,
-      afterValue: { status: 'reviewing', machineJobIds },
+      afterValue: { status: 'reviewing', jobStage: transition.to, machineJobIds },
     });
 
-    return NextResponse.json({ ok: true, machineJobIds });
+    return NextResponse.json({
+      ok: true,
+      machineJobIds,
+      jobStage: transition.to,
+      message: `Sent to the machine — ${pathfinderResults
+        .map((r) => `profile #${r.profileId}`)
+        .join(', ')}.`,
+    });
   } catch (error) {
     console.error('[Command Center Approve Quote Request Error]', error);
     return NextResponse.json({ error: 'Could not approve request. Please try again.' }, { status: 500 });
