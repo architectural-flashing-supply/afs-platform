@@ -68,7 +68,13 @@ test.describe('Command Center header', () => {
     await box.fill('coping');
     await box.press('Enter');
     await expect(page).toHaveURL(/\/admin\/search\?q=coping/);
-    await expect(page.getByRole('heading', { name: 'Search' })).toBeVisible();
+    // v2-05 replaced the interim results table with the approved prototype's
+    // own screen, and took its title with it: `searchView` opens
+    // "Find a past profile", not "Search". The prototype is the UX spec.
+    await expect(page.getByRole('heading', { name: 'Find a past profile' })).toBeVisible();
+    // And the query really did arrive — the box on the page is pre-filled
+    // from it, not just present.
+    await expect(page.locator('#profile-search-q')).toHaveValue('coping');
   });
 
   test('More opens a flat menu with exactly the four V2 destinations', async ({ page }) => {
