@@ -290,14 +290,7 @@ test.describe('Quote -> Approve -> Invoice, end to end', () => {
     ).toBeGreaterThan(Date.now());
 
     // --- 6. VALID: the customer approves -----------------------------------
-    const rawToken = decodeURIComponent(approvePath.split('/').pop() as string);
-    const payloadJson = Buffer.from(
-      rawToken.split('.')[0].replace(/-/g, '+').replace(/_/g, '/'),
-      'base64'
-    ).toString('utf8');
-    console.log('DEBUG token payload', payloadJson, 'now', Math.floor(Date.now() / 1000));
     const approved = await request.get(approvePath);
-    console.log('DEBUG approve headers', JSON.stringify(approved.headers()));
     const approvedHtml = await approved.text();
     // The page body rides on the assertion: a 410 here is one of four different
     // refusals, and the status code alone does not say which.
