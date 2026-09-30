@@ -153,7 +153,9 @@ test.describe('Command Center header', () => {
     await expect(page.getByRole('heading', { name: 'Pricing history' })).toBeVisible();
     await expect(page.locator('[data-testid="ledger-export"]')).toBeVisible();
     await expect(page.locator('[data-testid="supplier-price-change-form"]')).toBeVisible();
-    await expect(page.getByText('cannot be edited or deleted, by anyone')).toBeVisible();
+    await expect(
+      page.getByText(/Nothing in here can be edited or deleted, by anyone/)
+    ).toBeVisible();
 
     // The exact wording the v2-03 prompt asks for, on the card itself.
     await expect(page.locator('[data-testid="dynamic-pricing-card"]')).toContainText(
