@@ -497,6 +497,22 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
     `afs-bg-band`, `afs-bg-light-raised`, `afs-border-light`, `afs-ink-900` and
     `afs-ink-700` rather than adding near-duplicates.
 
+    **PLACEHOLDER TEXT IS BODY TEXT: 4.5:1, no exemption.** A placeholder is
+    meant to look dimmer, which makes it the easiest pair to get wrong — reach
+    for the dimmest token on the scale and the contrast is gone.
+    **`afs-chrome-dim` (#7A8299) is never a placeholder colour.** Measured, it
+    fails against every gunmetal surface in the palette: 4.30:1 on `afs-bg-dim`
+    at best, **1.94:1 on `afs-bg-overlay`** at worst, where the Command Center's
+    reject/request-changes modal had it. Use **`afs-chrome-silver` (#C8D0E0)**,
+    which clears AA on all five (4.80:1 at worst) and still sits well below the
+    white typed text at 7.44:1, so it still reads as a placeholder.
+    `lib/design/placeholder-contrast.test.ts` computes these ratios from
+    `tailwind.config.js` rather than trusting a comment, and asserts the premise
+    (chrome-dim fails everywhere) as well as the fix, so a retheme cannot make
+    the rule silently vacuous. **22 files outside the Command Center still use
+    `afs-chrome-dim` this way** — listed in STATE_OF_THE_BUILD.md's v2-02
+    re-verification entry, PENDING REID, and not to be swept without his say.
+
 ---
 
 ## MACHINE INTEGRATION — THALMANN DS2801 / AFS MACHINE BRIDGE

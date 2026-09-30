@@ -577,6 +577,31 @@ because a retry would duplicate a real profile in catalog 20115.
 A failed send is STATE, not a toast: `send_status` survives a reload, so the
 card reads "Send failed — retry" until someone deals with it.
 
+**The already-sent row is the one that used to be a bare 409**, and it is the
+defect the v2-01 `job_stage` model was added to fix: a second click on
+"Approve & Send to Machine" answered `409 Quote request is not pending
+approval.` — a failure-shaped reply to "that already happened". Re-verified
+live over HTTP against alpha on 2026-09-30, against a job at `shop`:
+
+```
+HTTP status: 200
+body: {"ok":true,"alreadySent":true,
+       "message":"This job has already been sent to the machine. Nothing was sent again."}
+```
+
+Note what is NOT in that body: no `error` key, no status code in the prose, no
+jargon. The sentence comes from `jobStageNoopMessage()` in
+`lib/data/job-stage.ts`, which is the only place any of the five no-op sentences
+is written. The route returns BEFORE the push loop, so an already-sent job is
+answered and never re-sent — `status='submitted'`, which the single door
+requires when it verifies an approval, is therefore never disturbed by the
+answer either.
+
+A job that has moved PAST `shop` (i.e. `done`) is a different case and is still
+a 409, because moving it back to `shop` would un-send finished work — but it is
+a 409 carrying a plain sentence ("This job is already at 'Done'. It cannot go
+back to 'In the shop'."), not a bare status code.
+
 ### RUSH PROVENANCE — TWO SOURCES, ENFORCED IN POSTGRES
 
 `quote_requests.is_rush` may be set by exactly two things: the customer's

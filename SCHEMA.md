@@ -98,7 +98,7 @@ supabase/migrations/
   031_drop_machine_profile_library.sql    DROPS machine_profile_bends/machine_profiles/machine_profile_categories and machine_jobs.machine_profile_id (see MACHINE INTEGRATION TABLES) — APPLIED LIVE 2026-09-30
   032_quote_requests_job_stage.sql        Adds quote_requests.job_stage + CHECK + index, and backfills it (see TABLE 15) — APPLIED LIVE 2026-09-30, verified via information_schema
   033_building_codes_public_read.sql      Adds an anonymous SELECT policy on building_code_jurisdictions so the public /resources/building-codes page can read it; writes stay admin-only — APPLIED LIVE 2026-09-30 (022 itself was applied in the same run, 480 rows)
-  034_command_center_v2_workbench.sql     Adds 15 columns to quote_requests for the Workbench and Job screen — per-stage clocks, the returned PathfinderEdge profile numbers, send-failure state, rush provenance, approval channel and the follow-up draft — plus four CHECK constraints and two partial indexes (see TABLE 15) — APPLIED LIVE 2026-09-30, applied twice to prove idempotency, verified via information_schema + pg_constraint, and the rush constraint exercised four ways
+  034_command_center_v2_workbench.sql     Adds 15 columns to quote_requests for the Workbench and Job screen — per-stage clocks, the returned PathfinderEdge profile numbers, send-failure state, rush provenance, approval channel and the follow-up draft — plus four CHECK constraints and two partial indexes (see TABLE 15) — APPLIED LIVE 2026-09-30, applied twice to prove idempotency, verified via information_schema + pg_constraint, and the rush constraint exercised six ways, INSERT and UPDATE alike
   023_profile_passport.sql             Profile Passport — custom_profiles + profile_revisions (see PROFILE PASSPORT TABLES below), adds orders.custom_profile_id (see TABLE 18) — FILE ONLY, not applied live (no linked Supabase project, no SUPABASE_ACCESS_TOKEN; see STATE_OF_THE_BUILD.md)
 ```
 
@@ -608,9 +608,18 @@ constraint was first written as `CHECK (is_rush = false OR rush_source IN
 (...))` and applied live — and an insert of `is_rush = true, rush_source =
 NULL` **SUCCEEDED**. With a NULL the `IN` yields UNKNOWN, `false OR UNKNOWN`
 is UNKNOWN, and a CHECK constraint accepts UNKNOWN. Corrected to the form
-above and re-proven four ways against the live database: no source REFUSED, an
-invented source (`inferred_from_due_date`) REFUSED, `customer_checkbox`
-ACCEPTED, `admin_toggle` ACCEPTED. Do not simplify it back.
+above and re-proven against the live database: no source REFUSED, an invented
+source (`inferred_from_due_date`) REFUSED, `customer_checkbox` ACCEPTED,
+`admin_toggle` ACCEPTED. Do not simplify it back.
+
+**Re-proven a second time on 2026-09-30, adding the UPDATE path.** All four of
+the original proofs were INSERTs, and an inference would most plausibly arrive
+as an UPDATE on an existing row — so that was the untested case. Six attempts
+now: the four above, plus a second invented source (`asap_keyword`) REFUSED,
+plus **an UPDATE of an already-accepted row to `is_rush = true,
+rush_source = NULL`, which is REFUSED by the same constraint.** A CHECK is
+evaluated per-row on UPDATE as well as INSERT, so there is no write path that
+can set rush without provenance. Every proof row was deleted afterwards.
 
 **Two partial indexes:** `idx_quote_requests_done_at` (the Done lane's archive
 filter) and `idx_quote_requests_send_status` (finding jobs that need

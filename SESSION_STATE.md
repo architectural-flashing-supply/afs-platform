@@ -24,7 +24,75 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
-## COMMAND CENTER V2 — PROMPT v2-02 (2026-09-30) — CURRENT HANDOFF
+## COMMAND CENTER V2 — PROMPT v2-02, RE-VERIFICATION PASS (2026-09-30) — CURRENT HANDOFF
+
+The v2-02 prompt was run a second time. **Nothing had to be rebuilt** — every
+artifact from the first pass was present and every claim in it re-verified
+against the live database, the live alpha deployment, and PathfinderEdge itself.
+Full detail: STATE_OF_THE_BUILD.md's "v2-02 RE-VERIFICATION PASS" section.
+
+**Three things the first pass had not found, all fixed and pushed**
+
+1. **The E2E cleanup contract did not cover `notifications`, while asserting it
+   was complete.** `POST /api/quote-requests` emails the submitter and logs the
+   attempt there, and that row has no link back to the quote request, so
+   `deleteJob` could never reach it. 55 rows had piled up against the E2E
+   address. Now swept by recipient + a floor set before the first submission,
+   and the count is asserted to zero alongside the other two.
+2. **Placeholder text in the Command Center's reject/request-changes modal
+   measured 1.94:1** against its own background — the one text/background pair
+   in this work that missed the 4.5:1 rule, and near-invisible rather than
+   marginal. Swapped to an existing token that measures 4.80:1 there and still
+   reads dimmer than the typed text. A guard test now computes the ratios from
+   `tailwind.config.js` instead of trusting the numbers in a comment.
+3. **The rush constraint is now proven six ways, not four.** All four of the
+   first pass's proofs were INSERTs; an inference would most plausibly arrive as
+   an UPDATE, and that path was untested. It refuses on UPDATE too.
+
+**Two things worth carrying forward**
+
+- **A cleanliness count is only as good as the list of tables you count.** The
+  first pass's three cleanup assertions were each individually true and the
+  suite passed; the gap was a table nobody had thought to look at. When a spec
+  claims "every row it creates is deleted", the thing to audit is the *set of
+  tables the code under test writes to*, not the assertions already present.
+- **Not every orphan is residue.** A whole-table scan finds 56 orphaned
+  `admin_audit_log` rows. They predate this prompt by sixteen hours and are the
+  audit trail CLAUDE.md rule #14 cites as proof that every profile in catalog
+  20115 went through approval. **Do not delete them to make a count read zero.**
+  The helper's 6-hour window is correct on purpose.
+
+**What this pass is REPORTING rather than fixing — needs Reid's call**
+
+**22 files outside the Command Center still use `afs-chrome-dim` as placeholder
+text, and it fails WCAG AA on every gunmetal surface in the palette** (4.30:1 at
+best, 1.94:1 at worst). `afs-chrome-silver` passes on all five, so the remedy is
+a one-token swap per file. The full file list is in STATE_OF_THE_BUILD.md.
+Fixing the Command Center was in this prompt's scope; converting the public site
+is a site-wide restyle and was deliberately not done here.
+
+**Independent proof nothing reached the machine, beyond the spec's own four
+arguments:** a read-only GET against catalog 20115 shows 94 profiles, highest
+`profileId` 32953916, newest self-timestamping profile name
+`2026-09-30T00:59:39.126Z` — over sixteen hours before this prompt's first run —
+and zero profiles naming any tag the tests used. No POST or DELETE was made to
+PathfinderEdge by any code or test.
+
+**Gates, all executed in this pass:** `pnpm tsc --noEmit` exit 0;
+`pnpm test:unit` 226/226 across 15 files; `pnpm build` exit 0; Playwright 7/7
+against alpha, run three times, once per pushed commit, each after the Vercel API
+reported that commit's own deployment READY.
+
+**Still not user-confirmed** (per this file's VERIFICATION STANDARD): the
+Workbench and the Job screen remain verified only by this session's Playwright
+runs and screenshots against alpha. That is evidence for Reid, not a substitute
+for his own look. Specifically worth his eyes: whether the five lanes read
+plainly enough for a non-technical user, and whether the Approved lane's green
+pulse reads as "do this next" rather than as an error.
+
+---
+
+## COMMAND CENTER V2 — PROMPT v2-02 (2026-09-30) — FIRST PASS
 
 Ran as FORGE queue prompt v2-02. Built in two checkpointed parts, each
 committed, pushed, deployed to alpha and verified there before the next part

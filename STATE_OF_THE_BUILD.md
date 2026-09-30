@@ -234,6 +234,140 @@ No rule protected it. Both occurrences are fixed. An address-shaped scan of the
 tracked tree now returns zero hits outside SESSION_STATE.md's own prose about
 the misspelling.
 
+### v2-02 RE-VERIFICATION PASS (2026-09-30, later the same day)
+
+The v2-02 prompt was re-run. Nothing above needed rebuilding — every artifact
+was present and every claim re-verified live. Three things came out of the
+re-verification that the first pass had not found, all of them fixed here.
+
+**1. The cleanup contract was incomplete, and the spec was asserting otherwise.**
+`POST /api/quote-requests` emails the submitter and records the attempt in
+`notifications`. That row carries **no link back to the quote request** — the
+table's only foreign keys are `order_id` and `user_id`, and a quote request is
+neither — so `deleteJob(id)` had nothing to scope on and never touched them.
+**55 rows had accumulated** against `e2e-forge@architecturalflashingsupply.com`,
+timestamped 17:05–18:23 UTC across this prompt's runs, every one
+`status='failed'`, while the spec's `afterAll` asserted its own cleanup complete.
+
+The three assertions it did make were all true; they just did not cover this
+table, and a table nobody counts is exactly where that kind of claim rots. Fixed
+with `deleteTestNotifications()` / `remainingTestNotifications()`, scoped by the
+E2E recipient AND a floor captured before the first submission, so the range is
+exactly "rows this run caused" and a real customer — never the E2E account —
+can never be in it. The 55 historical rows were swept; `notifications` is 0.
+
+**2. Placeholder text in the Command Center modal measured 1.94:1.** The v2-02
+design rule is 4.5:1 for body text, placeholder included, and this was the one
+pair that missed it. `components/admin/CommandCenterJobCard.tsx`'s
+reject/request-changes textarea set `placeholder:text-afs-chrome-dim` (#7A8299)
+on `afs-bg-overlay` (#4E5568). Near-invisible, not a marginal miss.
+
+Swapped to `afs-chrome-silver` (#C8D0E0) — 4.80:1 there, clears AA on all five
+gunmetal surfaces, and still well below the white typed text at 7.44:1 so it
+still reads as a placeholder. An existing token, so no near-duplicate was added.
+`lib/design/placeholder-contrast.test.ts` computes the ratios from
+`tailwind.config.js` rather than trusting a comment, and asserts the premise
+(chrome-dim fails on every surface) as well as the fix.
+
+**REPORTED, NOT FIXED: 22 other files still use `afs-chrome-dim` as placeholder
+text.** Measured, it fails on every gunmetal surface in the palette — 4.30:1 on
+`bg-dim` at best, 1.94:1 on `bg-overlay` at worst. `afs-chrome-silver` passes on
+all five (4.80:1 at worst), so the fix is a one-token swap per file. The files:
+`app/(public)/architects/consultation/page.tsx`, `app/hailview/page.tsx`,
+`app/quote/page.tsx`, `app/studio/draft/page.tsx`,
+`components/ai/{AIInstallationAdvisor,AIProductFinder,ChatWidget}.tsx`,
+`components/architects/{SavedProfilesBrowser,SpecWriterWizard}.tsx`,
+`components/contact/ContactForm.tsx`,
+`components/employee/EmployeePhotoUploader.tsx`,
+`components/faq/FaqAccordion.tsx`,
+`components/field/ContractorCameraQuoteForm.tsx`,
+`components/layout/AuthShell.tsx`,
+`components/quote/{ColorPickerModal,FinishColorField}.tsx`,
+`components/resources/{BuildingCodeDirectory,ResourcesBrowser}.tsx`,
+`components/studio/{CanonicalProfileBrowser,ProfileDetailsModal}.tsx`,
+`components/ui/Input.tsx`, plus the pattern documented in `COMPONENT_MAP.md`.
+Turning a v2-02 prompt into a site-wide restyle is **PENDING REID**, not this
+prompt's call. When it happens, widen `SCOPE` in the guard test.
+
+**3. The rush constraint is now proven SIX ways, including the UPDATE path the
+first pass never tested.** All four of the first pass's proofs were INSERTs. An
+inference would most plausibly arrive as an UPDATE on an existing row, and that
+was untested. Re-exercised live against the live database:
+
+| Attempt | Result |
+|---|---|
+| INSERT `is_rush=true`, no source | **REFUSED** — `quote_requests_rush_needs_explicit_source` |
+| INSERT `is_rush=true`, `rush_source='inferred_from_due_date'` | **REFUSED** — same constraint |
+| INSERT `is_rush=true`, `rush_source='asap_keyword'` | **REFUSED** — same constraint |
+| INSERT `is_rush=true`, `rush_source='customer_checkbox'` | ACCEPTED |
+| INSERT `is_rush=true`, `rush_source='admin_toggle'` | ACCEPTED |
+| **UPDATE an accepted row to `is_rush=true, rush_source=NULL`** | **REFUSED** — same constraint |
+
+All proof rows deleted; `quote_requests` back to 0. The constraint's live
+definition, read from `pg_constraint`, still carries the load-bearing
+`IS NOT NULL` half:
+`CHECK (NOT is_rush OR (rush_source IS NOT NULL AND rush_source = ANY (ARRAY['customer_checkbox','admin_toggle'])))`.
+
+### The 56 orphan audit rows are NOT test residue, and must NOT be deleted
+
+A whole-table orphan scan returns 56 `admin_audit_log` rows whose `resource_id`
+no longer resolves to a `quote_requests` row. They are **not** from this prompt.
+Their newest is `2026-09-30 01:00 UTC`; this prompt's runs began at 17:05 UTC.
+They are the audit trail of real historical approvals and cancellations,
+orphaned by v2-01's migration 030 clean slate, which deleted the jobs and left
+their audit rows — correctly, since `admin_audit_log` deliberately has no FK to
+`quote_requests`.
+
+**They are load-bearing evidence.** CLAUDE.md rule #14 cites "the audit-log
+proof that every profile in 20115 since 2026-09-25 did go through approval", and
+these rows are that proof. Deleting them to make a cleanliness count read zero
+would destroy it. `remainingOrphanAuditRows()`'s 6-hour window is therefore
+correct rather than merely convenient: it asks "did THIS run leave an orphan",
+which is the only question a spec can honestly answer. It returns 0.
+
+### Independent proof that nothing reached the machine
+
+The spec's four arguments still hold and are still in its header. This pass added
+a fifth that does not depend on reading any of this repo's code — **a read-only
+GET against PathfinderEdge catalog 20115 itself**
+(`GET /api/v1/profiles?catalog=20115&skip=0&take=100`, the same path
+`pushProfileToPathfinder` uses to resolve a profile number):
+
+```
+profiles in catalog 20115: 94
+highest profileId (monotonic, so this is the newest ever created): 32953916
+newest timestamped profile name: 2026-09-30T00:59:39.126Z
+profiles naming any of the test tags (V2-02 / E2E / VERIFY): 0
+```
+
+`profileId` is server-assigned and monotonic, so the highest one is the most
+recently created profile in the catalog. It predates this prompt's first run by
+over sixteen hours, the newest self-timestamping profile name agrees, and no
+profile in the catalog names any tag this prompt's tests used. No POST and no
+DELETE was made to PathfinderEdge by any code or test in this pass.
+
+### Gates, re-executed in this pass
+
+- `pnpm tsc --noEmit` — **exit 0**
+- `pnpm test:unit` — **226 passed, 15 files** (was 219/14; +4 in the new contrast
+  guard, +3 added by `cf6fe2e` after the first pass's governance was written, so
+  the 219 recorded above was already stale)
+- `pnpm build` — **exit 0**
+- Playwright against alpha — **7/7 passed**, run three times: once on `cf6fe2e`,
+  once on `8582325`, once on `fa46e8b`, each after the Vercel API reported that
+  commit's own production deployment READY
+- WCAG AA re-measured independently for all 13 light-working-area text/background
+  pairs, computed from `tailwind.config.js` rather than read out of its comments
+  — all 13 pass, worst case `afs-line-strong` on `afs-bg-card` at 3.11:1 against
+  the 3:1 UI-component rule
+
+### Tables after the final run
+
+`quote_requests` 0, `machine_jobs` 0, `takeoff_uploads` 0, **`notifications` 0**,
+rows tagged `V2-02` 0, orphan audit rows from this run 0. Protected data intact:
+`shop_profile_library` 20, `canonical_profiles` 25.
+
+
 ---
 
 ## COMMAND CENTER V2 — PROMPT v2-01 (2026-09-30)
