@@ -94,7 +94,14 @@ export async function getPendingQuoteRequests(supabase: SupabaseClient): Promise
     .from('quote_requests')
     .select('id, request_number, user_id, guest_email, line_items, is_rush, notes, submitted_at, source_tool, upload_id')
     .eq('status', 'submitted')
-    .order('is_rush', { ascending: false })
+    // NEWEST ARRIVAL FIRST, and nothing else (Command Center V2, prompt
+    // v2-02). This used to sort `is_rush DESC` first. Rush pins to the top of
+    // the SHOP QUEUES only — lib/data/machine-jobs.ts's machine queue and
+    // lib/data/orders.ts's production/driver queues, which are read by the
+    // person deciding what to bend next. This is an office list of requests
+    // waiting for a quote, where a rush item jumping the newest arrival just
+    // buries the thing that came in five minutes ago. The rush BADGE still
+    // renders on the row (isRush below); only the ordering changed.
     .order('submitted_at', { ascending: false });
   if (error || !rows) return [];
 

@@ -112,7 +112,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       project_id: null,
       line_items: [],
       jobsite_address: null,
+      // The field app has NO rush control, so a field submission is never
+      // rush. Not inferred from the note, not inferred from a date — see
+      // migration 034's quote_requests_rush_needs_explicit_source CHECK. An
+      // admin can turn rush on afterwards with the explicit toggle on the Job
+      // screen, and that is the only way it can become true for these.
       is_rush: false,
+      rush_source: null,
       upload_id: uploadId,
       notes: trimmedOrNull(body.notes),
       client_business_name: trimmedOrNull(body.clientBusinessName),
@@ -121,6 +127,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       job_name: trimmedOrNull(body.jobName),
       status: 'submitted',
       source_tool: 'field_photo_quote',
+      // ARRIVES AS A NEW JOB ON THE WORKBENCH (Command Center V2, prompt
+      // v2-02), exactly like a FlashDraft submission. Same lane, same card
+      // shape, different source icon.
+      job_stage: 'new',
+      stage_changed_at: new Date().toISOString(),
     });
 
     if (insertError) {

@@ -35,6 +35,35 @@ module.exports = {
           // credibility strip and the "Four Ways to Start" pathways section.
           'bg-band':         '#F1F2F4',
           'border-light':    '#D8D8D4',
+          // COMMAND CENTER V2 LIGHT WORKING AREA (prompt v2-02). The header
+          // stays gunmetal; the Workbench and Job screen below it are light,
+          // per docs/design/command-center-v2-prototype.html. These six are
+          // the prototype's own literal values for the surfaces and states
+          // the existing light palette had no equivalent for. Everything the
+          // existing tokens already covered is reused instead of duplicated:
+          // the working-area background is afs-bg-band, sunk blocks inside a
+          // card are afs-bg-light-raised, card borders are afs-border-light,
+          // and body text is afs-ink-900 / afs-ink-700.
+          //
+          // Measured against the surfaces they are actually used on (WCAG 2.1
+          // 1.4.3 / 1.4.11), not assumed:
+          //   ink-900   on bg-card   18.1:1   ink-700 on bg-card   9.8:1
+          //   line-strong on bg-card  3.1:1   (control borders, 3:1 rule)
+          //   green-ink on bg-card    6.8:1   green-ink on green-soft 5.9:1
+          //   chrome-high on green-deep 5.0:1 (white text on the green button)
+          //   amber-ink on amber-bg   7.1:1   (the "AI is unsure" highlight)
+          // green-deep is the BUTTON FILL, green-ink is the TEXT green. The
+          // prototype used one #1E7F45 for both; as text on green-soft that
+          // measures 4.3:1 and misses the 4.5:1 body-text rule, so the text
+          // green is darkened. That is the one deliberate colour deviation.
+          'bg-lane':         '#E1E5E9',
+          'bg-card':         '#FFFFFF',
+          'line-strong':     '#8C939B',
+          'green-deep':      '#1E7F45',
+          'green-ink':       '#17683A',
+          'green-soft':      '#E3F2E9',
+          'amber-bg':        '#FFF1B8',
+          'amber-ink':       '#7A4200',
           'crimson':       '#C0001A',
           'crimson-hover': '#E8001F',
           'crimson-dim':   '#7A0010',

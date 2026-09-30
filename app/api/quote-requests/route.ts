@@ -106,7 +106,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const projectId = typeof body.projectId === 'string' ? body.projectId : null;
     const jobsiteAddress = body.jobsiteAddress ?? null;
+    // RUSH: THE CUSTOMER CHECKBOX, AND NOTHING ELSE.
+    // `body.isRush === true` is the literal state of the toggle on
+    // app/quote/page.tsx. Nothing here looks at requestedDelivery, at `notes`,
+    // or at any keyword — rush is never inferred (Command Center V2 prompt
+    // v2-02). Migration 034's quote_requests_rush_needs_explicit_source CHECK
+    // enforces that in the database: is_rush = true without a rush_source of
+    // 'customer_checkbox' or 'admin_toggle' is REFUSED by Postgres, so this
+    // route has to name its source to write a rush at all.
     const isRush = body.isRush === true;
+    const rushSource = isRush ? 'customer_checkbox' : null;
     const notes = typeof body.notes === 'string' ? body.notes : null;
     // Selected color name from the McElroy/PAC-CLAD color chart, or (for
     // Anodized aluminum, until a PAC-CLAD anodized chart exists) free text,
@@ -166,6 +175,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       line_items: items,
       jobsite_address: jobsiteAddress,
       is_rush: isRush,
+      rush_source: rushSource,
+      rush_set_at: isRush ? new Date().toISOString() : null,
       notes,
       color,
       finish,
@@ -177,6 +188,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       requested_delivery: requestedDelivery,
       status: 'submitted',
       source_tool: sourceTool,
+      // ARRIVES AS A NEW JOB ON THE WORKBENCH (Command Center V2, prompt
+      // v2-02). Every source funnels through this route — FlashDraft, the
+      // quote builder and the Blueprint Takeoff upload — and they all land in
+      // the New lane. Written explicitly rather than leaning on migration
+      // 032's column DEFAULT, so the lane a submission lands in is visible at
+      // the insert instead of being a property of the schema.
+      job_stage: 'new',
+      stage_changed_at: new Date().toISOString(),
     });
 
     if (insertError) {

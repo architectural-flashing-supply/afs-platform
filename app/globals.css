@@ -265,3 +265,36 @@ body {
     transition: none;
   }
 }
+/* ---------------------------------------------------------------------------
+   Command Center V2 — the Approved lane's green beacon (prompt v2-02).
+
+   Copied from the approved prototype's own `.beacon` / `@keyframes pulse`
+   (docs/design/command-center-v2-prototype.html). An approved job is the one
+   thing on the Workbench that is costing money by sitting still, so its card
+   pulses until someone sends it.
+
+   The rgba() here mirrors afs-green-deep (#1E7F45) at 55% alpha. A box-shadow
+   colour cannot be a Tailwind class, and this is a keyframe rather than JSX, so
+   it follows the same documented pattern as CANVAS_COLORS in
+   app/studio/draft/page.tsx (CLAUDE.md rule #4's stated exception) — one
+   place, named, mirroring a real token.
+
+   prefers-reduced-motion turns the animation off entirely. The card is still
+   unmistakable without it: it keeps the 2px green border and the green count
+   badge, so no information lives only in the movement.
+--------------------------------------------------------------------------- */
+@keyframes afs-beacon-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(30, 127, 69, 0.55); }
+  70%  { box-shadow: 0 0 0 12px rgba(30, 127, 69, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(30, 127, 69, 0); }
+}
+
+.afs-beacon {
+  animation: afs-beacon-pulse 2s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .afs-beacon {
+    animation: none;
+  }
+}

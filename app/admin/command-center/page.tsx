@@ -20,6 +20,9 @@ import CommandCenterJobCard from '@/components/admin/CommandCenterJobCard';
 import PendingQuoteRequestCard from '@/components/admin/PendingQuoteRequestCard';
 import BidsCrmTab from '@/components/admin/BidsCrmTab';
 import CommandCenterDashboard from '@/components/admin/CommandCenterDashboard';
+import LightWorkingArea from '@/components/admin/LightWorkingArea';
+import WorkbenchLanes from '@/components/admin/WorkbenchLanes';
+import { getWorkbench, DONE_ARCHIVE_DAYS } from '@/lib/data/workbench';
 
 // Phase 2 (Command Center redesign, afs-cc-001) — this page previously also
 // hosted `?tab=customers`/`?tab=orders` CRM views. Those had real dedicated
@@ -36,8 +39,27 @@ import CommandCenterDashboard from '@/components/admin/CommandCenterDashboard';
 // day-to-day shop-floor functionality, not a duplicate of anything else, so
 // deleting it was never on the table. It's reachable from the new
 // Dashboard's "Quotes Awaiting Approval" pending-action pill.
+//
+// COMMAND CENTER V2, prompt v2-02 — /admin/command-center with NO ?tab is now
+// THE WORKBENCH: five lanes, one Job card per request, newest arrival at the
+// top. It replaces the KPI dashboard that v2-01 left on this route as a
+// placeholder.
+//
+// NOTHING WAS DELETED TO MAKE ROOM. The dashboard moved to `?tab=dashboard`
+// and the three machine tabs and the bids view are untouched, all four
+// reachable by direct URL only — the same pattern this page already used for
+// `?tab=bids` and that /admin/geometry-test uses. They are live day-to-day
+// functionality that the Workbench is intended to replace once it has been
+// used in anger, and deleting them on the strength of a first build of their
+// replacement was not on the table. Settings' "Other tools" list is where they
+// are written down.
+//
+// The ?tab views keep the GUNMETAL body; only the Workbench is wrapped in
+// LightWorkingArea. See lib/data/admin-working-area.ts for why that decision
+// lives here in the page and not in AdminShell.
 type CrmTab = 'bids';
-type PageTab = CommandCenterTab | CrmTab;
+type DashboardTab = 'dashboard';
+type PageTab = CommandCenterTab | CrmTab | DashboardTab;
 
 const MACHINE_TABS: { value: CommandCenterTab; label: string }[] = [
   { value: 'pending', label: 'Pending Approval' },
@@ -45,7 +67,7 @@ const MACHINE_TABS: { value: CommandCenterTab; label: string }[] = [
   { value: 'completed', label: 'Completed' },
 ];
 
-const ALL_TAB_VALUES: PageTab[] = [...MACHINE_TABS.map((t) => t.value), 'bids'];
+const ALL_TAB_VALUES: PageTab[] = [...MACHINE_TABS.map((t) => t.value), 'bids', 'dashboard'];
 
 function isTab(value: string | undefined): value is PageTab {
   return ALL_TAB_VALUES.some((tab) => tab === value);
@@ -55,15 +77,60 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
   const supabase = await createClient();
   const adminUser = await requireAdminUser(supabase);
 
-  // Landing on /admin/command-center with no ?tab at all shows the elite
-  // Dashboard. Any explicit ?tab=... value falls through to the exact
-  // pre-existing machine-queue/bids behavior further down, unchanged.
+  // Landing on /admin/command-center with no ?tab at all is THE WORKBENCH.
+  // Any explicit ?tab=... value falls through to the pre-existing
+  // dashboard/machine-queue/bids behavior further down, unchanged.
   const rawTab = searchParams.tab;
-  const showDashboard = rawTab === undefined;
+  const showWorkbench = rawTab === undefined;
   const activeTab: PageTab = isTab(rawTab) ? rawTab : 'pending';
   const isMachineTab = activeTab === 'pending' || activeTab === 'sent' || activeTab === 'completed';
 
-  if (showDashboard) {
+  if (showWorkbench) {
+    // First name only. "Good morning, Steve." is how the approved prototype
+    // greets, and a full legal name there reads like a form letter.
+    const firstName = adminUser.fullName.trim().split(/\s+/)[0] || 'there';
+    const workbench = await getWorkbench(supabase, firstName);
+
+    return (
+      <LightWorkingArea>
+        <div className="max-w-[1600px] mx-auto">
+          <div className="flex items-center gap-3.5 flex-wrap mb-4">
+            <h1 className="font-heading text-3xl text-afs-ink-900">{workbench.summary.greeting}</h1>
+            <span className="font-label text-[15px] font-semibold rounded-full px-3.5 py-1.5 bg-afs-bg-card border border-afs-border-light text-afs-ink-900">
+              {workbench.summary.quotesToWrite === 1
+                ? '1 quote to write'
+                : `${workbench.summary.quotesToWrite} quotes to write`}
+            </span>
+            {workbench.summary.approvalsReady > 0 && (
+              <span className="font-label text-[15px] font-semibold rounded-full px-3.5 py-1.5 bg-afs-green-deep text-afs-chrome-high">
+                {workbench.summary.approvalsReady === 1
+                  ? '1 approval ready for the machine'
+                  : `${workbench.summary.approvalsReady} approvals ready for the machine`}
+              </span>
+            )}
+            <span className="font-label text-[15px] font-semibold rounded-full px-3.5 py-1.5 bg-afs-bg-card border border-afs-border-light text-afs-ink-900">
+              {workbench.summary.inTheShop === 1
+                ? '1 job in the shop'
+                : `${workbench.summary.inTheShop} jobs in the shop`}
+            </span>
+          </div>
+
+          <WorkbenchLanes lanes={workbench.lanes} />
+
+          {workbench.archivedFromDone > 0 && (
+            // Never a silent truncation: if the 14-day rule hid something, it
+            // says so and says where the job still is.
+            <p className="font-body text-sm text-afs-ink-700 mt-4">
+              {workbench.archivedFromDone === 1 ? '1 finished job has' : `${workbench.archivedFromDone} finished jobs have`}{' '}
+              left the Workbench after {DONE_ARCHIVE_DAYS} days. Search still finds them.
+            </p>
+          )}
+        </div>
+      </LightWorkingArea>
+    );
+  }
+
+  if (activeTab === 'dashboard') {
     const [
       conversion,
       averageOrderValue,
@@ -89,7 +156,10 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
     return (
       <div>
         <div className="mb-8">
-          <p className="font-label text-afs-crimson text-xs tracking-widest uppercase mb-2">Command Center</p>
+          <Link href="/admin/command-center" className="font-label text-sm text-afs-chrome-mid hover:text-afs-chrome-high">
+            ← Back to the Workbench
+          </Link>
+          <p className="font-label text-afs-crimson text-xs tracking-widest uppercase mb-2 mt-3">Command Center</p>
           <h1 className="font-heading text-3xl text-afs-chrome-high">Dashboard</h1>
         </div>
 
@@ -138,6 +208,12 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
       <div className="flex items-center gap-1 border-b border-afs-border mb-6 overflow-x-auto">
         <Link
           href="/admin/command-center"
+          className="font-label text-sm px-4 py-2.5 border-b-2 border-transparent text-afs-chrome-mid hover:text-afs-chrome-high transition-colors whitespace-nowrap"
+        >
+          ← Workbench
+        </Link>
+        <Link
+          href="/admin/command-center?tab=dashboard"
           className="font-label text-sm px-4 py-2.5 border-b-2 border-transparent text-afs-chrome-mid hover:text-afs-chrome-high transition-colors whitespace-nowrap"
         >
           Dashboard

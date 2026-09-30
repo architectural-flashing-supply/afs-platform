@@ -35,3 +35,44 @@ export function isSourceTool(value: unknown): value is SourceTool {
 export function sourceToolLabel(value: string | null | undefined): string {
   return isSourceTool(value) ? SOURCE_TOOL_LABEL[value] : 'Unknown';
 }
+
+// --- Command Center V2 Workbench (prompt v2-02) -----------------------------
+//
+// A Workbench card says where the job CAME FROM, in the approved prototype's
+// own words ("From FlashDraft", "From the field app"), and draws one of three
+// source icons. The prototype only knew three sources because the mock only
+// had three; this project really has five source_tool values plus 'unknown',
+// so every one of them gets a phrase and an icon rather than falling off the
+// card. FlashDraft and the field app are the two the prompt names explicitly,
+// and both land as NEW jobs on the Workbench.
+//
+// The icon set is deliberately small: 'email' (an envelope), 'flashdraft' (a
+// drawn polyline), 'photo' (a camera). Sources with no icon of their own map
+// to the closest true one — a blueprint upload and a quote-builder submission
+// both arrive as a drawing/spec, so they use the FlashDraft mark rather than
+// inventing a fourth glyph that means nothing to the reader.
+export type SourceIconKey = 'email' | 'flashdraft' | 'photo';
+
+const SOURCE_ARRIVAL: Record<SourceTool, { label: string; icon: SourceIconKey }> = {
+  'afs-flashdraft': { label: 'From FlashDraft', icon: 'flashdraft' },
+  'field_photo_quote': { label: 'From the field app', icon: 'photo' },
+  'afs-quote-builder': { label: 'From the quote builder', icon: 'flashdraft' },
+  'afs-takeoff': { label: 'From a drawing upload', icon: 'flashdraft' },
+  'afs-configurator': { label: 'From the configurator', icon: 'flashdraft' },
+};
+
+const UNKNOWN_ARRIVAL: { label: string; icon: SourceIconKey } = {
+  // Not "From unknown" — that reads like a bug. It reads like what it is.
+  label: 'Source not recorded',
+  icon: 'email',
+};
+
+/** "From FlashDraft" / "From the field app" — the phrase a card prints. */
+export function sourceArrivalLabel(value: string | null | undefined): string {
+  return isSourceTool(value) ? SOURCE_ARRIVAL[value].label : UNKNOWN_ARRIVAL.label;
+}
+
+/** Which of the three card icons this source draws. */
+export function sourceIconKey(value: string | null | undefined): SourceIconKey {
+  return isSourceTool(value) ? SOURCE_ARRIVAL[value].icon : UNKNOWN_ARRIVAL.icon;
+}
