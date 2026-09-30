@@ -146,6 +146,21 @@ function money(cents: number): string {
   return (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 }
 
+/**
+ * Prints one line of EVIDENCE, when asked for it.
+ *
+ * Set AFS_PRINT_PROOF=1 to have this spec print the facts a governance report
+ * quotes — the captured email recipients, the two price-book versions, the
+ * totals either side of a price change. Off by default so a gate run stays
+ * readable, and a `console.log` is never load-bearing: every one of these facts
+ * is also an assertion above or below it.
+ */
+function proof(label: string, value: unknown): void {
+  if (process.env.AFS_PRINT_PROOF === '1') {
+    console.log(`PROOF | ${label}: ${typeof value === 'string' ? value : JSON.stringify(value)}`);
+  }
+}
+
 test.describe('Quote -> Approve -> Invoice, end to end', () => {
   test.skip(!canRun, 'E2E_TEST_EMAIL/E2E_TEST_PASSWORD and SUPABASE_ACCESS_TOKEN are all required');
   test.use({ storageState: authFile });
@@ -215,6 +230,8 @@ test.describe('Quote -> Approve -> Invoice, end to end', () => {
     expect(refused.status()).toBe(409);
     const refusedBody = (await refused.json()) as { error: string };
     expect(refusedBody.error).toContain(unpriced.material);
+    proof('blank row renders', `${unpriced.material} ${unpriced.gauge} -> data-complete=false, cells read "Not set"`);
+    proof('server refusal', refusedBody.error);
 
     // Nothing was written, and nothing was emailed.
     expect(await readQuoteForJob(job.requestId)).toBeNull();
@@ -261,6 +278,7 @@ test.describe('Quote -> Approve -> Invoice, end to end', () => {
     expect(quoteEmails[0].recipient).toBe(testRecipient);
     expect(await realSendCount(job.requestId)).toBe(0);
 
+    proof('quote email', `${quoteEmails[0].kind} -> ${quoteEmails[0].recipient} [${quoteEmails[0].status}]`);
     const approveUrl = approveUrlFromEmail(quoteEmails[0].body_html ?? '');
     const approvePath = new URL(approveUrl).pathname;
 
@@ -270,6 +288,7 @@ test.describe('Quote -> Approve -> Invoice, end to end', () => {
     const tamperedHtml = await tampered.text();
     expect(tampered.status(), tamperedHtml).toBe(400);
     expect(tamperedHtml).toContain('altered');
+    proof('TAMPERED link', `HTTP ${tampered.status()} - refused ("has been altered")`);
     expect((await readJob(job.requestId)).job_stage).toBe('quoted');
 
     // --- 5. EXPIRED is refused --------------------------------------------
@@ -278,6 +297,7 @@ test.describe('Quote -> Approve -> Invoice, end to end', () => {
     const expiredHtml = await expired.text();
     expect(expired.status(), expiredHtml).toBe(410);
     expect(expiredHtml).toContain('expired');
+    proof('EXPIRED link', `HTTP ${expired.status()} - refused ("has expired")`);
     expect((await readJob(job.requestId)).job_stage).toBe('quoted');
     expect(await readInvoiceForJob(job.requestId)).toBeNull();
     // Put the clock back. `used_at` is untouched, so single use is unaffected.
@@ -296,6 +316,7 @@ test.describe('Quote -> Approve -> Invoice, end to end', () => {
     // refusals, and the status code alone does not say which.
     expect(approved.status(), approvedHtml).toBe(200);
     expect(approvedHtml).toContain('your quote is approved');
+    proof('VALID link', `HTTP ${approved.status()} - accepted ("your quote is approved")`);
 
     const afterApproval = await readJob(job.requestId);
     expect(afterApproval.job_stage).toBe('approved');
@@ -317,6 +338,10 @@ test.describe('Quote -> Approve -> Invoice, end to end', () => {
     expect(invoice?.line_items?.[0].lineTotalCents).toBe(quote?.line_items?.[0].lineTotalCents);
     expect(invoice?.office_emailed_to).toBe(OFFICE_EMAIL);
     expect(invoice?.office_emailed_at).not.toBeNull();
+    proof(
+      'invoice from quote',
+      `${invoice?.invoice_number} total ${money(invoice!.total_cents)} (quote total ${money(quote!.total_cents!)}), office copy -> ${invoice?.office_emailed_to}`
+    );
 
     // --- 8. Tricia's copy was captured, and nothing was really sent --------
     const allEmails = await readOutboundEmails(job.requestId);
@@ -325,6 +350,8 @@ test.describe('Quote -> Approve -> Invoice, end to end', () => {
     expect(officeEmail?.recipient).toBe(OFFICE_EMAIL);
     expect(officeEmail?.status).toBe('captured_test_mode');
     expect(await realSendCount(job.requestId)).toBe(0);
+    for (const e of allEmails) proof('captured email', `${e.kind} -> ${e.recipient} [${e.status}] "${e.subject}"`);
+    proof('messages really sent to anybody', await realSendCount(job.requestId));
 
     // --- 9. The pricing history ---------------------------------------------
     const ledger = await readLedgerForJob(job.requestId);
@@ -351,7 +378,9 @@ test.describe('Quote -> Approve -> Invoice, end to end', () => {
     // --- 10. REUSED is refused, and nothing is billed twice ----------------
     const reused = await request.get(approvePath);
     expect(reused.status()).toBe(200);
-    expect(await reused.text()).toContain('Already approved');
+    const reusedHtml = await reused.text();
+    expect(reusedHtml).toContain('Already approved');
+    proof('REUSED link', `HTTP ${reused.status()} - refused ("Already approved"), nothing billed twice`);
 
     const invoicesAfterReuse = await readInvoiceForJob(job.requestId);
     expect(invoicesAfterReuse?.invoice_number).toBe(invoice?.invoice_number);
@@ -403,6 +432,14 @@ test.describe('Quote -> Approve -> Invoice, end to end', () => {
     created.push(secondJob.requestId);
     await page.goto(`/admin/command-center/job/${secondJob.requestId}`);
     await expect(page.locator('[data-testid="quote-total"]')).toHaveText(money(EXPECTED_RAISED_TOTAL_CENTS));
+    proof(
+      'price book version 1',
+      `effective 1990-01-01, sheet ${money(SHEET_COST_CENTS)} -> issued quote ${after?.quote_number} total ${money(after!.total_cents!)} (UNCHANGED)`
+    );
+    proof(
+      'price book version 2',
+      `effective 2000-01-01, sheet ${money(RAISED_SHEET_COST_CENTS)} -> the NEXT quote prices at ${money(EXPECTED_RAISED_TOTAL_CENTS)}`
+    );
     expect(EXPECTED_RAISED_TOTAL_CENTS).toBeGreaterThan(EXPECTED_TOTAL_CENTS);
   });
 
