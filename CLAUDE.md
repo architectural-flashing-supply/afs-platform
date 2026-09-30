@@ -331,30 +331,60 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
     every bend turned the same way and a "W" rendered as a curled
     triangle with three positive labels.
 
-    **Two deliberate exceptions, both load-bearing.** (a) The
-    profile-MATCH query (`/api/studio/match-profile`) and
-    `buildBendSummary`'s quote text stay UNSIGNED — the machine catalog
-    stores unsigned interior angles, and signing the query would stop
-    every catalog profile matching. (b) The PathfinderEdge encoder
+    **Two deliberate exceptions, both load-bearing.** (a)
+    `buildBendSummary`'s quote text stays UNSIGNED — it is prose for a
+    human estimator, where a leading minus sign reads as an error rather
+    than as handedness. (The other half of this exception used to be the
+    profile-MATCH query, `/api/studio/match-profile`, kept unsigned
+    because the old imported machine catalog stored unsigned interior
+    angles. That route and that catalog were both deleted on 2026-09-30
+    with the 911-profile library — see the MACHINE INTEGRATION block
+    below — so the exception no longer has a second half.) (b) The
+    PathfinderEdge encoder
     (`lib/integrations/flashdraft-to-pathfinder.ts`) has its own local,
     already-signed `bendAngleAt` on AMS Controls' handedness, which is
     the NEGATION of FlashDraft's y-down screen convention. It imports
     nothing from `lib/flashdraft/geometry.ts` and must not be
     "unified" with it. Full contract: ARCHITECTURE.md §13.
 
-13. **Both free endpoints of a FlashDraft profile extend; a hemmed end
-    does not.** Press-and-drag the FIRST point to prepend a leg, the LAST
-    point to append one. A last→first closing leg is never creatable by
-    any gesture. afs-sv-005's Shift+drag prepend was removed in full in
-    lr-02 — do not reintroduce a modifier-gated new-leg gesture. (Alt =
-    whole-profile move and Space/middle-click = pan are unaffected and
-    stay.) An end carrying a hem refuses to extend, with the tooltip
-    exactly `Remove the hem to extend from this end.` — **DESIGN DECISION
-    PENDING REID**: the alternative is to auto-drop the hem and extend
-    anyway, which is a destructive edit nobody has approved. Any prepend
-    must renumber every index-keyed piece of state in lockstep
-    (see `commitPrepend`'s field-by-field audit) and push exactly ONE
-    undo entry.
+13. **Both free endpoints of a FlashDraft profile extend — INCLUDING a
+    hemmed one, and the hem travels with it.** Press-and-drag the FIRST
+    point to prepend a leg, the LAST point to append one. A last→first
+    closing leg is never creatable by any gesture. afs-sv-005's Shift+drag
+    prepend was removed in full in lr-02 — do not reintroduce a
+    modifier-gated new-leg gesture. (Alt = whole-profile move and
+    Space/middle-click = pan are unaffected and stay.) Any prepend must
+    renumber every index-keyed piece of state in lockstep (see
+    `commitPrepend`'s field-by-field audit) and push exactly ONE undo
+    entry.
+
+    **DECISION MADE — Reid, 2026-09-30. No longer pending.** This rule
+    previously said a hemmed end refuses to extend, with the tooltip
+    `Remove the hem to extend from this end.`, and recorded the choice
+    between that block and auto-dropping the hem as PENDING REID. Reid
+    chose a THIRD option, which is neither: **dragging from either free
+    endpoint extends the profile even when that end carries a hem, and the
+    HEM MOVES to the new free end, preserving its type, gap, fold length
+    and kick direction. Nothing is destroyed and nothing is refused.** The
+    block and the tooltip were removed in full — do not reintroduce
+    either.
+
+    Why it needs no hem-state migration, and why that is now
+    load-bearing rather than incidental: `hemStart`/`hemEnd` are anchored
+    POSITIONALLY — "the first point" and "the last point" — never to a
+    stored index. `drawProfileScene` renders them as
+    `renderHemAt(hemStart, 0, 1)` and
+    `renderHemAt(hemEnd, last, last - 1)`, so after a prepend the same
+    `Hem` object is re-read as belonging to the new `points[0]` and
+    redrawn folding against its new neighbour. Every field that defines a
+    hem (`type`, `lengthIn`, `gapIn`, `kick`) lives on that object and is
+    untouched. Keep that anchoring positional: giving a hem a numeric
+    index would silently reintroduce the stranded-fold bug this design
+    avoids. Undo stays one entry because `past` snapshots
+    `{points, hemStart, hemEnd}` together. A hemmed end also draws the
+    free-endpoint grab ring now, since the gesture it advertises really
+    fires. Regression coverage:
+    `tests/e2e/flashdraft-regression.spec.ts`.
 
 14. **ONE DOOR TO THE MACHINE. A verified Command Center approval is the
     only way anything reaches PathfinderEdge catalog 20115.** That catalog is
@@ -443,11 +473,41 @@ Env vars (see .env.example):
   STATE_OF_THE_BUILD.md's 2026-09-24 FlashDraft audit entry.
 
 Gitignored locally:
-  machine-data/    The raw Thalmann DS2801 database (ds2801db.bdb) and
-                    sample .ds1 files — real shop job history with real
-                    customer/project names, required only when running
-                    `pnpm run import:machine-profiles`. Never committed.
+  machine-data/    GONE as of 2026-09-30 — archived and deleted. It held
+                    the OLD Thalmann DS2801's raw database (ds2801db.bdb)
+                    plus sample .ds1 files: real shop job history with real
+                    customer/project names, never committed. It existed only
+                    to feed the 911-profile import, which has been removed
+                    (see below). The files were copied to
+                    `C:\Users\manag\Documents\afs-assets\old-machine-files\`,
+                    OUTSIDE the repo, and verified byte-for-byte by size and
+                    sha256. They are the only copies of that machine's
+                    database — do not delete that archive.
 ```
+
+**THE 911-PROFILE MACHINE LIBRARY IS REMOVED. Do not bring it back.**
+Migration `031_drop_machine_profile_library.sql` dropped
+`machine_profile_bends` (4,537 rows), `machine_profiles` (911) and
+`machine_profile_categories` (46), and dropped
+`machine_jobs.machine_profile_id` — NULL on every row that ever existed, so
+no job lost a bend sequence. Its UI, its API routes
+(`/api/studio/match-profile`, `load-profile`, `library-list`,
+`/studio/profile-viewer`), its importer scripts and their `package.json`
+entries are all deleted. Two reasons, both decisive: the geometry was AI-read
+out of a legacy database and never validated, so matching a customer's
+drawing against it produced confident-looking nonsense; and most profile
+names are real customer, hospital and project names, which is not catalog
+content. `lib/data/removed-machine-library.test.ts` is a STATIC test over
+`app/ components/ lib/ scripts/ tests/` that fails on any reference to those
+tables, the deleted modules or the deleted data folder. Do not add a query
+back and do not relax that test.
+
+**Two things that sound similar and must NEVER be confused with it:**
+`shop_profile_library` — real send history to the CURRENT Thalmann,
+including `pathfinder_profile_id` — and `canonical_profiles`, the
+hand-authored starter library and now the only profile library. The same
+static test asserts both are still referenced in source, so an over-eager
+future cleanup cannot take them too.
 
 ---
 

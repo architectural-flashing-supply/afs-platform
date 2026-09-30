@@ -34,6 +34,375 @@ summary, not a replacement for it.
 
 ---
 
+## COMMAND CENTER V2 — PROMPT v2-01 (2026-09-30)
+
+Seven steps, all executed. Everything below was verified against the live
+database or the live alpha deployment in this session; per the VERIFICATION
+STANDARD above, the interactive parts are marked **IMPLEMENTED, VERIFIED BY
+PLAYWRIGHT AGAINST ALPHA** and still want Reid's own eyes before they count
+as user-confirmed.
+
+### 1. Full backup — DONE, verified
+
+`pg_dump` could not be used and that was proven, not assumed: this project's
+direct database host (`db.lxfiziwsqezjjybeguqq.supabase.co`) resolves to
+IPv6 only and times out from the dev machine, and the pooler
+(`aws-0-us-east-1.pooler.supabase.com`, ports 5432 and 6543) rejects the DB
+password recorded in `AFS CREDENTIALS.txt`. The documented equivalent was
+used instead — a new committed script, `scripts/backup-app-tables.mjs`,
+which reads every row of every table in the `public` schema through the
+Supabase Management API SQL endpoint (the same channel this project's
+migration procedure uses) and writes, per table, a full-fidelity `.json`
+array plus a `.sql` restore file built on `jsonb_populate_recordset`,
+chunked so each statement clears the API's ~1 MB body limit. Plus
+`schema.json` (columns, constraints, indexes, RLS policies) and a
+`MANIFEST.json`.
+
+Output: `C:\Users\manag\Documents\afs-backups\2026-10-01\` — OUTSIDE
+the repo. **55 tables, 6,073 rows, zero zero-byte dump files**, and the row
+counts match a live per-table count exactly. Every substantial dump was then
+proven RESTORABLE, not merely present: each file was fed back through
+`jsonb_populate_recordset(null::public.<table>, ...)` and the rehydrated row
+count compared to live. 14 of 14 matched.
+
+### 2. Clean slate — DONE, verified
+
+Reid confirmed no existing jobs are real, which **resolves the "OPEN
+DECISION — PENDING REID" in `docs/COMMAND_CENTER_V2_SPEC.md` §2.9** (it said
+a wipe could not be specified until he said which of Steve's 45 quote
+requests were real; none were).
+
+`supabase/migrations/030_command_center_v2_clean_slate.sql`, applied live.
+Deleted: `quote_requests` 64→0, `machine_jobs` 34→0, `takeoff_uploads`
+58→0, `saved_configurations` 18→0, `notifications` 58→0, plus `orders`,
+`quotes` and every dependent row (already 0). Kept, unchanged: `profiles` 4,
+`shop_profile_library` 20, `canonical_profiles` 25, `materials` 9, `gauges`
+24, `product_profiles` 12, `admin_audit_log` 118, `chat_conversations` 22,
+`projects` 1. The cutoff is a fixed timestamp literal, so a re-run deletes
+nothing.
+
+**One conflict the spec did not anticipate, and how it was resolved.** 12 of
+the 20 `shop_profile_library` rows pointed at `quote_requests` /
+`machine_jobs` rows in the delete set, and both FKs are `ON DELETE NO
+ACTION` — so "keep shop_profile_library" and "delete the jobs" could not
+both be true as written. The two link columns are nullable, so they were
+nulled and the history rows kept whole: all 20 survive with 18
+`pathfinder_profile_id` values and 19 geometry payloads intact.
+
+**E2E account survives and logs in** — proven with a real Supabase Auth
+password grant, not by reading the row: `e2e-forge@architecturalflashingsupply.com`,
+user id `9e2bd7f8-2e71-432a-9293-bcfca73adc9d`, bearer token issued.
+
+### 3. The 911-profile machine library — REMOVED, verified
+
+Archived first. All 8 files from `machine-data/` copied to
+`C:\Users\manag\Documents\afs-assets\old-machine-files\` — OUTSIDE the
+repo, and note this path **overrides the `afs-archive` path the spec wrote**
+— and verified byte-for-byte by size AND sha256, all 8 matching, before
+anything was deleted. These are the only copies of the old machine's raw
+database. JSON + restore-SQL dumps of the three tables were placed alongside
+them.
+
+`supabase/migrations/031_drop_machine_profile_library.sql`, applied live:
+dropped `machine_profile_bends` (4,537), `machine_profiles` (911) and
+`machine_profile_categories` (46) child-to-parent, and dropped
+`machine_jobs.machine_profile_id` — NULL on all 34 rows, so no job lost a
+bend sequence. Live table count 55 → 52. `shop_profile_library` still 20,
+`canonical_profiles` still 25.
+
+**The spec's §2.8 removal list was incomplete, and following it literally
+would have left the library half-alive.** It named
+`app/admin/profile-library/*` as the library's UI — those routes are the
+SHOP profile library, a different feature that must be kept — and it missed
+the library's actual consumers. Removed for real: `/studio/profile-viewer`,
+the `library-list` / `load-profile` / `match-profile` API routes,
+`ProfileLibraryBrowser`, `ProfileLibraryTabs`, `ShareProfileButton`, the
+dead homepage `ProfileExplorer`, `machine-profile-fabrication`,
+`bend-signature`, and five importer/audit scripts plus their `package.json`
+entries.
+
+Consequences, each handled rather than left dangling:
+
+| What depended on it | What happened |
+|---|---|
+| FlashDraft's machine-library match panel and `?loadProfile=` deep link | Removed. Its entire data source was the deleted library. Canonical-profile loading, Saved Profiles and the Command Center job handoff are untouched. |
+| `/studio/library` | Survives as the canonical library, with no tab strip since there is now only one library to browse. |
+| FlashDraft's category dropdown | Read the deleted category table. Now reads the curated vocabulary, moved to `lib/data/profile-categories.ts`. |
+| `/admin/geometry-test` | Survives as a developer-only tool, repointed at `canonical_profiles` — a strictly better fixture, since every row carries BOTH authored points and authored bends, so `computeProfilePoints()` drift is visible side by side rather than inferred. |
+| `machine_jobs` consumers (data layer, Command Center approve, machine-bridge pending-jobs) | Now read `custom_bends` only. |
+
+**Static scan:** `lib/data/removed-machine-library.test.ts` walks `app/
+components/ lib/ scripts/ tests/` (the same way the single-door test does)
+and fails on any reference to the dropped tables, the deleted modules or the
+deleted data folder. It also asserts `shop_profile_library` and
+`canonical_profiles` are STILL referenced, so a future over-eager cleanup
+cannot take them too. Result: clean.
+
+### 4. The ONE job stage model — DONE, verified via information_schema
+
+`supabase/migrations/032_quote_requests_job_stage.sql`, applied live (twice,
+to prove idempotency). Full contract: ARCHITECTURE.md's "THE ONE JOB STAGE
+MODEL" and SCHEMA.md TABLE 15.
+
+Verified by querying the database, not by reading the migration:
+`information_schema.columns` reports `job_stage`, `text`, nullable, default
+`'new'::text`; `information_schema.check_constraints` reports
+`((job_stage IS NULL) OR (job_stage = ANY (ARRAY['new','quoted','approved','shop','done'])))`.
+Then exercised: an insert with `job_stage='garbage'` was **rejected** by the
+constraint, a default insert landed in `'new'`, all five values plus NULL
+were accepted, and the test row was deleted (`quote_requests` back to 0).
+
+**The spec's mapping table had a hole, filled and recorded rather than
+guessed at:** `status='reviewing'` with no `machine_jobs` row at all — 7 of
+the 64 rows. Those are requests an admin opened and never sent anywhere, so
+they map to `'new'`. Run against the real pre-wipe data the mapping covered
+all 64 rows with none orphaned: 15 archived (cancelled), 17 `approved`, 17
+`shop`, 15 `new`. Step 2 empties the table before step 4 runs, so the
+backfill legitimately touched 0 rows live; it is kept correct for any restore
+from the 2026-10-01 backup.
+
+**The one-shot 409 is fixed.** A successful approval set
+`status='reviewing'`, which then failed `approve-quote-request`'s own
+`status === 'submitted'` entry check, so a second click returned `409 Quote
+request is not pending approval.` and read as a failure. An already-sent job
+now returns 200 with "This job has already been sent to the machine. Nothing
+was sent again." Cancel got the same treatment and now also archives the row
+by setting `job_stage` to NULL. **The PathfinderEdge single door is
+deliberately untouched** — it still requires `status='submitted'` when it
+verifies the approval in the database, because a re-push is not a fresh
+approval. The fix is the answer given, not the gate.
+
+Transitions are enforced server-side in `lib/data/job-stage.ts`, not by the
+constraint (a CHECK can police the set of values but not `from → to`). 22
+unit tests cover all 25 ordered pairs.
+
+### 5. ONE-level navigation — IMPLEMENTED, VERIFIED BY PLAYWRIGHT AGAINST ALPHA
+
+Top level is now exactly **Workbench · Shop View · Deliveries · a header
+Search box · More**, and More is a flat menu of four destinations
+(Customers, Credit Applications, Bid Monitor, Settings), never a submenu.
+Nav is defined as data in `lib/data/admin-nav.ts` so "exactly these items,
+no second level" is testable without rendering React.
+
+**Both halves of the second level are gone.** The gear popover that held
+QuickBooks/Pricing/Settings is deleted, and so is `AdminShell`'s 240px
+sidebar — it was a second nav level in all but name, six links duplicating
+the top bar under different labels ("Production Queue" vs "Production",
+"Orders" pointing at `orders-crm`). Brand, admin name and Log out moved into
+the header, matching the approved prototype, and `AdminShell` is now a
+server component because no client state is left in it.
+
+| Old tool | Where it went |
+|---|---|
+| Dashboard | Workbench (same route, `/admin/command-center`) |
+| Orders (`orders-crm`) | **absorbed into Customers**, linked from its page |
+| Pricing | **absorbed into Settings** |
+| QuickBooks | a "coming soon" card inside Settings |
+| Building Codes | **MOVED OFF the Command Center** to the public Resources menu, `/resources/building-codes` |
+| Google Business photos | **removed from the Command Center, code KEPT** — see below |
+| Geometry Test | developer-only: unlinked from every nav surface, admin-gated twice |
+| Quote Requests, Production Queue, shop profile library | direct-URL-only, listed under Settings' "Other tools" so they are not lost while the Workbench lanes (v2-02) take over what they do |
+
+**Building Codes — two things surfaced doing the move.** Migration 022 had
+**never been applied to the live database**, so `/admin/building-codes` was
+reading a relation that did not exist. It was applied (480 rows: 254 Texas
+counties + 226 cities). And 022's only policy was admin-only `FOR ALL`, so
+`033_building_codes_public_read.sql` adds the anonymous SELECT a public page
+needs. Verified live: an anon-key read returns rows, an anon-key insert is
+refused by RLS. Writes stay admin-only.
+
+**GOOGLE BUSINESS PHOTO CODE — RETENTION DECISION, RECORDED.** Removed from
+the Command Center (linked from no navigation surface) but **deliberately
+NOT deleted**, because the whole photo pipeline is what the future DRIVER
+MOBILE APP will be built on. The retained code, listed here and in a header
+comment on the page itself:
+
+```
+app/admin/gbp-photos/page.tsx                  review screen
+components/admin/GbpPhotosTab.tsx              approve/reject UI
+lib/data/command-center-crm.ts                 getGbpPhotos
+lib/integrations/google-business.ts            isGbpConfigured + posting
+app/employee/photos/page.tsx                   employee capture screen
+components/employee/EmployeePhotoUploader.tsx
+components/field/DeliveryPhotoCapture.tsx      delivery-proof capture
+gbp_photo_queue table + the private 'gbp-photos' Storage bucket
+  (migrations 007_delivery_tracking.sql, 021_gbp_photo_queue_shop_job_link.sql)
+```
+
+Reachable only by typing the URL, on top of the `/admin` role gate. Do not
+add a nav link back without an explicit decision from Reid.
+
+**Two new pages so no nav item leads nowhere.** `/admin/search` is the real
+destination for the header box, running the already-built and tested
+`admin_profile_search` function (migration 029) — a plain readable list,
+explicitly the interim view that Phase 6 replaces with the thumbnail rail,
+and it renders no images so nothing base64 crosses the wire.
+`/admin/deliveries` shows what the database genuinely knows today (finished
+jobs from `shop_profile_library`) and says plainly that the week view and
+scheduling are still being built, rather than faking them.
+
+**Contrast, measured not assumed.** `afs-chrome-dim` is only 2.8:1 on the
+gunmetal header (`#363C4A`) and fails both the 4.5:1 text rule and the 3:1
+UI-component rule, so it is used for neither text nor borders in the new
+nav. Nav text is `afs-chrome-mid` (5.8:1) or white (10.8:1); the search
+field sits on `afs-bg-dim` so even its PLACEHOLDER is 8.9:1. The
+customers-page search placeholder was unspecified and inheriting a browser
+default — now explicit and AA-clear.
+
+**The admin working area stays gunmetal in this prompt — deliberately, and
+flagged.** The design rule asks for a light working area. Flipping it now
+would make twenty existing admin pages unreadable, because their text uses
+the light-on-dark `afs-chrome-*` tokens. That conversion belongs with v2-02,
+when the pages that live in it get rebuilt.
+
+Verification: 13 unit tests on the nav data, plus 12 Playwright tests
+against alpha, all passing — the header renders exactly the three top-level
+items, the search box lands on `/admin/search`, More opens a flat four-item
+menu and closes on Escape, there is no `<aside>` and no gear popover, every
+More destination loads, Settings shows Pricing and the QuickBooks card,
+Customers links the orders CRM, and Building Codes is reachable from the
+public Resources menu with all 480 jurisdictions.
+
+### 6. Bid Monitor — REPORT ONLY, no code changed
+
+See the BID MONITOR — AUDITED BEHAVIOUR section below. Nothing about it was
+modified. A decision about its future is pending and is listed as a next
+action in prompt v2-06.
+
+### 7. FlashDraft hemmed-end extension — DECISION MADE, IMPLEMENTED, VERIFIED
+
+**CLAUDE.md rule #13's DESIGN DECISION PENDING REID is resolved.** It
+recorded the choice between blocking extension from a hemmed end and
+auto-dropping the hem. Reid chose a third option, which is neither:
+**dragging from either free endpoint extends the profile even when that end
+carries a hem, and the HEM MOVES to the new free end, preserving its type,
+gap, fold length and kick direction. Nothing is destroyed and nothing is
+refused.** The block and the tooltip `Remove the hem to extend from this
+end.` were removed in full.
+
+Why it needed no hem-state migration, audited field by field rather than
+assumed: `hemStart`/`hemEnd` are anchored POSITIONALLY — "the first point"
+and "the last point" — never to a stored index. `drawProfileScene` renders
+them as `renderHemAt(hemStart, 0, 1)` and
+`renderHemAt(hemEnd, last, last - 1)`, so after a prepend the same `Hem`
+object is re-read as belonging to the new `points[0]` and redrawn folding
+against its new neighbour. Every field that defines a hem (`type`,
+`lengthIn`, `gapIn`, `kick`) lives on that object and is untouched.
+`commitPrepend`'s audit comment now records this as **load-bearing** rather
+than incidental, since it previously relied on a hemmed head being
+unreachable. Undo is still exactly one entry, because `past` snapshots
+`{points, hemStart, hemEnd}` together.
+
+A hemmed end also draws the free-endpoint grab ring now. It was skipped
+before precisely because a ring would promise a gesture that never fired.
+
+Still exactly two extendable ends: first point prepends, last point appends,
+no closing last→first leg, and no modifier-gated new-leg gesture
+reintroduced.
+
+The regression test that asserted the block is rewritten to assert the new
+behaviour, plus two new cases. Verified against alpha:
+`tests/e2e/flashdraft-regression.spec.ts` — 12/12 passing, including
+"prepending from a HEMMED head extends, and the hem moves to the new head"
+(asserting the hem is field-for-field identical, `hemEnd` stays empty, and a
+single Ctrl+Z restores geometry and hem together), "appending from a HEMMED
+tail extends, and the hem moves to the new tail", and "a hemmed end shows NO
+blocking tooltip on hover".
+
+### Tricia's address
+
+28 occurrences of the misspelled address across 15 files corrected to
+`tricia@architecturalflashingsupply.com`, including the approved prototype's
+own `TRICIA` constant — the one deliberate deviation from "the prototype is
+copied verbatim", made because a wrong auto-invoice address is a live-money
+error. Historical governance lines that quoted the misspelling in order to
+discuss it were rewritten to record the decision instead of leaving a
+wrong-looking address on the page. **`queue.yaml` still holds 2 occurrences
+and was left alone** — the prompt forbids editing the FORGE queue. That is
+the one place the global "fix every occurrence" rule could not be satisfied,
+and it is a conflict between two rules in the same prompt, not an oversight.
+
+### Gates
+
+`pnpm tsc --noEmit` exit 0. `pnpm test:unit` 160/160 across 10 files.
+`next build` clean. Playwright against alpha: 12/12 nav, 12/12 FlashDraft
+regression. All work committed and pushed to `main` in six commits; alpha
+auto-deployed and each tested commit's deployment was confirmed READY via
+the Vercel API before its tests ran.
+
+---
+
+## BID MONITOR — AUDITED BEHAVIOUR (2026-09-30, read-only)
+
+Prompt v2-01 step 6 was explicitly a reporting task: read the code, change
+nothing. Nothing was changed. This is what it actually does.
+
+**What it is.** A Division 7 bid-opportunity scraper and alerting tool. It
+polls public procurement sources, keyword-matches each opportunity against a
+Division 7 vocabulary, stores what it finds, and emails AFS about the new
+matches.
+
+**Inputs**
+
+| Input | Where from |
+|---|---|
+| Active keywords | `bid_keywords` (30 rows live), defaulting to `DEFAULT_DIVISION7_KEYWORDS` in `lib/bid-monitor/keyword-matcher.ts` |
+| Source registry | `bid_sources` (81 rows live) — the fetchers look up their own `source_id` by name and **throw if the row is missing** |
+| `SAM_GOV_API_KEY` | env. **Not set in `.env.local`.** Without it SAM.gov falls back to the public `DEMO_KEY`, roughly 10 requests/hour |
+| `BID_MONITOR_ALERT_EMAIL` | env, optional — overrides the primary alert recipient |
+
+**Outputs**
+
+| Output | Detail |
+|---|---|
+| `bid_projects` rows | upserted on `(source_id, external_id)`, so a re-run refreshes rather than duplicating |
+| `bid_sources.last_checked_at` | touched for all 15 fetched source names every run |
+| Alert email | "New Opportunities Found", one card per project, sent via Resend |
+| `bid_alerts` rows | one per (project, recipient) pair, as a send log |
+| JSON response | `{ fetched, newProjects, division7Matches, alertsSent, errors }` |
+
+**Tables read or written:** `bid_sources` (read + update), `bid_projects`
+(read for dedupe, upsert), `bid_keywords` (read), `bid_alerts` (insert),
+`profiles` (read, for the admin role check). Nothing else. It does not touch
+`quote_requests`, `machine_jobs` or anything on the machine path.
+
+**Schedule: THERE IS NONE.** This is the most consequential finding.
+`vercel.json` has **no `crons` array at all**, and there is no
+`app/api/cron/*` route in the repo. The only thing that ever invokes
+`/api/bid-monitor/fetch` is an admin clicking a button —
+`BidMonitorFetchControls.tsx`'s "Fetch now", or the per-source button in
+`BidMonitorSourceDirectory.tsx` (which calls the same all-sources route;
+there is no per-source fetch route). **The Bid Monitor is entirely manual.**
+`bid_projects` and `bid_alerts` are both at 0 rows live, consistent with it
+never having been run in anger.
+
+**External calls.** Four sources make live HTTP requests, one does not:
+
+| Source | Live call |
+|---|---|
+| SAM.gov | `GET https://api.sam.gov/opportunities/v2/search` |
+| USASpending | `POST https://api.usaspending.gov/api/v2/search/spending_by_award/` |
+| Texas ESBD | `GET https://www.txsmartbuy.gov/esbd` (HTML scrape) |
+| TxDOT | `GET https://www.txdot.gov/business/contractors/highway-letting.html` (HTML scrape) |
+| Texas city portals | **no HTTP call.** Returns one directory-entry "project" per city carrying a link into that city's purchasing page — a curated bookmark list, not a scrape |
+
+Plus `lib/bid-monitor/sources/state-portals.ts`, which is a static directory
+of ~50 state procurement portals, ~50 state DOT letting pages and a handful
+of free planrooms. It is reference data for the source directory UI, not a
+fetcher. Every fetcher is wrapped in `Promise.allSettled`, so one failing
+source degrades to an entry in `errors` rather than failing the run.
+
+**Auth.** Both `/api/bid-monitor/fetch` and `/api/bid-monitor/alert` do
+their own session + `profiles.role === 'admin'` check; all four bid tables
+are admin-only under RLS.
+
+**Recipients.** `lib/bid-monitor/alerts.ts`'s `getAlertRecipients()` returns
+`BID_MONITOR_ALERT_EMAIL` (default
+`tricia@architecturalflashingsupply.com` — corrected from the misspelling in
+this same run) plus a hardcoded, always-on
+`steve@architecturalflashingsupply.com`, deduped.
+
+
 ## lr-02 RE-VERIFICATION PASS — 2026-09-29 (second run)
 
 `forge-1.ps1` dispatched the lr-02 prompt a second time. **No code was

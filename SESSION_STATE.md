@@ -24,6 +24,108 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## COMMAND CENTER V2 — PROMPT v2-01 (2026-09-30) — CURRENT HANDOFF
+
+Ran as FORGE queue prompt v2-01. All seven steps executed, each with its own
+checkpoint verification before moving on, and each part committed and pushed
+separately. Full detail: STATE_OF_THE_BUILD.md's "COMMAND CENTER V2 — PROMPT
+v2-01" entry and its "BID MONITOR — AUDITED BEHAVIOUR" section.
+
+**What changed, in one pass:**
+
+1. **Full verified backup** to `C:\Users\manag\Documents\afs-backups\2026-10-01\`
+   (outside the repo) via a new committed script,
+   `scripts/backup-app-tables.mjs`. 55 tables, 6,073 rows, no zero-byte
+   files, row counts matching live, and every substantial dump proven to
+   rehydrate into typed rows before a single row was deleted.
+2. **Clean slate.** Migration 030. `quote_requests` 64→0, `machine_jobs`
+   34→0, `takeoff_uploads` 58→0, `saved_configurations` 18→0,
+   `notifications` 58→0. All accounts, reference data, `canonical_profiles`
+   and `shop_profile_library` kept. E2E account proven to still log in.
+3. **The 911-profile machine library is gone.** Migration 031 dropped three
+   tables (4,537 + 911 + 46 rows) and `machine_jobs.machine_profile_id`;
+   its UI, four API routes, six components/modules and five scripts deleted;
+   raw source files archived byte-for-byte outside the repo first. A static
+   test now fails on any reference to it.
+4. **The ONE job stage model.** Migration 032 adds
+   `quote_requests.job_stage` with a CHECK on the five lanes, verified via
+   `information_schema` and exercised live. Transitions are enforced in
+   `lib/data/job-stage.ts`. The one-shot 409 self-lock is fixed.
+5. **ONE-level navigation.** Workbench · Shop View · Deliveries · Search ·
+   More. Both halves of the second level — the gear popover AND the
+   duplicate sidebar — deleted. Building Codes moved to the public
+   Resources menu. 12 Playwright tests against alpha, all green.
+6. **Bid Monitor: reported, not touched.**
+7. **FlashDraft hemmed-end extension.** Reid's decision implemented: a
+   hemmed end extends and the hem travels to the new free end.
+
+**THREE OPEN DECISIONS CLOSED BY REID IN THIS RUN — none are pending any
+more:**
+
+- **Which of Steve's jobs are real?** None. This resolved spec §2.9's "OPEN
+  DECISION — PENDING REID" and unblocked the wipe.
+- **Tricia's address.** `tricia@architecturalflashingsupply.com`. 28
+  occurrences across 15 files corrected.
+- **Hemmed-end extension** (CLAUDE.md rule #13). Neither of the two options
+  on record — Reid chose a third: extend anyway, and move the hem.
+
+**Things this session found that the spec got wrong or did not know**, all
+recorded rather than quietly worked around:
+
+- The spec's §2.8 removal list named `app/admin/profile-library/*` as the
+  911-library's UI. Those routes are the **SHOP** profile library, a
+  different feature that must be kept — and the list missed the real
+  consumers (`match-profile`, `load-profile`, `library-list`,
+  `/studio/profile-viewer`, `ProfileLibraryBrowser`, the homepage
+  `ProfileExplorer`, the fabrication/bend-signature modules). Following it
+  literally would have left the library half-alive.
+- The spec's `job_stage` mapping table had no row for `status='reviewing'`
+  with no `machine_jobs` row — 7 of 64 rows. Mapped to `'new'` and recorded
+  in the migration.
+- **Migration 022 had never been applied**, so `/admin/building-codes` was
+  reading a relation that did not exist. Applied it (480 rows) as part of
+  moving Building Codes to the public site, and added migration 033 for the
+  anonymous read a public page needs.
+- `shop_profile_library`'s FKs into `quote_requests`/`machine_jobs` are
+  `ON DELETE NO ACTION`, so "keep the send history" and "delete the jobs"
+  could not both be literally true. Resolved by nulling the two nullable
+  link columns and keeping all 20 history rows whole.
+- `pg_dump` cannot reach this project at all — direct host is IPv6-only and
+  unroutable from here, and the pooler rejects the DB password in
+  `AFS CREDENTIALS.txt`. Proven, then the documented equivalent used.
+- The spec's archive path (`afs-archive`) was **overridden by the prompt** to
+  `Documents/afs-assets/old-machine-files/`. The prompt wins; noted here
+  because the spec still says otherwise.
+
+**Two conflicts where a rule in the prompt lost to another rule, both
+flagged rather than silently resolved:**
+
+- **`queue.yaml` still contains 2 misspelled `trica@` addresses.** The global
+  rule says fix every occurrence in code and docs; the governance rule says
+  DO NOT EDIT THE FORGE QUEUE. The queue prohibition won. Every other
+  occurrence in the repo is fixed.
+- **The admin working area is still gunmetal, not light.** The design rule
+  asks for a light working area; flipping it in this prompt would make
+  twenty existing admin pages unreadable, since their text uses the
+  light-on-dark `afs-chrome-*` tokens. Deferred to v2-02, when the pages
+  that live in that area get rebuilt. The gunmetal header is in place and
+  every new surface was contrast-checked.
+
+**Not user-confirmed yet** (per this file's own VERIFICATION STANDARD): the
+one-level nav and the hemmed-end extension are verified by Playwright
+against alpha in this session — 24 tests green across the two specs — which
+is evidence to bring to Reid, not a substitute for him clicking through it
+himself. Specifically worth his eyes: that a hemmed end folding at its new
+position looks right on canvas, and that nothing he uses daily became
+unreachable when the sidebar went away (Quote Requests and the Production
+Queue are now direct-URL-only, listed under Settings → Other tools).
+
+**Next, per the spec's phase plan:** v2-02 builds the Workbench's five lanes
+and the three-column Job screen — and is the right moment to convert the
+working area to light, since it rebuilds the pages that live there. A
+decision on the Bid Monitor's future is a next action in v2-06.
+
+
 ## lr-02 RE-VERIFICATION PASS — 2026-09-29 (second run)
 
 `forge-1.ps1` ran the lr-02 prompt a second time. **Nothing was

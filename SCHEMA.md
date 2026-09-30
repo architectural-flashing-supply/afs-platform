@@ -1,7 +1,16 @@
 # SCHEMA.md
 ## AFS — Supabase Database Schema
-**54 tables across 19 migration files. RLS on every table. Indexes on every
-foreign key and filter column.** (This document's "TABLE N" numbering below
+**52 tables. RLS on every table. Indexes on every foreign key and filter
+column.**
+
+> **VERIFIED LIVE 2026-09-30 (Command Center V2, prompt v2-01).** 52 base
+> tables in `public`, counted directly from `information_schema.tables`, not
+> carried forward. It was 55 before this run: migration 031 dropped
+> `machine_profile_bends`, `machine_profiles` and `machine_profile_categories`
+> (the 911-profile machine library — see MACHINE INTEGRATION TABLES below,
+> which now documents its removal). Migrations 030–033 from that run are
+> listed in MIGRATION FILE LOCATION.
+ (This document's "TABLE N" numbering below
 covers the original 25 sections designed in migration 001 — several of
 those sections define more than one physical table, e.g. TABLE 8 =
 `accessories` + `product_accessories`. The MACHINE INTEGRATION and MACHINE
@@ -63,7 +72,7 @@ supabase/migrations/
   001_initial_schema.sql              All tables through TABLE 25 below + ADDITIONAL/SPEC TEMPLATES sections
   002_seed_afs_data.sql                Materials, gauges, product_profiles reference data
   003_pricing_rules_cost_notes.sql     Adds pricing_rules.cost_notes (see TABLE 9)
-  004_machine_profiles.sql             Design Studio machine profile library (see MACHINE INTEGRATION TABLES)
+  004_machine_profiles.sql             Old machine profile library — REVERSED BY 031, do not repopulate (see MACHINE INTEGRATION TABLES)
   005_machine_jobs.sql                 Machine Bridge job queue (see MACHINE BRIDGE TABLES)
   006_canonical_profiles.sql           Canonical profile library (see CANONICAL PROFILE LIBRARY TABLE)
   007_delivery_tracking.sql            Delivery tracking + Employee PWA + GBP photo queue (see DELIVERY TRACKING + EMPLOYEE PWA TABLES)
@@ -82,6 +91,10 @@ supabase/migrations/
   020_completion_events.sql            Adds completion_events (shop-floor "Mark Complete" event log) — CONFIRMED APPLIED LIVE 2026-08-24/26 — not otherwise documented in this file's table sections, see the migration file itself
   021_gbp_photo_queue_shop_job_link.sql   Adds gbp_photo_queue.shop_profile_library_id (links a delivery photo to its shop job) — no new tables — FILE ONLY, not applied live — not otherwise documented in this file's table sections, see the migration file itself
   022_building_code_jurisdictions.sql   Building code jurisdiction directory (reference data for the Architect Portal resource center) — not otherwise documented in this file's table sections, see the migration file itself for live-apply status
+  030_command_center_v2_clean_slate.sql   Deletes pre-V2 job data (quote_requests/machine_jobs/orders/quotes/takeoff_uploads/saved_configurations/notifications + dependents) created before a fixed cutoff; keeps all accounts, reference data, canonical_profiles and shop_profile_library — data-only, no schema change — APPLIED LIVE 2026-09-30
+  031_drop_machine_profile_library.sql    DROPS machine_profile_bends/machine_profiles/machine_profile_categories and machine_jobs.machine_profile_id (see MACHINE INTEGRATION TABLES) — APPLIED LIVE 2026-09-30
+  032_quote_requests_job_stage.sql        Adds quote_requests.job_stage + CHECK + index, and backfills it (see TABLE 15) — APPLIED LIVE 2026-09-30, verified via information_schema
+  033_building_codes_public_read.sql      Adds an anonymous SELECT policy on building_code_jurisdictions so the public /resources/building-codes page can read it; writes stay admin-only — APPLIED LIVE 2026-09-30 (022 itself was applied in the same run, 480 rows)
   023_profile_passport.sql             Profile Passport — custom_profiles + profile_revisions (see PROFILE PASSPORT TABLES below), adds orders.custom_profile_id (see TABLE 18) — FILE ONLY, not applied live (no linked Supabase project, no SUPABASE_ACCESS_TOKEN; see STATE_OF_THE_BUILD.md)
 ```
 
@@ -660,11 +673,38 @@ CREATE TABLE quote_requests (
   submitted_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   reviewed_at     TIMESTAMPTZ,
   quoted_at       TIMESTAMPTZ
+  -- job_stage TEXT DEFAULT 'new' added by migration 032 — see below
 );
 
 CREATE INDEX idx_quote_requests_user ON quote_requests(user_id);
 CREATE INDEX idx_quote_requests_status ON quote_requests(status);
 CREATE INDEX idx_quote_requests_submitted ON quote_requests(submitted_at DESC);
+
+-- Command Center V2 (migration 032_quote_requests_job_stage.sql, applied
+-- live 2026-09-30). THE ONE JOB STAGE MODEL: a quote_requests row IS the
+-- Job, and job_stage is the Workbench lane it sits in.
+--
+--   ladder order:  new -> quoted -> approved -> shop -> done
+--   job_stage IS NULL  = archived (today: cancelled). Off the Workbench and
+--                        not a rung on the ladder — which is why the CHECK
+--                        permits NULL rather than forbidding it.
+--
+-- DEFAULT 'new' so an arriving request lands in the New lane without every
+-- insert path having to say so.
+--
+-- TRANSITIONS ARE NOT ENFORCED HERE. A CHECK constraint can police the SET
+-- of values but not from -> to, which is the part that matters. That lives in
+-- lib/data/job-stage.ts (planStageTransition), which every server route that
+-- moves a job goes through: forward moves allowed and may skip rungs (a phone
+-- approval is new -> approved with no quote sent), same-stage is a no-op with
+-- a plain-English message, backward is refused.
+ALTER TABLE quote_requests
+  ADD COLUMN IF NOT EXISTS job_stage text DEFAULT 'new';
+ALTER TABLE quote_requests
+  ADD CONSTRAINT quote_requests_job_stage_check
+  CHECK (job_stage IS NULL OR job_stage IN ('new','quoted','approved','shop','done'));
+CREATE INDEX IF NOT EXISTS idx_quote_requests_job_stage
+  ON quote_requests (job_stage, submitted_at DESC);
 
 ALTER TABLE quote_requests ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "users_own_requests" ON quote_requests
@@ -1130,8 +1170,11 @@ full blast-radius explanation.
   `company_role` estimator-or-above; DELETE requires owner/admin; a row
   with `company_id IS NULL` keeps exactly the original per-user behavior.
   `category`/`subcategory` are plain display-only TEXT, deliberately
-  separate from `dimensions.categoryId` (a real FK into
-  `machine_profile_categories.id`).
+  separate from `dimensions.categoryId`, which holds a value from the
+  curated `AFS_PROFILE_CATEGORIES` vocabulary in
+  `lib/data/profile-categories.ts`. (Until 2026-09-30 `categoryId` was a
+  FK-shaped reference into the old machine library's category table; that
+  library was dropped by migration 031, so the vocabulary moved into code.)
 - `supabase/migrations/025_profile_passport_thumbnail.sql` — adds
   `thumbnail_image TEXT`, a `data:image/png;base64,...` capture of the
   FlashDraft canvas at save time (`HTMLCanvasElement.toDataURL()`, no
@@ -1340,62 +1383,50 @@ CREATE POLICY "admin_write_spec_templates" ON spec_templates
 
 ---
 
-## MACHINE INTEGRATION TABLES (migration 004_machine_profiles.sql)
+## MACHINE INTEGRATION TABLES — DROPPED (migration 031)
 
-Backs the Design Studio / FlashDraft profile-matching feature. Populated
-from the Thalmann DS2801 bending machine's own database
-(`machine-data/ds2801db.bdb`) via `pnpm run import:machine-profiles` — see
-`supabase/README.md`. Live as of this writing: 46 categories, 911
-profiles, 4537 bend steps; 70 profiles public, 841 private (the source
-data is the shop's real job history — most profile names are real
-customer/project names, so only two generic-template category ranges are
-public; see the migration file's own header comment for the full privacy
-rationale).
+**`machine_profile_categories`, `machine_profiles` and
+`machine_profile_bends` NO LONGER EXIST.** Migration 004 created them and an
+importer filled them with 46 categories, 911 profiles and 4,537 bend steps
+read out of the OLD Thalmann DS2801's own job-history database.
+`031_drop_machine_profile_library.sql` dropped all three, child-to-parent
+(bends, then profiles, then categories), on 2026-09-30.
 
-```sql
-CREATE TABLE machine_profile_categories (
-  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  source_category_id INTEGER NOT NULL UNIQUE,   -- source Access table's own PK (kKategorie)
-  name_en            TEXT NOT NULL,
-  name_original      TEXT NOT NULL,              -- original German name
-  sort_order         INTEGER NOT NULL DEFAULT 0,
-  is_public          BOOLEAN NOT NULL DEFAULT false,
-  is_active          BOOLEAN NOT NULL DEFAULT true
-);
--- RLS: authenticated read where is_public AND is_active; admin read/write all
+It also dropped **`machine_jobs.machine_profile_id`**, the FK into
+`machine_profiles`. That column was NULL on every one of the 34 rows that
+ever existed, so no job lost a bend sequence; `machine_jobs.custom_bends`
+(FlashDraft-drawn geometry) is now the only bend source, which is what every
+real job already used.
 
-CREATE TABLE machine_profiles (
-  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  source_profile_id   INTEGER NOT NULL UNIQUE,   -- source Access PK (kBiegeprogramm)
-  category_id         UUID NOT NULL REFERENCES machine_profile_categories(id),
-  profile_number      TEXT NOT NULL,
-  name_en             TEXT NOT NULL,
-  name_original       TEXT NOT NULL,
-  blank_width_mm      DECIMAL(10,4),
-  blank_width_in      DECIMAL(10,4),
-  is_public           BOOLEAN NOT NULL DEFAULT false,
-  is_active           BOOLEAN NOT NULL DEFAULT true,
-  match_tolerance_pct DECIMAL(5,2) NOT NULL DEFAULT 5,
-  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
--- RLS: authenticated read where is_public AND is_active; admin read/write all
+**Why.** The geometry was AI-read out of a legacy database and was never
+geometrically validated, so matching a customer's drawing against it produced
+confident-looking nonsense. And most profile names were real customer,
+hospital and project names, which is not catalog content. Full reasoning:
+`docs/COMMAND_CENTER_V2_SPEC.md` §2.8.
 
-CREATE TABLE machine_profile_bends (
-  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  profile_id         UUID NOT NULL REFERENCES machine_profiles(id) ON DELETE CASCADE,
-  step_number        INTEGER NOT NULL,
-  left_leg_mm        DECIMAL(10,4),
-  left_leg_in        DECIMAL(10,4),
-  right_leg_mm       DECIMAL(10,4),
-  right_leg_in       DECIMAL(10,4),
-  bend_angle_degrees DECIMAL(6,2),
-  radius_mm          DECIMAL(8,4),
-  radius_in          DECIMAL(8,4),
-  UNIQUE (profile_id, step_number)
-);
--- RLS: authenticated read where parent machine_profiles row is public+active;
---      admin read/write all
-```
+**Before it was dropped.** Every row of all three tables was dumped to
+`C:\Users\manag\Documents\afs-backups\2026-10-01\` as JSON plus a
+chunked restore statement, and each dump was proven to rehydrate into typed
+rows. The raw source files (`ds2801db.bdb`, the `.ds1` samples) were copied
+to `C:\Users\manag\Documents\afs-assets\old-machine-files\` — OUTSIDE
+the repo — and verified byte-for-byte by size and sha256. **They are the only
+copies of that machine's database.**
+
+**Do not recreate these tables.**
+`lib/data/removed-machine-library.test.ts` is a static test over `app/
+components/ lib/ scripts/ tests/` that fails on any reference to them, to the
+deleted modules (`/api/studio/match-profile`, `load-profile`, `library-list`,
+`/studio/profile-viewer`, `ProfileLibraryBrowser`, the importer scripts) or to
+the deleted `machine-data/` folder.
+
+**Two tables that sound similar and are deliberately KEPT** — the same static
+test asserts both are still referenced in source, so an over-eager cleanup
+cannot take them too:
+
+| Table | What it is |
+|---|---|
+| `shop_profile_library` | Real send history to the CURRENT Thalmann, including `pathfinder_profile_id`. See SHOP PROFILE LIBRARY TABLE. |
+| `canonical_profiles` | The hand-authored starter library, and now the ONLY profile library. See CANONICAL PROFILE LIBRARY TABLE. |
 
 ---
 
@@ -1426,8 +1457,11 @@ CREATE TABLE machine_jobs (
   id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id           UUID REFERENCES orders(id),
   quote_request_id   UUID REFERENCES quote_requests(id),
-  machine_profile_id UUID REFERENCES machine_profiles(id),  -- library match, if any
-  custom_bends       JSONB,                                 -- FlashDraft-drawn sequence, if no library match
+  -- machine_profile_id was DROPPED by migration 031 with the machine
+  -- profile library it pointed at. It was NULL on every row that ever
+  -- existed, so no job lost its geometry; custom_bends is now the only
+  -- bend source. Do not re-add it.
+  custom_bends       JSONB,                                 -- FlashDraft-drawn bend sequence (the only source)
   profile_name       TEXT NOT NULL,
   material           TEXT,
   gauge              TEXT,
@@ -1472,16 +1506,23 @@ ALTER TABLE admin_audit_log ALTER COLUMN admin_id DROP NOT NULL;
 
 ## CANONICAL PROFILE LIBRARY TABLE (migration 006_canonical_profiles.sql)
 
-A second, independent profile source alongside `machine_profiles` — 25
-hand-crafted, mathematically correct flashing profiles stored as
-pre-computed XY point sequences, populated via
-`scripts/seed-canonical-profiles.ts` (`pnpm tsx
-scripts/seed-canonical-profiles.ts`). Unlike `machine_profiles`, these do
-NOT go through the bend-angle turtle-graphics reconstruction in
-`lib/flashdraft/geometry.ts` at read time — `points` is the exact, final
-polyline, computed once at seed time from an explicit turtle-graphics move
-list and stored as-is. Public resource, not shop job history — no private-
-row concept, unlike `machine_profiles`.
+**THE profile library, as of 2026-09-30** — it began as a second source
+alongside the imported machine library, and migration 031 dropped that
+library, so this is now the only one. 25 hand-crafted, mathematically
+correct flashing profiles stored as pre-computed XY point sequences,
+populated via `scripts/seed-canonical-profiles.ts` (`pnpm tsx
+scripts/seed-canonical-profiles.ts`). These do NOT go through the bend-angle
+turtle-graphics reconstruction in `lib/flashdraft/geometry.ts` at read time
+— `points` is the exact, final polyline, computed once at seed time from an
+explicit turtle-graphics move list and stored as-is. That is precisely the
+property the imported library lacked, and the reason this one survived it.
+Public reference geometry, not shop job history, so there is no private-row
+concept.
+
+Read surfaces: `/studio/library` (the customer-facing browser, now
+canonical-only), `/api/studio/canonical-profiles`, and
+`/admin/geometry-test`, which validates `computeProfilePoints()` against
+these rows because each carries BOTH authored points and authored bends.
 
 ```sql
 CREATE TABLE canonical_profiles (
@@ -1511,9 +1552,12 @@ Column notes:
 - `slug` — unique, human-readable identifier (e.g. `standard-coping-cap`),
   used as the seed script's upsert key (`onConflict: 'slug'`), so re-running
   the seed script is safe.
-- `category` — matches the AFS product category vocabulary used in
-  `app/studio/library/page.tsx`'s `AFS_PRODUCT_CATEGORIES` (e.g. "Coping
-  Caps & Cleats", "Valley Flashing"), not `machine_profile_categories` rows.
+- `category` — matches the AFS product category vocabulary, which now lives
+  in `lib/data/profile-categories.ts` as `AFS_PROFILE_CATEGORIES` (e.g.
+  "Coping Caps & Cleats", "Valley Flashing"). It used to live inside
+  `app/studio/library/page.tsx`; it moved into `lib/` on 2026-09-30 when the
+  FlashDraft category dropdown, which had been reading the dropped machine
+  library's category table, was repointed at it.
 - `points` / `bends` — both derived from the same turtle-graphics move list
   per profile in the seed script, so they can never drift out of sync with
   each other. `points` is consumed directly by

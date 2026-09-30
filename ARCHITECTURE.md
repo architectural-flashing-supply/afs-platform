@@ -466,6 +466,54 @@ orders.status = 'delivered'
 Customer follow-up email
 ```
 
+### THE ONE JOB STAGE MODEL (Command Center V2, migration 032)
+
+A `quote_requests` row **is** the Job. Every source already creates one —
+FlashDraft, the field app, the quote builder, and later inbound email — and
+`quote_requests.job_stage` says which Workbench lane it sits in. One column,
+one source of truth, instead of deriving the lane at read time by joining
+`quote_requests.status` to `machine_jobs.status`.
+
+```
+new  →  quoted  →  approved  →  shop  →  done
+
+new       Needs a quote
+quoted    Waiting on the customer
+approved  Ready for the machine
+shop      At the Thalmann
+done      Delivered
+
+job_stage IS NULL  =  archived (today: cancelled). Off the Workbench,
+                      and not a rung on the ladder.
+```
+
+**Transitions are enforced in application code, not by the constraint.** The
+CHECK on `job_stage` polices the SET of legal values; it cannot police
+`from → to`, which is the part that matters. `lib/data/job-stage.ts`'s
+`planStageTransition(from, to)` is the single decision point, and every
+server route that moves a job goes through it rather than writing `job_stage`
+directly:
+
+| Case | Outcome |
+|---|---|
+| forward, any distance | `advance`. Skipping rungs is a real workflow — a phone approval is `new → approved` with no quote ever sent, and today's single "Approve & Send to Machine" click is `new → shop`. |
+| same stage | `noop`, with a plain-English message. Not an error. |
+| backward | `refused`, naming both lanes. Nothing in the approved flow walks a job back, and a silent backward move would un-send work already at the machine. |
+| from `null` (cancelled) | `refused`. |
+
+**This is what fixed the one-shot 409.** A successful approval set
+`quote_requests.status = 'reviewing'`, which no longer satisfied
+`approve-quote-request`'s own `status === 'submitted'` entry check — so a
+second click returned `409 Quote request is not pending approval.` and read
+as a failure when the truthful answer was "that already happened". With an
+explicit stage, already-sent is detectable: the route now returns 200 with
+"This job has already been sent to the machine. Nothing was sent again."
+
+**The single door is deliberately unchanged.** `pushProfileToPathfinder`
+still requires `quote_requests.status = 'submitted'` when it verifies the
+approval in the database, because a re-push is not a fresh approval (see ONE
+DOOR TO THE MACHINE below). The fix is the *answer given*, not the gate.
+
 ### Machine Job Lifecycle (Parallel to Order Lifecycle)
 
 A `machine_jobs` row tracks whether an order/quote request's bend program
@@ -752,8 +800,9 @@ push fails, the job stays `pending_approval` and the admin sees the real
 PathfinderEdge error, rather than the status flag silently flipping with
 no real API call (its prior behavior).
 
-**Known gap — no hem data.** Neither `machine_profile_bends` nor
-`machine_jobs.custom_bends` stores any hem information (see SCHEMA.md) —
+**Known gap — no hem data.** `machine_jobs.custom_bends` stores no hem
+information (see SCHEMA.md) — and it is now the only bend source, since the
+old `machine_profile_bends` catalog was dropped by migration 031 —
 `buildFeatures()` in pathfinder-edge.ts only ever emits `Straight`/
 `Angle`/`Radius` features, never `OpenHem`/`TearDropHem`, even for a job
 that has real hems. Fixing this needs a data-model change (a new column
@@ -836,16 +885,21 @@ that equivalence against a literal reimplementation of the old walk.
 | 2D canvas labels (`draw-profile-scene.ts`) | live point list | YES (always was) |
 | `viewerBends` -> `ProfileViewer3D` (`app/studio/draft/page.tsx`) | live point list | YES (lr-02) |
 | `SubmitConfirmation3DModal` | `viewerBends`, via the draft page | YES (lr-02) |
-| `MatchedProfile3DModal` | machine catalog record | no — unsigned, unchanged |
-| `/studio/profile-viewer`, `/upload` | machine catalog / parsed upload | no — unsigned, unchanged |
-| `/api/studio/match-profile` query | live point list | **no, deliberately** |
+| `MatchedProfile3DModal` | caller-supplied bend list | no — unsigned, unchanged |
+| `/upload` | parsed upload | no — unsigned, unchanged |
 | `buildBendSummary` (quote text) | live point list | **no, deliberately** |
 | PathfinderEdge encoder | live point list | YES, but its OWN convention — see below |
 
-The match query and the quote-text summary stay unsigned **on purpose**:
-the machine catalog those are compared/quoted against stores unsigned
-interior angles, so signing the query would stop every catalog profile
-matching. Not an oversight.
+The quote-text summary stays unsigned **on purpose**: it is prose for a human
+estimator, where a leading minus sign reads as an error rather than as
+handedness. Not an oversight.
+
+**Two rows left this table on 2026-09-30.** `/api/studio/match-profile` and
+`/studio/profile-viewer` were deleted with the 911-profile machine library
+(migration 031). The match query was the original reason this exception
+existed — the imported catalog stored unsigned interior angles, so signing
+the query would have stopped every catalog profile matching. Both the query
+and the catalog are gone, so that half of the exception is gone with them.
 
 ### The 3D viewers build from the same point list
 
