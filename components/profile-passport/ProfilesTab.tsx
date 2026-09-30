@@ -303,6 +303,7 @@ export default function ProfilesTab({ initialProfiles, role, isCompanyAccount }:
 
       {previewProfile && (
         <FullPageProfileModal
+          id={previewProfile.id}
           name={previewProfile.name}
           points={previewProfile.points}
           thumbnailImage={previewProfile.thumbnailImage}

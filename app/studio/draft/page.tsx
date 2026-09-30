@@ -987,6 +987,14 @@ export default function FlashDraftPage() {
   const [profileNameDraft, setProfileNameDraft] = useState('');
   const [revision, setRevision] = useState(1);
   const [savedProfileId, setSavedProfileId] = useState<string | null>(null);
+  // Part 1: the profile THIS draft was opened from via "Modify in
+  // FlashDraft". Written to saved_configurations.source_profile_id on the
+  // first save. Independent of savedProfileId, which is this draft's OWN
+  // row id once saved — a modify session starts with sourceProfileId set
+  // and savedProfileId null, which is exactly what makes the first save an
+  // INSERT instead of an UPDATE, so the original is never touched.
+  const [sourceProfileId, setSourceProfileId] = useState<string | null>(null);
+  const [modifiedFromName, setModifiedFromName] = useState<string | null>(null);
   const [profileCategoryId, setProfileCategoryId] = useState<string | null>(null);
   const [profileSubcategory, setProfileSubcategory] = useState('');
   // Lock Profile & Save to Passport: once locked, every geometry-mutating
@@ -2755,10 +2763,27 @@ export default function FlashDraftPage() {
           // re-save (e.g. via Edit Name) unless Unlock was used. Same
           // backward-compatibility reasoning as jobName above.
           isLocked: isLockedNow,
+          // Part 1 (2026-09-30, "Modify in FlashDraft"): these five were
+          // NOT persisted before, so a saved profile reopened for
+          // modification came back with an empty material/gauge/paint face
+          // and the default 9'0" length. They are stored here rather than
+          // as new columns because they are already display-only alongside
+          // the geometry. A row saved before this change simply has them
+          // absent — loadForModify leaves those fields untouched rather
+          // than guessing a value.
+          material: material || null,
+          gauge: gauge || null,
+          paintFace,
+          lengthFeet: lengthFeet || null,
+          lengthInches: lengthInches || null,
         },
         length_ft: lengthFtDecimal || null,
         quantity: Number(quantity) || null,
         notes: notes || null,
+        // Lineage (027_profile_modify_lineage.sql). Set only on the INSERT
+        // branch below — re-saving a profile must never rewrite where it
+        // came from.
+        ...(sourceProfileId && (!savedProfileId || asDuplicate) ? { source_profile_id: sourceProfileId } : {}),
       };
       if (savedProfileId && !asDuplicate) {
         const { error } = await supabase.from('saved_configurations').update(payload).eq('id', savedProfileId);
@@ -3151,6 +3176,105 @@ export default function FlashDraftPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /**
+   * Part 1 (2026-09-30) — "Modify in FlashDraft".
+   *
+   * Loads a saved profile into this canvas as a NEW, UNLOCKED, editable
+   * draft linked back to its source. Deliberately different from
+   * loadFromPassportById above in three ways that matter:
+   *
+   *   - savedProfileId stays NULL, so the first save is an INSERT. The
+   *     original row is never updated, which is what makes this safe for a
+   *     LOCKED original.
+   *   - isLocked is forced FALSE regardless of the source's lock state.
+   *     A locked profile is read-only; a modification of it is not.
+   *   - sourceProfileId + revision are carried so the new row records what
+   *     it was modified from and at which revision.
+   *
+   * Uses the same explicit URL-param handoff as ?loadPassport / ?loadJob,
+   * and is dispatched from the same mount effect below — which runs AFTER
+   * the autosave-restore effect declared earlier in this component, so an
+   * explicit load always wins over a restored draft.
+   */
+  const loadForModify = useCallback(async (id: string) => {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from('saved_configurations')
+      .select('id, name, dimensions, job_info, length_ft, quantity, notes')
+      .eq('id', id)
+      .maybeSingle();
+    if (!data) return;
+
+    const row = data as {
+      id: string;
+      name: string | null;
+      dimensions: unknown;
+      job_info: Record<string, string | null> | null;
+      length_ft: number | null;
+      quantity: number | null;
+      notes: string | null;
+    };
+    const dims = row.dimensions as {
+      points?: unknown;
+      hemStart?: Hem | null;
+      hemEnd?: Hem | null;
+      categoryId?: string | null;
+      subcategory?: string;
+      revision?: number;
+      material?: string | null;
+      gauge?: string | null;
+      paintFace?: PaintFace | null;
+      lengthFeet?: string | null;
+      lengthInches?: string | null;
+    } | null;
+    if (!isPointArrayShape(dims?.points)) return;
+
+    setPast((p) => [...p, { points, hemStart, hemEnd }]);
+    setFuture([]);
+    setPoints(dims!.points as Point[]);
+    setHemStart(isHemShape(dims?.hemStart) ? (dims!.hemStart as Hem) : null);
+    setHemEnd(isHemShape(dims?.hemEnd) ? (dims!.hemEnd as Hem) : null);
+    setSelectedSegment(null);
+
+    // NEW draft: no own row yet, never locked, lineage recorded.
+    setSavedProfileId(null);
+    setIsLocked(false);
+    setSourceProfileId(row.id);
+    setModifiedFromName(row.name || 'Untitled Profile');
+    setRevision((dims?.revision ?? 1) + 1);
+    setProfileName(row.name ? `${row.name} (modified)` : 'Untitled Profile (modified)');
+    setProfileCategoryId(dims?.categoryId ?? null);
+    setProfileSubcategory(dims?.subcategory ?? '');
+
+    // Specification fields. Each is applied ONLY when the source actually
+    // carries it — rows saved before Part 1 have no material/gauge/paint
+    // face, and inventing one would be worse than leaving the field empty.
+    if (dims?.material) setMaterial(dims.material);
+    if (dims?.gauge) setGauge(dims.gauge);
+    if (dims?.paintFace) setPaintFace(dims.paintFace);
+    if (dims?.lengthFeet) setLengthFeet(dims.lengthFeet);
+    if (dims?.lengthInches) setLengthInches(dims.lengthInches);
+    // length_ft is the decimal column; fall back to it when the source has
+    // no discrete feet/inches pair (pre-Part-1 rows).
+    if (!dims?.lengthFeet && typeof row.length_ft === 'number' && row.length_ft > 0) {
+      setLengthFeet(String(Math.floor(row.length_ft)));
+      setLengthInches(String(Math.round((row.length_ft - Math.floor(row.length_ft)) * 12)));
+    }
+    if (row.quantity) setQuantity(String(row.quantity));
+    if (row.notes) setNotes(row.notes);
+
+    // Job info drawer.
+    const ji = row.job_info ?? {};
+    if (ji.clientBusinessName) setClientBusinessName(ji.clientBusinessName);
+    if (ji.clientName) setClientName(ji.clientName);
+    if (ji.poNumber) setPoNumber(ji.poNumber);
+    if (ji.jobName) setJobName(ji.jobName);
+    if (ji.requestedDeliveryDate) setRequestedDeliveryDate(ji.requestedDeliveryDate);
+
+    setToast('Opened as a new editable draft — the original is unchanged');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Part 4 integration: /studio/library's "Load into FlashDraft" button
   // links here with ?loadProfile=<id> (machine profiles) or ?loadCanonical=1
   // (canonical profiles) — load it once on mount. /app/profile-passport's
@@ -3172,6 +3296,9 @@ export default function FlashDraftPage() {
     if (params.get('loadCanonical')) loadCanonicalFromHandoff();
     const passportId = params.get('loadPassport');
     if (passportId) loadFromPassportById(passportId);
+    // Part 1: ?modifyProfile=<id> — open as a new unlocked draft.
+    const modifyId = params.get('modifyProfile');
+    if (modifyId) loadForModify(modifyId);
     if (params.get('admin')) setAdminContext(true);
     if (params.get('loadJob')) loadFromAdminJobHandoff();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3539,6 +3666,21 @@ export default function FlashDraftPage() {
           <p className="font-label text-xs font-semibold text-afs-accent-green">
             <LockIcon className="h-3 w-3 inline mr-1.5 -mt-0.5" aria-hidden="true" />
             This profile is locked. View only.
+          </p>
+        </div>
+      )}
+
+      {/* Part 1 (2026-09-30): lineage banner for a "Modify in FlashDraft"
+          session. Unlike the locked banner above, this one is informational,
+          not restrictive — the draft IS editable; the banner exists so the
+          user can see that saving will create a new profile rather than
+          overwrite the one they opened. */}
+      {sourceProfileId && (
+        <div className="px-6 py-2 bg-afs-accent-purple/10 border-b border-afs-accent-purple/40 shrink-0" data-testid="modified-from-banner">
+          <p className="font-label text-xs font-semibold text-afs-chrome-high">
+            New editable draft &mdash; modified from{' '}
+            <span className="text-afs-accent-purple">{modifiedFromName ?? 'a saved profile'}</span>
+            {' '}(rev {revision}). Saving creates a new profile; the original is unchanged.
           </p>
         </div>
       )}
