@@ -513,6 +513,136 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
     `afs-chrome-dim` this way** — listed in STATE_OF_THE_BUILD.md's v2-02
     re-verification entry, PENDING REID, and not to be swept without his say.
 
+
+19. **THE PRICE BOOK IS VERSIONED AND NEVER OVERWRITTEN, AND A BLANK IS NEVER
+    A ZERO.** `price_book_items` (material + gauge, addable and retirable) and
+    `price_book_versions` (what it cost, from when) — migration 035. An edit
+    INSERTS a version with a new `effective_from`; it never updates one, and
+    the database refuses the update anyway (`price_book_versions_append_only`).
+    An already-issued quote therefore keeps the prices it was built on forever,
+    upheld three ways over: the insert-only writer, the trigger, and the quote's
+    own cents snapshot in `quotes.line_items`.
+
+    **PRICES START EMPTY.** Every money column is NULLABLE with NO DEFAULT. The
+    24 seeded rows have no version at all. `NULL` means Steve has not filled it
+    in: it renders as a marked **"Not set"** chip on amber, and
+    `lib/pricing/quote-math.ts` REFUSES to issue a quote that needs it, naming
+    the row to go and fix. There is no `DEFAULT 0` anywhere — a zero is a price,
+    and a made-up one. `extras` is the single exception: blank extras means "no
+    extras", not "unpriced".
+
+    **Strips per sheet are DERIVED, never stored:** `floor(48 / blankWidthIn)`,
+    because a strip's width comes out of the sheet's 4 ft dimension and its
+    length is the full 10 ft. A blank wider than 48 in, or a piece longer than
+    10 ft, FAILS LOUDLY — the naive formula yields 0 strips and then divides by
+    it. A short piece is charged a whole strip on purpose: nesting is
+    SPEC_TRIM_LENGTH_OPTIMIZER.md's job, and quoting the optimistic number here
+    would under-quote every short-piece job.
+
+    All of this lives in `lib/pricing/`. Do not put a second copy of the
+    formula, the blank-handling, or the version resolution anywhere else.
+
+20. **THE PRICING LEDGER IS APPEND-ONLY, ENFORCED BY POSTGRES.**
+    `pricing_ledger` (migration 035) records every estimate, quote and revision,
+    every outcome with its reason and time-to-decision, every invoice, every
+    price-book change as old value → new value, and every supplier price-change
+    notice. It is the dataset dynamic pricing will learn from, so a row is never
+    changed or removed once written.
+
+    Two independent refusals, not one: a BEFORE UPDATE OR DELETE trigger that
+    RAISES (binding the table owner and the service role, which a REVOKE would
+    not), and RLS with **SELECT and INSERT policies only** — no UPDATE policy and
+    no DELETE policy exist at all. Do not add one, and do not "simplify" the
+    trigger away.
+
+    **The trigger reads `to_jsonb(OLD) ->> 'test_tag'`, not `OLD.test_tag`.**
+    PL/pgSQL plans an `IF` condition whole and does NOT short-circuit, so a
+    direct column reference fails `42703` on the table that lacks the column,
+    turning a refusal into the wrong error. Keep it column-agnostic.
+
+    **The one escape is the reserved `E2E-TEST-` job-name prefix.** A row whose
+    `test_tag` is non-null may be DELETED — never updated — and `test_tag` is
+    written by exactly one function, `ledgerTestTag()` in
+    `lib/pricing/ledger.ts`. A tagged row is excluded from the
+    `pricing_ledger_real` view and from the CSV export, so test data can never
+    reach the dataset or a spreadsheet. That same prefix also CAPTURES outbound
+    email (rule #21). One prefix, three jobs; do not add a second mechanism.
+
+    **Designed for two writers that do not exist yet, and both are documented in
+    SCHEMA.md:** the deferred Phase 4 Outlook mail parser (`source='mail_parser'`,
+    `external_ref` = the Graph `internetMessageId`, made idempotent by
+    `uq_pricing_ledger_external_ref`), and historical spreadsheet / QuickBooks
+    imports (`source='import'`, with `import_batch_id` REQUIRED by a CHECK so a
+    bad batch is always identifiable — it cannot be deleted, it is superseded).
+    The import column list is frozen in SCHEMA.md's PRICING LEDGER IMPORT FORMAT
+    and is the same order the CSV export writes. **Money is CENTS in this table,
+    everywhere.**
+
+21. **THE QUOTE BECOMES THE INVOICE WITH NO RETYPING, AND THE APPROVE LINK IS
+    NOT A FIFTH DOOR.** `lib/invoices/create.ts` COPIES the quote's line items,
+    totals and price-book snapshot onto the `invoices` row. Nothing is
+    recomputed from the price book — which may have moved since the quote was
+    sent — and no human re-enters anything. A recomputed invoice would silently
+    bill a different number from the one the customer approved. `invoices` has a
+    UNIQUE constraint on `quote_id`, so a double click cannot bill twice.
+
+    `app/api/quote-approve/[token]` — the Approve button in the quote email — is
+    signed (HMAC-SHA256), **single-use** (a conditional UPDATE on
+    `used_at IS NULL`, so two simultaneous clicks cannot both win) and
+    **expiring**. Only the token's HASH is stored. The signature is checked
+    BEFORE the expiry, so a forged expiry is never believed.
+
+    **It CREATES the approval record the single-door guard already requires**
+    (`job_stage='approved'`, `approval_channel='email'`, `approved_by` = the
+    customer's own profile or NULL for a guest) and **deliberately leaves
+    `status='submitted'` alone** so the guard's own condition still holds when an
+    admin later presses "Send to machine". It imports nothing from
+    `lib/integrations/pathfinder-edge.ts` and makes no request to it — enforced
+    by the static single-door test, not asserted. Same contract as
+    "Customer approved by phone" (rule #14), for the same reason. **Do not add it
+    to the allow-list.**
+
+    **OUTBOUND EMAIL TEST MODE IS PER MESSAGE, NEVER A DEPLOYMENT FLAG.**
+    `lib/email/outbound.ts` captures a message — writes it to `outbound_emails`
+    with `status='captured_test_mode'` and makes NO provider call — when the job's
+    name carries the reserved `E2E-TEST-` prefix. A deployment-wide switch was
+    rejected because it would silence real customer mail the moment somebody left
+    it on. `AFS_EMAIL_TEST_MODE=1` is for local development only and is not set
+    in Vercel. Every approved invoice is copied automatically to
+    `officeInvoiceEmail()` — **`tricia@architecturalflashingsupply.com`**, named
+    once in `lib/data/office.ts` and nowhere else.
+
+22. **THE SERVICE-ROLE SUPABASE CLIENT NEVER READS A CACHED ROW.**
+    `lib/supabase/admin.ts` passes `cache: 'no-store'` on every request, and must
+    keep doing so. Next.js patches global `fetch` and caches GET responses in its
+    Data Cache; supabase-js reads with `fetch`, so two identical PostgREST GETs
+    inside one route can be served the first one's body and a row that changed in
+    between is simply not seen.
+
+    That is not hypothetical — it was diagnosed live on alpha (2026-09-30) when
+    the Approve link's EXPIRED case poisoned the cache and the VALID click that
+    followed kept being told the link had expired. Every symptom pointed at a
+    date-parsing bug and it was not one. The service role exists to read
+    authoritative state (has this single-use token been spent, what stage is this
+    job at, does an invoice already exist); a cached answer to any of those is a
+    wrong answer.
+
+23. **PLACEHOLDER CONTRAST IS DECIDED BY THE SURFACE, NOT BY A TOKEN NAME.**
+    Rule #18 names `afs-chrome-silver` as the placeholder colour and that is
+    right ON GUNMETAL, where it measures 4.80:1 at worst. On the LIGHT working
+    area it measures **1.55:1** on `afs-bg-card` — worse than the 1.94:1 failure
+    rule #18 exists to fix, because chrome-silver is a light colour chosen for a
+    dark surface. v2-02 had only gunmetal surfaces, so the two readings of the
+    rule were the same sentence; they are not any more.
+
+    On a light surface the placeholder is **`afs-ink-700` (10.3:1 on
+    `afs-bg-card`)** — an existing text token rather than a near-duplicate, which
+    is what rule #18 asks for, and still clearly dimmer than the typed
+    `afs-ink-900` at 18.9:1. `lib/design/placeholder-contrast.test.ts` computes
+    every one of these ratios from `tailwind.config.js` and asserts BOTH premises
+    (the five dim-looking tokens all fail on white; ink-700 passes on all four
+    light surfaces), so a retheme cannot make the rule silently vacuous.
+
 ---
 
 ## MACHINE INTEGRATION — THALMANN DS2801 / AFS MACHINE BRIDGE
@@ -548,6 +678,19 @@ Env vars (see .env.example):
                                    PathfinderEdge POST body to
                                    diagnostics/. Off by default; a write
                                    failure here can never block a push.
+
+Quotes, invoices and the Approve link (v2-03) — ALL THREE OPTIONAL, all three
+with a safe default, so the quote -> approve -> invoice path works on a fresh
+deployment with none of them set. Full notes in .env.example:
+  QUOTE_APPROVE_SECRET            Signs the single-use Approve link. Unset =
+                                   a SEPARATE key derived from
+                                   SUPABASE_SERVICE_ROLE_KEY by HMAC with a
+                                   fixed label. Set it to rotate every
+                                   outstanding link at once.
+  INVOICE_OFFICE_EMAIL            Where every approved invoice is copied.
+                                   Defaults to Tricia's real address.
+  AFS_EMAIL_TEST_MODE             LOCAL DEV ONLY. Not set in Vercel — see
+                                   rule #21.
 
   **Machine sync — how a profile actually reaches the Thalmann.** Machines
   PULL; nothing pushes to them. There is no job-submission endpoint, no

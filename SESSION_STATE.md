@@ -24,7 +24,91 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
-## COMMAND CENTER V2 — PROMPT v2-02, RE-VERIFICATION PASS (2026-09-30) — CURRENT HANDOFF
+## COMMAND CENTER V2 — PROMPT v2-03 (2026-09-30) — CURRENT HANDOFF
+
+The price book, the pricing history, quotes and invoices as real records, and
+the signed Approve link in the quote email. Full detail:
+STATE_OF_THE_BUILD.md's "PROMPT v2-03" section.
+
+**What is live on alpha**
+
+`/admin/settings/price-book` is a real editor — add, edit, retire, with a start
+date on every save and nothing ever overwritten. The Job screen's New lane
+prices a job from it and sends a quote carrying an **Approve this quote**
+button. Clicking that button creates the invoice from the quote with nothing
+re-typed, emails it to `tricia@architecturalflashingsupply.com` and to the
+customer, and moves the job to Approved. Every step of it lands in an
+append-only `pricing_ledger` — the dataset dynamic pricing will learn from —
+which Settings can export as a spreadsheet.
+
+**THE ONE THING BLOCKED ON REID: the sending domain's DNS is broken.**
+`architecturalflashingsupply.com` has its Resend verification TXT, but its DKIM
+key is published at the APEX instead of at a `_domainkey` name (so nothing can
+find it), the `send.` subdomain's SPF is the corrupted string
+`v=spf1 [-]-om ~all`, there is no feedback MX, and the DMARC record is at the
+apex where it is inert. The apex SPF also hard-fails (`-all`) anything that is
+not Outlook. **Five exact records to add, with their names and values, are
+tabulated in STATE_OF_THE_BUILD.md's v2-03 §8.** Separately, `RESEND_API_KEY`
+and `RESEND_FROM_EMAIL` are set in neither `.env.local` nor Vercel, so every
+send currently records `status='not_configured'` — honestly, with the message
+body kept, never reported as a success.
+
+**Three things worth carrying forward**
+
+1. **A symptom that points cleanly at one bug can be another bug entirely.** The
+   Approve link's VALID case kept returning "expired" while the database row
+   plainly said otherwise. Everything pointed at a date-parsing bug — Postgres
+   timestamp formats, `+00` vs `+00:00`, fractional seconds — and none of it was
+   the cause. Next.js patches global `fetch` and caches GET responses; the
+   EXPIRED case earlier in the test had poisoned the cache, and the route was
+   reading a stale row. **The service-role client now sends
+   `cache: 'no-store'` on every request** (CLAUDE.md rule #22). The lesson is
+   the debugging order: I should have asked "is the route reading what I think
+   it is reading" before going three rounds on date parsing.
+
+2. **PL/pgSQL does not short-circuit an `IF` condition.** It compiles the whole
+   condition into one SQL expression and plans all of it, so
+   `TG_TABLE_NAME='x' AND OLD.some_column IS NOT NULL` fails `42703` on the
+   table that lacks the column, even though the first test is false there. A
+   trigger shared by two tables must reach columns through
+   `to_jsonb(OLD) ->> 'name'`.
+
+3. **A design rule can be right and its token still wrong.** v2-02 established
+   `afs-chrome-silver` as THE placeholder colour, and I used it on v2-03's white
+   card — where it measures **1.55:1**, worse than the 1.94:1 failure v2-02
+   existed to fix. The rule was always "4.5:1 against the surface it is actually
+   on"; v2-02 only had gunmetal surfaces, so the two readings coincided and the
+   shorthand stuck. The guard test now asserts both premises so the shorthand
+   cannot mislead the next reader. CLAUDE.md rule #23.
+
+**One place this prompt's premise was wrong, and I did the work anyway**
+
+The prompt says the five invoice routes "are all already built against" a
+missing `invoices` table. They were not — they were built against `orders`,
+deriving an invoice 1:1, and they worked. What was genuinely missing was an
+invoice as a record in its own right. Per the global rule, the prompt wins: the
+table was created with RLS and those routes now resolve a real invoice first and
+fall back to the derivation, so both kinds work. Saying so here because the
+difference is what decided the shape of `resolveInvoice()`.
+
+**What is deliberately NOT built, and says so on screen rather than being mocked**
+
+Delivery scheduling (Phase 5), and Outlook/Microsoft Graph (Phase 4). Freight and
+tax remain CLAUDE.md DATA BLOCKERS; the quote and the invoice both say they are
+quoted separately once the delivery address is confirmed, rather than printing a
+guessed number.
+
+**Still PENDING REID, and now sharper than it was**
+
+CLAUDE.md rule #14's open question — the gate to the machine is an ADMIN
+approval, not the customer's acceptance. v2-03 adds a real customer acceptance
+(the Approve click) and deliberately does NOT wire it to the machine: an admin
+still presses "Send to machine". Whether a customer's own approval should release
+work to the Thalmann is still Reid's call.
+
+---
+
+## COMMAND CENTER V2 — PROMPT v2-02, RE-VERIFICATION PASS (2026-09-30)
 
 The v2-02 prompt was run a second time. **Nothing had to be rebuilt** — every
 artifact from the first pass was present and every claim in it re-verified

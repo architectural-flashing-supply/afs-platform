@@ -34,6 +34,269 @@ summary, not a replacement for it.
 
 ---
 
+## COMMAND CENTER V2 — PROMPT v2-03 (2026-09-30)
+
+The price book, the pricing history, quotes and invoices as real records, and
+the signed Approve link. Everything below was verified in this session against
+the live database or the live alpha deployment. Per the VERIFICATION STANDARD
+above, the interactive parts are **IMPLEMENTED, VERIFIED BY PLAYWRIGHT AGAINST
+ALPHA** and still want Reid's own eyes; two screenshots are committed at the
+repo root for exactly that (`proof-v2-03-price-book-blanks.png`,
+`proof-v2-03-quote-table.png`).
+
+### 1. The price book — IMPLEMENTED, VERIFIED AGAINST ALPHA
+
+`/admin/settings/price-book`, in the light working area. One row per material +
+gauge, with **Sheet cost (10 × 4 ft)**, **Per bend**, **Per hem** and
+**Extras**. Steve can add a row, edit any row, and retire one; retiring deletes
+nothing, so every quote that used it is untouched and bringing it back restores
+its old prices.
+
+**Every save is a new VERSION with a start date. Nothing is ever overwritten** —
+and the database refuses the overwrite anyway (migration 035's
+`price_book_versions_append_only` trigger). Entering October's increase on 30
+September is therefore safe: `versionInForce` picks the latest
+`effective_from` that is not in the future, so the quote sent that afternoon
+still uses September's price.
+
+**PRICES START EMPTY, AND A BLANK IS NEVER A ZERO.** 24 rows were seeded from
+the real `materials` × active `gauges` catalog with **no version at all**. Read
+out of the live database after the migration: `price_book_items` 24,
+`price_book_versions` **0**. Each unfilled cell renders as a marked **"Not set"**
+chip on amber with a screen-reader label saying so — not "$0.00", not an empty
+cell somebody could read as free. The page states the count in plain English:
+"24 of 24 rows still have prices to fill in. A job using one of those cannot be
+quoted until it is filled in — a blank is never treated as zero."
+
+### 2. Quotes, and the Approve button — IMPLEMENTED, VERIFIED AGAINST ALPHA
+
+The Job screen's New lane now shows the priced quote table with an **editable
+quantity**, the line "Priced from your price book: per bend, cut from 10 × 4 ft
+sheets", and a preview of the email the customer will get — naming the Approve
+button and Tricia's address. ONE primary action: **Send quote**.
+
+**When the price book cannot price a line, there is no table and no total.** The
+panel lists the rows to go and fill in, links to the price book, and Send quote
+is disabled. A disabled button beside a reason is honest; a live button that
+fails on click is not. The server refuses the same case with a 409 carrying the
+same sentence, so the button is not the only guard.
+
+Sending writes the `quotes` row **snapshotting the cents used and the
+price-book version ids**, mints a signed single-use expiring Approve link
+(storing only its HASH), emails it through the site's existing service, moves the
+job to Quoted, and appends one `quote_issued` row per priced line to the pricing
+history. A revision is a NEW quote: `revision` increments, `supersedes_id` points
+at the one it replaces, the old quote goes to `expired`, **and its outstanding
+Approve links are expired with it**, so a customer cannot approve a price that
+has been withdrawn.
+
+The Approve link in a real captured email was verified to point at
+**https://afs-website-alpha.vercel.app** — the canonical environment — and to
+answer 200 when fetched at its own absolute URL.
+
+### 3. Approval → invoice → Tricia — IMPLEMENTED, VERIFIED AGAINST ALPHA
+
+Clicking Approve sets `job_stage='approved'`, `approval_channel='email'`,
+creates the invoice **by copying the quote's line items and totals**, emails it
+to `tricia@architecturalflashingsupply.com` and to the customer, and records the
+outcome with its time-to-decision.
+
+**It is not a fifth door to the machine.** It writes the approval record the
+single-door guard already reads and **deliberately leaves `status='submitted'`
+alone** so the guard's own condition still holds when an admin later presses
+"Send to machine". It imports nothing from `lib/integrations/pathfinder-edge.ts`;
+the static single-door test would fail if it did, and it passes.
+
+Live from the E2E run against alpha:
+
+```
+PROOF | invoice from quote: AFS-INV-2026-00001 total $1,011.00
+        (quote total $1,011.00), office copy -> tricia@architecturalflashingsupply.com
+PROOF | captured email: quote            -> e2e-forge@...      [captured_test_mode]
+PROOF | captured email: invoice_office   -> tricia@...          [captured_test_mode]
+PROOF | captured email: invoice_customer -> e2e-forge@...      [captured_test_mode]
+PROOF | messages really sent to anybody: 0
+```
+
+### 4. The pricing history — IMPLEMENTED, APPEND-ONLY PROVEN LIVE
+
+`pricing_ledger` records every quote and revision, every outcome, every invoice,
+every price-book change as old value → new value, and every supplier notice —
+with the material, gauge, blank width, bend count, hem count, length, quantity,
+rush flag, customer, the prices used and the **price-book version** used.
+
+Exercised against the live database (the probe rolls its own row back):
+
+```
+UPDATE -> BLOCKED sqlstate=42501 :: APPEND ONLY: UPDATE on pricing_ledger is refused.
+DELETE -> BLOCKED sqlstate=42501 :: APPEND ONLY: DELETE on pricing_ledger is refused.
+```
+
+`select cmd from pg_policies where tablename='pricing_ledger'` returns exactly
+**INSERT** and **SELECT** — no UPDATE policy and no DELETE policy exist, so
+there are two independent refusals rather than one.
+
+Settings gains: a **"Log a supplier price change"** form (supplier, material,
+gauge, old cost, new cost, effective date, note, optional attached file — the
+file goes to the private `documents` bucket and only its PATH is stored), a
+**CSV export** that reads `pricing_ledger_real` so test rows can never reach a
+spreadsheet, and the card **"Dynamic pricing — coming soon (learning from this
+history)"**.
+
+**Both future inputs are designed for and written down** in SCHEMA.md's PRICING
+LEDGER IMPORT FORMAT: the deferred Phase 4 mail parser (`source='mail_parser'`,
+`external_ref` = the Graph `internetMessageId`, idempotent via
+`uq_pricing_ledger_external_ref`) and historical spreadsheet / QuickBooks
+imports (`source='import'` with a REQUIRED `import_batch_id`). The import column
+order is the same as the export's, so an export can be corrected and re-imported
+with no mapping step.
+
+### 5. The `invoices` table — and what the spec's top risk really was
+
+docs/COMMAND_CENTER_V2_SPEC.md §2.5 records "routes exist but no `invoices`
+table" as the build's top risk, and says those five routes "are all already
+built against it".
+
+**THE PROMPT WINS, AND THE TABLE WAS BUILT — but the premise is worth correcting
+for the record, because the difference decided the work.** Read against the
+code, those routes were **not broken**: they were built against `orders`, with
+`lib/data/invoices.ts` deriving an invoice 1:1 from an order, and that worked.
+What did not exist was **an invoice as a record in its own right** — one a quote
+becomes on approval, for a job that never went through checkout at all.
+
+`resolveInvoice()` now resolves an id to a real `invoices` row FIRST and falls
+back to the order derivation, so both kinds work; `getInvoiceRows()` unions them
+and suppresses the derived row for any order that already has a real invoice, so
+a customer never sees the same money twice.
+
+### 6. Two real defects found by testing, not by reading
+
+**(a) The service-role client was reading CACHED rows.** Next.js patches global
+`fetch` and caches GET responses in its Data Cache; supabase-js reads with
+`fetch`, so two identical PostgREST GETs inside one route can be served the
+first one's body. The E2E's EXPIRED case read the token row, the test put the
+row's expiry back, and the VALID click that followed kept being told the link had
+expired. The database was right and the test was right; the route was reading a
+cached row. Every symptom pointed at a date-parsing bug and it was not one.
+`lib/supabase/admin.ts` now sends `cache: 'no-store'` on every request — the
+service role exists to read authoritative state, and a cached answer to "has
+this single-use token been spent" is a wrong answer.
+
+**(b) The append-only trigger raised the WRONG ERROR on one of its two tables.**
+`IF TG_OP='DELETE' AND TG_TABLE_NAME='pricing_ledger' AND OLD.test_tag IS NOT
+NULL` looks like it short-circuits. PL/pgSQL compiles an IF condition into one
+SQL expression and plans the whole thing, so on `price_book_versions` — which had
+no such column — it failed `42703 undefined_column` instead of refusing. A unit
+test caught it. It now reads `to_jsonb(OLD) ->> 'test_tag'`, which is
+column-agnostic.
+
+### 7. A contrast mistake I made and caught
+
+I reached for v2-02's placeholder token, `afs-chrome-silver`, on v2-03's WHITE
+card. Measured from `tailwind.config.js`, that is **1.55:1** — worse than the
+1.94:1 failure v2-02 existed to fix, because chrome-silver is a light colour
+chosen for a dark surface.
+
+The rule was never "use chrome-silver"; it is "clear 4.5:1 against the surface
+the placeholder is actually on". v2-02 had only gunmetal surfaces, so the two
+readings were the same sentence. `lib/design/placeholder-contrast.test.ts` now
+says so out loud: it asserts the five dim-looking tokens ALL fail on the white
+card, asserts `afs-ink-700` (10.3:1) passes on all four light surfaces while
+staying dimmer than the typed text, and holds the two light-area components to
+it. This is now CLAUDE.md rule #23.
+
+### 8. THE SENDING DOMAIN'S DNS IS BROKEN — REPORTED, NOT FIXED
+
+Resend cannot deliver mail as `architecturalflashingsupply.com` today. The work
+in this prompt continued regardless, as instructed; every message is recorded and
+nothing is claimed to have been sent. **DNS is not something this session can
+change — it needs Reid at the registrar.**
+
+Resolved live via DNS-over-HTTPS on 2026-09-30:
+
+| Record | Where it should be | What is actually there | Verdict |
+|---|---|---|---|
+| Resend domain verification | apex TXT | `resend-domain-verification=54616aba0e2963f4e5226eb0aa6f8fc8` | **present** |
+| DKIM | `resend._domainkey.send.architecturalflashingsupply.com` TXT | **nothing at any `_domainkey` name.** The key itself (`p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDJ5s00cOJTa68...`) is published as a **bare TXT at the APEX**, where no verifier will ever look | **MISSING / misplaced** |
+| SPF for the sending subdomain | `send.architecturalflashingsupply.com` TXT = `v=spf1 include:amazonses.com ~all` | `v=spf1 [-]-om ~all` — **corrupted, not valid SPF syntax** | **BROKEN** |
+| Feedback MX | `send.architecturalflashingsupply.com` MX → `feedback-smtp.<region>.amazonses.com` priority 10 | no MX at `send.` at all | **MISSING** |
+| DMARC | `_dmarc.architecturalflashingsupply.com` TXT | **nothing.** `v=DMARC1; p=none;` is published at the **APEX** instead, where it has no effect | **MISPLACED** |
+| Apex SPF | — | `v=spf1 include:spf.protection.outlook.com -all` | **hard-fails anything but Outlook.** Mail sent from an `@architecturalflashingsupply.com` address through Resend fails SPF and DMARC alignment |
+| Apex MX | — | `architecturalflashingsupply-com.mail.protection.outlook.com` | fine — inbound mail, unrelated to sending |
+
+**Exactly what to add, and where:**
+
+1. `resend._domainkey.send.architecturalflashingsupply.com` **TXT** = the
+   `p=MIG...` value currently stranded at the apex. (Delete the apex copy — it
+   does nothing there and is confusing.)
+2. `send.architecturalflashingsupply.com` **TXT** = `v=spf1 include:amazonses.com ~all`
+   — replacing the corrupted `v=spf1 [-]-om ~all`.
+3. `send.architecturalflashingsupply.com` **MX** = `feedback-smtp.us-east-1.amazonses.com`,
+   priority 10 (use whichever region Resend's dashboard shows for this domain).
+4. `_dmarc.architecturalflashingsupply.com` **TXT** = `v=DMARC1; p=none; rua=mailto:<an address you read>`
+   — moving it off the apex, where it is currently inert.
+5. Decide the FROM address. Either send as `@send.architecturalflashingsupply.com`
+   (then 1–3 are sufficient), **or** send as `@architecturalflashingsupply.com`
+   and add `include:amazonses.com` to the apex SPF **before** its `-all`.
+
+**And separately from DNS: Resend has no credentials at all.**
+`RESEND_API_KEY` and `RESEND_FROM_EMAIL` are set in **neither `.env.local` nor
+Vercel** (`vercel env ls production` lists 13 variables and neither is among
+them). Until both exist, every send returns `status='not_configured'` — recorded
+honestly with the full message body kept, never reported as a success.
+
+### Migrations 035 and 036 — APPLIED LIVE, VERIFIED, IDEMPOTENT
+
+Both applied twice in a row with no error. Verified by querying the database, not
+by reading the files: every column present in `information_schema.columns`, every
+policy present in `pg_policies`, RLS enabled on all six new tables, both
+append-only triggers attached and enabled (`tgenabled='O'`), and the refusal
+exercised for real.
+
+### Gates
+
+- `pnpm tsc --noEmit` — **exit 0**
+- `pnpm test:unit` — **308 passed, 19 files** (up from 219/14; +89 across
+  `lib/pricing/*` and the widened `placeholder-contrast.test.ts`)
+- `pnpm vitest run lib/pricing` — **77 passed, 4 files**, covering all four
+  required areas: the pricing maths, price-book versioning, append-only
+  enforcement against the live database, and signed-link verification
+- `next build` — exit 0, with `/admin/settings/price-book`,
+  `/api/quote-approve/[token]`, `/api/admin/command-center/send-quote`,
+  `/api/admin/price-book`, `/api/admin/pricing-ledger/export`,
+  `/api/admin/supplier-price-change` and `/api/admin/quotes/[id]/pdf` all present
+- Playwright against alpha — **23/23 passed** across
+  `quote-approve-invoice.spec.ts` (4), `command-center-workbench.spec.ts` (6)
+  and `command-center-v2-nav.spec.ts` (12), run after confirming the pushed
+  commit's deployment reported READY
+
+### Test data
+
+Every row the suite created was deleted. Verified live afterwards:
+`quote_requests` 0, `quotes` 0, `invoices` 0, `quote_approval_tokens` 0,
+`outbound_emails` 0, `pricing_ledger` 0, `machine_jobs` 0, price-book test
+fixtures 0 — with `price_book_items` still 24 (the real seeded rows),
+`price_book_versions` still 0 (prices still empty), and
+`shop_profile_library` still 20.
+
+### Still open
+
+- **Reid's DNS work above.** Nothing in this build can proceed past
+  `not_configured` until it is done and `RESEND_API_KEY`/`RESEND_FROM_EMAIL`
+  exist.
+- **The 22 files outside the Command Center still using `afs-chrome-dim` as
+  placeholder text** (v2-02's finding) are unchanged and still PENDING REID.
+  Rule #23 adds a second dimension to that sweep: whichever token they move to
+  has to be chosen per surface.
+- **The open design question from rule #14 is unchanged and is now sharper.** The
+  gate to the machine is still an ADMIN approval, not the customer's acceptance.
+  v2-03 adds a real customer acceptance — the Approve click — but deliberately
+  does not wire it to the machine: an admin still presses "Send to machine".
+  Whether a customer's approval should itself release work to the Thalmann is
+  still **PENDING REID**.
+
+---
+
 ## COMMAND CENTER V2 — PROMPT v2-02 (2026-09-30)
 
 The Workbench and the Job screen. Everything below was verified in this

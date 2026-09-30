@@ -1135,9 +1135,219 @@ Nothing between "Submit for Quote" and that approval click touches
 PathfinderEdge. `submitJobToMachine`/`getJobStatus` remain `not_configured`
 and correct — machines pull; there is no job-submission endpoint.
 
-Known rough edge, diagnosed but not yet fixed: the approval is one-shot. Success
-sets `quote_requests.status = 'reviewing'`, which no longer satisfies the
-route's own `status === 'submitted'` entry check, so a second click returns
-409 "Quote request is not pending approval." The UI shows that as small crimson
-text and never confirms the created profileId, making a successful approval
-indistinguishable from a failed send.
+**That rough edge is FIXED.** This paragraph used to read "diagnosed but not yet
+fixed: the approval is one-shot" — a second click returned
+409 "Quote request is not pending approval.", and the UI never confirmed the
+created profileId, so a successful approval was indistinguishable from a failed
+send. v2-02 fixed both: `quote_requests.job_stage` makes already-sent
+detectable, `planStageTransition` decides what to say about it, and a send is
+never reported successful without the profile number PathfinderEdge actually
+returned. See the APPROVAL FEEDBACK section above for the full four-outcome
+table.
+
+---
+
+## 14. QUOTES, INVOICES AND THE PRICING HISTORY (Command Center V2, v2-03)
+
+Schema: SCHEMA.md's "PRICE BOOK, PRICING LEDGER, INVOICES AND THE APPROVE LINK"
+section (migrations 035 and 036). This section is the data flow.
+
+### The path, end to end
+
+```
+   a job arrives (FlashDraft / field app / quote builder)
+        |
+        |  lib/pricing/quote-inputs.ts  -- blank width, bends, hems, FROM THE REAL GEOMETRY
+        v
+   the price book (price_book_items + price_book_versions, resolved AS OF TODAY)
+        |
+        |  lib/pricing/quote-math.ts    -- strips per sheet = floor(48 / blank width)
+        v
+   [ blocked ] <-- any blank price, or a blank wider than the sheet, or no drawing
+        |
+        |  lib/quotes/issue.ts
+        v
+   quotes row  ------ SNAPSHOT: the cents used + the price-book version ids
+        |             quote_requests.job_stage -> 'quoted'
+        |             pricing_ledger: quote_issued (or quote_revised), one row per line
+        v
+   quote email, through the site's EXISTING service (Resend), with an
+   APPROVE button: a signed, single-use, expiring link
+        |
+        |  the customer clicks it -- app/api/quote-approve/[token]
+        v
+   quote_requests.job_stage -> 'approved', approval_channel = 'email'
+   quotes.status -> 'approved'
+   pricing_ledger: quote_outcome (approved, with time-to-decision)
+        |
+        |  lib/invoices/create.ts -- COPIES the quote's line items and totals
+        v
+   invoices row + the automatic copy to the office (Tricia) + the customer's copy
+   pricing_ledger: invoice_issued
+        |
+        v
+   an admin later presses "Send to machine" -- the ONE DOOR, unchanged
+```
+
+### The Approve link is NOT a PathfinderEdge bypass
+
+CLAUDE.md rule #14: only a Command Center approval that `pushProfileToPathfinder`
+VERIFIES IN THE DATABASE may reach catalog 20115 — the quote request must still
+be `status = 'submitted'`, and the acting user must be a real `role='admin'`
+profile.
+
+`app/api/quote-approve/[token]/route.ts` **creates exactly that record and
+pushes nothing**:
+
+1. It writes `job_stage='approved'`, `approval_channel='email'`, `approved_at`,
+   and `approved_by` = **the customer's own profile** when they have one (a guest
+   leaves it NULL, which is the truth — no AFS admin clicked anything).
+2. It **leaves `status='submitted'` alone**, precisely so the guard's own
+   condition still holds when an admin later presses "Send to machine".
+3. It imports NOTHING from `lib/integrations/pathfinder-edge.ts` and makes no
+   outbound request to it. That is enforced, not asserted:
+   `lib/integrations/pathfinder-single-door.test.ts` is a STATIC test that fails
+   if any file outside the two approved callers so much as names the push
+   function, and this route is not one of them.
+
+It is the same contract as `approve-by-phone`, for the same reason: how the
+approval arrived is a fact about the approval, not a way around needing one.
+
+### The token
+
+`<payloadB64url>.<hmacB64url>`, where the payload is
+`{ q: quoteId, e: expiryEpochSeconds, n: nonce }` and the MAC is HMAC-SHA256
+over the payload string. `lib/pricing/approve-token.ts`.
+
+- **Signature is checked BEFORE expiry**, so a forged expiry is never believed.
+  A token signed with the wrong key comes back `tampered`, not `ok`.
+- **The payload is readable on purpose.** It carries nothing secret, and being
+  readable is what lets an expired link be told apart from a forged one — so the
+  page can say "this link has expired, ask for a new one" instead of a blank
+  refusal. The MAC is what makes it unforgeable.
+- **Only the HASH is stored** (`quote_approval_tokens.token_hash`), so a stolen
+  database dump approves nothing.
+- **Single use is a conditional UPDATE**, `WHERE id = ? AND used_at IS NULL`, so
+  two simultaneous clicks — or a mail client that prefetches links — cannot both
+  win.
+- **The secret** is `QUOTE_APPROVE_SECRET` when set; otherwise a SEPARATE key is
+  derived from `SUPABASE_SERVICE_ROLE_KEY` by HMAC with a fixed non-secret label.
+  Standard key separation: the derived key cannot be used as the service role,
+  and the service role cannot be recovered from it. Requiring a brand-new env var
+  would have meant the Approve button silently not working on any deployment
+  where somebody forgot to add it.
+
+Four outcomes, four different true things said, each with its own status code:
+
+| case | HTTP | what the customer reads |
+|---|---|---|
+| valid | 200 | "Thank you — your quote is approved" |
+| tampered / malformed | 400 | "That approval link has been altered, so it cannot be used." |
+| expired | 410 | "That approval link has expired. Ask us to send the quote again…" |
+| already used | **200**, not an error | "Already approved… There is nothing more to do." |
+
+A customer clicking their own link twice is not an error and is not told it is
+one.
+
+### The quote becomes the invoice with NO retyping
+
+`lib/invoices/create.ts` **copies** `line_items`, `subtotal_cents`,
+`total_cents` and `price_book_snapshot` from the `quotes` row. It does not
+recompute from the price book, which may have moved since the quote was sent,
+and no human re-enters anything. The only fields it originates are the invoice
+number, the issue date and the due date.
+
+That is a correctness property, not a convenience: a recomputed invoice would
+silently bill a different number from the one the customer approved. `invoices`
+has a UNIQUE constraint on `quote_id`, so clicking Approve twice cannot bill
+twice — the second call finds the existing invoice and says so.
+
+`lib/documents/quote-invoice-pdf.ts` renders BOTH documents from the SAME
+snapshot with the SAME function; only the heading, the number and the dated line
+differ. There is no second layout to drift.
+
+### Reconciling the five pre-existing invoice routes
+
+`docs/COMMAND_CENTER_V2_SPEC.md` §2.5 records "routes exist but no `invoices`
+table" as the build's top risk. **What the audit found is narrower, and the
+difference decided the work:** those routes were not broken — they were built
+against `orders`, with `lib/data/invoices.ts` deriving an invoice 1:1 from an
+order. What did not exist was an invoice as a record in its own right.
+
+`resolveInvoice()` now resolves an id to a real `invoices` row FIRST and falls
+back to the order derivation. `getInvoiceRows()` unions both and suppresses the
+derived row for any order that already has a real invoice, so a customer never
+sees the same money twice. The customer's PDF renders a real invoice from its own
+frozen snapshot and an order-derived one exactly as before.
+
+### Email: one wrapper, and test mode that cannot be left on
+
+Every quote, approval and invoice message goes through
+`lib/email/outbound.ts`'s `sendTrackedEmail`, which wraps the site's EXISTING
+service (`lib/resend/send.ts`) rather than introducing a second one, and records
+the message in `outbound_emails`.
+
+**Test mode is decided PER MESSAGE**, by the same reserved `E2E-TEST-` job-name
+prefix the pricing ledger uses (`lib/pricing/ledger.ts`'s `ledgerTestTag`). A
+message about a test job is CAPTURED — written to `outbound_emails` with
+`status='captured_test_mode'` and **no provider call made at all** — while a
+message about a real job goes out normally. A deployment-wide flag was rejected
+deliberately: it would silence real customer mail the moment somebody left it
+on. `AFS_EMAIL_TEST_MODE=1` forces capture for local development only and is not
+set in Vercel.
+
+**As of this build, Resend has no credentials in either `.env.local` or Vercel**,
+so a real send returns `status='not_configured'` — recorded honestly, with the
+message body kept, rather than reported to the admin as a success.
+
+### The pricing history
+
+`pricing_ledger` is APPEND-ONLY at the database level (SCHEMA.md). Writers:
+
+| event | written by | source |
+|---|---|---|
+| `quote_issued` / `quote_revised` | `lib/quotes/issue.ts`, one row per priced line | `admin_ui` |
+| `quote_outcome` | `app/api/quote-approve/[token]` | `customer_link` |
+| `invoice_issued` | `lib/invoices/create.ts` | `system` |
+| `invoice_paid` | `app/api/admin/invoices/[id]/mark-paid` | `admin_ui` |
+| `price_book_change` | `app/api/admin/price-book`, as old value → new value | `admin_ui` |
+| `supplier_price_change` | `app/api/admin/supplier-price-change` | `admin_ui` |
+| `supplier_price_change` | **DEFERRED Phase 4** Outlook mail parser | `mail_parser` |
+| any | historical spreadsheet / QuickBooks import | `import` |
+
+`appendLedger` **never throws and never blocks the thing it is recording**: a
+quote that was really sent must not fail because its history row did not land. A
+missing row is a gap; an editable row would be a lie, and only the second is
+prevented at the cost of the workflow.
+
+The CSV export (`/api/admin/pricing-ledger/export`) reads
+`pricing_ledger_real`, not the table, so a test run's rows can never reach a
+spreadsheet. Its column order is `LEDGER_CSV_COLUMNS`, which is also the
+documented IMPORT format — an export can be corrected and re-imported with no
+mapping step. Cells beginning `=`, `+`, `-` or `@` are prefixed with a quote so a
+note cannot become a spreadsheet formula.
+
+### The service-role client never reads a cached row
+
+`lib/supabase/admin.ts` passes `cache: 'no-store'` on every request.
+
+Next.js patches global `fetch` and caches GET responses in its Data Cache.
+supabase-js reads with `fetch`, so two identical PostgREST GETs inside one route
+can be served the FIRST one's body — and a row that changed in between is simply
+not seen. **Diagnosed live on alpha, 2026-09-30**, by the v2-03 E2E: the Approve
+link's EXPIRED case read the token row, the test put the row's expiry back, and
+the VALID case that followed kept being told the link had expired. The database
+was right and the test was right; the route was reading a cached row. Every
+symptom pointed at a date-parsing bug, and it was not one.
+
+The service role exists to read authoritative state — whether a single-use token
+has been spent, what stage a job is at, whether an invoice already exists. A
+cached answer to any of those is a wrong answer.
+
+### What is still NOT built, and says so on screen
+
+- **Freight and tax** are CLAUDE.md DATA BLOCKERS. The quote and the invoice
+  state that both are quoted separately once the delivery address is confirmed,
+  rather than printing a guessed line item.
+- **Delivery scheduling** is Phase 5. The `shop` panel still says so.
+- **Outlook / Microsoft Graph** is Phase 4. Quote mail goes through Resend today.

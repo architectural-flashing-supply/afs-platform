@@ -2196,6 +2196,514 @@ CREATE POLICY "admin_all_profile_revisions" ON profile_revisions
 match — not a companies-membership `EXISTS` join. Orders itself does not
 use a company-membership pattern, so this migration doesn't invent one.
 
+## PRICE BOOK, PRICING LEDGER, INVOICES AND THE APPROVE LINK
+### (migrations 035_price_book_ledger_quotes_invoices.sql, 036_price_book_test_tag.sql)
+
+**Applied live and verified 2026-09-30 (Command Center V2, prompt v2-03).** Both
+migrations were applied twice in a row with no error; every column below was
+read back out of `information_schema.columns`, every policy out of
+`pg_policies`, and the append-only refusal was exercised against the live
+database rather than asserted from the file.
+
+Everything here is **ADMIN-ONLY** except `invoices`, where the customer who owns
+an invoice may read their own row. CLAUDE.md's business rule is unchanged: a
+customer sees a dollar amount only on a formal AFS-generated quote or invoice
+delivered to them. The price book and the ledger are back-office.
+
+---
+
+### TABLE — price_book_items
+
+The IDENTITY of a line in Steve's price book: one material + gauge. It can be
+added and it can be RETIRED. Retiring never deletes, because a quote issued last
+year was built on it.
+
+```sql
+CREATE TABLE price_book_items (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  material      text NOT NULL,
+  gauge         text NOT NULL,
+  display_order integer NOT NULL DEFAULT 0,
+  retired_at    timestamptz,
+  retired_by    uuid REFERENCES profiles(id),
+  created_by    uuid REFERENCES profiles(id),
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  test_tag      text,                       -- migration 036; NULL on every production row
+  CONSTRAINT price_book_items_material_gauge_key UNIQUE (material, gauge)
+);
+ALTER TABLE price_book_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY admin_all_price_book_items ON price_book_items FOR ALL USING (is_admin());
+```
+
+**Seeded with 24 rows and NOT ONE PRICE** — one per real material × active
+gauge, taken from the `materials`/`gauges` catalog that already existed. Every
+cell starts as a marked blank for Steve to fill in.
+
+---
+
+### TABLE — price_book_versions
+
+WHAT IT COST, FROM WHEN. **An edit INSERTS a row; it never updates one.**
+
+```sql
+CREATE TABLE price_book_versions (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  item_id          uuid NOT NULL REFERENCES price_book_items(id) ON DELETE RESTRICT,
+  sheet_cost_cents integer,      -- ONE 10 ft x 4 ft sheet. NULL = blank.
+  per_bend_cents   integer,      -- NULL = blank.
+  per_hem_cents    integer,      -- NULL = blank.
+  extras_cents     integer,      -- NULL = blank (and a row with no extras is still "priced").
+  extras_note      text,
+  effective_from   date NOT NULL,
+  note             text,
+  created_by       uuid REFERENCES profiles(id),
+  created_at       timestamptz NOT NULL DEFAULT now(),
+  test_tag         text,         -- migration 036; NULL on every production row
+  CONSTRAINT price_book_versions_item_effective_key UNIQUE (item_id, effective_from),
+  CONSTRAINT price_book_versions_non_negative CHECK (
+    (sheet_cost_cents IS NULL OR sheet_cost_cents >= 0)
+    AND (per_bend_cents IS NULL OR per_bend_cents >= 0)
+    AND (per_hem_cents  IS NULL OR per_hem_cents  >= 0)
+    AND (extras_cents   IS NULL OR extras_cents   >= 0)
+  )
+);
+CREATE INDEX idx_price_book_versions_item_effective ON price_book_versions (item_id, effective_from DESC);
+ALTER TABLE price_book_versions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY admin_all_price_book_versions ON price_book_versions FOR ALL USING (is_admin());
+
+CREATE TRIGGER price_book_versions_append_only
+  BEFORE UPDATE OR DELETE ON price_book_versions
+  FOR EACH ROW EXECUTE FUNCTION afs_append_only();
+```
+
+**PRICES START EMPTY, AND A BLANK IS NEVER A ZERO.** Every money column is
+NULLABLE with NO DEFAULT. `NULL` means "Steve has not filled this in": the
+editor renders it as a marked **"Not set"** chip, and `lib/pricing/quote-math.ts`
+refuses to issue a quote that needs it, in a sentence naming the row to fix.
+There is deliberately no `DEFAULT 0` anywhere — a zero is a price, and a made-up
+one.
+
+**Which version is in force** is `lib/pricing/price-book.ts`'s `versionInForce`:
+the latest `effective_from` that is not in the future relative to the date being
+priced. A version dated tomorrow is not in force today, which is what makes
+"enter next month's increase now" safe.
+
+---
+
+### THE APPEND-ONLY GUARANTEE — `afs_append_only()`
+
+```sql
+CREATE OR REPLACE FUNCTION afs_append_only() RETURNS trigger LANGUAGE plpgsql AS $fn$
+BEGIN
+  IF TG_OP = 'DELETE' AND (to_jsonb(OLD) ->> 'test_tag') IS NOT NULL THEN
+    RETURN OLD;
+  END IF;
+  RAISE EXCEPTION
+    'APPEND ONLY: % on % is refused. This table is the pricing history; a row is never changed or removed once written.',
+    TG_OP, TG_TABLE_NAME
+    USING ERRCODE = '42501';
+END $fn$;
+```
+
+A BEFORE UPDATE OR DELETE trigger that raises. **It binds the table owner and
+the service role too, which a REVOKE would not** — this is not a permission a
+privileged connection can step around, it is a refusal. Exercised live:
+
+```
+UPDATE -> BLOCKED sqlstate=42501 :: APPEND ONLY: UPDATE on pricing_ledger is refused...
+DELETE -> BLOCKED sqlstate=42501 :: APPEND ONLY: DELETE on pricing_ledger is refused...
+```
+
+**`to_jsonb(OLD) ->> 'test_tag'` rather than `OLD.test_tag`, and that matters.**
+One function guards two tables and only one of them had that column at first.
+PL/pgSQL compiles an `IF` condition into a single SQL expression and plans the
+WHOLE thing, so `TG_TABLE_NAME = 'pricing_ledger' AND OLD.test_tag IS NOT NULL`
+does **not** short-circuit — on `price_book_versions` the direct reference failed
+`42703 undefined_column`, turning a refusal into the wrong error. A unit test
+found that, not a reading of the file. Going through jsonb is column-agnostic
+and cannot regress that way.
+
+**THE TEST-TAG ESCAPE, AND WHY IT IS NOT A HOLE.** A row whose `test_tag` is not
+NULL may be DELETED (never updated — UPDATE is refused on every row, tagged or
+not). `test_tag` is written by exactly one code path, `lib/pricing/ledger.ts`'s
+`ledgerTestTag()`, which returns a tag ONLY for a job whose name starts with the
+reserved literal prefix `E2E-TEST-`; and a tagged row is excluded from the
+`pricing_ledger_real` view and from the CSV export, so it can never reach the
+dataset dynamic pricing learns from. The alternative was an end-to-end test that
+either left fake prices in the shop's real price book forever, or never proved
+the quote path at all.
+
+---
+
+### TABLE — pricing_ledger (APPEND-ONLY)
+
+The dataset the future dynamic pricing engine will learn from. ONE table, so
+"what did we quote, what did it cost us, and did they say yes" is one query.
+
+```sql
+CREATE TABLE pricing_ledger (
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_type        text NOT NULL,     -- see the CHECK below
+  occurred_at       timestamptz NOT NULL DEFAULT now(),
+  recorded_at       timestamptz NOT NULL DEFAULT now(),
+
+  -- WHO
+  actor_id          uuid REFERENCES profiles(id),
+  actor_email       text,
+  actor_role        text,
+  source            text NOT NULL DEFAULT 'admin_ui',
+
+  -- WHAT IT IS ABOUT
+  quote_request_id  uuid,
+  quote_id          uuid,
+  invoice_id        uuid,
+  customer_id       uuid REFERENCES profiles(id),
+  customer_label    text,
+
+  -- THE SHAPE THAT WAS PRICED
+  material          text,
+  gauge             text,
+  blank_width_in    numeric,
+  bend_count        integer,
+  hem_count         integer,
+  length_ft         numeric,
+  quantity          integer,
+  is_rush           boolean,
+
+  -- THE PRICES USED, AND THE PRICE-BOOK VERSION THEY CAME FROM
+  price_book_version_ids uuid[],
+  prices_used       jsonb,
+  amount_cents      bigint,
+  revision          integer,
+
+  -- THE OUTCOME
+  outcome           text,              -- approved | declined | expired
+  outcome_reason    text,
+  time_to_decision_seconds integer,
+
+  -- A CHANGE: OLD VALUE -> NEW VALUE
+  old_value         jsonb,
+  new_value         jsonb,
+
+  -- A SUPPLIER PRICE-CHANGE NOTICE
+  supplier_name     text,
+  old_cost_cents    bigint,
+  new_cost_cents    bigint,
+  effective_date    date,
+  attachment_path   text,              -- private `documents` bucket path; NEVER the bytes
+
+  note              text,
+  payload           jsonb,
+
+  -- IMPORT / DEDUPLICATION
+  import_batch_id   text,
+  external_ref      text,
+
+  test_tag          text,              -- NULL on every production row
+
+  CONSTRAINT pricing_ledger_event_type_check CHECK (event_type IN (
+    'estimate', 'quote_issued', 'quote_revised', 'quote_outcome',
+    'invoice_issued', 'invoice_paid', 'price_book_change', 'supplier_price_change')),
+  CONSTRAINT pricing_ledger_source_check CHECK (source IN (
+    'admin_ui', 'customer_link', 'mail_parser', 'import', 'system')),
+  CONSTRAINT pricing_ledger_outcome_check CHECK (
+    outcome IS NULL OR outcome IN ('approved', 'declined', 'expired')),
+  -- An outcome event must SAY what the outcome was. Nothing else may.
+  CONSTRAINT pricing_ledger_outcome_belongs_to_outcome_event CHECK (
+    (event_type = 'quote_outcome' AND outcome IS NOT NULL)
+    OR (event_type <> 'quote_outcome' AND outcome IS NULL)),
+  -- An imported row must name its batch, so a bad import is identifiable.
+  CONSTRAINT pricing_ledger_import_needs_batch CHECK (
+    source <> 'import' OR import_batch_id IS NOT NULL)
+);
+
+CREATE INDEX idx_pricing_ledger_occurred   ON pricing_ledger (occurred_at DESC);
+CREATE INDEX idx_pricing_ledger_event_type ON pricing_ledger (event_type, occurred_at DESC);
+CREATE INDEX idx_pricing_ledger_quote      ON pricing_ledger (quote_id)         WHERE quote_id IS NOT NULL;
+CREATE INDEX idx_pricing_ledger_request    ON pricing_ledger (quote_request_id) WHERE quote_request_id IS NOT NULL;
+CREATE INDEX idx_pricing_ledger_material   ON pricing_ledger (material, gauge)  WHERE material IS NOT NULL;
+-- One inbound notice imports exactly once, however many times a parser runs.
+CREATE UNIQUE INDEX uq_pricing_ledger_external_ref
+  ON pricing_ledger (source, external_ref) WHERE external_ref IS NOT NULL;
+
+CREATE TRIGGER pricing_ledger_append_only
+  BEFORE UPDATE OR DELETE ON pricing_ledger
+  FOR EACH ROW EXECUTE FUNCTION afs_append_only();
+
+-- The analytics surface and the CSV export read THIS, never the table.
+CREATE VIEW pricing_ledger_real AS SELECT * FROM pricing_ledger WHERE test_tag IS NULL;
+```
+
+**RLS — SELECT AND INSERT ONLY, DELIBERATELY:**
+
+```sql
+ALTER TABLE pricing_ledger ENABLE ROW LEVEL SECURITY;
+CREATE POLICY admin_read_pricing_ledger   ON pricing_ledger FOR SELECT USING (is_admin());
+CREATE POLICY admin_insert_pricing_ledger ON pricing_ledger FOR INSERT WITH CHECK (is_admin());
+-- There is NO UPDATE policy and NO DELETE policy, on purpose: even an admin
+-- session has no policy that would let one through if the trigger were ever
+-- dropped. Two independent refusals, not one.
+```
+
+Verified live: `select cmd from pg_policies where tablename='pricing_ledger'`
+returns exactly `INSERT` and `SELECT`.
+
+---
+
+### PRICING LEDGER IMPORT FORMAT
+### (historical spreadsheets and QuickBooks exports)
+
+The ledger is designed for **four** writers, and two of them do not exist yet.
+
+| `source` | Who writes it | Status |
+|---|---|---|
+| `admin_ui` | Steve, through the Command Center and the Settings forms | LIVE |
+| `customer_link` | the signed Approve button in the quote email | LIVE |
+| `mail_parser` | **DEFERRED Phase 4** — the Outlook inbound parser | designed for, not built |
+| `import` | historical spreadsheets and QuickBooks exports | format frozen here |
+
+**(a) THE DEFERRED PHASE 4 MAIL PARSER.** When it lands it writes supplier
+notices straight into this table with `source = 'mail_parser'` and
+`external_ref` set to the Microsoft Graph `internetMessageId`. The unique index
+`uq_pricing_ledger_external_ref` makes that import idempotent, so re-running the
+parser over the same mailbox cannot double-count a price rise. **Nothing in the
+table or in `lib/pricing/ledger.ts` has to change for it** — that is the point of
+agreeing the shape now rather than when the parser is written. It uses exactly
+the fields the Settings form already uses: `supplier_name`, `material`, `gauge`,
+`old_cost_cents`, `new_cost_cents`, `effective_date`, `note`, `attachment_path`.
+
+**(b) HISTORICAL SPREADSHEETS AND QUICKBOOKS EXPORTS.** `source = 'import'` plus
+an `import_batch_id` naming the file — required by a CHECK constraint so a bad
+import is always identifiable afterwards. An import **cannot be deleted**
+(nothing here can); a wrong batch is superseded by a corrected one, and the
+`import_batch_id` says which is which.
+
+**The CSV column order below is exactly `LEDGER_CSV_COLUMNS` in
+`lib/pricing/ledger.ts`, which is also what the export writes** — so an export
+can be corrected in a spreadsheet and re-imported with no mapping step. Import
+by that header row; unknown columns are ignored, missing ones are NULL.
+
+| CSV header | Column | Type | Required? |
+|---|---|---|---|
+| When | `occurred_at` | timestamptz | yes — the date the thing happened, not the date it was imported |
+| What happened | `event_type` | text | yes — one of the eight in the CHECK |
+| Where it came from | `source` | text | set to `import` |
+| Who | `actor_email` | text | no |
+| Customer | `customer_label` | text | recommended — free text is fine for history |
+| Material | `material` | text | recommended |
+| Gauge | `gauge` | text | no |
+| Blank width (in) | `blank_width_in` | numeric | no |
+| Bends | `bend_count` | integer | no |
+| Hems | `hem_count` | integer | no |
+| Length (ft) | `length_ft` | numeric | no |
+| Quantity | `quantity` | integer | no |
+| Rush | `is_rush` | boolean (`yes`/`no`) | no |
+| Revision | `revision` | integer | no |
+| Amount (cents) | `amount_cents` | bigint — **CENTS, not dollars** | yes for a quote/invoice row |
+| Outcome | `outcome` | `approved`/`declined`/`expired` | required iff `event_type = 'quote_outcome'`, forbidden otherwise |
+| Reason | `outcome_reason` | text | no |
+| Time to decision (s) | `time_to_decision_seconds` | integer | no |
+| Supplier | `supplier_name` | text | yes for `supplier_price_change` |
+| Old cost (cents) | `old_cost_cents` | bigint | no |
+| New cost (cents) | `new_cost_cents` | bigint | yes for `supplier_price_change` |
+| Effective date | `effective_date` | date | yes for `supplier_price_change` |
+| Price book version(s) | `price_book_version_ids` | uuid[] | leave blank for history that predates the price book |
+| Prices used | `prices_used` | jsonb | no |
+| Old value | `old_value` | jsonb | yes for `price_book_change` |
+| New value | `new_value` | jsonb | yes for `price_book_change` |
+| Import batch | `import_batch_id` | text | **yes** — the CHECK constraint refuses an import without it |
+| External reference | `external_ref` | text | recommended — the source row's own id, so a re-import is idempotent |
+| Note | `note` | text | no |
+| Job id / Quote id / Invoice id | `quote_request_id` / `quote_id` / `invoice_id` | uuid | only when the historical row really maps to an existing record |
+| Ledger id | `id` | uuid | omit — the database assigns it |
+
+**Money is CENTS in this table, everywhere.** A QuickBooks export in dollars must
+be multiplied by 100 on the way in; a half-cent in the source is a data problem
+to resolve before importing, not something to round silently.
+
+---
+
+### TABLE — invoices
+
+**The table five already-built routes were missing** —
+docs/COMMAND_CENTER_V2_SPEC.md §2.5's top risk.
+
+**What the v2-03 audit actually found is narrower than the spec says, and the
+difference matters.** `app/api/invoices/[id]/pdf`, `.../send`,
+`app/api/invoices/statement`, `app/api/admin/invoices/[id]/mark-paid` and
+`app/account/invoices` were **not broken**: they were built against `orders`,
+with `lib/data/invoices.ts` deriving an invoice 1:1 from an order, and that
+worked. What did not exist was **an invoice as a record in its own right** — one
+a quote becomes on approval, for a job that never went through checkout.
+
+Those routes now resolve an id to a real `invoices` row FIRST and fall back to
+the order derivation, so both kinds work and an order that has a real invoice
+never appears twice in a customer's list.
+
+```sql
+CREATE TABLE invoices (
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  invoice_number    text NOT NULL UNIQUE,        -- AFS-INV-<year>-<00001>
+  quote_id          uuid REFERENCES quotes(id),
+  quote_request_id  uuid REFERENCES quote_requests(id),
+  order_id          uuid REFERENCES orders(id),  -- NULL for an invoice raised from a quote
+
+  user_id           uuid REFERENCES profiles(id), -- NULL for a guest
+  customer_email    text,
+  customer_name     text,
+  customer_company  text,
+
+  status            text NOT NULL DEFAULT 'issued',
+
+  subtotal_cents    bigint NOT NULL,
+  tax_cents         bigint NOT NULL DEFAULT 0,
+  freight_cents     bigint NOT NULL DEFAULT 0,
+  total_cents       bigint NOT NULL,
+
+  -- FROZEN AT CREATION. Copied from the quote, never re-derived.
+  line_items            jsonb NOT NULL DEFAULT '[]'::jsonb,
+  price_book_snapshot   jsonb,
+
+  issued_at         timestamptz NOT NULL DEFAULT now(),
+  due_date          date,
+  net_terms         integer NOT NULL DEFAULT 0,
+  paid_at           timestamptz,
+  po_number         text,
+
+  office_emailed_to text,          -- the automatic copy to the office (Tricia)
+  office_emailed_at timestamptz,
+
+  created_by        uuid REFERENCES profiles(id),
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  updated_at        timestamptz NOT NULL DEFAULT now(),
+
+  CONSTRAINT invoices_status_check CHECK (status IN ('issued','sent','paid','void')),
+  CONSTRAINT invoices_totals_non_negative CHECK (
+    subtotal_cents >= 0 AND tax_cents >= 0 AND freight_cents >= 0 AND total_cents >= 0),
+  -- ONE INVOICE PER QUOTE. Clicking Approve twice cannot bill twice.
+  CONSTRAINT invoices_quote_id_key UNIQUE (quote_id)
+);
+
+CREATE INDEX idx_invoices_user    ON invoices (user_id, issued_at DESC);
+CREATE INDEX idx_invoices_request ON invoices (quote_request_id);
+
+ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
+CREATE POLICY admin_all_invoices ON invoices FOR ALL USING (is_admin());
+CREATE POLICY users_own_invoices ON invoices FOR SELECT
+  USING (auth.uid() = user_id AND status <> 'void');
+```
+
+**THE QUOTE BECOMES THE INVOICE WITH NO RETYPING.** `line_items`,
+`subtotal_cents`, `total_cents` and `price_book_snapshot` are COPIED from the
+`quotes` row by `lib/invoices/create.ts`. Nothing is recomputed from the price
+book, which may have moved since the quote was sent, and nothing is re-entered by
+a human. That is the correctness property, not a convenience: a recomputed
+invoice would silently bill a different number from the one the customer
+approved.
+
+---
+
+### TABLE 16 — quotes (COLUMNS ADDED, migration 035)
+
+The `quotes` table already existed. These are the columns a price-book quote has
+that the old one did not.
+
+```sql
+ALTER TABLE quotes
+  ADD COLUMN line_items          jsonb,    -- the PRICED lines, exactly as sent
+  ADD COLUMN price_book_snapshot jsonb,    -- { pricedAt, versionIds[] }
+  ADD COLUMN subtotal_cents      bigint,
+  ADD COLUMN total_cents         bigint,
+  ADD COLUMN revision            integer NOT NULL DEFAULT 1,
+  ADD COLUMN supersedes_id       uuid REFERENCES quotes(id),
+  ADD COLUMN customer_email      text,
+  ADD COLUMN customer_name       text,
+  ADD COLUMN declined_at         timestamptz,
+  ADD COLUMN decline_reason      text,
+  ADD COLUMN expires_at          timestamptz;
+
+ALTER TABLE quotes ALTER COLUMN user_id DROP NOT NULL;  -- a guest still gets a quote
+```
+
+The legacy numeric `subtotal`/`total` columns stay populated so every screen
+already built against `quotes` keeps working; **the `_cents` columns are the real
+ones.** A REVISION IS A NEW ROW, not an edit: `revision` increments,
+`supersedes_id` points at the one it replaces, the old row goes to
+`status='expired'`, and its outstanding Approve links are expired with it so a
+customer cannot approve a price that has been withdrawn.
+
+---
+
+### TABLE — quote_approval_tokens
+
+The Approve button's link: **signed, single-use, expiring.**
+
+```sql
+CREATE TABLE quote_approval_tokens (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  quote_id         uuid NOT NULL REFERENCES quotes(id) ON DELETE CASCADE,
+  quote_request_id uuid REFERENCES quote_requests(id),
+  token_hash       text NOT NULL UNIQUE,   -- ONLY the hash. Never the token.
+  expires_at       timestamptz NOT NULL,
+  used_at          timestamptz,            -- single use: spent by a conditional UPDATE
+  used_from        text,
+  issued_to        text,
+  created_by       uuid REFERENCES profiles(id),
+  created_at       timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_quote_approval_tokens_quote ON quote_approval_tokens (quote_id);
+ALTER TABLE quote_approval_tokens ENABLE ROW LEVEL SECURITY;
+CREATE POLICY admin_all_quote_approval_tokens ON quote_approval_tokens FOR ALL USING (is_admin());
+```
+
+**ONLY THE HASH IS STORED**, so a reader of this table — or of a stolen database
+dump — can approve nothing. Single use is a conditional UPDATE
+(`... WHERE id = ? AND used_at IS NULL`), so two simultaneous clicks, or a mail
+client that prefetches links, cannot both win.
+
+---
+
+### TABLE — outbound_emails
+
+Records the message itself, which is what makes "the invoice was emailed to
+Tricia" a claim somebody can go and check. `notifications` records only that a
+send was attempted and has nowhere to put what was in it.
+
+```sql
+CREATE TABLE outbound_emails (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  kind             text NOT NULL,     -- quote | quote_revision | invoice_customer | invoice_office
+  recipient        text NOT NULL,
+  subject          text NOT NULL,
+  body_html        text,
+  status           text NOT NULL,
+  provider_id      text,
+  error            text,
+  quote_id         uuid REFERENCES quotes(id)          ON DELETE SET NULL,
+  quote_request_id uuid REFERENCES quote_requests(id)  ON DELETE SET NULL,
+  invoice_id       uuid REFERENCES invoices(id)        ON DELETE SET NULL,
+  created_by       uuid REFERENCES profiles(id),
+  created_at       timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT outbound_emails_status_check CHECK (
+    status IN ('sent','failed','captured_test_mode','not_configured'))
+);
+CREATE INDEX idx_outbound_emails_created ON outbound_emails (created_at DESC);
+CREATE INDEX idx_outbound_emails_request ON outbound_emails (quote_request_id);
+ALTER TABLE outbound_emails ENABLE ROW LEVEL SECURITY;
+CREATE POLICY admin_all_outbound_emails ON outbound_emails FOR ALL USING (is_admin());
+```
+
+The four statuses are four different true things:
+
+| status | what happened |
+|---|---|
+| `sent` | a provider accepted it |
+| `failed` | a provider refused it, and `error` says why |
+| `captured_test_mode` | **no provider call was made.** The job's name carries the reserved `E2E-TEST-` prefix, or `AFS_EMAIL_TEST_MODE=1` is set locally |
+| `not_configured` | `RESEND_API_KEY`/`RESEND_FROM_EMAIL` are unset, so nothing could be sent. Recorded honestly rather than reported to the admin as success |
+
+---
+
 ---
 
 *SCHEMA.md | AFS | Reid Whitesides | June 2026*
