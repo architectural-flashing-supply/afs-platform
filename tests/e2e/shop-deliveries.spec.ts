@@ -305,6 +305,20 @@ test.describe('Shop View -> Deliveries, end to end', () => {
     expect(dow).toBeGreaterThanOrEqual(1);
     expect(dow).toBeLessThanOrEqual(5);
 
+    // THE FRIDAY CASE, which is the one a naive `+1 day` gets wrong every
+    // week. It cannot be produced by finishing a job today (the server clock
+    // is what it is), so it is asserted against the same Postgres arithmetic
+    // the line above trusted: Friday 2 Oct -> MONDAY 5 Oct, not Saturday.
+    // lib/delivery/business-days.test.ts asserts the app's own function
+    // returns that same date, including for a Friday EVENING in Texas that is
+    // already Saturday in UTC.
+    const friday = '2026-10-02';
+    expect(await dowInDatabase(friday), 'the fixture date really is a Friday').toBe(5);
+    const afterFriday = await nextBusinessDayInDatabase(friday);
+    proof('Friday finish -> next business day', { friday, afterFriday, dow: await dowInDatabase(afterFriday) });
+    expect(afterFriday).toBe('2026-10-05');
+    expect(await dowInDatabase(afterFriday), 'and it is a Monday').toBe(1);
+
     // --- THE CUSTOMER WAS NOTIFIED, THROUGH THE EXISTING SERVICE ----------
     expect(d.notified_at, 'a notification attempt is recorded').not.toBeNull();
     expect(d.notify_note ?? '').toContain('recorded and NOT sent');
