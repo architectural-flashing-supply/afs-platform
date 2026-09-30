@@ -35,6 +35,11 @@ import { sourceArrivalLabel, sourceIconKey, type SourceIconKey } from '@/lib/dat
 import { shopSubStateFromJobStatuses, shopSubStateLabel, type ShopSubState } from '@/lib/data/workbench';
 import { waitingPhrase } from '@/lib/utils/waiting-time';
 import { geometryFingerprint } from '@/lib/flashdraft/geometry-fingerprint';
+import { getResolvedPriceBook } from '@/lib/pricing/db';
+import { quoteFromPriceBook } from '@/lib/pricing/quote-math';
+import { toQuoteItemInputs, type JobLineItemGeometry } from '@/lib/pricing/quote-inputs';
+import { officeInvoiceEmail } from '@/lib/data/office';
+import type { QuoteLine, QuoteResult } from '@/lib/pricing/types';
 
 /** Same 15-minute window as lib/data/pending-quote-requests.ts. */
 const ATTACHMENT_SIGNED_URL_TTL_SECONDS = 900;
@@ -138,6 +143,45 @@ export interface JobScreenData {
   shopSubStateLabel: string;
 
   followupDraft: string | null;
+
+  /**
+   * THE PRICED QUOTE, or exactly why it cannot be priced yet (v2-03).
+   *
+   * Built from the price book AS IT STANDS NOW, for the `new` stage's quote
+   * table. It is a PREVIEW -- nothing is written and no dollar amount reaches
+   * a customer from it. When the price book has a blank the job needs, this
+   * carries the plain-English problems instead of a total, and the Send quote
+   * button is disabled. There is deliberately no path here that produces a
+   * number from an unfilled cell.
+   */
+  quotePreview: QuoteResult | null;
+
+  /** The quote that was actually issued, once one has been. */
+  issuedQuote: {
+    id: string;
+    number: string;
+    revision: number;
+    totalCents: number;
+    status: string;
+    sentAt: string | null;
+    sentTo: string | null;
+    /** How the Approve link stands: still live, spent, or run out. */
+    approveLink: 'live' | 'used' | 'expired' | 'none';
+  } | null;
+
+  /** The invoice the quote became on approval. */
+  invoice: {
+    id: string;
+    number: string;
+    totalCents: number;
+    issuedAt: string;
+    officeEmailedTo: string | null;
+    officeEmailedAt: string | null;
+    paidAt: string | null;
+  } | null;
+
+  /** Where an approved invoice is copied automatically. */
+  officeEmail: string;
 }
 
 interface RawItem {
@@ -321,6 +365,81 @@ export async function getJobScreen(
 
   const stage: JobStage = isJobStage(row.job_stage) ? row.job_stage : 'new';
 
+  // ---- The priced quote, and the invoice it became -----------------------
+  //
+  // The PREVIEW is only built for the stage that can act on it. Once a quote
+  // has been issued, the figures that matter are the ones on the issued
+  // document -- re-pricing an already-sent quote against today's price book
+  // would show the admin a number the customer never saw.
+  let quotePreview: QuoteResult | null = null;
+  if (stage === 'new' || stage === 'quoted') {
+    const priceBook = await getResolvedPriceBook(supabase, now);
+    quotePreview = quoteFromPriceBook(
+      toQuoteItemInputs((row.line_items ?? []) as JobLineItemGeometry[]),
+      priceBook
+    );
+  }
+
+  const { data: quoteRows } = await supabase
+    .from('quotes')
+    .select('id, quote_number, revision, total_cents, status, sent_at, customer_email')
+    .eq('request_id', row.id)
+    .order('revision', { ascending: false })
+    .limit(1);
+  const latestQuote = ((quoteRows ?? []) as {
+    id: string;
+    quote_number: string;
+    revision: number;
+    total_cents: number | null;
+    status: string;
+    sent_at: string | null;
+    customer_email: string | null;
+  }[])[0];
+
+  let issuedQuote: JobScreenData['issuedQuote'] = null;
+  if (latestQuote) {
+    const { data: tokens } = await supabase
+      .from('quote_approval_tokens')
+      .select('used_at, expires_at')
+      .eq('quote_id', latestQuote.id)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    const token = ((tokens ?? []) as { used_at: string | null; expires_at: string }[])[0];
+    const approveLink: 'live' | 'used' | 'expired' | 'none' = !token
+      ? 'none'
+      : token.used_at
+        ? 'used'
+        : new Date(token.expires_at).getTime() < now.getTime()
+          ? 'expired'
+          : 'live';
+    issuedQuote = {
+      id: latestQuote.id,
+      number: latestQuote.quote_number,
+      revision: latestQuote.revision,
+      totalCents: latestQuote.total_cents ?? 0,
+      status: latestQuote.status,
+      sentAt: latestQuote.sent_at,
+      sentTo: latestQuote.customer_email,
+      approveLink,
+    };
+  }
+
+  const { data: invoiceRows } = await supabase
+    .from('invoices')
+    .select('id, invoice_number, total_cents, issued_at, office_emailed_to, office_emailed_at, paid_at')
+    .eq('quote_request_id', row.id)
+    .order('issued_at', { ascending: false })
+    .limit(1);
+  const invoiceRow = ((invoiceRows ?? []) as {
+    id: string;
+    invoice_number: string;
+    total_cents: number;
+    issued_at: string;
+    office_emailed_to: string | null;
+    office_emailed_at: string | null;
+    paid_at: string | null;
+  }[])[0];
+
   return {
     id: row.id,
     requestNumber: row.request_number,
@@ -360,6 +479,20 @@ export async function getJobScreen(
     shopSubState: shopSub,
     shopSubStateLabel: shopSubStateLabel(shopSub),
     followupDraft: row.followup_draft,
+    quotePreview,
+    issuedQuote,
+    invoice: invoiceRow
+      ? {
+          id: invoiceRow.id,
+          number: invoiceRow.invoice_number,
+          totalCents: invoiceRow.total_cents,
+          issuedAt: invoiceRow.issued_at,
+          officeEmailedTo: invoiceRow.office_emailed_to,
+          officeEmailedAt: invoiceRow.office_emailed_at,
+          paidAt: invoiceRow.paid_at,
+        }
+      : null,
+    officeEmail: officeInvoiceEmail(),
   };
 }
 

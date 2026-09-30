@@ -5,6 +5,9 @@ import { getProductStockRows } from '@/lib/data/product-stock';
 import Badge, { type BadgeVariant } from '@/components/ui/Badge';
 import EmptyState from '@/components/ui/EmptyState';
 import ProductStockTable from '@/components/admin/ProductStockTable';
+import SupplierPriceChangeForm from '@/components/admin/SupplierPriceChangeForm';
+import { getResolvedPriceBook } from '@/lib/pricing/db';
+import { officeInvoiceEmail } from '@/lib/data/office';
 
 interface IntegrationStatus {
   name: string;
@@ -101,6 +104,20 @@ export default async function AdminSettingsPage() {
   const integrations = buildIntegrationStatuses();
   const stockRows = await getProductStockRows(supabase);
 
+  // The price book's own readiness, and how much history has accumulated.
+  // Both are counts rather than data — Settings links to the real screens.
+  const priceBookRows = await getResolvedPriceBook(supabase);
+  const priceBookActive = priceBookRows.filter((r) => r.item.retiredAt === null);
+  const priceBookTotal = priceBookActive.length;
+  const priceBookUnpriced = priceBookActive.filter((r) => !r.isComplete).length;
+
+  // Counted through `pricing_ledger_real`, so a test run's rows can never
+  // inflate the number Steve reads here.
+  const { count: ledgerCountRaw } = await supabase
+    .from('pricing_ledger_real')
+    .select('id', { count: 'exact', head: true });
+  const ledgerCount = ledgerCountRaw ?? 0;
+
   const cronJobs: CronJobStatus[] = [
     {
       name: 'commodity-prices',
@@ -129,18 +146,68 @@ export default async function AdminSettingsPage() {
           that level entirely. Everything it held lives here now. */}
       <section className="mb-8">
         <h2 className="font-heading text-lg text-afs-chrome-high mb-4">Pricing</h2>
-        <Link
-          href="/admin/pricing"
-          className="flex items-center justify-between gap-4 bg-afs-bg-raised border border-afs-border rounded p-5 hover:bg-afs-bg-surface transition-colors"
-        >
-          <div>
-            <p className="font-heading text-base text-afs-chrome-high">Price rules</p>
-            <p className="font-body text-xs text-afs-chrome-mid mt-1">
-              Set prices by hand. The price book — sheet cost, per bend, per hem — is being built.
-            </p>
+        <div className="flex flex-col gap-4">
+          <Link
+            href="/admin/settings/price-book"
+            className="flex items-center justify-between gap-4 bg-afs-bg-raised border border-afs-border rounded p-5 hover:bg-afs-bg-surface transition-colors"
+          >
+            <div>
+              <p className="font-heading text-base text-afs-chrome-high">Price book</p>
+              <p className="font-body text-xs text-afs-chrome-mid mt-1">
+                Sheet cost, per bend, per hem and extras, per material and gauge.{' '}
+                {priceBookUnpriced > 0
+                  ? `${priceBookUnpriced} of ${priceBookTotal} rows still need filling in.`
+                  : `All ${priceBookTotal} rows are priced.`}
+              </p>
+            </div>
+            <span className="font-label text-xs text-afs-crimson shrink-0">Open →</span>
+          </Link>
+
+          <Link
+            href="/admin/pricing"
+            className="flex items-center justify-between gap-4 bg-afs-bg-raised border border-afs-border rounded p-5 hover:bg-afs-bg-surface transition-colors"
+          >
+            <div>
+              <p className="font-heading text-base text-afs-chrome-high">Price rules</p>
+              <p className="font-body text-xs text-afs-chrome-mid mt-1">
+                The older per-product rules. The price book above is what quotes are built from.
+              </p>
+            </div>
+            <span className="font-label text-xs text-afs-crimson shrink-0">Open →</span>
+          </Link>
+        </div>
+      </section>
+
+      {/* ---- Pricing history ------------------------------------------- */}
+      <section className="mb-8">
+        <h2 className="font-heading text-lg text-afs-chrome-high mb-4">Pricing history</h2>
+        <div className="flex flex-col gap-4">
+          <div className="bg-afs-bg-raised border border-afs-border rounded p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="font-heading text-base text-afs-chrome-high">Everything that has been priced</p>
+                <p className="font-body text-xs text-afs-chrome-mid mt-1">
+                  {ledgerCount === 0
+                    ? 'Nothing recorded yet. Every quote, revision, outcome, invoice, price change and supplier notice lands here from now on.'
+                    : `${ledgerCount.toLocaleString('en-US')} records so far — every quote, revision, outcome, invoice, price change and supplier notice.`}
+                </p>
+                <p className="font-body text-xs text-afs-chrome-mid mt-1">
+                  Nothing in here can be edited or deleted, by anyone. That is enforced by the
+                  database, not by a rule somebody has to remember.
+                </p>
+              </div>
+              <a
+                href="/api/admin/pricing-ledger/export"
+                data-testid="ledger-export"
+                className="font-label text-xs font-bold text-afs-chrome-high border border-afs-chrome-base rounded px-4 min-h-11 inline-flex items-center shrink-0 hover:bg-afs-bg-surface"
+              >
+                Download as a spreadsheet
+              </a>
+            </div>
           </div>
-          <span className="font-label text-xs text-afs-crimson shrink-0">Open →</span>
-        </Link>
+
+          <SupplierPriceChangeForm />
+        </div>
       </section>
 
       <section className="mb-8">
@@ -161,17 +228,39 @@ export default async function AdminSettingsPage() {
             </p>
           </Link>
 
-          <div className="bg-afs-bg-raised border border-afs-border rounded p-5">
+          <div data-testid="dynamic-pricing-card" className="bg-afs-bg-raised border border-afs-border rounded p-5">
             <div className="flex items-start justify-between gap-3">
-              <p className="font-heading text-base text-afs-chrome-high">Dynamic pricing</p>
+              <p className="font-heading text-base text-afs-chrome-high">
+                Dynamic pricing — coming soon (learning from this history)
+              </p>
               <span className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-high border border-afs-chrome-base rounded px-1.5 py-0.5 whitespace-nowrap shrink-0">
                 Coming soon
               </span>
             </div>
             <p className="font-body text-xs text-afs-chrome-mid mt-2">
-              Prices that follow the metal market, using the history your price book is collecting now.
+              Prices that follow the metal market. It will learn from the pricing history above —
+              every quote, every yes and no, every supplier increase — so the longer you use this,
+              the better it gets.
             </p>
           </div>
+        </div>
+      </section>
+
+      {/* ---- Invoices --------------------------------------------------- */}
+      <section className="mb-8">
+        <h2 className="font-heading text-lg text-afs-chrome-high mb-4">Invoices</h2>
+        <div className="bg-afs-bg-raised border border-afs-border rounded p-5">
+          <p className="font-heading text-base text-afs-chrome-high">
+            Every approved invoice is emailed to the office automatically
+          </p>
+          <p data-testid="office-invoice-email" className="font-data text-sm text-afs-chrome-high mt-2">
+            {officeInvoiceEmail()}
+          </p>
+          <p className="font-body text-xs text-afs-chrome-mid mt-2">
+            When a customer clicks Approve in their quote email, the invoice is created from that
+            quote — nothing is re-typed — and a copy goes to this address and to the customer. To
+            change the address, set INVOICE_OFFICE_EMAIL in the deployment settings.
+          </p>
         </div>
       </section>
 

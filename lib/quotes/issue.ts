@@ -55,10 +55,26 @@ export interface QuoteCustomer {
   company: string | null;
 }
 
-/** Prices the job without writing anything — what the Job screen renders. */
-export async function priceJob(supabase: SupabaseClient, job: JobForQuote): Promise<QuoteResult> {
+/**
+ * Prices the job without writing anything — what the Job screen renders.
+ *
+ * `quantityOverrides` is the estimator's own count, per line, from the editable
+ * Qty column in the quote table. It is applied to the PRICING ONLY: the
+ * customer's submitted `line_items` are never rewritten, because what they
+ * asked for is evidence and the quote is a separate document. The quote and
+ * its ledger rows record the quantity that was actually quoted.
+ */
+export async function priceJob(
+  supabase: SupabaseClient,
+  job: JobForQuote,
+  quantityOverrides?: (number | null)[] | null
+): Promise<QuoteResult> {
   const priceBook = await getResolvedPriceBook(supabase);
-  return quoteFromPriceBook(toQuoteItemInputs(job.line_items), priceBook);
+  const inputs = toQuoteItemInputs(job.line_items).map((input, i) => {
+    const override = quantityOverrides?.[i];
+    return typeof override === 'number' && Number.isFinite(override) ? { ...input, quantity: override } : input;
+  });
+  return quoteFromPriceBook(inputs, priceBook);
 }
 
 export function resolveQuoteCustomer(
@@ -113,6 +129,8 @@ export interface IssueQuoteOptions {
   /** Days the Approve link stays live. */
   ttlSeconds?: number;
   notes?: string | null;
+  /** The estimator's own per-line quantity, from the editable quote table. */
+  quantityOverrides?: (number | null)[] | null;
 }
 
 export async function issueQuoteForJob(
@@ -121,7 +139,7 @@ export async function issueQuoteForJob(
   customer: QuoteCustomer,
   opts: IssueQuoteOptions
 ): Promise<IssueQuoteOutcome> {
-  const priced = await priceJob(supabase, job);
+  const priced = await priceJob(supabase, job, opts.quantityOverrides);
   if (!priced.ok) {
     return {
       ok: false,

@@ -47,6 +47,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const sendTo = typeof body.sendTo === 'string' && body.sendTo.trim() !== '' ? body.sendTo.trim() : null;
     const notes = typeof body.notes === 'string' ? body.notes : null;
 
+    // The estimator's own per-line quantity from the editable quote table.
+    // Validated here rather than trusted: a fractional or negative count would
+    // otherwise reach the maths, which refuses it anyway but with a message
+    // about the job rather than about the box that was typed in.
+    let quantityOverrides: (number | null)[] | null = null;
+    if (body.quantities !== undefined) {
+      if (!Array.isArray(body.quantities)) {
+        return NextResponse.json({ error: 'quantities must be a list, one per line item.' }, { status: 400 });
+      }
+      quantityOverrides = body.quantities.map((value) =>
+        typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : null
+      );
+      if (body.quantities.some((v, i) => v !== null && v !== undefined && quantityOverrides?.[i] === null)) {
+        return NextResponse.json(
+          { error: 'Every quantity has to be a whole number of pieces, one or more.' },
+          { status: 400 }
+        );
+      }
+    }
+
     const admin = createAdminClient();
     const { data: found } = await admin
       .from('quote_requests')
@@ -89,6 +109,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       actor: { id: user.id, email: (adminProfile as { email?: string | null })?.email ?? user.email ?? null, role: 'admin' },
       sendTo,
       notes,
+      quantityOverrides,
     });
 
     if (!result.ok) {
