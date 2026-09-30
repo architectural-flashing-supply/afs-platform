@@ -21,7 +21,14 @@ const TOP_NAV_LINKS = [
   { label: 'Architects', href: '/architects' },
 ];
 
-const RESOURCES_LINKS = [{ label: 'Resources', href: '/resources' }];
+// The Resources dropdown. Building Codes moved here from the Command
+// Center in Command Center V2 prompt v2-01 — it is public reference
+// content (who adopted a building code where, with a verified link),
+// not admin work, so this is where a contractor or architect can find it.
+const RESOURCES_LINKS = [
+  { label: 'Resource Center', href: '/resources' },
+  { label: 'Building Codes', href: '/resources/building-codes' },
+];
 
 const START_QUOTE_CLASS =
   'bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label text-sm font-semibold rounded px-4 py-2 transition-colors shadow-crimson shrink-0';

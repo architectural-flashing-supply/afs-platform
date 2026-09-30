@@ -123,24 +123,94 @@ export default async function AdminSettingsPage() {
         <p className="font-body text-sm text-afs-chrome-mid mt-1">Integration status and cron job health.</p>
       </div>
 
-      {/* Phase 2 (Command Center redesign, afs-cc-001) — Pricing lost its own
-          sidebar entry per the redesign's simplified nav; this link is what
-          keeps the real Pricing Rules Editor (app/admin/pricing/page.tsx)
-          reachable, alongside the top bar's gear-icon "Dynamic Pricing
-          Engine" popover entry. */}
+      {/* Command Center V2 (prompt v2-01, step 5): Settings ABSORBS Pricing,
+          and the gear popover that used to hold Pricing and QuickBooks is
+          gone — it was the second navigation level, and the prompt removes
+          that level entirely. Everything it held lives here now. */}
       <section className="mb-8">
+        <h2 className="font-heading text-lg text-afs-chrome-high mb-4">Pricing</h2>
         <Link
           href="/admin/pricing"
           className="flex items-center justify-between gap-4 bg-afs-bg-raised border border-afs-border rounded p-5 hover:bg-afs-bg-surface transition-colors"
         >
           <div>
-            <p className="font-heading text-base text-afs-chrome-high">Pricing</p>
+            <p className="font-heading text-base text-afs-chrome-high">Price rules</p>
             <p className="font-body text-xs text-afs-chrome-mid mt-1">
-              Manual pricing rules editor · commodity-indexed engine coming soon
+              Set prices by hand. The price book — sheet cost, per bend, per hem — is being built.
             </p>
           </div>
           <span className="font-label text-xs text-afs-crimson shrink-0">Open →</span>
         </Link>
+      </section>
+
+      <section className="mb-8">
+        <h2 className="font-heading text-lg text-afs-chrome-high mb-4">Coming soon</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Link
+            href="/admin/quickbooks"
+            className="bg-afs-bg-raised border border-afs-border rounded p-5 hover:bg-afs-bg-surface transition-colors block"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <p className="font-heading text-base text-afs-chrome-high">QuickBooks</p>
+              <span className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-high border border-afs-chrome-base rounded px-1.5 py-0.5 whitespace-nowrap shrink-0">
+                Coming soon
+              </span>
+            </div>
+            <p className="font-body text-xs text-afs-chrome-mid mt-2">
+              Send approved invoices and customers straight to QuickBooks. Not connected yet.
+            </p>
+          </Link>
+
+          <div className="bg-afs-bg-raised border border-afs-border rounded p-5">
+            <div className="flex items-start justify-between gap-3">
+              <p className="font-heading text-base text-afs-chrome-high">Dynamic pricing</p>
+              <span className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-high border border-afs-chrome-base rounded px-1.5 py-0.5 whitespace-nowrap shrink-0">
+                Coming soon
+              </span>
+            </div>
+            <p className="font-body text-xs text-afs-chrome-mid mt-2">
+              Prices that follow the metal market, using the history your price book is collecting now.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Real, working admin tools that the one-level nav does not give a
+          top-level slot to. Listed here so they are not lost while the
+          Workbench's lanes (v2-02) take over what they do. Deliberately NOT
+          listed: /admin/geometry-test (developer-only, must stay unlinked)
+          and /admin/gbp-photos (removed from the Command Center — its code is
+          kept for the future driver mobile app, not surfaced here). */}
+      <section className="mb-8">
+        <h2 className="font-heading text-lg text-afs-chrome-high mb-4">Other tools</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[
+            {
+              href: '/admin/quote-requests',
+              title: 'Quote requests',
+              blurb: 'Every request that has come in. The Workbench New lane replaces this.',
+            },
+            {
+              href: '/admin/orders',
+              title: 'Production queue',
+              blurb: 'Fabrication stage per order. Shop View is the tablet version.',
+            },
+            {
+              href: '/admin/profile-library',
+              title: 'Shop profile library',
+              blurb: 'What has been sent to the Thalmann, and its machine profile number.',
+            },
+          ].map((tool) => (
+            <Link
+              key={tool.href}
+              href={tool.href}
+              className="bg-afs-bg-raised border border-afs-border rounded p-5 hover:bg-afs-bg-surface transition-colors block"
+            >
+              <p className="font-heading text-base text-afs-chrome-high">{tool.title}</p>
+              <p className="font-body text-xs text-afs-chrome-mid mt-1">{tool.blurb}</p>
+            </Link>
+          ))}
+        </div>
       </section>
 
       <section className="mb-8">

@@ -60,13 +60,30 @@ export default async function AdminCustomersPage({
         <ExportCustomersCsvButton rows={rows} />
       </div>
 
+      {/* Command Center V2 (prompt v2-01, step 5): Customers ABSORBS the
+          orders CRM. The one-level nav has no separate "Orders" slot, and
+          the CRM view (customer record, dispatch, invoicing) is a customer
+          view, so this is where it belongs. The page itself is unchanged. */}
+      <Link
+        href="/admin/orders-crm"
+        className="flex items-center justify-between gap-4 bg-afs-bg-raised border border-afs-border rounded p-4 mb-6 hover:bg-afs-bg-surface transition-colors"
+      >
+        <div>
+          <p className="font-heading text-base text-afs-chrome-high">Orders &amp; invoicing</p>
+          <p className="font-body text-xs text-afs-chrome-mid mt-1">
+            Order records, dispatch and invoicing, by customer.
+          </p>
+        </div>
+        <span className="font-label text-xs text-afs-crimson shrink-0">Open &rarr;</span>
+      </Link>
+
       <form method="GET" className="flex items-center gap-3 mb-6 flex-wrap">
         <input
           type="text"
           name="q"
           defaultValue={filters.search}
           placeholder="Search name, company, or email…"
-          className="flex-1 min-w-[240px] bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body"
+          className="flex-1 min-w-[240px] bg-afs-bg-dim border border-afs-chrome-base rounded px-3 py-2.5 text-sm text-afs-chrome-high placeholder:text-afs-chrome-mid focus:border-afs-crimson outline-none font-body"
         />
         <select
           name="role"
