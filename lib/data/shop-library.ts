@@ -454,7 +454,7 @@ export function compareShopProfileLibraryQueueOrder(a: QueueOrderFields, b: Queu
 // Field — Shop (afs-fl-003) — a read-only queue for the mobile job-completion
 // list at app/field/shop/page.tsx. Only non-complete rows are relevant here
 // (a completed job has no more action to take), same `status !== 'complete'`
-// filter ShopViewBoard's own activeRows already applies, in the same
+// filter Shop View's own active queue already applies (lib/data/shop-queue.ts), in the same
 // compareShopProfileLibraryQueueOrder order every other queue surface uses.
 // ----------------------------------------------------------------------------
 

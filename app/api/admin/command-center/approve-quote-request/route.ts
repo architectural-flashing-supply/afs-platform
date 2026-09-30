@@ -127,7 +127,8 @@ function resolveItemProfileName(item: QuoteRequestLineItem, identity: JobIdentit
 // Restores the auto-generated bend/leg/radius/hem geometry readout onto the
 // shop-floor-visible notes fields (machine_jobs.notes, read by the external
 // afs-machine-bridge project; shop_profile_library.account_notes, rendered
-// by ShopViewBoard.tsx under "Account Notes") without putting it back into
+// by Shop View under "Account Notes" — components/admin/ShopQueueBoard.tsx
+// since v2-04) without putting it back into
 // qr.notes itself — afs-fl-012 deliberately narrowed qr.notes to
 // customer-typed text only, and that must stay true (it's also what's
 // echoed back to the customer). Same \n\n-joined-lines convention already

@@ -2,11 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { logAdminAction } from '@/lib/admin/audit';
 import { runShopJobCompletionAutomation } from '@/lib/utils/shop-job-completion';
+import { autoScheduleDeliveryOnFinish } from '@/lib/delivery/auto-schedule';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 interface FieldShopCompleteResponse {
   ok: true;
   completedAt: string;
   completionEventId: string;
+  /** Plain English — what happened to the delivery. Safe to show verbatim. */
+  message: string;
+  scheduledDate: string | null;
+  timeWindow: string | null;
 }
 
 /**
@@ -14,15 +20,17 @@ interface FieldShopCompleteResponse {
  * ShopJobCompletionList.tsx's only write path. Same status/completed_at
  * write afs-cv-004's app/api/admin/shop-library/[id]/route.ts PATCH
  * handler already does for the queued -> in_progress -> complete
- * lifecycle's final step (status literal confirmed by grepping
- * components/admin/ShopViewBoard.tsx directly: 'complete', not
- * 'completed'), plus a completion_events row (migration 020 — CONFIRMED
+ * lifecycle's final step (status literal 'complete', not 'completed' —
+ * lib/data/shop-library.ts's SHOP_PROFILE_LIBRARY_STATUSES is the one place
+ * it is defined), plus a completion_events row (migration 020 — CONFIRMED
  * APPLIED LIVE, see STATE_OF_THE_BUILD.md/SESSION_STATE.md; the "FILE
  * ONLY" language previously here was stale). Both this route and the
- * ShopViewBoard PATCH handler call the same runShopJobCompletionAutomation
- * (lib/utils/shop-job-completion.ts) once their own status write succeeds,
- * so delivery scheduling + invoice email fire identically regardless of
- * which surface triggered completion (afs-fl-014).
+ * Shop View PATCH handler call the same runShopJobCompletionAutomation
+ * (lib/utils/shop-job-completion.ts) AND the same
+ * autoScheduleDeliveryOnFinish (lib/delivery/auto-schedule.ts, v2-04) once
+ * their own status write succeeds, so the invoice email, the delivery and the
+ * customer notification fire identically regardless of which surface
+ * triggered completion (afs-fl-014, v2-04).
  */
 export async function POST(request: NextRequest, { params }: { params: { id: string } }): Promise<NextResponse> {
   try {
@@ -71,9 +79,14 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     // transaction (no multi-statement transaction across two separate
     // .from() calls on this client) — if it fails, the job row above is
     // already 'complete', so this is surfaced as a distinct, loud error
-    // rather than silently dropped or rolled back. Never call Resend/
-    // Twilio/any external API here — that is explicitly out of scope for
-    // this prompt.
+    // rather than silently dropped or rolled back.
+    //
+    // (This block used to end "never call Resend/Twilio/any external API
+    // here — explicitly out of scope for this prompt". That was afs-fl-003's
+    // scope, and v2-04 changed it: Mark finished now books the delivery and
+    // tells the customer. The sends happen BELOW, after both writes, in
+    // never-throwing helpers — not inside this block, which is still the
+    // rule the sentence was protecting.)
     const { data: eventRow, error: insertError } = await supabase
       .from('completion_events')
       .insert({
@@ -114,7 +127,23 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       completedBy: user.id,
     });
 
-    const response: FieldShopCompleteResponse = { ok: true, completedAt, completionEventId: eventRow.id as string };
+    // v2-04: the SAME auto-schedule Shop View's Mark finished runs
+    // (lib/delivery/auto-schedule.ts) — next business day, customer notified
+    // through the existing services. One function, so the tablet by the
+    // machine and the phone in somebody's pocket cannot disagree.
+    const auto = await autoScheduleDeliveryOnFinish(createAdminClient(), {
+      shopJobId: params.id,
+      finishedBy: user.id,
+    });
+
+    const response: FieldShopCompleteResponse = {
+      ok: true,
+      completedAt,
+      completionEventId: eventRow.id as string,
+      message: auto.message,
+      scheduledDate: auto.scheduledDate,
+      timeWindow: auto.timeWindow,
+    };
     return NextResponse.json(response);
   } catch (error) {
     console.error('[Field Shop Complete Route Error]', error);

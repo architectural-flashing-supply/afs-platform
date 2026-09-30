@@ -265,8 +265,14 @@ describe(`Done auto-archives after ${DONE_ARCHIVE_DAYS} days`, () => {
 });
 
 describe('the light working area', () => {
-  it('names exactly the two screens converted in v2-02', () => {
-    expect(LIGHT_WORKING_AREA_SCREENS.map((s) => s.screen)).toEqual(['Workbench', 'Job screen']);
+  it('names exactly the four screens converted so far (v2-02 + v2-04)', () => {
+    expect(LIGHT_WORKING_AREA_SCREENS.map((s) => s.screen)).toEqual([
+      'Workbench',
+      'Job screen',
+      // v2-04 — both rebuilt to the approved prototype in the light area.
+      'Shop View',
+      'Deliveries',
+    ]);
   });
   it('paints light AND cancels the shell gunmetal padding, or it would float in a dark frame', () => {
     expect(LIGHT_WORKING_AREA_CLASS).toContain('bg-afs-bg-band');

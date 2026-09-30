@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import { logAdminAction } from '@/lib/admin/audit';
 import { isShopProfileLibraryStatus } from '@/lib/data/shop-library';
 import { runShopJobCompletionAutomation } from '@/lib/utils/shop-job-completion';
+import { autoScheduleDeliveryOnFinish } from '@/lib/delivery/auto-schedule';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 /**
  * Soft-delete only — sets deleted_at, never removes the row. Every read of
@@ -90,7 +92,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
     const { data: existing } = await supabase
       .from('shop_profile_library')
-      .select('id, status, order_number, quote_request_id, deleted_at')
+      .select('id, status, order_number, quote_request_id, started_at, deleted_at')
       .eq('id', params.id)
       .maybeSingle();
     if (!existing || existing.deleted_at) {
@@ -101,9 +103,18 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     // completed_at land in the same UPDATE so a row can never be 'complete'
     // with a null completed_at. completed_at is purely an event-record
     // timestamp for the completion automation below to key off of.
-    const completedAt = status === 'complete' ? new Date().toISOString() : null;
-    const updatePayload: { status: typeof status; completed_at?: string } =
-      completedAt !== null ? { status, completed_at: completedAt } : { status };
+    const nowIso = new Date().toISOString();
+    const completedAt = status === 'complete' ? nowIso : null;
+    // started_at (v2-04, migration 037) rides in the same UPDATE for the same
+    // reason completed_at does: "Bending now" has to be able to say since
+    // when. Only set on the first move into in_progress — re-advancing a job
+    // that was already started must not reset its clock.
+    const startedAt = status === 'in_progress' && existing.started_at == null ? nowIso : null;
+    const updatePayload: { status: typeof status; completed_at?: string; started_at?: string } = {
+      status,
+      ...(completedAt !== null ? { completed_at: completedAt } : {}),
+      ...(startedAt !== null ? { started_at: startedAt } : {}),
+    };
 
     const { error: updateError } = await supabase
       .from('shop_profile_library')
@@ -127,6 +138,15 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     // field/shop "Mark Complete" route (app/api/field/shop/[id]/complete/
     // route.ts) fires on this exact transition — fires only on a genuine
     // -> 'complete' move, not on queued <-> in_progress advances.
+    let message =
+      status === 'in_progress'
+        ? 'Started bending.'
+        : status === 'complete'
+          ? 'Marked finished.'
+          : 'Put back in the queue.';
+    let scheduledDate: string | null = null;
+    let timeWindow: string | null = null;
+
     if (status === 'complete' && existing.status !== 'complete') {
       await runShopJobCompletionAutomation({
         shopProfileLibraryId: params.id,
@@ -134,9 +154,24 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         quoteRequestId: existing.quote_request_id as string | null,
         completedBy: user.id,
       });
+
+      // v2-04: Mark finished books the delivery for the next BUSINESS day and
+      // tells the customer, through the services that already exist. The
+      // service-role client is required — `deliveries`, `orders` and
+      // `outbound_emails` are all admin-or-owner tables the notifier reads
+      // across customers, and lib/supabase/admin.ts is the one client that
+      // never reads a cached row (CLAUDE.md rule #22).
+      const auto = await autoScheduleDeliveryOnFinish(createAdminClient(), {
+        shopJobId: params.id,
+        finishedBy: user.id,
+      });
+      scheduledDate = auto.scheduledDate;
+      timeWindow = auto.timeWindow;
+      // Already a full, plain-English sentence — see autoScheduleDeliveryOnFinish.
+      message = auto.message;
     }
 
-    return NextResponse.json({ ok: true, status, completedAt });
+    return NextResponse.json({ ok: true, status, completedAt, message, scheduledDate, timeWindow });
   } catch (error) {
     console.error('[Profile Library Status Update Route Error]', error);
     return NextResponse.json({ error: 'Could not update status. Please try again.' }, { status: 500 });

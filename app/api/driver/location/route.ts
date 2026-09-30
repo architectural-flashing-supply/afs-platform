@@ -4,10 +4,9 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { haversineDistance } from '@/lib/utils/distance';
 import { geocodeAddress } from '@/lib/utils/geocode';
 import { sendSms } from '@/lib/twilio/sms';
-import { getSiteUrl } from '@/lib/site-url';
+import { trackingUrlFor } from '@/lib/delivery/tracking-url';
 
 const TEN_MILE_THRESHOLD_MILES = 10;
-const APP_URL = getSiteUrl();
 
 interface DeliveryAddressJson {
   line1?: string;
@@ -150,7 +149,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         const smsOptIn = Boolean(customerProfile?.sms_opt_in);
 
         if (phone && smsOptIn && order.tracking_token) {
-          const trackingUrl = `${APP_URL}/track/${order.tracking_token}`;
+          // lib/delivery/tracking-url.ts — the one place this URL is built.
+          const trackingUrl = trackingUrlFor(order.tracking_token);
           const message = `Your AFS order #${order.order_number} is about 10 miles away. Track your driver: ${trackingUrl}`;
           const result = await sendSms(phone, message);
 

@@ -28,6 +28,9 @@
 export const LIGHT_WORKING_AREA_SCREENS: { screen: string; route: string }[] = [
   { screen: 'Workbench', route: '/admin/command-center' },
   { screen: 'Job screen', route: '/admin/command-center/job/[id]' },
+  // v2-04 rebuilt both of these to the approved prototype, so they convert now.
+  { screen: 'Shop View', route: '/admin/shop-view' },
+  { screen: 'Deliveries', route: '/admin/deliveries' },
 ];
 
 /**

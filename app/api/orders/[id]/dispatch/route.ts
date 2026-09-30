@@ -7,9 +7,7 @@ import { sendEmail } from '@/lib/resend/send';
 import { baseEmailTemplate, ctaButton } from '@/lib/resend/templates/base';
 import { sendInvoiceEmail } from '@/lib/utils/invoice-email';
 import { logAdminAction } from '@/lib/admin/audit';
-import { getSiteUrl } from '@/lib/site-url';
-
-const APP_URL = getSiteUrl();
+import { trackingUrlFor } from '@/lib/delivery/tracking-url';
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
 interface DispatchOrderRecord {
@@ -107,7 +105,10 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       .order('sort_order', { ascending: true });
     const lineItems = (lineItemsRaw ?? []) as DispatchLineItemRecord[];
 
-    const trackingUrl = `${APP_URL}/track/${order.tracking_token}`;
+    // lib/delivery/tracking-url.ts — the one place this URL is built. The
+    // `!order.tracking_token` guard above has already returned 500, so this
+    // is never null here; `?? ''` only satisfies the type.
+    const trackingUrl = trackingUrlFor(order.tracking_token) ?? '';
 
     // --- SMS ---
     // Gated on phone + sms_opt_in, matching the only other real SMS send in

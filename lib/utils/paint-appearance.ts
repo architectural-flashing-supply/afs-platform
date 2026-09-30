@@ -34,7 +34,8 @@ export function isPaintedMaterial(material: string): boolean {
 // Resolves the customer's ACTUAL selected color/finish name to its real
 // display hex, across whichever chart it came from — McElroy for
 // painted_steel, PAC-CLAD Anodized for Anodized aluminum — using the same
-// colorMatch-by-name lookup components/admin/ShopViewBoard.tsx already uses
+// colorMatch-by-name lookup Shop View used before v2-04 replaced its board;
+// the lookup itself lives in lib/data/metal-colors.ts and is unchanged
 // for row.color. Falls back to the Custom Color Match placeholder for a
 // free-text or unmatched name rather than a generic material-based guess.
 export function resolveSelectedPaintColor(material: string, color: string): string {

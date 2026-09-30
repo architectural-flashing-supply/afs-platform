@@ -1,18 +1,25 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { logAdminAction } from '@/lib/admin/audit';
 import { sendInvoiceEmail } from './invoice-email';
-import { getSiteUrl } from '@/lib/site-url';
+import { trackingUrlFor } from '@/lib/delivery/tracking-url';
 
-const APP_URL = getSiteUrl();
-
-export interface ShopJobCompletionEvent {
-  shopProfileLibraryId: string;
+/**
+ * The two loose links a shop_profile_library row carries back to a real
+ * `orders` row. Split out of ShopJobCompletionEvent (below) so v2-04's
+ * delivery notifier can resolve a tracking link through the SAME FK chain
+ * this file already documents, instead of writing a second resolver.
+ */
+export interface ShopJobOrderLink {
   orderNumber: string | null;
   quoteRequestId: string | null;
+}
+
+export interface ShopJobCompletionEvent extends ShopJobOrderLink {
+  shopProfileLibraryId: string;
   completedBy: string;
 }
 
-interface MatchedOrder {
+export interface MatchedOrder {
   id: string;
   orderNumber: string;
   trackingToken: string | null;
@@ -39,10 +46,11 @@ interface MatchedOrder {
  * hasn't converted to a paid order yet has no real order — that is expected,
  * not an error.
  */
-async function findMatchingOrder(
+export async function findOrderForShopJob(
   admin: ReturnType<typeof createAdminClient>,
-  event: ShopJobCompletionEvent
+  link: ShopJobOrderLink
 ): Promise<MatchedOrder | null> {
+  const event = link;
   if (event.quoteRequestId) {
     const { data: quoteRequest } = await admin
       .from('quote_requests')
@@ -79,8 +87,8 @@ async function findMatchingOrder(
 
 /**
  * Fires once a shop_profile_library row successfully transitions to
- * 'complete', from either ShopViewBoard's PATCH (app/api/admin/profile-
- * library/[id]/route.ts) or the mobile field/shop "Mark Complete" tap
+ * 'complete', from either Shop View's PATCH (app/api/admin/shop-library/
+ * [id]/route.ts) or the mobile field/shop "Mark Complete" tap
  * (app/api/field/shop/[id]/complete/route.ts) — both call this after their
  * own status write succeeds, so the automation runs identically regardless
  * of which surface triggered completion. Never throws and never blocks or
@@ -94,7 +102,7 @@ async function findMatchingOrder(
 export async function runShopJobCompletionAutomation(event: ShopJobCompletionEvent): Promise<void> {
   const admin = createAdminClient();
 
-  const order = await findMatchingOrder(admin, event);
+  const order = await findOrderForShopJob(admin, event);
   if (!order) {
     console.error(
       `[Shop Job Completion Automation] shop_profile_library ${event.shopProfileLibraryId} marked complete with no matching real order ` +
@@ -121,7 +129,8 @@ export async function runShopJobCompletionAutomation(event: ShopJobCompletionEve
     });
   }
 
-  const trackingUrl = order.trackingToken ? `${APP_URL}/track/${order.trackingToken}` : undefined;
+  // lib/delivery/tracking-url.ts — the one place this URL is built.
+  const trackingUrl = trackingUrlFor(order.trackingToken) ?? undefined;
   const invoiceResult = await sendInvoiceEmail(order.id, trackingUrl);
   if (!invoiceResult.success) {
     console.error(
