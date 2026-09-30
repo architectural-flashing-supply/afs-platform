@@ -182,7 +182,7 @@ export default function JobActionPanel({ job }: { job: JobScreenData }) {
                   value={sendTo}
                   onChange={(e) => setSendTo(e.target.value)}
                   placeholder="name@company.com"
-                  className="min-h-11 rounded-lg border border-afs-line-strong bg-afs-bg-card text-afs-ink-900 font-body text-[15px] px-3 placeholder:text-afs-chrome-dim"
+                  className="min-h-11 rounded-lg border border-afs-line-strong bg-afs-bg-card text-afs-ink-900 font-body text-[15px] px-3 placeholder:text-afs-ink-700"
                 />
               </div>
 

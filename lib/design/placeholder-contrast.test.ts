@@ -21,6 +21,20 @@ import path from 'node:path';
  * files across the public site and is recorded in STATE_OF_THE_BUILD.md's v2-02
  * entry rather than made here — widening a v2-02 prompt into a site-wide
  * restyle is not this prompt's call. If that sweep happens, widen SCOPE below.
+ *
+ * ============== v2-03: THE SURFACE DECIDES THE TOKEN ==============
+ *
+ * The rule is not "use chrome-silver"; it is "clear 4.5:1 against the surface
+ * the placeholder is actually on". v2-02 only had gunmetal surfaces, so the two
+ * readings were the same sentence. v2-03 added the light working area, and
+ * chrome-silver on the white card measures **1.55:1** — WORSE than the 1.94:1
+ * failure v2-02 existed to fix. Reaching for the v2-02 token on a v2-03 screen
+ * is the new version of the same mistake, and it was made here first and caught
+ * by extending this test rather than by looking at it.
+ *
+ * On light surfaces the placeholder is `afs-ink-700` (10.3:1 on afs-bg-card),
+ * which is an existing text token rather than a near-duplicate — CLAUDE.md
+ * rule #18 asks for exactly that.
  */
 
 /** WCAG 2.1 relative luminance and contrast ratio, from the spec's formulas. */
@@ -45,10 +59,23 @@ function tokens(): Record<string, string> {
   return found;
 }
 
-/** Files this test holds to the rule today. */
-const SCOPE = ['components/admin/CommandCenterJobCard.tsx'];
+/** Files whose placeholders sit on GUNMETAL, where chrome-silver is correct. */
+const DARK_SCOPE = [
+  'components/admin/CommandCenterJobCard.tsx',
+  'components/admin/SupplierPriceChangeForm.tsx',
+];
+
+/** Files whose placeholders sit on the LIGHT working area, where it is not. */
+const LIGHT_SCOPE = [
+  'components/admin/PriceBookEditor.tsx',
+  'components/admin/JobActionPanel.tsx',
+];
 
 const GUNMETAL_SURFACES = ['bg-dim', 'bg-base', 'bg-raised', 'bg-surface', 'bg-overlay'];
+const LIGHT_SURFACES = ['bg-card', 'bg-light-raised', 'bg-band', 'bg-light'];
+
+/** Tokens that must never be a placeholder on a LIGHT surface. */
+const FAILS_ON_LIGHT = ['chrome-silver', 'chrome-dim', 'chrome-mid', 'chrome-base', 'line-strong'];
 
 describe('placeholder text meets WCAG AA', () => {
   const t = tokens();
@@ -77,7 +104,38 @@ describe('placeholder text meets WCAG AA', () => {
     );
   });
 
-  it.each(SCOPE)('%s uses no failing placeholder token', (file) => {
+  it('every light-surface candidate that LOOKS dim fails AA on the white card', () => {
+    // The premise, stated as a measurement rather than as a comment. If a
+    // retheme ever makes one of these pass, this fails and the rule can be
+    // relaxed deliberately.
+    for (const token of FAILS_ON_LIGHT) {
+      expect(contrastRatio(t[token], t['bg-card']), `${token} on bg-card`).toBeLessThan(4.5);
+    }
+  });
+
+  it('afs-ink-700 clears AA on every light surface, and is still dimmer than the typed text', () => {
+    for (const surface of LIGHT_SURFACES) {
+      expect(contrastRatio(t['ink-700'], t[surface]), `ink-700 on ${surface}`).toBeGreaterThanOrEqual(4.5);
+    }
+    expect(contrastRatio(t['ink-700'], t['bg-card'])).toBeLessThan(
+      contrastRatio(t['ink-900'], t['bg-card'])
+    );
+  });
+
+  it.each(LIGHT_SCOPE)('%s uses no placeholder token that fails on a light surface', (file) => {
+    const source = fs.readFileSync(path.join(process.cwd(), file), 'utf8');
+    const failing = new RegExp(`placeholder:text-afs-(${FAILS_ON_LIGHT.join('|')})\\b`);
+    const offenders = source
+      .split(/\r?\n/)
+      .map((line, i) => ({ line: line.trim(), n: i + 1 }))
+      // The file header names chrome-silver on purpose, to record WHY it is
+      // wrong on a light surface. A comment is not markup, so it must not trip
+      // this — the same carve-out the gunmetal check below already makes.
+      .filter(({ line }) => !line.startsWith('*') && !line.startsWith('//') && failing.test(line));
+    expect(offenders, `failing placeholder token in ${file}`).toEqual([]);
+  });
+
+  it.each(DARK_SCOPE)('%s uses no failing placeholder token', (file) => {
     const source = fs.readFileSync(path.join(process.cwd(), file), 'utf8');
     // Match the class in real markup only — the explanatory comment above the
     // textarea names chrome-dim on purpose and must not trip this.

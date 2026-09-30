@@ -27,11 +27,19 @@ import { PRICE_BOOK_FIELD_LABELS, type PriceBookField, type ResolvedPriceBookRow
  *
  * ================== CONTRAST ==================
  *
- * Light working area. Body text is afs-ink-900 (18.1:1 on afs-bg-card) and
- * afs-ink-700 (9.8:1); control borders are afs-line-strong (3.1:1, the 3:1 rule
- * for UI components); the "Not set" marker is afs-amber-ink on afs-amber-bg
- * (7.1:1). Placeholder text is afs-chrome-silver, never afs-chrome-dim —
- * CLAUDE.md rule #18.
+ * Light working area. Body text is afs-ink-900 (18.9:1 on afs-bg-card) and
+ * afs-ink-700 (10.3:1); control borders are afs-line-strong (3.1:1, the 3:1
+ * rule for UI components); the "Not set" marker is afs-amber-ink on
+ * afs-amber-bg (7.1:1).
+ *
+ * PLACEHOLDER TEXT HERE IS afs-ink-700, NOT afs-chrome-silver. CLAUDE.md rule
+ * #18 names chrome-silver as the placeholder colour, and that is right ON
+ * GUNMETAL — where it measures 4.80:1 at worst. On this WHITE card it measures
+ * **1.55:1**, which is worse than the 1.94:1 failure v2-02 existed to fix. The
+ * rule is "4.5:1 against the surface it is actually on", and the surface
+ * decides the token: chrome-silver on dark, ink-700 (10.3:1) on light.
+ * lib/design/placeholder-contrast.test.ts computes both from
+ * tailwind.config.js and holds this file to it.
  */
 
 const FIELDS: PriceBookField[] = ['sheetCostCents', 'perBendCents', 'perHemCents', 'extrasCents'];
@@ -214,7 +222,7 @@ export default function PriceBookEditor({
                             value={draft[field]}
                             onChange={(e) => setDraft({ ...draft, [field]: e.target.value })}
                             placeholder="Leave blank"
-                            className="w-28 min-h-11 text-right rounded-lg border border-afs-line-strong bg-afs-bg-card text-afs-ink-900 font-data px-2 placeholder:text-afs-chrome-silver"
+                            className="w-28 min-h-11 text-right rounded-lg border border-afs-line-strong bg-afs-bg-card text-afs-ink-900 font-data px-2 placeholder:text-afs-ink-700"
                           />
                         </>
                       ) : (
@@ -314,7 +322,7 @@ export default function PriceBookEditor({
               value={newMaterial}
               onChange={(e) => setNewMaterial(e.target.value)}
               placeholder="Copper"
-              className="min-h-11 w-56 rounded-lg border border-afs-line-strong bg-afs-bg-card text-afs-ink-900 font-body px-3 placeholder:text-afs-chrome-silver"
+              className="min-h-11 w-56 rounded-lg border border-afs-line-strong bg-afs-bg-card text-afs-ink-900 font-body px-3 placeholder:text-afs-ink-700"
             />
           </div>
           <div className="flex flex-col gap-1.5">
@@ -326,7 +334,7 @@ export default function PriceBookEditor({
               value={newGauge}
               onChange={(e) => setNewGauge(e.target.value)}
               placeholder="20 oz"
-              className="min-h-11 w-40 rounded-lg border border-afs-line-strong bg-afs-bg-card text-afs-ink-900 font-body px-3 placeholder:text-afs-chrome-silver"
+              className="min-h-11 w-40 rounded-lg border border-afs-line-strong bg-afs-bg-card text-afs-ink-900 font-body px-3 placeholder:text-afs-ink-700"
             />
           </div>
           <button
