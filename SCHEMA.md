@@ -1,15 +1,18 @@
 # SCHEMA.md
 ## AFS — Supabase Database Schema
-**52 tables. RLS on every table. Indexes on every foreign key and filter
+**53 tables. RLS on every table. Indexes on every foreign key and filter
 column.**
 
-> **VERIFIED LIVE 2026-09-30 (Command Center V2, prompt v2-01).** 52 base
+> **VERIFIED LIVE 2026-09-30 (Command Center V2, prompt v2-01).** 53 base
 > tables in `public`, counted directly from `information_schema.tables`, not
-> carried forward. It was 55 before this run: migration 031 dropped
-> `machine_profile_bends`, `machine_profiles` and `machine_profile_categories`
-> (the 911-profile machine library — see MACHINE INTEGRATION TABLES below,
-> which now documents its removal). Migrations 030–033 from that run are
-> listed in MIGRATION FILE LOCATION.
+> carried forward. It was 55 before this run, and the arithmetic is
+> 55 − 3 + 1: migration 031 dropped `machine_profile_bends`,
+> `machine_profiles` and `machine_profile_categories` (the 911-profile
+> machine library — see MACHINE INTEGRATION TABLES below, which now
+> documents its removal), and migration 022 — which had never actually been
+> applied — was applied in the same run, adding
+> `building_code_jurisdictions` (480 rows). Migrations 030–033 from that run
+> are listed in MIGRATION FILE LOCATION.
  (This document's "TABLE N" numbering below
 covers the original 25 sections designed in migration 001 — several of
 those sections define more than one physical table, e.g. TABLE 8 =
@@ -90,7 +93,7 @@ supabase/migrations/
   019_job_name_and_delivery_date.sql      Adds job_name to quote_requests (see TABLE 15) and job_name/requested_delivery_date to shop_profile_library (see SHOP PROFILE LIBRARY TABLE); retires (documents as dead, does not drop) both tables' migration-018 requested_by columns — no new tables — CONFIRMED APPLIED LIVE 2026-08-23, see SESSION_STATE.md
   020_completion_events.sql            Adds completion_events (shop-floor "Mark Complete" event log) — CONFIRMED APPLIED LIVE 2026-08-24/26 — not otherwise documented in this file's table sections, see the migration file itself
   021_gbp_photo_queue_shop_job_link.sql   Adds gbp_photo_queue.shop_profile_library_id (links a delivery photo to its shop job) — no new tables — FILE ONLY, not applied live — not otherwise documented in this file's table sections, see the migration file itself
-  022_building_code_jurisdictions.sql   Building code jurisdiction directory (reference data for the Architect Portal resource center) — not otherwise documented in this file's table sections, see the migration file itself for live-apply status
+  022_building_code_jurisdictions.sql   Building code jurisdiction directory — creates building_code_jurisdictions. Long carried as "FILE ONLY"; found to genuinely NOT be applied on 2026-09-30 (the admin page was reading a missing relation) and APPLIED LIVE that day, 480 rows (254 TX counties + 226 cities). Read surface is now the PUBLIC /resources/building-codes page — see 033. Not otherwise documented in this file's table sections, see the migration file itself
   030_command_center_v2_clean_slate.sql   Deletes pre-V2 job data (quote_requests/machine_jobs/orders/quotes/takeoff_uploads/saved_configurations/notifications + dependents) created before a fixed cutoff; keeps all accounts, reference data, canonical_profiles and shop_profile_library — data-only, no schema change — APPLIED LIVE 2026-09-30
   031_drop_machine_profile_library.sql    DROPS machine_profile_bends/machine_profiles/machine_profile_categories and machine_jobs.machine_profile_id (see MACHINE INTEGRATION TABLES) — APPLIED LIVE 2026-09-30
   032_quote_requests_job_stage.sql        Adds quote_requests.job_stage + CHECK + index, and backfills it (see TABLE 15) — APPLIED LIVE 2026-09-30, verified via information_schema
