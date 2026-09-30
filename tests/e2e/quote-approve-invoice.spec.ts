@@ -267,24 +267,41 @@ test.describe('Quote -> Approve -> Invoice, end to end', () => {
     // --- 4. TAMPERED is refused -------------------------------------------
     const tamperedPath = approvePath.slice(0, -1) + (approvePath.endsWith('A') ? 'B' : 'A');
     const tampered = await request.get(tamperedPath);
-    expect(tampered.status()).toBe(400);
-    expect(await tampered.text()).toContain('altered');
+    const tamperedHtml = await tampered.text();
+    expect(tampered.status(), tamperedHtml).toBe(400);
+    expect(tamperedHtml).toContain('altered');
     expect((await readJob(job.requestId)).job_stage).toBe('quoted');
 
     // --- 5. EXPIRED is refused --------------------------------------------
     await expireApprovalToken(quote!.id);
     const expired = await request.get(approvePath);
-    expect(expired.status()).toBe(410);
-    expect(await expired.text()).toContain('expired');
+    const expiredHtml = await expired.text();
+    expect(expired.status(), expiredHtml).toBe(410);
+    expect(expiredHtml).toContain('expired');
     expect((await readJob(job.requestId)).job_stage).toBe('quoted');
     expect(await readInvoiceForJob(job.requestId)).toBeNull();
     // Put the clock back. `used_at` is untouched, so single use is unaffected.
     await restoreApprovalToken(quote!.id);
+    const restored = await readApprovalToken(quote!.id);
+    expect(restored?.used_at, 'the expired attempt did not spend the link').toBeNull();
+    expect(
+      new Date(restored!.expires_at).getTime(),
+      `the link is live again (expires_at=${restored?.expires_at})`
+    ).toBeGreaterThan(Date.now());
 
     // --- 6. VALID: the customer approves -----------------------------------
+    const rawToken = decodeURIComponent(approvePath.split('/').pop() as string);
+    const payloadJson = Buffer.from(
+      rawToken.split('.')[0].replace(/-/g, '+').replace(/_/g, '/'),
+      'base64'
+    ).toString('utf8');
+    console.log('DEBUG token payload', payloadJson, 'now', Math.floor(Date.now() / 1000));
     const approved = await request.get(approvePath);
-    expect(approved.status()).toBe(200);
+    console.log('DEBUG approve headers', JSON.stringify(approved.headers()));
     const approvedHtml = await approved.text();
+    // The page body rides on the assertion: a 410 here is one of four different
+    // refusals, and the status code alone does not say which.
+    expect(approved.status(), approvedHtml).toBe(200);
     expect(approvedHtml).toContain('your quote is approved');
 
     const afterApproval = await readJob(job.requestId);

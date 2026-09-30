@@ -137,7 +137,7 @@ export function quoteFromPriceBook(
         kind: 'blank-price',
         message:
           `${row.item.material} ${row.item.gauge} has no prices filled in yet, so "${item.description}" cannot be quoted. ` +
-          `Fill it in under Settings → Price book.`,
+          `A blank is never treated as zero — fill it in under Settings → Price book.`,
       });
       return;
     }

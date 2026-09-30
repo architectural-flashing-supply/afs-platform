@@ -176,6 +176,9 @@ describe('quoteFromPriceBook — what it refuses, and what it says', () => {
     if (result.ok) return;
     expect(result.problems[0].kind).toBe('blank-price');
     expect(result.problems[0].message).toContain('no prices filled in yet');
+    // The SAME sentence as the part-filled case. Both refusals are about the
+    // same rule, so they say the same thing about it.
+    expect(result.problems[0].message).toContain('never treated as zero');
   });
 
   it('treats a blank EXTRAS as $0, because a row with no extras is priced', () => {
