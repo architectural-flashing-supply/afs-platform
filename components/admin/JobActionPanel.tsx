@@ -118,12 +118,13 @@ export default function JobActionPanel({ job }: { job: JobScreenData }) {
               </label>
               <textarea
                 id="followup"
+                data-testid="followup-draft"
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 rows={10}
                 className="font-body text-[15px] rounded-lg border border-afs-line-strong bg-afs-bg-card text-afs-ink-900 p-3"
               />
-              <p className="font-body text-[13px] text-afs-ink-700">
+              <p data-testid="followup-not-sent-notice" className="font-body text-[13px] text-afs-ink-700">
                 Sending from Outlook is not connected yet. Copy this into your email — the draft is
                 saved here either way.
               </p>

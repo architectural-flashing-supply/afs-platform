@@ -166,8 +166,8 @@ test.describe('Command Center V2 — Workbench and Job screen', () => {
     await expect(page.getByRole('heading', { name: 'What the AI read', level: 3 })).toBeVisible();
     // The stage stepper marks New as the current step.
     await expect(page.locator('ol[aria-label="Job stage"] li[aria-current="step"]')).toHaveText('New');
-    // Column 2 offers the past-profiles block.
-    await expect(page.getByText(/past profiles/)).toBeVisible();
+    // Column 2 offers the past-profiles block, headed with the customer's name.
+    await expect(page.getByRole('heading', { level: 3, name: /past profiles$/ })).toBeVisible();
 
     // --- 3. An approval that makes NO PathfinderEdge write ----------------
     await page.getByRole('button', { name: 'Customer approved by phone' }).click();
@@ -310,18 +310,23 @@ test.describe('Command Center V2 — Workbench and Job screen', () => {
     await card.getByRole('link', { name: 'Follow up' }).click();
 
     await page.getByRole('button', { name: 'Write a follow-up' }).click();
-    const draft = page.getByLabel('Follow-up message');
+    // Assert the server's own answer first: if the draft route failed, this shows
+    // the real reason instead of a bare 'textarea not found'.
+    await expect(page.getByTestId('job-action-result')).toContainText(/Draft saved/);
+    const draft = page.getByTestId('followup-draft');
     await expect(draft).toBeVisible();
     const text = await draft.inputValue();
     expect(text).toContain('quote');
     expect(text).toContain(job.requestNumber);
     // It is a DRAFT: the screen says sending is not wired up, so nobody thinks
     // the customer has already been chased.
-    await expect(page.getByText(/Sending from Outlook is not connected yet/)).toBeVisible();
+    await expect(page.getByTestId('followup-not-sent-notice')).toContainText(
+      'Sending from Outlook is not connected yet'
+    );
 
     // It is stored, so it survives a reload.
     expect((await readJob(job.requestId)).followup_draft).toBe(text);
     await page.reload();
-    await expect(page.getByLabel('Follow-up message')).toHaveValue(text);
+    await expect(page.getByTestId('followup-draft')).toHaveValue(text);
   });
 });
