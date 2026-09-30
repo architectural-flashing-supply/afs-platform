@@ -3,10 +3,12 @@ import {
   auditActionsFor,
   dbConfigured,
   deleteJob,
+  deleteTestNotifications,
   forceStage,
   readJob,
   remainingOrphanAuditRows,
   remainingTagged,
+  remainingTestNotifications,
 } from './helpers/db';
 
 /**
@@ -43,8 +45,10 @@ import {
  *    approve_quote_request_pathfinder_failed row — the two rows that any real
  *    push attempt, successful or not, is required to write.
  *
- * CLEANUP: every row this file creates is deleted in afterAll and the tagged
- * count is asserted back to zero.
+ * CLEANUP: every row this file creates is deleted in afterAll and the counts are
+ * asserted back to zero — the jobs and their audit rows by id, and the
+ * `notifications` rows the submission route writes by recipient + run start,
+ * since those carry no link to the job at all.
  */
 
 const authFile = 'tests/e2e/.auth/user.json';
@@ -105,12 +109,26 @@ test.describe('Command Center V2 — Workbench and Job screen', () => {
   test.use({ storageState: authFile });
 
   const created: string[] = [];
+  /**
+   * The floor for the notification sweep below. Set before any submission, so
+   * the sweep's range is exactly "rows this run caused" and can never widen
+   * backwards over somebody else's.
+   */
+  const runStartedAt = new Date().toISOString();
+  const testRecipient = process.env.E2E_TEST_EMAIL ?? '';
 
   test.afterAll(async () => {
     if (!canRun) return;
     for (const id of created) await deleteJob(id);
+    // POST /api/quote-requests also emails the submitter and logs the attempt
+    // in `notifications`. That row has no link to the quote request, so
+    // deleteJob cannot reach it and 55 accumulated across this prompt's runs
+    // before this sweep existed. Scoped to the E2E address AND this run's start.
+    await deleteTestNotifications(testRecipient, runStartedAt);
+
     // Prove the tables are clean, not merely that the deletes ran.
     expect(await remainingTagged(TEST_TAG)).toBe(0);
+    expect(await remainingTestNotifications(testRecipient, runStartedAt)).toBe(0);
     // And that no audit row outlived the job it describes. admin_audit_log has
     // no FK to quote_requests, so this is the only thing that catches an
     // orphan — 20 accumulated across this prompt's runs before deleteJob swept

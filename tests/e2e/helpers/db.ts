@@ -67,6 +67,20 @@ function uuid(id: string): string {
   return id;
 }
 
+/** An email address, checked before it is ever interpolated into SQL. */
+function email(value: string): string {
+  if (!/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(value)) {
+    throw new Error(`not an email address: ${value}`);
+  }
+  return value;
+}
+
+/** An ISO timestamp, checked before it is ever interpolated into SQL. */
+function timestamp(value: string): string {
+  if (Number.isNaN(Date.parse(value))) throw new Error(`not a timestamp: ${value}`);
+  return new Date(value).toISOString();
+}
+
 /**
  * Moves a job to a stage WITHOUT going through the app, so a test can reach a
  * state whose only real-world route would send work to the physical Thalmann.
@@ -139,6 +153,39 @@ export async function deleteJob(id: string): Promise<void> {
   await sql(`update takeoff_uploads set request_id = null where request_id = '${q}';`);
   await sql(`delete from admin_audit_log where resource_id = '${q}';`);
   await sql(`delete from quote_requests where id = '${q}';`);
+}
+
+/**
+ * Notification rows this spec's submissions caused, deleted by recipient and a
+ * time floor.
+ *
+ * WHY THIS NEEDS ITS OWN SWEEP. `POST /api/quote-requests` emails the submitter
+ * and records the attempt in `notifications` — and that row carries NO link back
+ * to the quote request (the table has `order_id` and `user_id`, and a quote
+ * request is neither), so `deleteJob` has nothing to scope on and never touched
+ * them. 55 rows accumulated across this prompt's runs before anyone looked, all
+ * `status='failed'` against the E2E address. "Every row the tests create is
+ * deleted" was therefore not true, and a count of a table nobody was checking is
+ * exactly where that kind of claim rots.
+ *
+ * THE SCOPE CANNOT REACH A REAL CUSTOMER. Two conditions, both required: the
+ * recipient is the E2E account's own address, and the row is newer than the
+ * moment this spec started. A real customer is never the E2E account.
+ */
+export async function deleteTestNotifications(recipient: string, sinceIso: string): Promise<void> {
+  await sql(
+    `delete from notifications
+     where recipient = '${email(recipient)}' and sent_at >= '${timestamp(sinceIso)}';`
+  );
+}
+
+/** Test notification rows still present. Must be 0 after cleanup. */
+export async function remainingTestNotifications(recipient: string, sinceIso: string): Promise<number> {
+  const rows = await sql<{ n: number }>(
+    `select count(*)::int as n from notifications
+     where recipient = '${email(recipient)}' and sent_at >= '${timestamp(sinceIso)}';`
+  );
+  return rows[0].n;
 }
 
 /**
