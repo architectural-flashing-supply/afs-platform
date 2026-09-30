@@ -5,6 +5,14 @@ import { toFile } from '@anthropic-ai/sdk';
 import { anthropic } from '@/lib/anthropic/client';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { UPLOAD_MAX_PAGES, UPLOAD_MAX_SIZE_BYTES } from '@/lib/utils/upload-limits';
+// THE confidence vocabulary this route's system prompt produces — 'high' |
+// 'medium' | 'low' per item plus one overall, with a per-item aiNote. It is
+// declared in lib/ai/takeoff-confidence.ts rather than here because the
+// Command Center V2 Job screen's "What the AI read" panel consumes exactly
+// this shape (prompt v2-02's instruction: reuse this pattern, do not invent a
+// second one). Importing it here is what keeps the producer and the consumer
+// from drifting.
+import { isTakeoffConfidence, type TakeoffConfidence } from '@/lib/ai/takeoff-confidence';
 
 // The Messages API has a hard 32MB total request size limit, and base64
 // inflates raw bytes by ~33% — so a raw file as small as ~24MB could blow
@@ -306,6 +314,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const result = JSON.parse(clean);
 
     const status: 'success' | 'partial' = result.items?.length > 0 ? 'success' : 'partial';
+    // Normalised through the SHARED guard rather than trusted raw: the model is
+    // told to return high/medium/low, and if it ever returns something else,
+    // the column (and every reader of it, including the Job screen's
+    // "What the AI read" highlight) should see an honest 'low' rather than an
+    // unrecognised string that silently reads as confident.
+    const overallConfidence: TakeoffConfidence = isTakeoffConfidence(result.overallConfidence)
+      ? result.overallConfidence
+      : 'low';
     const processingMs = Date.now() - startedAt;
 
     // DIAGNOSTIC (temporary — revert once we've seen output): logs what the
@@ -326,7 +342,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       .update({
         status: status === 'success' ? 'complete' : 'partial',
         result_items: result.items ?? [],
-        overall_confidence: result.overallConfidence ?? null,
+        overall_confidence: overallConfidence,
         processing_notes: result.processingNotes ?? null,
         processing_ms: processingMs,
         updated_at: new Date().toISOString(),
@@ -335,7 +351,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json({
       items: result.items ?? [],
-      overallConfidence: result.overallConfidence ?? 'low',
+      overallConfidence,
       pagesProcessed: 1,
       processingNotes: result.processingNotes ?? null,
       status,

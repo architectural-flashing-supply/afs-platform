@@ -220,7 +220,11 @@ function buildBendsFromItem(
 }
 
 type UploadState = 'idle' | 'uploading' | 'processing' | 'results' | 'submitting' | 'submitted' | 'failed';
-type Confidence = 'high' | 'medium' | 'low';
+// ONE definition, shared with the Command Center V2 Job screen's "What the AI
+// read" panel — see lib/ai/takeoff-confidence.ts. This was a local literal
+// union; it is re-exported through the alias so every existing use below reads
+// unchanged while there is now only one place that says what a confidence is.
+import type { TakeoffConfidence as Confidence } from '@/lib/ai/takeoff-confidence';
 
 interface TakeoffItem {
   profileType: string;

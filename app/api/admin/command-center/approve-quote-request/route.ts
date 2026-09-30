@@ -547,6 +547,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       };
     });
 
+    const now = new Date().toISOString();
+
+    // Clear any previous failure BEFORE trying again, so a retry that fails a
+    // second time records the new reason rather than leaving the old one, and a
+    // retry that succeeds cannot leave a stale "Send failed" on the card.
+    await supabase
+      .from('quote_requests')
+      .update({ send_status: null, send_error: null, send_attempted_at: now })
+      .eq('id', quoteRequestId);
+
     const pathfinderResults: PathfinderProfile[] = [];
     for (const build of itemBuilds) {
       // ONE DOOR: the push verifies this approval in the database before it
@@ -570,15 +580,49 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             pathfinderMessage: result.message,
           },
         });
+        // A FAILED SEND IS STATE, NOT A TOAST. Written to the row so the
+        // Workbench card shows "Send failed — retry" with the real reason after
+        // a reload, instead of the failure evaporating the moment the admin
+        // navigates away and the job looking merely un-sent. The audit row
+        // above records it for the log; this records it for the human.
+        //
+        // Nothing reached the machine on this path (the push errored before
+        // creating a profile), so a retry is safe and the card offers one.
+        const reason = `${result.message}`;
+        await supabase
+          .from('quote_requests')
+          .update({ send_status: 'failed', send_error: reason, send_attempted_at: now })
+          .eq('id', quoteRequestId);
+
         return NextResponse.json(
-          { error: `Could not push "${build.profileName}" to PathfinderEdge: ${result.message}` },
+          {
+            error:
+              `"${build.profileName}" did not reach the machine, so nothing was sent. ` +
+              `The reason PathfinderEdge gave: ${result.message} ` +
+              `The job is marked "Send failed" on the Workbench — you can try again from there.`,
+          },
           { status: 502 }
         );
       }
       pathfinderResults.push(result);
     }
 
-    const now = new Date().toISOString();
+    // NEVER REPORT A SEND AS SUCCESSFUL WITHOUT THE RETURNED PROFILE NUMBER.
+    //
+    // `pushProfileToPathfinder` can return status 'connected' with
+    // `profileId: null` — the profile really was created, but the follow-up GET
+    // that resolves its server-assigned number did not find it (see that
+    // function's own comment). Before this change the route reported
+    // "profile #null" as a success, which is a claim with nothing behind it.
+    //
+    // This is NOT treated as a failure, because it is not one: a real profile
+    // exists in catalog 20115 and retrying would duplicate it. It is reported
+    // as UNCONFIRMED, with no retry offered, and it says what to go and check.
+    const returnedProfileIds = pathfinderResults
+      .map((r) => r.profileId)
+      .filter((id): id is string => typeof id === 'string' && id.trim() !== '');
+    const everyPushReturnedANumber = returnedProfileIds.length === pathfinderResults.length;
+
     const machineJobIds: string[] = [];
     for (let i = 0; i < itemBuilds.length; i++) {
       const build = itemBuilds[i];
@@ -674,7 +718,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       .from('quote_requests')
       // job_stage advances to the stage planStageTransition approved at the
       // top of this route — the job is physically at the Thalmann now.
-      .update({ status: 'reviewing', job_stage: transition.to, reviewed_at: now })
+      .update({
+        status: 'reviewing',
+        job_stage: transition.to,
+        reviewed_at: now,
+        stage_changed_at: now,
+        sent_to_machine_at: now,
+        // The numbers PathfinderEdge ACTUALLY returned, in line-item order.
+        // This is the evidence the Workbench card and the Job screen quote; if
+        // it is empty, neither of them claims a profile number.
+        pathfinder_profile_ids: returnedProfileIds,
+        send_status: everyPushReturnedANumber ? null : 'unconfirmed',
+        send_error: everyPushReturnedANumber
+          ? null
+          : `${returnedProfileIds.length} of ${pathfinderResults.length} profiles came back with a number. ` +
+            `PathfinderEdge said: ${pathfinderResults.map((r) => r.message).join(' | ')}`,
+      })
       .eq('id', quoteRequestId);
     if (updateError) {
       return NextResponse.json(
@@ -720,9 +779,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       ok: true,
       machineJobIds,
       jobStage: transition.to,
-      message: `Sent to the machine — ${pathfinderResults
-        .map((r) => `profile #${r.profileId}`)
-        .join(', ')}.`,
+      // The profile numbers are the proof, so they are in the payload as data
+      // as well as in the sentence.
+      pathfinderProfileIds: returnedProfileIds,
+      confirmed: everyPushReturnedANumber,
+      message: everyPushReturnedANumber
+        ? `Sent to the machine — ${returnedProfileIds.map((id) => `profile #${id}`).join(', ')}.`
+        : 'The profile was created at the machine, but PathfinderEdge did not give back its ' +
+          `profile number, so this cannot be confirmed as sent. Check catalog ${AFS_MACHINE_CATALOG_ID} ` +
+          'on the machine before sending again — sending again would create a duplicate.',
     });
   } catch (error) {
     console.error('[Command Center Approve Quote Request Error]', error);
