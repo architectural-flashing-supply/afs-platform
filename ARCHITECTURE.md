@@ -1632,3 +1632,196 @@ door. The shortcut tables add a fifth for their own rows — RLS requiring both
 Inside FlashDraft, the button is gated on `adminContext` (`?admin=1`), the same
 gate "Send to PathfinderEdge" uses — an admin who happens to open the public
 FlashDraft page does not get a cross-customer search box.
+
+---
+
+## 17. RESILIENCE AND THE CONTRAST GATE (Command Center V2, v2-06)
+
+No new table, no migration, no change to the single door. This section is the
+contract for four pieces of hardening and one build gate.
+
+### 17.1 Error boundaries, and the WebGL degrade
+
+Before v2-06 this app had **zero** error boundaries — audit finding F-06. A
+thrown render anywhere took the whole screen with it, and there was no message
+saying what had and had not happened.
+
+Three levels now, chosen so a failure is contained at the smallest honest scope:
+
+```
+app/global-error.tsx          the root layout itself failed; supplies its own
+                              <html>/<body>, because the layout that imports the
+                              stylesheet is the thing that died
+app/error.tsx                 any page with no nearer boundary
+app/<section>/error.tsx       admin (dark), command-center / shop-view /
+                              deliveries / search (light, inside
+                              LightWorkingArea), studio, account, checkout,
+                              hailview, employee, field
+components/ui/PanelErrorBoundary.tsx   one panel of a screen, not the screen
+```
+
+All route boundaries render `components/ui/ErrorScreen.tsx`, so the wording rule
+lives in one file. That rule: never blame the user, never show a stack trace, and
+**always say what did NOT happen**. On a platform where the next button along
+sends work to a physical bending machine, "nothing was sent" is the sentence that
+matters, and it is different on each screen — checkout says "you have not been
+charged", FlashDraft says "your drawing is still saved on this computer".
+
+`PanelErrorBoundary` is a class component because `getDerivedStateFromError` has
+no hook equivalent. It wraps each of the Job screen's three columns, so a throw in
+the profile drawing leaves the request text readable and the Send quote button
+usable. It catches RENDER errors in the client subtree below it — not event
+handlers, not promises, not server rendering — and the file says so, so nobody
+mistakes it for a safety net it is not.
+
+**`ProfileViewer3D` degrades to 2D rather than showing an empty box.**
+`new THREE.WebGLRenderer()` throws when a browser refuses a context: a
+blacklisted GPU driver on a shop tablet, a hardened kiosk browser, a
+remote-desktop session, too many live contexts on one page. That throw used to
+escape the effect and leave a grey panel with a "Rotate - Zoom - Pan" hint
+floating over it. It is caught now, the two objects created before it are
+disposed, and the component renders
+`components/studio/ProfileCrossSection2D.tsx` instead.
+
+That fallback calls `buildCrossSectionPoints`, `formatBendAngleLabel` and
+`formatInches` — **the exact three functions the 3D viewer itself calls** — so it
+cannot disagree with the 3D view about the shape, about a bend's sign
+(CLAUDE.md rule #12), or about how a length is written. It takes the same
+MILLIMETRE props and converts at the same point. It is a new component rather
+than a reshaped `BendSequenceDiagram` because that one hardcodes a mm pixel
+scale, prints no leg lengths, and is painted for a gunmetal card only; widening
+it would have changed what the Command Center job card already renders.
+
+`tests/e2e/webgl-fallback.spec.ts` proves it with **no test-only code path**: it
+makes `getContext` return null for the three WebGL context ids, which is what a
+real refusal looks like, then asserts a real path, real vertices,
+fractional-inch legs and signed degrees. A control test confirms the 3D canvas
+still renders when WebGL works.
+
+### 17.2 PathfinderEdge reads: a timeout, and a parser instead of a cast
+
+**F-03 — 8 seconds, on READS ONLY.** `PATHFINDER_READ_TIMEOUT_MS` in
+`lib/integrations/pathfinder-edge.ts`, applied by `pathfinderRead()` through an
+`AbortController`. Chosen from the 2.46s the 2026-09-24 audit measured live, not
+from a round number. Before it, a host that accepted the connection and then said
+nothing left a Command Center screen rendering forever — "slow" and "down" looked
+identical, and both looked like the app being broken.
+
+**The POST is deliberately NOT given one.** Aborting a write tells you nothing
+about whether the server committed it, and an abandoned-but-committed profile in
+catalog 20115 is one the physical Thalmann will collect that this app has no
+record of. A hung write is a worse problem than a slow one, and a client-side
+timeout disguises it rather than solving it.
+
+**No retry.** A retry doubles the worst case to 16s to reach the same screen, and
+these reads are already allowed to degrade. The read where a retry is most
+tempting — resolving a just-created profile's number — is exactly the one where
+the answer must be `unconfirmed` (CLAUDE.md rule #16), because a retry there would
+duplicate a real profile in catalog 20115.
+
+**F-09 — `lib/integrations/pathfinder-response.ts`.** Every read used to end in
+`(await res.json()) as T[]`, which asserts nothing at runtime. An envelope, a
+renamed field, or a 200 carrying an error object all got through and surfaced
+later as `.map is not a function` inside a server component, or as a row rendered
+"undefined". Each read now goes through a parser that checks the shape, returns a
+typed value or plain-English problems, and never throws.
+`logVendorShapeProblem()` writes ONE searchable server line carrying the
+endpoint, every problem found, and a truncated copy of the real body — the
+truncation is what makes the log actionable. No schema library was added: these
+are two small documented shapes, and the explanatory messages are the point.
+
+What a bad shape MEANS is the caller's decision. `discoverApiEndpoints` reports
+`error` rather than calling a wrong-bodied 200 "Connected". `getPathfinderCatalogs`
+returns an empty list and logs. The profile-number lookup after a push returns
+`status: 'connected'` with `profileId: null` — rule #16's `unconfirmed`, no retry
+offered.
+
+### 17.3 The automated WCAG AA contrast gate
+
+`scripts/audit/contrast-check.mjs`, wired as `prebuild` in package.json, so
+`pnpm build` runs it and a deployment cannot get past it. Exit 0 when every
+measured pair clears its threshold, exit 1 otherwise, with each screen and its
+measured ratios printed.
+
+`lib/design/placeholder-contrast.test.ts` already guarded a hand-picked set of
+pairs and had caught real bugs; its limit is that it can only check what somebody
+remembered to enumerate. **Nothing in the gate is enumerated by hand.** Every run
+derives the screens from `lib/data/admin-nav.ts` plus the `page.tsx` files that
+really exist under those routes (plus the `(auth)` route group, because the
+sign-in page is the only way into all of them); the colours from
+`tailwind.config.js`; and the pairs by walking each page's JSX and **recursing
+into the components it renders**, so a colour is measured against the surface it
+is really mounted on.
+
+Six things it had to get right, each written because without it the gate reported
+a defect that cannot render, or missed one that can:
+
+1. **Cross-file `{children}`.** `LightWorkingArea` paints the light surface and
+   hands it to its caller's JSX. The gate resolves that — and takes the
+   `{children}` occurrence that is inside a JSX element, not the first one in the
+   file, because the destructured parameter list contains a literal
+   `{ children }` several lines earlier. Matching that one measured every light
+   screen against the gunmetal shell and reported ink-900 at 1.37:1.
+2. **Class constants across modules.** `LIGHT_WORKING_AREA_CLASS` is a string in
+   `lib/data/admin-working-area.ts`, deliberately, so "which screens are light" is
+   testable data. A literal-only reader never sees its `bg-afs-bg-band`.
+3. **Ternaries as alternatives, not as a set.** A chip written
+   `cond ? 'bg-green text-white' : 'bg-card text-ink'` has two states; pairing all
+   four tokens invents white-on-white at 1.00:1.
+4. **Class maps.** `TONES[tone]`, `STATUS_CHIP_CLASS[status]` — the key is
+   runtime, the possible values are in the file, and every one is a surface a user
+   can really see.
+5. **Pseudo-elements.** `file:bg-*` paints the browser's Choose-file button, not
+   the field's own fill.
+6. **Opacity.** `bg-afs-bg-raised/90` is composited over what is behind it.
+
+Scope, with the criterion for each exclusion: TEXT and placeholders at 4.5:1
+(3:1 for WCAG-large text, read off the real size and weight classes; placeholders
+get no large-text exemption, per rule #18); FORM FIELDS at 3:1, passing if either
+the fill or the border makes the boundary perceivable. A labelled button's fill is
+NOT measured — SC 1.4.11 covers information required to IDENTIFY a component, and
+a button carrying white text at 6.45:1 is identified by its label, which 1.4.3
+already measures. Container borders are exempt as decoration. `disabled:` is
+exempt under both criteria. Gradients and non-colour arbitrary values are COUNTED
+and PRINTED as unresolved, so the gate cannot be quietly vacuous.
+
+**`tests/e2e/contrast-live.spec.ts` is the other half**, and it is what stops the
+static model drifting into fiction: it opens the real screens on alpha as a real
+admin, reads the colours Chromium actually computed, resolves backgrounds up the
+ancestor chain the way the compositor does, and applies the same formula. It
+found a real defect on its first run — not in the Command Center, but in the
+sign-in page it had landed on, because it was not signed in.
+
+### 17.4 Status text on a dark surface
+
+The gate's first full run found 82 pairs below AA. The fix is in
+`tailwind.config.js`, with its measurements beside it: `afs-crimson`,
+`afs-success`, `afs-warning`, `afs-info` and `afs-amber` are FILL colours, and as
+text on gunmetal they measure 1.42:1, 2.11:1, 3.67:1, 2.34:1 and 4.28:1. On a
+dark surface there is no darkening that fixes that — the move that worked for the
+light working area (`afs-green-ink`) inverts here, and the text has to get
+lighter.
+
+`afs-danger-on-dark`, `afs-success-on-dark`, `afs-warning-on-dark` and
+`afs-info-on-dark` each hold their dominant channel at full and lift the others
+only as far as the required luminance demands, so they still read as
+red/green/amber/blue while clearing AA on all five gunmetal surfaces. A red light
+enough to clear 4.5:1 on `afs-bg-overlay` needs a relative luminance near 0.56,
+and red contributes only 0.2126 of luminance, so it is necessarily a salmon —
+that is physics, not taste, and blending to white instead would have been paler
+for no gain.
+
+**They are for text ON DARK only.** On the light working area they measure
+1.3-1.6:1, which is rule #23 applying to them exactly as it applies to
+`afs-chrome-silver`. `lib/design/placeholder-contrast.test.ts` asserts all three
+claims — the fill colours fail, the new ones pass on gunmetal, and the new ones
+fail on the white card.
+
+### 17.5 What v2-06 did NOT change
+
+No migration. No table, view, policy or function was added, altered or dropped;
+`supabase/migrations/` still ends at `038_profile_search_shortcuts.sql`. The
+PathfinderEdge single door is untouched — no caller was added to
+`pushProfileToPathfinder`, `lib/integrations/pathfinder-single-door.test.ts` was
+not weakened, and no POST or DELETE was issued to PathfinderEdge by any code or
+test in this prompt. Every probe run during it was a GET.

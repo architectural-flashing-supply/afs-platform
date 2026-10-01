@@ -524,9 +524,14 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
     `lib/design/placeholder-contrast.test.ts` computes these ratios from
     `tailwind.config.js` rather than trusting a comment, and asserts the premise
     (chrome-dim fails everywhere) as well as the fix, so a retheme cannot make
-    the rule silently vacuous. **22 files outside the Command Center still use
+    the rule silently vacuous. **21 files outside the Command Center and the sign-in flow still use
     `afs-chrome-dim` this way** — listed in STATE_OF_THE_BUILD.md's v2-02
     re-verification entry, PENDING REID, and not to be swept without his say.
+    The twenty-second was `authInputClass` in `components/layout/AuthShell.tsx`,
+    at **1.94:1** on `afs-bg-overlay`, on every page of the sign-in flow — which
+    is the only way into every Command Center screen, and therefore inside rule
+    #28's build gate. It was fixed in v2-06 and the override is recorded in
+    STATE_OF_THE_BUILD.md's v2-06 entry. Nothing else on the list was touched.
 
 
 19. **THE PRICE BOOK IS VERSIONED AND NEVER OVERWRITTEN, AND A BLANK IS NEVER
@@ -782,6 +787,127 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
     all. **Every load path must record the signature**; miss one and picking two
     profiles in a row writes an untouched duplicate of the first into the
     Passport. Full contract: ARCHITECTURE.md section 16.
+
+28. **CONTRAST IS A BUILD GATE, NOT A REVIEW STEP — `scripts/audit/contrast-check.mjs`.**
+    It runs as `prebuild`, so `pnpm build` runs it and a Vercel deployment cannot
+    get past it. It measures every Command Center screen plus the sign-in flow
+    (the only way into them) and exits non-zero on any pair below WCAG AA: 4.5:1
+    body text and placeholders, 3:1 WCAG-large text and form-field boundaries.
+
+    **Nothing in it is a list anybody maintains.** The screens come from
+    `lib/data/admin-nav.ts` plus the `page.tsx` files that really exist under
+    those routes; the colours from `tailwind.config.js`; the pairs from walking
+    each page's JSX and RECURSING INTO the components it renders, so a colour is
+    measured against the surface it is really mounted on. Adding a screen or a
+    component puts it under the gate automatically. Do not add a skip list, and
+    do not relax a threshold to make a screen pass — fix the colour.
+
+    **`0 unresolved` in its output is load-bearing.** A gradient, a non-colour
+    arbitrary value or a className it cannot read is COUNTED and PRINTED, never
+    skipped, so the gate cannot pass by failing to look. If a change makes that
+    number rise, the gate got blinder, not the code safer.
+
+    Six resolution behaviours are load-bearing and must survive any rewrite,
+    each because without it the gate reported a defect that cannot render or
+    missed one that can: cross-file `{children}` (and taking the occurrence
+    inside JSX, NOT the literal `{ children }` in a destructured parameter list);
+    class constants resolved across modules (`LIGHT_WORKING_AREA_CLASS`);
+    a ternary's arms measured as alternatives rather than as one mixable set;
+    class maps (`TONES[tone]`) expanded to their values; `file:`/`before:`/
+    `after:` treated as a nested surface rather than the element's own; and `/90`
+    opacity composited over what is behind it.
+
+    **`tests/e2e/contrast-live.spec.ts` is the other half and must be kept.** It
+    measures the same screens with `getComputedStyle` in a real browser against
+    alpha, which is what stops the static model drifting into fiction. It needs
+    `storageState` like every other admin spec — without it the admin routes
+    redirect and it measures the sign-in page while reporting Command Center
+    route names, which is how the sign-in flow's own failures were found. Full
+    contract: ARCHITECTURE.md section 17.3.
+
+29. **A STATUS COLOUR IS NOT A STATUS TEXT COLOUR. On gunmetal the text gets
+    LIGHTER, and `afs-*-on-dark` are the four that do.**
+    `afs-crimson`, `afs-success`, `afs-warning`, `afs-info` and `afs-amber` are
+    FILL colours. As text on gunmetal they measure 1.42:1, 2.11:1, 3.67:1,
+    2.34:1 and 4.28:1 — not marginal misses. Rules #18 and #23 are about picking
+    the right token for the surface; this is the same mistake one step further
+    on, where there IS no darker variant that helps, because on a dark surface
+    the fix is lighter rather than darker.
+
+    Use `afs-danger-on-dark`, `afs-success-on-dark`, `afs-warning-on-dark` and
+    `afs-info-on-dark`. Each holds its dominant channel at full and lifts the
+    others only as far as the required luminance demands, so it still reads as
+    red/green/amber/blue while clearing AA on all five gunmetal surfaces. The
+    danger colour is a salmon and cannot be anything else: clearing 4.5:1 on
+    `afs-bg-overlay` needs a relative luminance near 0.56 and red contributes
+    only 0.2126 of it. That is physics, and the alternative to accepting it is
+    making those links filled buttons, not finding a better red.
+
+    **They are for text ON DARK only** — on the light working area they measure
+    1.3-1.6:1, which is rule #23 applying to them exactly as it does to
+    `afs-chrome-silver`. `lib/design/placeholder-contrast.test.ts` asserts all
+    three claims (the fill colours fail on gunmetal, the new ones pass there, the
+    new ones fail on the white card), so a retheme cannot make the rule vacuous.
+
+30. **EVERY SECTION HAS AN ERROR BOUNDARY, AND IT SAYS WHAT DID NOT HAPPEN.**
+    `app/global-error.tsx` catches a failure in the root layout itself and must
+    supply its own `<html>`/`<body>` (a framework requirement, and why its
+    colours are a documented literal constant under rule #4's CANVAS_COLORS
+    exception). `app/error.tsx` and one `error.tsx` per section catch everything
+    else, and all of them render `components/ui/ErrorScreen.tsx` so the wording
+    rule lives in one file. `components/ui/PanelErrorBoundary.tsx` contains a
+    failure to ONE panel — it wraps each of the Job screen's three columns, so a
+    throw in the profile drawing cannot take the Send quote button with it.
+
+    The wording rule: never blame the user, never show a stack trace, and always
+    say what did NOT happen — "nothing was sent to the machine", "you have not
+    been charged", "your drawing is still saved on this computer". On a platform
+    where the next button along reaches a physical bending machine, that sentence
+    is the message.
+
+31. **A WebGL FAILURE DEGRADES TO THE 2D VIEW. `ProfileViewer3D` NEVER LEAVES AN
+    EMPTY PANEL.** `new THREE.WebGLRenderer()` throws when a browser refuses a
+    context — a blacklisted GPU driver on a shop tablet, a kiosk browser, a
+    remote-desktop session, too many live contexts on one page. The throw is
+    caught and `components/studio/ProfileCrossSection2D.tsx` renders instead.
+
+    That fallback calls `buildCrossSectionPoints`, `formatBendAngleLabel` and
+    `formatInches` — the exact three functions the 3D viewer calls — so it cannot
+    disagree with the 3D view about the shape, about a bend's sign (rule #12), or
+    about how a length is written. Its props are MILLIMETRES, like
+    `ProfileViewer3D`'s, converted at the same point. Do not give it its own
+    geometry, and do not "unify" it with `BendSequenceDiagram`, which hardcodes a
+    mm pixel scale, prints no leg lengths and is painted for a gunmetal card.
+
+    `tests/e2e/webgl-fallback.spec.ts` proves it by making `getContext` return
+    null for the three WebGL context ids — a real refusal, not a test-only flag.
+    Keep it that way: a fallback reachable only through a test hook is a fallback
+    nobody has proved.
+
+32. **THE VENDOR API GETS A TIMEOUT ON READS AND A PARSER ON EVERY RESPONSE —
+    AND THE POST GETS NEITHER TIMEOUT NOR RETRY.**
+    `PATHFINDER_READ_TIMEOUT_MS` is 8000, chosen from the 2.46s a live probe
+    actually measured, and applied by `pathfinderRead()` through an
+    `AbortController`. Before it, a host that accepted the connection and said
+    nothing left a Command Center screen rendering forever.
+
+    **The POST to `/api/v1/profiles` deliberately has no timeout.** Aborting a
+    write tells you nothing about whether the server committed it, and an
+    abandoned-but-committed profile in catalog 20115 is one the physical Thalmann
+    will collect that this app has no record of. **And no read is retried:** the
+    one where a retry is most tempting is the profile-number lookup after a push,
+    where a retry would duplicate a real profile — rule #16's `unconfirmed` is
+    the correct answer there, not persistence.
+
+    `lib/integrations/pathfinder-response.ts` parses every response instead of
+    casting it. `(await res.json()) as T[]` asserts nothing at runtime, so an
+    envelope, a renamed field or a 200 carrying an error object all reached a
+    component as a crash or as a row rendered "undefined".
+    `logVendorShapeProblem()` writes ONE server line with the endpoint, every
+    problem and a truncated copy of the real body — the truncation is what makes
+    it diagnosable. A 200 with a wrong body is reported as an error, never as
+    "Connected". Do not add a schema library for two documented shapes, and do
+    not let a parser throw: a bad shape is a degraded read, not a 500.
 
 ---
 

@@ -34,6 +34,264 @@ summary, not a replacement for it.
 
 ---
 
+## COMMAND CENTER V2 — PROMPT v2-06 (2026-09-30)
+
+Hardening and the consolidation. No new feature, no migration: four audit
+findings closed, one build gate added, and the governance stack brought back in
+line with the live codebase. Everything below was run in this session and the
+real output pasted into the run report.
+
+Commits: `97ce171` (F-06 error boundaries + the WebGL degrade), `6bff7f7`
+(F-03 timeouts, F-09 response validation, F-12 the HailView baseURL),
+`64debb0` (the contrast gate and the 82 failures it found), `494c090` (the
+sign-in flow, which the live half of the gate found), plus the governance
+commit that follows this file.
+
+### WHERE THIS PROMPT DISAGREED WITH THE GOVERNANCE, AND WON
+
+CLAUDE.md rule #18 records that **22 files outside the Command Center still use
+`afs-chrome-dim` as placeholder text**, PENDING REID, "not to be swept without
+his say". This prompt's gate contract requires a check over EVERY Command Center
+screen that FAILS THE BUILD, and the prompt's own global rule says that where
+the governance and the prompt disagree, the prompt wins and the disagreement is
+stated.
+
+It disagreed in exactly one place. The shared `authInputClass` in
+`components/layout/AuthShell.tsx` carries
+`placeholder:text-afs-chrome-dim` on `bg-afs-bg-overlay` — **1.94:1**, which is
+the precise failure rule #18 exists to name — and it is on every page of the
+sign-in flow, which is the only way into every Command Center screen. It was
+fixed, along with the `afs-chrome-base` body text and the crimson links on those
+same pages. **Nothing outside the sign-in flow and the Command Center was
+swept.** The remaining files in rule #18's list are untouched and still PENDING
+REID.
+
+### 1. F-06 — ERROR BOUNDARIES, AND A WebGL FAILURE THAT DEGRADES TO 2D
+
+The audit's finding was "zero error boundaries anywhere in the app". There are
+now thirteen: `app/global-error.tsx`, `app/error.tsx`, and one per section
+(admin, command-center, shop-view, deliveries, search, studio, account,
+checkout, hailview, employee, field), all rendering one shared
+`components/ui/ErrorScreen.tsx`; plus `components/ui/PanelErrorBoundary.tsx`
+around each of the Job screen's three columns.
+
+**The WebGL case is the one with real evidence behind it.**
+`new THREE.WebGLRenderer()` throws when the browser refuses a context. That
+throw escaped the effect and left an empty grey panel with a
+"Rotate - Zoom - Pan" hint over it. It is caught now and the viewer renders
+`components/studio/ProfileCrossSection2D.tsx`, which calls the same three
+geometry functions the 3D viewer calls, so the flat view cannot disagree with
+the 3D one about the shape, a bend's sign, or how a length is written.
+
+Proved with no test-only code path — `tests/e2e/webgl-fallback.spec.ts` makes
+`getContext` return null for the three WebGL context ids, which is what a real
+refusal looks like:
+
+```
+  ok 2 [chromium] webgl-fallback.spec.ts  WebGL refused: the 2D cross-section
+       renders instead of an empty panel (894ms)
+  ok 3 [chromium] webgl-fallback.spec.ts  control: with WebGL available the 3D
+       canvas renders and no fallback appears (1.1s)
+```
+
+The screenshot it writes (`test-results/f06-webgl-fallback-2d.png`) shows the
+placeholder coping cap drawn flat with its real 3", 10", 3" legs and its 90°
+bend labels, and the sentence "3D view is not available in this browser, so this
+is the flat 2D drawing instead. The shape, the leg lengths and the bend angles
+are the same."
+
+One detail worth keeping: the first version of that test used Playwright's
+`allInnerTexts()` and found no labels. `innerText` is an HTMLElement property and
+is undefined on an SVGElement, so it returned blanks. `allTextContents()` is
+correct. The assertion was wrong, not the fallback.
+
+### 2. F-03 — TIMEOUTS ON PATHFINDEREDGE READS
+
+`PATHFINDER_READ_TIMEOUT_MS = 8000`, applied by `pathfinderRead()` through an
+`AbortController`, on READ paths only. Chosen from the 2.46s the 2026-09-24
+audit measured live rather than from a round number.
+
+Proved both ways, against the real API and against a black hole, with **no POST
+or DELETE issued at any point**:
+
+```
+PATHFINDER_READ_TIMEOUT_MS = 8000
+discoverApiEndpoints  -> 808ms  {"status":"connected","message":"Connected —
+  GET /api/v1/catalogs returned 200 with 2 catalogs.","endpoints":{"/api/v1/catalogs":200}}
+getPathfinderCatalogs -> 278ms  [{"id":"20115","name":"afs"},
+                                 {"id":"20118","name":"Profiles for Pricing"}]
+
+base URL pointed at 10.255.255.1 (non-routable: connects never complete,
+and never refuse — the exact failure F-03 is about):
+elapsed 8009ms (timeout is 8000ms)
+{ "status": "error",
+  "message": "PathfinderEdge did not answer GET /api/v1/catalogs within 8
+              seconds. Nothing was sent and nothing was changed — try again in
+              a moment.",
+  "endpoints": {} }
+```
+
+**The POST is deliberately NOT given a timeout**, and that is recorded in the
+file rather than left as an omission: aborting a write tells you nothing about
+whether the server committed it, and an abandoned-but-committed profile in
+catalog 20115 is one the physical Thalmann will collect that this app has no
+record of.
+
+**No retry**, for the reason rule #16 already gives: the read where a retry is
+most tempting is the profile-number lookup after a push, and a retry there would
+duplicate a real profile.
+
+### 3. F-09 — RESPONSE-SHAPE VALIDATION, WITH SERVER-SIDE LOGGING
+
+`lib/integrations/pathfinder-response.ts`. Every read used to end in
+`(await res.json()) as T[]`, which asserts nothing at runtime.
+
+Real output, from running the parser against two realistic vendor changes — an
+envelope appearing around the array, and a field being renamed:
+
+```
+[PATHFINDER_SHAPE] GET /api/v1/catalogs returned a payload that does not match
+the documented shape. PathfinderEdge returned object where the catalog list
+should be an array. Payload: {"data":[{"catalogId":20115,"name":"afs"}],"page":1}
+
+[PATHFINDER_SHAPE] GET /api/v1/profiles?catalog=20115&skip=0&take=100 returned a
+payload that does not match the documented shape. Profile 0 (id 32914399) has no
+profileName (got undefined). Profile 1 has no usable profileId (got undefined:
+undefined). Payload: [{"profileId":32914399,"name":"AFS-001"},
+{"id":2,"profileName":"AFS-002"}]
+```
+
+18 unit tests across the two new files, including one that proves a 200 carrying
+a changed shape is reported as an error rather than as "Connected", and one that
+proves `profileId` stays a NUMBER so "9" cannot sort above "10" when picking the
+most recently created of two same-named profiles.
+
+### 4. F-12 — THE HAILVIEW baseURL OVERRIDE
+
+`tests/e2e/hailview.spec.ts` read
+`test.use({ baseURL: process.env.HAILVIEW_E2E_BASE_URL || 'http://localhost:3000' })`.
+`test.use` wins over `playwright.config.ts`, so with that variable unset the spec
+went to localhost NO MATTER WHAT the suite was pointed at. Running the suite
+against alpha therefore produced eight HailView failures that were never
+HailView's fault, and the 2026-09-24 audit had to write them off as
+"environmental" — which is exactly how a real regression hides.
+
+The escape hatch is now opt-IN. Against alpha, immediately after the fix:
+
+```
+Running 9 tests using 1 worker
+  ok 2..7, 9  (8 passed)
+  -  8  storm marker click ... (conditionally skipped by the spec itself)
+  1 skipped, 8 passed (2.2m)
+```
+
+### 5. THE AUTOMATED WCAG AA CONTRAST GATE
+
+`scripts/audit/contrast-check.mjs`, wired as `prebuild`, so `pnpm build` runs it
+and a Vercel deployment cannot get past it. Full contract: ARCHITECTURE.md
+section 17.3.
+
+**It is a real measurement over real colours, not a maintained list.** Each run
+derives the screens from `lib/data/admin-nav.ts` plus the `page.tsx` files that
+actually exist under those routes, the colours from `tailwind.config.js`, and
+the pairs by walking each page's JSX and recursing into the components it
+renders. Six resolution problems had to be solved before its output could be
+trusted — cross-file `{children}`, class constants held in another module,
+ternaries as alternatives rather than as one mixable set, class maps keyed at
+runtime, pseudo-element variants, and opacity modifiers — and every one of them
+was written because without it the gate reported a defect that cannot render, or
+missed one that can. The `{children}` one is the instructive case: matching the
+literal `{ children }` in a component's destructured parameter list instead of
+the one in its JSX put LightWorkingArea's light surface outside every element,
+and the gate confidently reported ink-900 at 1.37:1 on all five light screens.
+
+**It found 82 real failures on its first clean run.** The remedy was four
+measured tokens plus a sweep (ARCHITECTURE.md 17.4), then the sign-in flow.
+
+Final state, exit code 0:
+
+```
+WCAG AA CONTRAST GATE — every Command Center screen
+Thresholds: body text 4.5:1 - large text 3:1 - form fields 3:1 -
+            placeholders are body text
+Shell background: afs-bg-base #2A2D35
+
+PASS  /admin/bid-monitor               26 pairs - 0 below - worst 3.54:1
+PASS  /admin/command-center            50 pairs - 0 below - worst 4.26:1
+PASS  /admin/command-center/bids/[id]  22 pairs - 0 below - worst 4.26:1
+PASS  /admin/command-center/job/[id]   30 pairs - 0 below - worst 3.11:1
+PASS  /admin/credit-applications       22 pairs - 0 below - worst 4.26:1
+PASS  /admin/customers                 21 pairs - 0 below - worst 4.72:1
+PASS  /admin/customers/[id]            26 pairs - 0 below - worst 4.26:1
+PASS  /admin/deliveries                24 pairs - 0 below - worst 3.11:1
+PASS  /admin/search                    21 pairs - 0 below - worst 4.72:1
+PASS  /admin/settings                  26 pairs - 0 below - worst 3.54:1
+PASS  /admin/settings/price-book       19 pairs - 0 below - worst 3.11:1
+PASS  /admin/shop-view                 23 pairs - 0 below - worst 4.99:1
+PASS  /forgot-password                 (sign-in flow)
+PASS  /forgot-password/sent            (sign-in flow)
+PASS  /login                           (sign-in flow)
+PASS  /register                        (sign-in flow)
+PASS  /register/confirm                (sign-in flow)
+PASS  /reset-password                  (sign-in flow)
+
+18 screens - 358 colour pairs measured - 0 unresolved - 0 below threshold
+PASS — every measured pair clears WCAG AA.
+```
+
+**Proved not vacuous.** Swapping one token on one line of the Shop View card
+(`text-afs-ink-700` to `text-afs-chrome-dim`) makes it exit 1 and name the file
+and the line:
+
+```
+FAIL   3.83:1 (needs 4.5:1) body text  #7A8299 on #FFFFFF  afs-chrome-dim
+       components/admin/ShopQueueBoard.tsx:140
+18 screens - 0 unresolved - 1 below threshold
+FAIL — 1 pair(s) below threshold.
+```
+
+`0 unresolved` is load-bearing and is printed every run: a gradient, an
+arbitrary non-colour value or a className the gate cannot read is COUNTED and
+PRINTED rather than skipped, so the gate cannot pass by failing to look.
+
+### 6. THE LIVE HALF, AND WHAT IT CAUGHT
+
+`tests/e2e/contrast-live.spec.ts` opens the real screens on alpha, reads the
+colours Chromium actually computed, resolves the painted background up the
+ancestor chain the way the compositor does, and applies the same WCAG formula.
+It exists because a static measurement is a model of the browser, not the
+browser.
+
+On its first run it had no `storageState`, so every admin route redirected to
+`/login` and it measured the SIGN-IN PAGE while reporting the result under
+Command Center route names. Both halves of that were worth having:
+
+- The spec was wrong and is fixed — it signs in like every other admin spec, and
+  its "not signed in" check looks for `/login`, so a credential-less run skips
+  honestly instead of passing on the wrong page.
+- **It was also right.** The sign-in flow had 23 pairs below AA, including a
+  crimson "Create one" link at 1.71:1 and the shared `authInputClass`'s
+  1.94:1 placeholder. The gate now derives those screens from the `(auth)` route
+  group on disk and measures them through `AuthShell`.
+
+### 7. WHAT THIS PROMPT DID NOT TOUCH
+
+- **No migration.** `supabase/migrations/` still ends at
+  `038_profile_search_shortcuts.sql`. No table, view, policy or function was
+  added, altered or dropped.
+- **The single door is intact.** No caller was added to
+  `pushProfileToPathfinder`; `lib/integrations/pathfinder-single-door.test.ts`
+  was not weakened; **no POST or DELETE was issued to PathfinderEdge by any code
+  or test in this prompt.** Every probe was a GET, and the two live ones are
+  quoted in full above.
+- **`trica@` is clean.**
+  `git grep -nEi "trica@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"` returns nothing. The only
+  remaining occurrences of that string are prose in this file and in
+  SESSION_STATE.md discussing the misspelling, which is the record of the
+  decision and is correct to keep.
+
+---
+
 ## COMMAND CENTER V2 — PROMPT v2-05 (2026-09-30)
 
 Search — the thumbnail rail, the hover-intent preview, and Select. Everything

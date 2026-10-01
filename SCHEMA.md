@@ -2907,6 +2907,29 @@ absent.
 egress rule is upheld by the function's own signature, not by every caller
 remembering to omit a column.
 
+## v2-06 (2026-09-30) — NO SCHEMA CHANGE, CHECKED RATHER THAN ASSUMED
+
+Prompt v2-06 was hardening and consolidation: error boundaries, a 2D degrade
+for a WebGL failure, a read timeout and a response parser on the
+PathfinderEdge client, a Playwright baseURL fix, and an automated WCAG AA
+contrast gate wired into `pnpm build`. **None of it touched the database.**
+
+Stated as a measurement rather than as a claim: `supabase/migrations/` holds
+38 files and the highest is `038_profile_search_shortcuts.sql`, which is v2-05's. No
+table, view, policy, function, constraint or grant was added, altered or
+dropped by v2-06, so every section above remains current. The next migration
+to be written is 039.
+
+The one adjacent thing worth recording here, because it is a schema-shaped
+promise kept by code rather than by SQL: the PathfinderEdge read path now
+parses vendor responses instead of casting them
+(`lib/integrations/pathfinder-response.ts`). That changes nothing about what
+this database stores — the profile number written to
+`shop_profile_library.pathfinder_profile_id` is still either a real number
+read back from the vendor or NULL — but it means a NULL there can no longer
+be caused by a silently mis-parsed payload. A NULL now means what CLAUDE.md
+rule #16 says it means: created, unconfirmed, do not retry.
+
 ---
 
 *SCHEMA.md | AFS | Reid Whitesides | June 2026*

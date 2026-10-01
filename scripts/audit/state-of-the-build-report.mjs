@@ -124,13 +124,14 @@ const DONE = [
   ['Error boundaries, and a WebGL failure that degrades (F-06)', 'A global boundary, one per section, and one per column of the Job screen. When the browser refuses a WebGL context the 3D viewer renders the same geometry flat, through the same geometry module, rather than leaving an empty grey panel.'],
   ['Timeouts and response validation on the vendor API (F-03, F-09)', 'PathfinderEdge reads carry an 8-second budget, chosen from the 2.46s the audit actually measured. Responses are parsed rather than cast, and a changed payload is logged with the endpoint, the problems and the real body.'],
   ['The HailView baseURL override (F-12)', 'That spec overrode the suite\'s baseURL to localhost, so eight tests failed whenever the suite ran against alpha and the failures had to be written off as environmental. The escape hatch is opt-in now.'],
-  ['An automated WCAG AA contrast gate', 'Every Command Center screen, derived from the real nav and the real filesystem, measured against the real token values through the real render tree, wired as `prebuild` so it fails the build.'],
+  ['An automated WCAG AA contrast gate', 'Every Command Center screen, derived from the real nav and the real filesystem, measured against the real token values through the real render tree, wired as `prebuild` so it fails the build. It found 82 real failures on its first clean run, all now fixed. A live Playwright spec measures the same screens with getComputedStyle in a real browser, so the static model cannot drift into fiction unnoticed.'],
+  ['The sign-in flow', 'Found by the live half of the contrast gate, which landed on /login before it was signed in: 23 pairs below AA, including the shared auth input class at 1.94:1 on every page at once. Fixed, and those routes are now derived into the gate from the (auth) route group on disk.'],
 ];
 
 const IN_PROGRESS = [
   ['The light working area, screen by screen', 'Five screens are converted (Workbench, Job, Shop View, Deliveries, Search); the rest are still gunmetal and convert when they are rebuilt. The list is data in `lib/data/admin-working-area.ts` and is unit-tested, so "which screens are light" is an assertion rather than a memory.'],
   ['Human verification of the interactive work', 'Everything below the automated gates has been proven by Playwright against alpha. Per this project\'s own verification standard, canvas and UI behaviour still wants Reid\'s own eyes before it is called DONE.'],
-  ['The 22 remaining `afs-chrome-dim` placeholder files outside the Command Center', 'Recorded, measured, and deliberately not swept — widening a Command Center prompt into a site-wide restyle is Reid\'s call. The Command Center screens themselves are now clean and gated.'],
+  ['The 21 remaining `afs-chrome-dim` placeholder files outside the Command Center', 'Recorded, measured, and deliberately not swept — widening a Command Center prompt into a site-wide restyle is Reid\'s call. The twenty-second was the shared auth input class, which sits on every page of the sign-in flow and is therefore inside the gate; that one was fixed. The Command Center screens and the sign-in flow are now clean and gated; the rest of the list is not.'],
 ];
 
 const REMAINS = [

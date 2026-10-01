@@ -24,7 +24,98 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
-## COMMAND CENTER V2 — PROMPT v2-05 (2026-09-30) — CURRENT HANDOFF
+## COMMAND CENTER V2 — PROMPT v2-06 (2026-09-30) — CURRENT HANDOFF
+
+Hardening and the consolidation. Nothing new to click; four audit findings
+closed, a contrast check that fails the build, and the governance stack brought
+back in line with the live codebase. Full detail and every piece of live output:
+STATE_OF_THE_BUILD.md's v2-06 entry. Architecture: ARCHITECTURE.md section 17.
+**No migration — SCHEMA.md is unchanged, and that is verified rather than
+assumed.**
+
+Commits: `97ce171` error boundaries and the WebGL degrade, `6bff7f7` the vendor
+timeout, response validation and the HailView baseURL, `64debb0` the contrast
+gate and the 82 failures it found, `494c090` the sign-in flow, plus the
+governance commit that follows this file.
+
+### WHAT SHIPPED
+
+- **Thirteen error boundaries where there were none.** A global one, one per
+  section, and one per column of the Job screen — so a throw in the profile
+  drawing leaves the request text readable and the Send quote button usable.
+  Every one of them says what did NOT happen, because on this platform the next
+  button along sends work to a bending machine.
+- **A WebGL failure now shows the drawing flat instead of an empty grey box.**
+  Same geometry module, same labels, so the 2D fallback cannot disagree with the
+  3D view about the shape or a bend's sign. Proved by making the browser really
+  refuse a WebGL context, not by a test-only flag.
+- **A slow or unreachable PathfinderEdge can no longer hang a screen.** Reads
+  carry an 8-second budget — measured against a non-routable address at 8009ms,
+  answering in a sentence. The POST deliberately has none, and the file says why.
+- **A changed vendor payload is detected and logged** instead of crashing a
+  component or rendering "undefined". One searchable server line with the
+  endpoint, the problems and the real body.
+- **`pnpm build` now fails if any Command Center text is too faint to read.**
+  18 screens, 358 colour pairs, 0 unresolved, measured from the real nav, the
+  real filesystem, the real tokens and the real render tree.
+
+### WHAT REID SHOULD LOOK AT
+
+1. **The four new status colours on dark.** `afs-danger-on-dark` is a salmon,
+   not a pillarbox red, and that is forced: a red light enough to be readable on
+   gunmetal cannot be very saturated. All four are in `tailwind.config.js` with
+   their measured ratios beside them. If the salmon reads wrong for a destructive
+   action, the alternative is redesigning those links as filled buttons rather
+   than picking a different red — there isn't one.
+2. **The sign-in flow changed colour.** Body text went from `afs-chrome-base` to
+   `afs-chrome-mid`, the placeholder from `afs-chrome-dim` to
+   `afs-chrome-silver`, and the "Create one" link from crimson to the new danger
+   colour. It is a brighter page than it was.
+3. **The 2D fallback.** It is only ever seen when WebGL fails, which may be
+   never on your machines — but `test-results/f06-webgl-fallback-2d.png` shows
+   exactly what a shop tablet with a bad driver would get.
+
+### WHERE THIS PROMPT OVERRODE THE GOVERNANCE, DELIBERATELY
+
+CLAUDE.md rule #18 holds 22 files using `afs-chrome-dim` as placeholder text
+PENDING REID, "not to be swept without his say". One of them was the shared
+`authInputClass` in `components/layout/AuthShell.tsx`, at **1.94:1** — the exact
+failure that rule exists to name — on every page of the sign-in flow, which is
+the only way into every Command Center screen. The prompt's gate contract
+requires a build-failing check over every Command Center screen, and the prompt
+wins where it disagrees with the governance. **That one file was fixed. Nothing
+else on rule #18's list was touched, and the rest stays PENDING REID.**
+
+### STILL OPEN AFTER THIS PROMPT
+
+- **Microsoft 365 admin consent** — Phase 4 (Outlook send, the Approve-by-email
+  path through Graph, and the inbound mail parser) is DEFERRED until it is
+  granted. Nothing in it can be verified end to end before then.
+- **The Bid Monitor decision.** The screen is live and now AA-clean either way;
+  whether chasing public bids is work AFS wants is a product call, informed by
+  the report prompt v2-01 produced.
+- **The Products page track**, blocked on the product catalog data.
+- **Steve's historical pricing** has not been loaded into the append-only
+  ledger. The import format is frozen in SCHEMA.md and the batch id is required
+  by a CHECK, so a bad batch is always identifiable.
+- **An ATTENDED Thalmann test** of the spec-correct encoder. The bend-angle and
+  `hemDirection` mappings are flagged unproven in code and stay that way until a
+  person stands at the machine.
+- **`tests/e2e/modify-in-flashdraft.spec.ts` cannot run on Node 20.** Unchanged
+  by this prompt. It builds a `supabase-js` client, which constructs a realtime
+  client, which needs a global `WebSocket` this Node does not have.
+- **The remaining 21 `afs-chrome-dim` placeholder files** outside the Command
+  Center and the sign-in flow. PENDING REID.
+- **The Approve gate is an ADMIN approval, not a customer acceptance**
+  (rule #14). PENDING REID.
+- **The disconnected stray Vercel project and its secrets.** Re-confirmed during
+  this run: its newest deployment is three days old while the team project
+  deployed from `main` minutes ago. Deleting it, and rotating the secrets it
+  still holds, is PENDING REID.
+
+---
+
+## COMMAND CENTER V2 — PROMPT v2-05 (2026-09-30)
 
 Search. You can find any profile AFS has ever drawn, see it full size without
 clicking, and put it on the canvas without losing what was already there. Full

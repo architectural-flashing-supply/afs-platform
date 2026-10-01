@@ -1,5 +1,29 @@
 import { test, expect, type Page } from '@playwright/test';
+import WebSocketImpl from 'ws';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+
+/**
+ * WHY THIS POLYFILL EXISTS, AND WHY IT IS THREE LINES RATHER THAN A REWRITE.
+ *
+ * `createClient` builds a realtime client whether or not you ever subscribe to
+ * anything, and that constructor asks for a global `WebSocket`. Node 20 does not
+ * have one, so this spec threw at `createClient` — before any query, before any
+ * assertion — and all three of its tests were reported as failing for a reason
+ * that had nothing to do with "Modify in FlashDraft". It is recorded as PENDING
+ * in SESSION_STATE.md's v2-05 entry.
+ *
+ * `ws` is already a devDependency of this repo. Assigning it here, in the test
+ * process only, is enough: nothing in this spec uses realtime, so the socket is
+ * never opened — the constructor just needs the symbol to exist. The alternative
+ * on the table was converting the whole spec to the Management API SQL channel
+ * (tests/e2e/helpers/db.ts), which would mean re-verifying a Part 1 spec to fix
+ * a Node version problem.
+ *
+ * Guarded, so this becomes a no-op the day the runner moves to Node 22+.
+ */
+if (typeof globalThis.WebSocket === 'undefined') {
+  (globalThis as unknown as { WebSocket: unknown }).WebSocket = WebSocketImpl;
+}
 
 /**
  * Part 1 (2026-09-30) — "Modify in FlashDraft".
@@ -96,7 +120,13 @@ test.describe('Modify in FlashDraft', () => {
     await page.goto('/login');
     await page.getByLabel(/email/i).fill(E2E_EMAIL!);
     await page.getByLabel(/password/i).fill(E2E_PASSWORD!);
-    await page.getByRole('button', { name: /sign in|log in/i }).click();
+    // ANCHORED, for the reason tests/e2e/auth.setup.ts already records: the login
+    // page also renders a "Sign in with magic link instead" toggle, so an
+    // unanchored /sign in|log in/i matches two buttons and Playwright's strict
+    // mode refuses the click. Latent here since that toggle shipped, and only
+    // reachable once the WebSocket polyfill above let this spec get as far as
+    // logging in.
+    await page.getByRole('button', { name: /^(log in|sign in)$/i }).click();
     await page.waitForURL((u) => !u.pathname.startsWith('/login'), { timeout: 20_000 });
   }
 
@@ -126,6 +156,16 @@ test.describe('Modify in FlashDraft', () => {
 
     // Geometry + hems: read the canvas's own autosaved model rather than
     // pixel-diffing, so the assertion is on real numbers.
+    // The canvas autosave is DEBOUNCED ~500ms after the last model change
+    // (app/studio/draft/page.tsx's AUTOSAVE_KEY effect), and a modify load sets
+    // the geometry only once its fetch resolves — so reading localStorage the
+    // instant the banner appears reliably read null. Wait for the write rather
+    // than for a fixed delay.
+    await page.waitForFunction(
+      () => !!window.localStorage.getItem('afs-flashdraft-autosave'),
+      undefined,
+      { timeout: 15_000 }
+    );
     const model = await page.evaluate(() => {
       const raw = window.localStorage.getItem('afs-flashdraft-autosave');
       return raw ? JSON.parse(raw) : null;
@@ -150,10 +190,15 @@ test.describe('Modify in FlashDraft', () => {
     // Make a real edit, then save under a distinct name.
     await page.locator('select#gauge').selectOption('22 ga');
     await page.getByRole('button', { name: /^save/i }).first().click();
+    // ProfileDetailsModal's confirm button is labelled "OK", not "Save". The old
+    // `getByRole('button', { name: /save/i }).last()` resolved to the page's own
+    // "Save Draft" button BEHIND the modal's overlay, so every click was
+    // intercepted by the backdrop until the test timed out. Target the modal's
+    // real button.
     const nameField = page.getByLabel(/profile name/i);
     if (await nameField.isVisible().catch(() => false)) {
       await nameField.fill('E2E MODIFY RESULT');
-      await page.getByRole('button', { name: /save/i }).last().click();
+      await page.getByRole('button', { name: 'OK', exact: true }).click();
     }
     await expect(page.getByText(/profile saved/i)).toBeVisible({ timeout: 20_000 });
 

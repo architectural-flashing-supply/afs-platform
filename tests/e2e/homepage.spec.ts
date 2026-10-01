@@ -472,12 +472,20 @@ test.describe('Homepage link integrity', () => {
     await page.goto('/');
 
     // HailView moved to its own top-level nav item (2026-09-19 revision
-    // pass, item 2) -- no longer inside the Resources dropdown, which now
-    // has just its one remaining "Resources" link.
+    // pass, item 2) -- no longer inside the Resources dropdown.
+    //
+    // v2-06: that dropdown's own entry is "Resource Center", not "Resources".
+    // It was renamed in v2-01 (commit db2989d) when Building Codes moved off the
+    // Command Center and joined it, so the menu needed to distinguish the
+    // landing page from the menu itself. This assertion still named the
+    // single-item version and had been failing ever since — the same stale-label
+    // failure commit e4f0b7a fixed in the Command Center nav gate. Both entries
+    // are asserted now, so a future rename cannot pass by renaming one of them.
     await expect(page.locator('header').getByRole('link', { name: 'HailView', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Resources' }).click();
     await expect(page.getByRole('menuitem', { name: 'HailView' })).toHaveCount(0);
-    await expect(page.getByRole('menuitem', { name: 'Resources', exact: true })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'Resource Center', exact: true })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'Building Codes', exact: true })).toBeVisible();
 
     const hrefs = await page.evaluate(() =>
       Array.from(document.querySelectorAll('a[href]'))
