@@ -71,7 +71,7 @@ export default async function AdminCreditApplicationsPage() {
                   <td className="px-4 py-3">
                     <Badge variant={STATUS_VARIANT[row.status] ?? 'chrome'}>{STATUS_LABEL[row.status] ?? row.status}</Badge>
                   </td>
-                  <td className="font-data text-xs text-afs-chrome-dim px-4 py-3">{formatDate(row.submittedAt)}</td>
+                  <td className="font-data text-xs text-afs-chrome-silver px-4 py-3">{formatDate(row.submittedAt)}</td>
                   <td className="px-4 py-3">
                     <CreditApplicationRowActions application={row} />
                   </td>

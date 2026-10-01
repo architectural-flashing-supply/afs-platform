@@ -160,7 +160,7 @@ export default async function AdminSettingsPage() {
                   : `All ${priceBookTotal} rows are priced.`}
               </p>
             </div>
-            <span className="font-label text-xs text-afs-crimson shrink-0">Open →</span>
+            <span className="font-label text-xs text-afs-danger-on-dark shrink-0">Open →</span>
           </Link>
 
           <Link
@@ -173,7 +173,7 @@ export default async function AdminSettingsPage() {
                 The older per-product rules. The price book above is what quotes are built from.
               </p>
             </div>
-            <span className="font-label text-xs text-afs-crimson shrink-0">Open →</span>
+            <span className="font-label text-xs text-afs-danger-on-dark shrink-0">Open →</span>
           </Link>
         </div>
       </section>
@@ -317,7 +317,7 @@ export default async function AdminSettingsPage() {
                   type="button"
                   disabled
                   title="QuickBooks OAuth connect ships in Phase 8"
-                  className="mt-3 w-full font-label text-xs text-afs-chrome-dim border border-afs-border rounded px-3 py-2 cursor-not-allowed"
+                  className="mt-3 w-full font-label text-xs text-afs-chrome-silver border border-afs-border rounded px-3 py-2 cursor-not-allowed"
                 >
                   Connect QBO
                 </button>
@@ -355,7 +355,7 @@ export default async function AdminSettingsPage() {
               <div className="min-w-0">
                 <p className="font-data text-sm text-afs-chrome-high">{job.name}</p>
                 <p className="font-body text-xs text-afs-chrome-mid mt-1">{job.schedule}</p>
-                <p className="font-body text-xs text-afs-chrome-dim mt-1">
+                <p className="font-body text-xs text-afs-chrome-silver mt-1">
                   Last run: {job.lastRun ? formatDateTime(job.lastRun) : 'Never'} · {job.lastResult}
                 </p>
               </div>
@@ -363,7 +363,7 @@ export default async function AdminSettingsPage() {
                 type="button"
                 disabled
                 title="Cron routes are not yet deployed (Phase 8)"
-                className="font-label text-xs text-afs-chrome-dim border border-afs-border rounded px-3 py-2 cursor-not-allowed shrink-0"
+                className="font-label text-xs text-afs-chrome-silver border border-afs-border rounded px-3 py-2 cursor-not-allowed shrink-0"
               >
                 Trigger Now
               </button>

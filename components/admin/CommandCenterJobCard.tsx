@@ -101,7 +101,7 @@ export default function CommandCenterJobCard({ job }: { job: MachineJobRow }) {
     <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-5">
       <div className="flex items-start justify-between gap-4 mb-3">
         <div>
-          <p className="font-data text-sm text-afs-crimson">{job.requestNumber}</p>
+          <p className="font-data text-sm text-afs-danger-on-dark">{job.requestNumber}</p>
           <p className="font-heading text-lg text-afs-chrome-high">{job.customerName}</p>
           {job.customerCompany && <p className="font-body text-xs text-afs-chrome-mid">{job.customerCompany}</p>}
         </div>
@@ -122,7 +122,7 @@ export default function CommandCenterJobCard({ job }: { job: MachineJobRow }) {
             <button
               type="button"
               onClick={openInFlashDraft}
-              className="mt-2 font-label text-xs font-semibold text-afs-crimson hover:text-afs-crimson-hover transition-colors"
+              className="mt-2 font-label text-xs font-semibold text-afs-danger-on-dark hover:text-afs-danger-on-dark transition-colors"
             >
               Open in FlashDraft →
             </button>
@@ -162,10 +162,10 @@ export default function CommandCenterJobCard({ job }: { job: MachineJobRow }) {
       )}
 
       {job.rejectionReason && (
-        <p className="font-body text-xs text-afs-crimson mb-4">Rejected: {job.rejectionReason}</p>
+        <p className="font-body text-xs text-afs-danger-on-dark mb-4">Rejected: {job.rejectionReason}</p>
       )}
 
-      {error && <p className="font-body text-xs text-afs-crimson mb-3">{error}</p>}
+      {error && <p className="font-body text-xs text-afs-danger-on-dark mb-3">{error}</p>}
 
       {job.status === 'pending_approval' && (
         <div className="flex gap-3 flex-wrap">
@@ -187,7 +187,7 @@ export default function CommandCenterJobCard({ job }: { job: MachineJobRow }) {
           <button
             type="button"
             onClick={() => setModal('reject')}
-            className="font-label text-sm text-afs-chrome-mid hover:text-afs-crimson transition-colors px-4 py-2"
+            className="font-label text-sm text-afs-chrome-mid hover:text-afs-danger-on-dark transition-colors px-4 py-2"
           >
             Reject
           </button>

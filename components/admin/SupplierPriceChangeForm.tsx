@@ -77,7 +77,7 @@ export default function SupplierPriceChangeForm() {
           name="note"
           rows={3}
           placeholder="What they said, and anything worth remembering."
-          className="font-body text-sm rounded border border-afs-border bg-afs-bg-base text-afs-chrome-high p-3 placeholder:text-afs-chrome-silver"
+          className="font-body text-sm rounded border border-afs-chrome-base bg-afs-bg-base text-afs-chrome-high p-3 placeholder:text-afs-chrome-silver"
         />
       </div>
 
@@ -90,7 +90,7 @@ export default function SupplierPriceChangeForm() {
           name="attachment"
           type="file"
           accept=".pdf,.png,.jpg,.jpeg,.txt,.eml"
-          className="font-body text-sm text-afs-chrome-mid min-h-11 file:mr-3 file:min-h-11 file:px-4 file:rounded file:border-0 file:bg-afs-btn-secondary file:text-afs-chrome-high file:font-label"
+          className="font-body text-sm text-afs-chrome-silver min-h-11 file:mr-3 file:min-h-11 file:px-4 file:rounded file:border-0 file:bg-afs-btn-secondary file:text-afs-chrome-high file:font-label"
         />
         <p className="font-body text-xs text-afs-chrome-mid">
           PDF, image, plain text or a saved email, up to 10 MB. If the file will not upload, the
@@ -112,7 +112,7 @@ export default function SupplierPriceChangeForm() {
           data-testid="supplier-price-change-result"
           className={`font-body text-sm rounded p-3 ${
             message.tone === 'error'
-              ? 'bg-afs-bg-base text-afs-crimson-hover'
+              ? 'bg-afs-bg-base text-afs-danger-on-dark'
               : 'bg-afs-bg-base text-afs-chrome-high'
           }`}
         >
@@ -150,7 +150,7 @@ function Field({
         required={required}
         inputMode={inputMode}
         placeholder={placeholder}
-        className="min-h-11 font-body text-sm rounded border border-afs-border bg-afs-bg-base text-afs-chrome-high px-3 placeholder:text-afs-chrome-silver"
+        className="min-h-11 font-body text-sm rounded border border-afs-chrome-base bg-afs-bg-base text-afs-chrome-high px-3 placeholder:text-afs-chrome-silver"
       />
     </div>
   );

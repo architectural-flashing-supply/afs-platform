@@ -10,7 +10,7 @@ interface CreditApplicationReviewModalProps {
 }
 
 const inputClass =
-  'w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-data';
+  'w-full bg-afs-bg-overlay border border-afs-chrome-base rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-data';
 const labelClass = 'font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-1.5';
 const sectionLabelClass = 'font-label text-xs uppercase tracking-wide text-afs-chrome-high mb-2 pt-4 border-t border-afs-border';
 const dtClass = 'font-body text-xs text-afs-chrome-mid';
@@ -176,7 +176,7 @@ export default function CreditApplicationReviewModal({ application, onClose }: C
                   </dl>
                 </div>
               </div>
-              <p className="font-body text-xs text-afs-chrome-dim mt-2">Signed {data.signedAt ?? '—'}</p>
+              <p className="font-body text-xs text-afs-chrome-silver mt-2">Signed {data.signedAt ?? '—'}</p>
             </div>
           </div>
         )}
@@ -225,7 +225,7 @@ export default function CreditApplicationReviewModal({ application, onClose }: C
               Require PO Number on all orders for this company
             </label>
           ) : (
-            <p className="font-body text-xs text-afs-chrome-dim bg-afs-bg-overlay border border-afs-border rounded p-3">
+            <p className="font-body text-xs text-afs-chrome-silver bg-afs-bg-overlay border border-afs-border rounded p-3">
               No company on file — PO requirement and credit limit must be set manually once this customer has a
               company (via Team Accounts).
             </p>
@@ -246,7 +246,7 @@ export default function CreditApplicationReviewModal({ application, onClose }: C
           />
         </div>
 
-        {error && <p className="font-body text-xs text-afs-crimson mb-3">{error}</p>}
+        {error && <p className="font-body text-xs text-afs-danger-on-dark mb-3">{error}</p>}
 
         <div className="flex items-center justify-between gap-3 pt-2">
           <button

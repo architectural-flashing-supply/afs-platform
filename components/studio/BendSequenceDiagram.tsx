@@ -36,7 +36,7 @@ function reconstructPoints(bends: Bend[]): Point[] {
 
 export default function BendSequenceDiagram({ bends, className }: { bends: Bend[]; className?: string }) {
   if (!bends || bends.length === 0) {
-    return <p className="font-body text-xs text-afs-chrome-dim">No bend sequence on file.</p>;
+    return <p className="font-body text-xs text-afs-chrome-silver">No bend sequence on file.</p>;
   }
 
   const points = reconstructPoints(bends);

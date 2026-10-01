@@ -19,7 +19,7 @@ const TIER_OPTIONS = ['standard', 'contractor', 'preferred', 'wholesale'];
 const NET_TERMS_OPTIONS = [0, 15, 30, 60];
 
 const selectClass =
-  'w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body';
+  'w-full bg-afs-bg-overlay border border-afs-chrome-base rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body';
 const labelClass = 'font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-1.5';
 
 export default function CustomerAccountSettingsForm({ customerId, initial }: CustomerAccountSettingsFormProps) {
@@ -159,8 +159,8 @@ export default function CustomerAccountSettingsForm({ customerId, initial }: Cus
 
       <div className="flex items-center justify-between gap-4">
         <div>
-          {error && <p className="font-body text-xs text-afs-crimson">{error}</p>}
-          {saved && !error && <p className="font-body text-xs text-afs-success">Account settings saved.</p>}
+          {error && <p className="font-body text-xs text-afs-danger-on-dark">{error}</p>}
+          {saved && !error && <p className="font-body text-xs text-afs-success-on-dark">Account settings saved.</p>}
         </div>
         <button
           type="button"

@@ -9,11 +9,11 @@ const DOT_CLASS: Record<BadgeVariant, string> = {
 };
 
 const TEXT_CLASS: Record<BadgeVariant, string> = {
-  success: 'text-afs-success',
-  warning: 'text-afs-warning',
-  error: 'text-afs-crimson',
+  success: 'text-afs-success-on-dark',
+  warning: 'text-afs-warning-on-dark',
+  error: 'text-afs-danger-on-dark',
   chrome: 'text-afs-chrome-mid',
-  info: 'text-afs-info',
+  info: 'text-afs-info-on-dark',
 };
 
 interface BadgeProps {

@@ -87,25 +87,25 @@ export default function BidMonitorFetchControls({ initialLastFetchedAt }: { init
       </div>
 
       {scheduleDaily && (
-        <p className="font-body text-xs text-afs-chrome-dim mt-3">
+        <p className="font-body text-xs text-afs-chrome-silver mt-3">
           Flag saved locally. No Vercel Cron route exists yet to actually run this daily — vercel.json has no cron
           entries (see STATE_OF_THE_BUILD.md). This toggle is the setting a future{' '}
           <code className="font-data">app/api/cron/bid-monitor-fetch</code> route would read.
         </p>
       )}
 
-      {error && <p className="font-body text-sm text-afs-crimson mt-4">{error}</p>}
+      {error && <p className="font-body text-sm text-afs-danger-on-dark mt-4">{error}</p>}
 
       {result && !error && (
         <div className="mt-4 bg-afs-bg-surface border border-afs-border rounded p-4">
           <p className="font-body text-sm text-afs-chrome-high">
             Fetched <span className="font-data">{result.fetched}</span> opportunities —{' '}
-            <span className="font-data text-afs-success">{result.newProjects} new</span>.
+            <span className="font-data text-afs-success-on-dark">{result.newProjects} new</span>.
           </p>
           {result.errors.length > 0 && (
             <ul className="mt-2 list-disc list-inside">
               {result.errors.map((err) => (
-                <li key={err} className="font-body text-xs text-afs-amber">
+                <li key={err} className="font-body text-xs text-afs-warning-on-dark">
                   {err}
                 </li>
               ))}

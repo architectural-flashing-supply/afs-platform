@@ -42,7 +42,7 @@ export default function ProductionStatusTable({ rows }: ProductionStatusTablePro
     <div className="overflow-x-auto">
       <table className="w-full text-left">
         <thead>
-          <tr className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-dim border-b border-afs-border">
+          <tr className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-silver border-b border-afs-border">
             <th className="pb-2 pr-3 font-normal">Order</th>
             <th className="pb-2 pr-3 font-normal">Client</th>
             <th className="pb-2 pr-3 font-normal">Status</th>
@@ -61,7 +61,7 @@ export default function ProductionStatusTable({ rows }: ProductionStatusTablePro
                 >
                   <td className="py-2.5 pl-3 pr-3">
                     <span className="font-data text-sm text-afs-chrome-high">{row.orderNumber}</span>
-                    {row.isRush && <span className="ml-2 font-label text-[10px] font-bold text-afs-crimson">RUSH</span>}
+                    {row.isRush && <span className="ml-2 font-label text-[10px] font-bold text-afs-danger-on-dark">RUSH</span>}
                   </td>
                   <td className="py-2.5 pr-3 font-body text-sm text-afs-chrome-high">{row.customerName}</td>
                   <td className="py-2.5 pr-3">
@@ -75,7 +75,7 @@ export default function ProductionStatusTable({ rows }: ProductionStatusTablePro
                       <div className="h-1.5 flex-1 bg-afs-bg-surface rounded-full overflow-hidden">
                         <div className={`h-full rounded-full ${HEALTH_DOT_CLASS[row.health]}`} style={{ width: `${row.percentComplete}%` }} />
                       </div>
-                      <span className="font-data text-xs text-afs-chrome-dim shrink-0">{row.percentComplete}%</span>
+                      <span className="font-data text-xs text-afs-chrome-silver shrink-0">{row.percentComplete}%</span>
                     </div>
                   </td>
                   <td className="py-2.5 pr-3 font-data text-xs text-afs-chrome-mid">{formatEta(row.eta)}</td>
@@ -85,14 +85,14 @@ export default function ProductionStatusTable({ rows }: ProductionStatusTablePro
                     <td colSpan={5} className="px-3 py-3">
                       <div className="flex items-center justify-between gap-4">
                         <p className="font-body text-xs text-afs-chrome-mid">
-                          <span className={`font-semibold ${row.health === 'overdue' ? 'text-afs-crimson' : row.health === 'at_risk' ? 'text-afs-warning' : 'text-afs-success'}`}>
+                          <span className={`font-semibold ${row.health === 'overdue' ? 'text-afs-danger-on-dark' : row.health === 'at_risk' ? 'text-afs-warning-on-dark' : 'text-afs-success-on-dark'}`}>
                             {HEALTH_LABEL[row.health]}
                           </span>{' '}
                           — view full order history and notes for {row.orderNumber}.
                         </p>
                         <Link
                           href={`/admin/orders/${row.id}`}
-                          className="font-label text-xs text-afs-crimson hover:text-afs-crimson-hover transition-colors shrink-0"
+                          className="font-label text-xs text-afs-danger-on-dark hover:text-afs-danger-on-dark transition-colors shrink-0"
                         >
                           Open order →
                         </Link>

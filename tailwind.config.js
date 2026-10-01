@@ -64,6 +64,40 @@ module.exports = {
           'green-soft':      '#E3F2E9',
           'amber-bg':        '#FFF1B8',
           'amber-ink':       '#7A4200',
+          // STATUS TEXT ON GUNMETAL (v2-06, added when scripts/audit/
+          // contrast-check.mjs started failing the build on every Command Center
+          // screen that printed a status in colour).
+          //
+          // afs-crimson, afs-success, afs-warning, afs-info and afs-amber are
+          // FILL colours. As TEXT on gunmetal they are not close to AA —
+          // measured, not estimated: crimson 1.42:1 on bg-surface, success
+          // 2.11:1, info 2.34:1, warning 3.67:1, amber 4.28:1. There is no way
+          // to fix that by darkening, which is the move the light working area
+          // needed (afs-green-ink); on a dark surface the text has to get
+          // LIGHTER, and a colour light enough to clear 4.5:1 against #4E5568
+          // needs a relative luminance of about 0.56. Red contributes only
+          // 0.2126 of luminance, so a danger text at that level is necessarily a
+          // salmon rather than a pillarbox red. That is physics, not taste.
+          //
+          // Each of these holds its dominant channel at full and lifts the
+          // others only as far as the target luminance requires, which keeps as
+          // much hue as the criterion allows. Blending to white instead would
+          // have given #F0C1C7 — paler, and no more readable.
+          //
+          // Measured against all five gunmetal surfaces (WCAG 2.1 1.4.3):
+          //                 bg-dim  bg-base  bg-raised  bg-surface  bg-overlay
+          //   danger        10.12    8.45      6.78        5.64        4.57
+          //   success       10.19    8.51      6.82        5.68        4.59
+          //   warning       10.13    8.46      6.78        5.64        4.57
+          //   info          10.16    8.48      6.80        5.66        4.58
+          // Safe on every gunmetal surface, which is the same property that
+          // makes afs-chrome-silver the one placeholder colour (rule #18).
+          // They are for TEXT ON DARK only — on the light working area they are
+          // 1.3-1.6:1 and rule #23 applies, exactly as it does to chrome-silver.
+          'danger-on-dark':  '#FFB9B9',
+          'success-on-dark': '#73E19B',
+          'warning-on-dark': '#FFC120',
+          'info-on-dark':    '#9AD1FF',
           'crimson':       '#C0001A',
           'crimson-hover': '#E8001F',
           'crimson-dim':   '#7A0010',

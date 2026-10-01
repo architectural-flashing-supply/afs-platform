@@ -43,7 +43,7 @@ export default async function AdminCustomerDetailPage({ params }: { params: { id
 
   return (
     <div>
-      <Link href="/admin/customers" className="font-label text-xs text-afs-chrome-mid hover:text-afs-crimson">
+      <Link href="/admin/customers" className="font-label text-xs text-afs-chrome-mid hover:text-afs-danger-on-dark">
         ← Back to Customers
       </Link>
 
@@ -54,7 +54,7 @@ export default async function AdminCustomerDetailPage({ params }: { params: { id
             {customer.company || 'No company on file'} · {customer.email}
             {customer.phone ? ` · ${customer.phone}` : ''}
           </p>
-          <p className="font-body text-xs text-afs-chrome-dim mt-1">Customer since {formatDate(customer.createdAt)}</p>
+          <p className="font-body text-xs text-afs-chrome-silver mt-1">Customer since {formatDate(customer.createdAt)}</p>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant={ROLE_VARIANT[customer.role] ?? 'chrome'} size="md">
@@ -110,7 +110,7 @@ export default async function AdminCustomerDetailPage({ params }: { params: { id
               {orders.map((order) => (
                 <tr key={order.id} className="border-b border-afs-border last:border-b-0 hover:bg-afs-bg-surface transition-colors">
                   <td className="px-4 py-3">
-                    <Link href={`/admin/orders/${order.id}`} className="font-data text-sm text-afs-chrome-high hover:text-afs-crimson">
+                    <Link href={`/admin/orders/${order.id}`} className="font-data text-sm text-afs-chrome-high hover:text-afs-danger-on-dark">
                       {order.orderNumber}
                     </Link>
                   </td>
@@ -118,7 +118,7 @@ export default async function AdminCustomerDetailPage({ params }: { params: { id
                     <Badge variant={STATUS_VARIANT[order.status] ?? 'chrome'}>{STATUS_LABEL[order.status] ?? order.status}</Badge>
                   </td>
                   <td className="font-data text-sm text-afs-chrome-high text-right px-4 py-3">{currency.format(order.total)}</td>
-                  <td className="font-data text-xs text-afs-chrome-dim px-4 py-3">{formatDate(order.createdAt)}</td>
+                  <td className="font-data text-xs text-afs-chrome-silver px-4 py-3">{formatDate(order.createdAt)}</td>
                 </tr>
               ))}
             </tbody>

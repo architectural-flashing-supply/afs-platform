@@ -84,21 +84,21 @@ export default function BidMonitorKeywordManager({ keywords: initialKeywords }: 
       {showAddForm && (
         <form onSubmit={handleAdd} className="flex flex-wrap items-end gap-3 mb-4 bg-afs-bg-surface border border-afs-border rounded p-4">
           <div className="flex-1 min-w-[180px]">
-            <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-dim block mb-1">Keyword</label>
+            <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-silver block mb-1">Keyword</label>
             <input
               type="text"
               value={newKeyword}
               onChange={(e) => setNewKeyword(e.target.value)}
               placeholder="e.g. reglet"
-              className="w-full bg-afs-bg-overlay border border-afs-border rounded text-sm text-afs-chrome-high px-3 py-2"
+              className="w-full bg-afs-bg-overlay border border-afs-chrome-base rounded text-sm text-afs-chrome-high px-3 py-2"
             />
           </div>
           <div>
-            <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-dim block mb-1">Category</label>
+            <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-silver block mb-1">Category</label>
             <select
               value={newCategory}
               onChange={(e) => setNewCategory(e.target.value as (typeof CATEGORIES)[number] | '')}
-              className="bg-afs-bg-overlay border border-afs-border rounded text-sm text-afs-chrome-high px-3 py-2"
+              className="bg-afs-bg-overlay border border-afs-chrome-base rounded text-sm text-afs-chrome-high px-3 py-2"
             >
               <option value="">—</option>
               {CATEGORIES.map((c) => (
@@ -125,7 +125,7 @@ export default function BidMonitorKeywordManager({ keywords: initialKeywords }: 
         </form>
       )}
 
-      {error && <p className="font-body text-xs text-afs-crimson mb-3">{error}</p>}
+      {error && <p className="font-body text-xs text-afs-danger-on-dark mb-3">{error}</p>}
 
       <div className="flex flex-wrap gap-2">
         {keywords.map((kw) => (
@@ -138,11 +138,11 @@ export default function BidMonitorKeywordManager({ keywords: initialKeywords }: 
             className={`flex items-center gap-2 border rounded-full pl-3 pr-2 py-1.5 font-label text-xs transition-colors disabled:opacity-50 ${
               kw.isActive
                 ? 'border-afs-success text-afs-chrome-high bg-[var(--afs-success-ghost)]'
-                : 'border-afs-chrome-dim text-afs-chrome-dim bg-transparent line-through'
+                : 'border-afs-chrome-dim text-afs-chrome-silver bg-transparent line-through'
             }`}
           >
             <span>{kw.keyword}</span>
-            <span className="font-data text-[10px] text-afs-chrome-dim">{kw.matchCount}</span>
+            <span className="font-data text-[10px] text-afs-chrome-silver">{kw.matchCount}</span>
             <span
               className={`w-2 h-2 rounded-full ${kw.isActive ? 'bg-afs-success' : 'bg-afs-chrome-dim'}`}
               aria-hidden

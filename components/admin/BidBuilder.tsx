@@ -38,7 +38,7 @@ const STATUS_LABEL: Record<BidDocumentStatus, string> = {
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
 const inputClass =
-  'w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body disabled:opacity-60 disabled:cursor-not-allowed';
+  'w-full bg-afs-bg-overlay border border-afs-chrome-base rounded px-3 py-2 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body disabled:opacity-60 disabled:cursor-not-allowed';
 const labelClass = 'font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-1.5';
 
 interface HeaderFields {
@@ -242,7 +242,7 @@ export default function BidBuilder({ bid, currentUserId, currentUserName }: BidB
 
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <p className="font-label text-afs-crimson text-xs tracking-widest uppercase mb-2">
+          <p className="font-label text-afs-danger-on-dark text-xs tracking-widest uppercase mb-2">
             <Link href="/admin/command-center?tab=bids" className="hover:underline">
               Bids
             </Link>{' '}
@@ -274,7 +274,7 @@ export default function BidBuilder({ bid, currentUserId, currentUserName }: BidB
           )}
           {isSelf && (
             <div className="flex items-center gap-3">
-              <span className="font-body text-xs text-afs-success">Claimed by you</span>
+              <span className="font-body text-xs text-afs-success-on-dark">Claimed by you</span>
               <button
                 type="button"
                 disabled={releasing}
@@ -285,7 +285,7 @@ export default function BidBuilder({ bid, currentUserId, currentUserName }: BidB
               </button>
             </div>
           )}
-          {!readOnly && !isSelf && <span className="font-body text-xs text-afs-chrome-dim">Claiming…</span>}
+          {!readOnly && !isSelf && <span className="font-body text-xs text-afs-chrome-silver">Claiming…</span>}
         </div>
       </div>
 
@@ -294,10 +294,10 @@ export default function BidBuilder({ bid, currentUserId, currentUserName }: BidB
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-heading text-lg text-afs-chrome-high">Bid Details</h2>
           {!readOnly && (
-            <span className="font-body text-xs text-afs-chrome-dim">
+            <span className="font-body text-xs text-afs-chrome-silver">
               {saveState === 'saving' && 'Saving…'}
               {saveState === 'saved' && 'Saved'}
-              {saveState === 'error' && <span className="text-afs-crimson">Could not save</span>}
+              {saveState === 'error' && <span className="text-afs-danger-on-dark">Could not save</span>}
             </span>
           )}
         </div>
@@ -443,7 +443,7 @@ export default function BidBuilder({ bid, currentUserId, currentUserName }: BidB
       <div className="bg-afs-bg-raised border border-afs-border rounded p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-heading text-lg text-afs-chrome-high">Line Items</h2>
-          <span className="font-data text-lg text-afs-crimson">
+          <span className="font-data text-lg text-afs-danger-on-dark">
             {bid.subtotal != null ? currency.format(bid.subtotal) : '—'}
           </span>
         </div>
@@ -528,7 +528,7 @@ export default function BidBuilder({ bid, currentUserId, currentUserName }: BidB
             </button>
           </div>
         )}
-        {sectionError && <p className="font-body text-xs text-afs-crimson mt-2">{sectionError}</p>}
+        {sectionError && <p className="font-body text-xs text-afs-danger-on-dark mt-2">{sectionError}</p>}
       </div>
 
       {/* Approval — generate the PDF for review, then send (BID_DOCUMENT_SCOPE.md's approval step) */}
@@ -561,7 +561,7 @@ export default function BidBuilder({ bid, currentUserId, currentUserName }: BidB
               {sendBusy ? 'Sending…' : 'Send to Customer'}
             </button>
           )}
-          {sendError && <p className="font-body text-xs text-afs-crimson w-full">{sendError}</p>}
+          {sendError && <p className="font-body text-xs text-afs-danger-on-dark w-full">{sendError}</p>}
         </div>
       )}
 
@@ -604,7 +604,7 @@ export default function BidBuilder({ bid, currentUserId, currentUserName }: BidB
         </div>
       )}
 
-      <p className="font-body text-xs text-afs-chrome-dim">
+      <p className="font-body text-xs text-afs-chrome-silver">
         Signed in as {currentUserName}. Awarding a bid here only updates its status — it does not create an order,
         quote, or quote request.
       </p>
@@ -721,7 +721,7 @@ function AddLineItemRow({
           {busy ? 'Adding…' : '+ Add Line'}
         </button>
       </div>
-      {error && <p className="font-body text-xs text-afs-crimson mt-1">{error}</p>}
+      {error && <p className="font-body text-xs text-afs-danger-on-dark mt-1">{error}</p>}
     </div>
   );
 }

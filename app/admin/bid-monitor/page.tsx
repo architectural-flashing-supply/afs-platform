@@ -16,7 +16,7 @@ function RadarIcon() {
       stroke="currentColor"
       strokeWidth="1.5"
       strokeLinecap="round"
-      className="text-afs-crimson shrink-0"
+      className="text-afs-danger-on-dark shrink-0"
       aria-hidden
     >
       <circle cx="12" cy="12" r="9" strokeOpacity="0.4" />
@@ -30,7 +30,7 @@ function RadarIcon() {
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
     <div className="bg-afs-bg-raised border border-afs-border rounded p-4 text-center">
-      <p className="font-heading text-3xl text-afs-crimson">{value}</p>
+      <p className="font-heading text-3xl text-afs-danger-on-dark">{value}</p>
       <p className="font-label text-xs text-afs-chrome-mid uppercase mt-1">{label}</p>
     </div>
   );
@@ -94,7 +94,7 @@ export default async function BidMonitorPage() {
       <section className="mb-10">
         <div className="flex items-center gap-3 mb-4">
           <h2 className="font-heading text-xl text-afs-chrome-high">Source Directory</h2>
-          <span className="font-data text-xs text-afs-chrome-dim border border-afs-border rounded-full px-2.5 py-0.5">
+          <span className="font-data text-xs text-afs-chrome-silver border border-afs-border rounded-full px-2.5 py-0.5">
             {sources.length}
           </span>
         </div>

@@ -74,7 +74,7 @@ export default async function AdminCustomersPage({
             Order records, dispatch and invoicing, by customer.
           </p>
         </div>
-        <span className="font-label text-xs text-afs-crimson shrink-0">Open &rarr;</span>
+        <span className="font-label text-xs text-afs-danger-on-dark shrink-0">Open &rarr;</span>
       </Link>
 
       <form method="GET" className="flex items-center gap-3 mb-6 flex-wrap">
@@ -88,7 +88,7 @@ export default async function AdminCustomersPage({
         <select
           name="role"
           defaultValue={filters.role}
-          className="bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body"
+          className="bg-afs-bg-overlay border border-afs-chrome-base rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body"
         >
           {ROLE_OPTIONS.map((r) => (
             <option key={r} value={r}>
@@ -114,7 +114,7 @@ export default async function AdminCustomersPage({
           Filter
         </button>
         {(filters.search || filters.role !== 'all' || filters.tier !== 'all') && (
-          <Link href="/admin/customers" className="font-label text-xs text-afs-chrome-mid hover:text-afs-crimson">
+          <Link href="/admin/customers" className="font-label text-xs text-afs-chrome-mid hover:text-afs-danger-on-dark">
             Clear all
           </Link>
         )}
@@ -146,7 +146,7 @@ export default async function AdminCustomersPage({
               {rows.map((row) => (
                 <tr key={row.id} className="border-b border-afs-border last:border-b-0 hover:bg-afs-bg-surface transition-colors">
                   <td className="px-4 py-3">
-                    <Link href={`/admin/customers/${row.id}`} className="font-body text-sm text-afs-chrome-high hover:text-afs-crimson">
+                    <Link href={`/admin/customers/${row.id}`} className="font-body text-sm text-afs-chrome-high hover:text-afs-danger-on-dark">
                       {row.fullName}
                     </Link>
                   </td>
@@ -159,7 +159,7 @@ export default async function AdminCustomersPage({
                     <Badge variant={TIER_VARIANT[row.pricingTier] ?? 'chrome'}>{row.pricingTier}</Badge>
                   </td>
                   <td className="font-data text-sm text-afs-chrome-high text-right px-4 py-3">{row.totalOrders}</td>
-                  <td className="font-data text-xs text-afs-chrome-dim px-4 py-3">{formatDate(row.lastOrderAt)}</td>
+                  <td className="font-data text-xs text-afs-chrome-silver px-4 py-3">{formatDate(row.lastOrderAt)}</td>
                 </tr>
               ))}
             </tbody>

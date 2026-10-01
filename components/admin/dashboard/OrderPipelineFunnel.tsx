@@ -35,7 +35,7 @@ export default function OrderPipelineFunnel({ stages }: OrderPipelineFunnelProps
           >
             <div className="flex items-baseline justify-between mb-1.5">
               <p className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid">{stage.label}</p>
-              <p className="font-heading text-lg text-afs-chrome-high group-hover:text-afs-crimson transition-colors">
+              <p className="font-heading text-lg text-afs-chrome-high group-hover:text-afs-danger-on-dark transition-colors">
                 {stage.count}
               </p>
             </div>
@@ -45,7 +45,7 @@ export default function OrderPipelineFunnel({ stages }: OrderPipelineFunnelProps
                 style={{ width: `${widthPct}%` }}
               />
             </div>
-            <p className="font-body text-[11px] text-afs-chrome-dim mt-1 h-4">
+            <p className="font-body text-[11px] text-afs-chrome-silver mt-1 h-4">
               {hovered === stage.key && pctOfPrev !== null ? `${pctOfPrev}% of ${prev!.label}` : ''}
             </p>
           </Link>

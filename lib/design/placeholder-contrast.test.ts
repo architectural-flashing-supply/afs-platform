@@ -98,6 +98,46 @@ describe('placeholder text meets WCAG AA', () => {
     }
   });
 
+  /**
+   * v2-06 — THE STATUS-TEXT-ON-DARK FAMILY.
+   *
+   * scripts/audit/contrast-check.mjs failed the build on every Command Center
+   * screen that printed a status in colour: afs-crimson as text measures 1.42:1
+   * on bg-surface, afs-success 2.11:1, afs-info 2.34:1, afs-warning 3.67:1,
+   * afs-amber 4.28:1. Those five are FILL colours, and on a dark surface there
+   * is no darkening that fixes them — the text has to get lighter.
+   *
+   * Both halves are asserted, the same way the chrome-dim rule above is: the
+   * premise (the fill colours really do fail) and the fix (the four new ones
+   * really do pass, on every gunmetal surface). A retheme cannot make this rule
+   * silently vacuous.
+   */
+  const FILL_COLOURS_THAT_FAIL_AS_TEXT = ['crimson', 'crimson-hover', 'success', 'warning', 'info', 'amber'];
+  const ON_DARK_TEXT = ['danger-on-dark', 'success-on-dark', 'warning-on-dark', 'info-on-dark'];
+
+  it('the status FILL colours are not usable as text on gunmetal', () => {
+    for (const token of FILL_COLOURS_THAT_FAIL_AS_TEXT) {
+      const worst = Math.min(...GUNMETAL_SURFACES.map((s) => contrastRatio(t[token], t[s])));
+      expect(worst, `${token} at its worst gunmetal surface`).toBeLessThan(4.5);
+    }
+  });
+
+  it('the status text-on-dark tokens clear AA on every gunmetal surface', () => {
+    for (const token of ON_DARK_TEXT) {
+      for (const surface of GUNMETAL_SURFACES) {
+        expect(contrastRatio(t[token], t[surface]), `${token} on ${surface}`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+
+  it('the status text-on-dark tokens are NOT for the light working area', () => {
+    // The rule #23 trap, one level on: a token chosen for a dark surface is a
+    // light colour, so it is at its worst exactly where it looks most tempting.
+    for (const token of ON_DARK_TEXT) {
+      expect(contrastRatio(t[token], t['bg-card']), `${token} on bg-card`).toBeLessThan(4.5);
+    }
+  });
+
   it('is still dimmer than the typed text, so it still reads as a placeholder', () => {
     expect(contrastRatio(t['chrome-silver'], t['bg-overlay'])).toBeLessThan(
       contrastRatio(t['chrome-high'], t['bg-overlay'])

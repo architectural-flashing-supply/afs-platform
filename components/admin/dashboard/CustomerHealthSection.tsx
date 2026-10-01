@@ -23,7 +23,7 @@ export default function CustomerHealthSection({ topCustomers, recentOrders }: Cu
         ) : (
           <table className="w-full text-left">
             <thead>
-              <tr className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-dim border-b border-afs-border">
+              <tr className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-silver border-b border-afs-border">
                 <th className="pb-2 pr-3 font-normal">Name</th>
                 <th className="pb-2 pr-3 font-normal">Orders</th>
                 <th className="pb-2 pr-3 font-normal">Value</th>
@@ -34,14 +34,14 @@ export default function CustomerHealthSection({ topCustomers, recentOrders }: Cu
               {topCustomers.map((c) => (
                 <tr key={c.id} className="border-b border-afs-border last:border-0">
                   <td className="py-2.5 pr-3">
-                    <Link href={`/admin/customers/${c.id}`} className="font-body text-sm text-afs-chrome-high hover:text-afs-crimson transition-colors">
+                    <Link href={`/admin/customers/${c.id}`} className="font-body text-sm text-afs-chrome-high hover:text-afs-danger-on-dark transition-colors">
                       {c.company || c.name}
                     </Link>
-                    {c.company && <p className="font-body text-xs text-afs-chrome-dim">{c.name}</p>}
+                    {c.company && <p className="font-body text-xs text-afs-chrome-silver">{c.name}</p>}
                   </td>
                   <td className="py-2.5 pr-3 font-data text-sm text-afs-chrome-mid">{c.orderCount}</td>
                   <td className="py-2.5 pr-3 font-data text-sm text-afs-chrome-high">{currency.format(c.valueYtd)}</td>
-                  <td className="py-2.5 pr-3 font-data text-xs text-afs-chrome-dim">{formatDate(c.lastOrderAt)}</td>
+                  <td className="py-2.5 pr-3 font-data text-xs text-afs-chrome-silver">{formatDate(c.lastOrderAt)}</td>
                 </tr>
               ))}
             </tbody>
@@ -56,7 +56,7 @@ export default function CustomerHealthSection({ topCustomers, recentOrders }: Cu
         ) : (
           <table className="w-full text-left">
             <thead>
-              <tr className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-dim border-b border-afs-border">
+              <tr className="font-label text-[10px] uppercase tracking-wide text-afs-chrome-silver border-b border-afs-border">
                 <th className="pb-2 pr-3 font-normal">Order</th>
                 <th className="pb-2 pr-3 font-normal">Customer</th>
                 <th className="pb-2 pr-3 font-normal">Date</th>
@@ -68,12 +68,12 @@ export default function CustomerHealthSection({ topCustomers, recentOrders }: Cu
               {recentOrders.map((o) => (
                 <tr key={o.id} className="border-b border-afs-border last:border-0">
                   <td className="py-2.5 pr-3">
-                    <Link href={`/admin/orders/${o.id}`} className="font-data text-sm text-afs-chrome-high hover:text-afs-crimson transition-colors">
+                    <Link href={`/admin/orders/${o.id}`} className="font-data text-sm text-afs-chrome-high hover:text-afs-danger-on-dark transition-colors">
                       {o.orderNumber}
                     </Link>
                   </td>
                   <td className="py-2.5 pr-3 font-body text-sm text-afs-chrome-mid">{o.customerName}</td>
-                  <td className="py-2.5 pr-3 font-data text-xs text-afs-chrome-dim">{formatDate(o.createdAt)}</td>
+                  <td className="py-2.5 pr-3 font-data text-xs text-afs-chrome-silver">{formatDate(o.createdAt)}</td>
                   <td className="py-2.5 pr-3 font-data text-sm text-afs-chrome-high">{currency.format(o.total)}</td>
                   <td className="py-2.5 font-body text-xs text-afs-chrome-mid">{o.statusLabel}</td>
                 </tr>

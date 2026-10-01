@@ -64,7 +64,7 @@ export default function CustomerNotesLog({ customerId, notes }: CustomerNotesLog
         className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body resize-y mb-3"
       />
       <div className="flex items-center justify-between mb-4 gap-4">
-        {error && <p className="font-body text-xs text-afs-crimson">{error}</p>}
+        {error && <p className="font-body text-xs text-afs-danger-on-dark">{error}</p>}
         <button
           type="button"
           onClick={handleAddNote}
@@ -82,7 +82,7 @@ export default function CustomerNotesLog({ customerId, notes }: CustomerNotesLog
           {localNotes.map((note, i) => (
             <li key={i} className="border-t border-afs-border pt-3 first:border-t-0 first:pt-0">
               <p className="font-body text-sm text-afs-chrome-high whitespace-pre-line">{note.text}</p>
-              <p className="font-data text-xs text-afs-chrome-dim mt-1">
+              <p className="font-data text-xs text-afs-chrome-silver mt-1">
                 {note.author}
                 {note.at ? ` · ${formatTimestamp(note.at)}` : ''}
               </p>

@@ -4,9 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node scripts/audit/contrast-check.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "check:contrast": "node scripts/audit/contrast-check.mjs",
     "fix:gauges-seed": "tsx scripts/fix-gauges-seed.ts",
     "generate:employee-icons": "node scripts/generate-employee-icons.js",
     "test:e2e": "playwright test",

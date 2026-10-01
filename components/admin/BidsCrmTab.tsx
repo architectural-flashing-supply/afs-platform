@@ -43,7 +43,7 @@ function claimLabel(bid: BidDocumentRow, currentUserId: string): string {
 }
 
 const inputClass =
-  'w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body';
+  'w-full bg-afs-bg-overlay border border-afs-chrome-base rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body';
 const labelClass = 'font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-1.5';
 
 export default function BidsCrmTab({ bids, currentUserId }: BidsCrmTabProps) {
@@ -127,7 +127,7 @@ export default function BidsCrmTab({ bids, currentUserId }: BidsCrmTabProps) {
                   onClick={() => router.push(`/admin/command-center/bids/${bid.id}`)}
                   className="border-b border-afs-border last:border-b-0 hover:bg-afs-bg-surface transition-colors cursor-pointer"
                 >
-                  <td className="font-data text-xs text-afs-crimson px-4 py-3">{bid.bidNumber}</td>
+                  <td className="font-data text-xs text-afs-danger-on-dark px-4 py-3">{bid.bidNumber}</td>
                   <td className="font-body text-sm text-afs-chrome-high px-4 py-3">{bid.projectName}</td>
                   <td className="font-body text-sm text-afs-chrome-mid px-4 py-3">{bid.gcName}</td>
                   <td className="px-4 py-3">
@@ -183,7 +183,7 @@ export default function BidsCrmTab({ bids, currentUserId }: BidsCrmTabProps) {
               />
             </div>
 
-            {error && <p className="font-body text-xs text-afs-crimson mb-3">{error}</p>}
+            {error && <p className="font-body text-xs text-afs-danger-on-dark mb-3">{error}</p>}
 
             <div className="flex gap-3 justify-end">
               <button

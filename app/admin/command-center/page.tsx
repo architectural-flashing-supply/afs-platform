@@ -156,7 +156,7 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
           <Link href="/admin/command-center" className="font-label text-sm text-afs-chrome-mid hover:text-afs-chrome-high">
             ← Back to the Workbench
           </Link>
-          <p className="font-label text-afs-crimson text-xs tracking-widest uppercase mb-2 mt-3">Command Center</p>
+          <p className="font-label text-afs-danger-on-dark text-xs tracking-widest uppercase mb-2 mt-3">Command Center</p>
           <h1 className="font-heading text-3xl text-afs-chrome-high">Dashboard</h1>
         </div>
 
@@ -192,7 +192,7 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
     <div>
       <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <p className="font-label text-afs-crimson text-xs tracking-widest uppercase mb-2">Command Center</p>
+          <p className="font-label text-afs-danger-on-dark text-xs tracking-widest uppercase mb-2">Command Center</p>
           <h1 className="font-heading text-3xl text-afs-chrome-high">{activeTab === 'bids' ? 'GC Bid Pricing' : 'Machine Queue'}</h1>
           <p className="font-body text-sm text-afs-chrome-mid mt-1">
             {activeTab === 'bids'
@@ -225,7 +225,7 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
                 active ? 'border-afs-crimson text-afs-chrome-high' : 'border-transparent text-afs-chrome-mid hover:text-afs-chrome-high'
               }`}
             >
-              {tab.label} <span className="font-data text-xs text-afs-chrome-dim">({counts[tab.value]})</span>
+              {tab.label} <span className="font-data text-xs text-afs-chrome-silver">({counts[tab.value]})</span>
             </Link>
           );
         })}

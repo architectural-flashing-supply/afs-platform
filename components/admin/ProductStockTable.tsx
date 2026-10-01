@@ -19,7 +19,7 @@ interface RowState {
 const STOCK_TYPES = Object.keys(STOCK_TYPE_LABEL) as StockType[];
 
 const selectClass =
-  'w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body';
+  'w-full bg-afs-bg-overlay border border-afs-chrome-base rounded px-3 py-2 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body';
 const inputClass =
   'w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-data text-right';
 
@@ -160,8 +160,8 @@ export default function ProductStockTable({ rows }: ProductStockTableProps) {
           >
             {bulkApplying ? 'Applying…' : 'Apply'}
           </button>
-          {bulkError && <p className="font-body text-xs text-afs-crimson w-full">{bulkError}</p>}
-          {bulkMessage && !bulkError && <p className="font-body text-xs text-afs-success w-full">{bulkMessage}</p>}
+          {bulkError && <p className="font-body text-xs text-afs-danger-on-dark w-full">{bulkError}</p>}
+          {bulkMessage && !bulkError && <p className="font-body text-xs text-afs-success-on-dark w-full">{bulkMessage}</p>}
         </div>
       )}
 
@@ -188,7 +188,7 @@ export default function ProductStockTable({ rows }: ProductStockTableProps) {
               const rs = state[row.productId];
               return (
                 <tr key={row.productId} className="border-b border-afs-border last:border-b-0 align-top">
-                  <td className="font-data text-xs text-afs-chrome-dim px-4 py-3">{row.sku ?? '—'}</td>
+                  <td className="font-data text-xs text-afs-chrome-silver px-4 py-3">{row.sku ?? '—'}</td>
                   <td className="font-body text-sm text-afs-chrome-high px-4 py-3">{row.productName}</td>
                   <td className="font-body text-sm text-afs-chrome-mid px-4 py-3">{row.materialName ?? '—'}</td>
                   <td className="px-4 py-3">
@@ -221,8 +221,8 @@ export default function ProductStockTable({ rows }: ProductStockTableProps) {
                     >
                       {rs.saving ? 'Saving…' : 'Save Row'}
                     </button>
-                    {rs.error && <p className="font-body text-xs text-afs-crimson mt-1.5">{rs.error}</p>}
-                    {rs.saved && !rs.error && <p className="font-body text-xs text-afs-success mt-1.5">Saved</p>}
+                    {rs.error && <p className="font-body text-xs text-afs-danger-on-dark mt-1.5">{rs.error}</p>}
+                    {rs.saved && !rs.error && <p className="font-body text-xs text-afs-success-on-dark mt-1.5">Saved</p>}
                   </td>
                 </tr>
               );

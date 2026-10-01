@@ -3,9 +3,9 @@ import Link from 'next/link';
 export type MetricStatus = 'success' | 'warning' | 'error' | 'neutral';
 
 const STATUS_TEXT_CLASS: Record<MetricStatus, string> = {
-  success: 'text-afs-success',
-  warning: 'text-afs-warning',
-  error: 'text-afs-crimson',
+  success: 'text-afs-success-on-dark',
+  warning: 'text-afs-warning-on-dark',
+  error: 'text-afs-danger-on-dark',
   neutral: 'text-afs-chrome-mid',
 };
 
@@ -50,9 +50,9 @@ function Sparkline({ values }: { values: number[] }) {
 export default function MetricCard({ label, value, sublabel, sublabelStatus = 'neutral', href, trend, progressPct }: MetricCardProps) {
   return (
     <Link href={href} className="flex flex-col gap-2 px-6 py-5 group hover:bg-afs-bg-surface transition-colors">
-      <p className="font-label text-xs uppercase tracking-widest text-afs-chrome-dim">{label}</p>
+      <p className="font-label text-xs uppercase tracking-widest text-afs-chrome-silver">{label}</p>
       <div className="flex items-end justify-between gap-3">
-        <p className="font-heading text-3xl text-afs-chrome-high group-hover:text-afs-crimson transition-colors">{value}</p>
+        <p className="font-heading text-3xl text-afs-chrome-high group-hover:text-afs-danger-on-dark transition-colors">{value}</p>
         {trend && <Sparkline values={trend} />}
       </div>
       {typeof progressPct === 'number' && (

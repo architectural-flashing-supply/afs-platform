@@ -77,11 +77,11 @@ export default function BidDocumentViewers({ bidId, currentUserId, claimedBy }: 
 
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
-      <span className="font-label text-xs text-afs-chrome-dim">Also viewing:</span>
+      <span className="font-label text-xs text-afs-chrome-silver">Also viewing:</span>
       {others.map((v) => (
         <span
           key={v.userId}
-          className="font-label text-xs text-afs-chrome-mid bg-afs-bg-overlay border border-afs-border rounded-full px-2.5 py-0.5"
+          className="font-label text-xs text-afs-chrome-silver bg-afs-bg-overlay border border-afs-border rounded-full px-2.5 py-0.5"
         >
           {v.fullName}
         </span>

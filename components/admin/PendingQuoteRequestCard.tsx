@@ -80,7 +80,7 @@ export default function PendingQuoteRequestCard({ request }: { request: PendingQ
     <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-5">
       <div className="flex items-start justify-between gap-4 mb-3">
         <div>
-          <p className="font-data text-sm text-afs-crimson">{request.requestNumber}</p>
+          <p className="font-data text-sm text-afs-danger-on-dark">{request.requestNumber}</p>
           <p className="font-heading text-lg text-afs-chrome-high">{request.customerName}</p>
           {request.customerCompany && (
             <p className="font-body text-xs text-afs-chrome-mid">{request.customerCompany}</p>
@@ -93,7 +93,7 @@ export default function PendingQuoteRequestCard({ request }: { request: PendingQ
             disabled={busy || cancelling}
             aria-label="Cancel quote request"
             title="Cancel quote request"
-            className="text-afs-chrome-mid hover:text-afs-crimson transition-colors disabled:opacity-50 mb-1"
+            className="text-afs-chrome-mid hover:text-afs-danger-on-dark transition-colors disabled:opacity-50 mb-1"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2m3 0-1 14a2 2 0 01-2 2H7a2 2 0 01-2-2L4 6h16Z" />
@@ -161,7 +161,7 @@ export default function PendingQuoteRequestCard({ request }: { request: PendingQ
               href={request.attachmentUrl}
               target="_blank"
               rel="noreferrer"
-              className="font-body text-xs text-afs-crimson hover:text-afs-crimson-hover underline"
+              className="font-body text-xs text-afs-danger-on-dark hover:text-afs-danger-on-dark underline"
             >
               Download {request.attachmentFileName ?? 'attachment'}
             </a>
@@ -182,7 +182,7 @@ export default function PendingQuoteRequestCard({ request }: { request: PendingQ
               </li>
             ))
           ) : (
-            <li className="text-afs-chrome-dim list-none">No line items on this request.</li>
+            <li className="text-afs-chrome-silver list-none">No line items on this request.</li>
           )}
         </ul>
       </div>
@@ -209,7 +209,7 @@ export default function PendingQuoteRequestCard({ request }: { request: PendingQ
         </div>
       )}
 
-      {error && <p className="font-body text-xs text-afs-crimson mb-3">{error}</p>}
+      {error && <p className="font-body text-xs text-afs-danger-on-dark mb-3">{error}</p>}
 
       {request.hasMultipleLineItems && (
         <div className="bg-afs-bg-surface border border-afs-chrome-dim rounded p-3 mb-3">
