@@ -425,7 +425,62 @@ CRIMSON (fixed warm accent)
 
 ACCENT (non-semantic, feature-specific — FlashDraft radius UI only)
   #00C853 accent-green   #4A0072 accent-purple
+
+PUBLIC PRODUCTS CATALOG — the light stack, each level DARKER than the one
+it sits on. Never a white card on a pale background.
+  #F7F7F5 → #EFEFEC → #E1E5E9 → #D9DDE2
+  bg-light  bg-light-  bg-lane   bg-catalog-pop
+  (page)    raised     (card)    (enlarged card / modal)
+            (section)
+  Text: ink-900 #111111, ink-700 #374151. Accent: crimson #C0001A.
+  Control borders on this page: border-catalog #6F7781.
 ```
+
+### 8.1 THE PRODUCTS-CATALOG LIGHT STACK (added 2026-10-01)
+
+The public Products page is a light catalog under the unchanged gunmetal
+header. Reid's binding rule for it: **every level is slightly darker than the
+one it sits on, and there are never white cards on a pale background.**
+
+Three of the four levels already existed and are REUSED, not duplicated —
+`afs-bg-light` for the page, `afs-bg-light-raised` for a category band,
+`afs-bg-lane` for a product card. Only the fourth is new, because the hover
+popover and the modal sit on top of a card and nothing in the light palette was
+darker than `bg-lane` while still reading as a light surface.
+
+| Token | Hex | Used for |
+|---|---|---|
+| `afs-bg-light` | `#F7F7F5` | page background (warm off-white) |
+| `afs-bg-light-raised` | `#EFEFEC` | category section band |
+| `afs-bg-lane` | `#E1E5E9` | product card |
+| **`afs-bg-catalog-pop`** | **`#D9DDE2`** | **enlarged hover card and modal panel** |
+| **`afs-border-catalog`** | **`#6F7781`** | **control borders on this page** |
+
+**Measured, not assumed** (WCAG 2.1 1.4.3 body text, 1.4.11 non-text):
+
+| Pair | Ratio | |
+|---|---:|---|
+| `ink-900` on `bg-catalog-pop` | 13.8:1 | |
+| `ink-700` on `bg-catalog-pop` | 7.6:1 | |
+| `crimson` on `bg-catalog-pop` | 4.7:1 | AA — see below |
+| white on `crimson` | 6.5:1 | the primary button |
+| `border-catalog` on `bg-light` | 4.23:1 | |
+| `border-catalog` on `bg-light-raised` | 3.94:1 | |
+| `border-catalog` on `bg-lane` | 3.58:1 | |
+| `border-catalog` on `bg-catalog-pop` | 3.32:1 | |
+
+**Why `bg-catalog-pop` is `#D9DDE2` and not darker.** The obvious next step
+down the scale, `#CDD3DA`, puts the crimson accent at **4.28:1** — a miss on the
+4.5:1 body-text rule. The popover surface is bounded from below by how dark it
+can go before the red stops being readable on it, not by taste.
+
+**Why `border-catalog` exists rather than reusing a border token.**
+`afs-border-light` (`#D8D8D4`) is a hairline between two pale panels and
+measures under 1.5:1 on all four of these surfaces. `afs-line-strong`
+(`#8C939B`), the Command Center's control border, reaches only 2.45:1 on
+`bg-lane` and 2.28:1 on `bg-catalog-pop` — both short of the 3:1 required of a
+button or field boundary. This is rule #23 applying again: the right token is
+decided by the surface, not by the token's name.
 
 ---
 

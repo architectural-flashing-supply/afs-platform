@@ -394,7 +394,18 @@ function doorWindowPanGeometry(w: number, h: number): ProfileGeometry {
   };
 }
 
-function buildGeometry(
+/**
+ * The schematic cross-section for one ProfileType, in INCHES, y-down (the same
+ * frame FlashDraft's canvas uses).
+ *
+ * Exported for the public Products page (2026-10-01): its 3D preview and its
+ * "Select & Design" handoff into FlashDraft both need the point array for a
+ * profile type, and this is the one place that decides what each type's shape
+ * is. Exporting keeps that single — the alternative was a second copy of these
+ * sixteen shapes, which would drift the first time either was edited.
+ * Additive only: `generateProfileSVG` and every existing caller are unchanged.
+ */
+export function buildGeometry(
   profileType: ProfileType,
   w: number,
   h: number,

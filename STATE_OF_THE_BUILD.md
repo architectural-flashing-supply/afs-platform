@@ -34,6 +34,102 @@ summary, not a replacement for it.
 
 ---
 
+## 2026-10-01 — PRODUCTS PAGE rebuilt from the manifest (branch `products-page`, interactive, no FORGE)
+
+The public `/products` page, rebuilt against
+`lib/data/product-renders.manifest.json`. Branch `products-page`, cut from
+`products-manifest`. **Not merged to `main` and not deployed**, by instruction.
+
+**What it shows.** 35 of the manifest's 64 entries, in 8 categories. 17 carry a
+`ProfileType` and offer **Select & Design** plus a single slow 3D rotation; 18
+offer **Request a Quote** only. 29 entries are hidden — 26 flagged
+`needsReview`, 7 not products (6 montages and the bending-machine photo; the two
+sets overlap). Nothing was deleted: a hidden entry stays in the manifest and
+reappears on its own when Steve clears its flag.
+
+**New files.** `lib/data/products-page.ts` (the one filter, the name derivation,
+the category display mapping), `lib/data/product-name-overrides.ts` (ships
+empty), `lib/data/product-geometry.ts` (the ProfileType adapter),
+`components/product/` — `ProductCatalog`, `ProductTile`, `ProductModal`,
+`ProductActions`, `ProductProfilePreview3D`,
+`lib/data/products-page.test.ts` (18 tests), `tests/e2e/products-page.spec.ts`
+(17 tests), `docs/PRODUCT_PAGE_NOTES.md`.
+
+**ONE file was changed outside the prompt's allowed paths, with Reid's explicit
+approval, asked for before it was done.** `buildGeometry` in
+`lib/utils/profile-svg.ts` is now exported — one additive line, no behaviour
+change, no existing caller affected. Both the 3D preview and the FlashDraft
+handoff need the point array for a ProfileType, and that function is the one
+place that decides what each type's shape is. The alternative Reid was offered
+and declined was a second copy of those sixteen shapes under `lib/data`, which
+would have drifted from FlashDraft's the first time either was edited. The third
+option — shipping with no 3D and no Select & Design — was also declined.
+
+**Neither of the prompt's other two hard stops fired, and both were checked
+rather than assumed.** `ProfileViewer3D` already had `autoRotateSpeed`,
+`autoRotateDurationMs` and `fallbackTone` props, so it was **not modified at
+all** — not even the optional prop the prompt allowed. FlashDraft already
+supports opening on a specific profile: `?loadCanonical=1` plus the
+`afs-flashdraft-canonical-points` localStorage handoff, the pattern
+`CanonicalProfileBrowser.tsx` established. No FlashDraft feature was built.
+
+**The rotation is one revolution, never a loop.** `PRODUCT_ROTATION_SECONDS = 18`
+is the single named constant; both the OrbitControls speed (`60 / seconds`) and
+the stop time derive from it, so they cannot disagree. `prefers-reduced-motion`
+sets both to 0 and the view is static.
+
+**Two design tokens added**, documented with measured ratios in DESIGN_TOKENS.md
+§8.1 and in `tailwind.config.js`: `afs-bg-catalog-pop` `#D9DDE2` (the fourth
+light layer — the enlarged card and the modal sit on top of a card and had to go
+darker again) and `afs-border-catalog` `#6F7781` (control borders —
+`afs-border-light` measures under 1.5:1 on these surfaces and the Command
+Center's `afs-line-strong` reaches only 2.45:1 on `afs-bg-lane`, both short of
+the 3:1 rule). `bg-catalog-pop` is `#D9DDE2` rather than anything darker because
+at `#CDD3DA` the crimson accent measures **4.28:1** and misses AA — the surface
+is bounded by the red, not by taste. The other three layers reuse existing
+tokens. The gunmetal header is untouched.
+
+**TWO REAL DEFECTS WERE FOUND BY THE TESTS AND FIXED, NOT WORKED AROUND.** The
+first draft of `deriveDisplayName` split on every hyphen and title-cased every
+word, which turned `J-Channel` into `J Channel` and `w/` into `W/` — rewordings
+of a product name, which that function is forbidden to do. The unit test caught
+both before any UI existed. The function now distinguishes a raw filename slug
+(separators, title-case) from an already-reviewed name (left alone); the test
+expectations were not relaxed to match the bug.
+
+**A nine-test e2e failure was diagnosed as a harness fault, not a code fault.**
+After a mid-run rebuild, every interactive test failed with "dialog not found"
+while the page still rendered. Cause: `pkill -f "next start"` does not match the
+`node` process Next actually runs, so the new server hit `EADDRINUSE` and the
+STALE server kept serving while `pnpm build` overwrote `.next/` underneath it —
+client chunks 404'd and nothing hydrated. Killing the real PID and restarting
+gave 17/17. Recorded because the symptom (dead onClick, healthy HTML) reads
+exactly like a hydration bug in application code and is not one.
+
+**Gates, run in this session, real output.** `pnpm tsc --noEmit` exit 0.
+`pnpm run build` succeeded, including the `prebuild` contrast gate
+(`scripts/audit/contrast-check.mjs`); `/products` builds static at 5.03 kB /
+100 kB first load, three.js correctly absent from the initial payload because
+the viewer is a `next/dynamic` import. `pnpm test:unit lib/data/products-page.test.ts`
+— 18/18. `pnpm exec playwright test tests/e2e/products-page.spec.ts` — 17/17 at
+both 1440px and 375px. Four screenshots, the cap the prompt set.
+
+**Status: IMPLEMENTED, UNCONFIRMED.** Per this document's verification standard
+the gates pass and the screenshots were examined in-session, but Reid has not
+confirmed the page himself. Two cosmetic limitations are known and recorded in
+docs/PRODUCT_PAGE_NOTES.md rather than hidden: many Drexel `.webp` files have a
+white background baked in, so a white rectangle shows inside the card (the fix
+is re-encoding assets, out of scope), and `ProfileViewer3D` paints its own dark
+scene and gunmetal overlay chrome inside the light modal (it was deliberately
+not modified).
+
+**Still blocked, unchanged from the manifest run:** there is no product copy.
+Nothing is printed in any rendering, so every name on the page is a filename
+derivation and no product has a description. `lib/data/product-name-overrides.ts`
+exists, empty, as the one place to correct a name.
+
+---
+
 ## 2026-10-01 — PRODUCTS MANIFEST (branch `products-manifest`, interactive, no FORGE)
 
 A reviewed products list built from the Drexel Metals renderings, for the

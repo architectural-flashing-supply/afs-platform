@@ -9345,3 +9345,63 @@ batches; `node scripts/audit/verify-product-manifest.mjs` passing all checks
 ids); `pnpm tsc --noEmit` exit 0.
 
 Committed to `products-manifest` and pushed. Not merged to `main`, by design.
+
+---
+
+## 2026-10-01 — Products page rebuilt from the manifest (interactive, supervised, no FORGE)
+
+Second interactive run of the day, on branch `products-page` cut from
+`products-manifest`. Same shape as the first: explicit read list, explicit
+off-limits list, explicit hard stops, no FORGE, no merge, no deploy.
+
+**The run opened by clearing all three hard stops with evidence rather than
+assumption**, which is what kept it moving:
+
+- `ProfileViewer3D` turned out to already have `autoRotateSpeed`,
+  `autoRotateDurationMs` and `fallbackTone` props. It was **not modified at
+  all** — not even the one optional prop the prompt was willing to allow.
+- FlashDraft already opens on a specific profile, via `?loadCanonical=1` plus
+  the `afs-flashdraft-canonical-points` localStorage handoff that
+  `CanonicalProfileBrowser.tsx` established. No FlashDraft feature was built.
+- The third was real and was **put to Reid rather than decided unilaterally**:
+  both of the above need the point array for a `ProfileType`, which only
+  `buildGeometry` in `lib/utils/profile-svg.ts` has, and that file was outside
+  the allowed paths. Reid chose to export it (one additive line) over
+  duplicating sixteen profile shapes into `lib/data` or shipping without 3D.
+  That is the only file touched outside the prompt's list.
+
+**The tests earned their place twice.**
+
+1. The first `deriveDisplayName` split on every hyphen and title-cased every
+   word — `J-Channel` became `J Channel`, `w/` became `W/`. Those are
+   rewordings of a product name, which the brief forbids. The unit test caught
+   it before any UI existed; the function was fixed to tell a raw filename slug
+   from an already-reviewed name, and the expectations were NOT relaxed to the
+   bug.
+2. Nine e2e tests failed together with "dialog not found" on a page that still
+   rendered. It was not application code: `pkill -f "next start"` does not match
+   the `node` process Next runs, so the replacement server hit `EADDRINUSE` and
+   the stale one kept serving while `pnpm build` overwrote `.next/` beneath it.
+   Dead `onClick`, healthy HTML — it reads exactly like a hydration bug and is
+   not one. Killing the real PID gave 17/17.
+
+**Also not taken on trust:** the modal screenshot originally caught the 3D
+viewer still showing "Loading 3D view…". Rather than ship a screenshot that
+proved nothing, the test now waits for the placeholder to disappear and asserts
+a `<canvas>` is visible before capturing. The captured frame shows a real
+coping-cap cross-section with **signed** bend angles (-90°, -90°) and leg
+dimensions, so rule #12's handedness survives the whole path from manifest to
+3D.
+
+**Two cosmetic limitations are recorded rather than quietly accepted:** many
+Drexel `.webp` files have a white background baked in, so a white rectangle
+shows inside the card (fixable only by re-encoding assets, out of scope), and
+`ProfileViewer3D` paints its own dark scene and gunmetal chrome inside the light
+modal. Both are in docs/PRODUCT_PAGE_NOTES.md.
+
+**Gates:** `pnpm tsc --noEmit` 0; `pnpm run build` green including the prebuild
+contrast gate, `/products` static at 5.03 kB with three.js correctly out of the
+initial payload; 18/18 unit; 17/17 e2e at 1440px and 375px; four screenshots,
+the cap set.
+
+Committed to `products-page` and pushed. Not merged, not deployed.
