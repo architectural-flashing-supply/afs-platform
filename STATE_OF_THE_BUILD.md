@@ -290,6 +290,140 @@ Command Center route names. Both halves of that were worth having:
   SESSION_STATE.md discussing the misspelling, which is the record of the
   decision and is correct to keep.
 
+### 8. THE FULL PLAYWRIGHT SUITE AGAINST ALPHA
+
+Two complete runs. The first was the baseline; the second is after fixing what
+the first found. Both against `https://afs-website-alpha.vercel.app`, with the
+deployment for the pushed commit confirmed READY before testing.
+
+| | passed | failed | skipped |
+|---|---|---|---|
+| Run 1 (commit `494c090`) | 131 | 5 | 5 |
+| Run 2 (commit `dc7f7e4`) | **136** | **3** | 5 |
+
+**Every failure in run 1, by title, with its real cause.** Four of the five were
+test defects, none caused by this queue:
+
+1. `checkout.spec.ts:21 — Checkout > with no quote id, checkout is unreachable and shows no price`
+   — the test waited for the page-level "Checkout Unavailable" heading as a
+   SIGNED-OUT visitor. `middleware.ts` has redirected `/checkout` to `/login`
+   since commit `5c0d33f` (2026-07-12), so that heading could never render on
+   that path. The app is right and its guarantee is the stronger one; the test
+   was asserting a screen the route can no longer show. **Split in two** — the
+   signed-out half asserts the redirect, the signed-in half asserts the error
+   page. All four checkout tests pass.
+2. `homepage.spec.ts:466 — Homepage link integrity > every homepage CTA and every nav/footer link returns 200`
+   — it looked for a menu item named exactly "Resources". Prompt v2-01 renamed
+   that entry to "Resource Center" **yesterday** (commit `db2989d`) when
+   Building Codes moved off the Command Center and joined it. The same
+   stale-label failure commit `e4f0b7a` fixed in the Command Center nav gate.
+   **Both entries are asserted now**, so a future rename cannot pass by renaming
+   one of them. Passes.
+3. `modify-in-flashdraft.spec.ts:103 — the enlarged view offers Modify in FlashDraft for a locked profile`
+   — failed at `createClient`, before any query, because supabase-js builds a
+   realtime client that wants a global `WebSocket` Node 20 does not have.
+   Recorded as PENDING in v2-05's entry. `ws` is already a devDependency, so
+   **three guarded lines** fix it (a no-op on Node 22+). That exposed three more
+   layers underneath, each a real test defect and each fixed: an unanchored
+   `/sign in|log in/i` matching two buttons — **the exact bug
+   `auth.setup.ts` already documents**; reading the DEBOUNCED canvas autosave the
+   instant the lineage banner appeared, rather than waiting for the write; and
+   clicking a "Save" button that was behind the save modal's own backdrop,
+   because `ProfileDetailsModal`'s confirm button is labelled **"OK"**. Three of
+   its four tests pass now.
+4. `homepage.spec.ts:238` and `homepage.spec.ts:253` — **NOT FIXED, deliberately.
+   See below.**
+
+**The three that still fail, and why none of them is mine to decide:**
+
+| Test | What the app does | What the test wants | Which side is newer |
+|---|---|---|---|
+| `homepage.spec.ts:238` hero dual CTAs | "View Our Work" → `/design-studio` | `/about/services` | the MARKUP (`6a10944`) |
+| `homepage.spec.ts:253` header logo | `width=160` | `width=76` | the MARKUP (`3c774f6`, which landed after the assertion) |
+| `modify-in-flashdraft.spec.ts:179` | child row `dimensions.revision = 1` | `5`, carried from the source | — |
+
+The first two change where the hero's second button sends every visitor and how
+big the brand mark is. The third is a question about what a revision number
+means across a modify. All three are product decisions; a hardening prompt does
+not get to make them by editing whichever side is more convenient. **PENDING
+REID**, and recorded in the generated document's own failure list with the same
+causes.
+
+**The five skips are conditional and self-explaining, not silent.** Four are
+Production Queue tests whose premise is that a status change is observable, and
+`orders` is empty on alpha, so there is nothing to observe. The fifth is a
+HailView storm-marker test that skips when the live weather feed returns no hail
+events for the test address.
+
+### 9. ZERO LEFTOVER TEST ROWS
+
+`scripts/audit/test-rows-clean.mjs`, run after the full suite. It queries live
+rather than asserting, it prints what each number would mean, and **a query that
+fails prints ERR rather than ok** — not being able to check is not the same as
+being clean, which is the rule the single-door guard already follows when it
+cannot verify an approval. (That mattered on its first run: two predicates named
+a `job_name` column that does not exist on `quotes` or `machine_jobs`, and the
+first version reported them as "ok".)
+
+```
+LEFTOVER TEST ROWS — queried live, not assumed
+Project: lxfiziwsqezjjybeguqq
+
+| table                  | rows | what it would mean
+|------------------------|------|--------------------
+| quote_requests         |    0 |  ok  Jobs created by the Workbench, quote, delivery and approval specs
+| quotes                 |    0 |  ok  Quotes issued from a test job
+| invoices               |    0 |  ok  Invoices created from a test quote
+| outbound_emails        |    0 |  ok  Captured test-mode messages
+| pricing_ledger         |    0 |  ok  Tagged ledger rows — the only ones the trigger lets you delete
+| shop_profile_library   |    0 |  ok  Shop send history written by a test
+| machine_jobs           |    0 |  ok  Machine-side records for a test job
+| deliveries             |    0 |  ok  Deliveries auto-scheduled by a test finish
+| saved_configurations   |    0 |  ok  Passport rows, including auto-saves from the Search specs
+| admin_recent_profiles  |    0 |  --  Per-admin Search shortcuts — expected to be empty on a clean alpha
+| admin_pinned_profiles  |    0 |  --  Per-admin Search shortcuts
+
+Rows owned by e2e-forge@architecturalflashingsupply.com:
+  quote_requests         0
+  saved_configurations   0
+  takeoff_uploads        0
+  notifications          0
+
+CLEAN — no leftover test rows.
+```
+
+### 10. THE GENERATED STATE OF THE BUILD DOCUMENT
+
+`diagnostics/STATE_OF_THE_BUILD_2026-09-30.docx` — **16,193 bytes**, valid OOXML
+(PK header, `[Content_Types].xml`, `word/document.xml`, `word/styles.xml` all
+present). Produced by `scripts/audit/state-of-the-build-report.mjs`, which
+renders through `scripts/md-to-docx.mjs` — the renderer this repo already has,
+rather than a second one — and writes the Markdown beside it so what is in the
+document can be read and diffed without opening Word.
+
+It is GENERATED rather than written because the parts that go stale fastest are
+read at generation time: the commits from `git log`, the contrast numbers by
+actually running the gate, the migration and boundary and spec counts from the
+filesystem, and the Playwright result from the real log of the real run. The
+narrative sections are data in the generator, so changing them is a reviewable
+diff rather than an edit to a binary.
+
+It carries what is DONE, what is IN PROGRESS, what REMAINS, this queue's four
+commits, the blockers, the five NEXT ACTIONS (Microsoft 365 and the mail parser
+— DEFERRED pending admin consent; the Bid Monitor decision; the Products page
+track; loading Steve's historical pricing into the append-only ledger; and an
+ATTENDED Thalmann test of the spec-correct encoder), and both open design
+questions CLAUDE.md still records — whether an admin approval alone should reach
+the machine with no customer-acceptance step, and the disposition of the
+disconnected stray Vercel project and its secrets.
+
+One detail worth keeping: the generator's first draft named the dropped
+machine-library tables in its prose, and `lib/data/removed-machine-library.test.ts`
+caught it on the first run. The names are not what a reader of that document
+needs — the counts are — so it was reworded. The static test is right and was not
+relaxed.
+
+
 ---
 
 ## COMMAND CENTER V2 — PROMPT v2-05 (2026-09-30)

@@ -40,8 +40,22 @@ AFS CREDENTIALS.txt
 .env.local.backup
 
 # PATHFINDER_DEBUG_CAPTURE=1 output — real outgoing PathfinderEdge POST
-# bodies (real profile geometry), diagnostic-only, never committed.
-diagnostics/
+# bodies (real profile geometry), diagnostic-only, never committed. Plus the
+# ad-hoc probe scripts that accumulate in here during a run.
+#
+# EXCEPT the generated State of the Build report (v2-06). It is the one thing
+# in this folder that is a deliverable rather than a byproduct: it is produced
+# by scripts/audit/state-of-the-build-report.mjs from the live repository, it
+# is what gets handed to Reid, and a report nobody else can see is not a
+# handoff. The .md is tracked alongside the .docx deliberately, so the contents
+# can be diffed between runs without opening Word.
+#
+# Written as `diagnostics/*` plus a negation rather than `diagnostics/`,
+# because git cannot re-include a file whose PARENT DIRECTORY is excluded —
+# it never descends into an ignored directory to find the exception.
+diagnostics/*
+!diagnostics/STATE_OF_THE_BUILD_*.docx
+!diagnostics/STATE_OF_THE_BUILD_*.md
 
 # Raw shop-floor source footage for the homepage hero/shop-floor-loop
 # videos (real, unedited phone footage of the Thalmann machine) and the

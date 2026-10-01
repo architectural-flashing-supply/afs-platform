@@ -112,6 +112,20 @@ else on rule #18's list was touched, and the rest stays PENDING REID.**
   this run: its newest deployment is three days old while the team project
   deployed from `main` minutes ago. Deleting it, and rotating the secrets it
   still holds, is PENDING REID.
+- **Three Playwright tests fail on purpose, and all three are product
+  decisions.** The homepage hero's "View Our Work" goes to `/design-studio`
+  where a 2026-09-16 spec says `/about/services`; the header logo renders at
+  160px where the same pass says 76px (in both cases the MARKUP is newer than
+  the assertion, so the test is the stale side); and a modified profile's child
+  row gets `dimensions.revision = 1` where the Part 1 spec expects it to carry
+  the source's 5. Changing where the hero's second button sends every visitor,
+  how big the brand mark is, or what a revision means across a modify are all
+  calls a hardening prompt does not get to make by editing whichever side is
+  more convenient. PENDING REID.
+- **`modify-in-flashdraft.spec.ts` runs now.** The Node 20 WebSocket blocker is
+  closed with a guarded three-line polyfill using the `ws` devDependency this
+  repo already has. Three of its four tests pass; the fourth is the revision
+  question above.
 
 ---
 

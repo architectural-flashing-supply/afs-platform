@@ -97,11 +97,22 @@ function playwrightSummary(logPath) {
   for (const m of text.matchAll(/^\s*(\d+)\s+(passed|failed|skipped|flaky|did not run|interrupted)\b/gm)) {
     counts[m[2]] = Number(m[1]);
   }
+  // The list reporter prints its failing titles once, as an indented block
+  // directly under "N failed". Reading THAT rather than scraping every
+  // "✘"-marked line keeps retries from appearing as separate failures — a retry
+  // of the same test is not a second defect, and counting it as one is how a
+  // report starts overstating the damage.
   const failures = [];
-  for (const m of text.matchAll(/^\s*\d+\)\s+(.+?)\s*$/gm)) failures.push(m[1]);
-  const listed = [];
-  for (const m of text.matchAll(/^\s*(?:✘|x|✗)\s+\d+\s+(.+?)(?:\s+\(\d+(?:\.\d+)?m?s\))?\s*$/gm)) listed.push(m[1]);
-  return { counts, failures: failures.length ? failures : listed, raw: text.length };
+  const lines = text.split(/\r?\n/);
+  const start = lines.findIndex((l) => /^\s*\d+\s+failed\s*$/.test(l));
+  if (start !== -1) {
+    for (let i = start + 1; i < lines.length; i++) {
+      const m = lines[i].match(/^\s+(\[.+)$/);
+      if (!m) break;
+      failures.push(m[1].trim());
+    }
+  }
+  return { counts, failures, raw: text.length };
 }
 
 /* ---------------------------------------------------- the narrative, as data */
@@ -131,6 +142,8 @@ const DONE = [
 const IN_PROGRESS = [
   ['The light working area, screen by screen', 'Five screens are converted (Workbench, Job, Shop View, Deliveries, Search); the rest are still gunmetal and convert when they are rebuilt. The list is data in `lib/data/admin-working-area.ts` and is unit-tested, so "which screens are light" is an assertion rather than a memory.'],
   ['Human verification of the interactive work', 'Everything below the automated gates has been proven by Playwright against alpha. Per this project\'s own verification standard, canvas and UI behaviour still wants Reid\'s own eyes before it is called DONE.'],
+  ['Two homepage assertions that disagree with the shipped homepage', 'The hero\'s "View Our Work" link goes to /design-studio where a 2026-09-16 spec says /about/services, and the header logo renders at 160px where the same pass says 76px. In both cases the markup is NEWER than the assertion, so the tests encode an earlier intention. Neither was touched here: changing where the hero\'s second button sends every visitor, or how big the brand mark is, is a product decision.'],
+  ['One Modify-in-FlashDraft assertion that is a real product question', 'A modified profile\'s child row gets `dimensions.revision = 1` where the spec expects it to carry the source\'s 5. What a revision number should mean across a modify is a lineage decision, not a hardening one.'],
   ['The 21 remaining `afs-chrome-dim` placeholder files outside the Command Center', 'Recorded, measured, and deliberately not swept — widening a Command Center prompt into a site-wide restyle is Reid\'s call. The twenty-second was the shared auth input class, which sits on every page of the sign-in flow and is therefore inside the gate; that one was fixed. The Command Center screens and the sign-in flow are now clean and gated; the rest of the list is not.'],
 ];
 
@@ -156,6 +169,28 @@ const NEXT_ACTIONS = [
   ['The Products page track', 'The catalog, the configurator dropdowns and the finish palette, once the product data arrives. Customer-facing pricing stays out of all of it: this is an RFQ platform.'],
   ['Load Steve\'s historical pricing into the append-only ledger', 'Use `source=\'import\'` with an `import_batch_id` — a CHECK requires one, so a bad batch is always identifiable and is superseded rather than deleted. The column list is frozen in SCHEMA.md\'s PRICING LEDGER IMPORT FORMAT and is the same order the CSV export writes. Money is cents throughout.'],
   ['An ATTENDED Thalmann test of the spec-correct encoder', 'One asymmetric hemmed profile, pushed through the Command Center approval path by a person standing at the machine, checked against PathfinderEdge\'s own render. This is what closes the bend-angle and hemDirection mappings, which are flagged unproven in code rather than presented as settled.'],
+];
+
+/**
+ * A failing test's title is not a cause. Each entry here is keyed by a substring
+ * of the Playwright title, so the document never prints a bare list of red —
+ * anything that survives a run has to come with what is actually wrong and whose
+ * decision it is. An unmatched failure prints "cause not yet diagnosed", which is
+ * a worse look than the truth and is meant to be.
+ */
+const FAILURE_CAUSES = [
+  [
+    'saving the modified draft creates a NEW row',
+    'REAL PRODUCT QUESTION, left failing on purpose. A modified profile\'s child row gets `dimensions.revision = 1`; the Part 1 spec expects it to carry the source\'s 5. What a revision number means across a modify is a lineage decision. PENDING REID.',
+  ],
+  [
+    'hero dual CTAs',
+    'The hero\'s "View Our Work" link goes to /design-studio; the assertion wants /about/services. The markup (commit 6a10944) is NEWER than the assertion, so the test encodes an earlier intention. Changing where the hero\'s second button sends every visitor is a product decision. PENDING REID.',
+  ],
+  [
+    'header logo has no separate sidebar',
+    'The header logo renders at width 160; the assertion wants 76. The markup (commit 3c774f6) landed AFTER the assertion, so again the test is the stale side. Changing the size of the brand mark is a product decision. PENDING REID.',
+  ],
 ];
 
 const OPEN_DESIGN_QUESTIONS = [
@@ -255,6 +290,11 @@ if (pw) {
 }
 w();
 
+if (pw && pw.counts.skipped) {
+  w(`The ${pw.counts.skipped} skips are conditional and self-explaining, not silent. Four are Production Queue tests that skip because \`orders\` is empty on alpha — the spec's premise is that a status change is observable, and with no orders there is nothing to observe. The fifth is a HailView storm-marker test that skips when the live weather feed returns no hail events for the test address. Both say so in their skip message.`);
+  w();
+}
+
 if (contrast) {
   w('### Contrast, screen by screen');
   w();
@@ -268,10 +308,18 @@ if (contrast) {
   w();
 }
 
-if (pw && pw.failures.length) {
-  w('### Playwright failures, by title');
+if (pw) {
+  w('### Playwright against alpha — every failure, by title, with its cause');
   w();
-  for (const f of pw.failures) w(`- ${f}`);
+  if (pw.failures.length === 0) {
+    w('No test failed.');
+  } else {
+    for (const f of pw.failures) {
+      const hit = FAILURE_CAUSES.find(([key]) => f.includes(key));
+      w(`- **${f}**`);
+      w(`  - ${hit ? hit[1] : 'Cause not yet diagnosed.'}`);
+    }
+  }
   w();
 }
 
