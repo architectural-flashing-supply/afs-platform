@@ -4,7 +4,7 @@ export default function ForgotPasswordSentPage() {
   return (
     <div className="text-center">
       <div className="w-14 h-14 rounded-full bg-[var(--afs-crimson-ghost)] flex items-center justify-center mx-auto mb-6">
-        <svg className="w-7 h-7 text-afs-crimson" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg className="w-7 h-7 text-afs-danger-on-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -17,7 +17,7 @@ export default function ForgotPasswordSentPage() {
       <p className="font-body text-sm text-afs-chrome-mid mb-8">
         If an account exists for that email, we sent a password reset link.
       </p>
-      <Link href="/login" className="font-label text-sm text-afs-crimson hover:text-afs-crimson-hover">
+      <Link href="/login" className="font-label text-sm text-afs-danger-on-dark hover:text-afs-chrome-high">
         Back to sign in
       </Link>
     </div>

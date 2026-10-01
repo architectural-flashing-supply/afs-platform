@@ -105,7 +105,7 @@ function LoginForm() {
   return (
     <div>
       <h1 className="font-heading text-3xl font-bold text-afs-chrome-high mb-1 text-center">Sign In</h1>
-      <p className="font-body text-sm text-afs-chrome-base text-center mb-8">Access your AFS account</p>
+      <p className="font-body text-sm text-afs-chrome-mid text-center mb-8">Access your AFS account</p>
 
       {notice && (
         <div className={authSuccessClass}>
@@ -125,7 +125,7 @@ function LoginForm() {
             Check your email. We sent a sign-in link to{' '}
             <span className="text-afs-chrome-high">{email}</span>.
           </p>
-          <p className="font-body text-xs text-afs-chrome-dim">Link expires in 1 hour.</p>
+          <p className="font-body text-xs text-afs-chrome-silver">Link expires in 1 hour.</p>
         </div>
       ) : mode === 'password' ? (
         <form onSubmit={handlePasswordSubmit} className="space-y-5">
@@ -149,7 +149,7 @@ function LoginForm() {
               <label className="font-label text-xs uppercase tracking-widest text-afs-chrome-mid" htmlFor="password">
                 Password
               </label>
-              <Link href="/forgot-password" className="font-label text-xs text-afs-chrome-base hover:text-afs-crimson">
+              <Link href="/forgot-password" className="font-label text-xs text-afs-chrome-mid hover:text-afs-danger-on-dark">
                 Forgot password?
               </Link>
             </div>
@@ -171,7 +171,7 @@ function LoginForm() {
             type="button"
             data-testid="magic-link-toggle"
             onClick={() => switchMode('magic')}
-            className="w-full text-center font-label text-sm text-afs-chrome-base hover:text-afs-chrome-high py-2"
+            className="w-full text-center font-label text-sm text-afs-chrome-mid hover:text-afs-chrome-high py-2"
           >
             Sign in with magic link instead
           </button>
@@ -199,22 +199,22 @@ function LoginForm() {
           <button
             type="button"
             onClick={() => switchMode('password')}
-            className="w-full text-center font-label text-sm text-afs-chrome-base hover:text-afs-chrome-high py-2"
+            className="w-full text-center font-label text-sm text-afs-chrome-mid hover:text-afs-chrome-high py-2"
           >
             Sign in with password instead
           </button>
         </form>
       )}
 
-      <p className="text-center font-body text-sm text-afs-chrome-base mt-8">
+      <p className="text-center font-body text-sm text-afs-chrome-mid mt-8">
         Don&apos;t have an account?{' '}
-        <Link href="/register" className="text-afs-crimson hover:text-afs-crimson-hover">
+        <Link href="/register" className="text-afs-danger-on-dark hover:text-afs-chrome-high">
           Create one
         </Link>
       </p>
-      <p className="text-center font-body text-xs text-afs-chrome-dim mt-4">
+      <p className="text-center font-body text-xs text-afs-chrome-silver mt-4">
         Applying for net terms?{' '}
-        <Link href="/account/credit-application" className="text-afs-chrome-mid hover:text-afs-crimson underline">
+        <Link href="/account/credit-application" className="text-afs-chrome-mid hover:text-afs-danger-on-dark underline">
           Apply for a credit account
         </Link>
       </p>

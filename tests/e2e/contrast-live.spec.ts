@@ -22,6 +22,14 @@ import { LIGHT_WORKING_AREA_SCREENS } from '@/lib/data/admin-working-area';
  * credentials like every other admin spec, and creates no rows.
  */
 
+// Signed in as the E2E admin, the same way every other admin spec in this suite
+// does it. Without this the Command Center routes redirect to /login and the
+// spec measures the SIGN-IN PAGE while reporting it as a Command Center result —
+// which is exactly what happened on its first run against alpha, and is worse
+// than no check at all. The skip below detects the redirect, so a credential-less
+// run says so rather than passing on the wrong page.
+test.use({ storageState: 'tests/e2e/.auth/user.json' });
+
 const ADMIN_SCREENS = [
   '/admin/command-center',
   '/admin/shop-view',
@@ -128,8 +136,9 @@ test.describe('Command Center contrast, measured in the browser', () => {
     for (const route of ADMIN_SCREENS) {
       const response = await page.goto(route, { waitUntil: 'networkidle' });
       // Not signed in as an admin on this run — the suite's own auth.setup.ts
-      // skips without credentials, so say so rather than passing vacuously.
-      if (page.url().includes('/auth') || response?.status() === 404) {
+      // skips without credentials, so say so rather than measuring /login and
+      // reporting it as a Command Center result.
+      if (/\/(login|register|auth)\b/.test(page.url()) || response?.status() === 404) {
         test.skip(true, `Not signed in as an admin; ${route} redirected to ${page.url()}`);
       }
 
@@ -158,7 +167,7 @@ test.describe('Command Center contrast, measured in the browser', () => {
     const routes = LIGHT_WORKING_AREA_SCREENS.map((s) => s.route).filter((r) => !r.includes('['));
     for (const route of routes) {
       await page.goto(route, { waitUntil: 'domcontentloaded' });
-      if (page.url().includes('/auth')) test.skip(true, 'Not signed in as an admin.');
+      if (/\/(login|register|auth)\b/.test(page.url())) test.skip(true, 'Not signed in as an admin.');
       const bg = await page.evaluate(() => {
         const main = document.querySelector('main');
         const panel = main?.firstElementChild;

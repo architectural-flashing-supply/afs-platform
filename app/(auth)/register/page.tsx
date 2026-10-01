@@ -18,9 +18,9 @@ const ACCOUNT_TYPES: { value: AccountType; label: string }[] = [
 
 const STRENGTH_LABEL: Record<string, string> = { weak: 'Weak', fair: 'Fair', strong: 'Strong' };
 const STRENGTH_COLOR: Record<string, string> = {
-  weak: 'text-afs-crimson',
-  fair: 'text-afs-warning',
-  strong: 'text-afs-success',
+  weak: 'text-afs-danger-on-dark',
+  fair: 'text-afs-warning-on-dark',
+  strong: 'text-afs-success-on-dark',
 };
 const STRENGTH_BAR: Record<string, string> = {
   weak: 'w-1/3 bg-afs-crimson',
@@ -86,7 +86,7 @@ export default function RegisterPage() {
   return (
     <div>
       <h1 className="font-heading text-3xl font-bold text-afs-chrome-high mb-1 text-center">Create Account</h1>
-      <p className="font-body text-sm text-afs-chrome-base text-center mb-8">
+      <p className="font-body text-sm text-afs-chrome-mid text-center mb-8">
         Submit drawings, request quotes, and track orders online
       </p>
 
@@ -131,7 +131,7 @@ export default function RegisterPage() {
 
         <div>
           <label className={authLabelClass} htmlFor="company">
-            Company <span className="normal-case text-afs-chrome-dim">(optional)</span>
+            Company <span className="normal-case text-afs-chrome-silver">(optional)</span>
           </label>
           <input
             id="company"
@@ -204,15 +204,15 @@ export default function RegisterPage() {
         </button>
       </form>
 
-      <p className="text-center font-body text-sm text-afs-chrome-base mt-8">
+      <p className="text-center font-body text-sm text-afs-chrome-mid mt-8">
         Already have an account?{' '}
-        <Link href="/login" className="text-afs-crimson hover:text-afs-crimson-hover">
+        <Link href="/login" className="text-afs-danger-on-dark hover:text-afs-chrome-high">
           Sign in
         </Link>
       </p>
-      <p className="text-center font-body text-xs text-afs-chrome-dim mt-4">
+      <p className="text-center font-body text-xs text-afs-chrome-silver mt-4">
         Applying for net terms?{' '}
-        <Link href="/account/credit-application" className="text-afs-chrome-mid hover:text-afs-crimson underline">
+        <Link href="/account/credit-application" className="text-afs-chrome-mid hover:text-afs-chrome-high underline">
           Apply for a credit account
         </Link>
       </p>

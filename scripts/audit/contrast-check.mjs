@@ -961,14 +961,37 @@ function buildScreens() {
       });
     }
   }
+
+  // THE SIGN-IN PAGE IS A COMMAND CENTER SCREEN.
+  //
+  // It is not under /admin and it is not in the nav, so the derivation above
+  // misses it — and it is the only way into every screen the derivation does
+  // find. tests/e2e/contrast-live.spec.ts measured it by accident (it landed
+  // there before it was signed in) and found six real failures, including a
+  // crimson "Create one" link at 1.71:1. Added here by finding the route group
+  // on disk rather than by naming a file, for the same reason as everything
+  // else in this script: so it keeps working if the page moves.
+  const authPages = pagesUnder('(auth)');
+  for (const page of authPages) {
+    if (seen.has(page)) continue;
+    seen.add(page);
+    const asRoute = `/${page.replace(/^app\/\(auth\)\//, '').replace(/\/page\.tsx$/, '')}`;
+    screens.push({ label: `Sign-in flow: ${asRoute}`, route: asRoute, page, root });
+  }
+
   return screens.sort((a, b) => a.route.localeCompare(b.route));
 }
 
 function measure(screen) {
   const out = { findings: [], unresolved: [], byKey: new Map(), files: new Set() };
-  // The header renders above every screen, so it is measured as part of each.
-  analyze('components/layout/AdminShell.tsx', [screen.root.rgb], out, 0, new Set());
-  analyze(screen.page, [screen.root.rgb], out, 0, new Set());
+  // The shell above the page is part of the screen, so it is measured with it.
+  // The sign-in flow has its own shell; everything else has the gunmetal header.
+  const shell = screen.page.startsWith('app/(auth)/')
+    ? 'components/layout/AuthShell.tsx'
+    : 'components/layout/AdminShell.tsx';
+  analyze(shell, [screen.root.rgb], out, 0, new Set());
+  const incoming = CHILD_BG_CACHE.get(`${shell}@${keyOf(screen.root.rgb)}`) ?? [screen.root.rgb];
+  analyze(screen.page, incoming, out, 0, new Set());
   return { ...screen, findings: out.findings, unresolved: out.unresolved };
 }
 

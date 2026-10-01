@@ -40,7 +40,7 @@ export default function RegisterConfirmPage() {
   return (
     <div className="text-center">
       <div className="w-14 h-14 rounded-full bg-[var(--afs-crimson-ghost)] flex items-center justify-center mx-auto mb-6">
-        <svg className="w-7 h-7 text-afs-crimson" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg className="w-7 h-7 text-afs-danger-on-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -70,14 +70,14 @@ export default function RegisterConfirmPage() {
       <button
         onClick={handleResend}
         disabled={cooldown > 0 || !email}
-        className="font-label text-sm text-afs-chrome-base hover:text-afs-chrome-high disabled:text-afs-chrome-dim disabled:cursor-not-allowed"
+        className="font-label text-sm text-afs-chrome-mid hover:text-afs-chrome-high disabled:text-afs-chrome-silver disabled:cursor-not-allowed"
       >
         {cooldown > 0 ? `Resend confirmation email (${cooldown}s)` : 'Resend confirmation email'}
       </button>
 
-      <p className="font-body text-sm text-afs-chrome-base mt-8">
+      <p className="font-body text-sm text-afs-chrome-mid mt-8">
         Wrong email?{' '}
-        <Link href="/register" className="text-afs-crimson hover:text-afs-crimson-hover">
+        <Link href="/register" className="text-afs-danger-on-dark hover:text-afs-chrome-high">
           Go back
         </Link>
       </p>
