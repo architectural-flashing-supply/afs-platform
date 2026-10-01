@@ -40,6 +40,7 @@
 import { mkdir, writeFile } from 'fs/promises';
 import path from 'path';
 import type { HemType, HemKick } from '@/lib/types/profile';
+import { parseCatalogList, parseProfileSummaryList, logVendorShapeProblem } from '@/lib/integrations/pathfinder-response';
 
 // Catalog 20115 ("afs") is the only PathfinderEdge catalog the Thalmann
 // DS2801 subscribes to — confirmed directly by Seth Oliver (2026-08-18),
@@ -228,40 +229,151 @@ async function pathfinderFetch(config: PathfinderConfig, path: string, init?: Re
   });
 }
 
+/**
+ * F-03 — HOW LONG A COMMAND CENTER SCREEN WILL WAIT FOR THE VENDOR.
+ *
+ * Before this there was no timeout on any PathfinderEdge call, so an
+ * unreachable-but-not-refusing host (a dropped route, a hung load balancer, a
+ * tenant outage) left the request open for however long the platform's own
+ * socket timeout happened to be — on Vercel, long enough that the admin's screen
+ * simply never finished rendering. "Slow" and "down" looked identical, and both
+ * looked like the app being broken.
+ *
+ * 8 seconds, chosen from a real measurement rather than a round number: the
+ * 2026-09-24 audit timed `GET /api/v1/catalogs` live at **2.46s**. 8s is a bit
+ * over three times that — generous enough that a slow-but-working day never
+ * trips it, short enough that an operator gets a plain answer instead of a
+ * spinner.
+ *
+ * NO RETRY, deliberately. A retry on a timeout doubles the worst case to 16s to
+ * reach the same screen, and these reads are already allowed to degrade: a
+ * catalog list that cannot be fetched shows nothing and says why. The one read
+ * where a retry would be most tempting — resolving a just-created profile's id —
+ * is the one where the answer must be `unconfirmed` rather than persistence
+ * (CLAUDE.md rule #16).
+ */
+export const PATHFINDER_READ_TIMEOUT_MS = 8000;
+
+interface ReadOk {
+  ok: true;
+  res: Response;
+}
+interface ReadFailed {
+  ok: false;
+  timedOut: boolean;
+  message: string;
+}
+type ReadResult = ReadOk | ReadFailed;
+
+/**
+ * A GET against PathfinderEdge that cannot hang.
+ *
+ * READS ONLY. The POST that creates a profile is deliberately NOT routed through
+ * this: aborting a write mid-flight tells you nothing about whether the server
+ * committed it, and an abandoned-but-committed POST into catalog 20115 is a
+ * profile the physical Thalmann will collect that this app has no record of.
+ * A hung write is a worse problem than a slow one, and a client-side timeout
+ * does not solve it — it disguises it.
+ *
+ * Never throws. A timeout and a network failure are told apart because they read
+ * differently to the person looking at the screen: one means "the vendor is
+ * slow or unreachable", the other usually means a configuration problem.
+ */
+async function pathfinderRead(config: PathfinderConfig, path: string): Promise<ReadResult> {
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, PATHFINDER_READ_TIMEOUT_MS);
+
+  try {
+    const res = await pathfinderFetch(config, path, { method: 'GET', signal: controller.signal });
+    return { ok: true, res };
+  } catch (err) {
+    if (timedOut) {
+      return {
+        ok: false,
+        timedOut: true,
+        message: `PathfinderEdge did not answer GET ${path} within ${PATHFINDER_READ_TIMEOUT_MS / 1000} seconds. Nothing was sent and nothing was changed — try again in a moment.`,
+      };
+    }
+    return {
+      ok: false,
+      timedOut: false,
+      message: err instanceof Error ? err.message : `Network error calling PathfinderEdge (GET ${path}).`,
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * The admin "is PathfinderEdge reachable" check.
+ *
+ * F-09: a 200 is no longer enough to call this connected. The response body is
+ * parsed against the documented catalog shape, and a 200 carrying something else
+ * reports `error` with the real reason and writes a server-side log line — which
+ * is the difference between an admin seeing "Connected" over a screen that will
+ * quietly render nothing, and seeing the actual problem.
+ */
 export async function discoverApiEndpoints(): Promise<PathfinderEndpoints> {
   const config = getConfig();
   if (!config) return { ...notConfigured(), endpoints: {} };
 
-  try {
-    const res = await pathfinderFetch(config, '/api/v1/catalogs', { method: 'GET' });
-    return {
-      status: res.ok ? 'connected' : 'error',
-      message: res.ok
-        ? `Connected — GET /api/v1/catalogs returned ${res.status}.`
-        : `GET /api/v1/catalogs returned ${res.status}.`,
-      endpoints: { '/api/v1/catalogs': res.status },
-    };
-  } catch (err) {
+  const read = await pathfinderRead(config, '/api/v1/catalogs');
+  if (!read.ok) {
+    return { status: 'error', message: read.message, endpoints: {} };
+  }
+  const { res } = read;
+  if (!res.ok) {
     return {
       status: 'error',
-      message: err instanceof Error ? err.message : 'Network error calling PathfinderEdge.',
-      endpoints: {},
+      message: `GET /api/v1/catalogs returned ${res.status}.`,
+      endpoints: { '/api/v1/catalogs': res.status },
     };
   }
+
+  const raw = await res.json().catch(() => null);
+  const parsed = parseCatalogList(raw);
+  if (!parsed.ok) {
+    logVendorShapeProblem('GET /api/v1/catalogs', parsed.problems, raw);
+    return {
+      status: 'error',
+      message: `PathfinderEdge answered GET /api/v1/catalogs with ${res.status}, but the response does not match the documented shape, so it cannot be trusted. ${parsed.problems.join(' ')}`,
+      endpoints: { '/api/v1/catalogs': res.status },
+    };
+  }
+
+  return {
+    status: 'connected',
+    message: `Connected — GET /api/v1/catalogs returned ${res.status} with ${parsed.value.length} catalog${parsed.value.length === 1 ? '' : 's'}.`,
+    endpoints: { '/api/v1/catalogs': res.status },
+  };
 }
 
 export async function getPathfinderCatalogs(): Promise<Catalog[]> {
   const config = getConfig();
   if (!config) return [];
 
-  try {
-    const res = await pathfinderFetch(config, '/api/v1/catalogs', { method: 'GET' });
-    if (!res.ok) return [];
-    const data = (await res.json()) as { catalogId: number; catalogName: string }[];
-    return data.map((c) => ({ id: String(c.catalogId), name: c.catalogName }));
-  } catch {
+  const read = await pathfinderRead(config, '/api/v1/catalogs');
+  if (!read.ok) {
+    console.error(`[PATHFINDER_READ] ${read.message}`);
     return [];
   }
+  if (!read.res.ok) return [];
+
+  const raw = await read.res.json().catch(() => null);
+  const parsed = parseCatalogList(raw);
+  if (!parsed.ok) {
+    // F-09: the old code cast here and then called .map on it. An envelope, an
+    // error object or a renamed field all reached a component as a crash or as
+    // a row of "undefined"; now it reaches the log as a sentence and the screen
+    // as an empty list.
+    logVendorShapeProblem('GET /api/v1/catalogs', parsed.problems, raw);
+    return [];
+  }
+  return parsed.value;
 }
 
 // The exact shape confirmed at https://docs.amscontrols.com/pathfinderEdge/profile-object.
@@ -634,11 +746,22 @@ export async function pushProfileToPathfinder(
     // profiles in the same catalog share the exact name, this picks the
     // highest profileId (most-recently-created) as a best-effort
     // disambiguation; the real API gives no stronger guarantee than that.
-    const listRes = await pathfinderFetch(
-      config,
-      `/api/v1/profiles?catalog=${owningCatalogId}&skip=0&take=100`,
-      { method: 'GET' }
-    );
+    //
+    // F-03/F-09 apply to this GET and NOT to the POST above. The profile is
+    // already created at this point, so every failure here lands on the same
+    // outcome: created, id unresolved — CLAUDE.md rule #16's `unconfirmed`,
+    // reported in plain English with no retry offered, because a retry would
+    // duplicate a real profile in catalog 20115.
+    const listPath = `/api/v1/profiles?catalog=${owningCatalogId}&skip=0&take=100`;
+    const listRead = await pathfinderRead(config, listPath);
+    if (!listRead.ok) {
+      return {
+        status: 'connected',
+        message: `Profile "${profileName}" was created, but its assigned profile number could not be read back: ${listRead.message}`,
+        profileId: null,
+      };
+    }
+    const listRes = listRead.res;
     if (!listRes.ok) {
       return {
         status: 'connected',
@@ -646,7 +769,17 @@ export async function pushProfileToPathfinder(
         profileId: null,
       };
     }
-    const list = (await listRes.json()) as { profileId: number; profileName: string }[];
+    const listRaw = await listRes.json().catch(() => null);
+    const parsedList = parseProfileSummaryList(listRaw);
+    if (!parsedList.ok) {
+      logVendorShapeProblem(`GET ${listPath}`, parsedList.problems, listRaw);
+      return {
+        status: 'connected',
+        message: `Profile "${profileName}" was created, but PathfinderEdge's profile listing does not match the documented shape, so its assigned profile number could not be read back. ${parsedList.problems.join(' ')}`,
+        profileId: null,
+      };
+    }
+    const list = parsedList.value;
     const matches = list.filter((p) => p.profileName === profileName);
     const resolved = matches.length ? matches.reduce((a, b) => (b.profileId > a.profileId ? b : a)) : null;
 

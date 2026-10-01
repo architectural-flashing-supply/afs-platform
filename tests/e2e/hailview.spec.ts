@@ -11,10 +11,22 @@ import { test, expect, type Page } from '@playwright/test';
 // tests assert on that rather than on which of the two produced it.
 const TEST_ADDRESS = '1500 Marilla St, Dallas, TX 75201';
 
-// Overridable so this spec can run against a dev server that isn't bound to
-// playwright.config.ts's default :3000 (e.g. that port already held by an
-// unrelated process) without editing shared config.
-test.use({ baseURL: process.env.HAILVIEW_E2E_BASE_URL || 'http://localhost:3000' });
+// F-12 — THIS SPEC NO LONGER OVERRIDES THE SUITE'S OWN baseURL.
+//
+// It used to read `test.use({ baseURL: process.env.HAILVIEW_E2E_BASE_URL ||
+// 'http://localhost:3000' })`. The `||` fallback is the defect: `test.use` wins
+// over playwright.config.ts, so with HAILVIEW_E2E_BASE_URL unset this spec went
+// to localhost:3000 NO MATTER WHAT the rest of the suite was pointed at. Running
+// the suite against alpha therefore produced eight HailView failures that were
+// never HailView's fault, and the 2026-09-24 audit had to write them off as
+// "environmental" — which is exactly how a real regression hides.
+//
+// The escape hatch is kept, because the reason for it was real (running this one
+// spec against a dev server on another port), but it is now opt-IN: set
+// HAILVIEW_E2E_BASE_URL and it applies; leave it unset and the spec inherits
+// PLAYWRIGHT_BASE_URL like every other spec in the suite.
+const hailviewBaseURL = process.env.HAILVIEW_E2E_BASE_URL;
+if (hailviewBaseURL) test.use({ baseURL: hailviewBaseURL });
 
 async function submitAndWaitForResult(page: Page) {
   await page.getByTestId('hailview-submit').click();
