@@ -212,6 +212,22 @@ Product catalog with filters. Product detail pages (no pricing). Auth system
 (register, login, magic link, password reset, team invitations). Checkout
 flow that collects payment after AFS delivers a formal quote.
 
+**Catalog source data, as of 2026-10-01 (branch `products-manifest`, not yet
+merged):** `lib/data/product-renders.manifest.json` holds 64 reviewed entries
+built from the 75 Drexel Metals renderings, with the images themselves in
+`public/images/products/`. 27 entries carry a real `ProfileType` and can offer
+Select & Design plus the 3D rotation; 37 get Request a Quote only.
+
+**The catalog still has a hard blocker: there is no product copy.** Every one of
+the 75 renderings is wordless — the descriptions are not printed in the images,
+contrary to what was assumed. `description` is empty on all 64 entries and
+`nameSource` is `"filename"` on all 64. Text has to come from Drexel or from
+Steve before any product page can be published. Two category-vocabulary
+questions and 26 flagged entries are also PENDING REID — see
+`docs/PRODUCT_MANIFEST.md`. Do not build catalog pages against this data until
+those are answered; the entries are a reviewed inventory, not approved content.
+
+
 ### Phase 4 — Customer Portal
 Dashboard. Order detail with production timeline. Quote approval and order flow.
 Delivery scheduler. Invoice portal. Multi-project management. Team accounts.

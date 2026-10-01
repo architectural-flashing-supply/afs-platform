@@ -9297,3 +9297,51 @@ This closes the "Still open for Reid" item from the previous entry — the
 
 **Resume at v2-02.** v2-01 is complete and verified; re-running it would re-run
 a destructive clean slate against an already-clean database.
+
+---
+
+## 2026-10-01 — Products manifest from the Drexel renderings (interactive, supervised, no FORGE)
+
+Not a FORGE run. Reid drove this one interactively with explicit hard stops:
+read four files and nothing else, build no page or component, touch no
+middleware / Command Center / Supabase / env / package.json, work on
+`products-manifest` rather than `main`, do not deploy. All of those held — the
+working tree at the end of the run contained exactly five new paths and nothing
+else.
+
+**The job as briefed assumed something that turned out to be false.** The brief
+said "the product descriptions are printed inside the images, so every image
+must be actually looked at". Every image was looked at — all 75, in eight
+batches — and **none of them has any text in it at all.** They are clean 3D
+renderings with no labels, callouts, dimensions or names. Finding that out was
+the single most load-bearing result of the run, because it means the Products
+page has no copy and cannot get any from this asset set.
+
+Rather than quietly fall back to filenames and let them read as transcribed
+product names, every entry got a `nameSource` field that says plainly where the
+name came from. All 64 say `"filename"`.
+
+**Things that were found by looking, which a filename pass would have missed:**
+- `rbm-25-38-main-400x250.webp` is a photo of a shop bending machine, not a
+  rendering of anything. It is not a product, montage or swatch, so it carries
+  `type: "non-product"` — a deliberate deviation from the three allowed values,
+  stated rather than hidden.
+- `vented-zee-sample-02` shows no perforations, while `perforated-z-closure`
+  clearly does. The names and the renders may be mismatched.
+- Several distinct product names resolve to one identical shape: `pitch-base`,
+  `headwall-sample-02` and `rakewall-sample-02` are the same plain L; three
+  ridge entries are one shape; the two zee samples are one part.
+- `w-valley` renders as a simple V, not the W its name promises.
+
+**Decisions deliberately NOT made, all left to Reid:** whether `Roofing Panels`
+or the existing `Standing Seam` category survives; whether `Trim & Closures`
+should exist at all; and the 26 `needsReview` items. Guessing any of these would
+have produced a confident-looking products list that nobody had checked — the
+same failure mode that got the 911-profile machine library deleted.
+
+**Gates, run in this session:** a JSON parse check after each of the eight
+batches; `node scripts/audit/verify-product-manifest.mjs` passing all checks
+(parse, 75/75 paths on disk, 64 entries, 27 real geometry values, schema and
+ids); `pnpm tsc --noEmit` exit 0.
+
+Committed to `products-manifest` and pushed. Not merged to `main`, by design.

@@ -34,6 +34,83 @@ summary, not a replacement for it.
 
 ---
 
+## 2026-10-01 — PRODUCTS MANIFEST (branch `products-manifest`, interactive, no FORGE)
+
+A reviewed products list built from the Drexel Metals renderings, for the
+Products page to be built from later. **No page or component was built, nothing
+was deployed, and nothing outside four paths was touched.** Branch
+`products-manifest`, not `main`.
+
+**What exists now:**
+- `lib/data/product-renders.manifest.json` — 64 entries covering all 75 `.webp`
+  source files.
+- `public/images/products/` — the 75 `.webp` files, subfolder structure
+  preserved, 6.5 MB. No originals, no `.psd`.
+- `docs/PRODUCT_MANIFEST_INVENTORY.md` (step 1, file-level) and
+  `docs/PRODUCT_MANIFEST.md` (the review summary for Reid).
+- `scripts/audit/verify-product-manifest.mjs` — the end-of-run check, re-runnable.
+
+**THE FINDING THAT CHANGED THE JOB. The brief stated the product descriptions
+are printed inside the images. They are not — not in any of the 75.** All are
+clean 3D renderings (white ground for most, grey for the `trim-jpegs` set) with
+no labels, no callouts, no dimensions and no product names. Every image was
+still opened and looked at, which is how this was established rather than
+assumed.
+
+Consequence: `description` is `""` on all 64 entries and the only available
+name is the filename. Rather than let a filename masquerade as transcribed
+text, every entry carries a **`nameSource`** field, `"filename"` on all 64. The
+Products page has no copy yet and cannot be written from this asset set alone.
+
+**Geometry: 27 of 64 entries carry a `geometryMatch`; 37 do not.** Every value is
+a real member of the `ProfileType` union in `lib/utils/profile-svg.ts` — the
+verifier reads that union out of the file rather than holding its own copy, so
+the check cannot go stale against a union edit. No angle, segment or dimension
+was read off a rendering, because the renderings carry none. Deliberate nulls
+include counter flashing and reglet (no ProfileType exists; `base-flashing` is a
+different part), valley, and every standing-seam panel — the union is a flashing
+vocabulary, not a panel one.
+
+**Two files are not products at all**, found by looking rather than by filename:
+`trim-jpegs/rbm-25-38-main-400x250.webp` is a 400x250 photograph of a shop
+bending machine on casters, and it is neither product, montage nor swatch, so it
+carries `type: "non-product"` rather than being misfiled into one of the three
+allowed values. The five `drexel-trims-montage-*` files are one house scene
+recoloured; their Pantone-looking codes (485C, 503C, 7479C) are unverified
+because nothing is printed in them. **There are no colour swatch sheets in this
+asset set.**
+
+**26 entries are flagged `needsReview`**, each with a reason. The substantial
+clusters are duplicate shapes under different names: three names on one L-shape
+(`pitch-base` / `headwall-sample-02` / `rakewall-sample-02`), three on one ridge,
+two on one zee, and several `trim-complete` / `trim-jpegs` pairs that appear to
+be the same parts rendered twice.
+
+**Two new category names were needed and are PENDING REID**: `Trim & Closures`
+(the existing vocabulary has no general trim bucket) and `Roofing Panels` (which
+overlaps the existing `Standing Seam` category — one of the two should survive).
+A third, `Not a product`, keeps the montages and the machine photo from ever
+being published as SKUs. Nine of the twelve existing `AFS_PROFILE_CATEGORIES`
+were reused unchanged.
+
+**Gates run in this session, real output:** `node scripts/audit/verify-product-manifest.mjs`
+— all checks pass (manifest parses, 75/75 image paths exist under `public/`,
+entry count 64 matches the inventory, 27/27 geometry values real, schema and
+id-uniqueness clean). `pnpm tsc --noEmit` — exit 0, no new errors. A JSON parse
+check ran after each of the eight batches.
+
+**Status: IMPLEMENTED, UNCONFIRMED.** Per this document's own verification
+standard, the data gates pass but Reid has not yet reviewed the 26 flagged
+entries or settled the two category questions. Nothing here is DONE until he
+has.
+
+**Not relevant to this run:** `FORGE/projects/afs-website/queue.yaml` was NOT
+edited. It holds the Command Center V2 queue, which commits to `main` via
+forge-1.ps1; this was an interactive, supervised, explicitly non-FORGE run on a
+side branch, and adding it there would misrepresent how it was done.
+
+---
+
 ## COMMAND CENTER V2 — PROMPT v2-06 (2026-09-30)
 
 Hardening and the consolidation. No new feature, no migration: four audit
