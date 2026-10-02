@@ -57,7 +57,7 @@ export const TOP_LEVEL_NAV: AdminNavItem[] = [
 export const MORE_NAV: AdminNavItem[] = [
   { label: 'Credit Applications', href: '/admin/credit-applications' },
   { label: 'Bid Monitor', href: '/admin/bid-monitor' },
-  { label: 'Search', href: '/admin/search' },
+  { label: 'Find a past profile', href: '/admin/search/profiles' },
   { label: 'Settings', href: '/admin/settings' },
 ];
 
@@ -65,14 +65,16 @@ export const MORE_NAV: AdminNavItem[] = [
 export const ADMIN_SEARCH_HREF = '/admin/search';
 
 /**
- * The red "+ New quote" button in the header.
+ * The red "+ New quote" button in the header, and the one on the Quotes list.
  *
- * v7 points it at its own `newquote` page, which does not exist here yet (it is
- * the next phase). It points at the Quotes list instead — a real route that
- * exists today, reached from every admin page — rather than a dead link or a
- * stub page nobody built.
+ * Points at the real customer-first New quote screen (v7 `pageNewQuote()`),
+ * built in Stage D. It used to point at the Quotes LIST, because the screen did
+ * not exist yet and a dead link was worse; that interim target is gone.
+ *
+ * Named once, here, so the header button and the list's button can never drift
+ * to different destinations.
  */
-export const NEW_QUOTE_HREF = '/admin/quotes';
+export const NEW_QUOTE_HREF = '/admin/quotes/new';
 
 /**
  * Routes that exist, work, and are deliberately NOT in any navigation

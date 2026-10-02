@@ -280,6 +280,7 @@ describe('the light working area', () => {
       'Deliveries',
       // v2-05 — the thumbnail rail replaced the interim results table.
       'Search',
+      'Find a past profile',
       // v7 Phase 2 - the two office lists.
       'Quotes',
       'Orders',

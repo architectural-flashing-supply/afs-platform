@@ -204,12 +204,41 @@ async function gotoPrototypePage(page: Page, protoPage: string | null) {
   // The prototype renders into #app on load; wait for its header to exist.
   await page.waitForSelector('header.hdr', { timeout: 10_000 });
   if (protoPage) {
-    const link = page.locator(`[data-go="${protoPage}"]`).first();
+    // THREE WAYS INTO A PROTOTYPE PAGE, because v7 does not use one.
+    //
+    //   1. `[data-go="<key>"]` — the nav pills and most links.
+    //   2. Inside the closed More menu — Search and Settings live there, so the
+    //      `.mbtn` has to be pressed before their link exists to be clicked.
+    //   3. `[data-act="<camelCase>"]` — "+ New quote" is a BUTTON with
+    //      `data-act="newQuote"`, not a `data-go` link, because v7 resets its
+    //      new-quote state on the way in rather than just routing.
+    //
+    // Tried in that order, with the real reason reported if none of them
+    // works — a silent miss here would mean measuring the wrong page, which is
+    // the trap this whole file is written around.
+    const camel = protoPage.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+    const byGo = page.locator(`[data-go="${protoPage}"]`).first();
+    const byAct = page.locator(`[data-act="${camel}"]`).first();
+
+    // VISIBILITY, NOT EXISTENCE — and this distinction cost a 30-second
+    // timeout per navigation before it was made. The More menu's links are in
+    // the DOM from first render inside a `hidden` container, so `count()`
+    // matches `[data-go="search"]` whether or not the menu is open. Clicking
+    // that match makes Playwright wait for an element that can never become
+    // actionable until the menu is pressed, and the whole gate crawled.
+    const visible = async (l: typeof byGo) => (await l.count()) > 0 && (await l.isVisible());
+
+    if (!(await visible(byGo)) && !(await visible(byAct))) {
+      const more = page.locator('.more .mbtn').first();
+      if ((await more.count()) > 0) await more.click();
+    }
+
+    const target = (await visible(byGo)) ? byGo : byAct;
     await expect(
-      link,
-      `The prototype has no [data-go="${protoPage}"] control to reach that page.`,
-    ).toBeAttached();
-    await link.click();
+      target,
+      `The prototype has no reachable [data-go="${protoPage}"] or [data-act="${camel}"] control.`,
+    ).toBeVisible();
+    await target.click();
     await page.waitForSelector('header.hdr', { timeout: 10_000 });
   }
   // Both sides must load the same two families before any font-size or family

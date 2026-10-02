@@ -37,7 +37,10 @@ describe('Command Center navigation is ONE level', () => {
     expect(MORE_NAV.map((i) => i.label)).toEqual([
       'Credit Applications',
       'Bid Monitor',
-      'Search',
+      // v7 Stage D: /admin/search is now the quotes-and-orders Search screen
+      // (`pageSearch()`), reached from the header's own search box, and the
+      // profile rail moved to /admin/search/profiles under its real name.
+      'Find a past profile',
       'Settings',
     ]);
   });

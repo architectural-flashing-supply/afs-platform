@@ -32,7 +32,10 @@ export const LIGHT_WORKING_AREA_SCREENS: { screen: string; route: string }[] = [
   { screen: 'Shop View', route: '/admin/shop-view' },
   { screen: 'Deliveries', route: '/admin/deliveries' },
   // v2-05 replaced the interim results table with the approved thumbnail rail.
+  // v7 Stage D: /admin/search became the quotes-and-orders Search and the
+  // profile rail moved to /admin/search/profiles. Both are light.
   { screen: 'Search', route: '/admin/search' },
+  { screen: 'Find a past profile', route: '/admin/search/profiles' },
   // v7 Phase 2: both office lists are light working areas under the dark header.
   { screen: 'Quotes', route: '/admin/quotes' },
   { screen: 'Orders', route: '/admin/orders' },

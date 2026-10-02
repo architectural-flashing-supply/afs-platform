@@ -15,9 +15,16 @@
  * ON `protoPage` / `livePath`
  *
  * The prototype is a single file that swaps pages in JS. The gate reaches a
- * page by CLICKING the prototype's own `[data-go]` nav rather than by calling
- * its internal functions — those are not globals, which an earlier run
- * discovered by having every such call fail silently.
+ * page by CLICKING the prototype's own control rather than by calling its
+ * internal functions — those are not globals, which an earlier run discovered
+ * by having every such call fail silently.
+ *
+ * `protoPage` is the prototype's OWN token for that control, spelled exactly as
+ * v7 spells it, because v7 does not use one scheme: the nav pills are
+ * `[data-go="quotes"]`, Search sits inside the closed More menu, and "+ New
+ * quote" is a BUTTON with `[data-act="newQuote"]` — camel-cased, because it
+ * resets v7's new-quote state on the way in rather than just routing. The gate
+ * tries all three; see `gotoPrototypePage`.
  *
  * ON `stateful`
  *
@@ -510,6 +517,44 @@ export const V7_COMPONENT_MAP: V7ComponentPair[] = [
   { key: 'shop-panel-heading', label: 'Shop View panel heading', stage: 'B2', protoPage: 'shop',
     proto: 'main.wrap .shopg .panel h2', livePath: '/admin/shop-view',
     live: 'main.wrap .shopg .panel h2', skip: { height: 'Content-sized.' } },
+  // ----------------------------------------------------------------- STAGE D
+  // New quote and Search. v7 reaches them by [data-go]="newquote" / "search".
+  { key: 'nq-title', label: 'New quote title', stage: 'D', protoPage: 'newQuote',
+    proto: 'main.wrap .greet h1.t', livePath: '/admin/quotes/new',
+    live: 'main.wrap .greet h1.t', skip: { height: 'Content-sized.' } },
+  { key: 'nq-grid-pane', label: 'New quote pane', stage: 'D', protoPage: 'newQuote',
+    proto: 'main.wrap .nqg .pv', livePath: '/admin/quotes/new', live: 'main.wrap .nqg .pv',
+    skip: { height: 'Content-sized.' } },
+  { key: 'nq-pane-heading', label: 'New quote pane heading', stage: 'D', protoPage: 'newQuote',
+    proto: 'main.wrap .nqg .pv h2', livePath: '/admin/quotes/new', live: 'main.wrap .nqg .pv h2',
+    skip: { height: 'Content-sized.' } },
+  { key: 'nq-customer-row', label: 'Customer list row (.ci)', stage: 'D', protoPage: 'newQuote',
+    proto: 'main.wrap .clist .ci', livePath: '/admin/quotes/new', live: 'main.wrap .clist .ci',
+    skip: { height: 'Content-sized — real company names wrap differently.' } },
+  { key: 'nq-customer-count', label: 'Customer job count (.oj)', stage: 'D', protoPage: 'newQuote',
+    proto: 'main.wrap .clist .ci .oj', livePath: '/admin/quotes/new',
+    live: 'main.wrap .clist .ci .oj' },
+  { key: 'nq-section-heading', label: 'Sub-heading (.s)', stage: 'D', protoPage: 'newQuote',
+    proto: 'main.wrap .nql h3.s', livePath: '/admin/quotes/new', live: 'main.wrap .nql h3.s',
+    skip: { height: 'Content-sized.' } },
+  { key: 'search-title', label: 'Search title', stage: 'D', protoPage: 'search',
+    proto: 'main.wrap .greet h1.t', livePath: '/admin/search',
+    live: 'main.wrap .greet h1.t', skip: { height: 'Content-sized.' } },
+  { key: 'search-sub', label: 'Search blurb', stage: 'D', protoPage: 'search',
+    proto: 'main.wrap .greet p.sub', livePath: '/admin/search',
+    live: 'main.wrap .greet p.sub', skip: { height: 'Content-sized.' } },
+  { key: 'search-bar', label: 'Search filter bar', stage: 'D', protoPage: 'search',
+    proto: 'main.wrap .bar', livePath: '/admin/search', live: 'main.wrap .bar',
+    skip: { height: 'Content-sized.' } },
+  { key: 'search-rcount', label: 'Search result count', stage: 'D', protoPage: 'search',
+    proto: 'main.wrap .rcount', livePath: '/admin/search', live: 'main.wrap .rcount',
+    skip: { height: 'Content-sized.' } },
+  { key: 'search-header', label: 'Search column header strip', stage: 'D', protoPage: 'search',
+    proto: 'main.wrap .rtab .rh', livePath: '/admin/search', live: 'main.wrap .rtab .rh',
+    skip: { height: 'Content-sized.' } },
+  { key: 'search-row', label: 'Search result row', stage: 'D', protoPage: 'search',
+    proto: 'main.wrap .rtab .rr', livePath: '/admin/search', live: 'main.wrap .rtab .rr',
+    skip: { height: 'Content-sized — real data wraps differently from samples.' } },
 ];
 
 
@@ -522,6 +567,7 @@ export const EXPECTED_STAGE_COVERAGE: Partial<Record<V7ComponentPair['stage'], n
   A: 15,
   B: 17,
   B2: 13,
+  D: 12,
 };
 
 /** The viewports the brief names for the shell, widest first. */

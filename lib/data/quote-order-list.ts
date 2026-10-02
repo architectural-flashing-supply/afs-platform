@@ -216,3 +216,111 @@ export function resultCountLine(count: number, kind: ListKind, sort: ListSort): 
   const sortLabel = (LIST_SORTS.find((s) => s.value === sort) ?? LIST_SORTS[0]).label.toLowerCase();
   return `${count} ${noun}${count === 1 ? '' : 's'} · ${sortLabel}`;
 }
+
+/* ===========================================================================
+ * THE SEARCH SCREEN — v7 `pageSearch()` (prototype line 1667).
+ *
+ * Search is the same rows as the two lists, over EVERY stage at once, with two
+ * filters the lists do not have: "Show" (quotes, orders, or both) and
+ * "Material". It reuses `ListRow`, `matchTokens`, `rangeCutMs` and `sortRows`
+ * rather than growing a parallel pipeline, so a change to how matching or
+ * sorting works cannot apply to the lists and miss Search.
+ *
+ * THIS IS NOT A SECOND PROFILE SEARCH. CLAUDE.md rule #27 says there is exactly
+ * ONE profile query (`admin_profile_search`) and that /admin/search's rail is
+ * its UI. This searches QUOTES AND ORDERS, which is a different question over
+ * different tables, and is what docs/COMMAND_CENTER_V7_GAP_AUDIT.md §4 says the
+ * gap is: "this must be a SEPARATE quote/order query, not a second profile
+ * function." No new SQL function and no migration — it filters rows the list
+ * pages already load.
+ * ======================================================================== */
+
+/** v7's "Show" filter (pageSearch, line 1671). */
+export const SEARCH_SHOWS: { value: SearchShow; label: string }[] = [
+  { value: 'all', label: 'Quotes and orders' },
+  { value: 'quotes', label: 'Quotes only' },
+  { value: 'orders', label: 'Orders only' },
+];
+
+export type SearchShow = 'all' | 'quotes' | 'orders';
+
+/**
+ * v7's material filter is a fixed list (`MATS`, line 1602) because its data is
+ * a fixture. The live list is derived from the rows actually present, so it can
+ * never offer a material that would return nothing, and it grows by itself as
+ * new materials are quoted. "All materials" is always first, as in v7.
+ */
+export const ALL_MATERIALS = 'All materials';
+
+export function materialOptions(rows: ListRow[]): string[] {
+  const seen = new Set<string>();
+  for (const r of rows) {
+    const spec = r.spec?.trim();
+    if (spec) seen.add(spec);
+  }
+  return [ALL_MATERIALS, ...[...seen].sort((a, b) => a.localeCompare(b))];
+}
+
+export interface SearchQuery extends ListQuery {
+  show: SearchShow;
+  material: string;
+}
+
+export const DEFAULT_SEARCH_QUERY: SearchQuery = {
+  ...DEFAULT_LIST_QUERY,
+  show: 'all',
+  material: ALL_MATERIALS,
+};
+
+/** Which stages each "Show" value covers — the two lists' scopes, combined. */
+export function stagesForShow(show: SearchShow): JobStage[] {
+  if (show === 'quotes') return STAGES_FOR_KIND.quotes;
+  if (show === 'orders') return STAGES_FOR_KIND.orders;
+  return [...STAGES_FOR_KIND.quotes, ...STAGES_FOR_KIND.orders];
+}
+
+/**
+ * The search pipeline: show scope -> material -> date cut -> token match ->
+ * sort. Deliberately the same shape and order as `applyListQuery`.
+ */
+export function applySearchQuery(
+  rows: ListRow[],
+  query: SearchQuery,
+  now: Date = new Date()
+): ListRow[] {
+  const scope = stagesForShow(query.show);
+  const cut = rangeCutMs(query.range, now);
+  const filtered = rows.filter((r) => {
+    if (!scope.includes(r.stage)) return false;
+    if (query.material !== ALL_MATERIALS && r.spec !== query.material) return false;
+    if (cut && new Date(r.submittedAt).getTime() < cut) return false;
+    return matchTokens(r, query.q);
+  });
+  return sortRows(filtered, query.sort);
+}
+
+export function parseSearchQuery(
+  params: { q?: string; show?: string; material?: string; range?: string; sort?: string },
+  rows: ListRow[]
+): SearchQuery {
+  const showOk = SEARCH_SHOWS.some((s) => s.value === params.show);
+  const rangeOk = LIST_RANGES.some((r) => r.value === params.range);
+  const sortOk = LIST_SORTS.some((s) => s.value === params.sort);
+  // A material only counts if it is really on offer — a stale URL cannot filter
+  // the screen down to nothing with a value no row has.
+  const materialOk = params.material ? materialOptions(rows).includes(params.material) : false;
+  return {
+    q: params.q ?? '',
+    stage: 'all',
+    show: showOk ? (params.show as SearchShow) : DEFAULT_SEARCH_QUERY.show,
+    material: materialOk ? (params.material as string) : ALL_MATERIALS,
+    range: rangeOk ? (params.range as ListRange) : DEFAULT_SEARCH_QUERY.range,
+    sort: sortOk ? (params.sort as ListSort) : DEFAULT_SEARCH_QUERY.sort,
+  };
+}
+
+/** v7's result line for Search: "12 results · newest first". */
+export function searchCountLine(count: number, sort: ListSort): string {
+  const sortLabel = (LIST_SORTS.find((s) => s.value === sort) ?? LIST_SORTS[0]).label.toLowerCase();
+  return `${count} result${count === 1 ? '' : 's'} · ${sortLabel}`;
+}
