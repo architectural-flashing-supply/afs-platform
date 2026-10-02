@@ -10,6 +10,9 @@ import JobActionPanel from '@/components/admin/JobActionPanel';
 import PastProfileThumb from '@/components/admin/PastProfileThumb';
 import SourceIcon from '@/components/admin/SourceIcon';
 import PanelErrorBoundary from '@/components/ui/PanelErrorBoundary';
+import V7Job from '@/components/admin/v7/V7Job';
+import { isFixtureMode, type SearchParamValue } from '@/lib/fixtures/mode';
+import { fixtureJob } from '@/lib/data/v7-view/job';
 
 /**
  * THE JOB SCREEN — three columns, exactly as the approved prototype draws them
@@ -45,9 +48,34 @@ const ROW_CLASS: Record<'sure' | 'unsure', string> = {
   unsure: 'row unsure',
 };
 
-export default async function JobScreenPage({ params }: { params: { id: string } }) {
+export default async function JobScreenPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams?: Record<string, SearchParamValue>;
+}) {
   const supabase = await createClient();
   await requireAdminUser(supabase);
+
+  // FIXTURE MODE. v7's job ids are small integers (412, 409, …) and the live
+  // ones are UUIDs, so this has to come BEFORE the UUID guard below or every
+  // fixture job 404s. The guard itself is unchanged and still rejects anything
+  // that is not a UUID on the live path.
+  //
+  // The live screen below keeps JobActionPanel, which really sends a quote and
+  // really opens the one door to the machine (CLAUDE.md rule #14). v7's
+  // equivalent pane has a "Pretend the customer approved" button in it. See
+  // components/admin/v7/V7Job.tsx.
+  if (isFixtureMode(searchParams)) {
+    const view = fixtureJob(Number(params.id));
+    if (!view) notFound();
+    return (
+      <LightWorkingArea>
+        <V7Job view={view} />
+      </LightWorkingArea>
+    );
+  }
 
   if (!/^[0-9a-f-]{36}$/i.test(params.id)) notFound();
   const job = await getJobScreen(supabase, params.id);
