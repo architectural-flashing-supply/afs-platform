@@ -39,14 +39,29 @@ export const LIGHT_WORKING_AREA_SCREENS: { screen: string; route: string }[] = [
 ];
 
 /**
- * The full-bleed wrapper. AdminShell's <main> supplies `pt-16 px-6 lg:px-8
- * pb-16` for the gunmetal pages, so a light screen has to cancel that padding
- * with negative margins, paint, and then re-apply it — otherwise the light
- * panel would float inside a gunmetal frame instead of being the working area.
+ * The full-bleed wrapper. AdminShell's `<main>` has its own padding, so a light
+ * screen has to cancel it with negative margins, paint, and then re-apply it —
+ * otherwise the light panel would float inside a gunmetal frame instead of
+ * being the working area.
  *
- * Kept as one exported string so the unit test can assert the light background
- * token and the full-bleed cancellation are both present, and so the two pages
- * using it cannot drift apart.
+ * THE NUMBERS COME FROM v7's `.wrap`, NOT FROM TAILWIND'S SCALE. The shell used
+ * to supply `pt-16 px-6 lg:px-8 pb-16` (64px / 24px / 32px), and this string
+ * cancelled exactly those. The Command Center is now a port of prototype v7, so
+ * `<main>` is v7's own `.wrap` — `padding: 20px 20px 60px` with a 1900px
+ * measure (see docs/design/command-center-v7/v7.css). The cancellation has to
+ * match THAT, which is why these are 20px and 60px and why the responsive
+ * `lg:` step is gone: v7's padding does not change with the viewport.
+ *
+ * Getting this wrong is silent. Too little negative margin leaves a gunmetal
+ * gutter down both sides of a light screen; too much pulls the content under
+ * the sticky header. Both look like a styling accident rather than a mismatch
+ * with the shell, which is why the numbers are pinned to v7's value in a
+ * comment and asserted in lib/data/workbench.test.ts.
+ *
+ * Kept as ONE exported string, written as a single literal: the contrast gate
+ * resolves class constants across modules, and CLAUDE.md rule #28 records that
+ * a concatenated one reads as `unresolved` — which it treats as the gate going
+ * blind.
  */
 export const LIGHT_WORKING_AREA_CLASS =
-  '-mt-16 -mb-16 -mx-6 lg:-mx-8 pt-16 pb-16 px-6 lg:px-8 min-h-screen bg-afs-bg-band text-afs-ink-900';
+  '-mt-5 -mb-[60px] -mx-5 pt-5 pb-[60px] px-5 min-h-screen bg-afs-bg-band text-afs-ink-900';

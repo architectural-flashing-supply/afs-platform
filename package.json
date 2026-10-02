@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prebuild": "node scripts/audit/contrast-check.mjs",
+    "prebuild": "node scripts/design/scope-v7-css.mjs && node scripts/audit/contrast-check.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -13,7 +13,8 @@
     "generate:employee-icons": "node scripts/generate-employee-icons.js",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:unit": "vitest run"
+    "test:unit": "vitest run",
+    "css:v7": "node scripts/design/scope-v7-css.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.111.0",

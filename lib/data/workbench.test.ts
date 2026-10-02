@@ -282,8 +282,24 @@ describe('the light working area', () => {
   it('paints light AND cancels the shell gunmetal padding, or it would float in a dark frame', () => {
     expect(LIGHT_WORKING_AREA_CLASS).toContain('bg-afs-bg-band');
     expect(LIGHT_WORKING_AREA_CLASS).toContain('text-afs-ink-900');
-    expect(LIGHT_WORKING_AREA_CLASS).toContain('-mt-16');
-    expect(LIGHT_WORKING_AREA_CLASS).toContain('-mx-6');
     expect(LIGHT_WORKING_AREA_CLASS).toContain('min-h-screen');
+  });
+
+  it("cancels exactly v7's .wrap padding — 20px sides and top, 60px bottom", () => {
+    // The shell's <main> is now v7's own `.wrap` (padding: 20px 20px 60px), not
+    // the old `pt-16 px-6 lg:px-8 pb-16`. A cancellation that does not match
+    // leaves a gunmetal gutter beside every light screen, or pulls content
+    // under the sticky header — both look like styling accidents rather than a
+    // mismatch with the shell, so the numbers are asserted here.
+    for (const cls of ['-mt-5', 'pt-5', '-mx-5', 'px-5', '-mb-[60px]', 'pb-[60px]']) {
+      expect(LIGHT_WORKING_AREA_CLASS).toContain(cls);
+    }
+    // The old values must be gone, or the two paddings fight.
+    for (const stale of ['-mt-16', 'pt-16', '-mx-6', 'lg:-mx-8', 'pb-16']) {
+      expect(
+        LIGHT_WORKING_AREA_CLASS,
+        `${stale} cancels the pre-v7 shell padding, which no longer exists.`,
+      ).not.toContain(stale);
+    }
   });
 });

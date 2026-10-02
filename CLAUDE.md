@@ -913,6 +913,78 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
     "Connected". Do not add a schema library for two documented shapes, and do
     not let a parser throw: a bad shape is a degraded read, not a 500.
 
+33. **THE COMMAND CENTER UI IS A PORT OF `docs/design/command-center-v7`.
+    NEVER BUILD OR RESTYLE A COMMAND CENTER SCREEN FROM MEMORY. RUN THE v7
+    STYLE GATE BEFORE FINISHING ANY UI WORK.**
+
+    The canonical source is
+    `docs/design/command-center-v7/AFS_Command_Center_Prototype_v7.html`
+    (sha256 `37f9c4d6…112a63`), committed so the design cannot drift away from
+    the repo. v7 WINS every conflict about appearance, layout, spacing, copy,
+    colour, font, label and interaction. Existing code wins only where it
+    supplies real data or API behaviour that v7 only fakes — keep that
+    behaviour, present it in v7's look.
+
+    **The CSS is DERIVED, not retyped.** `scripts/design/scope-v7-css.mjs`
+    (`pnpm css:v7`, chained into `prebuild`) reads the prototype's own CSS and
+    emits `app/styles/command-center-v7.generated.css` with every selector
+    scoped to `.cc-v7`, which only `AdminShell` sets. Editing the generated file
+    or hand-porting a rule is how the look drifts; change the prototype or the
+    deviations file and regenerate. `lib/design/v7-css.test.ts` regenerates and
+    compares, so a stale output fails the suite rather than shipping.
+
+    **v7 IS LIGHT, AND THAT DEPENDS ON BLOCK ORDER.** The prototype has FOUR
+    `<style>` blocks. Block 1 declares a DARK theme and says so ("One committed
+    dark theme", `--bg:#343D49`). Block 3 REDECLARES `:root` with the light
+    palette (`--bg:#F4F5F7`, `--hdr:#14181E`, `--red:#C8102E`) and wins. Reading
+    only block 1 yields a dark Command Center and is exactly the mistake that
+    produced earlier wrong-looking builds — v7's labels on the old app's look.
+    The result is a LIGHT working area, a DARK header, and ONE red action
+    colour. `lib/design/v7-css.test.ts` asserts the order and the resolved
+    tokens, so the cascade cannot silently invert.
+
+    **The ground is opt-in, per rule #18.** The transform splits v7's `body`
+    rule: typography goes on `.cc-v7` (safe everywhere), paint goes on
+    `.cc-v7-ground`. Painting the ground for the whole admin tree at once turned
+    the contrast gate red with 46 real failures — `afs-chrome-high` and the four
+    `*-on-dark` tokens at 1.09:1–1.69:1 on `#F4F5F7` — because twenty screens
+    still set light-on-dark text. Screens convert one at a time and the PAGE
+    opts in.
+
+    **THE STYLE GATE IS THE ACCEPTANCE TEST, AND IT IS AUTOMATED.**
+    `tests/visual/v7-style-gate.spec.ts` opens the prototype and the live app in
+    one browser and compares the COMPUTED styles of every pair in
+    `tests/visual/v7-component-map.ts` — family, size, weight, line-height,
+    letter-spacing, transform, colour, background, border, radius, shadow,
+    padding, gap, height. Lengths match within 1px; everything else exactly,
+    unless the pair is a documented deviation. **Every v7 component a stage
+    builds must be added to that map in the same commit** — `EXPECTED_STAGE_COVERAGE`
+    fails the run if a stage ships components it never mapped, so a screen
+    cannot pass by omission. An unmeasurable pair is reported UNCOVERED and
+    fails, on the same principle as rule #28's `0 unresolved`.
+
+    Two comparison rules are deliberate and must survive any rewrite, because
+    without them the gate reports differences that cannot be seen and would end
+    up skip-listed into uselessness: a border's style and colour are compared
+    only on an edge whose WIDTH is non-zero (Tailwind's Preflight sets
+    `border-style:solid;border-color:#e5e7eb` at width 0 on every element), and
+    `color` is compared only on an element with a direct text node (the app's
+    `<body>` and v7's set different inherited colours, which containers never
+    render).
+
+    **COLOUR DEVIATIONS ARE THE ONE LOOPHOLE AND THEY ARE MEASURED.** Where a v7
+    colour fails the WCAG build gate (rule #28), change ONLY that colour, to the
+    nearest passing shade in the same hue family, apply it in
+    `v7-deviations.css` (never by editing the verbatim `v7.css`), and record it
+    in `docs/design/V7_COLOR_DEVIATIONS.md`. **Never relax a gate threshold.**
+    `lib/design/v7-deviations.test.ts` recomputes every ratio from the real CSS
+    and asserts each deviation is still NECESSARY (v7's value really fails),
+    SUFFICIENT (the replacement really passes) and IN HUE (channel ratios within
+    5%) — so a deviation cannot be added to silence the gate, and one that stops
+    being needed fails rather than lingering as a permanent excuse. There is
+    exactly ONE today: `#1E8E52` → `#1D874E`, because white text on v7's green
+    measures 4.16:1 against a 4.5:1 requirement.
+
 ---
 
 ## MACHINE INTEGRATION — THALMANN DS2801 / AFS MACHINE BRIDGE

@@ -8,6 +8,50 @@ import { createClient } from '@/lib/supabase/client';
 import { TOP_LEVEL_NAV, MORE_NAV, ADMIN_SEARCH_HREF, NEW_QUOTE_HREF } from '@/lib/data/admin-nav';
 import { TYPEAHEAD_MIN_CHARS } from '@/lib/data/header-typeahead';
 
+/**
+ * THE Command Center header — a port of prototype v7's `header()` (line 1195).
+ *
+ * This file is a PORT, not a design. Its markup and class names come from
+ * docs/design/command-center-v7/AFS_Command_Center_Prototype_v7.html and its
+ * appearance comes entirely from that prototype's own CSS, scoped to `.cc-v7`
+ * (see scripts/design/scope-v7-css.mjs). Nothing here carries a Tailwind
+ * colour, size or spacing utility, and nothing should: a utility added to one
+ * of these elements overrides v7 and the style gate
+ * (tests/visual/v7-style-gate.spec.ts) will fail on the difference.
+ *
+ * WHAT CHANGED AND WHY IT MATTERS. The previous version of this component had
+ * v7's LABELS — "+ New quote", the seven-item nav, the type-ahead — on the old
+ * gunmetal Tailwind styling (`bg-afs-bg-raised`, `text-afs-chrome-mid`). That
+ * is the specific failure this rebuild exists to correct: the labels were right
+ * and the look was the old app's. The behaviour below (debounced type-ahead
+ * with request abandonment, outside-click and Escape handling, hard-redirect
+ * sign-out) is carried over unchanged, because it was correct — only the
+ * presentation is replaced.
+ *
+ * v7's own structure, which this mirrors element for element:
+ *
+ *   header.hdr > .hdr-in >
+ *     a.brand          (logo + "Command <em>Center</em>")
+ *     button.nqb       ("+ New quote", the one red)
+ *     nav.nav          (seven pills; .on marks the current page; .cnt badge)
+ *     .hdr-r >
+ *       .hs            (search input + .hsd type-ahead panel)
+ *       .more          (.mbtn + .mm menu)
+ *       .who           (signed-in admin)
+ *       a.lo           ("Log out")
+ *
+ * The one deliberate departure: v7 renders `.who` as the literal sample name
+ * "Steve Harycki". This renders the real signed-in admin's name, because a
+ * hardcoded person in a shipped header is sample data, and the rule is that no
+ * mock data survives the port. The element, its class and its position are
+ * unchanged, so it is the same component to the style gate.
+ */
+
+/** Exact-segment match — plain startsWith would also true-match /admin/orders-crm for href="/admin/orders". */
+function isActivePath(pathname: string | null, href: string): boolean {
+  return pathname === href || (pathname?.startsWith(`${href}/`) ?? false);
+}
+
 /** What /api/admin/command-center/typeahead returns. */
 interface Suggest {
   companies: { name: string; person: string }[];
@@ -24,53 +68,9 @@ interface Suggest {
   emptyMessage: string | null;
 }
 
-/**
- * THE Command Center navigation. ONE level, and this is the only level.
- *
- * Command Center V2 prompt v2-01 removed the second level outright. Before
- * this there were two-and-a-half nav surfaces: a 7-tab top bar, a gear
- * popover holding QuickBooks/Pricing/Settings (the second level), and an
- * AdminShell sidebar that duplicated the top bar's tabs under different
- * labels. A non-technical user had to learn which of three places a tool
- * lived in.
- *
- * Top level is exactly: Workbench, Shop View, Deliveries, Search, More.
- * More is a single flat menu, not a submenu tree — it holds destinations,
- * never further menus.
- *
- * Where the old tools went:
- *   Dashboard            -> Workbench (same route, /admin/command-center)
- *   Orders (orders-crm)  -> absorbed into Customers
- *   Pricing              -> absorbed into Settings
- *   QuickBooks           -> a "coming soon" card inside Settings
- *   Building Codes       -> MOVED OFF the Command Center, to the public
- *                           site's Resources menu (/resources/building-codes)
- *   Google Business pics  -> removed from the Command Center. The CODE IS
- *                           KEPT for the future driver mobile app — see
- *                           app/admin/gbp-photos, app/employee/photos,
- *                           components/employee/EmployeePhotoUploader.tsx,
- *                           components/field/DeliveryPhotoCapture.tsx and
- *                           the gbp_photo_queue table. Unlinked, not deleted.
- *   Geometry Test        -> developer-only: deliberately unlinked from every
- *                           nav surface, reachable only by typing the URL,
- *                           on top of the /admin admin-role gate.
- *   Quote Requests /
- *   Production Queue     -> direct-URL-only for now. The Workbench's New and
- *                           "In the shop" lanes replace them in v2-02; they
- *                           are listed under Settings' "Other tools" so they
- *                           are not lost in the meantime.
- *
- * CONTRAST: every pair here clears WCAG AA against the gunmetal header
- * (#363C4A). afs-chrome-mid is 5.8:1, white is 10.8:1, and the search field
- * sits on afs-bg-dim so even its PLACEHOLDER (afs-chrome-mid) is 8.9:1.
- * afs-chrome-dim is deliberately NOT used for text or borders here: it is
- * only 2.8:1 on this background and fails both the 4.5:1 text rule and the
- * 3:1 UI-component rule.
- */
-
-/** Exact-segment match — plain startsWith would also true-match /admin/orders-crm for href="/admin/orders". */
-function isActivePath(pathname: string | null, href: string): boolean {
-  return pathname === href || (pathname?.startsWith(`${href}/`) ?? false);
+/** v7 `cents()` (line 1067) — grouped dollars, two decimals, no currency code. */
+function cents(value: number): string {
+  return `$${(value / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
 }
 
 export default function AdminTopBar({
@@ -160,60 +160,50 @@ export default function AdminTopBar({
     return () => document.removeEventListener('mousedown', onDown);
   }, [suggestOpen]);
 
+  const showSuggest = suggestOpen && suggest !== null && search.trim().length >= TYPEAHEAD_MIN_CHARS;
+
   return (
-    <header className="fixed top-0 left-0 right-0 z-40 bg-afs-bg-raised border-b border-afs-border">
-      <div className="h-16 flex flex-nowrap items-center gap-2 px-4 lg:px-6">
-        <Link href="/admin/command-center" className="flex items-center gap-2 shrink-0 mr-2">
-          <Image src="/afs-logo.png" alt="AFS" width={28} height={20} className="h-6 w-auto object-contain" />
-          {/* v7 hides the brand text below 1250px so the nav never wraps. */}
-          <span className="hidden min-[1250px]:inline font-label text-sm font-semibold text-afs-chrome-high whitespace-nowrap">
-            Command Center
+    <header className="hdr">
+      <div className="hdr-in">
+        <Link href="/admin/command-center" className="brand">
+          <Image src="/afs-logo.png" alt="Architectural Flashing Supply" width={120} height={34} />
+          <span className="bt">
+            <b>
+              Command <em>Center</em>
+            </b>
           </span>
         </Link>
 
         {/* v7 puts "+ New quote" immediately after the brand, in the one red. */}
-        <Link
-          href={NEW_QUOTE_HREF}
-          data-testid="new-quote-button"
-          className="shrink-0 inline-flex items-center h-10 px-4 rounded bg-afs-crimson text-white font-label text-sm font-semibold whitespace-nowrap transition-colors hover:bg-afs-crimson-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-afs-crimson focus-visible:ring-offset-2 focus-visible:ring-offset-afs-bg-raised"
-        >
+        <Link href={NEW_QUOTE_HREF} data-testid="new-quote-button" className="nqb">
           + New quote
         </Link>
 
-        <nav className="flex items-center gap-1 min-w-0 overflow-x-auto" aria-label="Main">
+        <nav className="nav" aria-label="Main">
           {TOP_LEVEL_NAV.map((item) => {
             const active = isActivePath(pathname, item.href);
             return (
               <Link
                 key={item.href}
                 href={item.href}
+                className={active ? 'on' : undefined}
                 aria-current={active ? 'page' : undefined}
-                className={`font-label text-sm px-3 py-2.5 rounded transition-colors whitespace-nowrap flex items-center gap-2 ${
-                  active
-                    ? 'text-afs-chrome-high bg-afs-bg-surface font-semibold'
-                    : 'text-afs-chrome-mid hover:text-afs-chrome-high hover:bg-afs-bg-surface'
-                }`}
               >
                 {item.label}
-                {item.badge && pendingCount > 0 && (
-                  <span className="bg-afs-crimson text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
-                    {pendingCount}
-                  </span>
-                )}
+                {item.badge && pendingCount > 0 && <span className="cnt">{pendingCount}</span>}
               </Link>
             );
           })}
         </nav>
 
-        <div className="flex items-center gap-3 ml-auto shrink-0">
-          {/* Search sits on afs-bg-dim so the placeholder itself clears AA. */}
-          <div className="relative hidden sm:block" ref={searchRef}>
+        <div className="hdr-r">
+          <div className="hs" ref={searchRef}>
             <form onSubmit={handleSearchSubmit} role="search">
-              <label htmlFor="admin-search" className="sr-only">
-                Search
+              <label htmlFor="hq" className="sr-only">
+                Search every customer, quote and order
               </label>
               <input
-                id="admin-search"
+                id="hq"
                 type="search"
                 value={search}
                 onChange={(e) => {
@@ -223,39 +213,21 @@ export default function AdminTopBar({
                 onFocus={() => setSuggestOpen(true)}
                 autoComplete="off"
                 role="combobox"
-                aria-expanded={suggestOpen && suggest !== null}
-                aria-controls="admin-typeahead"
-                placeholder="Customer, profile, or job"
-                className="w-48 lg:w-64 h-10 bg-afs-bg-dim border border-afs-chrome-base rounded px-3 font-body text-sm text-afs-chrome-high placeholder:text-afs-chrome-mid focus:outline-none focus:border-afs-crimson transition-colors"
+                aria-expanded={showSuggest}
+                aria-controls="hsd"
+                placeholder="Search: Hill Country drip edge"
+                aria-label="Search every customer, quote and order"
               />
             </form>
 
             {/* v7 .hsd — companies first, then job rows, then "See all". */}
-            {suggestOpen && suggest && search.trim().length >= TYPEAHEAD_MIN_CHARS && (
-              <div
-                id="admin-typeahead"
-                data-testid="admin-typeahead"
-                role="listbox"
-                className="absolute right-0 top-full mt-2 w-[min(640px,92vw)] max-h-[72vh] overflow-auto bg-afs-bg-raised border border-afs-chrome-base rounded shadow-raised p-1.5 z-50"
-              >
+            {showSuggest && suggest && (
+              <div className="hsd" id="hsd" data-testid="admin-typeahead" role="listbox">
                 {suggest.companies.map((c) => (
-                  <div
-                    key={c.name}
-                    data-testid="typeahead-company"
-                    className="flex items-center gap-3 px-3 py-2 rounded hover:bg-afs-bg-surface"
-                  >
-                    <span className="min-w-0 flex-1">
-                      <b className="block truncate font-label text-sm text-afs-chrome-high">{c.name}</b>
-                      {c.person && (
-                        <span className="block truncate font-body text-xs text-afs-chrome-silver">
-                          {c.person}
-                        </span>
-                      )}
-                    </span>
-                    <Link
-                      href={NEW_QUOTE_HREF}
-                      className="shrink-0 h-8 px-3 inline-flex items-center rounded bg-afs-crimson text-white font-label text-xs font-semibold"
-                    >
+                  <div className="hsc" key={c.name} data-testid="typeahead-company">
+                    <b>{c.name}</b>
+                    <span>{c.person}</span>
+                    <Link href={NEW_QUOTE_HREF} className="btn red sm">
                       New quote
                     </Link>
                   </div>
@@ -265,16 +237,25 @@ export default function AdminTopBar({
                   <Link
                     key={r.id}
                     href={`/admin/command-center/job/${r.id}`}
+                    className="hsr"
                     data-testid="typeahead-row"
                     role="option"
                     aria-selected={false}
-                    className="block px-3 py-2 rounded hover:bg-afs-bg-surface"
                   >
-                    <b className="block truncate font-label text-sm text-afs-chrome-high">
-                      {r.customer} · {r.item}
-                    </b>
-                    <span className="block truncate font-body text-xs text-afs-chrome-silver">
-                      {[r.spec, `${r.quantity} pcs`, r.requestNumber].filter(Boolean).join(' · ')}
+                    <span className="tx">
+                      <b>
+                        {r.customer} · {r.item}
+                      </b>
+                      <span>
+                        {[
+                          r.spec,
+                          `${r.quantity} pcs`,
+                          r.requestNumber,
+                          r.totalCents == null ? null : cents(r.totalCents),
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </span>
                     </span>
                   </Link>
                 ))}
@@ -282,48 +263,38 @@ export default function AdminTopBar({
                 {suggest.totalRows > 0 && (
                   <Link
                     href={`${ADMIN_SEARCH_HREF}?q=${encodeURIComponent(search.trim())}`}
-                    className="block px-3 py-2 mt-1 rounded text-center font-label text-xs text-afs-chrome-high bg-afs-bg-surface hover:bg-afs-bg-overlay"
+                    className="hsall"
                   >
-                    See all {suggest.totalRows} result{suggest.totalRows === 1 ? '' : 's'}, newest first
+                    See all {suggest.totalRows} result{suggest.totalRows === 1 ? '' : 's'}, newest
+                    first
                   </Link>
                 )}
 
-                {suggest.emptyMessage && (
-                  <p className="px-3 py-3 font-body text-sm text-afs-chrome-silver">
-                    {suggest.emptyMessage}
-                  </p>
-                )}
+                {suggest.emptyMessage && <div className="hsn">{suggest.emptyMessage}</div>}
               </div>
             )}
           </div>
 
-          <div className="relative" ref={moreRef}>
+          <div className="more" ref={moreRef}>
             <button
               type="button"
+              className="mbtn"
               onClick={() => setMoreOpen((v) => !v)}
               aria-haspopup="menu"
               aria-expanded={moreOpen}
-              className={`h-10 px-4 font-label text-sm rounded border border-afs-chrome-base transition-colors ${
-                moreActive
-                  ? 'bg-afs-bg-surface text-afs-chrome-high font-semibold'
-                  : 'text-afs-chrome-mid hover:text-afs-chrome-high hover:bg-afs-bg-surface'
-              }`}
+              data-active={moreActive ? 'true' : undefined}
             >
               More
             </button>
 
             {moreOpen && (
-              <div
-                role="menu"
-                className="absolute right-0 top-full mt-2 min-w-[220px] bg-afs-bg-raised border border-afs-chrome-base rounded shadow-raised py-1 z-50"
-              >
+              <div className="mm" id="mm" role="menu">
                 {MORE_NAV.map((item) => (
                   <Link
                     key={item.href}
                     href={item.href}
                     role="menuitem"
                     onClick={() => setMoreOpen(false)}
-                    className="block px-4 py-3 font-body text-sm text-afs-chrome-high hover:bg-afs-bg-surface transition-colors"
                   >
                     {item.label}
                   </Link>
@@ -332,17 +303,18 @@ export default function AdminTopBar({
             )}
           </div>
 
-          <span className="hidden lg:inline font-label text-sm font-semibold text-afs-chrome-high truncate max-w-[140px]">
-            {adminName}
-          </span>
+          <span className="who">{adminName}</span>
 
-          <button
-            type="button"
-            onClick={handleSignOut}
-            className="h-10 px-3 font-label text-sm text-afs-chrome-mid hover:text-afs-chrome-high hover:bg-afs-bg-surface rounded transition-colors whitespace-nowrap"
+          <a
+            href="/login"
+            className="lo"
+            onClick={(e) => {
+              e.preventDefault();
+              void handleSignOut();
+            }}
           >
             Log out
-          </button>
+          </a>
         </div>
       </div>
     </header>
