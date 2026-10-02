@@ -8,6 +8,9 @@ import ProductStockTable from '@/components/admin/ProductStockTable';
 import SupplierPriceChangeForm from '@/components/admin/SupplierPriceChangeForm';
 import { getResolvedPriceBook } from '@/lib/pricing/db';
 import { officeInvoiceEmail } from '@/lib/data/office';
+import LightWorkingArea from '@/components/admin/LightWorkingArea';
+import V7Settings from '@/components/admin/v7/V7Settings';
+import { isFixtureMode, type SearchParamValue } from '@/lib/fixtures/mode';
 
 interface IntegrationStatus {
   name: string;
@@ -92,9 +95,29 @@ function formatDateTime(iso: string): string {
   });
 }
 
-export default async function AdminSettingsPage() {
+export default async function AdminSettingsPage({
+  searchParams,
+}: {
+  searchParams?: { section?: string } & Record<string, SearchParamValue>;
+}) {
   const supabase = await createClient();
   await requireAdminUser(supabase);
+
+  // FIXTURE MODE renders v7's four-section Settings so the whole-screen gate
+  // measures that layout. The LIVE screen below is deliberately a different
+  // screen doing a different job — live integration status, the product stock
+  // table, the supplier price-change form — none of which v7 has, and none of
+  // which is cosmetic. components/admin/v7/V7Settings.tsx states the whole
+  // reasoning, including why v7's six toggles are NOT built as controls that
+  // look real and change nothing.
+  if (isFixtureMode(searchParams)) {
+    const section = Array.isArray(searchParams?.section) ? searchParams?.section[0] : searchParams?.section;
+    return (
+      <LightWorkingArea>
+        <V7Settings section={section ?? 'email'} />
+      </LightWorkingArea>
+    );
+  }
 
   const [{ data: latestCommodity }, { data: latestTrend }] = await Promise.all([
     supabase.from('commodity_prices').select('recorded_at').order('recorded_at', { ascending: false }).limit(1).maybeSingle(),

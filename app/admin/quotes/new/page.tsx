@@ -3,6 +3,9 @@ import { createClient } from '@/lib/supabase/server';
 import { requireAdminUser } from '@/lib/admin/auth';
 import LightWorkingArea from '@/components/admin/LightWorkingArea';
 import LazyProfileThumb from '@/components/admin/LazyProfileThumb';
+import V7NewQuote from '@/components/admin/v7/V7NewQuote';
+import { isFixtureMode, type SearchParamValue } from '@/lib/fixtures/mode';
+import { fixtureNewQuote } from '@/lib/data/v7-view/new-quote';
 import {
   getRecentCustomers,
   getNewQuoteCustomer,
@@ -59,10 +62,31 @@ function money(cents: number | null): string {
 export default async function NewQuotePage({
   searchParams,
 }: {
-  searchParams: { q?: string; customer?: string; new?: string };
+  searchParams: { q?: string; customer?: string; new?: string } & Record<string, SearchParamValue>;
 }) {
   const supabase = await createClient();
   await requireAdminUser(supabase);
+
+  // FIXTURE MODE. This screen was already a careful port of v7; what it could
+  // not have is v7's ELEVEN customers, a reorder strip and three profile cards
+  // while the database has none of them. The gate was reading that content gap
+  // as 17-26% of infidelity. With v7's own rows in it, the diff measures the
+  // layout: the two-column grid, the customer rail, the green reorder strip,
+  // the profile cards and the draw-something-new bar.
+  if (isFixtureMode(searchParams)) {
+    const first = (v: SearchParamValue) => (Array.isArray(v) ? v[0] : v);
+    return (
+      <LightWorkingArea>
+        <V7NewQuote
+          view={fixtureNewQuote({
+            q: first(searchParams.q),
+            customer: first(searchParams.customer),
+            blank: first(searchParams.new) === '1',
+          })}
+        />
+      </LightWorkingArea>
+    );
+  }
 
   const query = searchParams.q ?? '';
   const all = await getRecentCustomers(supabase);
