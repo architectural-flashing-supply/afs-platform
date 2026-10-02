@@ -3,7 +3,9 @@ import { createClient } from '@/lib/supabase/server';
 import { requireAdminUser } from '@/lib/admin/auth';
 import { getShopQueue } from '@/lib/data/shop-queue';
 import LightWorkingArea from '@/components/admin/LightWorkingArea';
-import ShopQueueBoard from '@/components/admin/ShopQueueBoard';
+import V7ShopBoard from '@/components/admin/v7/V7ShopBoard';
+import { isFixtureMode, type SearchParamValue } from '@/lib/fixtures/mode';
+import { fixtureShopView } from '@/lib/data/v7-view/shop';
 
 /**
  * SHOP VIEW — Command Center V2 prompt v2-04, rebuilt to the approved
@@ -36,11 +38,16 @@ export const metadata: Metadata = {
 
 export const dynamic = 'force-dynamic';
 
-export default async function ShopViewPage() {
+export default async function ShopViewPage({
+  searchParams,
+}: {
+  searchParams: Record<string, SearchParamValue>;
+}) {
   const supabase = await createClient();
   await requireAdminUser(supabase);
 
-  const queue = await getShopQueue(supabase);
+  const fixture = isFixtureMode(searchParams);
+  const queue = fixture ? null : await getShopQueue(supabase);
 
   return (
     <LightWorkingArea>
@@ -53,7 +60,7 @@ export default async function ShopViewPage() {
         </span>
       </div>
 
-      <ShopQueueBoard initial={queue} />
+      {fixture ? <V7ShopBoard view={fixtureShopView()} /> : <V7ShopBoard initial={queue!} />}
     </LightWorkingArea>
   );
 }

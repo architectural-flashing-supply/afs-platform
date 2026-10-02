@@ -212,3 +212,42 @@ export interface V7SearchView {
   rows: V7SearchRow[];
   emptyText: string;
 }
+
+/* ─────────────────────────────── Shop View ─────────────────────────────── */
+
+/** One row of v7's `.stbl` queue table (`pageShop()`, line 1476). */
+export interface V7ShopRow {
+  key: string;
+  position: number;
+  drawing: V7DrawingRef | null;
+  /** True when a base64 drawing exists to lazy-load. Never the image itself. */
+  hasLazyDrawing: boolean;
+  itemLine: string;
+  customerLine: string;
+  spec: V7SpecChip | null;
+  /** "2 bends, 2 hems" — v7 prints the bend count beside the painted side. */
+  bends: string;
+  paint: string;
+  bending: boolean;
+  stateLabel: string;
+  /** v7 shows "1 note" / "3 notes" beside the status when there are any. */
+  notePill: V7Pill | null;
+  isRush: boolean;
+  buttons: V7Button[];
+}
+
+export interface V7ShopFinishedRow {
+  key: string;
+  drawing: V7DrawingRef | null;
+  hasLazyDrawing: boolean;
+  itemLine: string;
+  sub: string;
+}
+
+export interface V7ShopView {
+  rows: V7ShopRow[];
+  finishedToday: V7ShopFinishedRow[];
+  /** v7's "Next up" panel — the first job in the queue, drawn large. */
+  nextUp: { drawing: V7DrawingRef | null; hasLazyDrawing: boolean; key: string; caption: string } | null;
+  emptyText: string;
+}

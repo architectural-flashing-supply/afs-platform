@@ -191,7 +191,25 @@ export default function AdminTopBar({
     <header className="hdr">
       <div className="hdr-in">
         <Link href="/admin/command-center" className="brand">
-          <Image src="/afs-logo.png" alt="Architectural Flashing Supply" width={120} height={34} />
+          {/* THE COMMAND CENTER'S OWN LOGO FILE, AND IT IS NOT THE SITE'S.
+              v7 embeds its logo as base64: 342x134, aspect 2.552. The shared
+              `/afs-logo.png` is 1536x1024, aspect 1.500 — a different crop of
+              the same mark with far more space around it. v7's CSS sizes the
+              image by HEIGHT, so at 34px tall the two come out 86.8px and
+              51.2px wide, and every header element to the right of the brand
+              sat 35px off on every single screen. The whole-screen diff showed
+              it as a doubled header band; no pair comparison could, because
+              both images are "the logo" at the same height.
+              CLAUDE.md rule #33 — v7 wins conflicts about appearance — so the
+              header uses v7's own file, extracted verbatim from the prototype.
+              Nothing else does: /afs-logo.png is untouched on the marketing
+              site, the sign-in shell, the tracking page and the bid PDF. */}
+          <Image
+            src="/afs-logo-command-center.png"
+            alt="Architectural Flashing Supply"
+            width={342}
+            height={134}
+          />
           <span className="bt">
             <b>
               Command <em>Center</em>
