@@ -278,6 +278,17 @@ nothing for the whole of it. On a tablet beside a bending machine that is how a
 button gets pressed twice. The result strip now appears immediately reading
 "Starting…" and its text is replaced by the outcome.
 
+### The verification state at the end of the run
+
+| Gate | Result |
+|---|---|
+| `pnpm tsc --noEmit` | clean |
+| `pnpm build` (runs `css:v7` + the contrast gate as `prebuild`) | **exit 0** · 24 screens · 248 colour pairs · **0 unresolved · 0 below threshold** |
+| Vitest | **468 / 468** |
+| **The pixel gate** | **35 MATCHING · 0 failures · 0.14 % – 1.37 %** |
+| The style gate (secondary) | 66 pairs · **63 pass · 0 fail · 0 uncovered** · 1 live-only · 2 no-data |
+| Playwright `tests/e2e` | **152 passed · 5 failed · 3 skipped** |
+
 ### Remaining failures: the 5 known pre-existing ones
 
 | Test | Status |
@@ -292,11 +303,31 @@ None of the five is touched by this run: two are the public homepage, one is
 FlashDraft's save path, two are the production queue, and this run changed no
 route behaviour and no data module.
 
-**One environmental flake worth knowing about.** `auth.setup.ts` intermittently
-times out waiting for the login form, and when it fails outright the whole suite
-reports "164 did not run". It is a cold `next dev` compile of `/login` against
-the 30s setup budget, not a code failure — hitting `/login` once before the run
-makes it reliable.
+**There are no new failures.** The thirteen the rebuild caused are all fixed
+above, and the Shop View end-to-end — which failed for a real reason, the
+three-second silence after pressing a button — passes.
+
+**Two environmental things worth knowing about, because they cost this run
+hours and will cost the next one the same if nobody writes them down.**
+
+1. **`auth.setup.ts` intermittently times out waiting for the login form**, and
+   when it fails outright the whole suite reports "164 did not run". It is a
+   cold `next dev` compile of `/login` against the 30s setup budget, not a code
+   failure — hitting `/login` once before the run makes it reliable.
+
+2. **A long-running `next dev` degrades, and when it does the suite's results
+   are not evidence of anything.** One run of this suite took **1.2 hours** (the
+   same suite takes about 22 minutes on a fresh server) and reported **50
+   failures spread across specs this branch cannot touch** — `/about/services`,
+   the quote-request wizard, the configurator redirects, the WebGL fallback,
+   homepage link integrity. Restarting the dev server and clearing `.next` put
+   the pixel gate back to **35/35 in 2.2 minutes** and the style gate to 63 pass
+   / 0 fail / 0 uncovered in 45 seconds.
+
+   **If a run shows failures scattered across unrelated specs, restart the dev
+   server before believing any of it.** A 50-failure run and a 6-failure run of
+   the same commit are not two opinions; one of them is a measurement and the
+   other is a tired server.
 
 ---
 
