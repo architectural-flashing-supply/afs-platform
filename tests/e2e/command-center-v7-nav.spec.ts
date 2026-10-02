@@ -186,9 +186,15 @@ test.describe('Quotes and Orders lists', () => {
       const before = (await countLine.innerText()).trim();
 
       // A search string nothing can match must empty the list.
+      //
+      // NO APPLY BUTTON. This used to click one, and the whole-screen pixel gate
+      // is why it no longer can: v7's filter bar has a text field and three
+      // selects and nothing else — it filters as you type and on change. The
+      // Apply button was the previous build's addition, not the design's, so it
+      // was removed and this assertion follows. The navigation is debounced, so
+      // the URL is awaited rather than assumed to be instant.
       await page.getByRole('searchbox').fill('zzzznotathing');
-      await page.getByRole('button', { name: 'Apply' }).click();
-      await expect(page).toHaveURL(/q=zzzznotathing/);
+      await expect(page).toHaveURL(/q=zzzznotathing/, { timeout: 10_000 });
       await expect(page.getByText('Nothing here matches.')).toBeVisible();
 
       // Sort is reflected in the count line.

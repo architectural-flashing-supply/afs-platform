@@ -248,6 +248,10 @@ function Row({
       className={row.bending ? 'now' : undefined}
       data-testid="shop-card"
       data-shop-job-id={row.key}
+      // `data-state` is read by tests/e2e/shop-deliveries.spec.ts to follow a
+      // job through Start bending -> Mark finished. It was dropped on the first
+      // pass of this component and the suite caught it.
+      data-state={row.state}
       data-rush={row.isRush ? 'true' : 'false'}
     >
       <td>

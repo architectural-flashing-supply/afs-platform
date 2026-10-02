@@ -60,6 +60,8 @@ export interface V7Button {
   /** Identifies a non-navigating action to the client component that owns it. */
   action?: string;
   actionId?: string;
+  /** `data-testid`, where the e2e suite addresses a specific control. */
+  testId?: string;
 }
 
 /** A Workbench card (v7 `card()`, line 1248). */
@@ -67,6 +69,8 @@ export interface V7Card {
   /** The job number v7 shows, and the id the live app routes by. */
   key: string;
   jobNumber: number | string;
+  /** Which lane this card is in. Read by the e2e suite as `data-stage`. */
+  stage: string;
   customer: string;
   /** "Drip edge × 40" */
   itemLine: string;
@@ -126,6 +130,8 @@ export interface V7InboxRow {
 }
 
 export interface V7WorkbenchView {
+  /** "Good morning, Steve." — carried as the heading's title attribute. */
+  greeting: string;
   chips: V7Chip[];
   lanes: V7Lane[];
   /**
@@ -229,6 +235,8 @@ export interface V7ShopRow {
   bends: string;
   paint: string;
   bending: boolean;
+  /** The raw state key, read by the e2e suite as `data-state`. */
+  state: string;
   stateLabel: string;
   /** v7 shows "1 note" / "3 notes" beside the status when there are any. */
   notePill: V7Pill | null;

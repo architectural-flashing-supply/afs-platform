@@ -159,7 +159,8 @@ function cardOf(f: V7Fixture, j: V7Job): V7Card {
   const ps = pState(j);
   return {
     key: String(j.n),
-    jobNumber: j.n,
+    jobNumber: jid(j.n),
+    stage: j.lane,
     customer: j.cust,
     itemLine: itemLabel(j),
     spec: specChip(j.spec),
@@ -244,6 +245,10 @@ export function fixtureWorkbench(): V7WorkbenchView {
     }));
 
   return {
+    // v7 has no greeting on this screen; the live build carries one as the
+    // heading's title. The fixture supplies v7's own signed-in name so the
+    // attribute exists and the suite's assertion is meaningful in both modes.
+    greeting: 'Good morning, Steve.',
     chips,
     lanes,
     inbox: { connected: 'Connected to Outlook · read 20 sec ago', newCount: nin, rows: inboxRows },

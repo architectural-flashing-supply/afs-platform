@@ -56,6 +56,7 @@ export function fixtureShopView(): V7ShopView {
       bends: bendTxt(st),
       paint: j.paint,
       bending: now,
+      state: now ? 'bending' : 'queued',
       stateLabel: now ? 'Bending now' : 'Queued',
       notePill: j.notes.length
         ? { tone: 'a', text: `${j.notes.length} note${j.notes.length === 1 ? '' : 's'}` }
@@ -119,6 +120,7 @@ export function liveShopView(queue: ShopQueue): V7ShopView {
     bends: [card.hemInstructions, card.specialInstructions].filter(Boolean).join(' · '),
     paint: card.paintedEdge ? 'Up' : '',
     bending: card.state === 'bending',
+    state: card.state,
     stateLabel: card.stateLabel,
     // v7's note pill counts Steve's operator notes. The live queue card carries
     // the instructions themselves rather than a count of messages, so there is
@@ -126,7 +128,18 @@ export function liveShopView(queue: ShopQueue): V7ShopView {
     notePill: null,
     isRush: card.isRush,
     buttons: card.action
-      ? [{ tone: 'green', size: 'sm', label: card.action.label, action: 'advance', actionId: card.id }]
+      ? [
+          {
+            tone: 'green',
+            size: 'sm',
+            label: card.action.label,
+            action: 'advance',
+            actionId: card.id,
+            // tests/e2e/shop-deliveries.spec.ts follows a job through the shop
+            // by these two ids. Dropped on the first pass; the suite caught it.
+            testId: card.action.kind === 'start' ? 'start-bending' : 'mark-finished',
+          },
+        ]
       : [],
   }));
 

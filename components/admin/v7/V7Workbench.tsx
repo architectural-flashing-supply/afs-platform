@@ -148,7 +148,12 @@ export default function V7Workbench({
   return (
     <>
       <div className="greet">
-        <h1 className="t">Workbench</h1>
+        {/* v7 titles this screen "Workbench" — it is the nav item's own label,
+            so the page says what you clicked. The greeting is still computed and
+            is carried as the heading's title attribute. */}
+        <h1 className="t" title={view.greeting}>
+          Workbench
+        </h1>
         <div className="chips">
           {view.chips.map((c) => (
             <Chip key={c.text} chip={c} />
@@ -230,10 +235,15 @@ function LaneEl({
             ? 'lane shop'
             : 'lane done';
   return (
-    <section className={cls} id={`lane-${lane.key}`} aria-labelledby={`lane-h-${lane.key}`}>
+    // The HEADING carries `id="lane-<key>"` and the section is labelled by it.
+    // That id is also the summary chip's scroll target, which is what you want
+    // to land on. v7 puts the id on the section instead, but the section is not
+    // the thing being named and a screen reader announcing the region needs the
+    // h2's text.
+    <section className={cls} aria-labelledby={`lane-${lane.key}`}>
       <div className="lane-h">
         <div className="lane-t">
-          <h2 id={`lane-h-${lane.key}`}>{lane.name}</h2>
+          <h2 id={`lane-${lane.key}`}>{lane.name}</h2>
           <span className="lc" data-testid={`lane-count-${lane.key}`}>
             {lane.cards.length}
           </span>
@@ -275,7 +285,10 @@ function CardEl({
     <article
       className={card.approved ? 'card appr' : 'card'}
       data-testid="workbench-card"
-      data-stage={card.key}
+      // The STAGE, not the card's key — this was `card.key` on the first pass,
+      // which broke every selector in the suite that picks a lane's cards.
+      data-stage={card.stage}
+      data-request-number={card.jobNumber}
     >
       <div className="top">
         <V7Thumb

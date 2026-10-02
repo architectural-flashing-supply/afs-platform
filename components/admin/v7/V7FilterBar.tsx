@@ -50,6 +50,10 @@ export default function V7FilterBar({ filters }: { filters: V7Filter[] }) {
           {f.label}
           {f.options ? (
             <select
+              // `name` is not decoration. v7 identifies its controls with
+              // `data-in`/`data-k`, but the e2e suite addresses them by name and
+              // so does any no-JavaScript submission. Both are kept.
+              name={f.name}
               defaultValue={f.value}
               data-k={f.name}
               onChange={(e) => apply(f.name, e.target.value)}
@@ -62,6 +66,10 @@ export default function V7FilterBar({ filters }: { filters: V7Filter[] }) {
             </select>
           ) : (
             <input
+              // `type="search"` gives it the searchbox role the suite uses, and
+              // is what v7's own header field is. Same reasoning as `name`.
+              type="search"
+              name={f.name}
               defaultValue={f.value}
               placeholder={f.placeholder}
               autoComplete="off"

@@ -121,6 +121,7 @@ function liveCard(card: WorkbenchCard): V7Card {
   return {
     key: card.id,
     jobNumber: card.requestNumber,
+    stage: card.stage,
     customer: card.customer,
     itemLine: card.itemLine,
     spec: liveSpecChip(card.specLine),
@@ -203,6 +204,7 @@ export function liveWorkbench(
   }
 
   return {
+    greeting: wb.summary.greeting,
     chips,
     lanes,
     // See this file's header, point 2.

@@ -161,13 +161,23 @@ test.describe('Command Center V2 — Workbench and Job screen', () => {
     await expect(h1).toHaveText('Workbench');
     await expect(h1).toHaveAttribute('title', /^Good (morning|afternoon|evening), .+\.$/);
 
-    // Chip wording is v7's too: "3 to quote", not "3 quotes to write", and the
-    // approvals chip is present either way (green with a beacon when there is
-    // something to send, "No approvals waiting" when there is not).
+    // v7's FOUR chips, in v7's order (`pageWorkbench()`, line 1283): approvals,
+    // to-quote, email, deliveries today.
+    //
+    // THE "N jobs in the shop" CHIP IS GONE, and that is the design rather than
+    // a loss. v7 does not have one; it has an EMAIL chip in that position. The
+    // previous build's chip set was its own, and the whole-screen pixel gate is
+    // what surfaced the difference. The email chip reads "Email not connected"
+    // in live mode rather than a 0, because there is no Microsoft Graph behind
+    // it and a zero would read as "no new mail" when the truth is "nothing is
+    // being read".
     await expect(page.getByText(/^\d+ to quote$/)).toBeVisible();
-    await expect(page.getByText(/^\d+ jobs? in the shop$/)).toBeVisible();
     await expect(
       page.getByText(/^(\d+ ready for the machine|No approvals waiting)$/)
+    ).toBeVisible();
+    await expect(page.getByText(/^(\d+ new emails?|Email not connected)$/)).toBeVisible();
+    await expect(
+      page.getByText(/^(\d+ deliver(y|ies)|No deliveries) today$/)
     ).toBeVisible();
   });
 

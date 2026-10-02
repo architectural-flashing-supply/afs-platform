@@ -30,7 +30,7 @@ export function V7Btn({
   const cls = ['btn', button.tone, button.size, extraClass].filter(Boolean).join(' ');
   if (button.href) {
     return (
-      <Link href={button.href} className={cls}>
+      <Link href={button.href} className={cls} data-testid={button.testId}>
         {button.label}
       </Link>
     );
@@ -49,6 +49,7 @@ export function V7Btn({
     <button
       type="button"
       className={cls}
+      data-testid={button.testId}
       onClick={onAction ? () => onAction(button.action ?? '', button.actionId) : undefined}
     >
       {button.label}
