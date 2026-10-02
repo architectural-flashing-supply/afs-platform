@@ -9716,3 +9716,61 @@ session's own screenshots and Playwright passes are evidence to bring to the
 user, not proof. Every screen is asserted against the prototype by an automated
 gate and the side-by-side screenshots are committed, but the look is not marked
 complete until Reid has looked at it.
+
+### Addendum — what the FULL Playwright suite found (same run)
+
+Running every spec, rather than each stage's own, changed the picture. **11
+failures first pass, 6 after fixing them, and 5 of those 6 are provably not this
+run's.**
+
+**The one that mattered was invisible to every other gate.** v7 writes its own
+form-control reset, `button,input,select,textarea{font:inherit;color:inherit}`.
+Scoped to `.cc-v7` it becomes specificity **(0,1,1)** — an element selector plus
+a class — while every Tailwind utility is **(0,1,0)**. Inside the admin shell it
+therefore OUTRANKED `text-afs-chrome-high`, `font-bold`, `text-sm` and every
+other type or colour class on any button, input, select or textarea. In the
+prototype the same rule is (0,0,1) and loses to everything.
+
+`tests/e2e/contrast-live.spec.ts` caught it — Settings' crimson "Log this price
+change" button rendering its label in the inherited `afs-chrome-mid` at
+**3.50:1**, where its own className asks for white at 6.45:1. The STATIC gate
+could not: the className it reads is correct, and only the browser knows which
+rule won. This is precisely the division of labour CLAUDE.md rule #28 describes,
+and the first time the live half has caught something the static half structurally
+could not.
+
+Dropping the rule costs nothing — Tailwind's Preflight already supplies the same
+six inherits on the same elements at (0,0,1), where they do not compete with
+utilities.
+
+Two more live defects, both from converting a page without its children: the
+Customers CSV button was still gunmetal on a light page (**2.51:1**), and
+`DeliveryTrackingMap` carried a `text-gray-400` separator — a default Tailwind
+colour, which rule #4 forbids — at **2.54:1** once the admin panel rendered it on
+a light card.
+
+**`tests/e2e/command-center-v2-nav.spec.ts` was DELETED.** It asserted the pre-v7
+navigation (three top-level items, Customers under More), which the approved
+design contradicts, so it could never pass again; two of its three tests were
+already failing before this run. Its one assertion with no counterpart — the
+header search box submits and lands on the Search page with its query — was
+PORTED into `command-center-v7-nav.spec.ts` and updated for v7.
+
+**The style gate was racing React hydration.** The More-menu pair failed in the
+full suite and passed when the spec ran alone. `gotoLivePage` waits for
+`header.hdr`, which is in the server-rendered HTML before hydration, so the click
+opening the menu could be swallowed. It now presses until the revealed element is
+attached, bounded to three attempts so a genuinely missing component still fails.
+
+**THE FIVE REMAINING FAILURES ARE PRE-EXISTING**, and that is checked rather than
+asserted: `git diff --name-only a842c59..HEAD` touches no homepage, public,
+production-queue or FlashDraft file, and those are the specs that fail — the
+hero's CTA href (`/design-studio` vs the spec's `/about/services`), the header
+logo height, two Production Queue tests, and one FlashDraft save. They are
+reported here, not absorbed. `shop-deliveries.spec.ts:237` is flaky under full
+suite load and passes consistently in isolation.
+
+**Final gates:** tsc 0 · vitest 460/460 · `npm run build` exit 0 ·
+contrast **24 screens / 253 pairs / 0 unresolved / 0 below** · style gate
+**66 pairs: 63 pass, 0 fail, 0 uncovered, 1 live-only, 2 no-data** ·
+24 screenshots in `test-results/v7-fidelity/`.
