@@ -32,6 +32,46 @@ literal. Owner question #1 below is therefore closed.
 
 ---
 
+## STATUS UPDATE - 2026-10-02, v7 Stages A and B
+
+**The LOOK is now a port, not an interpretation, and it is gated.** The whole
+Command Center UI is derived from `docs/design/command-center-v7` (the prototype
+is committed there, byte-identical). See CLAUDE.md rule #33.
+
+| Item | Was | Now |
+|---|---|---|
+| 1. Header: nav, "+ New quote", type-ahead | Built (v7 labels, OLD look) | **Built in v7's own markup and CSS** - `components/layout/AdminTopBar.tsx`, `components/layout/AdminShell.tsx`. Style gate: 15/15 shell pairs. |
+| 10. Cards, pills, panes, theme | Partial (1 of N pills) | **Partial -> Workbench Built.** Lanes, cards, chips, rail in v7 markup: `components/admin/WorkbenchLanes.tsx`, `components/admin/WorkbenchRail.tsx`, `app/admin/command-center/page.tsx`. Style gate: 17/17 Workbench pairs (1 live-only). Flag pills still only RUSH - the others depend on items 8 and 9. |
+
+**New in this run, and the reason the look can now be trusted:**
+
+- `docs/design/command-center-v7/` - the committed prototype, its CSS extracted
+  verbatim, its fonts, and the WCAG deviations applied separately so the
+  verbatim extract stays verbatim.
+- `scripts/design/scope-v7-css.mjs` (`pnpm css:v7`, chained into `prebuild`) -
+  derives the app's stylesheet from the prototype, scoped to `.cc-v7`.
+- `tests/visual/v7-style-gate.spec.ts` + `tests/visual/v7-component-map.ts` -
+  **the acceptance test.** Computed-style comparison against the prototype,
+  1px tolerance on lengths, exact on everything else. 32 pairs; 31 pass, 0 fail,
+  0 uncovered, 1 live-only.
+- `lib/design/v7-css.test.ts`, `lib/design/v7-deviations.test.ts` - the cascade
+  order, the scoping, and every deviation's necessity and sufficiency.
+- `docs/design/V7_COLOR_DEVIATIONS.md` - one deviation, measured.
+
+**THE FINDING THAT EXPLAINS THE PREVIOUS RUNS.** v7 has four `<style>` blocks.
+Block 1 declares a DARK theme and says so; block 3 redeclares `:root` LIGHT and
+wins. Building from the theme at the top of the file yields a dark Command
+Center wearing v7's labels - which is exactly what was reported. Asserted now by
+`lib/design/v7-css.test.ts`.
+
+**Items 2-9 are UNCHANGED by this run.** Quotes and Orders (item 2) still have
+their v7 Phase 2 behaviour but NOT v7's look; items 3-9 are as audited below.
+Stage C (Tricia's money trail) was deliberately not started: it moves invoice
+creation off customer approval onto shop-finish, which is a live-money path, and
+a half-moved billing path is worse than an unmoved one.
+
+---
+
 ## (a) STATUS TABLE
 
 Legend: **Built** = works as v7 describes · **Partial** = some of it exists ·

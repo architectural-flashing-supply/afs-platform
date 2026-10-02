@@ -9437,3 +9437,132 @@ visitors, and preserves the intended destination. No password was entered.
 Reid must **sign out and sign back in**: the role is read from his session's
 profile on each request, but his browser is holding a session minted while he
 was still `customer`.
+
+---
+
+## 2026-10-02 - v7 Stages A and B (FORGE 2.0, branch `command-center-v7`)
+
+**The brief: the owner is furious that earlier runs produced the old look with
+v7's labels on it.** That complaint is exactly right, and the proof was
+`AdminTopBar.tsx`: it had "+ New quote", the seven-item nav and the type-ahead —
+every v7 label — painted in `bg-afs-bg-raised` and `text-afs-chrome-mid`. The
+function was v7's and the appearance was the old app's.
+
+**THE CAUSE IS ALMOST CERTAINLY THE CASCADE, AND IT IS A TRAP ANYONE WOULD FALL
+INTO.** Prototype v7 has FOUR `<style>` blocks. Block 1 declares a dark theme
+and says so in a comment — "One committed dark theme", `--bg:#343D49`. Block 3
+redeclares `:root` with the LIGHT palette (`--bg:#F4F5F7`, `--hdr:#14181E`,
+`--red:#C8102E`) and WINS. Open the file, read the theme at the top, build what
+it says, and you produce a dark Command Center with v7's labels on it. The
+resolved design is a LIGHT working area, a DARK header and ONE red.
+`lib/design/v7-css.test.ts` now asserts the block order and every resolved
+token, so the cascade cannot invert silently again.
+
+**The CSS is DERIVED, not retyped.** `scripts/design/scope-v7-css.mjs` reads the
+prototype's own CSS and scopes every selector to `.cc-v7`, emitting
+`app/styles/command-center-v7.generated.css`. A hand-port drifts the first time
+somebody "improves" a value; a transform means the live styles ARE v7's. The
+prototype is committed byte-identical (sha256 verified against the source) so
+the design cannot wander away from the repo. Verified no leak: `/`, `/products`
+and `/contact` carry neither the scope class nor the stylesheet.
+
+**THE STYLE GATE IS THE ACCEPTANCE TEST, AND IT IS WHAT MAKES THIS DIFFERENT
+FROM THE PREVIOUS RUNS.** `tests/visual/v7-style-gate.spec.ts` opens the
+prototype and the live app in one browser and compares computed styles — family,
+size, weight, line-height, letter-spacing, transform, colour, background,
+border, radius, shadow, padding, gap, height — for every pair in
+`tests/visual/v7-component-map.ts`. 32 pairs mapped: 31 pass, 0 fail, 0
+uncovered, 1 live-only (v7's seed fills all five lanes so its empty-lane message
+never renders; the live element is still asserted to exist).
+
+**THREE REAL DEFECTS THE GATE FOUND THAT NOTHING ELSE WOULD HAVE.**
+
+1. **The light working area was never painting.** Tailwind's `content` globs
+   covered `app/` and `components/` but not `lib/` — and
+   `LIGHT_WORKING_AREA_CLASS` lives in `lib/data/admin-working-area.ts`, because
+   rule #18 deliberately keeps "which screens are light" as testable data. Those
+   classes were never emitted. It hid for as long as the string happened to name
+   tokens the marketing site also used; the moment it named one used only there,
+   the area stopped painting and its text fell back to the body's light-on-dark
+   colour. **The contrast gate could not see this at all** — it reads the class
+   string statically, so it had been measuring a surface that was never
+   rendered. Fixed by scanning `lib/`.
+
+2. **Painting v7's ground on the scope class broke twenty screens.** It turned
+   the contrast gate red with 46 real failures — `afs-chrome-high` and the four
+   `*-on-dark` tokens at 1.09:1 to 1.69:1 on `#F4F5F7`. That is rule #18
+   restated by measurement, so the transform now SPLITS v7's `body` rule:
+   typography onto `.cc-v7` (safe everywhere), paint onto an opt-in
+   `.cc-v7-ground`. Screens convert one at a time; the PAGE opts in.
+
+3. **One colour genuinely fails AA.** White on v7's green is 4.16:1 against a
+   4.5:1 requirement wherever it carries small text (`.chk i` 13px, `.apv`
+   12.5px, `.srow.now .pos` 18px — bold counts as large only from 18.66px).
+   `#1E8E52` → `#1D874E`, channels scaled uniformly so the hue holds to within
+   2%, applied to the COLOUR rather than to three selectors so the interface
+   keeps one green. `lib/design/v7-deviations.test.ts` recomputes it and fails
+   if the deviation ever stops being necessary.
+
+**The whole v7 light palette was measured BEFORE any CSS was written** — 23
+pairs against the gate's own thresholds. Everything else passes as authored.
+Two near-misses are correctly NOT deviations and are written up so a future
+reader does not "fix" them: `--line` `#9CA6B3` (2.47:1) and the nav's own border
+`#3A4350` (1.78:1) are decorative separators, and SC 1.4.11 — which the gate
+implements — covers FORM-FIELD boundaries only. v7's fields use `--line2`
+`#6B7686` at 4.60:1 and pass.
+
+**The contrast gate had to learn to read v7 class names.** A class map of v7
+values (`LANE_CLASS[lane.key]`) was dropped by a filter that kept only Tailwind
+colour utilities, and the reference was then reported as "computed at runtime" —
+a WRONG diagnosis, and rule #28 treats a rising `unresolved` count as the gate
+going blind. It now recognises class names the ported stylesheet defines, and
+reports them as READ, not as MEASURED. v7's own colours are guaranteed by the
+deviations test, the documented palette, and `tests/e2e/contrast-live.spec.ts`,
+which measures real computed styles in a browser — not by the static script.
+
+**Two gate-correctness rules were needed before anything could pass honestly,**
+and both must survive any rewrite or the gate reports differences nobody can see
+and ends up skip-listed into uselessness: a border's style and colour are
+compared only on an edge whose WIDTH is non-zero (Tailwind's Preflight sets
+`border-style:solid; border-color:#e5e7eb` at width 0 on EVERY element), and
+`color` is compared only on an element with its own text node (the app's
+`<body>` and v7's set different inherited colours, which containers never
+render).
+
+**Stage B converted the Workbench** — lanes, cards, chips, rail — to v7's own
+markup. Four e2e assertions were updated rather than worked around, because v7
+changed what they assert: the h1 is "Workbench" (v7's title; the greeting rides
+along as its `title` attribute), the chips read "3 to quote" and keep an
+approvals chip at zero as "No approvals waiting", and an approved card is marked
+`.appr` with the pulsing dot in its meta row. One was my own regression — I had
+moved `aria-labelledby` off the lane `<section>` — and is restored.
+
+**DELIBERATELY NOT BUILT, and this is a scope decision, not an oversight:** the
+Workbench's Outlook inbox rail and its "N new emails" chip need Microsoft Graph.
+There is none in this repo, the brief for this run excludes anything
+Microsoft/Outlook/Graph, and none was added. The "Deliveries, next two days"
+rail panel is omitted rather than rendered empty, because an empty one would
+claim nothing is scheduled — a claim that screen cannot make.
+
+**STAGES C THROUGH G WERE NOT STARTED.** Stage C moves invoice creation from
+customer approval to shop-finish — a live-money path needing a migration,
+reconciliation maths and consistency for already-approved jobs. Starting it
+without finishing it would leave the billing path half-moved, and the standing
+instruction is that the app stays usable at every commit. It is the right next
+run, together with Stage B's remaining screens (Quotes, Orders, Shop View, job
+detail and its document views and modals).
+
+**Gates, all run in this session:** `tsc --noEmit` 0 · vitest 460/460 ·
+`npm run build` exit 0 with the prebuild chain · contrast 22 screens, 353 pairs,
+**0 unresolved, 0 below** · style gate 5/5 (32 pairs: 31 pass, 0 fail, 0
+uncovered, 1 live-only) · workbench e2e 7/7 · nav e2e 15/15. No migrations were
+written, so there is no schema change to register, and this repo has no
+`SCHEMA_REGISTRY.md`.
+
+**AWAITING REID'S OWN CONFIRMATION.** Per this project's verification standard,
+a session's own screenshots and Playwright passes are evidence to bring to the
+user, not proof. The look is asserted against the prototype by an automated gate
+and the side-by-side screenshots are in `test-results/v7-fidelity/`, but the
+Command Center's appearance is not marked complete until Reid has looked at it.
+The dev server this session started on port 3100 was stopped; port 3000 was
+never touched.
