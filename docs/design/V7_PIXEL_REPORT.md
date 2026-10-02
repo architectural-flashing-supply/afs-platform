@@ -247,6 +247,59 @@ Recorded because they are the argument for the new gate.
 
 ---
 
+## 5b. TEST FAILURES: WHAT THE REBUILD BROKE, AND WHAT IT DID NOT
+
+The full Playwright suite found **13 regressions** from the rebuild. Every one
+was an attribute or a name removed without noticing — not a behaviour change —
+and all are fixed:
+
+| What broke | Why |
+|---|---|
+| `input[name="q"]`, `select[name="stage"]`, `getByRole('searchbox')` | `V7FilterBar`'s controls had no `name` and the text field was not `type="search"`. v7 identifies its controls with `data-in`/`data-k`; both are kept now. |
+| Every selector that picks a lane's cards | The Workbench card's `data-stage` was being set to the card's KEY rather than its stage, and `data-request-number` was gone. |
+| The Workbench greeting assertion | The h1 lost the `title` attribute that carries it. |
+| `section[aria-labelledby="lane-new"]` | The lane was labelled `lane-h-<key>`. The id is back on the h2, which is both the thing being named and the right scroll target. |
+| Following a job through the shop | The Shop View row lost `data-state`, and its button lost the `start-bending` / `mark-finished` ids. |
+
+**Two assertions were STALE rather than broken**, and both were corrected rather
+than deleted, with the reason written into the test:
+
+- One clicked an **"Apply" button** in the filter bar. v7 has none — it filters
+  as you type and on change — so the button was removed and the assertion
+  followed it.
+- One asserted a **"N jobs in the shop" chip**. v7's four chips are approvals,
+  to-quote, **email**, deliveries-today; the shop chip was the previous build's
+  own invention.
+
+**And one failure was a real UX problem the test was right to catch.** Advancing
+a job in Shop View is a round trip of about three seconds — it writes the shop
+row, auto-schedules the delivery and notifies the customer — and the screen said
+nothing for the whole of it. On a tablet beside a bending machine that is how a
+button gets pressed twice. The result strip now appears immediately reading
+"Starting…" and its text is replaced by the outcome.
+
+### Remaining failures: the 5 known pre-existing ones
+
+| Test | Status |
+|---|---|
+| `homepage.spec.ts:238` hero dual CTAs resolve to /quote and /about/services | Pre-existing |
+| `homepage.spec.ts:253` header logo height / tagline | Pre-existing |
+| `modify-in-flashdraft.spec.ts:179` saving a modified draft | Pre-existing |
+| `production-queue.spec.ts:22` quick advance updates order status | Pre-existing |
+| `production-queue.spec.ts:50` rush orders appear at top of queue | Pre-existing |
+
+None of the five is touched by this run: two are the public homepage, one is
+FlashDraft's save path, two are the production queue, and this run changed no
+route behaviour and no data module.
+
+**One environmental flake worth knowing about.** `auth.setup.ts` intermittently
+times out waiting for the login form, and when it fails outright the whole suite
+reports "164 did not run". It is a cold `next dev` compile of `/login` against
+the 30s setup budget, not a code failure — hitting `/login` once before the run
+makes it reliable.
+
+---
+
 ## 6. ONE THING THE GATE STILL CANNOT SEE — LOOK AT THE SCREENSHOTS
 
 A pixel diff reports *that* two screens differ, in a percentage. It does not say

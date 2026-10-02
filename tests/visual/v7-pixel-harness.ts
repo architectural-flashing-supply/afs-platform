@@ -148,8 +148,19 @@ html { scroll-behavior: auto !important; }
  */
 export const ACTION_TIMEOUT_MS = 10_000;
 
+/**
+ * NAVIGATION GETS ITS OWN, LONGER BUDGET. `setDefaultTimeout` applies to
+ * `page.goto` as well, and `next dev` compiles a route the first time it is
+ * requested — on a loaded machine that has exceeded ten seconds, and the gate
+ * then reported two screens as `error` (which fails) for a slow compiler rather
+ * than for anything about the port. A navigation is "does the page exist", not
+ * an assertion, so giving it room relaxes nothing that is being measured.
+ */
+export const NAVIGATION_TIMEOUT_MS = 45_000;
+
 export async function prepare(page: Page): Promise<void> {
   page.setDefaultTimeout(ACTION_TIMEOUT_MS);
+  page.setDefaultNavigationTimeout(NAVIGATION_TIMEOUT_MS);
   await page.addInitScript(FREEZE_INIT);
 }
 
