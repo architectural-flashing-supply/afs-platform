@@ -767,8 +767,18 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
     from a query string: it is built server-side from the caller's own shortcut
     rows (`buildIdSearchArgs`), never from `buildSearchArgs`.
     `components/admin/ProfileSearchPanel.tsx` is the ONE UI, rendered both at
-    `/admin/search` and inside FlashDraft's `?admin=1` drawer; only `onSelect`
-    differs.
+    **`/admin/search/profiles`** and inside FlashDraft's `?admin=1` drawer; only
+    `onSelect` differs.
+
+    **THE ROUTE MOVED IN v7 STAGE D, AND THE RULE IS UNCHANGED.** `/admin/search`
+    is now v7's own Search screen (`pageSearch()`), which searches QUOTES AND
+    ORDERS — a different question over different tables, built from the Quotes
+    and Orders lists' own rows and helpers (`applySearchQuery` in
+    `lib/data/quote-order-list.ts`), with NO new SQL function and no second
+    profile query. That is exactly what docs/COMMAND_CENTER_V7_GAP_AUDIT.md §4
+    said the gap was: "a SEPARATE quote/order query, not a second profile
+    function." One profile query, one profile panel, two mount points — only the
+    URL of the first changed, and the new Search page links straight to it.
 
     **The enlarged preview has NO CLOSE BUTTON, and that is why the timing is a
     tested module.** `lib/ui/hover-intent.ts`: 150 ms before it opens (a sweep
@@ -971,6 +981,47 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
     `color` is compared only on an element with a direct text node (the app's
     `<body>` and v7's set different inherited colours, which containers never
     render).
+
+    **THREE PORT LAYERS SIT ON TOP OF THE VERBATIM CSS, and each has a stated
+    bar.** v7 is a standalone page and this app is not, so a verbatim port alone
+    renders differently for reasons that are nobody's design decision:
+    `v7-fonts.css` binds v7's two families to the self-hosted next/font copies;
+    `v7-preflight-reset.css` cancels Tailwind Preflight rules v7 has no
+    counterpart for (it sets `letter-spacing: inherit` on form controls; v7's
+    reset sets only `font: inherit`, and that shorthand does not carry
+    letter-spacing); and `v7-real-data.css` handles cases v7's SAMPLE DATA
+    cannot produce — a guest email used as a customer name is one 41-character
+    token that overflows a list cell, and "Bending now" breaks inside a
+    fixed-height pill once real material text narrows its column. The bar for
+    `v7-real-data.css` is explicit in the file: v7's data must be INCAPABLE of
+    showing the problem, and the fix must be a rule v7 already applies
+    somewhere else. Anything else is a restyle, not a port.
+
+    **CONVERTING A PAGE IS HALF A CONVERSION.** Moving a screen into the light
+    working area leaves its CHILD components painting light-on-dark text, and
+    the contrast gate fails on them at around 1.1-1.7:1 — rule #29, which has no
+    darkening fix because on a light surface the fix runs the other way. Convert
+    the children in the same commit, and point form fields at v7's own `.f`
+    rather than a Tailwind border: `afs-line-strong` on `afs-bg-light-raised` is
+    2.70:1 against a 3:1 boundary rule.
+
+    **THE STYLE GATE REPORTS FOUR OUTCOMES, AND ONLY ONE OF THEM PASSES.**
+    `pass`; `fail`; `uncovered` (a mapped pair that could not be measured —
+    fails, because a gate must not pass by failing to look); `live-only` (the
+    component has no counterpart in v7's rendered state, e.g. its seed fills
+    every lane so its empty-lane message never renders — the LIVE element is
+    still asserted to exist); and `no-data` (the component is built but this
+    environment has no row to render it, e.g. an empty delivery week — the
+    PROTOTYPE side must still match, so it cannot wave through something that
+    was never built). The last two are printed and counted, never silent.
+
+    **WHAT THE GATE CANNOT SEE, so look at the screenshots.** It compares a
+    component against its counterpart, not that component's children. Giving an
+    element v7's class while leaving its old flat children underneath renders
+    inline text running together with buttons overlapping it, and every compared
+    property still matches. That is a real defect this gate passed and a
+    screenshot caught, which is why `test-results/v7-fidelity/` is part of the
+    run and not decoration.
 
     **COLOUR DEVIATIONS ARE THE ONE LOOPHOLE AND THEY ARE MEASURED.** Where a v7
     colour fails the WCAG build gate (rule #28), change ONLY that colour, to the

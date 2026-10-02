@@ -16591,3 +16591,153 @@ and the side-by-side screenshots are in `test-results/v7-fidelity/`, but the
 Command Center's appearance is not marked complete until Reid has looked at it.
 The dev server this session started on port 3100 was stopped; port 3000 was
 never touched.
+
+---
+
+## 2026-10-02 (second run) - v7 Stages B2, G, D, E (branch `command-center-v7`)
+
+The rest of the look, and the non-money functions. Stages A and B (shell, style
+gate, Workbench) were the previous run; this one finished every other Command
+Center screen. **No schema change was made anywhere in this run** — that was a
+standing constraint, and nothing needed one.
+
+**Every screen is now built from v7's own markup and class names.** Quotes,
+Orders, Shop View, the Job screen and its action panel, Customers, Pricing,
+Credit Applications, Bid Monitor, New quote, Search and Deliveries. The count
+that matters: **zero `afs-*` Tailwind tokens remain in any of them**, including
+the Job screen and `JobActionPanel`, which between them carried about eighty
+Tailwind class strings.
+
+**THREE NEW PORT LAYERS, each narrow, each with a stated bar for what may be
+added to it.** v7 is a standalone page and this app is not, so a verbatim port
+cannot be the whole story:
+
+- `v7-preflight-reset.css` — cancels Tailwind Preflight rules v7 has no
+  counterpart for. One entry so far: Preflight sets `letter-spacing: inherit` on
+  form controls, v7's reset sets only `font: inherit`, and the `font` shorthand
+  does not carry letter-spacing — so a prototype control keeps the UA default
+  `normal`. The gate found it as `letterSpacing 0.375px != v7 normal` on the
+  filter bar's select and input (.03em inherited from the `.fld` label). Nothing
+  had been styled wrongly.
+- `v7-real-data.css` — cases v7's sample data CANNOT produce. Its customers are
+  short two-word names; the live app shows guest emails used as customer names,
+  one 41-character token with nothing to wrap at, which overflowed a list cell
+  and collided with the line beneath. And "Bending now" breaks inside a
+  fixed-height pill once real material text narrows that column. Both fixes are
+  rules v7 already applies elsewhere.
+- `v7-fonts.css` (previous run) — the self-hosted font binding.
+
+**THE CONTRAST GATE CAUGHT THE HALF-CONVERSION, TWICE.** Converting a PAGE is
+only half a conversion. Moving Customers, Pricing, Credit Applications and Bid
+Monitor into the light working area left their CHILD components painting
+light-on-dark text, and the gate failed on **seven pairs at 1.09:1 to 1.69:1** —
+`afs-chrome-high`, `afs-chrome-silver` and `afs-danger-on-dark` on `#F4F5F7`.
+That is rule #29 exactly: there is no darkening that fixes those, because on a
+light surface the fix runs the other way. Then three form fields failed the 3:1
+boundary rule (`afs-line-strong` #8C939B on `#EFEFEC` is 2.70:1); they now use
+v7's own `.f`, the same field every other converted screen uses.
+
+**ONE NEW TOKEN, measured:** `afs-info-ink` `#1D4FA8` — v7's `--bluetxt`, the
+blue it uses for TEXT on a light surface. `afs-info` `#3478B0` is 3.6:1 on white:
+enough for a border, not for body text.
+
+**THE FLAKY `approve-token` TEST WAS NEVER FLAKY.** It flipped the token's FINAL
+base64url character, 'A' <-> 'B'. The signature is a 32-byte HMAC — 256 bits
+carried by 43 characters, which hold 258 — so the last character has TWO bits the
+decoder throws away, and those two values differ only in the lowest of them. The
+bytes came out identical, the signature verified, and the test failed having
+tampered with nothing. The random nonce changed the final character run to run,
+which is what made a deterministic bug look intermittent. It now flips a
+character in the middle, where all six bits are inside the decoded bytes, and
+ASSERTS the decoded signature really changed before asserting rejection. Ran five
+times in a row: 24/24 each.
+
+**A SECOND TEST WAS FIXED FOR A REAL REASON, AND THE FIRST ATTEMPT WAS WRONG.**
+`profile-search`'s material test asserted the whole database held exactly one
+Copper profile. AFS has really drawn copper since. Removing the count was not
+enough: with no search term the rail is a RANKED, LIMITED listing of everything,
+and this spec's fixtures do not appear in it at all — so an assertion about them
+passes VACUOUSLY, which is worse than failing. Measured, not assumed: with the
+filter cleared, zero of the spec's rows come back. It now scopes the rail with
+the spec's own prefix and asserts what the filter is for — it narrows the set,
+and narrows it to the right row.
+
+**DECISIONS MADE WITHOUT ASKING, all recorded in the files themselves:**
+
+1. **Customers departs from v7's master-detail layout.** v7's `pageCustomers` is
+   a customer list beside that customer's contacts, jobs and saved profiles.
+   This page is an ACCOUNT DIRECTORY — every registered account, filtered by role
+   and pricing tier, with CSV export — and v7 has no roles, no tiers and no
+   export. Rendering a directory as a master-detail would mean dropping real
+   features or inventing per-customer queries nobody asked for. The detail view
+   v7 shows already exists as its own route, `/admin/customers/[id]`.
+2. **Pricing keeps what it really has.** v7's pricing page is a live-calculator
+   mock driven by its own in-browser `eng()`. The real engine is the versioned
+   price book (migration 035) at `/admin/settings/price-book`. No calculator is
+   faked here.
+3. **`/admin/search` is now v7's quotes-and-orders Search; the profile rail
+   moved to `/admin/search/profiles`.** Rule #27 is intact — ONE profile query,
+   ONE panel, mounted at that route and in FlashDraft's drawer. Only a URL
+   changed, and the gap audit §4 already said the quote/order search must be a
+   SEPARATE query, which it is: it reuses the lists' own rows and helpers, with
+   no new SQL function.
+4. **New quote's blank new-customer form does not create the account.** That
+   needs an invited auth account — a schema change, forbidden this run. The form
+   is drawn as v7 draws it and SAYS so, rather than offering a button that
+   silently discards what was typed.
+5. **The Deliveries map is the real one.** v7's own footnote asks for this: "In
+   the real build this panel is the same Track Deliveries map customers already
+   see on the website." A stop with no order behind it has no address, says so,
+   and the map stays on its service-area view — rule #25's honesty about the
+   tracking link, applied to the map.
+6. **The Job screen is deliberately NOT in the style-gate map.** The gate seeds
+   no data and the route needs a real job id, so a pair would always report
+   UNCOVERED — which fails, correctly. Its structure is asserted by
+   `command-center-workbench.spec.ts`, which creates a job and opens it.
+
+**THE GATE ITSELF LEARNED FOUR THINGS**, each of which cost real time first: v7
+reaches New quote by a BUTTON (`data-act="newQuote"`), not a `data-go` link;
+Search sits inside the closed More menu, whose links are in the DOM from first
+render inside a `hidden` container — so matching on existence rather than
+VISIBILITY made Playwright wait 30 seconds for an element that could never be
+actionable; a class map of v7 values must be recognised or the reference is
+misreported as "computed at runtime"; and a pair whose live component is built
+but whose environment has no row needs its own NO-DATA status, printed and
+counted, never silently passed.
+
+**A LAYOUT DEFECT THE SCREENSHOTS CAUGHT AND THE GATE COULD NOT.** The delivery
+cards were given v7's `.dcard` class but kept their old flat children, so bare
+`<b>`/`<span>` siblings rendered inline and ran together, with the button
+overlapping the text. `.dcard` is a container whose CHILDREN carry the structure;
+the gate compares a component against its counterpart and cannot see that the
+children inside are wrong. This is why the side-by-side screenshots are part of
+the run and not decoration.
+
+**MICROSOFT: nothing was added, as required.** The Workbench's Outlook inbox
+rail and its "N new emails" chip are still absent, and no Graph code exists in
+this repository.
+
+**THE MONEY PATH WAS NOT TOUCHED**, as instructed: invoice creation still
+happens where it did, Tricia's estimate and invoice emails are unchanged, and
+change orders and addenda are untouched. Stage C and Stage F were not in this
+run's scope.
+
+**Gates, all run in this session:** `tsc --noEmit` 0 · vitest 460/460 ·
+`npm run build` exit 0 with the prebuild chain · contrast **24 screens, 254
+pairs, 0 unresolved, 0 below** · style gate **66 pairs: 63 pass, 0 fail, 0
+uncovered, 1 live-only, 2 no-data** · full Playwright run recorded below.
+Screenshots for every page at 1440x900 and 1280x800 in
+`test-results/v7-fidelity/` (24 files).
+
+**README:** there is no `README.md` on this branch — another worktree
+(`afs-website-readme`, branch `docs/readme`) owns it, and this run did not touch
+it. **The README refresh for everything in this run is PENDING** and should be
+done on that branch: the Command Center is now a port of
+`docs/design/command-center-v7`, `/admin/search` has changed meaning, and
+`/admin/quotes/new` and `/admin/search/profiles` are new routes.
+
+**AWAITING REID'S OWN CONFIRMATION.** This project's verification standard says a
+session's own screenshots and Playwright passes are evidence to bring to the
+user, not proof. Every screen is asserted against the prototype by an automated
+gate and the side-by-side screenshots are committed, but the look is not marked
+complete until Reid has looked at it.

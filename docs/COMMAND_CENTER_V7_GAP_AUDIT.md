@@ -72,6 +72,49 @@ a half-moved billing path is worse than an unmoved one.
 
 ---
 
+---
+
+## STATUS UPDATE - 2026-10-02 (second run), v7 Stages B2, G, D, E
+
+Every Command Center screen is now built from v7's own markup and class names,
+with **zero `afs-*` Tailwind tokens left in any of them**. No schema change was
+made in this run.
+
+| # | Feature | Status | Where |
+|---|---|---|---|
+| 1 | Header nav + New quote + type-ahead | **Built** | `components/layout/AdminTopBar.tsx`, `AdminShell.tsx` · gate pairs `header`…`wrap` |
+| 2 | Quotes & Orders lists | **Built** | `components/admin/QuoteOrderList.tsx`, `app/admin/quotes|orders/page.tsx` · gate `list-*` |
+| 3 | New quote page, customer-first | **Built** | `app/admin/quotes/new/page.tsx`, `lib/data/new-quote.ts` · gate `nq-*` |
+| 4 | Search over quotes and orders | **Built** | `app/admin/search/page.tsx`, `applySearchQuery` in `lib/data/quote-order-list.ts` · gate `search-*` |
+| 5 | Deliveries split + tracking map | **Built** | `app/admin/deliveries/page.tsx`, `components/admin/DeliveryTrackPanel.tsx` (reuses `components/track/DeliveryTrackingMap.tsx`) · gate `dl-*` |
+| 6 | Estimate emailed to Tricia on quote send | **Unchanged** | Out of scope this run — the money path is a later run's. |
+| 7 | Invoice on shop-finish + reconciliation | **Unchanged** | Out of scope this run. |
+| 8 | Change order before the machine | **Unchanged** | Out of scope this run. |
+| 9 | Addendum after the job started | **Unchanged** | Out of scope this run. |
+| 10 | Cards, pills, panes, theme | **Built** (except the pills that depend on 8 and 9) | `WorkbenchLanes.tsx`, `WorkbenchRail.tsx`, `ShopQueueBoard.tsx`, `JobActionPanel.tsx` · gate `wb-*`, `shop-*` |
+
+**Also converted, beyond the ten:** Customers, Pricing, Credit Applications and
+Bid Monitor (Stage G) — `app/admin/customers`, `app/admin/pricing`,
+`app/admin/credit-applications`, `app/admin/bid-monitor`, plus the six child
+components behind them.
+
+**Route changes worth knowing:** `/admin/search` is now v7's quotes-and-orders
+Search; the profile rail moved to `/admin/search/profiles` (rule #27 intact — one
+query, one panel, a different URL). `/admin/quotes/new` is new and is where the
+header's "+ New quote" now points.
+
+**Tests:** `tests/visual/v7-style-gate.spec.ts` + `tests/visual/v7-component-map.ts`
+(66 pairs), `tests/e2e/command-center-v7-nav.spec.ts`,
+`command-center-workbench.spec.ts`, `shop-deliveries.spec.ts`,
+`profile-search.spec.ts`, `lib/design/v7-css.test.ts`,
+`lib/design/v7-deviations.test.ts`.
+
+**Still open, and NOT touched:** items 6-9 (Tricia's money trail, change orders,
+addenda) and the Workbench's Outlook inbox rail, which is the one
+Microsoft-dependent feature and stays absent.
+
+---
+
 ## (a) STATUS TABLE
 
 Legend: **Built** = works as v7 describes · **Partial** = some of it exists ·
