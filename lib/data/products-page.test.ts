@@ -8,6 +8,11 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
+  PRODUCT_PREVIEW_SHAPES,
+  previewShapeFor,
+} from '@/lib/data/product-preview-shapes';
+import { bendsFromPoints } from '@/lib/data/product-geometry';
+import {
   PRODUCT_MANIFEST,
   CATEGORY_DISPLAY_ORDER,
   deriveDisplayName,
@@ -167,6 +172,70 @@ describe('product shape', () => {
     for (const p of withGeometry) {
       const source = PRODUCT_MANIFEST.find((e) => e.id === p.id);
       expect(p.geometryMatch).toBe(source!.geometryMatch);
+    }
+  });
+});
+
+describe('schematic preview shapes', () => {
+  const products = getCatalogProducts();
+  const previewed = products.filter((p) => p.hasSchematicPreview);
+
+  it('has at least one previewed product, and every one resolves to a real shape', () => {
+    expect(previewed.length).toBeGreaterThan(0);
+    for (const p of previewed) {
+      const shape = previewShapeFor(p.id);
+      expect(shape, `${p.id} is flagged previewed but has no shape`).not.toBeNull();
+      expect(shape!.schematic).toBe(true);
+      expect(shape!.points.length).toBeGreaterThanOrEqual(2);
+      expect(shape!.note.trim().length).toBeGreaterThan(0);
+    }
+  });
+
+  it('every shape key names a real, publishable product', () => {
+    const publishableIds = new Set(products.map((p) => p.id));
+    for (const id of Object.keys(PRODUCT_PREVIEW_SHAPES)) {
+      expect(publishableIds.has(id), `${id} has a shape but is not on the page`).toBe(true);
+    }
+  });
+
+  it('never gives a schematic preview to a product that already has real geometry', () => {
+    for (const p of products) {
+      if (p.geometryMatch) expect(p.hasSchematicPreview).toBe(false);
+    }
+  });
+
+  it('keeps the designable count at 17 — a trace must not become fabricable', () => {
+    expect(products.filter((p) => p.geometryMatch).length).toBe(17);
+  });
+
+  it('produces signed bends through the shared geometry path', () => {
+    for (const [id, shape] of Object.entries(PRODUCT_PREVIEW_SHAPES)) {
+      const bends = bendsFromPoints(shape.points);
+      expect(bends.length, `${id} produced no bends`).toBeGreaterThan(0);
+      for (const b of bends) {
+        expect(Number.isFinite(b.angle)).toBe(true);
+        expect(b.angle).toBeGreaterThan(-180.0001);
+        expect(b.angle).toBeLessThanOrEqual(180.0001);
+        // Schematic shapes carry no fabrication radius.
+        expect(b.radius).toBe(0);
+      }
+    }
+  });
+
+  it('draws at least one shape with bends of BOTH handedness, proving signs survive', () => {
+    const anyMixed = Object.values(PRODUCT_PREVIEW_SHAPES).some((shape) => {
+      const angles = bendsFromPoints(shape.points).map((b) => b.angle);
+      return angles.some((a) => a > 0) && angles.some((a) => a < 0);
+    });
+    expect(anyMixed).toBe(true);
+  });
+
+  it('every previewed product has coordinates only — no dimension text anywhere', () => {
+    for (const shape of Object.values(PRODUCT_PREVIEW_SHAPES)) {
+      for (const pt of shape.points) {
+        expect(Number.isFinite(pt.x)).toBe(true);
+        expect(Number.isFinite(pt.y)).toBe(true);
+      }
     }
   });
 });

@@ -3,12 +3,15 @@
 import dynamic from 'next/dynamic';
 import { useEffect, useState } from 'react';
 import {
+  bendsFromPoints,
+  blankWidthMmFromPoints,
   profileBendsFor,
   profileBlankWidthMm,
   PREVIEW_MATERIAL,
   PREVIEW_GAUGE,
   PREVIEW_THICKNESS_MM,
 } from '@/lib/data/product-geometry';
+import { previewShapeFor } from '@/lib/data/product-preview-shapes';
 import type { ProfileType } from '@/lib/utils/profile-svg';
 
 /**
@@ -64,20 +67,53 @@ function usePrefersReducedMotion(): boolean {
 }
 
 export interface ProductProfilePreview3DProps {
-  profileType: ProfileType;
+  /**
+   * Real fabrication geometry. Mutually exclusive with `schematicProductId`:
+   * exactly one of the two says what to draw.
+   */
+  profileType?: ProfileType | null;
+  /**
+   * A product id with a SCHEMATIC shape traced from its rendering
+   * (lib/data/product-preview-shapes.ts). Drawn with the dimensions control
+   * hidden and no labels, because its proportions are read off a picture rather
+   * than measured — labelling them would show a customer invented numbers.
+   */
+  schematicProductId?: string | null;
   productName: string;
   className?: string;
+  /**
+   * Passed straight through to ProfileViewer3D's own height floor. A caller
+   * that sizes the canvas itself passes 0, so the viewer fills that slot rather
+   * than rendering at its 500px default inside a shorter, clipping box.
+   */
+  minHeightPx?: number;
 }
 
 export default function ProductProfilePreview3D({
   profileType,
+  schematicProductId,
   productName,
   className,
+  minHeightPx,
 }: ProductProfilePreview3DProps) {
   const prefersReducedMotion = usePrefersReducedMotion();
 
-  const bends = profileBendsFor(profileType);
-  const blankWidth = profileBlankWidthMm(profileType);
+  const schematic = schematicProductId ? previewShapeFor(schematicProductId) : null;
+  // Real geometry wins whenever it exists; a trace only fills a gap.
+  const isSchematic = !profileType && schematic !== null;
+
+  const bends = profileType
+    ? profileBendsFor(profileType)
+    : schematic
+      ? bendsFromPoints(schematic.points)
+      : [];
+  const blankWidth = profileType
+    ? profileBlankWidthMm(profileType)
+    : schematic
+      ? blankWidthMmFromPoints(schematic.points)
+      : 0;
+
+  if (bends.length === 0) return null;
 
   return (
     <div className={className}>
@@ -89,6 +125,8 @@ export default function ProductProfilePreview3D({
         thicknessMm={PREVIEW_THICKNESS_MM}
         profileName={productName}
         fallbackTone="light"
+        minHeightPx={minHeightPx}
+        hideDimensions={isSchematic}
         // Reduced motion: no rotation at all, just the static shape.
         autoRotateSpeed={prefersReducedMotion ? 0 : AUTO_ROTATE_SPEED}
         autoRotateDurationMs={prefersReducedMotion ? 0 : AUTO_ROTATE_DURATION_MS}

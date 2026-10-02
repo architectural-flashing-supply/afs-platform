@@ -34,6 +34,108 @@ summary, not a replacement for it.
 
 ---
 
+## 2026-10-01 (third pass) — 3D VIEWER REPAIRS + SCHEMATIC PREVIEWS (branch `products-page`)
+
+Five defects on the Products popup and the shared 3D viewer. Every one was
+diagnosed from observed data before anything was changed, and two of the three
+suspects named in the brief were **refuted** by that data.
+
+### TASK 1 — the cut-off view. ROOT CAUSE PROVEN, suspects refuted.
+
+Instrumented `ProfileViewer3D` (temporarily) and drove it with Playwright at
+1440x900 and 390x844 over four designable products.
+
+**Refuted:** the `clientHeight || 500` fallback never fires — `clientHeight`
+measured a real 500 every time. **Refuted:** the camera was not fitted against
+the wrong aspect — `camera.aspect` at renderer creation equalled the aspect at
+resize in every case (1.036 desktop, 0.632 mobile), and the fit targeted
+`sphereCenter [0,0,0]` at a correct distance.
+
+**The real cause was CSS containment, not the camera.** `ProfileViewer3D`'s root
+carries `style={{ minHeight: 500 }}`. `ProductModal` gave it a `h-[320px]` slot
+with `overflow-hidden`, and a minimum height does not shrink: the canvas rendered
+at 500px inside a 320px box and **the bottom 180px — 36% of every profile — was
+clipped by CSS before the camera was involved**. Measured:
+`canvasCss [518,500]`, `hostClient [518,500]`, slot 320. That is why the model
+"sat low": the visible region was the top 320px of a 500px canvas, so a centred
+model appeared at 78% of the visible height with its lower faces gone.
+
+Fixes: `minHeightPx` is now a prop (default 500, so every existing caller is
+unchanged) and the modal passes 0 while sizing the slot itself; the auto-fit
+**re-runs on container resize** (it was previously one-time, so a camera framed
+at mount was wrong at any other size) and refreshes `fitCameraRef`, so Reset View
+returns to the same framing; and `FIT_TOOLBAR_CLEARANCE` raises the fit target by
+12% of the bounding radius so nothing sits behind the floating toolbar.
+
+### TASK 2 — larger popup
+`max-w-[560px]` -> `max-w-[960px]`; canvas `clamp(360px, 60vh, 640px)`. Focus
+trap, Escape, backdrop and scroll lock untouched. A test asserts the dialog fits
+inside both viewports.
+
+### TASK 3 — lighter canvas, and the defect it exposed
+`VIEWER_BACKGROUND_COLOR = '#C9CDD2'`, exported, used by **both** the renderer
+clear colour and the dome. Both, because the dome is a BackSide sphere of radius
+2000 with the camera inside it — the dome is what is actually seen, so changing
+only the clear colour (as the brief suggested, from the hardcoded `#8A8A8A`)
+would have had no visible effect. They were two different greys before.
+
+**Lightening the background exposed a real pre-existing defect: every metal
+rendered nearly black.** All appearances are `MeshStandardMaterial` with
+metalness 0.7-0.95, and a metal has no diffuse response — with **no environment
+map** it renders black whatever colour is set. Copper came out near-black brown;
+Galvalume charcoal. The old dark field camouflaged it. No value of the background
+constant can fix that, because the fault is the model, not the field.
+
+Fix: `RoomEnvironment` + `PMREMGenerator`, both shipped with the installed three
+(0.185.1) — **no new dependency**. Copper now reads as copper, the steels as
+steel. Evidence: all nine `ALL_MATERIALS` rendered on a real profile and captured
+to `test-results/viewer-3d/material-*.png`; Copper, Stainless Steel (lightest,
+the washout risk) and Vintage Steel (darkest) examined directly and all three are
+clearly separated from the background. Flat hex contrast is NOT the measure here
+and was not used as one — copper measures 1.10:1 against the old `#8A8A8A` and
+read fine, because these are lit specular surfaces.
+
+**A test that proved nothing was caught and replaced.** The first material test
+screenshotted FlashDraft's 2D canvas with an empty profile (Blank Width 0") and
+passed. It now loads a real profile through the actual Select & Design handoff,
+switches to 3D, asserts the handoff carried geometry, and captures the canvas
+only.
+
+### TASK 4 — Dimensions toggle. ROOT CAUSE: DOM, not state.
+`scene.remove(labelGroupRef.current)` detaches the Group from the scene graph,
+but a `CSS2DObject` is a real `<div>` that `CSS2DRenderer` appended to its own
+element. An object no longer in the scene is never visited by the renderer, so
+its div is **left in the DOM at its last position, permanently visible**. The
+mesh teardown immediately above has always disposed properly; the label teardown
+had no DOM equivalent. Toggling off therefore rebuilt with an empty label group
+while every previous label stayed on screen. Fixed by traversing the old group
+and detaching each `element` before removing it.
+
+### TASK 5 — schematic previews
+`lib/data/product-preview-shapes.ts`: 9 shapes traced from the renderings, keyed
+by product id, every one `schematic: true`. Bends run through the SHARED
+`bendsFromPoints` (extracted from `profileBendsFor`) so they go through
+`signedInteriorAngleDeg` — a parallel copy is how handedness drifts, which is
+lr-02. Rendered with the dimensions control **removed** and no labels, and
+**Request a Quote only**. `ProfileType`, `buildGeometry`, pricing, quote math and
+the FlashDraft handoff are all untouched. 9 skipped, all Roofing Panels, each
+with a stated reason — full tables in docs/PRODUCT_MANIFEST.md.
+
+Counts: 35 shown · **17 designable (unchanged, asserted by a test)** · 9
+schematic · 9 image-only.
+
+### Gates, run in this session
+`pnpm tsc --noEmit` 0. `pnpm run build` green including the prebuild contrast
+gate; `/products` static at 5.77 kB. **432/432 vitest across 27 files** (25 in
+products-page). **54/54 Playwright** over products-page, viewer-3d,
+product-previews, flashdraft and no-configurator, at 1440x900 and 390x844.
+Screenshots: `test-results/viewer-3d/` and `test-results/product-previews/`.
+
+**Status: IMPLEMENTED, UNCONFIRMED** — gates pass and the frames were examined
+in-session, but Reid has not confirmed the popup himself.
+
+---
+
 ## 2026-10-01 — PRODUCTS PAGE rebuilt from the manifest (branch `products-page`, interactive, no FORGE)
 
 The public `/products` page, rebuilt against

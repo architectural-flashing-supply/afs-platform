@@ -168,6 +168,27 @@ test.describe('Products page — desktop', () => {
     expect(href).toContain('/quote?product=');
   });
 
+  test('a schematic-preview product shows 3D but never Select & Design', async ({ page }) => {
+    // Traced-from-a-picture shapes must not be offered to FlashDraft as if they
+    // were fabrication geometry, and must show no invented dimension numbers.
+    await page.goto('/products');
+    await page.getByRole('button', { name: 'J-Channel', exact: false }).first().click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await expect(page.getByText('Loading 3D view…')).toHaveCount(0, { timeout: 20000 });
+    await expect(dialog.locator('canvas').first()).toBeVisible();
+
+    await expect(dialog.getByText('Request a Quote')).toBeVisible();
+    await expect(dialog.getByText('Select & Design')).toHaveCount(0);
+    // The Dimensions control is not merely off — it is not offered.
+    await expect(dialog.getByRole('button', { name: /Dimensions/ })).toHaveCount(0);
+
+    // And no dimension or angle label is rendered.
+    const labels = dialog.locator('div[style*="translate"]').filter({ hasText: /["°]/ });
+    expect(await labels.count()).toBe(0);
+  });
+
   test('screenshot — catalog at 1440px', async ({ page }) => {
     await page.goto('/products');
     await page.screenshot({ path: 'test-results/products-desktop.png', fullPage: false });

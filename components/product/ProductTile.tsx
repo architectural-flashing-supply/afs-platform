@@ -89,10 +89,12 @@ export default function ProductTile({ product, onOpen }: ProductTileProps) {
           className="pointer-events-none absolute left-1/2 top-1/2 z-30 hidden w-[320px] -translate-x-1/2 -translate-y-1/2 rounded border border-afs-border-catalog bg-afs-bg-catalog-pop p-4 shadow-xl [@media(hover:hover)]:block"
         >
           <div className="relative h-[200px] w-full overflow-hidden rounded">
-            {product.geometryMatch ? (
+            {product.geometryMatch || product.hasSchematicPreview ? (
               <ProductProfilePreview3D
                 profileType={product.geometryMatch}
+                schematicProductId={product.hasSchematicPreview ? product.id : null}
                 productName={product.name}
+                minHeightPx={0}
                 className="h-full w-full"
               />
             ) : (

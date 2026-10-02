@@ -9405,3 +9405,53 @@ initial payload; 18/18 unit; 17/17 e2e at 1440px and 375px; four screenshots,
 the cap set.
 
 Committed to `products-page` and pushed. Not merged, not deployed.
+
+---
+
+## 2026-10-01 (third pass) — 3D viewer repairs and schematic previews (FORGE 2.0, interactive)
+
+Branch `products-page`, continued. Five tasks; the useful part of the session
+was that **diagnosing first changed what got fixed in three of them.**
+
+**Task 1's two named suspects were both wrong.** The brief suspected the
+`clientHeight || 500` fallback and a camera fitted against the wrong aspect.
+Instrumenting the viewer and driving it with Playwright showed `clientHeight`
+was a genuine 500 (fallback never fired) and `camera.aspect` was identical at
+creation and at resize. The real cause was `minHeight: 500` on the viewer's root
+against a 320px modal slot — a 500px canvas in a 320px `overflow-hidden` box,
+bottom 36% clipped by CSS, camera entirely innocent. Had I "fixed" either
+suspect the symptom would have survived.
+
+**Task 3 exposed a defect rather than fixing one.** Lightening the background
+revealed that every metal renders near-black: `MeshStandardMaterial` at
+metalness 0.7-0.95 with no environment map has no diffuse response. The dark
+background had been camouflaging it for the entire life of the viewer. No
+background value fixes that, so the fix was `RoomEnvironment` + PMREM (shipped
+with three, no new dependency). Also discovered that the dome — not the clear
+colour — is what the camera actually sees, so the brief's "replace the clear
+colour" alone would have changed nothing visible.
+
+**Task 4 was a DOM lifetime bug, not a state bug.** `scene.remove()` detaches a
+Group from the scene graph but leaves `CSS2DObject` divs in the DOM forever,
+because the renderer only ever hides elements it still visits. The button was
+flipping correctly all along.
+
+**A test of my own that proved nothing was caught and replaced.** The first
+material-matrix test screenshotted FlashDraft's empty 2D canvas (Blank Width 0")
+and passed. It now drives the real Select & Design handoff into FlashDraft,
+asserts geometry arrived, switches to 3D, and captures the canvas only — which
+also gave an end-to-end proof of the handoff as a side effect.
+
+**Task 5 held the line on invented data.** 9 shapes traced from renderings, 9
+Roofing Panels skipped with reasons (seam close-ups and striated pans — nothing
+showing a complete repeating section). Traced shapes render with the dimensions
+control removed, no labels and Request a Quote only; `ProfileType`,
+`buildGeometry` and the FlashDraft handoff were not touched, and a test asserts
+the designable count is still exactly 17 so a trace can never quietly become
+fabricable.
+
+**Gates:** tsc 0 · build green incl. the prebuild contrast gate · 432/432 vitest
+across 27 files · 54/54 Playwright at 1440x900 and 390x844. Screenshots in
+`test-results/viewer-3d/` and `test-results/product-previews/`.
+
+Committed to `products-page` and pushed. Not merged, not deployed.

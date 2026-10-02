@@ -66,7 +66,19 @@ function distanceIn(a: ProfilePoint, b: ProfilePoint): number {
  * what the viewer expects and matches FlashDraft's own single-segment handling.
  */
 export function profileBendsFor(profileType: ProfileType): ProfileBend[] {
-  const points = profilePointsFor(profileType);
+  return bendsFromPoints(profilePointsFor(profileType));
+}
+
+/**
+ * Points -> the bend list ProfileViewer3D consumes, in millimetres.
+ *
+ * Extracted so the schematic preview shapes (lib/data/product-preview-shapes.ts)
+ * go through EXACTLY this code rather than a parallel copy — same leg
+ * measurement, same signed angle, same single-segment handling. A second
+ * implementation is how a preview would end up disagreeing with the real
+ * viewer about handedness, which is the lr-02 bug all over again.
+ */
+export function bendsFromPoints(points: ProfilePoint[]): ProfileBend[] {
   if (points.length < 2) return [];
 
   if (points.length === 2) {
@@ -94,7 +106,11 @@ export function profileBendsFor(profileType: ProfileType): ProfileBend[] {
 
 /** Flat width of the blank, in millimetres — the sum of every leg. */
 export function profileBlankWidthMm(profileType: ProfileType): number {
-  const points = profilePointsFor(profileType);
+  return blankWidthMmFromPoints(profilePointsFor(profileType));
+}
+
+/** Same, for an arbitrary polyline. */
+export function blankWidthMmFromPoints(points: ProfilePoint[]): number {
   let total = 0;
   for (let i = 0; i < points.length - 1; i++) total += distanceIn(points[i], points[i + 1]);
   return total * MM_PER_INCH;

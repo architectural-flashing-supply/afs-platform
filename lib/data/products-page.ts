@@ -13,6 +13,7 @@
  */
 import manifest from '@/lib/data/product-renders.manifest.json';
 import { PRODUCT_NAME_OVERRIDES } from '@/lib/data/product-name-overrides';
+import { previewShapeFor } from '@/lib/data/product-preview-shapes';
 import type { ProfileType } from '@/lib/utils/profile-svg';
 
 export interface ProductRenderEntry {
@@ -40,6 +41,15 @@ export interface CatalogProduct {
   image: string;
   /** Non-null means this product can offer Select & Design and the 3D view. */
   geometryMatch: ProfileType | null;
+  /**
+   * True when the product has no real geometry but DOES have a schematic shape
+   * traced from its rendering (lib/data/product-preview-shapes.ts).
+   *
+   * Such a product shows the 3D viewer with dimension labels hidden, and offers
+   * Request a Quote ONLY — a traced shape must never be handed to FlashDraft as
+   * if it were fabrication geometry. Mutually exclusive with geometryMatch.
+   */
+  hasSchematicPreview: boolean;
 }
 
 export interface CatalogSection {
@@ -165,13 +175,16 @@ export function isPublishable(entry: ProductRenderEntry): boolean {
 }
 
 function toCatalogProduct(entry: ProductRenderEntry): CatalogProduct {
+  const geometryMatch = (entry.geometryMatch as ProfileType | null) ?? null;
   return {
     id: entry.id,
     name: PRODUCT_NAME_OVERRIDES[entry.id] ?? deriveDisplayName(entry.sourceName),
     category: mapDisplayCategory(entry.category),
     subcategory: entry.subcategory,
     image: entry.imageFiles[0],
-    geometryMatch: (entry.geometryMatch as ProfileType | null) ?? null,
+    geometryMatch,
+    // Real geometry always wins; a schematic trace only fills a gap.
+    hasSchematicPreview: geometryMatch === null && previewShapeFor(entry.id) !== null,
   };
 }
 

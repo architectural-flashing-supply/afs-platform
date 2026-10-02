@@ -10,6 +10,13 @@ import type { CatalogProduct } from '@/lib/data/products-page';
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
 
+/**
+ * 60vh, floored at 360px and capped at 640px — tall enough for a profile to
+ * read on a laptop, short enough that the dialog still fits a phone alongside
+ * its title and buttons.
+ */
+const MODAL_CANVAS_HEIGHT = 'clamp(360px, 60vh, 640px)';
+
 export interface ProductModalProps {
   product: CatalogProduct;
   onClose: () => void;
@@ -83,7 +90,7 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
         role="dialog"
         aria-modal="true"
         aria-label={product.name}
-        className="relative max-h-[90vh] w-full max-w-[560px] overflow-y-auto rounded border border-afs-border-catalog bg-afs-bg-catalog-pop p-5 shadow-2xl"
+        className="relative max-h-[90vh] w-full max-w-[960px] overflow-y-auto rounded border border-afs-border-catalog bg-afs-bg-catalog-pop p-5 shadow-2xl"
       >
         <div className="flex items-start justify-between gap-4">
           <h2 className="font-display text-2xl font-bold leading-tight text-afs-ink-900">
@@ -100,11 +107,26 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
           </button>
         </div>
 
-        <div className="relative mt-4 h-[260px] w-full overflow-hidden rounded sm:h-[320px]">
-          {product.geometryMatch ? (
+        {/*
+          The canvas height and the viewer's own minimum must AGREE. ProfileViewer3D
+          carries a 500px floor by default, and a slot shorter than that does not
+          shrink it — the canvas renders at its floor inside the shorter box and the
+          overflow is clipped, which looks exactly like the camera cutting the
+          profile off. That was the bug here (a 320px slot, a 500px canvas, the
+          bottom 36% gone). The slot is now 60vh clamped to 360-640px, and
+          `minHeightPx` is handed the same floor so the viewer fills the slot
+          instead of overflowing it.
+        */}
+        <div
+          className="relative mt-4 w-full overflow-hidden rounded"
+          style={{ height: MODAL_CANVAS_HEIGHT }}
+        >
+          {product.geometryMatch || product.hasSchematicPreview ? (
             <ProductProfilePreview3D
               profileType={product.geometryMatch}
+              schematicProductId={product.hasSchematicPreview ? product.id : null}
               productName={product.name}
+              minHeightPx={0}
               className="h-full w-full"
             />
           ) : (

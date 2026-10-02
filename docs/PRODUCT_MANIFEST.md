@@ -134,3 +134,61 @@ No prices appear anywhere in this manifest and none should (CLAUDE.md rule #1).
 ---
 
 *Generated on branch `products-manifest`, 2026-10-01. Inventory: `docs/PRODUCT_MANIFEST_INVENTORY.md`. Data: `lib/data/product-renders.manifest.json`.*
+
+---
+
+## 2026-10-01 (second pass) — SCHEMATIC 3D PREVIEWS
+
+Nine of the 18 shown products that have no `geometryMatch` now have a
+**schematic** 3D preview, traced from their own Drexel rendering and stored in
+`lib/data/product-preview-shapes.ts`. The `ProfileType` union and
+`buildGeometry` were NOT touched: a value in that union means "this app can
+fabricate this", and a shape read off a marketing picture is not that.
+
+**What "schematic" buys and what it costs.** Each shape renders in the same 3D
+viewer, so a customer can see the section — but with the **dimensions control
+removed, no dimension or angle labels, and Request a Quote only**. No Select &
+Design: a traced shape must never reach FlashDraft, and through it the machine,
+dressed as real geometry. Proportions are a reading of a picture; nothing in any
+rendering states a dimension.
+
+### Products that GOT a schematic preview (9)
+
+| id | Category | What the rendering showed |
+|---|---|---|
+| `j-channel` | Trim & Closures | Tall back leg, base, short return — a channel |
+| `soffit-j-sample-02` | Trim & Closures | Same channel family, shallower |
+| `trims-reglet` | Base & Counter Flashing | Wall flange, vertical face, bottom kick-out |
+| `eave-trim-sample-02` | Drip Edge & Gravel Stop | Wide roof flange, down over the eave, kick |
+| `gable-sample-02` | Fascia & Rake | Roof flange, taller face, bottom kick |
+| `peak-sample-02` | Trim & Closures | Short leg and kick, over the peak to a long slope |
+| `valley-sample-02` | Valley Flashing | Two planes meeting in a shallow V |
+| `rib-mechanically-seamed-flat-panel` | Roofing Panels | Flat pan between two upstanding seams |
+| `rib-snap-lock-flat` | Roofing Panels | Flat pan between two snap-lock seams with returned lip |
+
+### Products SKIPPED, and why (9 — all Roofing Panels)
+
+| id | Why skipped |
+|---|---|
+| `rib-mechanically-seamed-striations` | Striations are a fine surface corrugation. Their count and depth are not stated anywhere, so any section drawn would be invented detail, not a trace. |
+| `rib-snap-lock-striations` | Same — striated pan. |
+| `dmc-150ss-seamed-90` | The rendering is a SEAM CLOSE-UP, not a complete repeating panel section. Nothing shows the pan width or the full profile. |
+| `dmc-200s-seamed-180` | Seam close-up, same reason. |
+| `dmc-200s-seamed-90` | Seam close-up, same reason. |
+| `dmc-200s` | Seam close-up, same reason. |
+| `dmc-fwq100-reveal` | Reveal/joint close-up; no complete repeating section visible. |
+| `fastener-flange` | A seam-and-clip attachment detail, not a panel cross-section. |
+| `snap-lock-wclip` | A seam-and-clip attachment detail, not a panel cross-section. |
+
+These nine keep their photographic rendering in the popup, exactly as before.
+A named SKU's seam profile is the thing that identifies it, and drawing a
+generic one from a close-up would put a confident wrong shape under a real
+product name — the same failure that got the 911-profile machine library
+deleted.
+
+**No product was skipped for being mounted against brick or masonry.** Every
+such rendering in the set (the edge-metal group) already carries real
+`geometryMatch` geometry, so none of them needed a trace.
+
+**Counts after this pass:** 35 shown · 17 designable (unchanged, and asserted by
+a test) · 9 schematic preview · 9 image-only.
