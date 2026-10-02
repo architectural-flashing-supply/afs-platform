@@ -1036,6 +1036,69 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
     exactly ONE today: `#1E8E52` → `#1D874E`, because white text on v7's green
     measures 4.16:1 against a 4.5:1 requirement.
 
+34. **THE OWNER'S HISTORICAL BUSINESS DATA STAYS OUTSIDE THE REPO, IMPORTS ARE
+    PROVENANCE-TAGGED AND UNVERIFIED UNTIL HE CONFIRMS THEM, AND PERSONAL FILES
+    ARE NEVER EXTRACTED.**
+
+    The 535 spreadsheet and Word files copied off Steve's laptop live at
+    `C:\Users\manag\Documents\afs-historical-data\AFS_Spreadsheets` (plus a
+    1.55 GB `backup.pst` beside them, not yet opened). Scratch, extractions and
+    reports go in that folder's `_work\`. **None of it is ever copied into this
+    repository or committed** — it is real customer, project and personal data.
+    The ONLY artifact of that work that enters the repo is
+    `docs/PRICING_HISTORY_DISCOVERY.md`, which carries structure and aggregates
+    only: no customer names, no personal data, no dollar figure attributable to a
+    named customer. Add `_work/` output to the repo and you have published a
+    decade of a client's customer list.
+
+    **SOURCE FILES ARE READ-ONLY, AND THAT IS PROVED WITH HASHES RATHER THAN
+    INTENDED.** Take a SHA-256 manifest before opening anything and re-take it at
+    the end; the discovery run's two manifests both hash to
+    `bfbcc268de03137d251bf8dbeb9dd60a880aca25e0d32c47d5917dd97b7ec090`. **Never
+    execute a macro** — 419 of the files are `.xlsm`. Read them with openpyxl
+    (`keep_vba=False`, and load twice: `data_only=False` for formulas,
+    `data_only=True` for cached values). Never use Excel/COM. Legacy `.xls` /
+    `.xlsb` / `.doc` are **copied first** and LibreOffice converts the COPY.
+    Install tooling only into a virtualenv under `_work`, never globally.
+
+    **LibreOffice RECALCULATES ON LOAD, so a converted file's `=TODAY()` is the
+    CONVERSION date.** That silently dated three `.xlsb` files to the run date
+    before it was caught. Any file read through a conversion must fall back to
+    the filesystem mtime, and the date's basis must be recorded per row. The
+    mirror-image trap is in the originals: `'Call In'!B36` holds a hardcoded
+    `=DATE(2007,8,14)` that 420 descendants of the master template inherited, so
+    taking the earliest date cell dates two thirds of the corpus to 2007. Dates
+    come from cached `=TODAY()`/`=NOW()` values, never from the earliest date cell.
+
+    **EVERY IMPORTED PRICE CARRIES PROVENANCE AND LANDS UNVERIFIED.** Source file
+    SHA-256 + sheet + cell range on every value; `verification_status` starts
+    `unverified` and only Steve moves it; `import_batch_id` is set on every row so
+    a bad batch is superseded rather than deleted (rule #20 means it cannot be
+    deleted). **Stored totals are imported as found and NEVER recomputed** —
+    1,013 of 4,148 bid rows in the corpus already disagree with their own
+    formulas. And **a blank is still never a zero** (rule #19): the history
+    supplies no per-bend or per-hem rate at all, so those stay blank.
+
+    **PERSONAL AND NON-AFS FILES ARE CLASSIFIED BY PATH AND NEVER READ FOR
+    CONTENT** — household finance, loan/SBA paperwork, and other businesses.
+    Record the path and the class; do not extract, summarize or quote. Two traps
+    found live: `209 Sure Cast Drive, Burnet, TX` is the shop's own STREET
+    ADDRESS, not the Sure Cast Holdings entity, and matching the bare phrase
+    mislabelled 4 roofing estimates as personal; and "mortgage" appears in
+    roofing INSURANCE estimates because they name the homeowner's lender.
+
+    **MOST OF THAT CORPUS IS NOT AFS.** 350 of 535 files are Austin Roofing &
+    Siding / Aztec Roofing roofing estimates — Steve's roofing business, a
+    different cost structure — and they are **excluded from any import by
+    default**. The AFS/ARS line is NOT drawable from sheet names (a sheet called
+    `Metal` is usually a metal-ROOF install bid) and NOT from the address
+    (`P.O. Box 328 * Burnet, TX 78611` is the SHARED premises and appears on
+    roofing covers, which mislabelled 119 of them). It is drawable only from the
+    company NAME — `Architectural Flashing *`, four spellings in use including
+    `Architectural Flasing Inc` — and the AFS-only phone `512.372.4900`, verified
+    to occur in zero files carrying any roofing-business marker. Full findings:
+    docs/PRICING_HISTORY_DISCOVERY.md.
+
 ---
 
 ## MACHINE INTEGRATION — THALMANN DS2801 / AFS MACHINE BRIDGE

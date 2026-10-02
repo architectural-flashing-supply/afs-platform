@@ -24,7 +24,83 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
-## COMMAND CENTER V2 — PROMPT v2-06 (2026-09-30) — CURRENT HANDOFF
+## HISTORICAL PRICING DATA DISCOVERY (2026-10-02, branch `pricing-history`) — CURRENT HANDOFF
+
+**DISCOVERY ONLY. Nothing was imported.** No Supabase call, no migration, no
+database write, no macro executed, no application code touched, no source file
+modified. Full detail and every figure: STATE_OF_THE_BUILD.md's 2026-10-02
+entry. Sanitized summary in the repo: `docs/PRICING_HISTORY_DISCOVERY.md`. New
+governance: **CLAUDE.md rule #34**. **No migration — SCHEMA.md is unchanged.**
+
+### WHAT THIS WORKSTREAM IS
+
+Importing a decade of Steve's historical pricing into the platform. 535
+spreadsheet and Word files were copied off his laptop to
+`C:\Users\manag\Documents\afs-historical-data\AFS_Spreadsheets`, with working
+output in that folder's `_work\`. **That data stays outside the repo and is
+never committed** (rule #34) — it is real customer, project and personal data.
+A 1.55 GB `backup.pst` sits beside it and was not opened.
+
+### THE HEADLINE, SO THE NEXT SESSION DOES NOT RE-DERIVE IT
+
+**There is no AFS price book in these files.** Every AFS unit price is a
+hand-typed constant; the only lookup tables in the corpus belong to suppliers.
+**Two thirds of the corpus (350 of 535) is a different business** — Steve's
+roofing company — and is excluded from any import by default. Only 111 files
+carry AFS pricing. The per-bend formula the brief expected does exist, in a
+**supplier's** order form, as
+`(girth_in x $/inch) + (bends x $/bend) + fee` — the single most useful artifact
+found, and a design reference rather than a source of AFS numbers.
+
+**Do not try to classify AFS vs roofing by sheet name or by address.** Both were
+tried and both are wrong: a sheet called `Metal` is usually a metal-ROOF install
+bid, and `P.O. Box 328 * Burnet, TX 78611` is the shared premises that appears
+on roofing covers too (it mislabelled 119 roofing estimates). Use the company
+NAME plus the AFS-only phone `512.372.4900`.
+
+### TWO TRAPS THAT PRODUCE CONFIDENT WRONG NUMBERS
+
+Both were hit in this run and both are now in rule #34:
+
+1. **`'Call In'!B36` holds a hardcoded `=DATE(2007,8,14)`** inherited by 420
+   descendants of the master template. Taking the earliest date cell dates two
+   thirds of the corpus to 2007. Use cached `=TODAY()`/`=NOW()` values.
+2. **LibreOffice recalculates on load**, so a converted file's `=TODAY()` is the
+   conversion date — it silently dated three `.xlsb` files to the run date.
+   Converted files must fall back to filesystem mtime.
+
+### CHECKPOINTS — ALL THREE PASS
+
+535 inventoried, 535 classified (exactly one class each), and **10 of 10 random
+estimates reconcile** to within $0.02 (reproducible: `_work\spotcheck.py`, seed
+`20261002`). Read-only proved rather than asserted: the before and after
+SHA-256 manifests both hash to `bfbcc268de03137d251bf8dbeb9dd60a880aca25e0d32c47d5917dd97b7ec090`.
+
+### PENDING REID — URGENT, AND IT IS NOT A PRICING QUESTION
+
+**`Documents/afs api's.docx` in the historical-data folder contains LIVE
+production credentials** — Supabase service-role key and database password, a
+GitHub token, a Vercel token, a Stripe secret key, Twilio and Metals.dev keys.
+Values were flagged and **never transcribed**. **Recommend rotating all of
+them.** Also: the Vercel project id in that file matches **neither** project
+recorded in rule #9.
+
+### NEXT STEP
+
+**The import prompt — NOT STARTED, and deliberately blocked** on four owner
+answers: where the typed unit prices came from, whether the 350 roofing
+estimates are in scope, what the current per-bend and per-hem charges are, and
+whether the exposed credentials may be rotated. Eleven questions in total, each
+answerable in one sentence, are in `docs/PRICING_HISTORY_DISCOVERY.md`. When it
+is written it must honour rule #34: provenance (file SHA-256 + sheet + cell) on
+every value, everything landing `unverified`, **stored totals imported as found
+and never recomputed** (1,013 of 4,148 bid rows already disagree with their own
+formulas), `import_batch_id` on every row, roofing data excluded by default, and
+personal/credential files excluded by hash.
+
+---
+
+## COMMAND CENTER V2 — PROMPT v2-06 (2026-09-30) — PRIOR HANDOFF
 
 Hardening and the consolidation. Nothing new to click; four audit findings
 closed, a contrast check that fails the build, and the governance stack brought

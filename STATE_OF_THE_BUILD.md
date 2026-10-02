@@ -34,6 +34,168 @@ summary, not a replacement for it.
 
 ---
 
+## 2026-10-02 - HISTORICAL PRICING DATA DISCOVERY (branch `pricing-history`)
+
+**DISCOVERY ONLY. Nothing imported.** No Supabase call, no migration, no
+database write, no macro executed, no source file modified. New workstream:
+importing a decade of the owner's historical pricing into the platform.
+
+**Status: DONE** for discovery (both gates are inapplicable — no application
+code was touched; the deliverable is evidence). **The import itself is NOT
+STARTED** and is blocked on four owner answers, below.
+
+### WHERE THE DATA IS
+
+`C:\Users\manag\Documents\afs-historical-data\AFS_Spreadsheets` — 535 files
+copied off Steve's laptop (`Desktop` 489, `Documents` 30, `Downloads` 16):
+419 `.xlsm`, 62 `.xlsx`, 26 `.docx`, 17 `.doc`, 8 `.xls`, 3 `.xlsb`. A 1.55 GB
+`backup.pst` sits beside them and was **not opened**. Working output is in that
+folder's `_work\`. **None of it is in this repo and none of it is committed** —
+governed by new CLAUDE.md rule #34. The only repo artifact is the sanitized
+`docs/PRICING_HISTORY_DISCOVERY.md`.
+
+### READ-ONLY, PROVED RATHER THAN ASSERTED
+
+SHA-256 manifest taken before anything was opened and re-taken at the end. Both
+hash to `bfbcc268de03137d251bf8dbeb9dd60a880aca25e0d32c47d5917dd97b7ec090` —
+**535/535 source files byte-for-byte unchanged.** Macros were never executed
+(openpyxl `keep_vba=False`; macro presence detected by looking for
+`vbaProject.bin` in the zip). The 28 legacy files were COPIED and LibreOffice
+converted the copies. 1,876,898 non-empty cells read, 366,252 formulas (19.5%).
+
+### WHAT DISCOVERY FOUND
+
+**1. Two thirds of the corpus is a different business.** 350 of 535 files are
+Austin Roofing & Siding / Aztec Roofing roofing estimates. Only **111 files
+(21%) carry AFS pricing** — 59 fabrication estimates, 52 outbound quotes. Full
+class counts, summing to 535: `OTHER` 392, `AFS_ESTIMATE` 59, `AFS_QUOTE_OUT`
+52, `INVOICE` 11, `PERSONAL_NON_AFS` 9, `PRICE_LIST` 6, `TEMPLATE` 6.
+Confidence 453 high / 70 medium / 12 low.
+
+**2. The AFS/ARS line is not drawable the two obvious ways, and both wrong
+attempts were made before the right one.** Sheet names fail — a sheet called
+`Metal` is usually a metal-ROOF install bid on roofing letterhead, which
+over-assigned 22 files to AFS. The address fails worse —
+`P.O. Box 328 * Burnet, TX 78611` is the SHARED premises and appears on roofing
+covers carrying the ARS phone, which mislabelled **119 roofing estimates** as
+AFS work. Only the company NAME discriminates (`Architectural Flashing *`, four
+spellings in use) plus the AFS-only phone `512.372.4900`, verified to appear in
+13 files with no AFS name and **zero** files carrying any roofing marker.
+
+**3. AFS fabrication was quoted inside the roofing company's workbook.** 423 of
+535 files are one inherited workbook, each job made by copying the previous
+job's file (231 layout fingerprints, all one skeleton). AFS work appears as
+extra tabs per job — `Coping Cap Bid`, `Fabrication Bid`, `Metal Quote
+Galvalume/Color`. **There was never a separate AFS estimating tool.**
+
+**4. THERE IS NO AFS PRICE BOOK IN THESE FILES.** Every AFS unit price is a
+hand-typed constant. 747 `VLOOKUP` + 1,779 `INDIRECT` calls exist and
+lookup-family usage sits in exactly **4 files, all supplier-supplied**. 615
+hidden sheets exist but 423 are the `Compatibility Report` artifact and the rest
+are superseded copies of visible scopes. `M Refrences` (419 files) sounds like
+"Material References" and is a list of sales references — the first price-book
+candidate checked, and a dead end.
+
+**5. The per-bend formula exists and belongs to a SUPPLIER.** IB Roof Systems'
+Q2-2023 order form: `price = (girth_in x $/inch) + (bends x $/bend) + fee`,
+with a rate table on a hidden `data` sheet, a `DEGREES(ACOS(...))` bend-angle
+calculator and a `(KO, KI, NK)` kick code — the same vocabulary FlashDraft uses.
+**The most valuable artifact found: a working implementation of exactly the
+model rule #19 describes.** A design reference, not a source of AFS numbers.
+
+**6. The 4x10 sheet is a purchased input, not a quoting basis.** `Flats 48x120`
+appears as a material line, 2,016 observations, median $/sheet stepping
+39.40 (2015-17) -> 41.60 (2018) -> 44.80 (2022-26). **No formula anywhere
+divides a sheet into strips, computes `floor(48 / blank_width)`, counts bends
+against a sheet, or applies a waste factor.** `price_book_versions` has no
+historical counterpart to import into; `per_bend_cents`/`per_hem_cents`/
+`extras_cents` have no antecedent at all and stay blank per rule #19.
+
+**7. The roofing pricing logic is reconstructed AND algebraically verified.**
+Cost / 0.67, then +4.4% project liability insurance. With `J = H/0.67 + 0.044J`
+the algebra gives `J = H/0.64052`, `M = 0.49253H`, `K = M/J = `**`0.31548`** —
+exactly the value stored in column `K` across the corpus. The divisor is a
+hand-edited dial: 67 in 2,900 rows, then 64 (284), 71 (166), 62 (93), 60 (78),
+70 (63), 75 (37), 85 (28). One workbook uses /67 and /71 in adjacent rows.
+**Two bid formulas coexist** (`J = I*sq + L` in 1,699 rows, `J = I*sq` in
+1,436) and **1,013 of 4,148 rows match neither** — so an import must read the
+stored total and never recompute it. These are ROOFING figures and must not be
+seeded into `pricing_rules`.
+
+### DATA QUALITY
+
+**422 of 535 files (79%) contain at least one formula error** — 15,310
+`#DIV/0!`, 992 `#VALUE!`, **447 `#REF!`**. 76 files are near-duplicate versions
+of 33 jobs (up to 6 each), and **no AFS estimate is byte-identical to another**,
+so de-duplication needs judgement, not hashes. The 12 exact duplicates are all
+vendor literature. **25 of 52 AFS quote files cannot be parsed into line items**
+— prices are prose in merged cells — so roughly half the AFS quote history needs
+human transcription. One file carrying `.xlsx` is actually a PDF; a magic-byte
+sniff of all 535 found it to be the only type mismatch.
+
+**The arithmetic itself is trustworthy.** 1,689 of 1,700 budget sheets reconcile
+exactly, 438 of 441 priced line items satisfy `extended = qty * unit_price`, and
+4,131 of 4,148 rows satisfy `profit = bid - cost - insurance`. The problems are
+structural, not computational.
+
+**Two measurement errors were made and corrected mid-run**, recorded because
+both first produced confident wrong numbers: taking the earliest date cell dated
+**420 of 535 files to 2007** (cause: a hardcoded `=DATE(2007,8,14)` at
+`'Call In'!B36` inherited by every template copy); and LibreOffice
+**recalculates on load**, so three `.xlsb` files read via conversion had
+`TODAY()` rewritten to the run date. Dates now come from cached
+`=TODAY()`/`=NOW()` values, converted files fall back to mtime, and the basis is
+recorded per file. Corrected coverage: **2015-09-29 to 2026-10-01**, with AFS
+pricing effectively starting 2017 and 51 of the 111 AFS files in 2025-26.
+
+### CHECKPOINTS - ALL THREE PASS
+
+| Checkpoint | Result |
+|---|---|
+| 535 files accounted for after inventory | PASS 535/535 |
+| 535 classified, exactly one class each | PASS 535/535 |
+| 10 random estimates recomputed vs stored totals | **PASS 10/10** |
+
+The spot-check is reproducible (`_work\spotcheck.py`, seed `20261002`), spanned
+2017-2026 and both workbook estimates and letterhead quotes, and every stored
+subtotal and line extension reconciled to within $0.02.
+
+### SECURITY FINDING - PENDING REID, URGENT
+
+**`Documents/afs api's.docx` in the historical-data folder contains LIVE
+production credentials for this platform.** Contents were flagged and **not
+transcribed** anywhere. Types present: Supabase **service-role key** (bypasses
+all RLS), Supabase publishable/anon keys and project URL, Supabase **database
+password**, a GitHub **personal access token**, a Vercel **token** plus
+org/project/user ids, a Stripe **secret key** (test) and publishable key, Twilio
+account code and compliance profile id, a Metals.dev API key.
+
+**Recommendation: rotate all of them**, service-role key / DB password / GitHub
+token / Vercel token first. The file sat in a laptop `Documents` folder and has
+now also been copied to this machine. Separately: the Vercel project id in that
+file matches **NEITHER** project recorded in rule #9, which is worth resolving.
+
+### NEXT STEP
+
+**The import prompt — NOT STARTED, and deliberately blocked.** It must be
+written to the requirements now in rule #34 (provenance on every value,
+everything `unverified`, stored totals never recomputed, `import_batch_id`
+always set, roofing data excluded by default, personal and credential files
+excluded by hash) and should not be written until the owner answers: where the
+typed unit prices came from; whether the 350 roofing estimates are in scope;
+what the current per-bend and per-hem charges are; and whether the exposed
+credentials may be rotated. Those four change what gets imported and whether the
+platform's credentials are still sound. Eleven questions in total, each
+answerable in one sentence, are listed in docs/PRICING_HISTORY_DISCOVERY.md.
+
+**Realistic expectation: ~90-110 AFS pricing documents yielding a few hundred
+priced line items, roughly half needing human transcription.** Enough to
+calibrate a price book and to show Steve what he used to charge. **Not** enough
+to reconstruct an AFS price book automatically, because AFS never had one in a
+file.
+
+---
+
 ## 2026-10-01 - v7 PHASE 0 + PHASE 2 (branch `command-center-v7`)
 
 Tricia's address reversed, the v7 header and nav built, and the Quotes and

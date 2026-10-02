@@ -885,3 +885,89 @@ prompts:
 
       Update STATE_OF_THE_BUILD.md with final status of all phases.
       Update SESSION_STATE.md with handoff notes for next session.
+
+  # ─────────────────────────────────────────────
+  # PHASE 9 — HISTORICAL PRICING DATA IMPORT
+  # Discovery is DONE (2026-10-02, branch pricing-history).
+  # See docs/PRICING_HISTORY_DISCOVERY.md and CLAUDE.md rule #34.
+  # ─────────────────────────────────────────────
+
+  - id: p9-001
+    label: "Historical pricing discovery — DONE 2026-10-02, do not re-run"
+    status: done
+    reads: [CLAUDE.md, docs/PRICING_HISTORY_DISCOVERY.md]
+    prompt: |
+      ALREADY COMPLETE. Recorded here so the queue reflects the workstream.
+
+      535 spreadsheet/Word files from the owner's laptop were inventoried,
+      classified and analysed. Nothing was imported. Source files verified
+      unchanged by matched SHA-256 manifests
+      (bfbcc268de03137d251bf8dbeb9dd60a880aca25e0d32c47d5917dd97b7ec090).
+
+      Findings: docs/PRICING_HISTORY_DISCOVERY.md (sanitized, in-repo) and
+      C:\Users\manag\Documents\afs-historical-data\_work\
+      REPORT_spreadsheet_discovery.md (full, outside the repo).
+
+      Headline: there is NO AFS price book in those files — every AFS unit price
+      is hand-typed. 350 of 535 files are the owner's ROOFING business and are
+      excluded by default. Only 111 files carry AFS pricing.
+
+      Do not re-run. Do not re-derive the AFS/ARS classification from sheet
+      names or from the mailing address — both were tried and both are wrong
+      (rule #34).
+
+  - id: p9-002
+    label: "Historical pricing import — BLOCKED on owner answers"
+    status: blocked
+    blocked_on: >
+      Four of the eleven questions in docs/PRICING_HISTORY_DISCOVERY.md:
+      (1) where the typed unit prices came from, (2) whether the 350 roofing
+      estimates are in scope, (3) the current per-bend and per-hem charges,
+      (11) permission to rotate the credentials exposed in the data folder.
+      Those four change what gets imported and whether the platform's
+      credentials are still sound.
+    reads: [CLAUDE.md, docs/PRICING_HISTORY_DISCOVERY.md, SCHEMA.md, PRICING_ENGINE.md]
+    prompt: |
+      DO NOT START until Reid has answered questions 1, 2, 3 and 11 in
+      docs/PRICING_HISTORY_DISCOVERY.md.
+
+      Read CLAUDE.md (rule #34 especially), docs/PRICING_HISTORY_DISCOVERY.md,
+      and SCHEMA.md's PRICING LEDGER IMPORT FORMAT section.
+
+      Build the importer to these non-negotiables, all of which are rule #34:
+
+      1. PROVENANCE ON EVERY VALUE — source file SHA-256 + sheet name + cell
+         range. The hashes already exist in the discovery run's inventory.csv
+         and classification.csv.
+      2. EVERYTHING LANDS 'unverified'. Only Steve moves a row to 'confirmed'.
+         A blank stays blank — rule #19: a blank is never a zero. The history
+         supplies no per-bend or per-hem rate at all, so those stay NULL.
+      3. STORED TOTALS ARE IMPORTED AS FOUND AND NEVER RECOMPUTED. 1,013 of
+         4,148 bid rows in the corpus already disagree with their own formulas.
+      4. import_batch_id ON EVERY ROW, per pricing_ledger's CHECK, so a bad
+         batch is superseded rather than deleted (rule #20 — it cannot be
+         deleted).
+      5. MONEY IN CENTS. Source floats carry up to 13 decimal places; the
+         rounding decision is explicit and recorded, not a side effect.
+      6. ROOFING DATA EXCLUDED BY DEFAULT (350 of 535 files, a different
+         business). Behind an explicit flag if Reid wants it.
+      7. PERSONAL AND CREDENTIAL FILES EXCLUDED BY HASH, never read for content.
+      8. SOURCE FILES STAY READ-ONLY and the data folder is never copied into
+         the repo. Re-verify the SHA-256 manifest at the end.
+
+      Target tables: pricing_ledger (source='import') as the primary
+      destination, and supplier_price_history for the 6 supplier price-list
+      files — the one genuinely clean source. Do NOT import into quotes or
+      quote_line_items (history has no user_id and no request_id; those are
+      live RLS-keyed transactional tables). Do NOT seed pricing_rules from the
+      roofing margin figures. commodity_prices has nothing to import.
+
+      The additive, nullable migrations the proposal identifies are listed in
+      docs/PRICING_HISTORY_DISCOVERY.md's schema section. Apply only those, and
+      only after Reid confirms the mapping.
+
+      Expect ~90-110 AFS pricing documents yielding a few hundred priced line
+      items, roughly half of which need human transcription rather than parsing
+      (25 of 52 AFS quote files hold their prices as prose in merged cells).
+
+      Update STATE_OF_THE_BUILD.md and SESSION_STATE.md from an actual audit.
