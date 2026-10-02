@@ -915,6 +915,48 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
 
 ---
 
+## README IS A LIVING DOCUMENT
+
+`README.md` at the repo root is the comprehensive onboarding document for
+future developers, maintainers and buyers of this platform. It is not a
+one-time write-up, and it is not allowed to drift. Three rules, and all three
+bind every run:
+
+1. **README.md is updated in the SAME COMMIT as any change to setup steps,
+   routes, environment variable NAMES, migrations, integrations, the deploy
+   process, or the folder map.** Not a follow-up commit, not a later cleanup
+   pass — the same commit. A commit that adds a route, renames an env var,
+   adds a migration, wires or stubs an integration, moves a top-level folder,
+   or changes how the app is installed, run or deployed, and does not touch
+   `README.md`, is incomplete. A README that describes a tree which no longer
+   exists is worse than no README, because it is believed.
+
+2. **The governance step of every Claude Code prompt includes: "update
+   README.md sections affected by this run and refresh the Last verified
+   line."** This sits alongside rule #8's existing requirement to update
+   `STATE_OF_THE_BUILD.md` and `SESSION_STATE.md` as the final action of every
+   prompt, and it is held to the same standard: **audited from the actual
+   codebase, never from memory.** The `Last verified against commit: <hash> on
+   <date>` line near the top of `README.md` is refreshed with the commit the
+   README was really checked against and the date it was really checked —
+   never with an aspirational hash.
+
+   Where a claim cannot be verified from a file in the tree, `README.md` marks
+   it **UNVERIFIED** rather than asserting it, and lists it in its own
+   UNVERIFIED table. Resolving one of those markers by finding the evidence is
+   a legitimate, welcome outcome of a run; deleting one without the evidence
+   is not.
+
+3. **README.md must never contain a secret value.** Environment variables
+   appear by **NAME only**, with what each one is for and which file reads it.
+   No API keys, no tokens, no passwords, no connection strings, no URLs
+   containing credentials, no service-role keys, no signed links. This holds
+   even for values that look harmless or expired. The same applies to
+   `README.docx`, which is generated from `README.md` and therefore inherits
+   every one of these rules.
+
+---
+
 ## MACHINE INTEGRATION — THALMANN DS2801 / AFS MACHINE BRIDGE
 
 The shop's Thalmann DS2801 bending machine (serial P0700707) is fed by a
