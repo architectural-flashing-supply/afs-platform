@@ -271,9 +271,18 @@ export const SCREEN_DRIVERS: Record<string, ScreenDriver> = {
     live: goLive,
   },
 
-  'source-sketch': { proto: async (p) => nav(p, 'source:412') },
+  // v7's `[data-go="source:412"]` is a button INSIDE the Job screen's request
+  // pane ("View original email beside this reading"), not anywhere on the
+  // Workbench — so it has to be reached through the job first.
+  'source-sketch': {
+    proto: async (p) => {
+      await nav(p, 'job:412');
+      await nav(p, 'source:412');
+    },
+  },
   'source-photo': {
     proto: async (p) => {
+      await nav(p, 'job:412');
       await nav(p, 'source:412');
       await act(p, '[data-act="srcTab"][data-v="1"]');
     },

@@ -7,6 +7,9 @@ import { businessDaysFrom, shopDateOnly } from '@/lib/delivery/business-days';
 import LightWorkingArea from '@/components/admin/LightWorkingArea';
 import DeliveriesWeek from '@/components/admin/DeliveriesWeek';
 import DeliveryTrackPanel from '@/components/admin/DeliveryTrackPanel';
+import V7Deliveries from '@/components/admin/v7/V7Deliveries';
+import { isFixtureMode, type SearchParamValue } from '@/lib/fixtures/mode';
+import { fixtureDeliveries } from '@/lib/data/v7-view/deliveries';
 
 /**
  * DELIVERIES — Command Center V2 prompt v2-04, built to the approved
@@ -51,10 +54,23 @@ const SPLIT_CLASS: Record<'split' | 'list' | 'map', string> = {
 export default async function AdminDeliveriesPage({
   searchParams,
 }: {
-  searchParams?: { full?: string };
+  searchParams?: { full?: string; day?: string } & Record<string, SearchParamValue>;
 }) {
   const supabase = await createClient();
   await requireAdminUser(supabase);
+
+  // FIXTURE MODE renders v7's own split with v7's own stops, so the whole-screen
+  // gate can measure the layout around a map that must stay real on the live
+  // screen. See components/admin/v7/V7Deliveries.tsx for why that split exists.
+  if (isFixtureMode(searchParams)) {
+    const f =
+      searchParams?.full === 'list' ? 'list' : searchParams?.full === 'map' ? 'map' : null;
+    return (
+      <LightWorkingArea>
+        <V7Deliveries view={fixtureDeliveries(searchParams?.day ?? 'thu', f)} />
+      </LightWorkingArea>
+    );
+  }
 
   const now = new Date();
   const view = await getDeliveriesView(supabase, now);

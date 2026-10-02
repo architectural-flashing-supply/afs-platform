@@ -241,7 +241,17 @@ export const LANDMARK_SELECTOR = [
   'th',
   'nav a',
   'button',
-  'a.btn', 'a.chip', 'a.crumb', 'a.stretch', '.nqb',
+  'a.btn', 'a.chip', 'a.crumb', 'a.stretch',
+  // v7's clickable WIDGETS, named by class rather than by element.
+  //
+  // v7 is a single page that re-renders itself, so every one of these is a
+  // `<button>` driving its own event delegate. The port is a routed app, so the
+  // same widget is often an `<a>` — a day tab, a customer in the list, a
+  // settings section. Matching on `button` alone counted v7's and not the
+  // port's, and the structure gate reported five "missing" day tabs on a screen
+  // the pixel diff put at 0.20%. Measuring the widget on BOTH sides is the
+  // honest fix; dropping it from the selector would have been the dishonest one.
+  '.nqb', '.dtab', '.tab', '.ci', '.si', '.opt', '.linkcell',
   '.pill', '.tag', '.step', '.lc', '.chip',
   'label', 'option[selected]',
   '.lh > span', '.rh > span',

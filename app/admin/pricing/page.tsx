@@ -3,6 +3,9 @@ import { requireAdminUser } from '@/lib/admin/auth';
 import { getPricingRulesRows } from '@/lib/data/pricing';
 import PricingRulesEditorTable from '@/components/admin/PricingRulesEditorTable';
 import LightWorkingArea from '@/components/admin/LightWorkingArea';
+import V7Pricing from '@/components/admin/v7/V7Pricing';
+import { isFixtureMode, type SearchParamValue } from '@/lib/fixtures/mode';
+import { fixturePricing } from '@/lib/data/v7-view/pricing';
 
 const REQUIREMENTS = [
   '12+ months of historical commodity price data',
@@ -34,9 +37,28 @@ function PricingEngineComingSoonCard() {
   );
 }
 
-export default async function AdminPricingPage() {
+export default async function AdminPricingPage({
+  searchParams,
+}: {
+  searchParams: { example?: string } & Record<string, SearchParamValue>;
+}) {
   const supabase = await createClient();
   await requireAdminUser(supabase);
+
+  // FIXTURE MODE renders v7's calculator screen so the whole-screen gate can
+  // measure its layout — the three panels, the rate grid, the sheet-cost rows
+  // and the sticky price-check column. Every control in it is inert, and
+  // lib/data/v7-view/pricing.ts says at length why the LIVE screen must not
+  // become it: v7's numbers live in browser memory, and this app's live in a
+  // versioned, append-only price book Postgres refuses to update in place
+  // (CLAUDE.md rules #19 and #20).
+  if (isFixtureMode(searchParams)) {
+    return (
+      <LightWorkingArea>
+        <V7Pricing view={fixturePricing(searchParams.example === '1')} />
+      </LightWorkingArea>
+    );
+  }
 
   const rows = await getPricingRulesRows(supabase);
 
