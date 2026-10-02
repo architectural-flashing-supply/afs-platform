@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { requireAdminUser } from '@/lib/admin/auth';
 import { getShopQueue } from '@/lib/data/shop-queue';
@@ -45,19 +44,16 @@ export default async function ShopViewPage() {
 
   return (
     <LightWorkingArea>
-      <div className="max-w-[1400px] mx-auto">
-        <h1 className="font-heading text-4xl text-afs-ink-900">Shop View</h1>
-        <p className="font-body text-[19px] text-afs-ink-700 mt-1 mb-6 max-w-3xl">
-          What the Thalmann is working on, in order. Built for the tablet next to the machine — it
-          refreshes itself every thirty seconds while this screen is in front.{' '}
-          <Link href="/admin/deliveries" className="text-afs-green-ink underline font-semibold">
-            Deliveries
-          </Link>{' '}
-          is where finished work gets a day.
-        </p>
-
-        <ShopQueueBoard initial={queue} />
+      {/* v7 `pageShop()` (prototype line 1476): a `.greet` title and one-line
+          sub, then the `.shopg` grid the board renders. */}
+      <div className="greet">
+        <h1 className="t">Shop View</h1>
+        <span className="sub">
+          The Thalmann queue, in the order jobs are bent. Click a job to take over the screen.
+        </span>
       </div>
+
+      <ShopQueueBoard initial={queue} />
     </LightWorkingArea>
   );
 }

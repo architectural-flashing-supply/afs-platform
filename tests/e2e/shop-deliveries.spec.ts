@@ -253,7 +253,10 @@ test.describe('Shop View -> Deliveries, end to end', () => {
     await page.goto('/admin/shop-view');
     const card = page.locator(`[data-shop-job-id="${fixture.shopJobId}"]`);
     await expect(card).toBeVisible();
-    await expect(card).toContainText('Machine profile #32999001');
+    // v7's wording for the machine profile number on a queue row is
+    // "· profile #N" (pageShop, prototype line 1480), not "Machine profile #N".
+    // v7 wins on copy, so this asserts what the shop actually reads.
+    await expect(card).toContainText('profile #32999001');
     await expect(card).toHaveAttribute('data-state', 'queued');
 
     await card.locator('[data-testid="start-bending"]').click();

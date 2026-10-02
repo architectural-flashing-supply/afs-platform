@@ -68,6 +68,8 @@ const SRC_DIR = path.join(ROOT, 'docs', 'design', 'command-center-v7');
 const VERBATIM = path.join(SRC_DIR, 'v7.css');
 const DEVIATIONS = path.join(SRC_DIR, 'v7-deviations.css');
 const FONTS = path.join(SRC_DIR, 'v7-fonts.css');
+const PREFLIGHT = path.join(SRC_DIR, 'v7-preflight-reset.css');
+const REAL_DATA = path.join(SRC_DIR, 'v7-real-data.css');
 const OUT = path.join(ROOT, 'app', 'styles', 'command-center-v7.generated.css');
 
 /** The one class the admin shell sets. Everything v7 styles hangs off it. */
@@ -304,6 +306,8 @@ export function buildScopedCss() {
   const verbatim = fs.readFileSync(VERBATIM, 'utf8');
   const deviations = fs.readFileSync(DEVIATIONS, 'utf8');
   const fonts = fs.readFileSync(FONTS, 'utf8');
+  const preflight = fs.readFileSync(PREFLIGHT, 'utf8');
+  const realData = fs.readFileSync(REAL_DATA, 'utf8');
 
   const banner = `/*
  * command-center-v7.generated.css — GENERATED. DO NOT EDIT.
@@ -312,6 +316,10 @@ export function buildScopedCss() {
  *   docs/design/command-center-v7/v7.css             (verbatim prototype CSS)
  *   docs/design/command-center-v7/v7-deviations.css  (WCAG AA fixes only)
  *   docs/design/command-center-v7/v7-fonts.css       (self-hosted font binding)
+ *   docs/design/command-center-v7/v7-preflight-reset.css (cancels Tailwind
+ *                                                    Preflight rules v7 lacks)
+ *   docs/design/command-center-v7/v7-real-data.css   (cases v7's sample data
+ *                                                    cannot produce)
  *
  * Every selector is scoped to \`${SCOPE}\`, which only the admin shell sets, so
  * none of this can reach the public marketing site. To change a Command Center
@@ -330,6 +338,12 @@ ${transform(deviations)}
 
 /* ======================== scoped from v7-fonts.css ======================== */
 ${transform(fonts)}
+
+/* ================== scoped from v7-preflight-reset.css =================== */
+${transform(preflight)}
+
+/* ====================== scoped from v7-real-data.css ===================== */
+${transform(realData)}
 `;
 }
 
@@ -348,4 +362,4 @@ if (invokedDirectly) {
   );
 }
 
-export { OUT, VERBATIM, DEVIATIONS, FONTS };
+export { OUT, VERBATIM, DEVIATIONS, FONTS, PREFLIGHT, REAL_DATA };

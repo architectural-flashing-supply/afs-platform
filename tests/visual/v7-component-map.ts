@@ -106,7 +106,7 @@ export interface V7ComponentPair {
   /** Human name for the report. */
   label: string;
   /** Which build stage introduced it. */
-  stage: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G';
+  stage: 'A' | 'B' | 'B2' | 'C' | 'D' | 'E' | 'F' | 'G';
   /** Prototype page, as its `[data-go]` key. `null` = present on first load. */
   protoPage: string | null;
   /** Prototype selector. */
@@ -468,6 +468,48 @@ export const V7_COMPONENT_MAP: V7ComponentPair[] = [
     live: 'main.wrap .foot',
     skip: { height: 'Content-sized.' },
   },
+  // ---------------------------------------------------------------- STAGE B2
+  // Quotes / Orders lists and Shop View. The prototype reaches each page by its
+  // own [data-go] nav key.
+  { key: 'list-title', label: 'List page title', stage: 'B2', protoPage: 'quotes',
+    proto: 'main.wrap .greet h1.t', livePath: '/admin/quotes', live: 'main.wrap .greet h1.t',
+    skip: { height: 'Content-sized.' } },
+  { key: 'list-sub', label: 'List page blurb', stage: 'B2', protoPage: 'quotes',
+    proto: 'main.wrap .greet p.sub', livePath: '/admin/quotes', live: 'main.wrap .greet p.sub',
+    skip: { height: 'Content-sized.' } },
+  { key: 'list-bar', label: 'Filter bar', stage: 'B2', protoPage: 'quotes',
+    proto: 'main.wrap .bar', livePath: '/admin/quotes', live: 'main.wrap .bar',
+    skip: { height: 'Content-sized.' } },
+  { key: 'list-field', label: 'Filter field label', stage: 'B2', protoPage: 'quotes',
+    proto: 'main.wrap .bar label.fld', livePath: '/admin/quotes', live: 'main.wrap .bar label.fld',
+    skip: { height: 'Content-sized.' } },
+  { key: 'list-select', label: 'Filter select', stage: 'B2', protoPage: 'quotes',
+    proto: 'main.wrap .bar label.fld select', livePath: '/admin/quotes',
+    live: 'main.wrap .bar label.fld select' },
+  { key: 'list-search-input', label: 'List search input', stage: 'B2', protoPage: 'quotes',
+    proto: 'main.wrap .bar label.fld.q input', livePath: '/admin/quotes',
+    live: 'main.wrap .bar label.fld.q input' },
+  { key: 'list-rcount', label: 'Result count line', stage: 'B2', protoPage: 'quotes',
+    proto: 'main.wrap .rcount', livePath: '/admin/quotes', live: 'main.wrap .rcount',
+    skip: { height: 'Content-sized.' } },
+  { key: 'list-header', label: 'List column header strip', stage: 'B2', protoPage: 'quotes',
+    proto: 'main.wrap .ltab .lh', livePath: '/admin/quotes', live: 'main.wrap .ltab .lh',
+    skip: { height: 'Content-sized.' } },
+  { key: 'list-row', label: 'List row', stage: 'B2', protoPage: 'quotes',
+    proto: 'main.wrap .ltab .lr', livePath: '/admin/quotes', live: 'main.wrap .ltab .lr',
+    skip: { height: 'Content-sized — real data wraps differently from samples.' } },
+  { key: 'list-row-pill', label: 'List row status pill', stage: 'B2', protoPage: 'quotes',
+    proto: 'main.wrap .ltab .lr .pill', livePath: '/admin/quotes',
+    live: 'main.wrap .ltab .lr .pill' },
+  { key: 'shop-title', label: 'Shop View title', stage: 'B2', protoPage: 'shop',
+    proto: 'main.wrap .greet h1.t', livePath: '/admin/shop-view', live: 'main.wrap .greet h1.t',
+    skip: { height: 'Content-sized.' } },
+  { key: 'shop-panel', label: 'Shop View panel', stage: 'B2', protoPage: 'shop',
+    proto: 'main.wrap .shopg .panel', livePath: '/admin/shop-view',
+    live: 'main.wrap .shopg .panel', skip: { height: 'Content-sized.' } },
+  { key: 'shop-panel-heading', label: 'Shop View panel heading', stage: 'B2', protoPage: 'shop',
+    proto: 'main.wrap .shopg .panel h2', livePath: '/admin/shop-view',
+    live: 'main.wrap .shopg .panel h2', skip: { height: 'Content-sized.' } },
 ];
 
 
@@ -479,6 +521,7 @@ export const V7_COMPONENT_MAP: V7ComponentPair[] = [
 export const EXPECTED_STAGE_COVERAGE: Partial<Record<V7ComponentPair['stage'], number>> = {
   A: 15,
   B: 17,
+  B2: 13,
 };
 
 /** The viewports the brief names for the shell, widest first. */

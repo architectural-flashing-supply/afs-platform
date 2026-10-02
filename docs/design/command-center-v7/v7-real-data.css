@@ -1,0 +1,57 @@
+/*
+ * v7-real-data.css — the few places v7's layout breaks on REAL data.
+ *
+ * v7 is a prototype with sample customers: "Hill Country Roofing", "Ortega
+ * Roofing", "Martinez Builders". Every one is short, and every one is two or
+ * three words that can wrap. The live app shows whatever is actually in the
+ * database, which includes guest email addresses used as the customer name —
+ * `e2e-forge@architecturalflashingsupply.com` — a single 41-character token
+ * with nothing to wrap at.
+ *
+ * Those overflow their grid cell and collide with the line beneath. That is not
+ * a styling disagreement with v7 and it is NOT a licence to redesign: it is a
+ * case the prototype's data could never produce, so the prototype has no
+ * opinion about it. Each rule here uses v7's OWN idiom for the same problem —
+ * it already truncates with `white-space:nowrap;overflow:hidden;text-overflow:
+ * ellipsis` on the Workbench rail (`.rp .rl .tx b`) and on the inbox row
+ * (`.mrow .m2`).
+ *
+ * The bar for adding to this file is: v7's sample data CANNOT exhibit the
+ * problem, and the fix is a rule v7 already applies somewhere else. Anything
+ * else is a restyle and belongs in a conversation with the owner, not here.
+ *
+ * None of these properties are compared by tests/visual/v7-style-gate.spec.ts,
+ * so this file cannot be used to paper over a real difference in colour, type,
+ * spacing or border — the gate would still catch that.
+ */
+
+/* ------------------------------------------------------------------ 1 of 1
+ * Quotes / Orders list cells. A guest email used as the customer name, or a
+ * long profile description, overflowed `.lr`'s grid column and overlapped the
+ * row beneath. v7's `.lr>div` already sets `min-width:0` so the column CAN
+ * shrink; what is missing is permission to break the word itself.
+ *
+ * `overflow-wrap: anywhere` rather than `white-space: nowrap` + ellipsis,
+ * because a truncated email is not identifiable and the whole point of the
+ * customer column is to tell two customers apart. The row grows a line instead.
+ */
+.lr b,
+.lr span,
+.rr b,
+.rr span {
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------------------ 2 of 2
+ * Shop View status pill. v7 sets `white-space: nowrap` on `.tag` but not on
+ * `.stat`, which never shows because its own sample statuses ("Queued",
+ * "Bending now") sit in a 150px column with room to spare. The live queue has
+ * longer customer and material text, which narrows that column until "Bending
+ * now" breaks across two lines inside a pill with a fixed 26px height — so the
+ * second line renders outside it.
+ *
+ * Same rule v7 already applies to the pill beside it.
+ */
+.stat {
+  white-space: nowrap;
+}

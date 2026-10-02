@@ -4,6 +4,7 @@ import LightWorkingArea from '@/components/admin/LightWorkingArea';
 import QuoteOrderList from '@/components/admin/QuoteOrderList';
 import { getQuoteOrderRows } from '@/lib/data/quote-order-rows';
 import { applyListQuery, parseListQuery, type ListRow } from '@/lib/data/quote-order-list';
+import { NEW_QUOTE_HREF } from '@/lib/data/admin-nav';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,6 +40,10 @@ export default async function AdminQuotesPage({
         query={query}
         rows={rows}
         rowHref={(row: ListRow) => `/admin/command-center/job/${row.id}`}
+        // v7 puts "+ New quote" on the Quotes list and nowhere else
+        // (pageList, line 1735). Shares NEW_QUOTE_HREF with the header button
+        // so the two can never point at different places.
+        newQuoteHref={NEW_QUOTE_HREF}
       />
     </LightWorkingArea>
   );
