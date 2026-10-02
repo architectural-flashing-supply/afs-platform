@@ -13,7 +13,7 @@ export default function CreditApplicationRowActions({ application }: { applicati
       <button
         type="button"
         onClick={() => setReviewing(true)}
-        className="font-label text-xs text-afs-danger-on-dark hover:text-afs-danger-on-dark border border-afs-border rounded px-3 py-1.5 transition-colors"
+        className="font-label text-xs text-afs-crimson hover:text-afs-crimson border border-afs-border-light rounded px-3 py-1.5 transition-colors"
       >
         {reviewed ? 'View' : 'Review'}
       </button>

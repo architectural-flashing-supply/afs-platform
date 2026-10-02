@@ -53,14 +53,14 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const STATUS_CHIP_CLASS: Record<string, string> = {
-  new: 'border-afs-info text-afs-info-on-dark',
-  reviewing: 'border-afs-amber text-afs-warning-on-dark',
-  bidding: 'border-afs-crimson text-afs-danger-on-dark',
-  bid_submitted: 'border-afs-copper text-afs-chrome-silver',
-  won: 'border-afs-success text-afs-success-on-dark',
-  lost: 'border-afs-chrome-dim text-afs-chrome-silver',
-  passed: 'border-afs-chrome-dim text-afs-chrome-silver',
-  expired: 'border-afs-chrome-dim text-afs-chrome-silver',
+  new: 'border-afs-info text-afs-info-ink',
+  reviewing: 'border-afs-amber text-afs-amber-ink',
+  bidding: 'border-afs-crimson text-afs-crimson',
+  bid_submitted: 'border-afs-copper text-afs-ink-700',
+  won: 'border-afs-success text-afs-green-ink',
+  lost: 'border-afs-chrome-dim text-afs-ink-700',
+  passed: 'border-afs-chrome-dim text-afs-ink-700',
+  expired: 'border-afs-chrome-dim text-afs-ink-700',
 };
 
 const SOURCE_TYPE_LABEL: Record<string, string> = {
@@ -74,13 +74,13 @@ const SOURCE_TYPE_LABEL: Record<string, string> = {
 };
 
 const SOURCE_TYPE_CHIP_CLASS: Record<string, string> = {
-  federal: 'border-afs-info text-afs-info-on-dark',
-  state: 'border-afs-success text-afs-success-on-dark',
-  city: 'border-afs-copper text-afs-chrome-silver',
-  county: 'border-afs-copper text-afs-chrome-silver',
-  dot: 'border-afs-amber text-afs-warning-on-dark',
-  planroom: 'border-afs-chrome-base text-afs-chrome-silver',
-  exchange: 'border-afs-chrome-base text-afs-chrome-silver',
+  federal: 'border-afs-info text-afs-info-ink',
+  state: 'border-afs-success text-afs-green-ink',
+  city: 'border-afs-copper text-afs-ink-700',
+  county: 'border-afs-copper text-afs-ink-700',
+  dot: 'border-afs-amber text-afs-amber-ink',
+  planroom: 'border-afs-line-strong text-afs-ink-700',
+  exchange: 'border-afs-line-strong text-afs-ink-700',
 };
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
@@ -162,7 +162,7 @@ function TrackDropdown({ project }: { project: BidProjectListRow }) {
         value={project.status}
         onChange={handleChange}
         disabled={busy}
-        className="bg-afs-bg-overlay border border-afs-chrome-base rounded text-xs font-label text-afs-chrome-high px-2 py-1 disabled:opacity-50"
+        className="f"
       >
         {TRACK_STATUSES.map((s) => (
           <option key={s} value={s}>
@@ -170,7 +170,7 @@ function TrackDropdown({ project }: { project: BidProjectListRow }) {
           </option>
         ))}
       </select>
-      {error && <p className="font-body text-[10px] text-afs-danger-on-dark">{error}</p>}
+      {error && <p className="font-body text-[10px] text-afs-crimson">{error}</p>}
     </div>
   );
 }
@@ -207,7 +207,7 @@ export default function BidMonitorProjectsTable({ projects }: { projects: BidPro
               className={`font-label text-xs px-3 py-1.5 rounded transition-colors ${
                 sourceFilter === f.value
                   ? 'bg-afs-crimson text-white'
-                  : 'bg-afs-bg-overlay text-afs-chrome-silver hover:bg-afs-bg-surface hover:text-afs-chrome-high'
+                  : 'bg-afs-bg-light-raised text-afs-ink-700 hover:bg-afs-bg-light-raised hover:text-afs-v7-ink'
               }`}
             >
               {f.label}
@@ -223,8 +223,8 @@ export default function BidMonitorProjectsTable({ projects }: { projects: BidPro
               onClick={() => setStatusFilter(f.value)}
               className={`font-label text-xs px-3 py-1.5 rounded transition-colors ${
                 statusFilter === f.value
-                  ? 'bg-afs-bg-surface text-afs-chrome-high border border-afs-chrome-mid'
-                  : 'bg-afs-bg-overlay text-afs-chrome-silver hover:bg-afs-bg-surface hover:text-afs-chrome-high border border-transparent'
+                  ? 'bg-afs-bg-light-raised text-afs-v7-ink border border-afs-line-strong'
+                  : 'bg-afs-bg-light-raised text-afs-ink-700 hover:bg-afs-bg-light-raised hover:text-afs-v7-ink border border-transparent'
               }`}
             >
               {f.label}
@@ -234,22 +234,22 @@ export default function BidMonitorProjectsTable({ projects }: { projects: BidPro
       </div>
 
       {filtered.length === 0 ? (
-        <p className="font-body text-sm text-afs-chrome-mid py-8 text-center border border-afs-border rounded bg-afs-bg-raised">
+        <p className="font-body text-sm text-afs-ink-700 py-8 text-center border border-afs-border-light rounded bg-afs-bg-card">
           No opportunities match these filters.
         </p>
       ) : (
-        <div className="bg-afs-bg-raised border border-afs-border rounded overflow-x-auto">
+        <div className="bg-afs-bg-card border border-afs-border-light rounded overflow-x-auto">
           <table className="w-full min-w-[900px] text-left">
             <thead>
-              <tr className="border-b border-afs-border">
-                <th className="font-label text-xs uppercase tracking-wide text-afs-chrome-silver px-4 py-3">Project</th>
-                <th className="font-label text-xs uppercase tracking-wide text-afs-chrome-silver px-4 py-3">Source</th>
-                <th className="font-label text-xs uppercase tracking-wide text-afs-chrome-silver px-4 py-3">Location</th>
-                <th className="font-label text-xs uppercase tracking-wide text-afs-chrome-silver px-4 py-3">Bid Due</th>
-                <th className="font-label text-xs uppercase tracking-wide text-afs-chrome-silver px-4 py-3">Est. Value</th>
-                <th className="font-label text-xs uppercase tracking-wide text-afs-chrome-silver px-4 py-3">Keywords</th>
-                <th className="font-label text-xs uppercase tracking-wide text-afs-chrome-silver px-4 py-3">Status</th>
-                <th className="font-label text-xs uppercase tracking-wide text-afs-chrome-silver px-4 py-3">Actions</th>
+              <tr className="border-b border-afs-border-light">
+                <th className="font-label text-xs uppercase tracking-wide text-afs-ink-700 px-4 py-3">Project</th>
+                <th className="font-label text-xs uppercase tracking-wide text-afs-ink-700 px-4 py-3">Source</th>
+                <th className="font-label text-xs uppercase tracking-wide text-afs-ink-700 px-4 py-3">Location</th>
+                <th className="font-label text-xs uppercase tracking-wide text-afs-ink-700 px-4 py-3">Bid Due</th>
+                <th className="font-label text-xs uppercase tracking-wide text-afs-ink-700 px-4 py-3">Est. Value</th>
+                <th className="font-label text-xs uppercase tracking-wide text-afs-ink-700 px-4 py-3">Keywords</th>
+                <th className="font-label text-xs uppercase tracking-wide text-afs-ink-700 px-4 py-3">Status</th>
+                <th className="font-label text-xs uppercase tracking-wide text-afs-ink-700 px-4 py-3">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -257,9 +257,9 @@ export default function BidMonitorProjectsTable({ projects }: { projects: BidPro
                 const dueSoon = isDueSoon(project.bidDueDate);
                 const extraKeywords = project.keywordsMatched.length - 3;
                 return (
-                  <tr key={project.id} className="border-b border-afs-border last:border-b-0 hover:bg-afs-bg-surface transition-colors">
+                  <tr key={project.id} className="border-b border-afs-border-light last:border-b-0 hover:bg-afs-bg-light-raised transition-colors">
                     <td className="px-4 py-3 align-top max-w-[280px]">
-                      <p className="font-body text-sm text-afs-chrome-high" title={project.title}>
+                      <p className="font-body text-sm text-afs-v7-ink" title={project.title}>
                         {truncate(project.title, 60)}
                       </p>
                       {project.division7Relevant && (
@@ -269,20 +269,20 @@ export default function BidMonitorProjectsTable({ projects }: { projects: BidPro
                       )}
                     </td>
                     <td className="px-4 py-3 align-top">
-                      <Chip className={SOURCE_TYPE_CHIP_CLASS[project.sourceType] ?? 'border-afs-chrome-dim text-afs-chrome-silver'}>
+                      <Chip className={SOURCE_TYPE_CHIP_CLASS[project.sourceType] ?? 'border-afs-chrome-dim text-afs-ink-700'}>
                         {SOURCE_TYPE_LABEL[project.sourceType] ?? project.sourceType}
                       </Chip>
-                      <p className="font-body text-xs text-afs-chrome-mid mt-1">{project.sourceName}</p>
+                      <p className="font-body text-xs text-afs-ink-700 mt-1">{project.sourceName}</p>
                     </td>
-                    <td className="px-4 py-3 align-top font-body text-xs text-afs-chrome-mid whitespace-nowrap">
+                    <td className="px-4 py-3 align-top font-body text-xs text-afs-ink-700 whitespace-nowrap">
                       {project.locationCity || project.locationState
                         ? [project.locationCity, project.locationState].filter(Boolean).join(', ')
                         : '—'}
                     </td>
-                    <td className={`px-4 py-3 align-top font-data text-xs whitespace-nowrap ${dueSoon ? 'text-afs-danger-on-dark font-semibold' : 'text-afs-chrome-mid'}`}>
+                    <td className={`px-4 py-3 align-top font-data text-xs whitespace-nowrap ${dueSoon ? 'text-afs-crimson font-semibold' : 'text-afs-ink-700'}`}>
                       {formatDate(project.bidDueDate)}
                     </td>
-                    <td className="px-4 py-3 align-top font-data text-xs text-afs-chrome-mid whitespace-nowrap">
+                    <td className="px-4 py-3 align-top font-data text-xs text-afs-ink-700 whitespace-nowrap">
                       {project.estimatedValue ? currency.format(project.estimatedValue) : '—'}
                     </td>
                     <td className="px-4 py-3 align-top">
@@ -290,18 +290,18 @@ export default function BidMonitorProjectsTable({ projects }: { projects: BidPro
                         {project.keywordsMatched.slice(0, 3).map((kw) => (
                           <span
                             key={kw}
-                            className="bg-afs-bg-surface border border-afs-border text-afs-chrome-mid font-label text-[10px] rounded px-1.5 py-0.5 whitespace-nowrap"
+                            className="bg-afs-bg-light-raised border border-afs-border-light text-afs-ink-700 font-label text-[10px] rounded px-1.5 py-0.5 whitespace-nowrap"
                           >
                             {kw}
                           </span>
                         ))}
                         {extraKeywords > 0 && (
-                          <span className="font-label text-[10px] text-afs-chrome-silver">+{extraKeywords} more</span>
+                          <span className="font-label text-[10px] text-afs-ink-700">+{extraKeywords} more</span>
                         )}
                       </div>
                     </td>
                     <td className="px-4 py-3 align-top">
-                      <Chip className={STATUS_CHIP_CLASS[project.status] ?? 'border-afs-chrome-dim text-afs-chrome-silver'}>
+                      <Chip className={STATUS_CHIP_CLASS[project.status] ?? 'border-afs-chrome-dim text-afs-ink-700'}>
                         {STATUS_LABEL[project.status] ?? project.status}
                       </Chip>
                     </td>
@@ -312,12 +312,12 @@ export default function BidMonitorProjectsTable({ projects }: { projects: BidPro
                             href={project.sourceUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="font-label text-xs text-afs-chrome-high hover:text-afs-danger-on-dark transition-colors"
+                            className="font-label text-xs text-afs-v7-ink hover:text-afs-crimson transition-colors"
                           >
                             View →
                           </a>
                         ) : (
-                          <span className="font-label text-xs text-afs-chrome-silver">No link</span>
+                          <span className="font-label text-xs text-afs-ink-700">No link</span>
                         )}
                         <TrackDropdown project={project} />
                       </div>

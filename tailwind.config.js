@@ -79,6 +79,11 @@ module.exports = {
           //   v7-ink  #0F1318 on v7-bg #F4F5F7 = 17.09:1
           'v7-bg':           '#F4F5F7',
           'v7-ink':          '#0F1318',
+          // v7's --bluetxt: the blue it uses for TEXT on a light surface.
+          // afs-info (#3478B0) is 3.6:1 on white — enough for a border (3:1),
+          // not for body text (4.5:1). This is 7.68:1 on white, 6.65:1 on
+          // v7's own --bluebg. Named for its role, like afs-green-ink.
+          'info-ink':        '#1D4FA8',
           // COMMAND CENTER V2 LIGHT WORKING AREA (prompt v2-02). The header
           // stays gunmetal; the Workbench and Job screen below it are light,
           // per docs/design/command-center-v2-prototype.html. These six are

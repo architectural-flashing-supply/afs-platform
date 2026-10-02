@@ -10,11 +10,11 @@ interface CreditApplicationReviewModalProps {
 }
 
 const inputClass =
-  'w-full bg-afs-bg-overlay border border-afs-chrome-base rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-data';
-const labelClass = 'font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-1.5';
-const sectionLabelClass = 'font-label text-xs uppercase tracking-wide text-afs-chrome-high mb-2 pt-4 border-t border-afs-border';
-const dtClass = 'font-body text-xs text-afs-chrome-mid';
-const ddClass = 'font-body text-sm text-afs-chrome-high';
+  'w-full bg-afs-bg-light-raised border border-afs-line-strong rounded px-3 py-2.5 text-sm text-afs-v7-ink focus:border-afs-crimson outline-none font-data';
+const labelClass = 'font-label text-xs uppercase tracking-wide text-afs-ink-700 block mb-1.5';
+const sectionLabelClass = 'font-label text-xs uppercase tracking-wide text-afs-v7-ink mb-2 pt-4 border-t border-afs-border-light';
+const dtClass = 'font-body text-xs text-afs-ink-700';
+const ddClass = 'font-body text-sm text-afs-v7-ink';
 
 function Field({ label, value }: { label: string; value: string | null | undefined }) {
   return (
@@ -73,20 +73,20 @@ export default function CreditApplicationReviewModal({ application, onClose }: C
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-afs-bg-modal" onClick={onClose} />
-      <div className="relative bg-afs-bg-raised border border-afs-border rounded max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
-        <h2 className="font-heading text-xl text-afs-chrome-high mb-1">Review Credit Application</h2>
-        <p className="font-body text-sm text-afs-chrome-mid mb-4">{application.companyName}</p>
+      <div className="relative bg-afs-bg-card border border-afs-border-light rounded max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
+        <h2 className="font-heading text-xl text-afs-v7-ink mb-1">Review Credit Application</h2>
+        <p className="font-body text-sm text-afs-ink-700 mb-4">{application.companyName}</p>
 
         <dl className="grid grid-cols-2 gap-3 mb-2 font-body text-sm">
           <div>
-            <dt className="text-afs-chrome-mid">Requested Limit</dt>
-            <dd className="font-data text-afs-chrome-high">
+            <dt className="text-afs-ink-700">Requested Limit</dt>
+            <dd className="font-data text-afs-v7-ink">
               {application.requestedLimit != null ? `$${application.requestedLimit.toLocaleString()}` : '—'}
             </dd>
           </div>
           <div>
-            <dt className="text-afs-chrome-mid">Requested Terms</dt>
-            <dd className="font-data text-afs-chrome-high">
+            <dt className="text-afs-ink-700">Requested Terms</dt>
+            <dd className="font-data text-afs-v7-ink">
               {application.requestedTerms != null ? `Net ${application.requestedTerms}` : '—'}
             </dd>
           </div>
@@ -135,7 +135,7 @@ export default function CreditApplicationReviewModal({ application, onClose }: C
               <h3 className={sectionLabelClass}>Trade References</h3>
               <div className="flex flex-col gap-2">
                 {(data.tradeReferences ?? []).map((ref, i) => (
-                  <div key={i} className="border border-afs-border rounded p-3">
+                  <div key={i} className="border border-afs-border-light rounded p-3">
                     <dl className="grid grid-cols-2 gap-2">
                       <Field label="Company" value={ref.businessName} />
                       <Field label="Type of Account" value={ref.accountType} />
@@ -161,14 +161,14 @@ export default function CreditApplicationReviewModal({ application, onClose }: C
             <div>
               <h3 className={sectionLabelClass}>Signatures</h3>
               <div className="grid grid-cols-2 gap-3">
-                <div className="border border-afs-border rounded p-3">
+                <div className="border border-afs-border-light rounded p-3">
                   <dl className="grid gap-2">
                     <Field label="Signature 1 — Name" value={data.signerOne?.name} />
                     <Field label="Title" value={data.signerOne?.title} />
                     <Field label="Signed" value={data.signerOne?.signatureTyped} />
                   </dl>
                 </div>
-                <div className="border border-afs-border rounded p-3">
+                <div className="border border-afs-border-light rounded p-3">
                   <dl className="grid gap-2">
                     <Field label="Signature 2 — Name" value={data.signerTwo?.name} />
                     <Field label="Title" value={data.signerTwo?.title} />
@@ -176,12 +176,12 @@ export default function CreditApplicationReviewModal({ application, onClose }: C
                   </dl>
                 </div>
               </div>
-              <p className="font-body text-xs text-afs-chrome-silver mt-2">Signed {data.signedAt ?? '—'}</p>
+              <p className="font-body text-xs text-afs-ink-700 mt-2">Signed {data.signedAt ?? '—'}</p>
             </div>
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-afs-border">
+        <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-afs-border-light">
           <div>
             <label className={labelClass} htmlFor="approved-limit">
               Approved Limit ($)
@@ -215,7 +215,7 @@ export default function CreditApplicationReviewModal({ application, onClose }: C
 
         <div className="mt-4">
           {application.companyId ? (
-            <label className="flex items-center gap-3 font-body text-sm text-afs-chrome-mid">
+            <label className="flex items-center gap-3 font-body text-sm text-afs-ink-700">
               <input
                 type="checkbox"
                 checked={requirePo}
@@ -225,7 +225,7 @@ export default function CreditApplicationReviewModal({ application, onClose }: C
               Require PO Number on all orders for this company
             </label>
           ) : (
-            <p className="font-body text-xs text-afs-chrome-silver bg-afs-bg-overlay border border-afs-border rounded p-3">
+            <p className="font-body text-xs text-afs-ink-700 bg-afs-bg-light-raised border border-afs-border-light rounded p-3">
               No company on file — PO requirement and credit limit must be set manually once this customer has a
               company (via Team Accounts).
             </p>
@@ -242,17 +242,17 @@ export default function CreditApplicationReviewModal({ application, onClose }: C
             value={reviewerNotes}
             onChange={(e) => setReviewerNotes(e.target.value)}
             placeholder="Internal notes — reason for the decision"
-            className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body resize-y"
+            className="w-full bg-afs-bg-light-raised border border-afs-border-light rounded px-3 py-2.5 text-sm text-afs-v7-ink focus:border-afs-crimson outline-none font-body resize-y"
           />
         </div>
 
-        {error && <p className="font-body text-xs text-afs-danger-on-dark mb-3">{error}</p>}
+        {error && <p className="font-body text-xs text-afs-crimson mb-3">{error}</p>}
 
         <div className="flex items-center justify-between gap-3 pt-2">
           <button
             type="button"
             onClick={onClose}
-            className="font-label text-xs text-afs-chrome-mid hover:text-afs-chrome-high px-3 py-2"
+            className="font-label text-xs text-afs-ink-700 hover:text-afs-v7-ink px-3 py-2"
           >
             Cancel
           </button>

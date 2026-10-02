@@ -2,25 +2,29 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { requireAdminUser } from '@/lib/admin/auth';
 import { getCustomersList, type CustomerListFilters } from '@/lib/data/customers';
-import Badge, { type BadgeVariant } from '@/components/ui/Badge';
-import EmptyState from '@/components/ui/EmptyState';
 import ExportCustomersCsvButton from '@/components/admin/ExportCustomersCsvButton';
+import LightWorkingArea from '@/components/admin/LightWorkingArea';
 
 const ROLE_OPTIONS = ['all', 'admin', 'contractor', 'architect', 'customer'];
 const TIER_OPTIONS = ['all', 'standard', 'contractor', 'preferred', 'wholesale'];
 
-const ROLE_VARIANT: Record<string, BadgeVariant> = {
-  admin: 'error',
-  architect: 'info',
-  contractor: 'chrome',
-  customer: 'chrome',
+/**
+ * v7's own pill modifiers (`.pill.r/.a/.g/.b/.v`), as a map to the WHOLE
+ * className. The contrast gate expands class maps but counts a runtime template
+ * as `unresolved` — CLAUDE.md rule #28.
+ */
+const ROLE_PILL: Record<string, string> = {
+  admin: 'pill r',
+  architect: 'pill b',
+  contractor: 'pill',
+  customer: 'pill',
 };
 
-const TIER_VARIANT: Record<string, BadgeVariant> = {
-  wholesale: 'success',
-  preferred: 'info',
-  contractor: 'chrome',
-  standard: 'chrome',
+const TIER_PILL: Record<string, string> = {
+  wholesale: 'pill g',
+  preferred: 'pill b',
+  contractor: 'pill',
+  standard: 'pill',
 };
 
 function formatDate(iso: string | null): string {
@@ -49,123 +53,127 @@ export default async function AdminCustomersPage({
   const rows = await getCustomersList(supabase, filters);
 
   return (
-    <div>
-      <div className="flex items-start justify-between gap-4 mb-6 flex-wrap">
+    // STAGE G — Customers in v7's look. `.greet`, `.bar`/`.fld` filters and a
+    // bare <table> inside a `.panel`, all of which v7 styles itself.
+    //
+    // ONE DELIBERATE DEPARTURE FROM v7's LAYOUT, recorded rather than hidden.
+    // v7's `pageCustomers()` (line 1519) is a master-detail: a `.cgrid` with a
+    // customer list on the left and, on the right, that customer's contact
+    // details, their jobs and their saved profiles. This page is an ACCOUNT
+    // DIRECTORY — every registered account, filtered by role and pricing tier,
+    // with CSV export — and none of those three things exist in v7, which has
+    // no roles, no tiers and no export. Rendering a directory as a
+    // master-detail would mean either dropping real features or inventing
+    // per-customer queries nobody asked for. So the DATA and the ACTIONS are
+    // kept and v7's own components carry them. The per-customer detail view
+    // v7 shows on the right already exists here as its own route,
+    // /admin/customers/[id], which each name links to.
+    <LightWorkingArea>
+      <div className="greet">
         <div>
-          <h1 className="font-heading text-3xl text-afs-chrome-high">Customers</h1>
-          <p className="font-body text-sm text-afs-chrome-mid mt-1">
-            Every registered account — contractors, architects, and customers.
-          </p>
+          <h1 className="t">Customers</h1>
+          <p className="sub">Every registered account — contractors, architects, and customers.</p>
         </div>
-        <ExportCustomersCsvButton rows={rows} />
+        <div style={{ marginLeft: 'auto' }}>
+          <ExportCustomersCsvButton rows={rows} />
+        </div>
       </div>
 
       {/* Command Center V2 (prompt v2-01, step 5): Customers ABSORBS the
           orders CRM. The one-level nav has no separate "Orders" slot, and
           the CRM view (customer record, dispatch, invoicing) is a customer
-          view, so this is where it belongs. The page itself is unchanged. */}
-      <Link
-        href="/admin/orders-crm"
-        className="flex items-center justify-between gap-4 bg-afs-bg-raised border border-afs-border rounded p-4 mb-6 hover:bg-afs-bg-surface transition-colors"
-      >
-        <div>
-          <p className="font-heading text-base text-afs-chrome-high">Orders &amp; invoicing</p>
-          <p className="font-body text-xs text-afs-chrome-mid mt-1">
-            Order records, dispatch and invoicing, by customer.
-          </p>
+          view, so this is where it belongs. */}
+      <Link href="/admin/orders-crm" className="rl">
+        <div className="tx">
+          <b>Orders &amp; invoicing</b>
+          <span>Order records, dispatch and invoicing, by customer.</span>
         </div>
-        <span className="font-label text-xs text-afs-danger-on-dark shrink-0">Open &rarr;</span>
+        <span className="btn slate sm">Open &rarr;</span>
       </Link>
 
-      <form method="GET" className="flex items-center gap-3 mb-6 flex-wrap">
-        <input
-          type="text"
-          name="q"
-          defaultValue={filters.search}
-          placeholder="Search name, company, or email…"
-          className="flex-1 min-w-[240px] bg-afs-bg-dim border border-afs-chrome-base rounded px-3 py-2.5 text-sm text-afs-chrome-high placeholder:text-afs-chrome-mid focus:border-afs-crimson outline-none font-body"
-        />
-        <select
-          name="role"
-          defaultValue={filters.role}
-          className="bg-afs-bg-overlay border border-afs-chrome-base rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body"
-        >
-          {ROLE_OPTIONS.map((r) => (
-            <option key={r} value={r}>
-              {r === 'all' ? 'All Roles' : r.charAt(0).toUpperCase() + r.slice(1)}
-            </option>
-          ))}
-        </select>
-        <select
-          name="tier"
-          defaultValue={filters.tier}
-          className="bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body"
-        >
-          {TIER_OPTIONS.map((t) => (
-            <option key={t} value={t}>
-              {t === 'all' ? 'All Tiers' : t.charAt(0).toUpperCase() + t.slice(1)}
-            </option>
-          ))}
-        </select>
-        <button
-          type="submit"
-          className="bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label font-semibold px-5 py-2.5 rounded text-sm transition-colors"
-        >
+      <form method="GET" className="bar">
+        <label className="fld q">
+          Search
+          <input
+            type="search"
+            name="q"
+            defaultValue={filters.search}
+            placeholder="Search name, company, or email…"
+            autoComplete="off"
+          />
+        </label>
+        <label className="fld">
+          Role
+          <select name="role" defaultValue={filters.role}>
+            {ROLE_OPTIONS.map((r) => (
+              <option key={r} value={r}>
+                {r === 'all' ? 'All Roles' : r.charAt(0).toUpperCase() + r.slice(1)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="fld">
+          Tier
+          <select name="tier" defaultValue={filters.tier}>
+            {TIER_OPTIONS.map((t) => (
+              <option key={t} value={t}>
+                {t === 'all' ? 'All Tiers' : t.charAt(0).toUpperCase() + t.slice(1)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button type="submit" className="btn red">
           Filter
         </button>
         {(filters.search || filters.role !== 'all' || filters.tier !== 'all') && (
-          <Link href="/admin/customers" className="font-label text-xs text-afs-chrome-mid hover:text-afs-danger-on-dark">
+          <Link href="/admin/customers" className="linkbtn">
             Clear all
           </Link>
         )}
       </form>
 
       {rows.length === 0 ? (
-        <EmptyState title="No customers match this filter" description="Try a different search term or clear the filters." />
+        <div className="none">No customers match this filter. Try a different search term or clear the filters.</div>
       ) : (
-        <div className="bg-afs-bg-raised border border-afs-border rounded overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-afs-bg-surface border-b border-afs-border">
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">Name</th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
-                  Company
-                </th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">Email</th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">Role</th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">Tier</th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-right px-4 py-3">
-                  Orders
-                </th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
-                  Last Order
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id} className="border-b border-afs-border last:border-b-0 hover:bg-afs-bg-surface transition-colors">
-                  <td className="px-4 py-3">
-                    <Link href={`/admin/customers/${row.id}`} className="font-body text-sm text-afs-chrome-high hover:text-afs-danger-on-dark">
-                      {row.fullName}
-                    </Link>
-                  </td>
-                  <td className="font-body text-sm text-afs-chrome-mid px-4 py-3">{row.company ?? '—'}</td>
-                  <td className="font-data text-xs text-afs-chrome-mid px-4 py-3">{row.email}</td>
-                  <td className="px-4 py-3">
-                    <Badge variant={ROLE_VARIANT[row.role] ?? 'chrome'}>{row.role}</Badge>
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge variant={TIER_VARIANT[row.pricingTier] ?? 'chrome'}>{row.pricingTier}</Badge>
-                  </td>
-                  <td className="font-data text-sm text-afs-chrome-high text-right px-4 py-3">{row.totalOrders}</td>
-                  <td className="font-data text-xs text-afs-chrome-silver px-4 py-3">{formatDate(row.lastOrderAt)}</td>
+        <section className="panel">
+          <div className="tw">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Company</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Tier</th>
+                  <th className="n">Orders</th>
+                  <th>Last Order</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.id}>
+                    <td>
+                      <Link href={`/admin/customers/${row.id}`} className="linkcell">
+                        {row.fullName}
+                      </Link>
+                    </td>
+                    <td>{row.company ?? '—'}</td>
+                    <td>{row.email}</td>
+                    <td>
+                      <span className={ROLE_PILL[row.role] ?? 'pill'}>{row.role}</span>
+                    </td>
+                    <td>
+                      <span className={TIER_PILL[row.pricingTier] ?? 'pill'}>{row.pricingTier}</span>
+                    </td>
+                    <td className="n">{row.totalOrders}</td>
+                    <td>{formatDate(row.lastOrderAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
       )}
-    </div>
+    </LightWorkingArea>
   );
 }

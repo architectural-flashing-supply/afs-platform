@@ -36,6 +36,12 @@ export const LIGHT_WORKING_AREA_SCREENS: { screen: string; route: string }[] = [
   // v7 Phase 2: both office lists are light working areas under the dark header.
   { screen: 'Quotes', route: '/admin/quotes' },
   { screen: 'Orders', route: '/admin/orders' },
+  // v7 Stage G: Customers and Pricing are top-level in v7's nav, and the two
+  // "More" screens take the same shell and look.
+  { screen: 'Customers', route: '/admin/customers' },
+  { screen: 'Pricing', route: '/admin/pricing' },
+  { screen: 'Credit Applications', route: '/admin/credit-applications' },
+  { screen: 'Bid Monitor', route: '/admin/bid-monitor' },
 ];
 
 /**

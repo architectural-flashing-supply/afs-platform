@@ -66,9 +66,9 @@ export default function BidMonitorKeywordManager({ keywords: initialKeywords }: 
   };
 
   return (
-    <div className="bg-afs-bg-raised border border-afs-border rounded p-5">
+    <div className="bg-afs-bg-card border border-afs-border-light rounded p-5">
       <div className="flex items-center justify-between mb-4">
-        <p className="font-body text-sm text-afs-chrome-mid">
+        <p className="font-body text-sm text-afs-ink-700">
           {keywords.length} keyword{keywords.length === 1 ? '' : 's'} — matched against every fetched bid title/description
           to flag Division 7 relevance.
         </p>
@@ -82,23 +82,23 @@ export default function BidMonitorKeywordManager({ keywords: initialKeywords }: 
       </div>
 
       {showAddForm && (
-        <form onSubmit={handleAdd} className="flex flex-wrap items-end gap-3 mb-4 bg-afs-bg-surface border border-afs-border rounded p-4">
+        <form onSubmit={handleAdd} className="flex flex-wrap items-end gap-3 mb-4 bg-afs-bg-light-raised border border-afs-border-light rounded p-4">
           <div className="flex-1 min-w-[180px]">
-            <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-silver block mb-1">Keyword</label>
+            <label className="font-label text-xs uppercase tracking-wide text-afs-ink-700 block mb-1">Keyword</label>
             <input
               type="text"
               value={newKeyword}
               onChange={(e) => setNewKeyword(e.target.value)}
               placeholder="e.g. reglet"
-              className="w-full bg-afs-bg-overlay border border-afs-chrome-base rounded text-sm text-afs-chrome-high px-3 py-2"
+              className="f"
             />
           </div>
           <div>
-            <label className="font-label text-xs uppercase tracking-wide text-afs-chrome-silver block mb-1">Category</label>
+            <label className="font-label text-xs uppercase tracking-wide text-afs-ink-700 block mb-1">Category</label>
             <select
               value={newCategory}
               onChange={(e) => setNewCategory(e.target.value as (typeof CATEGORIES)[number] | '')}
-              className="bg-afs-bg-overlay border border-afs-chrome-base rounded text-sm text-afs-chrome-high px-3 py-2"
+              className="f"
             >
               <option value="">—</option>
               {CATEGORIES.map((c) => (
@@ -118,14 +118,14 @@ export default function BidMonitorKeywordManager({ keywords: initialKeywords }: 
           <button
             type="button"
             onClick={() => setShowAddForm(false)}
-            className="font-label text-sm text-afs-chrome-mid hover:text-afs-chrome-high px-2 py-2"
+            className="font-label text-sm text-afs-ink-700 hover:text-afs-v7-ink px-2 py-2"
           >
             Cancel
           </button>
         </form>
       )}
 
-      {error && <p className="font-body text-xs text-afs-danger-on-dark mb-3">{error}</p>}
+      {error && <p className="font-body text-xs text-afs-crimson mb-3">{error}</p>}
 
       <div className="flex flex-wrap gap-2">
         {keywords.map((kw) => (
@@ -137,12 +137,12 @@ export default function BidMonitorKeywordManager({ keywords: initialKeywords }: 
             title={kw.isActive ? 'Click to deactivate' : 'Click to activate'}
             className={`flex items-center gap-2 border rounded-full pl-3 pr-2 py-1.5 font-label text-xs transition-colors disabled:opacity-50 ${
               kw.isActive
-                ? 'border-afs-success text-afs-chrome-high bg-[var(--afs-success-ghost)]'
-                : 'border-afs-chrome-dim text-afs-chrome-silver bg-transparent line-through'
+                ? 'border-afs-success text-afs-v7-ink bg-[var(--afs-success-ghost)]'
+                : 'border-afs-chrome-dim text-afs-ink-700 bg-transparent line-through'
             }`}
           >
             <span>{kw.keyword}</span>
-            <span className="font-data text-[10px] text-afs-chrome-silver">{kw.matchCount}</span>
+            <span className="font-data text-[10px] text-afs-ink-700">{kw.matchCount}</span>
             <span
               className={`w-2 h-2 rounded-full ${kw.isActive ? 'bg-afs-success' : 'bg-afs-chrome-dim'}`}
               aria-hidden
