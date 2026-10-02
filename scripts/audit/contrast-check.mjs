@@ -588,6 +588,60 @@ function stringConstants(file, depth = 0) {
  * Without this they were reported as unresolved, which is honest but useless:
  * Badge renders on nearly every Command Center screen.
  */
+/**
+ * EVERY CLASS NAME THE PORTED v7 STYLESHEET DEFINES.
+ *
+ * The Command Center's look is a port of prototype v7 (CLAUDE.md rule #33), so
+ * its screens are built from v7 class names — `card`, `lane`, `btn red`,
+ * `meta ok` — rather than from Tailwind colour utilities. Those carry no
+ * `bg-*`/`text-*` token, so to this script they look like nothing at all.
+ *
+ * That matters in ONE specific place: a class MAP (`LANE_CLASS[lane.key]`).
+ * The map's values are known statically, but the filter below kept only maps
+ * holding Tailwind colour utilities, so a v7 map was dropped and the reference
+ * was then reported as `unresolved` — "a className computed at runtime". That
+ * is the wrong diagnosis: the values are perfectly readable, they simply name
+ * colours that live in CSS. Rule #28 says a rising `unresolved` count means the
+ * gate got BLINDER, so a wrong diagnosis there is worse than useless.
+ *
+ * WHAT THIS DOES AND DOES NOT CLAIM. Recognising a v7 class makes the gate
+ * report it as READ, not as MEASURED — a v7 class contributes no Tailwind
+ * colour and so produces no pair here. v7's own colours are guaranteed by three
+ * other things, and this script is not one of them:
+ *   - lib/design/v7-deviations.test.ts computes contrast from the real CSS and
+ *     fails if a v7 colour needs a deviation it has not got;
+ *   - docs/design/V7_COLOR_DEVIATIONS.md records the whole palette measured
+ *     pair by pair against these same thresholds;
+ *   - tests/e2e/contrast-live.spec.ts measures getComputedStyle in a real
+ *     browser, which is the half rule #28 calls the one that stops the static
+ *     model drifting into fiction, and it covers v7 classes automatically
+ *     because it does not care where a colour came from.
+ */
+let V7_CLASSES = null;
+function v7ClassNames() {
+  if (V7_CLASSES) return V7_CLASSES;
+  V7_CLASSES = new Set();
+  const css = readSource('app/styles/command-center-v7.generated.css');
+  if (!css) return V7_CLASSES;
+  // Class tokens from selectors only — declaration blocks are skipped so a
+  // value like `.5rem` can never be read as a class name.
+  const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  for (const m of withoutComments.matchAll(/(^|[}{])([^{}]*?)\s*\{/g)) {
+    const prelude = m[2];
+    if (prelude.trimStart().startsWith('@')) continue;
+    for (const c of prelude.matchAll(/\.(-?[A-Za-z_][\w-]*)/g)) V7_CLASSES.add(c[1]);
+  }
+  return V7_CLASSES;
+}
+
+/** True when every token in a className is a class v7's stylesheet defines. */
+function isV7ClassList(value) {
+  const tokens = value.trim().split(/\s+/).filter(Boolean);
+  if (!tokens.length) return false;
+  const known = v7ClassNames();
+  return tokens.every((t) => known.has(t));
+}
+
 const OBJECT_CACHE = new Map();
 function objectConstants(file) {
   if (OBJECT_CACHE.has(file)) return OBJECT_CACHE.get(file);
@@ -612,8 +666,12 @@ function objectConstants(file) {
     const bodyText = src.slice(m.index + m[0].length, end);
     const values = [];
     for (const v of bodyText.matchAll(/:\s*'([^']*)'|:\s*"([^"]*)"/g)) values.push(v[1] ?? v[2] ?? '');
-    // Only a map whose values look like class strings is of any use here.
-    const classy = values.filter((v) => /(^|\s)(bg|text|border|placeholder|ring)-/.test(v));
+    // Only a map whose values look like class strings is of any use here —
+    // either a Tailwind colour utility, or a className made of v7's own class
+    // names (see v7ClassNames()).
+    const classy = values.filter(
+      (v) => /(^|\s)(bg|text|border|placeholder|ring)-/.test(v) || isV7ClassList(v),
+    );
     if (classy.length) out.set(m[1], classy);
   }
   return out;

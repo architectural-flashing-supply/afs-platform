@@ -226,32 +226,38 @@ describe('the morning summary above the lanes', () => {
     ).toBe('Good morning, Steve.');
   });
 
-  it('prints the chips the page really renders, plural', () => {
+  it("prints the chips in v7's words and v7's order", () => {
+    // Wording and order are prototype v7's (`pageWorkbench()`, line 1283): the
+    // thing to act on comes first and is phrased as the shop says it — "2 ready
+    // for the machine", not "2 approvals ready for the machine".
     const chips = summaryChips(buildSummary({ quotesToWrite: 3, approvalsReady: 2, inTheShop: 4 }, 'Steve', NOW));
     expect(chips.map((c) => c.text)).toEqual([
-      '3 quotes to write',
-      '2 approvals ready for the machine',
+      '2 ready for the machine',
+      '3 to quote',
       '4 jobs in the shop',
     ]);
-    expect(chips.map((c) => c.tone)).toEqual(['plain', 'go', 'plain']);
+    expect(chips.map((c) => c.tone)).toEqual(['go', 'plain', 'plain']);
   });
 
-  it('prints the chips singular at one', () => {
+  it('does not pluralise the two counting chips, because v7 does not', () => {
     const chips = summaryChips(buildSummary({ quotesToWrite: 1, approvalsReady: 1, inTheShop: 1 }, 'Steve', NOW));
     expect(chips.map((c) => c.text)).toEqual([
-      '1 quote to write',
-      '1 approval ready for the machine',
+      '1 ready for the machine',
+      '1 to quote',
       '1 job in the shop',
     ]);
   });
 
-  it('omits the green chip entirely when nothing is ready for the machine', () => {
-    // The old `line` field asserted "0 approvals ready for the machine" — text
-    // the UI never shows. The chip is absent, not zeroed.
+  it('keeps the approvals chip at zero, but turns it grey and reworded', () => {
+    // v7 shows this chip EITHER WAY — green with a beacon when there is
+    // something to send, plain "No approvals waiting" when there is not. An
+    // earlier version dropped it entirely at zero so the green chip kept its
+    // meaning; v7 solves that by changing the chip instead, which also stops
+    // the row reflowing as work arrives.
     const chips = summaryChips(buildSummary({ quotesToWrite: 2, approvalsReady: 0, inTheShop: 0 }, 'Steve', NOW));
-    expect(chips.map((c) => c.text)).toEqual(['2 quotes to write', '0 jobs in the shop']);
+    expect(chips.map((c) => c.text)).toEqual(['No approvals waiting', '2 to quote', '0 jobs in the shop']);
     expect(chips.some((c) => c.tone === 'go')).toBe(false);
-    expect(chips.some((c) => c.text.includes('approval'))).toBe(false);
+    expect(chips.some((c) => c.text.startsWith('0 ready'))).toBe(false);
   });
 });
 
@@ -280,8 +286,8 @@ describe('the light working area', () => {
     ]);
   });
   it('paints light AND cancels the shell gunmetal padding, or it would float in a dark frame', () => {
-    expect(LIGHT_WORKING_AREA_CLASS).toContain('bg-afs-bg-band');
-    expect(LIGHT_WORKING_AREA_CLASS).toContain('text-afs-ink-900');
+    expect(LIGHT_WORKING_AREA_CLASS).toContain('bg-afs-v7-bg');
+    expect(LIGHT_WORKING_AREA_CLASS).toContain('text-afs-v7-ink');
     expect(LIGHT_WORKING_AREA_CLASS).toContain('min-h-screen');
   });
 

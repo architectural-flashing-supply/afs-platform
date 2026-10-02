@@ -22,6 +22,7 @@ import BidsCrmTab from '@/components/admin/BidsCrmTab';
 import CommandCenterDashboard from '@/components/admin/CommandCenterDashboard';
 import LightWorkingArea from '@/components/admin/LightWorkingArea';
 import WorkbenchLanes from '@/components/admin/WorkbenchLanes';
+import WorkbenchRail from '@/components/admin/WorkbenchRail';
 import { getWorkbench, summaryChips, DONE_ARCHIVE_DAYS } from '@/lib/data/workbench';
 
 // Phase 2 (Command Center redesign, afs-cc-001) — this page previously also
@@ -92,37 +93,54 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
     const workbench = await getWorkbench(supabase, firstName);
 
     return (
+      // v7's Workbench: `.greet` (title + chips), then `.wb2` holding the lane
+      // board. Class names and structure are the prototype's own — see
+      // docs/design/command-center-v7 and CLAUDE.md rule #33.
       <LightWorkingArea>
-        <div className="max-w-[1600px] mx-auto">
-          <div className="flex items-center gap-3.5 flex-wrap mb-4">
-            <h1 className="font-heading text-3xl text-afs-ink-900">{workbench.summary.greeting}</h1>
-            {/* Wording lives in summaryChips() so the unit test asserts the
-                text that actually ships — see lib/data/workbench.ts. */}
-            {summaryChips(workbench.summary).map((chip) => (
-              <span
-                key={chip.text}
-                className={
-                  chip.tone === 'go'
-                    ? 'font-label text-[15px] font-semibold rounded-full px-3.5 py-1.5 bg-afs-green-deep text-afs-chrome-high'
-                    : 'font-label text-[15px] font-semibold rounded-full px-3.5 py-1.5 bg-afs-bg-card border border-afs-border-light text-afs-ink-900'
-                }
-              >
-                {chip.text}
-              </span>
-            ))}
+        <div className="greet">
+          {/* v7 titles this screen "Workbench" (`pageWorkbench()`, line 1283).
+              It is the nav item's own label, so the page says what you clicked
+              rather than greeting you — the greeting is still computed and is
+              carried as the heading's title attribute. */}
+          <h1 className="t" title={workbench.summary.greeting}>
+            Workbench
+          </h1>
+          {/* Wording lives in summaryChips() so the unit test asserts the
+              text that actually ships — see lib/data/workbench.ts. */}
+          <div className="chips">
+            {summaryChips(workbench.summary).map((chip) =>
+              chip.tone === 'go' ? (
+                <a key={chip.text} href="#lane-approved" className="chip go">
+                  <span className="beacon" />
+                  {chip.text}
+                </a>
+              ) : (
+                <span key={chip.text} className="chip">
+                  {chip.text}
+                </span>
+              ),
+            )}
           </div>
+        </div>
 
+        <div className="wb2">
           <WorkbenchLanes lanes={workbench.lanes} />
+          <WorkbenchRail shopCards={workbench.lanes.find((l) => l.key === 'shop')?.cards ?? []} />
+        </div>
 
+        <p className="foot">
+          <span>Done jobs leave the board after {DONE_ARCHIVE_DAYS} days. Search still finds them.</span>
           {workbench.archivedFromDone > 0 && (
             // Never a silent truncation: if the 14-day rule hid something, it
             // says so and says where the job still is.
-            <p className="font-body text-sm text-afs-ink-700 mt-4">
-              {workbench.archivedFromDone === 1 ? '1 finished job has' : `${workbench.archivedFromDone} finished jobs have`}{' '}
-              left the Workbench after {DONE_ARCHIVE_DAYS} days. Search still finds them.
-            </p>
+            <span>
+              {workbench.archivedFromDone === 1
+                ? '1 finished job has'
+                : `${workbench.archivedFromDone} finished jobs have`}{' '}
+              left the board.
+            </span>
           )}
-        </div>
+        </p>
       </LightWorkingArea>
     );
   }

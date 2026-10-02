@@ -3,6 +3,26 @@ module.exports = {
   content: [
     './app/**/*.{ts,tsx,mdx}',
     './components/**/*.{ts,tsx}',
+    // lib/ TOO, and this is not housekeeping — it was a live bug.
+    //
+    // Some class strings are DATA, not markup: lib/data/admin-working-area.ts
+    // exports LIGHT_WORKING_AREA_CLASS so that "which screens are light" is a
+    // unit test rather than a memory (CLAUDE.md rule #18). Without this glob
+    // Tailwind never sees those strings and never emits the rules, so the
+    // class lands in the HTML and does nothing.
+    //
+    // It went unnoticed because the old value — `bg-afs-bg-band
+    // text-afs-ink-900` — happened to use classes that ALSO appear under
+    // components/ (the marketing site's light sections), so they were emitted
+    // for other reasons. The moment that string named a token used only here,
+    // the light working area silently stopped painting and its text fell back
+    // to the body's light-on-dark colour. The v7 style gate caught it as
+    // `color #b8bfd0 != v7 #0f1318` on every element that inherits its colour.
+    //
+    // Worse, it was invisible to scripts/audit/contrast-check.mjs, which reads
+    // the class string statically and so measured a surface that was never
+    // rendered. Scanning lib/ is what keeps those two in step.
+    './lib/**/*.{ts,tsx}',
   ],
   theme: {
     extend: {
@@ -35,6 +55,30 @@ module.exports = {
           // credibility strip and the "Four Ways to Start" pathways section.
           'bg-band':         '#F1F2F4',
           'border-light':    '#D8D8D4',
+          // COMMAND CENTER v7 GROUND. The exact values prototype v7 resolves
+          // for `--bg` and `--ink` in its light theme (docs/design/
+          // command-center-v7/v7.css, <style> block 3). CLAUDE.md rule #33:
+          // v7 wins every conflict about colour, and the style gate compares
+          // the live working area against the prototype, so the surface a
+          // converted screen paints has to BE v7's surface.
+          //
+          // These sit a shade away from bg-band (#F1F2F4) and ink-900
+          // (#111111), which rule #18 would normally say to reuse. They are
+          // added anyway, and only because reuse is not available: bg-band and
+          // ink-900 are also the PUBLIC marketing site's light-section palette
+          // (the credibility strip, "Four Ways to Start"), which this build is
+          // required to leave visually unchanged. Retheming them to v7's values
+          // would silently restyle the homepage.
+          //
+          // They exist as Tailwind tokens rather than as v7's `.cc-v7-ground`
+          // class so that scripts/audit/contrast-check.mjs can still resolve
+          // the working area's background statically. A CSS-only ground would
+          // leave the gate measuring converted screens against the shell's
+          // gunmetal and reporting failures that cannot happen — rule #28's
+          // "the gate must not go blind", in the other direction.
+          //   v7-ink  #0F1318 on v7-bg #F4F5F7 = 17.09:1
+          'v7-bg':           '#F4F5F7',
+          'v7-ink':          '#0F1318',
           // COMMAND CENTER V2 LIGHT WORKING AREA (prompt v2-02). The header
           // stays gunmetal; the Workbench and Job screen below it are light,
           // per docs/design/command-center-v2-prototype.html. These six are

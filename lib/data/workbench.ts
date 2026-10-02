@@ -64,8 +64,12 @@ export interface WorkbenchCard {
   stage: JobStage;
   /** Company if we know it, else the person, else the guest email. */
   customer: string;
-  /** "Drip edge, 24 ga Charcoal Kynar × 40" — the item, as the card prints it. */
+  /** "Drip edge, 24 ga Charcoal Kynar × 40" — the item, as one line. */
   item: string;
+  /** v7 splits that in two: "Drip edge × 40" ... */
+  itemLine: string;
+  /** ... and "24 ga Charcoal Kynar", set smaller beside a colour chip. */
+  specLine: string;
   sourceLabel: string;
   sourceIcon: SourceIconKey;
   /** The card's one-line status, already written in plain English. */
@@ -157,6 +161,39 @@ export function describeCardItem(items: LineItemForCard[] | null): string {
 }
 
 /**
+ * The same first line item, split the way prototype v7's card prints it.
+ *
+ * v7 gives a card TWO lines where `describeCardItem` gives one: `.item` is the
+ * profile and the count ("Drip edge × 40") and `.spec` is the material, set
+ * smaller and dimmer beside a colour chip ("24 ga Charcoal Kynar"). The one
+ * string above cannot be split again reliably — "Drip edge, 24 ga Charcoal
+ * Kynar × 40" has a comma inside the material for some specs — so the parts are
+ * built from the line item rather than parsed back out of the sentence.
+ *
+ * Added ALONGSIDE `describeCardItem` rather than replacing it: that function is
+ * still the one-line form, it has its own tests, and other surfaces print it.
+ * The "+ N more items" note stays on the item line, where v7 puts the count.
+ */
+export function describeCardItemParts(items: LineItemForCard[] | null): {
+  itemLine: string;
+  specLine: string;
+} {
+  if (!items || items.length === 0) return { itemLine: 'No items listed', specLine: '' };
+  const first = items[0];
+  const name = (first.profileType ?? '').trim() || 'Custom profile';
+  const specLine = [first.gauge, first.material]
+    .filter((s): s is string => !!s && s.trim() !== '')
+    .join(' ');
+  const qty = Number(first.quantity) > 0 ? Math.round(Number(first.quantity)) : null;
+  let itemLine = qty ? `${name} × ${qty}` : name;
+  if (items.length > 1) {
+    const more = items.length - 1;
+    itemLine += ` + ${more} more item${more === 1 ? '' : 's'}`;
+  }
+  return { itemLine, specLine };
+}
+
+/**
  * When the clock for a stage starts. Falls back down the chain rather than
  * printing nothing: a row that predates migration 034 still has submitted_at.
  */
@@ -214,6 +251,7 @@ export function buildCard(
     stage,
     customer: opts.customer,
     item: describeCardItem(row.line_items),
+    ...describeCardItemParts(row.line_items),
     sourceLabel: sourceArrivalLabel(row.source_tool),
     sourceIcon: sourceIconKey(row.source_tool),
     isRush: row.is_rush === true,
@@ -315,27 +353,35 @@ export function buildSummary(
  * because the green chip is hidden at zero (prototype line 304).
  */
 export function summaryChips(summary: WorkbenchSummary): SummaryChip[] {
-  const chips: SummaryChip[] = [
-    {
-      text: summary.quotesToWrite === 1 ? '1 quote to write' : `${summary.quotesToWrite} quotes to write`,
-      tone: 'plain',
-    },
-  ];
-  // Only when there is something to act on — an always-present "0 approvals"
-  // chip would make the green call-to-action meaningless.
-  if (summary.approvalsReady > 0) {
-    chips.push({
-      text:
-        summary.approvalsReady === 1
-          ? '1 approval ready for the machine'
-          : `${summary.approvalsReady} approvals ready for the machine`,
-      tone: 'go',
-    });
-  }
+  // WORDING AND ORDER COME FROM PROTOTYPE v7 (`pageWorkbench()`, line 1283),
+  // which leads with the thing to act on and phrases it as the shop would:
+  // "2 ready for the machine", not "2 approvals ready".
+  const chips: SummaryChip[] = [];
+
+  // v7 shows this chip EITHER WAY: green with a pulsing beacon when there is
+  // something to send, and a plain "No approvals waiting" when there is not.
+  // The earlier version omitted it entirely at zero so the green chip would
+  // keep its meaning — v7 solves the same problem by changing the chip rather
+  // than removing it, which also stops the row from reflowing as work arrives.
+  chips.push(
+    summary.approvalsReady > 0
+      ? { text: `${summary.approvalsReady} ready for the machine`, tone: 'go' }
+      : { text: 'No approvals waiting', tone: 'plain' },
+  );
+
+  chips.push({ text: `${summary.quotesToWrite} to quote`, tone: 'plain' });
+
+  // v7's fourth chip counts today's DELIVERIES. The Workbench query does not
+  // read the deliveries table, so this counts jobs in the shop instead — the
+  // same lane v7's own "In the shop" rail panel reports — rather than printing
+  // a number nothing stands behind. Its third chip ("N new emails") is the
+  // Outlook inbox rail and is deliberately absent: there is no Graph code in
+  // this repo and this build does not add any.
   chips.push({
     text: summary.inTheShop === 1 ? '1 job in the shop' : `${summary.inTheShop} jobs in the shop`,
     tone: 'plain',
   });
+
   return chips;
 }
 

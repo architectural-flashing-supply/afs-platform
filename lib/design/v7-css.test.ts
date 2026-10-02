@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-// @ts-expect-error — a .mjs build script with no type declarations, imported
-// here on purpose: the test must exercise the REAL transform, not a copy of it.
+// The REAL transform, not a copy of it — a reimplementation here could agree
+// with itself while the shipped stylesheet drifted.
 import { buildScopedCss, SCOPE, UNSCOPED_IDS } from '../../scripts/design/scope-v7-css.mjs';
 
 /**

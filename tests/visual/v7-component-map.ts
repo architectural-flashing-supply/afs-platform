@@ -124,6 +124,19 @@ export interface V7ComponentPair {
    * reports these as UNCOVERED rather than passing them.
    */
   requiresData?: string;
+  /**
+   * Set when the component genuinely has no counterpart in the PROTOTYPE's
+   * rendered state, with the reason — v7's seed fills all five lanes, so its
+   * empty-lane message never renders even though its CSS defines one.
+   *
+   * This is NOT a skip. The gate still asserts the LIVE element exists and is
+   * rendered; it only forgoes the comparison, and prints the pair as
+   * `NO-PROTO` with this reason so it can never be mistaken for a pass. Use it
+   * only when the prototype cannot be driven into the state, never to silence
+   * a difference — a wrong colour here would be hidden, which is why it is a
+   * separate field from `skip` and carries its own column in the report.
+   */
+  absentInPrototype?: string;
 }
 
 /**
@@ -282,7 +295,181 @@ export const V7_COMPONENT_MAP: V7ComponentPair[] = [
     live: 'main.wrap',
     skip: { height: 'Page-length, set by content.' },
   },
+// ---------------------------------------------------------------- STAGE B
+  // The Workbench. `protoPage: null` because the prototype opens on it.
+  {
+    key: 'wb-greet',
+    label: 'Workbench greeting row',
+    stage: 'B',
+    protoPage: null,
+    proto: 'main.wrap .greet',
+    livePath: '/admin/command-center',
+    live: 'main.wrap .greet',
+    skip: { height: 'Content-sized.' },
+  },
+  {
+    key: 'wb-title',
+    label: 'Page title (h1.t)',
+    stage: 'B',
+    protoPage: null,
+    proto: 'main.wrap .greet h1.t',
+    livePath: '/admin/command-center',
+    live: 'main.wrap .greet h1.t',
+    skip: { height: 'Content-sized.' },
+  },
+  {
+    key: 'wb-chip',
+    label: 'Summary chip, plain',
+    stage: 'B',
+    protoPage: null,
+    proto: 'main.wrap .chips .chip:not(.go):not(.vio)',
+    livePath: '/admin/command-center',
+    live: 'main.wrap .chips .chip:not(.go):not(.vio)',
+  },
+  {
+    key: 'wb-lane',
+    label: 'Lane column',
+    stage: 'B',
+    protoPage: null,
+    proto: 'main.wrap .lanes .lane.new',
+    livePath: '/admin/command-center',
+    live: 'main.wrap .lanes .lane.new',
+    skip: { height: 'Content-sized — lane height follows its cards.' },
+  },
+  {
+    key: 'wb-lane-heading',
+    label: 'Lane heading',
+    stage: 'B',
+    protoPage: null,
+    proto: 'main.wrap .lanes .lane.new .lane-t h2',
+    livePath: '/admin/command-center',
+    live: 'main.wrap .lanes .lane.new .lane-t h2',
+    skip: { height: 'Content-sized.' },
+  },
+  {
+    key: 'wb-lane-count',
+    label: 'Lane count badge',
+    stage: 'B',
+    protoPage: null,
+    proto: 'main.wrap .lanes .lane.new .lc',
+    livePath: '/admin/command-center',
+    live: 'main.wrap .lanes .lane.new .lc',
+  },
+  {
+    key: 'wb-lane-sub',
+    label: 'Lane sub-heading',
+    stage: 'B',
+    protoPage: null,
+    proto: 'main.wrap .lanes .lane.new .lane-h p',
+    livePath: '/admin/command-center',
+    live: 'main.wrap .lanes .lane.new .lane-h p',
+    skip: { height: 'Content-sized.' },
+  },
+  {
+    key: 'wb-card',
+    label: 'Job card',
+    stage: 'B',
+    protoPage: null,
+    proto: 'main.wrap .lanes .lane.new .card',
+    livePath: '/admin/command-center',
+    live: 'main.wrap .lanes .lane.new .card',
+    skip: { height: 'Content-sized — real customer names wrap differently from samples.' },
+  },
+  {
+    key: 'wb-card-customer',
+    label: 'Job card customer link (.stretch)',
+    stage: 'B',
+    protoPage: null,
+    proto: 'main.wrap .lanes .lane.new .card .stretch',
+    livePath: '/admin/command-center',
+    live: 'main.wrap .lanes .lane.new .card .stretch',
+    skip: { height: 'Content-sized.' },
+  },
+  {
+    key: 'wb-card-item',
+    label: 'Job card item line',
+    stage: 'B',
+    protoPage: null,
+    proto: 'main.wrap .lanes .lane.new .card .item',
+    livePath: '/admin/command-center',
+    live: 'main.wrap .lanes .lane.new .card .item',
+    skip: { height: 'Content-sized.' },
+  },
+  {
+    key: 'wb-card-meta',
+    label: 'Job card meta row',
+    stage: 'B',
+    protoPage: null,
+    proto: 'main.wrap .lanes .lane.new .card .meta',
+    livePath: '/admin/command-center',
+    live: 'main.wrap .lanes .lane.new .card .meta',
+    skip: { height: 'Content-sized.' },
+  },
+  {
+    key: 'wb-card-src',
+    label: 'Job card source tag (.src)',
+    stage: 'B',
+    protoPage: null,
+    proto: 'main.wrap .lanes .lane.new .card .meta .src',
+    livePath: '/admin/command-center',
+    live: 'main.wrap .lanes .lane.new .card .meta .src',
+    skip: { height: 'Content-sized.' },
+  },
+  {
+    key: 'wb-card-button',
+    label: 'Job card action button (red, small)',
+    stage: 'B',
+    protoPage: null,
+    proto: 'main.wrap .lanes .lane.new .card .btn.red.sm',
+    livePath: '/admin/command-center',
+    live: 'main.wrap .lanes .lane.new .card .btn.red.sm',
+  },
+  {
+    key: 'wb-empty',
+    label: 'Empty lane message',
+    stage: 'B',
+    protoPage: null,
+    proto: 'main.wrap .lanes .lane .empty',
+    livePath: '/admin/command-center',
+    live: 'main.wrap .lanes .lane .empty',
+    skip: { height: 'Content-sized.' },
+    absentInPrototype:
+      "v7's demo seed puts at least one job in all five lanes, so its empty-lane " +
+      'message never renders, even though `.empty` is defined in its CSS. The live ' +
+      'element is still asserted to exist and render.',
+  },
+  {
+    key: 'wb-rail-panel',
+    label: 'Rail panel (.rp)',
+    stage: 'B',
+    protoPage: null,
+    proto: 'main.wrap .rail2 .rp',
+    livePath: '/admin/command-center',
+    live: 'main.wrap .rail2 .rp',
+    skip: { height: 'Content-sized.' },
+  },
+  {
+    key: 'wb-rail-heading',
+    label: 'Rail panel heading',
+    stage: 'B',
+    protoPage: null,
+    proto: 'main.wrap .rail2 .rp h3',
+    livePath: '/admin/command-center',
+    live: 'main.wrap .rail2 .rp h3',
+    skip: { height: 'Content-sized.' },
+  },
+  {
+    key: 'wb-foot',
+    label: 'Board footnote (.foot)',
+    stage: 'B',
+    protoPage: null,
+    proto: 'main.wrap .foot',
+    livePath: '/admin/command-center',
+    live: 'main.wrap .foot',
+    skip: { height: 'Content-sized.' },
+  },
 ];
+
 
 /**
  * How many pairs each stage is expected to contribute, so that building a
@@ -291,6 +478,7 @@ export const V7_COMPONENT_MAP: V7ComponentPair[] = [
  */
 export const EXPECTED_STAGE_COVERAGE: Partial<Record<V7ComponentPair['stage'], number>> = {
   A: 15,
+  B: 17,
 };
 
 /** The viewports the brief names for the shell, widest first. */

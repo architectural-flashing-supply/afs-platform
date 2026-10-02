@@ -228,7 +228,7 @@ async function gotoLivePage(page: Page, livePath: string) {
 
 interface PairResult {
   pair: V7ComponentPair;
-  status: 'pass' | 'fail' | 'uncovered';
+  status: 'pass' | 'fail' | 'uncovered' | 'no-proto';
   problems: string[];
 }
 
@@ -282,7 +282,21 @@ test.describe('v7 style gate', () => {
           const a = await computed(protoPage, pair.proto);
           const b = await computed(livePage, pair.live);
 
-          if (!a) {
+          if (pair.absentInPrototype) {
+            // No counterpart to compare against, but the LIVE element must
+            // still be there — otherwise this field would quietly excuse a
+            // component that was never built.
+            results.push({
+              pair,
+              status: b ? 'no-proto' : 'fail',
+              problems: b
+                ? [pair.absentInPrototype]
+                : [
+                    `live selector "${pair.live}" matched nothing on ${pair.livePath} ` +
+                      '(and the prototype has no counterpart, so nothing was compared)',
+                  ],
+            });
+          } else if (!a) {
             results.push({
               pair,
               status: 'uncovered',
@@ -339,10 +353,13 @@ test.describe('v7 style gate', () => {
     }
     const failed = results.filter((r) => r.status === 'fail');
     const uncovered = results.filter((r) => r.status === 'uncovered');
+    const noProto = results.filter((r) => r.status === 'no-proto');
     lines.push(
       '',
-      `${results.length} pairs checked · ${results.length - failed.length - uncovered.length} pass · ` +
-        `${failed.length} fail · ${uncovered.length} uncovered`,
+      `${results.length} pairs checked · ` +
+        `${results.length - failed.length - uncovered.length - noProto.length} pass · ` +
+        `${failed.length} fail · ${uncovered.length} uncovered · ` +
+        `${noProto.length} live-only (no prototype counterpart)`,
       '',
     );
     const report = lines.join('\n');
