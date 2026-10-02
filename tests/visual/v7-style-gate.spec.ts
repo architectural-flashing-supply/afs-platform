@@ -255,6 +255,28 @@ async function gotoLivePage(page: Page, livePath: string) {
   await page.evaluate(() => (document as unknown as { fonts: FontFaceSet }).fonts.ready);
 }
 
+/**
+ * Press a control until the thing it reveals is actually there, or give up
+ * after a few tries so a genuinely missing component still fails.
+ */
+async function openUntilVisible(
+  page: Page,
+  trigger: string,
+  revealed: string,
+  attempts = 3,
+): Promise<void> {
+  for (let i = 0; i < attempts; i++) {
+    if ((await page.locator(revealed).count()) > 0) return;
+    await page.locator(trigger).first().click();
+    try {
+      await page.locator(revealed).first().waitFor({ state: 'attached', timeout: 2000 });
+      return;
+    } catch {
+      // Not open yet — the click probably beat hydration. Try again.
+    }
+  }
+}
+
 interface PairResult {
   pair: V7ComponentPair;
   status: 'pass' | 'fail' | 'uncovered' | 'no-proto' | 'no-data';
@@ -300,8 +322,17 @@ test.describe('v7 style gate', () => {
           if (pair.open) {
             // Reveal on both sides. Re-navigating first keeps one pair's open
             // menu from covering the next pair's target.
-            await protoPage.locator(pair.open.proto).first().click();
-            await livePage.locator(pair.open.live).first().click();
+            //
+            // CLICK UNTIL IT OPENS, bounded. The live More button is a React
+            // client component, and `gotoLivePage` only waits for `header.hdr`
+            // — which is in the server-rendered HTML before hydration. A click
+            // that lands first is swallowed, the menu never opens, and the pair
+            // reports "matched nothing". That is a flaky FALSE failure: it
+            // passed on retry in the full suite and always passed when the
+            // spec ran alone, which is the signature of a hydration race, not
+            // of a missing component.
+            await openUntilVisible(protoPage, pair.open.proto, pair.proto);
+            await openUntilVisible(livePage, pair.open.live, pair.live);
           }
 
           const a = await computed(protoPage, pair.proto);
