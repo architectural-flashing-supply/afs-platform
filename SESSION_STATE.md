@@ -9297,3 +9297,53 @@ This closes the "Still open for Reid" item from the previous entry — the
 
 **Resume at v2-02.** v2-01 is complete and verified; re-running it would re-run
 a destructive clean slate against an already-clean database.
+
+---
+
+## 2026-10-01 — Command Center v7 gap audit (FORGE 2.0, branch `command-center-v7`)
+
+Read-only run from `main` at `256eca1`. Deliverable:
+`docs/COMMAND_CENTER_V7_GAP_AUDIT.md`. No application code touched; the only
+other edits are this file and STATE_OF_THE_BUILD.md.
+
+**Two things in the brief did not match reality, and both were corrected rather
+than worked around.**
+
+1. **The prototype was not at the given path.** It lives under a
+   `Claude outputs\` subfolder the brief omitted. Found by searching rather than
+   guessing: 2,225 lines, 303 KB, modified today at 18:06.
+2. **The brief repeated the `trica@` misspelling of Tricia's address — and so
+   does v7 itself, at line 850.** The live code is correct (`lib/data/office.ts`)
+   and the V2 spec records Reid settling it on 2026-09-30; that fix landed in the
+   *v2* prototype and never carried into v7. v7 also prints the wrong address to
+   the user (line 1590) and onto every quote and invoice (line 1869). Nothing
+   propagated it here; it is owner question #1 and every phase of the plan reads
+   `officeInvoiceEmail()`.
+
+**The most consequential audit finding is not a missing feature but a
+divergence.** The live app creates the invoice at **customer approval**
+(`app/api/quote-approve/[token]/route.ts:210`); v7 creates it at
+**shop-finish**. Both already email something at the right moments — the office
+copy at creation, the customer invoice at shop-finish — so this reads as "built"
+until the timing is compared. It bills differently the moment a change order or
+addendum lands in between, so it is written up as a decision for Reid, not a bug
+to fix silently.
+
+**The Microsoft blocker is much smaller than assumed.** Only the Workbench's
+Outlook inbox rail needs Graph. Items 6-9 (estimate to Tricia, reconciliation,
+change orders, addenda) all run on Resend, which is already wired. None of the
+six phases should wait for the 2026-10-02 tenant separation.
+
+Change orders and addenda returned **zero** matches across `app/ lib/
+components/` — genuinely absent, not partially built. `/admin/orders` and
+`/admin/pricing` exist as pages but are **unlinked** from `lib/data/admin-nav.ts`,
+which is the kind of gap that reads as "missing" from the UI and "built" from the
+filesystem; both are recorded as Partial with the path and the reason.
+
+Phase 4 (change orders) is flagged as the highest-risk item in the plan: voiding
+an approval interacts directly with rule #14's single-door guard, and the static
+single-door test must stay green with the new route kept **off** its allow-list.
+
+**Gates:** `pnpm tsc --noEmit` exit 0 (unchanged — no code edited);
+`git diff --stat` confirms docs only. Committed to `command-center-v7` and
+pushed. Not merged, not deployed; `products-page` untouched.

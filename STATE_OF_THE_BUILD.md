@@ -34,6 +34,75 @@ summary, not a replacement for it.
 
 ---
 
+## 2026-10-01 — COMMAND CENTER v7 GAP AUDIT (branch `command-center-v7`, read-only)
+
+Branch cut from `main` at `256eca1`. **No application code was changed.** The
+deliverable is `docs/COMMAND_CENTER_V7_GAP_AUDIT.md`: a ten-item status table
+against prototype v7, a six-phase build plan, the Microsoft-blocked list, and
+eight owner questions.
+
+**The prototype file was not where the brief said.** It is
+`ARCHITECTURAL FLASHING SUPPLY WEBSITE\cc-compare\Claude outputs\AFS_Command_Center_Prototype_v7.html`
+(2,225 lines, 303 KB, modified 2026-10-01 18:06) — the brief omitted the
+`Claude outputs\` subfolder. Its own `render()` dispatcher (line 1207) lists
+thirteen routes.
+
+### THE FINDING THAT MATTERS MOST
+
+**v7 line 850 is `var TRICIA = 'trica@architecturalflashingsupply.com'` — the
+MISSPELLING**, and it is printed to the user at line 1590 and onto every quote
+and invoice document at line 1869. The live app is correct (`lib/data/office.ts`,
+`tricia@`), and `docs/COMMAND_CENTER_V2_SPEC.md` records that `v2-01` fixed this
+in the *v2* prototype on 2026-09-30. **That fix did not carry into v7**, which is
+a later, separately generated file. The brief for this run repeated the
+misspelling too. It has not been propagated into any document or code; every
+phase in the plan uses `officeInvoiceEmail()` and never a literal. Flagged as
+owner question #1.
+
+### Status, with file evidence for every non-Missing claim
+
+Built: the five-lane Workbench (`lib/data/workbench.ts` + test), stage panes
+(`components/admin/JobActionPanel.tsx`), the light working area
+(`components/admin/LightWorkingArea.tsx`), the one red enforced by the prebuild
+contrast gate, the deliveries schedule list (`components/admin/DeliveriesWeek.tsx`),
+and the office copy of an invoice (`lib/invoices/create.ts:77`).
+
+Partial: nav is missing Quotes entirely and leaves `app/admin/orders/page.tsx`
+and `app/admin/pricing/page.tsx` **unlinked**; the header search is a submit form
+(`AdminTopBar.tsx:141`), not a type-ahead; the Search page searches **profiles**
+(`admin_profile_search`), not quotes and orders; the job card carries exactly
+**one** flag pill (`CommandCenterJobCard.tsx:112`, RUSH).
+
+Missing outright: the "+ New quote" button and page, the estimate copy to Tricia
+on quote send (`send-quote/route.ts` has **no** office reference), change orders
+and addenda (**zero** matches for `addendum`/`change_order` anywhere in
+`app/ lib/ components/`), and the deliveries tracking map.
+
+**Different, and it is a decision not a bug:** the invoice row is created at
+**customer approval** (`app/api/quote-approve/[token]/route.ts:210`), whereas v7
+creates it at **shop-finish**. The customer invoice email *does* already fire at
+shop-finish (`lib/utils/shop-job-completion.ts:134`). The reconciliation Tricia is
+meant to get at that moment does not exist.
+
+### What this changes about the plan
+
+**Only ONE v7 feature is Microsoft-blocked, and it is not among the ten audited
+items:** the Workbench "Email inbox" rail (v7 `railPanels()`, "Connected to
+Outlook"), which needs Graph and the deferred mail parser. Items 6-9 all send
+through Resend, which is already wired. **Nothing in the six-phase plan should
+wait for the 2026-10-02 tenant separation.**
+
+Phase order is Tricia's money trail first (no new UI, and the only gap where the
+business is currently missing information it should have), then nav + the Quotes
+list, then customer-first New quote, then change orders, then addenda, then the
+deliveries map. Phase 4 is flagged as the highest-risk: voiding an approval
+interacts directly with CLAUDE.md rule #14's single-door guard.
+
+**Gate:** `pnpm tsc --noEmit` exit 0; `git diff --stat` shows docs and governance
+only. **Status: AUDIT — nothing implemented, nothing to confirm behaviourally.**
+
+---
+
 ## COMMAND CENTER V2 — PROMPT v2-06 (2026-09-30)
 
 Hardening and the consolidation. No new feature, no migration: four audit
