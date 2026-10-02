@@ -295,7 +295,15 @@ describe('the light working area', () => {
   it('paints light AND cancels the shell gunmetal padding, or it would float in a dark frame', () => {
     expect(LIGHT_WORKING_AREA_CLASS).toContain('bg-afs-v7-bg');
     expect(LIGHT_WORKING_AREA_CLASS).toContain('text-afs-v7-ink');
-    expect(LIGHT_WORKING_AREA_CLASS).toContain('min-h-screen');
+    // `min-h-full grow`, NOT `min-h-screen`. The viewport height was applied to
+    // an element sitting BELOW a 65px header, so every short page came out 65px
+    // taller than the prototype's — the whole-screen pixel gate put the Quotes
+    // list at 8.23% on that alone. It fills `<main>` now, which AdminShell
+    // makes a growing flex column; all three pieces are needed and AdminShell's
+    // comment says why. Asserted as a pair so a half-revert fails here.
+    expect(LIGHT_WORKING_AREA_CLASS).toContain('min-h-full');
+    expect(LIGHT_WORKING_AREA_CLASS).toContain('grow');
+    expect(LIGHT_WORKING_AREA_CLASS).not.toContain('min-h-screen');
   });
 
   it("cancels exactly v7's .wrap padding — 20px sides and top, 60px bottom", () => {

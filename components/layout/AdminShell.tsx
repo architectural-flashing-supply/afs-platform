@@ -43,16 +43,41 @@ import AdminTopBar from '@/components/layout/AdminTopBar';
 export default function AdminShell({
   adminName,
   pendingMachineJobs = 0,
+  fixtureAllowed = false,
   children,
 }: {
   adminName: string;
   pendingMachineJobs?: number;
+  /**
+   * The ENVIRONMENT half of the fixture gate, resolved by the layout because a
+   * Next.js layout never receives `searchParams`. The header checks the URL
+   * half itself. False in any production build — see lib/fixtures/mode.ts.
+   */
+  fixtureAllowed?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <div className="cc-v7 min-h-screen bg-afs-bg-base">
-      <AdminTopBar adminName={adminName} pendingCount={pendingMachineJobs} />
-      <main className="wrap">{children}</main>
+    // `flex flex-col` + `grow w-full` on <main> is the other half of
+    // LIGHT_WORKING_AREA_CLASS's `min-h-full` — see that constant for the 65px
+    // it fixes. It adds layout, not style: v7 specifies `.wrap`'s padding,
+    // max-width and centring, and none of those change.
+    //
+    // `w-full` IS LOAD-BEARING AND IS NOT TIDY-AWAY-ABLE. v7 gives `.wrap`
+    // `margin: 0 auto`. In a COLUMN flex container those are CROSS-AXIS auto
+    // margins, and an auto cross-axis margin cancels `align-items: stretch` —
+    // so `<main>` stopped filling the row and shrank to its content: 795px wide
+    // on a 1440 viewport, centred, with the lane board in one narrow column and
+    // the page nearly twice as tall. The whole-screen gate reported the
+    // Workbench at 75% on the very next run, which is how this was found within
+    // a minute of making it. An explicit width restores the stretch while
+    // leaving the centring and the 1900px measure to do their jobs.
+    <div className="cc-v7 min-h-screen flex flex-col bg-afs-bg-base">
+      <AdminTopBar
+        adminName={adminName}
+        pendingCount={pendingMachineJobs}
+        fixtureAllowed={fixtureAllowed}
+      />
+      <main className="wrap grow w-full flex flex-col">{children}</main>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { requireAdminUser } from '@/lib/admin/auth';
 import AdminShell from '@/components/layout/AdminShell';
+import { fixtureAllowedByEnvironment } from '@/lib/fixtures/mode';
 
 // The Command Center's look is a port of prototype v7, and this is where its
 // stylesheet enters the app. Imported HERE rather than in the root layout so it
@@ -13,19 +14,29 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const supabase = await createClient();
   const admin = await requireAdminUser(supabase);
 
-  // The Workbench badge counts the NEW lane — the jobs that need a quote
-  // written. v2-02: this was `status='submitted'`, which counted the pre-V2
-  // Pending Approval tab. That is no longer what the badge sits next to: the
-  // Workbench's first lane is `job_stage='new'`, and status stays 'submitted'
-  // all the way to the machine (the single door requires it), so the old count
-  // would have kept counting jobs that are already quoted or approved.
+  // THE BADGE COUNTS WHAT v7 COUNTS. v7's `header()` puts `ap + nin` beside
+  // Workbench — approvals waiting for the machine, plus unread email. That is
+  // the number Steve acts on: work that is ready to go out, not work that has
+  // arrived. This used to count `job_stage='new'` (the first lane), which is
+  // the "to quote" chip's number and already on the screen below.
+  //
+  // The email half is 0 and says so on the Workbench: there is no Microsoft
+  // Graph connection (docs/COMMAND_CENTER_V2_SPEC.md §2.4), so nothing is being
+  // read and a count would be a claim about an inbox nobody has opened.
   const { count } = await supabase
     .from('quote_requests')
     .select('id', { count: 'exact', head: true })
-    .eq('job_stage', 'new');
+    .eq('job_stage', 'approved');
 
   return (
-    <AdminShell adminName={admin.fullName} pendingMachineJobs={count ?? 0}>
+    // `fixtureAllowed` is the ENVIRONMENT half of the fixture gate — the two
+    // locks a layout can see without a URL. The header checks the third
+    // (`?fixture=v7`) itself. See lib/fixtures/mode.ts.
+    <AdminShell
+      adminName={admin.fullName}
+      pendingMachineJobs={count ?? 0}
+      fixtureAllowed={fixtureAllowedByEnvironment()}
+    >
       {children}
     </AdminShell>
   );

@@ -80,5 +80,27 @@ export const LIGHT_WORKING_AREA_SCREENS: { screen: string; route: string }[] = [
  * a concatenated one reads as `unresolved` — which it treats as the gate going
  * blind.
  */
+/**
+ * `min-h-full`, NOT `min-h-screen`, AND THE REASON IS MEASURED.
+ *
+ * This used to end `min-h-screen`. That is 100vh applied to an element sitting
+ * BELOW a 65px header, so on any screen whose content is shorter than the
+ * viewport the document came out 965px tall against the prototype's 900 — a
+ * 65px band at the bottom of every short page, on every one of them. The
+ * whole-screen pixel gate put the Quotes list at 8.23% on that alone.
+ *
+ * `min-h-full grow` is 100% of `<main>`, and AdminShell makes `<main>` itself a
+ * growing flex column inside a `min-h-screen` one — so the working area fills
+ * exactly the space under the header and no more, which is what v7's `body`
+ * background does.
+ *
+ * ALL THREE PIECES HAVE TO CHANGE TOGETHER, and each was found by the gate
+ * rather than reasoned about: `min-h-full` alone resolves to `auto` against an
+ * auto-height parent and does nothing (the pale ground stopped where the
+ * content did and the rest of a short viewport stayed gunmetal); `grow` alone
+ * needs its parent to be a flex column; and the parent being a flex column
+ * needs `w-full` on `<main>`, because v7's `margin: 0 auto` becomes a
+ * cross-axis auto margin there and cancels the stretch. See AdminShell.
+ */
 export const LIGHT_WORKING_AREA_CLASS =
-  '-mt-5 -mb-[60px] -mx-5 pt-5 pb-[60px] px-5 min-h-screen bg-afs-v7-bg text-afs-v7-ink';
+  '-mt-5 -mb-[60px] -mx-5 pt-5 pb-[60px] px-5 min-h-full grow bg-afs-v7-bg text-afs-v7-ink';

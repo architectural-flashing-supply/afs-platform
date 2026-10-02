@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { TOP_LEVEL_NAV, MORE_NAV, ADMIN_SEARCH_HREF, NEW_QUOTE_HREF } from '@/lib/data/admin-nav';
 import { TYPEAHEAD_MIN_CHARS } from '@/lib/data/header-typeahead';
@@ -68,6 +68,13 @@ interface Suggest {
   emptyMessage: string | null;
 }
 
+/**
+ * v7's own badge number for the fixture render: its two approved jobs plus its
+ * five unread emails (`header()`'s `ap + nin`). A constant rather than a read,
+ * because in fixture mode there is no query behind it — the fixture IS the data.
+ */
+const FIXTURE_BADGE_COUNT = 7;
+
 /** v7 `cents()` (line 1067) — grouped dollars, two decimals, no currency code. */
 function cents(value: number): string {
   return `$${(value / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
@@ -76,12 +83,30 @@ function cents(value: number): string {
 export default function AdminTopBar({
   adminName,
   pendingCount = 0,
+  fixtureAllowed = false,
 }: {
   adminName: string;
   pendingCount?: number;
+  /** See AdminShell: the environment half of the fixture gate. */
+  fixtureAllowed?: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  /**
+   * FIXTURE MODE'S THIRD LOCK. `fixtureAllowed` carries the two the server
+   * checked (CC_FIXTURE=1, not a production build); this is the URL one. All
+   * three have to be open, so appending `?fixture=v7` to a production URL does
+   * nothing — `fixtureAllowed` is false there and this whole branch is dead.
+   *
+   * It exists for ONE value: the nav badge. v7 counts approvals plus unread
+   * email, and the pixel gate renders the prototype's sample data, so without
+   * this the badge differs on EVERY screen (the nav is on all of them) and the
+   * structure report fills with the same two lines thirty times over.
+   */
+  const fixture = fixtureAllowed && searchParams?.get('fixture') === 'v7';
+  const badgeCount = fixture ? FIXTURE_BADGE_COUNT : pendingCount;
   const [search, setSearch] = useState('');
   const [suggest, setSuggest] = useState<Suggest | null>(null);
   const [suggestOpen, setSuggestOpen] = useState(false);
@@ -190,7 +215,7 @@ export default function AdminTopBar({
                 aria-current={active ? 'page' : undefined}
               >
                 {item.label}
-                {item.badge && pendingCount > 0 && <span className="cnt">{pendingCount}</span>}
+                {item.badge && badgeCount > 0 && <span className="cnt">{badgeCount}</span>}
               </Link>
             );
           })}

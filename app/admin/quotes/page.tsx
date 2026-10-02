@@ -1,19 +1,26 @@
 import { createClient } from '@/lib/supabase/server';
 import { requireAdminUser } from '@/lib/admin/auth';
 import LightWorkingArea from '@/components/admin/LightWorkingArea';
-import QuoteOrderList from '@/components/admin/QuoteOrderList';
+import V7List from '@/components/admin/v7/V7List';
 import { getQuoteOrderRows } from '@/lib/data/quote-order-rows';
-import { applyListQuery, parseListQuery, type ListRow } from '@/lib/data/quote-order-list';
-import { NEW_QUOTE_HREF } from '@/lib/data/admin-nav';
+import { applyListQuery, parseListQuery } from '@/lib/data/quote-order-list';
+import { isFixtureMode, type SearchParamValue } from '@/lib/fixtures/mode';
+import { fixtureList } from '@/lib/data/v7-view/from-fixture';
+import { liveList } from '@/lib/data/v7-view/from-live-lists';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * QUOTES — v7 `pageList('quotes')` (prototype line 1732).
+ * QUOTES — v7 `pageList('quotes')` (prototype line 1745).
  *
  * Quotes only: the `new` and `quoted` stages. Everything the customer has
  * already approved lives on /admin/orders, which v7 keeps deliberately
  * separate.
+ *
+ * The screen is now `components/admin/v7/V7List.tsx`, a transliteration of v7's
+ * own markup, shared with Orders exactly as v7 shares one `pageList(kind)`
+ * between them. The query layer below is UNCHANGED — `parseListQuery` and
+ * `applyListQuery` are the same pure, unit-tested functions they were.
  *
  * Auth follows the existing admin pattern exactly: `requireAdminUser` on the
  * server, which redirects anyone who is not `role='admin'`. The viewer's
@@ -22,29 +29,30 @@ export const dynamic = 'force-dynamic';
 export default async function AdminQuotesPage({
   searchParams,
 }: {
-  searchParams: { q?: string; stage?: string; range?: string; sort?: string };
+  searchParams: { q?: string; stage?: string; range?: string; sort?: string } & Record<
+    string,
+    SearchParamValue
+  >;
 }) {
   const supabase = await createClient();
   await requireAdminUser(supabase);
 
   const query = parseListQuery(searchParams, 'quotes');
+
+  if (isFixtureMode(searchParams)) {
+    return (
+      <LightWorkingArea>
+        <V7List view={fixtureList('quotes', query)} />
+      </LightWorkingArea>
+    );
+  }
+
   const all = await getQuoteOrderRows(supabase);
   const rows = applyListQuery(all, 'quotes', query);
 
   return (
     <LightWorkingArea>
-      <QuoteOrderList
-        kind="quotes"
-        title="Quotes"
-        blurb="Every quote that still needs a price or is waiting on the customer. Revised quotes show here too."
-        query={query}
-        rows={rows}
-        rowHref={(row: ListRow) => `/admin/command-center/job/${row.id}`}
-        // v7 puts "+ New quote" on the Quotes list and nowhere else
-        // (pageList, line 1735). Shares NEW_QUOTE_HREF with the header button
-        // so the two can never point at different places.
-        newQuoteHref={NEW_QUOTE_HREF}
-      />
+      <V7List view={liveList('quotes', query, rows)} />
     </LightWorkingArea>
   );
 }

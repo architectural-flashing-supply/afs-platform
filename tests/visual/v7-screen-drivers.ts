@@ -75,10 +75,25 @@ async function act(page: Page, selector: string) {
   await page.locator(selector).first().click();
 }
 
-/** Type into a prototype input the way a person does, so `input` handlers fire. */
+/**
+ * Type into a prototype input the way a person does, so `input` handlers fire —
+ * then BLUR it.
+ *
+ * The blur is not cosmetic. The prototype reaches a filtered state by typing,
+ * and the live app reaches the same state from the URL, so without it the
+ * prototype side carries a focus ring on the search box that the live side
+ * cannot have whatever the port does. That is an artifact of how the gate
+ * drives the two sides, not a difference between them, and leaving it in would
+ * eventually be "fixed" by widening a mask.
+ *
+ * It does NOT blur generally: v7 deliberately focuses the first button in a
+ * modal (`render()`'s own tail), and that focus IS design state both sides must
+ * show.
+ */
 async function type(page: Page, selector: string, value: string) {
   await page.locator(selector).first().fill(value);
   await page.locator(selector).first().dispatchEvent('input');
+  await page.locator(selector).first().evaluate((el: HTMLElement) => el.blur());
 }
 
 async function selectOpt(page: Page, selector: string, value: string) {

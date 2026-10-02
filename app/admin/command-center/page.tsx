@@ -21,10 +21,12 @@ import PendingQuoteRequestCard from '@/components/admin/PendingQuoteRequestCard'
 import BidsCrmTab from '@/components/admin/BidsCrmTab';
 import CommandCenterDashboard from '@/components/admin/CommandCenterDashboard';
 import LightWorkingArea from '@/components/admin/LightWorkingArea';
-import WorkbenchLanes from '@/components/admin/WorkbenchLanes';
-import WorkbenchRail from '@/components/admin/WorkbenchRail';
-import { getWorkbench, summaryChips, DONE_ARCHIVE_DAYS } from '@/lib/data/workbench';
+import V7Workbench from '@/components/admin/v7/V7Workbench';
+import { getWorkbench } from '@/lib/data/workbench';
 import { getDeliveriesView } from '@/lib/data/deliveries';
+import { isFixtureMode, type SearchParamValue } from '@/lib/fixtures/mode';
+import { fixtureWorkbench } from '@/lib/data/v7-view/from-fixture';
+import { liveWorkbench } from '@/lib/data/v7-view/from-live';
 
 // Phase 2 (Command Center redesign, afs-cc-001) — this page previously also
 // hosted `?tab=customers`/`?tab=orders` CRM views. Those had real dedicated
@@ -75,9 +77,19 @@ function isTab(value: string | undefined): value is PageTab {
   return ALL_TAB_VALUES.some((tab) => tab === value);
 }
 
-export default async function CommandCenterPage({ searchParams }: { searchParams: { tab?: string } }) {
+export default async function CommandCenterPage({
+  searchParams,
+}: {
+  searchParams: { tab?: string } & Record<string, SearchParamValue>;
+}) {
   const supabase = await createClient();
   const adminUser = await requireAdminUser(supabase);
+
+  // FIXTURE MODE. Three locks, all of which must be open — lib/fixtures/mode.ts.
+  // It replaces the DATA only: the markup, the components and the CSS below are
+  // the same ones real rows render through, which is what makes the pixel
+  // gate's measurement mean anything about what people actually see.
+  const fixture = isFixtureMode(searchParams);
 
   // Landing on /admin/command-center with no ?tab at all is THE WORKBENCH.
   // Any explicit ?tab=... value falls through to the pre-existing
@@ -88,6 +100,15 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
   const isMachineTab = activeTab === 'pending' || activeTab === 'sent' || activeTab === 'completed';
 
   if (showWorkbench) {
+    if (fixture) {
+      // v7's own sample data, through the same component and the same CSS.
+      return (
+        <LightWorkingArea>
+          <V7Workbench view={fixtureWorkbench()} live={false} />
+        </LightWorkingArea>
+      );
+    }
+
     // First name only. "Good morning, Steve." is how the approved prototype
     // greets, and a full legal name there reads like a form letter.
     const firstName = adminUser.fullName.trim().split(/\s+/)[0] || 'there';
@@ -97,60 +118,19 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
     // two BUSINESS days getDeliveriesView already computed — a Friday's panel
     // therefore shows Friday and Monday, not Friday and Saturday.
     const deliveries = await getDeliveriesView(supabase);
-    const nextTwoDays = deliveries.days.slice(0, 2).map((d) => ({ heading: d.heading, stops: d.stops }));
+    const nextTwoDays = deliveries.days.slice(0, 2).map((d) => ({
+      heading: d.heading,
+      stops: d.stops.map((s) => ({
+        id: s.deliveryId,
+        customer: s.customer,
+        window: s.timeWindowLabel,
+        item: s.item,
+      })),
+    }));
 
     return (
-      // v7's Workbench: `.greet` (title + chips), then `.wb2` holding the lane
-      // board. Class names and structure are the prototype's own — see
-      // docs/design/command-center-v7 and CLAUDE.md rule #33.
       <LightWorkingArea>
-        <div className="greet">
-          {/* v7 titles this screen "Workbench" (`pageWorkbench()`, line 1283).
-              It is the nav item's own label, so the page says what you clicked
-              rather than greeting you — the greeting is still computed and is
-              carried as the heading's title attribute. */}
-          <h1 className="t" title={workbench.summary.greeting}>
-            Workbench
-          </h1>
-          {/* Wording lives in summaryChips() so the unit test asserts the
-              text that actually ships — see lib/data/workbench.ts. */}
-          <div className="chips">
-            {summaryChips(workbench.summary).map((chip) =>
-              chip.tone === 'go' ? (
-                <a key={chip.text} href="#lane-approved" className="chip go">
-                  <span className="beacon" />
-                  {chip.text}
-                </a>
-              ) : (
-                <span key={chip.text} className="chip">
-                  {chip.text}
-                </span>
-              ),
-            )}
-          </div>
-        </div>
-
-        <div className="wb2">
-          <WorkbenchLanes lanes={workbench.lanes} />
-          <WorkbenchRail
-            shopCards={workbench.lanes.find((l) => l.key === 'shop')?.cards ?? []}
-            nextTwoDays={nextTwoDays}
-          />
-        </div>
-
-        <p className="foot">
-          <span>Done jobs leave the board after {DONE_ARCHIVE_DAYS} days. Search still finds them.</span>
-          {workbench.archivedFromDone > 0 && (
-            // Never a silent truncation: if the 14-day rule hid something, it
-            // says so and says where the job still is.
-            <span>
-              {workbench.archivedFromDone === 1
-                ? '1 finished job has'
-                : `${workbench.archivedFromDone} finished jobs have`}{' '}
-              left the board.
-            </span>
-          )}
-        </p>
+        <V7Workbench view={liveWorkbench(workbench, nextTwoDays)} />
       </LightWorkingArea>
     );
   }
