@@ -80,8 +80,27 @@ export function V7ColorLine({ spec, note }: { spec: V7SpecChip; note: string }) 
   );
 }
 
+/**
+ * A WHOLE-className MAP, NOT A TEMPLATE, AND CLAUDE.md RULE #28 IS WHY.
+ *
+ * The contrast gate (`scripts/audit/contrast-check.mjs`, which runs as
+ * `prebuild`) expands a class map to its values and can therefore measure the
+ * colours. A runtime template like `` `pill ${tone}` `` it reports as
+ * UNRESOLVED — and rule #28 says a rising unresolved count means the gate got
+ * blinder, not that the code got safer. These were templates on the first pass
+ * and took the count from 0 to 65 in one build.
+ */
+const PILL_CLASS: Record<string, string> = {
+  '': 'pill',
+  g: 'pill g',
+  a: 'pill a',
+  b: 'pill b',
+  r: 'pill r',
+  v: 'pill v',
+};
+
 export function V7PillEl({ pill }: { pill: V7Pill }) {
-  return <span className={pill.tone ? `pill ${pill.tone}` : 'pill'}>{pill.text}</span>;
+  return <span className={PILL_CLASS[pill.tone] ?? 'pill'}>{pill.text}</span>;
 }
 
 /**

@@ -21,6 +21,25 @@ import type { V7DeliveriesView, V7DeliveryCard } from '@/lib/data/v7-view/delive
  *
  * The divergence is listed in docs/design/V7_PIXEL_REPORT.md, where it belongs.
  */
+/**
+ * A WHOLE-className MAP, NOT A TEMPLATE, AND CLAUDE.md RULE #28 IS WHY.
+ *
+ * The contrast gate (`scripts/audit/contrast-check.mjs`, which runs as
+ * `prebuild`) expands a class map to its values and can therefore measure the
+ * colours. A runtime template like `` `pill ${tone}` `` it reports as
+ * UNRESOLVED — and rule #28 says a rising unresolved count means the gate got
+ * blinder, not that the code got safer. These were templates on the first pass
+ * and took the count from 0 to 65 in one build.
+ */
+const TRACK_PILL_CLASS: Record<string, string> = { g: 'pill g', a: 'pill a' };
+
+/** v7's `.st` chip on an unscheduled delivery card (`dcard()`, line 1810). */
+const STATE_CLASS: Record<string, string> = {
+  st: 'st',
+  'st bend': 'st bend',
+  'st finished': 'st finished',
+};
+
 const SPLIT_CLASS: Record<'split' | 'list' | 'map', string> = {
   split: 'dsplit',
   list: 'dsplit fl',
@@ -122,7 +141,7 @@ export default function V7Deliveries({ view }: { view: V7DeliveriesView }) {
                     <b>{r.customer}</b>
                     <span>{r.detail}</span>
                   </div>
-                  <span className={`pill ${r.pillTone}`}>{r.state}</span>
+                  <span className={TRACK_PILL_CLASS[r.pillTone] ?? 'pill'}>{r.state}</span>
                 </div>
               ))
             ) : (
@@ -156,7 +175,7 @@ function DCard({ card }: { card: V7DeliveryCard }) {
       </div>
       {card.state ? (
         <div className="drow">
-          <span className={card.state.tone}>{card.state.text}</span>
+          <span className={STATE_CLASS[card.state.tone] ?? 'st'}>{card.state.text}</span>
         </div>
       ) : (
         <span className="win">{card.window}</span>

@@ -25,6 +25,38 @@ import type { V7CheckRow, V7JobStagePane, V7JobView } from '@/lib/data/v7-view/j
  * measure the three-column grid, the stage strip, the parser-reading rows, the
  * profile plate and table, and each of the five panes.
  */
+/**
+ * A WHOLE-className MAP, NOT A TEMPLATE, AND CLAUDE.md RULE #28 IS WHY.
+ *
+ * The contrast gate (`scripts/audit/contrast-check.mjs`, which runs as
+ * `prebuild`) expands a class map to its values and can therefore measure the
+ * colours. A runtime template like `` `pill ${tone}` `` it reports as
+ * UNRESOLVED — and rule #28 says a rising unresolved count means the gate got
+ * blinder, not that the code got safer. These were templates on the first pass
+ * and took the count from 0 to 65 in one build.
+ */
+const STEP_CLASS: Record<string, string> = {
+  '': 'step',
+  done: 'step done',
+  cur: 'step cur',
+};
+
+const PSTRIP_CLASS: Record<string, string> = {
+  green: 'pstrip green',
+  amber: 'pstrip amber',
+  blue: 'pstrip blue',
+  red: 'pstrip red',
+};
+
+const TAG_CLASS: Record<string, string> = {
+  '': 'tag',
+  amber: 'tag amber',
+  green: 'tag green',
+  violet: 'tag violet',
+  blue: 'tag blue',
+  red: 'tag red',
+};
+
 export default function V7Job({ view }: { view: V7JobView }) {
   return (
     <>
@@ -43,7 +75,7 @@ export default function V7Job({ view }: { view: V7JobView }) {
         </div>
         <div className="steps" role="list" aria-label="Job stage">
           {view.steps.map((s) => (
-            <span key={s.label} role="listitem" className={s.state ? `step ${s.state}` : 'step'}>
+            <span key={s.label} role="listitem" className={STEP_CLASS[s.state] ?? 'step'}>
               {s.label}
             </span>
           ))}
@@ -109,7 +141,7 @@ function ProfilePane({ view }: { view: V7JobView }) {
       <V7Plate drawing={p.drawing} ang />
       <V7Legend />
 
-      <div className={`pstrip ${p.strip.tone}`}>
+      <div className={PSTRIP_CLASS[p.strip.tone] ?? 'pstrip'}>
         <div>
           <b>{p.strip.title}</b>
           {p.strip.body}
@@ -310,7 +342,7 @@ function StagePane({ pane }: { pane: V7JobStagePane }) {
     <>
       <h2>
         {pane.heading}{' '}
-        <span className={pane.tag.tone ? `tag ${pane.tag.tone}` : 'tag'}>{pane.tag.text}</span>
+        <span className={TAG_CLASS[pane.tag.tone] ?? 'tag'}>{pane.tag.text}</span>
       </h2>
 
       {pane.lead && <Lead lead={pane.lead} />}
@@ -413,17 +445,33 @@ function Lead({ lead }: { lead: { beacon: boolean; html: string } }) {
   );
 }
 
-const MARK: Record<V7CheckRow['mark'], { cls: string; glyph: string }> = {
-  tick: { cls: '', glyph: '✓' },
-  wait: { cls: 'w', glyph: '•' },
-  warn: { cls: 'w', glyph: '!' },
+/**
+ * v7's `.chk` mark. The CLASS and the GLYPH are separate maps keyed by the same
+ * value, rather than one map of objects, for the reason in the header of
+ * STEP_CLASS: the contrast gate expands a class MAP and reads its colours, but
+ * reports `m.cls` — a property read — as unresolved, and rule #28 treats a
+ * rising unresolved count as the gate going blind. Two maps, both resolvable.
+ */
+const MARK_CLASS: Record<V7CheckRow['mark'], string> = {
+  // v7's tick carries no class at all; `.chk i` is already the green circle and
+  // `.chk i.w` is the amber one. An empty string is the faithful value — not an
+  // invented class name, which would put a selector in the DOM that no
+  // stylesheet has.
+  tick: '',
+  wait: 'w',
+  warn: 'w',
+};
+
+const MARK_GLYPH: Record<V7CheckRow['mark'], string> = {
+  tick: '✓',
+  wait: '•',
+  warn: '!',
 };
 
 function Check({ row }: { row: V7CheckRow }) {
-  const m = MARK[row.mark];
   return (
     <div className="chk">
-      <i className={m.cls || undefined}>{m.glyph}</i>
+      <i className={MARK_CLASS[row.mark]}>{MARK_GLYPH[row.mark]}</i>
       <div>
         {row.text}
         {row.small && <small>{row.small}</small>}

@@ -289,6 +289,26 @@ not by reading the number. Keep doing that.
   churn per run for no gain. The canonical truth is the prototype HTML, which
   **is** committed.
 
+### The contrast gate caught this run, and it was right
+
+`pnpm build` runs `scripts/audit/contrast-check.mjs` as `prebuild` (rule #28),
+and the first build after the rebuild reported **65 unresolved** where the
+previous state had **0**. Nothing was below threshold, so the build still
+passed — but rule #28 is explicit that *"if a change makes that number rise, the
+gate got blinder, not the code safer."*
+
+The cause was mine: the new components built class names as runtime templates —
+`` `pill ${tone}` ``, `` `pstrip ${tone}` ``, `` `step ${state}` `` — which the
+contrast gate cannot read, so 65 colour pairs stopped being measured at all.
+They are whole-className **maps** now (`PILL_CLASS`, `PSTRIP_CLASS`,
+`STEP_CLASS`, `TAG_CLASS`, `INBOX_CLASS`, `TRACK_PILL_CLASS`, `STATE_CLASS`,
+`MARK_CLASS`), which the gate expands and measures.
+
+**Back to `24 screens · 248 colour pairs · 0 unresolved · 0 below threshold`.**
+
+Worth recording because it is the same failure mode as the style gate, one layer
+down: a gate that silently stops looking at something still reports PASS.
+
 ### One thing to know about running it
 
 **Give `next dev` a moment after a large file change before trusting a run.**

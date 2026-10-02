@@ -29,6 +29,33 @@ import type { V7Card, V7Chip, V7Lane, V7RailRow, V7WorkbenchView } from '@/lib/d
  * previous component — it was correct, and a Workbench left open on a shop
  * office monitor would otherwise re-query forever for nobody.
  */
+/**
+ * A WHOLE-className MAP, NOT A TEMPLATE, AND CLAUDE.md RULE #28 IS WHY.
+ *
+ * The contrast gate (`scripts/audit/contrast-check.mjs`, which runs as
+ * `prebuild`) expands a class map to its values and can therefore measure the
+ * colours. A runtime template like `` `pill ${tone}` `` it reports as
+ * UNRESOLVED — and rule #28 says a rising unresolved count means the gate got
+ * blinder, not that the code got safer. These were templates on the first pass
+ * and took the count from 0 to 65 in one build.
+ */
+const PSTRIP_CLASS: Record<string, string> = {
+  green: 'pstrip green',
+  amber: 'pstrip amber',
+  red: 'pstrip red',
+  blue: 'pstrip blue',
+};
+
+/** v7 colours an inbox row by message type (`inboxRow()`, line 1262). */
+const INBOX_CLASS: Record<string, string> = {
+  order: 'rl m order',
+  reorder: 'rl m reorder',
+  approval: 'rl m approval',
+  notice: 'rl m notice',
+  skip: 'rl m skip',
+  done: 'rl m done',
+};
+
 const REFRESH_MS = 60_000;
 
 export default function V7Workbench({
@@ -283,7 +310,7 @@ function CardEl({
       </div>
 
       {result && (
-        <div role="status" data-testid="card-send-result" className={`pstrip ${result.tone}`}>
+        <div role="status" data-testid="card-send-result" className={PSTRIP_CLASS[result.tone] ?? 'pstrip'}>
           <div>{result.message}</div>
         </div>
       )}
@@ -320,7 +347,7 @@ function RailPanels({ view }: { view: V7WorkbenchView }) {
             </div>
             <div className="scroll">
               {view.inbox.rows.map((m) => (
-                <div className={`rl m ${m.type}`} key={m.key}>
+                <div className={INBOX_CLASS[m.type] ?? 'rl m'} key={m.key}>
                   <div className="tx">
                     <b>{m.company}</b>
                     <span>
