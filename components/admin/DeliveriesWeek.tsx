@@ -27,6 +27,22 @@ import { formatDayHeading } from '@/lib/delivery/business-days';
  * whole refresh story, so there is no interval to pause.
  */
 
+/**
+ * v7's `.pstrip` notice and `.dcard` stop, per state. Maps to the WHOLE
+ * className rather than templates: the contrast gate expands class maps but
+ * counts a runtime template as `unresolved` (CLAUDE.md rule #28).
+ */
+const RESULT_CLASS: Record<'ok' | 'info' | 'error', string> = {
+  ok: 'pstrip green',
+  info: 'pstrip amber',
+  error: 'pstrip red',
+};
+
+const STOP_CLASS: Record<'delivered' | 'scheduled', string> = {
+  delivered: 'dcard done',
+  scheduled: 'dcard',
+};
+
 type Result = { tone: 'ok' | 'info' | 'error'; message: string } | null;
 
 interface ScheduleTarget {
@@ -100,37 +116,34 @@ export default function DeliveriesWeek({
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="dlist">
       {result && (
         <p
           role="status"
           data-testid="deliveries-result"
-          className={`font-body text-[17px] rounded-lg p-3.5 ${
-            result.tone === 'error'
-              ? 'bg-afs-bg-card border border-afs-line-strong text-afs-crimson'
-              : result.tone === 'info'
-                ? 'bg-afs-amber-bg text-afs-amber-ink'
-                : 'bg-afs-green-soft text-afs-green-ink'
-          }`}
+          className={RESULT_CLASS[result.tone]}
         >
           {result.message}
         </p>
       )}
 
-      <div className="grid gap-5 xl:grid-cols-[3fr_1fr] grid-cols-1">
+      <div className="dlist">
         {/* ---------------- THE WEEK ---------------- */}
         <div>
-          <div className="grid gap-3 grid-cols-1 md:grid-cols-3 xl:grid-cols-5" data-testid="delivery-week">
+          <div className="dgrid" data-testid="delivery-week">
             {view.days.map((d) => (
               <section
                 key={d.date}
                 data-testid="delivery-day"
                 data-date={d.date}
-                className="bg-afs-bg-card border border-afs-border-light rounded-xl p-3.5 flex flex-col gap-2.5"
+                className="day"
               >
-                <h2 className="font-heading text-xl text-afs-ink-900 m-0">{d.heading}</h2>
+                {/* v7's `.dh` day header: the name, then the sub-line. */}
+                <div className="dh">
+                  <div className="dn">{d.heading}</div>
+                </div>
                 {d.stops.length === 0 ? (
-                  <p className="font-body text-[15px] text-afs-ink-700 m-0">No deliveries</p>
+                  <p className="hint">No deliveries</p>
                 ) : (
                   d.stops.map((s) => <Stop key={s.deliveryId} stop={s} busy={busy} onMark={post} onChange={openScheduler} />)
                 )}
@@ -139,7 +152,7 @@ export default function DeliveriesWeek({
           </div>
 
           {view.beyondWeek.count > 0 && (
-            <p data-testid="beyond-week" className="font-body text-[15px] text-afs-ink-700 mt-3">
+            <p data-testid="beyond-week" className="hint">
               {view.beyondWeek.count === 1
                 ? `1 more delivery is booked beyond this week, the next on ${view.beyondWeek.earliestHeading}.`
                 : `${view.beyondWeek.count} more deliveries are booked beyond this week, the next on ${view.beyondWeek.earliestHeading}.`}
@@ -150,11 +163,11 @@ export default function DeliveriesWeek({
         {/* ---------------- NOT SCHEDULED YET ---------------- */}
         <section
           data-testid="not-scheduled"
-          className="bg-afs-bg-card border border-afs-border-light rounded-xl p-4 flex flex-col gap-2.5 self-start"
+          className="day"
         >
-          <h2 className="font-heading text-xl text-afs-ink-900 m-0">Not scheduled yet</h2>
+          <h2>Not scheduled yet</h2>
           {view.unscheduled.length === 0 ? (
-            <p className="font-body text-[15px] text-afs-ink-700 m-0">
+            <p className="hint">
               Everything the machine has finished has a delivery day.
             </p>
           ) : (
@@ -168,7 +181,7 @@ export default function DeliveriesWeek({
       {/* ---------------- THE DAY + WINDOW WINDOW ---------------- */}
       {target && (
         <div
-          className="fixed inset-0 z-50 bg-afs-bg-overlay/80 flex items-center justify-center p-4"
+          className="modal-bg"
           onClick={(e) => {
             if (e.target === e.currentTarget) setTarget(null);
           }}
@@ -178,19 +191,19 @@ export default function DeliveriesWeek({
             aria-modal="true"
             aria-label="Schedule delivery"
             data-testid="schedule-modal"
-            className="bg-afs-bg-card rounded-xl p-5 w-full max-w-lg flex flex-col gap-3.5"
+            className="modal"
           >
-            <h2 className="font-heading text-2xl text-afs-ink-900 m-0">
+            <h2>
               {target.currentDate ? 'Change the delivery day' : 'Schedule delivery'}
             </h2>
-            <p className="font-body text-[17px] text-afs-ink-900 m-0">
+            <p>
               <b>{target.customer}</b>, {target.item}
               {target.quantity ? ` × ${target.quantity}` : ''}
             </p>
 
-            <div className="grid gap-3 sm:grid-cols-2 grid-cols-1">
-              <div className="flex flex-col gap-1.5">
-                <label htmlFor="delivery-day" className="font-label text-[15px] font-bold text-afs-ink-900">
+            <div className="dgrid">
+              <div className="fld">
+                <label htmlFor="delivery-day">
                   Day
                 </label>
                 <select
@@ -198,7 +211,7 @@ export default function DeliveriesWeek({
                   data-testid="delivery-day-select"
                   value={day}
                   onChange={(e) => setDay(e.target.value)}
-                  className="min-h-12 rounded-lg border border-afs-line-strong bg-afs-bg-card text-afs-ink-900 font-body text-[17px] px-3"
+                  className="f"
                 >
                   {dayOptions.map((o) => (
                     <option key={o.value} value={o.value}>
@@ -207,8 +220,8 @@ export default function DeliveriesWeek({
                   ))}
                 </select>
               </div>
-              <div className="flex flex-col gap-1.5">
-                <label htmlFor="delivery-window" className="font-label text-[15px] font-bold text-afs-ink-900">
+              <div className="fld">
+                <label htmlFor="delivery-window">
                   Time window
                 </label>
                 <select
@@ -216,7 +229,7 @@ export default function DeliveriesWeek({
                   data-testid="delivery-window-select"
                   value={timeWindow}
                   onChange={(e) => setTimeWindow(e.target.value)}
-                  className="min-h-12 rounded-lg border border-afs-line-strong bg-afs-bg-card text-afs-ink-900 font-body text-[17px] px-3"
+                  className="f"
                 >
                   {DELIVERY_WINDOW_OPTIONS.map((o) => (
                     <option key={o.key} value={o.key}>
@@ -227,7 +240,7 @@ export default function DeliveriesWeek({
               </div>
             </div>
 
-            <label className="flex items-center gap-2.5 font-label text-[17px] font-bold text-afs-ink-900 min-h-12 cursor-pointer">
+            <label className="chk">
               <input
                 type="checkbox"
                 data-testid="delivery-notify"
@@ -238,11 +251,11 @@ export default function DeliveriesWeek({
               Text and email the customer a tracking link
             </label>
 
-            <div className="flex gap-2.5 justify-end flex-wrap">
+            <div className="actions">
               <button
                 type="button"
                 onClick={() => setTarget(null)}
-                className="min-h-12 px-5 rounded-lg font-label text-[17px] font-bold bg-afs-bg-card border border-afs-line-strong text-afs-ink-900 hover:bg-afs-bg-light-raised"
+                className="btn slate"
               >
                 Cancel
               </button>
@@ -258,7 +271,7 @@ export default function DeliveriesWeek({
                     notify,
                   })
                 }
-                className="min-h-12 px-5 rounded-lg font-label text-[17px] font-bold bg-afs-green-deep text-afs-chrome-high hover:brightness-95 disabled:opacity-60"
+                className="btn green"
               >
                 {busy === 'schedule' ? 'Saving…' : target.currentDate ? 'Move the delivery' : 'Schedule delivery'}
               </button>
@@ -287,28 +300,31 @@ function Stop({
       data-testid="delivery-stop"
       data-delivery-id={stop.deliveryId}
       data-status={stop.status}
-      className={`rounded-lg p-3 flex flex-col gap-1.5 ${
-        delivered ? 'bg-afs-green-soft' : 'bg-afs-bg-light-raised'
-      }`}
+      className={STOP_CLASS[delivered ? 'delivered' : 'scheduled']}
     >
-      <b className="font-label text-[17px] text-afs-ink-900">
-        {stop.customer}
-        {stop.isRush && (
-          <span className="ml-2 font-label text-[13px] font-bold uppercase tracking-wide bg-afs-amber-bg text-afs-amber-ink rounded px-1.5 py-0.5">
-            Rush
-          </span>
-        )}
-      </b>
-      <span className="font-body text-[15px] text-afs-ink-900">
-        {stop.item}
-        {stop.quantity ? ` × ${stop.quantity}` : ''}
-      </span>
-      <span className="font-body text-[15px] text-afs-ink-700">
+      {/* v7 `dcard()` (line 1812): `.cr` the customer row, `.cd` the item,
+          `.win` the time-window pill, `.drow` the buttons. Without these the
+          children are inline siblings and run together — which is exactly how
+          it rendered before. */}
+      <div className="cr">
+        <div>
+          <b>{stop.customer}</b>
+        </div>
+        {stop.isRush && <span className="pill a">Rush</span>}
+      </div>
+      <div className="cd">
+        <span className="ci2">
+          {stop.item}
+          {stop.quantity ? ` × ${stop.quantity}` : ''}
+        </span>
+      </div>
+      <span className="win">
         {stop.timeWindowLabel}
         {stop.autoScheduled ? ' · set by the shop' : ''}
       </span>
+      <div className="drow">
       {delivered ? (
-        <span className="font-label text-[15px] font-bold text-afs-green-ink">✓ Delivered</span>
+        <span className="live">✓ Delivered</span>
       ) : (
         <>
           <button
@@ -318,7 +334,7 @@ function Stop({
             onClick={() =>
               onMark('delivered', '/api/admin/deliveries/mark-delivered', { deliveryId: stop.deliveryId })
             }
-            className="min-h-12 rounded-lg font-label text-[17px] font-bold bg-afs-green-deep text-afs-chrome-high hover:brightness-95 disabled:opacity-60"
+            className="btn green"
           >
             {busy === 'delivered' ? 'Saving…' : 'Mark delivered'}
           </button>
@@ -336,15 +352,14 @@ function Stop({
                 currentWindow: stop.timeWindow,
               })
             }
-            className="min-h-12 rounded-lg font-label text-[15px] font-bold bg-afs-bg-card border border-afs-line-strong text-afs-ink-900 hover:bg-afs-bg-light-raised disabled:opacity-60"
+            className="btn slate sm"
           >
             Change day
           </button>
         </>
       )}
-      {stop.notifyNote && (
-        <span className="font-body text-[13px] text-afs-ink-700">{stop.notifyNote}</span>
-      )}
+      </div>
+      {stop.notifyNote && <p className="cap">{stop.notifyNote}</p>}
     </div>
   );
 }
@@ -363,23 +378,24 @@ function Unscheduled({
       data-testid="unscheduled-job"
       data-shop-job-id={job.shopJobId}
       data-rush={job.isRush ? 'true' : 'false'}
-      className="bg-afs-bg-light-raised rounded-lg p-3 flex flex-col gap-1.5"
+      className="dcard"
     >
-      <b className="font-label text-[17px] text-afs-ink-900">
-        {job.customer}
-        {job.isRush && (
-          <span className="ml-2 font-label text-[13px] font-bold uppercase tracking-wide bg-afs-amber-bg text-afs-amber-ink rounded px-1.5 py-0.5">
-            Rush
-          </span>
-        )}
-      </b>
-      <span className="font-body text-[15px] text-afs-ink-900">
-        {job.item}
-        {job.quantity ? ` × ${job.quantity}` : ''}
-      </span>
-      <span className="font-body text-[13px] text-afs-ink-700">
-        {job.jobStage === 'done' ? 'Job is Done' : 'Finished at the machine'}
-      </span>
+      <div className="cr">
+        <div>
+          <b>{job.customer}</b>
+        </div>
+        {job.isRush && <span className="pill a">Rush</span>}
+      </div>
+      <div className="cd">
+        <span className="ci2">
+          {job.item}
+          {job.quantity ? ` × ${job.quantity}` : ''}
+        </span>
+        <span className="cap">
+          {job.jobStage === 'done' ? 'Job is Done' : 'Finished at the machine'}
+        </span>
+      </div>
+      <div className="drow">
       <button
         type="button"
         data-testid="schedule-delivery"
@@ -394,10 +410,11 @@ function Unscheduled({
             currentWindow: null,
           })
         }
-        className="min-h-12 rounded-lg font-label text-[17px] font-bold bg-afs-crimson text-afs-chrome-high hover:brightness-95 disabled:opacity-60"
+        className="btn red"
       >
         Schedule delivery
       </button>
+      </div>
     </div>
   );
 }

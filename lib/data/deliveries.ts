@@ -68,6 +68,27 @@ export interface DeliveryStop {
   /** What the customer was actually told, as the notifier reported it. */
   notifyNote: string | null;
   isRush: boolean;
+  /**
+   * THE ORDER BEHIND THIS STOP, when there is one — what the real tracking map
+   * needs to show a destination rather than a service area.
+   *
+   * Both are null for a V2 Job that never became a paid order, which is a real
+   * and ordinary case: `deliveries` hangs off a SHOP JOB, and a shop job can
+   * exist without an order. CLAUDE.md rule #25 already records the same fact
+   * for the tracking link, and the Deliveries screen says so in plain English
+   * rather than drawing a map of nowhere.
+   */
+  orderId: string | null;
+  deliveryAddress: DeliveryAddressJson | null;
+}
+
+/** `orders.delivery_address` is JSONB. Only the fields the map reads. */
+export interface DeliveryAddressJson {
+  line1?: string;
+  line2?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
 }
 
 export interface DeliveryDay {
@@ -194,6 +215,23 @@ export async function getDeliveriesView(
     }
   }
 
+  // The order behind each job, if it has one — read in ONE query keyed by the
+  // same job ids already gathered above, never one per stop.
+  const orderByJobId = new Map<string, { id: string; address: DeliveryAddressJson | null }>();
+  if (jobIds.length) {
+    const { data: orders } = await supabase
+      .from('orders')
+      .select('id, quote_request_id, delivery_address')
+      .in('quote_request_id', jobIds);
+    for (const o of (orders ?? []) as {
+      id: string;
+      quote_request_id: string | null;
+      delivery_address: DeliveryAddressJson | null;
+    }[]) {
+      if (o.quote_request_id) orderByJobId.set(o.quote_request_id, { id: o.id, address: o.delivery_address });
+    }
+  }
+
   const stops: DeliveryStop[] = deliveries.map((d) => {
     const shop = shopById.get(d.shop_job_id) ?? null;
     const job = d.quote_request_id ? jobById.get(d.quote_request_id) : null;
@@ -212,6 +250,9 @@ export async function getDeliveriesView(
       autoScheduled: d.auto_scheduled,
       notifyNote: d.notify_note,
       isRush: job?.isRush ?? false,
+      orderId: (d.quote_request_id ? orderByJobId.get(d.quote_request_id)?.id : null) ?? null,
+      deliveryAddress:
+        (d.quote_request_id ? orderByJobId.get(d.quote_request_id)?.address : null) ?? null,
     };
   });
 

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { WorkbenchCard } from '@/lib/data/workbench';
+import type { DeliveryStop } from '@/lib/data/deliveries';
 
 /**
  * The Workbench's right-hand rail — prototype v7's `railPanels()` (line 1270).
@@ -20,18 +21,26 @@ import type { WorkbenchCard } from '@/lib/data/workbench';
  *      the panel is a second view of data in hand rather than a second trip to
  *      the database.
  *
- *   3. "Deliveries, next two days" — NOT BUILT. It needs the scheduled
- *      deliveries for today and tomorrow, which the Workbench query does not
- *      read (lib/data/workbench.ts selects only what a card needs, by design —
- *      see its egress rule). Adding that read belongs with the Deliveries work,
- *      where the business-day rules already live. The panel is omitted rather
- *      than shown empty, because an empty "Deliveries, next two days" says
- *      "nothing is scheduled", which would be a claim this screen cannot make.
+ *   3. "Deliveries, next two days" — BUILT in Stage E, from the real schedule.
+ *      It was omitted before rather than shown empty, because an empty panel
+ *      says "nothing is scheduled" and that was a claim this screen could not
+ *      then make. It can now: the stops come from `getDeliveriesView`, the same
+ *      read the Deliveries screen uses, so an empty panel really does mean
+ *      nothing is booked and says so in v7's own words.
  *
  * Everything rendered uses v7's own classes (`.rail2`, `.rp`, `.rl`, `.tx`,
  * `.btn`, `.hint`); the appearance comes from the ported stylesheet.
  */
-export default function WorkbenchRail({ shopCards }: { shopCards: WorkbenchCard[] }) {
+export default function WorkbenchRail({
+  shopCards,
+  nextTwoDays,
+}: {
+  shopCards: WorkbenchCard[];
+  /** Today's and tomorrow's scheduled stops, each day already in window order. */
+  nextTwoDays: { heading: string; stops: DeliveryStop[] }[];
+}) {
+  const upcoming = nextTwoDays.flatMap((d) => d.stops.map((s) => ({ day: d.heading, stop: s })));
+
   return (
     <div className="rail2">
       <section className="rp">
@@ -50,6 +59,30 @@ export default function WorkbenchRail({ shopCards }: { shopCards: WorkbenchCard[
                 <b>{card.itemLine}</b>
                 <span>
                   {card.customer} · {card.meta}
+                </span>
+              </div>
+            </Link>
+          ))
+        )}
+      </section>
+
+      <section className="rp">
+        <h3>
+          Deliveries, next two days
+          <Link href="/admin/deliveries" className="btn slate sm">
+            Deliveries
+          </Link>
+        </h3>
+        {upcoming.length === 0 ? (
+          <div className="hint">No deliveries scheduled.</div>
+        ) : (
+          upcoming.map(({ day, stop }) => (
+            <Link key={stop.deliveryId} href="/admin/deliveries" className="rl">
+              <div className="tx">
+                <b>{stop.customer}</b>
+                <span>
+                  {day} · {stop.timeWindowLabel} · {stop.item}
+                  {stop.quantity ? ` × ${stop.quantity}` : ''}
                 </span>
               </div>
             </Link>

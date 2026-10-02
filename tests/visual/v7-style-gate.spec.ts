@@ -257,7 +257,7 @@ async function gotoLivePage(page: Page, livePath: string) {
 
 interface PairResult {
   pair: V7ComponentPair;
-  status: 'pass' | 'fail' | 'uncovered' | 'no-proto';
+  status: 'pass' | 'fail' | 'uncovered' | 'no-proto' | 'no-data';
   problems: string[];
 }
 
@@ -296,10 +296,6 @@ test.describe('v7 style gate', () => {
         await gotoLivePage(livePage, pairs[0].livePath);
 
         for (const pair of pairs) {
-          if (pair.requiresData) {
-            results.push({ pair, status: 'uncovered', problems: [pair.requiresData] });
-            continue;
-          }
 
           if (pair.open) {
             // Reveal on both sides. Re-navigating first keeps one pair's open
@@ -332,10 +328,23 @@ test.describe('v7 style gate', () => {
               problems: [`prototype selector "${pair.proto}" matched nothing`],
             });
           } else if (!b) {
+            // The component is built but this environment has no row to render
+            // it with — an empty delivery week, say. Reported as NO-DATA:
+            // printed and counted, never silently passed, and never failed
+            // either, because nothing is wrong with the code.
+            //
+            // The PROTOTYPE side is still required to match, which is what
+            // stops this becoming a hole: a pair can only be excused here if it
+            // really exists in v7, so `requiresData` cannot be used to wave
+            // through a component that was never built.
             results.push({
               pair,
-              status: 'fail',
-              problems: [`live selector "${pair.live}" matched nothing on ${pair.livePath}`],
+              status: pair.requiresData ? 'no-data' : 'fail',
+              problems: [
+                pair.requiresData
+                  ? `${pair.requiresData} (live selector "${pair.live}" matched nothing)`
+                  : `live selector "${pair.live}" matched nothing on ${pair.livePath}`,
+              ],
             });
           } else {
             const problems: string[] = [];
@@ -383,12 +392,14 @@ test.describe('v7 style gate', () => {
     const failed = results.filter((r) => r.status === 'fail');
     const uncovered = results.filter((r) => r.status === 'uncovered');
     const noProto = results.filter((r) => r.status === 'no-proto');
+    const noData = results.filter((r) => r.status === 'no-data');
     lines.push(
       '',
       `${results.length} pairs checked · ` +
-        `${results.length - failed.length - uncovered.length - noProto.length} pass · ` +
+        `${results.length - failed.length - uncovered.length - noProto.length - noData.length} pass · ` +
         `${failed.length} fail · ${uncovered.length} uncovered · ` +
-        `${noProto.length} live-only (no prototype counterpart)`,
+        `${noProto.length} live-only (no prototype counterpart) · ` +
+        `${noData.length} no data in this environment`,
       '',
     );
     const report = lines.join('\n');

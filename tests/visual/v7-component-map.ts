@@ -127,8 +127,15 @@ export interface V7ComponentPair {
   /** Interaction needed to reveal the component on each side. */
   open?: { proto: string; live: string };
   /**
-   * Set when the component cannot be shown without seeded data. The gate
-   * reports these as UNCOVERED rather than passing them.
+   * Set when the LIVE component needs a database row this gate does not seed —
+   * a delivery inside the five-day week, say. The pair is reported as NO-DATA:
+   * printed and counted, never silently passed, and not failed either, because
+   * nothing is wrong with the code.
+   *
+   * It is not a hole. The PROTOTYPE side must still match, so a pair can only
+   * be excused this way if the component really exists in v7 — `requiresData`
+   * cannot wave through something that was never built. The moment the
+   * environment has a row, the pair is compared like any other.
    */
   requiresData?: string;
   /**
@@ -555,6 +562,41 @@ export const V7_COMPONENT_MAP: V7ComponentPair[] = [
   { key: 'search-row', label: 'Search result row', stage: 'D', protoPage: 'search',
     proto: 'main.wrap .rtab .rr', livePath: '/admin/search', live: 'main.wrap .rtab .rr',
     skip: { height: 'Content-sized — real data wraps differently from samples.' } },
+  // ----------------------------------------------------------------- STAGE E
+  // Deliveries split view. The MAP itself is deliberately not a pair: v7 draws
+  // a hand-built SVG of sample positions and the live panel renders the real
+  // Google Maps tracking component the public site uses — v7's own footnote
+  // says that is what the real build should do, so they cannot be compared and
+  // should not be.
+  { key: 'dl-title', label: 'Deliveries title', stage: 'E', protoPage: 'deliveries',
+    proto: 'main.wrap .greet h1.t', livePath: '/admin/deliveries',
+    live: 'main.wrap .greet h1.t', skip: { height: 'Content-sized.' } },
+  { key: 'dl-panel', label: 'Deliveries panel', stage: 'E', protoPage: 'deliveries',
+    proto: 'main.wrap .dsplit .dpanel', livePath: '/admin/deliveries',
+    live: 'main.wrap .dsplit .dpanel', skip: { height: 'Content-sized.' } },
+  { key: 'dl-panel-head', label: 'Deliveries panel header', stage: 'E', protoPage: 'deliveries',
+    proto: 'main.wrap .dsplit .dpanel .dph h2', livePath: '/admin/deliveries',
+    live: 'main.wrap .dsplit .dpanel .dph h2', skip: { height: 'Content-sized.' } },
+  { key: 'dl-daytab', label: 'Day tab', stage: 'E', protoPage: 'deliveries',
+    proto: 'main.wrap .dtabs .dtab', livePath: '/admin/deliveries',
+    live: 'main.wrap .dtabs .dtab' },
+  { key: 'dl-daytab-on', label: 'Day tab, selected', stage: 'E', protoPage: 'deliveries',
+    proto: 'main.wrap .dtabs .dtab.on', livePath: '/admin/deliveries',
+    live: 'main.wrap .dtabs .dtab.on' },
+  { key: 'dl-trk', label: 'Truck line (.trk)', stage: 'E', protoPage: 'deliveries',
+    proto: 'main.wrap .trk', livePath: '/admin/deliveries', live: 'main.wrap .trk',
+    skip: { height: 'Content-sized.' } },
+  { key: 'dl-trow', label: 'Tracked stop row', stage: 'E', protoPage: 'deliveries',
+    proto: 'main.wrap .trows .trow', livePath: '/admin/deliveries',
+    live: 'main.wrap .trows .trow', skip: { height: 'Content-sized.' },
+    requiresData: 'Needs a delivery scheduled inside the five-day week; this gate seeds none.' },
+  { key: 'dl-trow-num', label: 'Stop number', stage: 'E', protoPage: 'deliveries',
+    proto: 'main.wrap .trows .trow .num', livePath: '/admin/deliveries',
+    live: 'main.wrap .trows .trow .num',
+    requiresData: 'Needs a delivery scheduled inside the five-day week; this gate seeds none.' },
+  { key: 'dl-live', label: 'Live indicator', stage: 'E', protoPage: 'deliveries',
+    proto: 'main.wrap .dright .live', livePath: '/admin/deliveries',
+    live: 'main.wrap .dright .live', skip: { height: 'Content-sized.' } },
 ];
 
 
@@ -568,6 +610,7 @@ export const EXPECTED_STAGE_COVERAGE: Partial<Record<V7ComponentPair['stage'], n
   B: 17,
   B2: 13,
   D: 12,
+  E: 9,
 };
 
 /** The viewports the brief names for the shell, widest first. */

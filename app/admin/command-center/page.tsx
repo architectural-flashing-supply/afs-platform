@@ -24,6 +24,7 @@ import LightWorkingArea from '@/components/admin/LightWorkingArea';
 import WorkbenchLanes from '@/components/admin/WorkbenchLanes';
 import WorkbenchRail from '@/components/admin/WorkbenchRail';
 import { getWorkbench, summaryChips, DONE_ARCHIVE_DAYS } from '@/lib/data/workbench';
+import { getDeliveriesView } from '@/lib/data/deliveries';
 
 // Phase 2 (Command Center redesign, afs-cc-001) — this page previously also
 // hosted `?tab=customers`/`?tab=orders` CRM views. Those had real dedicated
@@ -91,6 +92,12 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
     // greets, and a full legal name there reads like a form letter.
     const firstName = adminUser.fullName.trim().split(/\s+/)[0] || 'there';
     const workbench = await getWorkbench(supabase, firstName);
+    // v7's third rail panel. The SAME read the Deliveries screen uses, so the
+    // two can never disagree about what is booked. "Next two days" is the first
+    // two BUSINESS days getDeliveriesView already computed — a Friday's panel
+    // therefore shows Friday and Monday, not Friday and Saturday.
+    const deliveries = await getDeliveriesView(supabase);
+    const nextTwoDays = deliveries.days.slice(0, 2).map((d) => ({ heading: d.heading, stops: d.stops }));
 
     return (
       // v7's Workbench: `.greet` (title + chips), then `.wb2` holding the lane
@@ -125,7 +132,10 @@ export default async function CommandCenterPage({ searchParams }: { searchParams
 
         <div className="wb2">
           <WorkbenchLanes lanes={workbench.lanes} />
-          <WorkbenchRail shopCards={workbench.lanes.find((l) => l.key === 'shop')?.cards ?? []} />
+          <WorkbenchRail
+            shopCards={workbench.lanes.find((l) => l.key === 'shop')?.cards ?? []}
+            nextTwoDays={nextTwoDays}
+          />
         </div>
 
         <p className="foot">
