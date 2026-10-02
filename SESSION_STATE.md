@@ -9398,3 +9398,42 @@ failing the contrast gate - written up for Reid rather than quietly skipped.
 
 Gates: tsc 0 - build green incl. contrast - 439/439 vitest - 15/15 nav e2e -
 14/14 fidelity. One pre-existing flaky test diagnosed and reported, not patched.
+
+
+---
+
+## 2026-10-02 - Reid had no Command Center: his profile was role `customer`
+
+Reported: signing in at http://localhost:3001 and every `/admin` URL bouncing to
+`/account`. `middleware.ts` redirects any signed-in user whose `profiles.role`
+is not exactly `admin`, so the redirect was the guard working correctly on a
+wrong row - not a routing or build fault. `middleware.ts` was not touched.
+
+**Found (service role, read-only first):** `reid@repvg.com` =
+`6fd6430f-1d56-4110-9df8-d58c508d6ace`, created 2026-09-17, last sign-in
+2026-10-02T03:22Z. A `profiles` row DID exist, with **`role: "customer"`**,
+full_name "Reid Whitesides", company "Reposition Ventures Group". Role counts
+across all 4 profiles before the change: `admin 2, customer 2`.
+
+**Changed:** exactly one row - `UPDATE profiles SET role='admin' WHERE
+id='6fd6430f-...'`. Re-read confirms `admin`. Counts after: `admin 3,
+customer 1`, still 4 profiles total, so nothing was created or removed and no
+other user was touched.
+
+**Why he was on port 3001 at all.** Port 3000 was occupied by a leftover
+`next start` (PID 60592) that THIS assistant left running at 21:01 during the
+Phase 2 build; Reid's `next dev` started at 22:21 and fell back to 3001. Both
+ran from this repo on `command-center-v7`. That leftover production server was
+also serving a build from before the latest commit, so it was a second, quieter
+hazard. It has been stopped. Reid's own dev server on 3001 was left running and
+untouched.
+
+**Verified:** `app/admin/command-center/page.tsx` exists on this branch and
+`pnpm tsc --noEmit` exits 0. With a dev server started and then stopped on port
+3000, an anonymous visit to `/admin/command-center` redirects to
+`/login?redirect=%2Fadmin%2Fcommand-center` - the guard still refuses signed-out
+visitors, and preserves the intended destination. No password was entered.
+
+Reid must **sign out and sign back in**: the role is read from his session's
+profile on each request, but his browser is holding a session minted while he
+was still `customer`.
