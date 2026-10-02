@@ -115,6 +115,77 @@ Microsoft-dependent feature and stays absent.
 
 ---
 
+## STATUS UPDATE - 2026-10-02 (third run), branch `cc-v7-pixel`
+
+**THE FIDELITY AUTHORITY CHANGED, AND THAT IS THE HEADLINE.**
+
+The owner's report on the two runs above was **"nothing matches"**, while the
+66-pair computed-style gate they were accepted on was passing 66 of 66. Both
+were true. That gate compares element pairs somebody listed on properties
+somebody listed; it cannot see a missing profile drawing, an absent pill, a rail
+with two panels where v7 has three, a header logo at the wrong aspect ratio, or
+a screen that is simply a different screen.
+
+It has been **replaced as the authority** by a WHOLE-SCREEN pixel diff against
+the untouched prototype — `tests/visual/v7-pixel-gate.spec.ts`, CLAUDE.md
+rule #34 — over a manifest of **all 54 distinct v7 states**
+(`docs/design/command-center-v7/SCREEN_MANIFEST.json`). Pass is 1.5% of pixels.
+The style gate still runs, as a secondary check.
+
+### Where the ten items stand against the NEW gate
+
+| # | Feature | Status | Measured |
+|---|---|---|---|
+| 1 | Header nav + New quote + type-ahead | **Built, and now MEASURED** | `shell-more-menu` 0.75%, `shell-typeahead` 0.43% |
+| 2 | Quotes & Orders lists | **Built, rebuilt from v7's markup** | `quotes` 0.40%, `orders` 0.44%, plus two filter states |
+| 3 | New quote page, customer-first | **Built** | `newquote` 0.40%, `newquote-customer` 0.54%, `newquote-blank` 0.43% |
+| 4 | Search over quotes and orders | **Built** | `search` 0.33%, and three more states |
+| 5 | Deliveries split + tracking map | **Built** | `deliveries` 0.20%, and three more states |
+| 6 | Estimate emailed to Tricia on quote send | **Unchanged** | Out of scope: UI layer only this run |
+| 7 | Invoice on shop-finish + reconciliation | **Unchanged** | Same |
+| 8 | Change order before the machine | **Unchanged — and now NAMED by the gate** | `modal-chg1` reports NO LIVE ROUTE |
+| 9 | Addendum after the job started | **Unchanged — and now NAMED by the gate** | `modal-chg2` reports NO LIVE ROUTE |
+| 10 | Cards, pills, panes, theme | **Built, including the pills that were missing** | `workbench` 0.47%; every card now carries v7's profile-state pill, its drawing and its colour chip |
+
+### What the whole-screen diff found that the pair gate could not
+
+1. **The header logo was the wrong image on every screen in the app.** v7's is
+   342x134 (aspect 2.552); `/afs-logo.png` is 1536x1024 (aspect 1.500). v7 sizes
+   it by height, so at 34px tall the two are 86.8px and 51.2px wide and every
+   header element right of the brand sat 35px off, everywhere.
+2. **Every Workbench card and every list row was missing its profile drawing** —
+   90-100px of ink each — and the profile-state pill v7 puts on all of them.
+3. **The Workbench rail had two panels where v7 has three.**
+4. **Customers was a different screen**: a flat account directory where v7 has a
+   master-detail. 22% with 20 landmarks missing and 15 extra.
+5. **Both lists had an "Apply" button** v7 does not have.
+6. **Every short page was 65px taller than v7's**, from `min-h-screen` applied
+   below a 65px header.
+
+### Sixteen v7 states still have NO LIVE ROUTE, and the gate now names each
+
+These are pre-existing gaps this run did not create and did not close. They are
+listed by name in `docs/design/V7_PIXEL_REPORT.md` §1: the four operator-screen
+states, the two email-source states, the two document modals, the two FlashDraft
+modals (a deliberate architectural difference — FlashDraft is a separate real
+app), the two Outlook modals (item (c) below), the change-order and addendum
+modals (items 8 and 9), and the schedule/follow-up modals whose live equivalents
+are inline.
+
+### Four screens deliberately keep live behaviour over v7's look
+
+The Job screen's action pane (it opens **the one door** to the machine where v7
+has "Pretend Mike clicked Approve"), the Deliveries map (v7's schematic hashes an
+unknown company's NAME into a position), Pricing (v7's rates live in browser
+memory; this app's live in an append-only versioned book) and Settings (live
+integration status is how somebody finds out Resend is unconfigured). Each is
+argued in full in the report, so the owner can overrule any of them.
+
+**Items 6-9 remain untouched. §(c) BLOCKED ON MICROSOFT and §(d) OPEN QUESTIONS
+below are unchanged by this run.**
+
+---
+
 ## (a) STATUS TABLE
 
 Legend: **Built** = works as v7 describes · **Partial** = some of it exists ·

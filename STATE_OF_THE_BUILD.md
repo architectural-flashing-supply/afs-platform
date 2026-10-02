@@ -34,6 +34,132 @@ summary, not a replacement for it.
 
 ---
 
+## 2026-10-02 - THE FIDELITY AUTHORITY CHANGED (branch `cc-v7-pixel`)
+
+**The owner's report was "nothing matches" while the acceptance gate passed
+66 of 66. Both were true, and this run replaced the gate.**
+
+### WHAT WAS WRONG WITH THE OLD GATE, STATED PLAINLY
+
+`tests/visual/v7-style-gate.spec.ts` compares 66 hand-picked element pairs on a
+list of properties somebody thought to list. Every property it was pointed at
+really did match. It could not see:
+
+- that every Workbench card and every list row was missing its **profile
+  drawing** — 90-100px of ink on each one;
+- that every card was missing the **profile-state pill** v7 puts on all of them;
+- that the Workbench rail had **two panels where v7 has three**;
+- that the header logo was a **different crop at a different aspect ratio**, so
+  every element to its right sat **35px off on every screen in the app**;
+- that **Customers was a different screen entirely** — a flat account directory
+  where v7 has a master-detail.
+
+A gate that only looks where it is pointed cannot find what nobody pointed it
+at. That is a structural limit, not an oversight by whoever wrote it.
+
+### THE MEASURED BEFORE AND AFTER
+
+The replacement (`tests/visual/v7-pixel-gate.spec.ts`, CLAUDE.md rule #34)
+renders the untouched prototype and the live app at 1440x900, full page, clock
+and random source frozen, and diffs them WHOLE. Pass is 1.5% of pixels. The
+manifest is all 54 distinct v7 states, read out of the prototype's own
+`render()` dispatcher, every page function and every `modalHTML()` branch.
+
+| | BEFORE (at `feccdc4`) | AFTER (at `65985a0`) |
+|---|---|---|
+| Screens MATCHING | **0** | **35** |
+| Screens NOT matching | 35 | 0 |
+| Range of the measured ones | **8.26% - 96.04%** | **0.14% - 1.37%** |
+| Could not be measured at all | 8 (the Job screens 404'd on v7's ids) | 0 |
+| No live route in the app | 16 | 16 |
+
+The before column was taken by checking the whole UI back out at `feccdc4` — the
+commit where the harness landed and nothing had been rebuilt — and measuring it
+with the FINAL harness, so every improvement is the port changing and not the
+gate changing. A first attempt was discarded because screens were edited while
+it ran.
+
+**VERIFICATION STANDARD: this is IMPLEMENTED, UNCONFIRMED.** Thirty-five screens
+measuring under 1.5% is a far stronger piece of evidence than the old gate's
+66/66 was, and by this document's own standard it is still evidence to bring to
+Reid rather than a substitute for his having looked. The exact steps are at the
+end of `docs/design/V7_PIXEL_REPORT.md`.
+
+### THE DEFECT THAT EXPLAINS THE MOST, AND WHY IT WAS INVISIBLE
+
+v7 embeds its header logo as base64 at **342x134** (aspect 2.552). The shared
+`/afs-logo.png` is **1536x1024** (aspect 1.500) — a different crop of the same
+mark. v7 sizes the image by HEIGHT, so at 34px tall the two come out 86.8px and
+51.2px wide, and every header element to the right of the brand sat 35px off, on
+every screen. A pair comparison cannot see this: both are "the logo", at the
+same height, and every compared property matches. Fixing it halved three screens
+at once (workbench 0.94 -> 0.47%, quotes 1.31 -> 0.40%, shop 1.52 -> 0.59%).
+
+v7's own file is now `public/afs-logo-command-center.png`, used by the Command
+Center header and nothing else. `/afs-logo.png` is UNTOUCHED on the marketing
+site, the sign-in shell, the tracking page and the bid PDF.
+
+### WHAT ELSE THE WHOLE-SCREEN DIFF FOUND
+
+- `V7Drawing` wrapped the `<svg>` in a `<span>`. v7 sizes drawings with
+  `.plate svg{width:100%}` — a descendant selector, so it still matched, but
+  100% of an inline span that shrinks to its content. Every plate and thumbnail
+  in the app was slightly wrong, visible as a dimension label reading `1 1/2"`
+  where the prototype read `11/2"` on the same drawing.
+- "See all N results" was a link. v7 styles `.hsall` `width:100%;height:38px`
+  with no `display` — which works on a `<button>` and does nothing on an `<a>`.
+- Every short page was **65px taller than v7's**, from `min-h-screen` applied to
+  an element below a 65px header.
+- Both lists had an **"Apply" button** v7 does not have; v7 filters as you type.
+
+### TWO DEFECTS THE GATE CAUGHT IN ITS OWN RUN
+
+- Making `<main>` a flex item without `w-full` let v7's `margin: 0 auto` act as
+  a cross-axis auto margin, which cancels `align-items: stretch`. `<main>` shrank
+  to 795px on a 1440 viewport and the Workbench went from 0.94% to **75.38%** on
+  the next run.
+- The harness's own driver filled the live search box **before React hydrated**,
+  so the dropdown never opened and the screen read 8.55%. Both were fixed in the
+  harness rather than masked.
+
+### WHAT IS NEW, AND WHAT IS DELIBERATELY NOT
+
+**New files:** `tests/visual/v7-pixel-gate.spec.ts`, `v7-pixel-harness.ts`,
+`v7-screen-drivers.ts`; `docs/design/command-center-v7/SCREEN_MANIFEST.json` and
+`BEHAVIOR_MAP.md`; `docs/design/V7_PIXEL_REPORT.md`;
+`lib/design/v7-draw.ts` (v7's profile drawing engine, transliterated) and
+`v7-delivery-map.ts`; `lib/fixtures/command-center-v7.ts` and `mode.ts` (+ test);
+`lib/data/v7-view/*`; `components/admin/v7/*` (14 components);
+`public/afs-logo-command-center.png`. Dev dependencies: `pixelmatch`, `pngjs`.
+
+**UI LAYER ONLY, and that was checked rather than intended.** No route
+behaviour, no `lib/data/*` signature, no migration, no middleware, no email or
+payment code. `pnpm tsc --noEmit` clean; 468 unit tests pass.
+
+**FOUR SCREENS DELIBERATELY KEEP LIVE BEHAVIOUR OVER v7's LOOK**, each argued in
+full in the report so Reid can overrule any of them: the Job screen's action
+pane (it opens THE ONE DOOR to the machine, rule #14, where v7 has "Pretend Mike
+clicked Approve"); the Deliveries map (v7's schematic hashes an unknown
+company's NAME into a position); Pricing (v7's rates live in browser memory,
+this app's in an append-only versioned book, rules #19 and #20); and Settings
+(live integration status is how somebody finds out Resend is unconfigured).
+
+**FIXTURE MODE TAKES THREE LOCKS** — `CC_FIXTURE=1`, a non-production build, and
+`?fixture=v7` — asserted independently by `lib/fixtures/mode.test.ts`, including
+the one combination that could happen by accident. It substitutes DATA ONLY and
+never touches authentication. `CC_FIXTURE` is documented in `.env.example` and is
+deliberately NOT set in Vercel.
+
+**SIXTEEN v7 STATES STILL HAVE NO LIVE ROUTE** and the gate now names each one
+rather than skipping it: the four operator-screen states, the two email-source
+states, the two document modals, the two FlashDraft modals (a deliberate
+architectural difference — FlashDraft is a separate real app), the two Outlook
+modals (no Graph code exists), the change-order and addendum modals (gap-audit
+items 8 and 9), and the schedule/follow-up modals whose live equivalents are
+inline. All pre-existing; none created or closed by this run.
+
+---
+
 ## 2026-10-01 - v7 PHASE 0 + PHASE 2 (branch `command-center-v7`)
 
 Tricia's address reversed, the v7 header and nav built, and the Quotes and

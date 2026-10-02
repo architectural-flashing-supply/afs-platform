@@ -961,7 +961,15 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
     still set light-on-dark text. Screens convert one at a time and the PAGE
     opts in.
 
-    **THE STYLE GATE IS THE ACCEPTANCE TEST, AND IT IS AUTOMATED.**
+    **THE STYLE GATE IS NO LONGER THE ACCEPTANCE TEST — SEE RULE #34.** It
+    passed 66 of 66 while the owner's report was "nothing matches", because it
+    compares hand-picked pairs on hand-picked properties and every one of them
+    really did match. The authority is now the WHOLE-SCREEN pixel diff,
+    `tests/visual/v7-pixel-gate.spec.ts`. Everything below still applies and the
+    style gate still runs — it remains the better tool for saying *why* two
+    screens differ once the diff says they do, and the stage-coverage rule is
+    still how a screen is stopped from passing by omission.
+
     `tests/visual/v7-style-gate.spec.ts` opens the prototype and the live app in
     one browser and compares the COMPUTED styles of every pair in
     `tests/visual/v7-component-map.ts` — family, size, weight, line-height,
@@ -1035,6 +1043,96 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
     being needed fails rather than lingering as a permanent excuse. There is
     exactly ONE today: `#1E8E52` → `#1D874E`, because white text on v7's green
     measures 4.16:1 against a 4.5:1 requirement.
+
+34. **THE WHOLE-SCREEN PIXEL GATE IS THE FIDELITY AUTHORITY. THE STYLE GATE IS
+    SECONDARY. NEVER CALL A SCREEN MATCHING WITHOUT A MEASURED PASS.**
+
+    `tests/visual/v7-pixel-gate.spec.ts` renders the untouched prototype and the
+    live app at 1440x900, full page, clock and random source frozen, animations
+    off, fonts loaded, and diffs them WHOLE. Pass is at most **1.5% of pixels**
+    per screen. The screens are every entry in
+    `docs/design/command-center-v7/SCREEN_MANIFEST.json` — all 54 distinct v7
+    states, read out of the prototype's own `render()` dispatcher, every page
+    function and every `modalHTML()` branch.
+
+    **WHY IT REPLACED THE 66-PAIR STYLE GATE AS THE AUTHORITY.** The owner's
+    report was "nothing matches" while that gate passed 66 of 66. Both were
+    true. A gate that compares hand-picked element pairs on hand-picked
+    properties cannot see a missing profile drawing, an absent pill, a rail with
+    two panels where v7 has three, a header logo at the wrong aspect ratio, or a
+    screen that is simply a different screen — because every property it was
+    pointed at really did match. **A gate that only looks where it is pointed
+    cannot find what nobody pointed it at.** Keep the style gate running: it is
+    still the better tool for saying *why* two screens differ once the diff says
+    they do. It is no longer what decides whether they do.
+
+    **SIX THINGS IN THE HARNESS ARE LOAD-BEARING AND MUST SURVIVE ANY REWRITE**,
+    each because without it the gate could pass while the screen does not match:
+
+    (a) **A SIZE MISMATCH COUNTS AS DIFFERENCE.** Both captures are composited
+    onto a canvas of the UNION size over a sentinel magenta. Cropping to the
+    intersection would let a page that renders half of v7's content score well,
+    because the missing half would be outside the compared area.
+
+    (b) **FIVE OUTCOMES, AND ONLY ONE PASSES** — `pass`, `fail`, `missing` (a v7
+    state with NO live route: named in the report, never waved through),
+    `live-only`, and `error` (a side that could not be reached — fails, on the
+    same principle as rule #28's `0 unresolved`).
+
+    (c) **THE MANIFEST AND THE DRIVERS ARE FORCED TO AGREE**, in both
+    directions, by `assertDriversMatchManifest`. A state added to one and not
+    the other fails the run rather than being silently skipped.
+
+    (d) **THE BASELINE COMES ONLY FROM THE UNTOUCHED PROTOTYPE**, re-rendered
+    every run. There is no "update baselines" mode and must never be one: a
+    baseline here is not an expectation that can drift, it is a render of a
+    committed file.
+
+    (e) **ONLY v7's OWN REVIEW BANNER IS REMOVED FROM A BASELINE** — `.proto`,
+    `#gpeek`, `#toast`, identified by their own class and ids. `.proto` is a
+    static block that offsets the whole document, which would put every screen
+    past any possible budget; removing it can only make the prototype side MORE
+    like a shipped page, so it cannot hide a difference in the port.
+
+    (f) **MASKS ARE FOR GENUINELY DYNAMIC TEXT ONLY**, each with a written
+    justification, 2% of the screen in total, and all of them printed in the
+    report. `SCREEN_MASKS` is EMPTY today and that is the target state. "This
+    bit does not match yet" is not a justification, it is the finding.
+
+    **DO NOT LOOSEN THE THRESHOLD, WIDEN A MASK, OR EDIT A BASELINE TO MAKE A
+    SCREEN PASS.** Fix the screen. The 1.5% budget was never raised during the
+    run that built this and every one of the 35 reachable screens came in under
+    0.8% but one.
+
+    **FIXTURE MODE IS WHAT MAKES THE NUMBER MEAN ANYTHING.** `lib/fixtures/mode.ts`
+    requires THREE locks — `CC_FIXTURE=1`, a non-production build, AND
+    `?fixture=v7` on the URL — and `lib/fixtures/mode.test.ts` asserts each
+    independently, including the one combination that could happen by accident.
+    It substitutes DATA ONLY and never touches authentication. Without it the
+    diff would be measuring the database against a demo, every screen would
+    differ for reasons that are nobody's design decision, and the only way to
+    make it pass would be to raise the threshold until it asserted nothing —
+    which is exactly how the previous gate ended up green on screens the owner
+    says do not match.
+
+    **THE SECOND GATE SAYS WHAT IS WRONG IN WORDS.** Alongside the diff, the
+    harness compares the ordered sequence of visible landmarks and reports what
+    is missing, extra or out of order. It matches v7's clickable widgets BY
+    CLASS (`.dtab`, `.ci`, `.si`, `.opt`, `.tab`, `.hsr`, `.hsall`, `.nqb`,
+    `.linkcell`) rather than by element, because v7 is one self-rendering page
+    where every widget is a `<button>` and the port is a routed app where the
+    same widget is often an `<a>`. Measuring the widget on BOTH sides is the
+    honest fix; dropping it from the selector would have been the dishonest one.
+
+    **AND LOOK AT THE SIDE-BY-SIDE.** `test-results/v7-pixel/<id>-side-by-side.png`
+    is part of the run, not decoration. Three of the seven defects this gate
+    found were found by LOOKING at it, not by reading the number — including a
+    header logo at the wrong aspect ratio that had every element right of the
+    brand 35px off on every screen in the app.
+
+    Full detail, including every deliberate divergence and every honest empty
+    state: `docs/design/V7_PIXEL_REPORT.md`. The behaviour mapping, v7 function
+    to React handler: `docs/design/command-center-v7/BEHAVIOR_MAP.md`.
 
 ---
 

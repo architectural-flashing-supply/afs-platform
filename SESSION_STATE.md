@@ -24,7 +24,88 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
-## COMMAND CENTER V2 — PROMPT v2-06 (2026-09-30) — CURRENT HANDOFF
+## v7 PIXEL GATE (2026-10-02, branch `cc-v7-pixel`) — CURRENT HANDOFF
+
+**The acceptance gate was wrong, not the complaint. It has been replaced.**
+
+Reid's report was "nothing matches" while `tests/visual/v7-style-gate.spec.ts`
+passed 66 of 66. Both were true: that gate compares hand-picked element pairs on
+hand-picked properties, and every property it was pointed at really did match.
+It cannot see a missing drawing, an absent pill, a two-panel rail where v7 has
+three, a logo at the wrong aspect ratio, or a screen that is a different screen.
+
+The authority is now a **whole-screen pixel diff** against the untouched
+prototype — `tests/visual/v7-pixel-gate.spec.ts`, CLAUDE.md **rule #34** — over
+a manifest of **all 54 distinct v7 states**. Pass is 1.5% of pixels.
+
+### THE NUMBERS
+
+| | BEFORE | AFTER |
+|---|---|---|
+| MATCHING | **0 of 35** | **35 of 35** |
+| Range | 8.26% – 96.04% | 0.14% – 1.37% |
+| Unmeasurable | 8 (Job screens 404'd) | 0 |
+
+The threshold was never loosened, no mask was ever used, and no baseline was
+ever edited. The before column was measured by checking the whole UI back out at
+the commit where the harness landed, with the final harness, so the improvement
+is the port and not the gate.
+
+### WHAT REID SHOULD LOOK AT
+
+1. **Open the two side by side.** `pnpm dev`, then
+   `http://localhost:3000/admin/command-center?fixture=v7` beside
+   `docs/design/command-center-v7/AFS_Command_Center_Prototype_v7.html`. Both
+   show the SAME sample data, so anything that differs is the port. Click
+   through every nav item and a job card. Drop `?fixture=v7` for real data in the
+   same layout.
+2. **The header logo changed on the Command Center only.** v7's is a tighter,
+   wider crop (342x134 vs 1536x1024). That one file was why every header element
+   right of the brand sat 35px off on every screen. `/afs-logo.png` is untouched
+   everywhere else — marketing site, sign-in, tracking page, bid PDF.
+3. **Customers is now a master-detail**, not a filtered table. Its role filter,
+   tier filter and CSV export all survived, inside v7's own elements. This is the
+   biggest change to a screen's shape and the one most worth a second opinion.
+4. **Four screens deliberately keep live behaviour over v7's look**, and each is
+   argued in `docs/design/V7_PIXEL_REPORT.md` §4 so you can overrule any of them:
+   the Job screen's action pane, the Deliveries map, Pricing and Settings. The
+   short version: v7's versions of those fake things this app really does, and
+   one of them reaches a bending machine.
+
+### DECISIONS MADE WITHOUT ASKING, AS INSTRUCTED
+
+Every one is recorded in `docs/design/V7_PIXEL_REPORT.md`:
+
+- **v7's own logo file** was extracted to `public/afs-logo-command-center.png`
+  and used in the Command Center header. Rule #33 says v7 wins appearance
+  conflicts, and the existing PNG is recorded as a fallback in DATA BLOCKERS.
+- **Customers became v7's master-detail**, keeping the directory's real features
+  inside it rather than dropping either.
+- **v7's six Settings toggles were NOT built.** Each needs a settings table and
+  a writer; a switch that flips and is forgotten on reload is worse than none on
+  a screen whose settings decide whether a customer gets an email.
+- **v7's `.foot` sample-data sentence is fixture-only** — it would be a false
+  statement over real customer names.
+- The pixel baselines are **gitignored**: the gate re-renders them from the
+  committed prototype every run, and there is deliberately no update mode.
+
+### WHAT IS NOT DONE
+
+- **Sixteen v7 states have no live route** and the gate names each: the operator
+  screen (4), the email-source split (2), the document modals (2), the FlashDraft
+  modals (2, a deliberate architectural difference), the Outlook modals (2, no
+  Graph code), change orders and addenda (2, gap-audit items 8 and 9), and the
+  schedule/follow-up modals (2, inline in the live app). All pre-existing.
+- **Gap-audit items 6-9** (Tricia's money trail, change orders, addenda) are
+  untouched — this run was UI layer only.
+- **NEXT SCREEN, if this is picked up again:** there is none in the manifest.
+  Every screen with a live route measures under 1.5%. The next work is either
+  Reid's confirmation, or building one of the sixteen missing states — the
+  operator screen is the largest and the most used by the shop.
+
+---
+
+## COMMAND CENTER V2 — PROMPT v2-06 (2026-09-30) — EARLIER HANDOFF
 
 Hardening and the consolidation. Nothing new to click; four audit findings
 closed, a contrast check that fails the build, and the governance stack brought

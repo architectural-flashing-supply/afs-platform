@@ -267,7 +267,14 @@ async function measure(
     if (/\/login/.test(url)) {
       return { ...base, note: `redirected to ${url} — storageState is not signed in.` };
     }
-    await live.waitForSelector('header.hdr', { timeout: 20_000 });
+    // 45s, not 20s. This is waiting for the PAGE TO EXIST, not for any
+    // assertion to come true: `next dev` compiles a route the first time it is
+    // requested, and the heaviest admin screens (Settings reads seven
+    // integration statuses and the product stock table) have exceeded 20s on a
+    // cold compile. A timeout there is reported as `error`, which fails — so a
+    // too-tight wait turns a slow compiler into a false failure. Nothing about
+    // the comparison is relaxed by it.
+    await live.waitForSelector('header.hdr', { timeout: 45_000 });
     await settle(live);
     await applyMasks(live, masks);
     liveBuf = await live.screenshot({ fullPage: true, animations: 'disabled' });

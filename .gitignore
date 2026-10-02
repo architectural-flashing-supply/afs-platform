@@ -72,3 +72,11 @@ supabase/.temp/
 # 2026-09-19 revision pass verification screenshots (full-page checkpoint
 # captures) — local evidence for that session, never committed.
 scratch-verify/
+
+# The pixel gate's baselines are RE-RENDERED from the committed prototype on
+# every run (tests/visual/v7-pixel-gate.spec.ts). They are evidence, not an
+# expectation that can drift — there is deliberately no "update baselines" mode
+# — so committing them would only add a few megabytes of churn per run. The
+# canonical truth is docs/design/command-center-v7/AFS_Command_Center_Prototype_v7.html,
+# which IS committed.
+tests/visual/v7-baselines/
