@@ -387,3 +387,73 @@ export function fixtureSearch(s: V7SearchState): V7SearchView {
 }
 
 export { V7_DAYS, V7_MTYPE, num, totals, rowOfJob, profBy, jobSt, type V7LaneKey, type V7Filter };
+
+/* ───────────────────── header type-ahead (v7 hqShow) ───────────────────── */
+
+export interface V7TypeaheadRow {
+  key: string;
+  drawing: V7DrawingRef;
+  title: string;
+  detail: string;
+  href: string;
+}
+
+export interface V7TypeaheadView {
+  companies: { name: string; person: string; href: string }[];
+  rows: V7TypeaheadRow[];
+  total: number;
+  seeAllHref: string;
+  emptyMessage: string | null;
+}
+
+/**
+ * v7 `hqShow(v)` (line 1680) — the header dropdown: up to two matching
+ * COMPANIES first, then up to six job rows, then "See all N results".
+ *
+ * Built CLIENT-SIDE in fixture mode rather than through
+ * `/api/admin/command-center/typeahead`, because that route is real API
+ * behaviour and this run changes none. The live header still fetches it.
+ */
+export function fixtureTypeahead(v: string): V7TypeaheadView {
+  const f = v7Fixture();
+  const value = v.trim();
+  const first = value.toLowerCase().split(/\s+/)[0];
+  const companies = f.custs
+    .map((c) => c[0])
+    .filter((n) => n.toLowerCase().indexOf(first) >= 0)
+    .slice(0, 2)
+    .map((name) => ({
+      name,
+      person: f.custs.find((c) => c[0] === name)?.[1] ?? '',
+      href: `/admin/quotes/new?customer=${encodeURIComponent(name)}&fixture=v7`,
+    }));
+
+  const all = v7SearchRows(f.profiles, f.jobs, {
+    q: value,
+    mat: 'All materials',
+    range: 'all',
+    show: 'all',
+    sort: 'new',
+    pid: 0,
+  });
+
+  const rows: V7TypeaheadRow[] = all.slice(0, 6).map((r) => ({
+    key: `${r.n}-${r.pid}-${r.ts}`,
+    drawing: { kind: r.kind, d: r.d, hi: [], paint: 'Up' },
+    title: `${r.cust} · ${V7_NAMES[r.kind]}`,
+    detail:
+      `${dimTxt(r.kind, r.d)} · ${r.spec} · ${r.qty} pcs · ${fmtTs(r.ts)}` +
+      (r.tot ? ` · ${cents(r.tot)}` : ''),
+    href: r.j ? `/admin/command-center/job/${r.n}?fixture=v7` : `/admin/search?q=${encodeURIComponent(value)}&fixture=v7`,
+  }));
+
+  return {
+    companies,
+    rows,
+    total: all.length,
+    seeAllHref: `/admin/search?q=${encodeURIComponent(value)}&fixture=v7`,
+    // v7 shows its "nothing found" line only when there are no company hits
+    // either — a company match on its own is a useful answer.
+    emptyMessage: all.length === 0 && companies.length === 0 ? 'Nothing found. Try the company name first.' : null,
+  };
+}

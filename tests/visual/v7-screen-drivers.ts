@@ -129,10 +129,27 @@ export const SCREEN_DRIVERS: Record<string, ScreenDriver> = {
       await type(p, '#hq', 'Hill Country drip');
       await p.waitForSelector('.hsd:not([hidden])', { timeout: 5000 });
     },
+
     live: async (p, url) => {
       await goLive(p, url);
-      await p.locator('.hs input[type="search"]').first().fill('Hill Country drip');
-      await p.waitForSelector('.hsd:not([hidden])', { timeout: 6000 }).catch(() => {});
+      // FILL UNTIL IT TAKES. `goLive` waits for `header.hdr`, which is in the
+      // server-rendered HTML — it is there before React has hydrated, and a
+      // fill that lands first sets the DOM value without ever firing the
+      // onChange that opens the dropdown. The gate reported the type-ahead at
+      // 8.55% with eight landmarks missing for exactly that reason, and the
+      // same page opened the dropdown fine with a wait in front of it. The
+      // style gate documents the same race on the More button.
+      const input = p.locator('.hs input[type="search"]').first();
+      for (let i = 0; i < 5; i++) {
+        if (await p.locator('.hsd').count()) break;
+        await input.fill('');
+        await input.fill('Hill Country drip');
+        await p.locator('.hsd').first().waitFor({ state: 'attached', timeout: 1500 }).catch(() => {});
+      }
+      // Same blur as the prototype side: the two sides reach this state by
+      // different routes, and a focus ring on one of them is an artifact of the
+      // gate rather than a difference between the screens.
+      await input.evaluate((el: HTMLElement) => el.blur());
     },
   },
 

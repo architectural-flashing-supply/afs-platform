@@ -1,4 +1,4 @@
-import { draw, type DrawOptions } from '@/lib/design/v7-draw';
+import { drawInner, V7_NAMES, type DrawOptions } from '@/lib/design/v7-draw';
 
 /**
  * A v7 profile drawing, as v7 emits it.
@@ -31,18 +31,39 @@ import { draw, type DrawOptions } from '@/lib/design/v7-draw';
  * here. Keep it that way: if a future caller wants a label inside the drawing,
  * it goes through `esc()` in `v7-draw.ts` like `V7_NAMES` does — never
  * concatenated into `html` by the caller.
+ *
+ * ────────────────────────────────────────────────────────────────────────────
+ * IT RENDERS THE <svg> ITSELF, WITH NO WRAPPER, AND THAT IS NOT TIDINESS.
+ * ────────────────────────────────────────────────────────────────────────────
+ *
+ * The first version returned `<span dangerouslySetInnerHTML>` around the whole
+ * `<svg>` string, because that is the obvious way to inject markup from React.
+ * v7's CSS sizes a drawing with `.plate svg{width:100%}` and
+ * `.pl svg{width:100%;height:100%}`, and those are DESCENDANT selectors, so
+ * they still matched — but 100% of an inline `<span>`, which shrinks to its
+ * content, not 100% of the plate. Every plate and every thumbnail in the app
+ * came out at a slightly different size, which showed up as a dimension label
+ * reading `1 1/2"` where the prototype read `11/2"` on the same drawing.
+ *
+ * So the `<svg>` element is JSX with v7's own attributes and only its INSIDE is
+ * injected. Do not wrap it again.
  */
 export default function V7Drawing({
   kind,
   d,
   options,
-  className,
 }: {
   kind: string;
   d?: number[] | null;
   options?: DrawOptions;
-  className?: string;
 }) {
-  const html = draw(kind, d, options);
-  return <span className={className} dangerouslySetInnerHTML={{ __html: html }} />;
+  const o = options ?? {};
+  return (
+    <svg
+      viewBox={`0 0 ${o.w || 400} ${o.h || 260}`}
+      role="img"
+      aria-label={`${V7_NAMES[kind]} profile drawing`}
+      dangerouslySetInnerHTML={{ __html: drawInner(kind, d, o) }}
+    />
+  );
 }

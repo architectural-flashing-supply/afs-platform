@@ -251,7 +251,7 @@ export const LANDMARK_SELECTOR = [
   // port's, and the structure gate reported five "missing" day tabs on a screen
   // the pixel diff put at 0.20%. Measuring the widget on BOTH sides is the
   // honest fix; dropping it from the selector would have been the dishonest one.
-  '.nqb', '.dtab', '.tab', '.ci', '.si', '.opt', '.linkcell',
+  '.nqb', '.dtab', '.tab', '.ci', '.si', '.opt', '.linkcell', '.hsr', '.hsall', '.hsc',
   '.pill', '.tag', '.step', '.lc', '.chip',
   'label', 'option[selected]',
   '.lh > span', '.rh > span',

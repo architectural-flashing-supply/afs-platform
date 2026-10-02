@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
+import V7Drawing from '@/components/admin/v7/V7Drawing';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { TOP_LEVEL_NAV, MORE_NAV, ADMIN_SEARCH_HREF, NEW_QUOTE_HREF } from '@/lib/data/admin-nav';
 import { TYPEAHEAD_MIN_CHARS } from '@/lib/data/header-typeahead';
+import { fixtureTypeahead } from '@/lib/data/v7-view/from-fixture';
 
 /**
  * THE Command Center header — a port of prototype v7's `header()` (line 1195).
@@ -63,6 +65,9 @@ interface Suggest {
     quantity: number;
     totalCents: number | null;
     requestNumber: string;
+    /** Fixture mode only — the API supplies neither. */
+    href?: string;
+    drawing?: { kind: string; d: number[] };
   }[];
   totalRows: number;
   emptyMessage: string | null;
@@ -154,6 +159,30 @@ export default function AdminTopBar({
     const q = search.trim();
     if (q.length < TYPEAHEAD_MIN_CHARS) {
       setSuggest(null);
+      return;
+    }
+    // FIXTURE MODE builds the dropdown from v7's own rows IN THE BROWSER and
+    // makes no request. /api/admin/command-center/typeahead is real API
+    // behaviour and this run changes none of it — adding a fixture branch
+    // inside the route would be exactly that. The live header still fetches it.
+    if (fixture) {
+      const v = fixtureTypeahead(q);
+      setSuggest({
+        companies: v.companies.map((c) => ({ name: c.name, person: c.person })),
+        rows: v.rows.map((r) => ({
+          id: r.key,
+          customer: r.title,
+          item: '',
+          spec: r.detail,
+          quantity: 0,
+          totalCents: null,
+          requestNumber: '',
+          href: r.href,
+          drawing: r.drawing,
+        })),
+        totalRows: v.total,
+        emptyMessage: v.emptyMessage,
+      } as Suggest);
       return;
     }
     const controller = new AbortController();
@@ -270,7 +299,7 @@ export default function AdminTopBar({
                   <div className="hsc" key={c.name} data-testid="typeahead-company">
                     <b>{c.name}</b>
                     <span>{c.person}</span>
-                    <Link href={NEW_QUOTE_HREF} className="btn red sm">
+                    <Link href={fixture ? `${NEW_QUOTE_HREF}?fixture=v7` : NEW_QUOTE_HREF} className="btn red sm">
                       New quote
                     </Link>
                   </div>
@@ -279,38 +308,66 @@ export default function AdminTopBar({
                 {suggest.rows.map((r) => (
                   <Link
                     key={r.id}
-                    href={`/admin/command-center/job/${r.id}`}
+                    href={r.href ?? `/admin/command-center/job/${r.id}`}
                     className="hsr"
                     data-testid="typeahead-row"
                     role="option"
                     aria-selected={false}
                   >
+                    {/* v7 puts a 60px profile drawing in every dropdown row.
+                        The live type-ahead query carries no geometry (rule #26),
+                        so the slot is empty there rather than holding an
+                        invented shape — the same rule the lists and the
+                        Workbench cards follow. */}
+                    <span className="rt">
+                      {r.drawing && (
+                        <V7Drawing
+                          kind={r.drawing.kind}
+                          d={r.drawing.d}
+                          options={{ w: 60, h: 60, pad: 8, sw: 4 }}
+                        />
+                      )}
+                    </span>
                     <span className="tx">
-                      <b>
-                        {r.customer} · {r.item}
-                      </b>
+                      <b>{r.item ? `${r.customer} · ${r.item}` : r.customer}</b>
                       <span>
-                        {[
-                          r.spec,
-                          `${r.quantity} pcs`,
-                          r.requestNumber,
-                          r.totalCents == null ? null : cents(r.totalCents),
-                        ]
-                          .filter(Boolean)
-                          .join(' · ')}
+                        {r.item
+                          ? [
+                              r.spec,
+                              `${r.quantity} pcs`,
+                              r.requestNumber,
+                              r.totalCents == null ? null : cents(r.totalCents),
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')
+                          : r.spec}
                       </span>
                     </span>
                   </Link>
                 ))}
 
                 {suggest.totalRows > 0 && (
-                  <Link
-                    href={`${ADMIN_SEARCH_HREF}?q=${encodeURIComponent(search.trim())}`}
+                  /* A <button>, NOT a link, and that is v7's element rather than
+                     a preference. v7 styles `.hsall` with `width:100%` and
+                     `height:38px` and no `display`, which works on a <button>
+                     because it is inline-block and does nothing on an <a>,
+                     which is inline. Rendered as a link it came out as a small
+                     outlined word where v7 has a full-width dark bar — the
+                     whole-screen diff put the dropdown at 1.58% on that one
+                     row. The sibling `.hsr` rows ARE links, because v7 gives
+                     those `display:flex` and they size correctly either way. */
+                  <button
+                    type="button"
                     className="hsall"
+                    onClick={() =>
+                      router.push(
+                        `${ADMIN_SEARCH_HREF}?q=${encodeURIComponent(search.trim())}${fixture ? '&fixture=v7' : ''}`,
+                      )
+                    }
                   >
                     See all {suggest.totalRows} result{suggest.totalRows === 1 ? '' : 's'}, newest
                     first
-                  </Link>
+                  </button>
                 )}
 
                 {suggest.emptyMessage && <div className="hsn">{suggest.emptyMessage}</div>}
