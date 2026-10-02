@@ -69,6 +69,23 @@ export default function V7ShopBoard({
   const [result, setResult] = useState<Result>(null);
   const live = !fixtureView;
 
+  /**
+   * MARKS THE BOARD AS INTERACTIVE, because until React has hydrated, pressing
+   * Start bending does nothing at all — the markup is there, the handler is
+   * not. That is inherent to a server-rendered page and not specific to this
+   * component, but on THIS screen it matters twice over: an operator standing
+   * at the machine presses a large button and expects something, and
+   * tests/e2e/shop-deliveries.spec.ts was clicking into that window and seeing
+   * its click swallowed.
+   *
+   * `data-hydrated` is what the test waits for. It is not a test-only hook —
+   * it is the honest statement of a state the screen really has.
+   */
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
+
   const refresh = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/shop-queue', { cache: 'no-store' });
@@ -114,7 +131,14 @@ export default function V7ShopBoard({
       const card = queue?.active.find((c: ShopQueueCard) => c.id === id);
       if (!card?.action) return;
       setBusyId(id);
-      setResult(null);
+      // SAY SOMETHING IMMEDIATELY. Advancing a job is a real round trip — it
+      // writes the shop row, auto-schedules the delivery on the next business
+      // day (rule #24) and notifies the customer (rule #25) — and it has been
+      // measured at around three seconds. An operator standing at the machine
+      // pressed a button and the screen said nothing for three seconds, which
+      // is how a button gets pressed twice. Now the strip appears at once and
+      // its text is replaced by the result.
+      setResult({ tone: 'info', message: card.action.label === 'Start bending' ? 'Starting…' : 'Finishing…' });
       try {
         const res = await fetch(`/api/admin/shop-library/${id}`, {
           method: 'PATCH',
@@ -146,7 +170,7 @@ export default function V7ShopBoard({
   const onAction = live ? (action: string, id?: string) => { if (id) void advance(id); } : undefined;
 
   return (
-    <div className="shopg">
+    <div className="shopg" data-hydrated={hydrated ? 'true' : 'false'}>
       <section className="panel">
         {/* The `{' '}` is not noise: v7 emits `Queue <span class="tag">`, and JSX
             drops whitespace that contains a newline, so without it the tag butts

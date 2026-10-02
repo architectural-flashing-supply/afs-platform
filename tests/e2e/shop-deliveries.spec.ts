@@ -237,7 +237,16 @@ test.describe('Shop View -> Deliveries, end to end', () => {
   test('Start bending -> Mark finished -> Deliveries -> Mark delivered -> Done', async ({
     page,
     request,
-  }) => {
+  }, testInfo) => {
+    // 90s, not the config's 30s. This is the suite's longest end-to-end: it
+    // submits a job, starts it, finishes it — which writes the shop row,
+    // auto-schedules the delivery on the next business day and notifies the
+    // customer — then reschedules and delivers it, and reads the database back
+    // between every step. Three of those are real round trips measured at
+    // around three seconds each, and the total had grown past 30s. Raising the
+    // TEST's budget is not relaxing any assertion in it; every expectation
+    // below is unchanged.
+    testInfo.setTimeout(90_000);
     const job = await submitJob(request, 'journey');
     createdJobs.push(job.requestId);
     const fixture = await createShopJobFixture(TEST_TAG, job.requestId, {
@@ -259,8 +268,20 @@ test.describe('Shop View -> Deliveries, end to end', () => {
     await expect(card).toContainText('profile #32999001');
     await expect(card).toHaveAttribute('data-state', 'queued');
 
+    // WAIT FOR HYDRATION BEFORE PRESSING. The row is server-rendered, so the
+    // card and its button are visible before React has attached the handler —
+    // a click that lands in that window is simply swallowed, and this test was
+    // intermittently doing exactly that. `data-hydrated` is set by the board
+    // on mount; see V7ShopBoard for why it is a real state and not a test hook.
+    await expect(page.locator('.shopg')).toHaveAttribute('data-hydrated', 'true');
     await card.locator('[data-testid="start-bending"]').click();
-    await expect(page.locator('[data-testid="shop-result"]')).toContainText('Started bending');
+    // 15s, not the 5s default. Advancing a job is a real round trip — it writes
+    // the shop row, auto-schedules the delivery and notifies the customer — and
+    // it measures around three seconds locally. The strip itself now appears
+    // IMMEDIATELY reading "Starting…"; this waits for the result to replace it.
+    await expect(page.locator('[data-testid="shop-result"]')).toContainText('Started bending', {
+      timeout: 15_000,
+    });
 
     let shopRow = await readShopRow(fixture.shopJobId);
     proof('after Start bending', shopRow);
