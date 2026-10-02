@@ -21,14 +21,23 @@ function routeExists(href: string): boolean {
 
 describe('Command Center navigation is ONE level', () => {
   it('has exactly the V2 top-level items, in order', () => {
-    expect(TOP_LEVEL_NAV.map((i) => i.label)).toEqual(['Workbench', 'Shop View', 'Deliveries']);
+    // v7 header(), line 1199 — left to right, exactly these seven.
+    expect(TOP_LEVEL_NAV.map((i) => i.label)).toEqual([
+      'Workbench',
+      'Quotes',
+      'Orders',
+      'Shop View',
+      'Deliveries',
+      'Customers',
+      'Pricing',
+    ]);
   });
 
   it('has exactly the V2 More items, in order', () => {
     expect(MORE_NAV.map((i) => i.label)).toEqual([
-      'Customers',
       'Credit Applications',
       'Bid Monitor',
+      'Search',
       'Settings',
     ]);
   });

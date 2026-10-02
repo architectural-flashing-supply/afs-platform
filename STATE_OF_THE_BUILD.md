@@ -34,6 +34,118 @@ summary, not a replacement for it.
 
 ---
 
+## 2026-10-01 - v7 PHASE 0 + PHASE 2 (branch `command-center-v7`)
+
+Tricia's address reversed, the v7 header and nav built, and the Quotes and
+Orders lists built from one shared component.
+
+### PHASE 0 - THE ADDRESS WAS REVERSED, AND THIS CONTRADICTS THREE PRIOR RECORDS
+
+**Reid confirmed on 2026-10-01 that `trica@architecturalflashingsupply.com` is
+the real mailbox and `tricia@` is wrong.** That is the OPPOSITE of what this
+document, `docs/COMMAND_CENTER_V2_SPEC.md` and CLAUDE.md rule #21 all recorded on
+2026-09-30, when prompt `v2-01` rewrote 31 occurrences the other way. The
+contradiction was raised before any file was touched and the instruction was
+explicit, including "fix the comment that calls trica a misspelling" - so it was
+carried out, and recorded here rather than quietly flipped, because it is a
+live-money address.
+
+31 occurrences in 19 files reverted; **0 remain** (the six surviving `tricia@`
+strings are prose explaining the reversal, not addresses). The stale prose in
+`lib/data/office.ts`, the V2 spec and CLAUDE.md now says `trica@` is correct and
+warns the next reader not to "fix" it back.
+
+**The FORGE gates were inverted by this and were repaired.** Two gates in
+`queue.yaml` scanned for `trica@` and exited 1 on finding it - after the reversal
+they would have failed the entire v2 queue on the CORRECT address. Their
+regexes, messages and six rule lines now read `tricia@`. Re-run live against the
+tree: **TRICIA GATE PASS**. `queue.yaml` lives outside the repo, so it is not in
+the commit; this entry is its record.
+
+### PHASE 2 - HEADER, NAV, QUOTES AND ORDERS
+
+Nav is v7's seven in order - Workbench, Quotes, Orders, Shop View, Deliveries,
+Customers, Pricing (`lib/data/admin-nav.ts`). Credit Applications and Bid Monitor
+moved under More. The red "+ New quote" sits on every admin page and points at
+**`/admin/quotes`**: v7's own `newquote` page does not exist yet (it is the next
+phase), so it links to a real route rather than a dead one.
+
+**Pricing's "admin only" is recorded but is not a new tier.** `requireAdminUser`
+redirects anyone whose `profiles.role !== 'admin'` away from the whole `/admin`
+tree, so every user who can see the nav already is that role. `adminOnly: true`
+records the intent; inventing a second role would have been a schema change
+nobody asked for.
+
+The type-ahead is `app/api/admin/command-center/typeahead/route.ts` over
+`lib/data/header-typeahead.ts`: opens at two characters, companies matched on the
+FIRST token (max 2) above job rows matched by full token-AND (max 6), then v7's
+"See all N results" footer. Identity comes from the session; the query string
+carries nothing but `q`.
+
+Both lists render ONE `components/admin/QuoteOrderList.tsx` over
+`lib/data/quote-order-rows.ts`, with all filtering, sorting and matching pure in
+`lib/data/quote-order-list.ts` (32 unit tests). **No schema change was needed** -
+the one field a list row needs beyond a Workbench card, the quote total, comes
+from the existing `quote_requests.quote_id -> quotes.total_cents`.
+
+### WHAT THE NAV CHANGE EXPOSED - 9 PRE-EXISTING CONTRAST FAILURES
+
+Putting Orders and Pricing in the nav pulled `/admin/orders/[id]` and
+`/admin/pricing` under the prebuild contrast gate for the first time, and the
+build went red on **9 pairs that were already broken**: `afs-crimson` and
+`afs-success` used as TEXT on gunmetal (rule #29), `afs-chrome-dim` as body text
+(rule #18), and two form fields bordered `afs-border` at 1.71:1 against the 3:1
+rule. All nine were fixed at the colour, not by relaxing a threshold:
+`afs-danger-on-dark` / `afs-success-on-dark` / `afs-chrome-silver` /
+`afs-chrome-base`. Final gate: **22 screens, 465 pairs, 0 unresolved, 0 below.**
+
+The gate reported `0 unresolved` only after `QuoteOrderList`'s field-class
+constant was made a single string literal - a `+` concatenation reads as
+unresolved, and rule #28 counts a rising unresolved number as the gate going
+blind.
+
+### FIDELITY, AND WHAT STILL DIFFERS
+
+`tests/e2e/phase2-fidelity.spec.ts` opens the approved v7 HTML off disk beside
+the live pages at 1440x900 and 1280x800: 16 screenshots in
+`test-results/phase2-fidelity/`, plus assertions for the things a screenshot
+cannot check. Nav order, the "+ New quote" label, both page titles and blurbs,
+the list column headers, and all three dropdowns on both lists are asserted
+**character-for-character against the prototype** and match.
+
+Still visibly different, all of it pre-existing Command Center chrome rather than
+anything built here, and **none of it closable without breaking a stated rule** -
+PENDING REID:
+- v7's header is a near-black gradient with a 3px red underline; live is
+  `afs-bg-raised`. Matching it needs new colours, which the design rules forbid.
+- v7's brand is uppercase with "CENTER" in red, and its nav sits in a bordered
+  pill group with a blue active chip. Live is sentence case with a plain active
+  chip. v7's reds on that surface measure about 1.7:1 and would fail the contrast
+  gate, so matching them exactly and keeping the gate green are mutually
+  exclusive.
+- Search placeholder: v7 "Search: Hill Country drip edge" (names a sample
+  customer) vs live "Customer, profile, or job" - a sample-data difference.
+- Badge counts differ because the data differs.
+
+### GATES, RUN IN THIS SESSION
+
+`pnpm tsc --noEmit` 0 - `pnpm run build` green including the prebuild contrast
+gate - **439/439 vitest** across 27 files (32 new) - **15/15**
+`command-center-v7-nav.spec.ts` - **14/14** `phase2-fidelity.spec.ts`.
+
+**One pre-existing flaky test, not caused by this work and not fixed:**
+`lib/pricing/approve-token.test.ts > rejects a single flipped character in the
+signature` failed once in a full run and passed in two others and in isolation.
+It flips the token's LAST base64url character, which encodes fewer than six
+significant bits, so for some randomly-signed tokens 'A'->'B' changes no decoded
+byte and the signature stays valid. The test is flaky by construction; the
+signing code is not implicated. Reported rather than patched - out of scope.
+
+**Status: IMPLEMENTED, UNCONFIRMED.** Gates pass and the screenshots were
+examined in-session; Reid has not confirmed the screens himself.
+
+---
+
 ## 2026-10-01 — COMMAND CENTER v7 GAP AUDIT (branch `command-center-v7`, read-only)
 
 Branch cut from `main` at `256eca1`. **No application code was changed.** The

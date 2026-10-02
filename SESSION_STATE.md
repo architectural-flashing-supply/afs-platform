@@ -9347,3 +9347,54 @@ single-door test must stay green with the new route kept **off** its allow-list.
 **Gates:** `pnpm tsc --noEmit` exit 0 (unchanged — no code edited);
 `git diff --stat` confirms docs only. Committed to `command-center-v7` and
 pushed. Not merged, not deployed; `products-page` untouched.
+
+
+---
+
+## 2026-10-01 - v7 Phase 0 + Phase 2 (FORGE 2.0, branch `command-center-v7`)
+
+Two things in this run are worth more than the feature work.
+
+**The address reversal contradicted three governance records, and was flagged
+before anything was edited.** The spec, CLAUDE.md rule #21 and the v2-01 entry
+all said `tricia@` was correct; the instruction said the opposite and told me to
+fix the comment calling `trica` a misspelling. That is Reid's call on his own
+mailbox, so it was made - 31 occurrences across 19 files, 0 remaining - but it is
+recorded as a REVERSAL in every one of those documents rather than silently
+flipped, because a wrong auto-invoice address is a live-money error in either
+direction. The stale prose now warns the next reader not to change it back.
+
+**It also inverted two FORGE gates.** `queue.yaml` had two scanners that failed
+the build on finding `trica@`; after the reversal they would have failed on the
+correct address. Both were inverted and re-run live: TRICIA GATE PASS.
+
+**Adding Orders and Pricing to the nav pulled two screens under the contrast gate
+for the first time and turned the build red on 9 pre-existing failures** -
+crimson and success as text on gunmetal, chrome-dim as body text, and two form
+fields at 1.71:1. All nine were fixed at the colour per rules #18/#29, never by
+relaxing a threshold. The gate ends at 22 screens, 465 pairs, 0 unresolved, 0
+below - and `0 unresolved` only held after a class constant was written as a
+single literal, because a concatenated one reads as unresolved and rule #28
+treats that as the gate going blind.
+
+**Four of my own test defects were found and fixed rather than worked around:**
+the e2e had no `storageState`, so every /admin assertion was measuring the
+sign-in page while reporting Command Center names (the exact trap rule #28
+records); the header-wrap check compared `top` values of vertically-centred
+children of different heights; the fidelity spec built a Windows `file://` URL by
+hand and hung every test on a 30s navigation timeout; and it then called
+prototype functions that turn out not to be globals. The prototype is now driven
+by clicking its own `[data-go]` nav.
+
+**No schema change was needed for either list** - the quote total comes from the
+existing `quote_requests.quote_id -> quotes.total_cents`.
+
+Fidelity: 16 screenshots at 1440x900 and 1280x800 in
+`test-results/phase2-fidelity/`, with nav order, button label, titles, blurbs,
+column headers and all three dropdowns asserted character-for-character against
+the prototype. The remaining differences are v7's header chrome (gradient, red
+underline, pill nav, red brand), which cannot be matched without new colours or
+failing the contrast gate - written up for Reid rather than quietly skipped.
+
+Gates: tsc 0 - build green incl. contrast - 439/439 vitest - 15/15 nav e2e -
+14/14 fidelity. One pre-existing flaky test diagnosed and reported, not patched.

@@ -14,23 +14,21 @@ v7 routes, from its own `render()` dispatcher (line 1207): `workbench`, `job`,
 
 ---
 
-## ⚠ READ THIS BEFORE COPYING ANYTHING FROM v7
+## ✔ RESOLVED 2026-10-01 — THE ADDRESS, AND WHICH SPELLING WON
 
-**v7 line 850 reads `var TRICIA = 'trica@architecturalflashingsupply.com';` — the
-MISSPELLING.** It is printed to the user at v7 line 1590 and onto every quote and
-invoice document at line 1869.
+This audit originally flagged v7 line 850
+(`var TRICIA = 'trica@architecturalflashingsupply.com';`) as a misspelling,
+because three governance records said so.
 
-The live app is **correct**: `lib/data/office.ts` defines
-`OFFICE_INVOICE_EMAIL_DEFAULT = 'tricia@architecturalflashingsupply.com'`.
-`docs/COMMAND_CENTER_V2_SPEC.md` §"SETTLED — Tricia's address" records that Reid
-confirmed the correct spelling on 2026-09-30 and that `v2-01` fixed it in the
-*v2* prototype. **That fix did not carry into v7** — v7 is a later, separately
-generated file.
+**Reid reversed that on 2026-10-01: `trica@` is the real mailbox.** The v7
+prototype was right all along, and the 2026-09-30 decision — which had rewritten
+31 occurrences across code, docs and tests to `tricia@` — was the error.
 
-The brief for this run also repeated the misspelled address. It has **not** been
-propagated into any document or code here. Every phase below uses
-`officeInvoiceEmail()` and never a literal. A wrong auto-invoice address is a
-live-money error.
+Phase 0 of this build put all 31 back to `trica@` and rewrote the stale prose in
+`lib/data/office.ts`, `docs/COMMAND_CENTER_V2_SPEC.md` and `CLAUDE.md` so none of
+them still calls `trica` a misspelling. The address is still named **once**, in
+`lib/data/office.ts`; everything else reads `officeInvoiceEmail()` and never a
+literal. Owner question #1 below is therefore closed.
 
 ---
 
@@ -40,7 +38,19 @@ Legend: **Built** = works as v7 describes · **Partial** = some of it exists ·
 **Different** = exists but behaves differently · **Missing** = no code at all.
 Every Built/Partial/Different claim carries a file path.
 
-### 1. Header: nav, "+ New quote", type-ahead search — **PARTIAL**
+### 1. Header: nav, "+ New quote", type-ahead search — **BUILT (v7 Phase 2, 2026-10-01)**
+
+> Built on branch `command-center-v7`. Nav is the seven v7 items in order
+> (`lib/data/admin-nav.ts` `TOP_LEVEL_NAV`), Credit Applications and Bid Monitor
+> moved to `MORE_NAV`, the red "+ New quote" button is in
+> `components/layout/AdminTopBar.tsx` on every admin page pointing at
+> `NEW_QUOTE_HREF`, and the type-ahead is
+> `app/api/admin/command-center/typeahead/route.ts` +
+> `lib/data/header-typeahead.ts` (companies first, then token-AND job rows).
+> Verified by `tests/e2e/command-center-v7-nav.spec.ts` and
+> `tests/e2e/phase2-fidelity.spec.ts`. Original audit below.
+
+#### Original audit
 
 | Piece | Status | Evidence |
 |---|---|---|
@@ -60,7 +70,18 @@ Every Built/Partial/Different claim carries a file path.
 **Needs:** one new route `/admin/quotes`; a type-ahead API that returns customers
 *and* profiles. **No migration. Not Microsoft-dependent.**
 
-### 2. Separate Quotes and Orders lists (search, stage, date, sort) — **PARTIAL**
+### 2. Separate Quotes and Orders lists (search, stage, date, sort) — **BUILT (v7 Phase 2, 2026-10-01)**
+
+> `app/admin/quotes/page.tsx` (new) and `app/admin/orders/page.tsx` (rebuilt),
+> both rendering one shared `components/admin/QuoteOrderList.tsx`, over
+> `lib/data/quote-order-rows.ts` with pure filter/sort/match in
+> `lib/data/quote-order-list.ts` (32 unit tests). Stage, date and sort options
+> are asserted character-for-character against the prototype by
+> `tests/e2e/phase2-fidelity.spec.ts`. **No schema change was needed** — the
+> quote total comes from the existing `quote_requests.quote_id -> quotes.total_cents`.
+> Original audit below.
+
+#### Original audit
 
 | Piece | Status | Evidence |
 |---|---|---|
@@ -85,7 +106,14 @@ cards, draw-new-in-FlashDraft, new-customer form.
 **Needs:** one page, one "recent customers + last order" query, a reorder action
 that clones a past quote's line items. **No migration. Not Microsoft-dependent.**
 
-### 4. Search page over all past quotes and orders — **PARTIAL, and it searches the wrong thing**
+### 4. Search page over all past quotes and orders — **PARTIAL; the Orders/Quotes half is now BUILT**
+
+> v7 Phase 2 delivered searching over quotes and orders as the two LIST pages
+> (`/admin/quotes`, `/admin/orders`), each with v7's search, stage, date and
+> sort. What remains is the dedicated `/admin/search` PAGE, which still searches
+> profiles only, and the Reorder button. Original audit below.
+
+#### Original audit
 
 | Piece | Status | Evidence |
 |---|---|---|
@@ -327,10 +355,10 @@ should be delayed for 2026-10-02.
 
 ## (d) OPEN QUESTIONS — OWNER ONLY
 
-1. **Tricia's address in v7 is misspelled (`trica@`).** Confirmed correct in the
-   live code as `tricia@`. Please confirm v7 is simply stale and that the live
-   spelling stands — and ideally have the prototype's line 850 corrected so a
-   future verbatim copy cannot reintroduce it.
+1. ~~**Tricia's address in v7 is misspelled.**~~ **CLOSED 2026-10-01.** The
+   opposite was true: `trica@` is the real mailbox and v7 was correct. All 31
+   occurrences were reverted in Phase 0 of this build. See the banner at the top
+   of this document.
 2. **When should the invoice be created — at customer approval (live today) or at
    shop-finish (v7)?** These are different moments and they bill differently if a
    change or addendum lands in between. The live behaviour was deliberate

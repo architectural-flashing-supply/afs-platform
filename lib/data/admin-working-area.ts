@@ -33,6 +33,9 @@ export const LIGHT_WORKING_AREA_SCREENS: { screen: string; route: string }[] = [
   { screen: 'Deliveries', route: '/admin/deliveries' },
   // v2-05 replaced the interim results table with the approved thumbnail rail.
   { screen: 'Search', route: '/admin/search' },
+  // v7 Phase 2: both office lists are light working areas under the dark header.
+  { screen: 'Quotes', route: '/admin/quotes' },
+  { screen: 'Orders', route: '/admin/orders' },
 ];
 
 /**

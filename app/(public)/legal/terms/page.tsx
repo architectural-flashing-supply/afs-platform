@@ -15,10 +15,10 @@ export default function TermsOfSalePage() {
           <p className="font-body text-base text-afs-chrome-mid leading-relaxed">
             Terms of Sale coming soon. Contact{' '}
             <a
-              href="mailto:tricia@architecturalflashingsupply.com"
+              href="mailto:trica@architecturalflashingsupply.com"
               className="text-afs-crimson hover:text-afs-crimson-hover transition-colors"
             >
-              tricia@architecturalflashingsupply.com
+              trica@architecturalflashingsupply.com
             </a>{' '}
             with questions.
           </p>

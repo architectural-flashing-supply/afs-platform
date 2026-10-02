@@ -170,7 +170,7 @@ test.describe('Command Center header', () => {
 
     // The automatic invoice copy goes to Tricia, spelled correctly.
     await expect(page.locator('[data-testid="office-invoice-email"]')).toHaveText(
-      'tricia@architecturalflashingsupply.com'
+      'trica@architecturalflashingsupply.com'
     );
 
     // And the price book opens.

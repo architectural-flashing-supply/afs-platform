@@ -21,10 +21,10 @@ export default function EscalationCard({ reason }: EscalationCardProps) {
           (512) 372-4900
         </a>
         <a
-          href="mailto:tricia@architecturalflashingsupply.com"
+          href="mailto:trica@architecturalflashingsupply.com"
           className="font-label text-sm text-afs-crimson hover:text-afs-crimson-hover transition-colors break-all"
         >
-          tricia@architecturalflashingsupply.com
+          trica@architecturalflashingsupply.com
         </a>
       </div>
       <Link

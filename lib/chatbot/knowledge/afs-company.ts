@@ -13,7 +13,7 @@ export const afsCompanyKnowledge: KnowledgeChunk[] = [
     subcategory: 'Contact Info',
     topic: 'Company name, address, phone, and email contacts',
     content:
-      'Architectural Flashing Supply (AFS) is located at 209 Sure Cast Drive, Burnet, TX 78611. Main phone: (512) 372-4900. General/administrative contact: Tricia — tricia@architecturalflashingsupply.com, handling administration and customer coordination. Owner and President: Steve Harycki — steve@architecturalflashingsupply.com. For complex projects, technical questions, or anything beyond a standard quote request, customers should be offered a direct connection to Tricia by phone or email.',
+      'Architectural Flashing Supply (AFS) is located at 209 Sure Cast Drive, Burnet, TX 78611. Main phone: (512) 372-4900. General/administrative contact: Tricia — trica@architecturalflashingsupply.com, handling administration and customer coordination. Owner and President: Steve Harycki — steve@architecturalflashingsupply.com. For complex projects, technical questions, or anything beyond a standard quote request, customers should be offered a direct connection to Tricia by phone or email.',
     keywords: ['AFS address', 'AFS phone', 'AFS email', 'contact AFS', 'Burnet Texas', 'Steve Harycki', 'Tricia'],
   },
   {

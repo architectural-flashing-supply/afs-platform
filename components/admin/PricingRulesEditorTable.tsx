@@ -24,7 +24,7 @@ function toPercentString(fraction: number | null): string {
 }
 
 const inputClass =
-  'w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-data';
+  'w-full bg-afs-bg-overlay border border-afs-chrome-base rounded px-3 py-2 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-data';
 
 export default function PricingRulesEditorTable({ rows }: PricingRulesEditorTableProps) {
   const [state, setState] = useState<Record<string, RowState>>(() => {
@@ -158,8 +158,8 @@ export default function PricingRulesEditorTable({ rows }: PricingRulesEditorTabl
                   >
                     {rs.saving ? 'Saving…' : 'Save Row'}
                   </button>
-                  {rs.error && <p className="font-body text-xs text-afs-crimson mt-1.5">{rs.error}</p>}
-                  {rs.saved && !rs.error && <p className="font-body text-xs text-afs-success mt-1.5">Saved</p>}
+                  {rs.error && <p className="font-body text-xs text-afs-danger-on-dark mt-1.5">{rs.error}</p>}
+                  {rs.saved && !rs.error && <p className="font-body text-xs text-afs-success-on-dark mt-1.5">Saved</p>}
                 </td>
               </tr>
             );

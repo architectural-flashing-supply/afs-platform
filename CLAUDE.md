@@ -629,8 +629,12 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
     rejected because it would silence real customer mail the moment somebody left
     it on. `AFS_EMAIL_TEST_MODE=1` is for local development only and is not set
     in Vercel. Every approved invoice is copied automatically to
-    `officeInvoiceEmail()` — **`tricia@architecturalflashingsupply.com`**, named
-    once in `lib/data/office.ts` and nowhere else.
+    `officeInvoiceEmail()` — **`trica@architecturalflashingsupply.com`**, named
+    once in `lib/data/office.ts` and nowhere else. **The spelling is `trica@`,
+    with no `i` after the `r`.** An earlier pass (2026-09-30) ruled the opposite
+    and rewrote 31 occurrences to `tricia@`; Reid reversed that on 2026-10-01 and
+    every occurrence is back. Do not "correct" it again without his say — the
+    wrong-looking spelling is the right one.
 
 22. **THE SERVICE-ROLE SUPABASE CLIENT NEVER READS A CACHED ROW.**
     `lib/supabase/admin.ts` passes `cache: 'no-store'` on every request, and must

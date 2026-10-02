@@ -5,7 +5,24 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { TOP_LEVEL_NAV, MORE_NAV, ADMIN_SEARCH_HREF } from '@/lib/data/admin-nav';
+import { TOP_LEVEL_NAV, MORE_NAV, ADMIN_SEARCH_HREF, NEW_QUOTE_HREF } from '@/lib/data/admin-nav';
+import { TYPEAHEAD_MIN_CHARS } from '@/lib/data/header-typeahead';
+
+/** What /api/admin/command-center/typeahead returns. */
+interface Suggest {
+  companies: { name: string; person: string }[];
+  rows: {
+    id: string;
+    customer: string;
+    item: string;
+    spec: string;
+    quantity: number;
+    totalCents: number | null;
+    requestNumber: string;
+  }[];
+  totalRows: number;
+  emptyMessage: string | null;
+}
 
 /**
  * THE Command Center navigation. ONE level, and this is the only level.
@@ -66,6 +83,9 @@ export default function AdminTopBar({
   const pathname = usePathname();
   const router = useRouter();
   const [search, setSearch] = useState('');
+  const [suggest, setSuggest] = useState<Suggest | null>(null);
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const searchRef = useRef<HTMLDivElement | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
 
@@ -101,14 +121,63 @@ export default function AdminTopBar({
 
   const moreActive = MORE_NAV.some((i) => isActivePath(pathname, i.href));
 
+  // TYPE-AHEAD (v7 hqShow, line 1680). Opens at two characters; companies
+  // first, then job rows. Debounced so a fast typist makes one request, not one
+  // per keystroke, and the in-flight request is abandoned when a newer one
+  // starts so an older, slower response can never overwrite a newer one.
+  useEffect(() => {
+    const q = search.trim();
+    if (q.length < TYPEAHEAD_MIN_CHARS) {
+      setSuggest(null);
+      return;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      fetch(`/api/admin/command-center/typeahead?q=${encodeURIComponent(q)}`, {
+        signal: controller.signal,
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((json) => {
+          if (json) setSuggest(json as Suggest);
+        })
+        .catch(() => {
+          /* aborted or offline — leave the last result on screen */
+        });
+    }, 160);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [search]);
+
+  // Close the dropdown on an outside click, same as the More menu.
+  useEffect(() => {
+    if (!suggestOpen) return;
+    function onDown(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setSuggestOpen(false);
+    }
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [suggestOpen]);
+
   return (
     <header className="fixed top-0 left-0 right-0 z-40 bg-afs-bg-raised border-b border-afs-border">
-      <div className="h-16 flex items-center gap-2 px-4 lg:px-6">
+      <div className="h-16 flex flex-nowrap items-center gap-2 px-4 lg:px-6">
         <Link href="/admin/command-center" className="flex items-center gap-2 shrink-0 mr-2">
           <Image src="/afs-logo.png" alt="AFS" width={28} height={20} className="h-6 w-auto object-contain" />
-          <span className="hidden sm:inline font-label text-sm font-semibold text-afs-chrome-high whitespace-nowrap">
+          {/* v7 hides the brand text below 1250px so the nav never wraps. */}
+          <span className="hidden min-[1250px]:inline font-label text-sm font-semibold text-afs-chrome-high whitespace-nowrap">
             Command Center
           </span>
+        </Link>
+
+        {/* v7 puts "+ New quote" immediately after the brand, in the one red. */}
+        <Link
+          href={NEW_QUOTE_HREF}
+          data-testid="new-quote-button"
+          className="shrink-0 inline-flex items-center h-10 px-4 rounded bg-afs-crimson text-white font-label text-sm font-semibold whitespace-nowrap transition-colors hover:bg-afs-crimson-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-afs-crimson focus-visible:ring-offset-2 focus-visible:ring-offset-afs-bg-raised"
+        >
+          + New quote
         </Link>
 
         <nav className="flex items-center gap-1 min-w-0 overflow-x-auto" aria-label="Main">
@@ -138,19 +207,95 @@ export default function AdminTopBar({
 
         <div className="flex items-center gap-3 ml-auto shrink-0">
           {/* Search sits on afs-bg-dim so the placeholder itself clears AA. */}
-          <form onSubmit={handleSearchSubmit} className="hidden sm:block" role="search">
-            <label htmlFor="admin-search" className="sr-only">
-              Search
-            </label>
-            <input
-              id="admin-search"
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Customer, profile, or job"
-              className="w-48 lg:w-64 h-10 bg-afs-bg-dim border border-afs-chrome-base rounded px-3 font-body text-sm text-afs-chrome-high placeholder:text-afs-chrome-mid focus:outline-none focus:border-afs-crimson transition-colors"
-            />
-          </form>
+          <div className="relative hidden sm:block" ref={searchRef}>
+            <form onSubmit={handleSearchSubmit} role="search">
+              <label htmlFor="admin-search" className="sr-only">
+                Search
+              </label>
+              <input
+                id="admin-search"
+                type="search"
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setSuggestOpen(true);
+                }}
+                onFocus={() => setSuggestOpen(true)}
+                autoComplete="off"
+                role="combobox"
+                aria-expanded={suggestOpen && suggest !== null}
+                aria-controls="admin-typeahead"
+                placeholder="Customer, profile, or job"
+                className="w-48 lg:w-64 h-10 bg-afs-bg-dim border border-afs-chrome-base rounded px-3 font-body text-sm text-afs-chrome-high placeholder:text-afs-chrome-mid focus:outline-none focus:border-afs-crimson transition-colors"
+              />
+            </form>
+
+            {/* v7 .hsd — companies first, then job rows, then "See all". */}
+            {suggestOpen && suggest && search.trim().length >= TYPEAHEAD_MIN_CHARS && (
+              <div
+                id="admin-typeahead"
+                data-testid="admin-typeahead"
+                role="listbox"
+                className="absolute right-0 top-full mt-2 w-[min(640px,92vw)] max-h-[72vh] overflow-auto bg-afs-bg-raised border border-afs-chrome-base rounded shadow-raised p-1.5 z-50"
+              >
+                {suggest.companies.map((c) => (
+                  <div
+                    key={c.name}
+                    data-testid="typeahead-company"
+                    className="flex items-center gap-3 px-3 py-2 rounded hover:bg-afs-bg-surface"
+                  >
+                    <span className="min-w-0 flex-1">
+                      <b className="block truncate font-label text-sm text-afs-chrome-high">{c.name}</b>
+                      {c.person && (
+                        <span className="block truncate font-body text-xs text-afs-chrome-silver">
+                          {c.person}
+                        </span>
+                      )}
+                    </span>
+                    <Link
+                      href={NEW_QUOTE_HREF}
+                      className="shrink-0 h-8 px-3 inline-flex items-center rounded bg-afs-crimson text-white font-label text-xs font-semibold"
+                    >
+                      New quote
+                    </Link>
+                  </div>
+                ))}
+
+                {suggest.rows.map((r) => (
+                  <Link
+                    key={r.id}
+                    href={`/admin/command-center/job/${r.id}`}
+                    data-testid="typeahead-row"
+                    role="option"
+                    aria-selected={false}
+                    className="block px-3 py-2 rounded hover:bg-afs-bg-surface"
+                  >
+                    <b className="block truncate font-label text-sm text-afs-chrome-high">
+                      {r.customer} · {r.item}
+                    </b>
+                    <span className="block truncate font-body text-xs text-afs-chrome-silver">
+                      {[r.spec, `${r.quantity} pcs`, r.requestNumber].filter(Boolean).join(' · ')}
+                    </span>
+                  </Link>
+                ))}
+
+                {suggest.totalRows > 0 && (
+                  <Link
+                    href={`${ADMIN_SEARCH_HREF}?q=${encodeURIComponent(search.trim())}`}
+                    className="block px-3 py-2 mt-1 rounded text-center font-label text-xs text-afs-chrome-high bg-afs-bg-surface hover:bg-afs-bg-overlay"
+                  >
+                    See all {suggest.totalRows} result{suggest.totalRows === 1 ? '' : 's'}, newest first
+                  </Link>
+                )}
+
+                {suggest.emptyMessage && (
+                  <p className="px-3 py-3 font-body text-sm text-afs-chrome-silver">
+                    {suggest.emptyMessage}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
 
           <div className="relative" ref={moreRef}>
             <button

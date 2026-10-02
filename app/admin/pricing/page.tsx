@@ -22,11 +22,11 @@ function PricingEngineComingSoonCard() {
         commodity prices, historical supplier cost data, and your margin targets.
       </p>
       <div>
-        <p className="font-label text-xs uppercase tracking-wide text-afs-chrome-dim mb-2">Requirements to activate</p>
+        <p className="font-label text-xs uppercase tracking-wide text-afs-chrome-silver mb-2">Requirements to activate</p>
         <ul className="flex flex-col gap-1.5">
           {REQUIREMENTS.map((req) => (
             <li key={req} className="font-body text-sm text-afs-chrome-mid flex items-center gap-2">
-              <span className="text-afs-chrome-dim">○</span>
+              <span className="text-afs-chrome-silver">○</span>
               {req}
             </li>
           ))}
