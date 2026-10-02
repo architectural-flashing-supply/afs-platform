@@ -1,0 +1,522 @@
+{
+  "$comment": [
+    "THE SCREEN MANIFEST — every distinct screen and state prototype v7 can render.",
+    "",
+    "Built by reading docs/design/command-center-v7/AFS_Command_Center_Prototype_v7.html in full:",
+    "its render() dispatcher (line 1207), every page function, every modalHTML() branch,",
+    "and every state field in seed()'s OUT object that changes what is on screen.",
+    "",
+    "WHY IT IS A FILE AND NOT A LIST IN A TEST. A state missing from the manifest is a",
+    "state nobody checks. Writing it down separately from the harness means the",
+    "enumeration can be reviewed against the prototype on its own, and the harness",
+    "fails loudly (`manifest entry has no steps`) rather than quietly skipping.",
+    "",
+    "DELIBERATELY EXCLUDED, with reasons:",
+    "  - #gpeek (the hover-enlarge preview). It is reachable only by a real pointer",
+    "    hovering a [data-pid]/[data-job] element, and its POSITION is computed from",
+    "    the hovered element's viewport rectangle. A full-page screenshot of a",
+    "    hover-positioned fixed overlay is not reproducible, and the brief asks for",
+    "    hover-independent states.",
+    "  - #toast. A 6.5-second timer overlay; it is state, but it is time-dependent and",
+    "    carries no layout of its own beyond one line of text.",
+    "  - document.requestFullscreen() in A.opFull. Headless Chromium grants it",
+    "    inconsistently; the `op-full` entry below exercises S.opFull instead, which is",
+    "    what actually changes the markup.",
+    "",
+    "`protoSteps` are executed against the untouched prototype. `liveSteps` against the",
+    "app in fixture mode. `liveRoute: null` means NO live route exists for this state —",
+    "the harness records it as MISSING rather than passing it by omission."
+  ],
+  "viewport": { "width": 1440, "height": 900 },
+  "screens": [
+    {
+      "id": "workbench",
+      "name": "Workbench — five lanes, chips, three rail panels",
+      "tier": 1,
+      "protoFn": "pageWorkbench()",
+      "protoSteps": ["load"],
+      "liveRoute": "/admin/command-center",
+      "liveSteps": ["load"]
+    },
+    {
+      "id": "shell-more-menu",
+      "name": "Header — More menu open",
+      "tier": 1,
+      "protoFn": "header() + A.more",
+      "protoSteps": ["load", "click .more .mbtn"],
+      "liveRoute": "/admin/command-center",
+      "liveSteps": ["load", "click .more .mbtn"]
+    },
+    {
+      "id": "shell-typeahead",
+      "name": "Header — type-ahead dropdown, company then profile rows",
+      "tier": 1,
+      "protoFn": "hqShow()",
+      "protoSteps": ["load", "fill #hq with 'Hill Country drip'", "wait .hsd:not([hidden])"],
+      "liveRoute": "/admin/command-center",
+      "liveSteps": ["load", "fill header search with 'Hill Country drip'", "wait dropdown"]
+    },
+    {
+      "id": "quotes",
+      "name": "Quotes list — search, stage, date, sort",
+      "tier": 2,
+      "protoFn": "pageList('quotes')",
+      "protoSteps": ["load", "click [data-go=quotes]"],
+      "liveRoute": "/admin/quotes",
+      "liveSteps": ["load"]
+    },
+    {
+      "id": "quotes-stage-new",
+      "name": "Quotes list — stage filter 'Needs a quote'",
+      "tier": 2,
+      "protoFn": "pageList('quotes') + S.ls.quotes.stage='new'",
+      "protoSteps": ["click [data-go=quotes]", "select [data-in=ls][data-k=stage] -> new"],
+      "liveRoute": "/admin/quotes?stage=new",
+      "liveSteps": ["load"]
+    },
+    {
+      "id": "orders",
+      "name": "Orders list",
+      "tier": 2,
+      "protoFn": "pageList('orders')",
+      "protoSteps": ["load", "click [data-go=orders]"],
+      "liveRoute": "/admin/orders",
+      "liveSteps": ["load"]
+    },
+    {
+      "id": "orders-sort-val",
+      "name": "Orders list — sort 'Highest value'",
+      "tier": 2,
+      "protoFn": "pageList('orders') + S.ls.orders.sort='val'",
+      "protoSteps": ["click [data-go=orders]", "select [data-in=ls][data-k=sort] -> val"],
+      "liveRoute": "/admin/orders?sort=val",
+      "liveSteps": ["load"]
+    },
+    {
+      "id": "shop",
+      "name": "Shop View — queue table, Finished today, Next up",
+      "tier": 3,
+      "protoFn": "pageShop()",
+      "protoSteps": ["load", "click [data-go=shop]"],
+      "liveRoute": "/admin/shop-view",
+      "liveSteps": ["load"]
+    },
+    {
+      "id": "job-new",
+      "name": "Job screen — New lane, email source, change requested (job 412)",
+      "tier": 4,
+      "protoFn": "pageJob(412)",
+      "protoSteps": ["load", "click [data-go='job:412']"],
+      "liveRoute": "/admin/command-center/job/412",
+      "liveSteps": ["load"]
+    },
+    {
+      "id": "job-new-nodraw",
+      "name": "Job screen — New lane, no saved profile (job 413)",
+      "tier": 4,
+      "protoFn": "pageJob(413)",
+      "protoSteps": ["load", "click [data-go='job:413']"],
+      "liveRoute": "/admin/command-center/job/413",
+      "liveSteps": ["load"]
+    },
+    {
+      "id": "job-new-fieldapp",
+      "name": "Job screen — New lane, Field app photo-of-sketch (job 414)",
+      "tier": 4,
+      "protoFn": "pageJob(414)",
+      "protoSteps": ["load", "click [data-go='job:414']"],
+      "liveRoute": "/admin/command-center/job/414",
+      "liveSteps": ["load"]
+    },
+    {
+      "id": "job-quoted",
+      "name": "Job screen — Quoted, waiting on the customer (job 409)",
+      "tier": 4,
+      "protoFn": "pageJob(409)",
+      "protoSteps": ["load", "click [data-go='job:409']"],
+      "liveRoute": "/admin/command-center/job/409",
+      "liveSteps": ["load"]
+    },
+    {
+      "id": "job-approved",
+      "name": "Job screen — Approved, ready for the machine (job 405)",
+      "tier": 4,
+      "protoFn": "pageJob(405)",
+      "protoSteps": ["load", "click [data-go='job:405']"],
+      "liveRoute": "/admin/command-center/job/405",
+      "liveSteps": ["load"]
+    },
+    {
+      "id": "job-shop",
+      "name": "Job screen — In the shop, bending now (job 398)",
+      "tier": 4,
+      "protoFn": "pageJob(398)",
+      "protoSteps": ["load", "click [data-go='job:398']"],
+      "liveRoute": "/admin/command-center/job/398",
+      "liveSteps": ["load"]
+    },
+    {
+      "id": "job-shop-finished",
+      "name": "Job screen — In the shop, finished, invoice sent (job 402)",
+      "tier": 4,
+      "protoFn": "pageJob(402)",
+      "protoSteps": ["load", "click [data-go='job:402']"],
+      "liveRoute": "/admin/command-center/job/402",
+      "liveSteps": ["load"]
+    },
+    {
+      "id": "job-done",
+      "name": "Job screen — Delivered (job 399)",
+      "tier": 4,
+      "protoFn": "pageJob(399)",
+      "protoSteps": ["load", "click [data-go='job:399']"],
+      "liveRoute": "/admin/command-center/job/399",
+      "liveSteps": ["load"]
+    },
+    {
+      "id": "deliveries",
+      "name": "Deliveries — split view, schedule left, tracking map right",
+      "tier": 5,
+      "protoFn": "pageDeliveries()",
+      "protoSteps": ["load", "click [data-go=deliveries]"],
+      "liveRoute": "/admin/deliveries",
+      "liveSteps": ["load"]
+    },
+    {
+      "id": "deliveries-full-list",
+      "name": "Deliveries — schedule expanded to full page",
+      "tier": 5,
+      "protoFn": "pageDeliveries() + S.dv.full='list'",
+      "protoSteps": ["click [data-go=deliveries]", "click .dleft [data-act=dvFull]"],
+      "liveRoute": "/admin/deliveries?full=list",
+      "liveSteps": ["load"]
+    },
+    {
+      "id": "deliveries-full-map",
+      "name": "Deliveries — map expanded to full page",
+      "tier": 5,
+      "protoFn": "pageDeliveries() + S.dv.full='map'",
+      "protoSteps": ["click [data-go=deliveries]", "click .dright [data-act=dvFull]"],
+      "liveRoute": "/admin/deliveries?full=map",
+      "liveSteps": ["load"]
+    },
+    {
+      "id": "deliveries-day-fri",
+      "name": "Deliveries — map day tab switched to Friday",
+      "tier": 5,
+      "protoFn": "pageDeliveries() + S.dv.day='fri'",
+      "protoSteps": ["click [data-go=deliveries]", "click [data-act=dvDay][data-v=fri]"],
+      "liveRoute": "/admin/deliveries?day=fri",
+      "liveSteps": ["load"]
+    },
+    {
+      "id": "newquote",
+      "name": "New quote — no customer picked yet",
+      "tier": 6,
+      "protoFn": "pageNewQuote()",
+      "protoSteps": ["load", "click .nqb"],
+      "liveRoute": "/admin/quotes/new",
+      "liveSteps": ["load"]
+    },
+    {
+      "id": "newquote-customer",
+      "name": "New quote — customer picked, reorder strip + saved profile cards",
+      "tier": 6,
+      "protoFn": "pageNewQuote() + S.nq.cust",
+      "protoSteps": ["click .nqb", "click [data-act=nqPick][data-v='Hill Country Roofing']"],
+      "liveRoute": "/admin/quotes/new?customer=Hill%20Country%20Roofing",
+      "liveSteps": ["load"]
+    },
+    {
+      "id": "newquote-blank",
+      "name": "New quote — new customer, blank form",
+      "tier": 6,
+      "protoFn": "pageNewQuote() + S.nq.blank",
+      "protoSteps": ["click .nqb", "click [data-act=nqBlank]"],
+      "liveRoute": "/admin/quotes/new?new=1",
+      "liveSteps": ["load"]
+    },
+    {
+      "id": "search",
+      "name": "Search — every past quote and order",
+      "tier": 7,
+      "protoFn": "pageSearch()",
+      "protoSteps": ["load", "click .more .mbtn", "click [data-go=search]"],
+      "liveRoute": "/admin/search",
+      "liveSteps": ["load"]
+    },
+    {
+      "id": "search-query",
+      "name": "Search — results for 'Hill Country drip edge'",
+      "tier": 7,
+      "protoFn": "pageSearch() + S.search.q",
+      "protoSteps": ["click .more .mbtn", "click [data-go=search]", "fill #sq"],
+      "liveRoute": "/admin/search?q=Hill+Country+drip+edge",
+      "liveSteps": ["load"]
+    },
+    {
+      "id": "search-pid",
+      "name": "Search — filtered to one profile, with the 'Show everything' chip",
+      "tier": 7,
+      "protoFn": "pageSearch() + S.search.pid",
+      "protoSteps": ["load", "click [data-go='prof:1']"],
+      "liveRoute": "/admin/search?pid=1",
+      "liveSteps": ["load"]
+    },
+    {
+      "id": "search-empty",
+      "name": "Search — nothing matches",
+      "tier": 7,
+      "protoFn": "pageSearch() + no results",
+      "protoSteps": ["click .more .mbtn", "click [data-go=search]", "fill #sq with 'zzzz'"],
+      "liveRoute": "/admin/search?q=zzzz",
+      "liveSteps": ["load"]
+    },
+    {
+      "id": "customers",
+      "name": "Customers — list, detail, jobs table, saved profiles",
+      "tier": 8,
+      "protoFn": "pageCustomers()",
+      "protoSteps": ["load", "click [data-go=customers]"],
+      "liveRoute": "/admin/customers",
+      "liveSteps": ["load"]
+    },
+    {
+      "id": "customers-edit",
+      "name": "Customers — contact in edit mode",
+      "tier": 8,
+      "protoFn": "pageCustomers() + S.cust.edit",
+      "protoSteps": ["click [data-go=customers]", "click [data-act=editContact]"],
+      "liveRoute": "/admin/customers?edit=1",
+      "liveSteps": ["load"]
+    },
+    {
+      "id": "pricing",
+      "name": "Pricing engine — empty on purpose, with the fill hint",
+      "tier": 9,
+      "protoFn": "pagePricing()",
+      "protoSteps": ["load", "click [data-go=pricing]"],
+      "liveRoute": "/admin/pricing",
+      "liveSteps": ["load"]
+    },
+    {
+      "id": "pricing-filled",
+      "name": "Pricing engine — example numbers loaded, live price check priced",
+      "tier": 9,
+      "protoFn": "pagePricing() + loadExample()",
+      "protoSteps": ["click [data-go=pricing]", "click [data-act=loadEx]"],
+      "liveRoute": "/admin/pricing?example=1",
+      "liveSteps": ["load"]
+    },
+    {
+      "id": "settings-email",
+      "name": "Settings — Email section",
+      "tier": 10,
+      "protoFn": "pageSettings() 'email'",
+      "protoSteps": ["click .more .mbtn", "click [data-go=settings]"],
+      "liveRoute": "/admin/settings",
+      "liveSteps": ["load"]
+    },
+    {
+      "id": "settings-inv",
+      "name": "Settings — Invoices section",
+      "tier": 10,
+      "protoFn": "pageSettings() 'inv'",
+      "protoSteps": ["goto settings", "click [data-act=setSec][data-v=inv]"],
+      "liveRoute": "/admin/settings?section=inv",
+      "liveSteps": ["load"]
+    },
+    {
+      "id": "settings-docs",
+      "name": "Settings — Documents section",
+      "tier": 10,
+      "protoFn": "pageSettings() 'docs'",
+      "protoSteps": ["goto settings", "click [data-act=setSec][data-v=docs]"],
+      "liveRoute": "/admin/settings?section=docs",
+      "liveSteps": ["load"]
+    },
+    {
+      "id": "settings-soon",
+      "name": "Settings — Coming soon section",
+      "tier": 10,
+      "protoFn": "pageSettings() 'soon'",
+      "protoSteps": ["goto settings", "click [data-act=setSec][data-v=soon]"],
+      "liveRoute": "/admin/settings?section=soon",
+      "liveSteps": ["load"]
+    },
+    {
+      "id": "source-sketch",
+      "name": "Email source — split view, sketch tab, parser takeoff",
+      "tier": 11,
+      "protoFn": "pageSource(412) tab 0",
+      "protoSteps": ["click [data-go='job:412']", "click [data-go='source:412']"],
+      "liveRoute": null,
+      "liveNote": "NO LIVE ROUTE. v7's two-pane 'original email beside the parser reading' has no counterpart; the live Job screen has one request pane."
+    },
+    {
+      "id": "source-photo",
+      "name": "Email source — photo tab (IMG_2041.jpg)",
+      "tier": 11,
+      "protoFn": "pageSource(412) tab 1",
+      "protoSteps": ["goto source:412", "click [data-act=srcTab][data-v=1]"],
+      "liveRoute": null,
+      "liveNote": "NO LIVE ROUTE — same reason as source-sketch."
+    },
+    {
+      "id": "op-bending",
+      "name": "Operator screen — bending now, big plate, notes rail",
+      "tier": 12,
+      "protoFn": "pageOp(398)",
+      "protoSteps": ["click [data-go=shop]", "click [data-act=openop][data-id=398]"],
+      "liveRoute": null,
+      "liveNote": "NO LIVE ROUTE. ShopQueueBoard renders the queue only; v7's take-over-the-screen operator view does not exist."
+    },
+    {
+      "id": "op-queued",
+      "name": "Operator screen — queued, position in queue",
+      "tier": 12,
+      "protoFn": "pageOp(401)",
+      "protoSteps": ["click [data-go=shop]", "click [data-act=openop][data-id=401]"],
+      "liveRoute": null,
+      "liveNote": "NO LIVE ROUTE — same reason as op-bending."
+    },
+    {
+      "id": "op-finished",
+      "name": "Operator screen — finished, invoice banner",
+      "tier": 12,
+      "protoFn": "pageOp(402)",
+      "protoSteps": ["goto op:402"],
+      "liveRoute": null,
+      "liveNote": "NO LIVE ROUTE — same reason as op-bending."
+    },
+    {
+      "id": "op-full",
+      "name": "Operator screen — expanded (S.opFull), header removed",
+      "tier": 12,
+      "protoFn": "pageOp(398) + S.opFull",
+      "protoSteps": ["goto op:398", "click .expbtn"],
+      "liveRoute": null,
+      "liveNote": "NO LIVE ROUTE — same reason as op-bending."
+    },
+    {
+      "id": "modal-doc-quote",
+      "name": "Modal — quote document (the paper)",
+      "tier": 13,
+      "protoFn": "modalHTML() doc/quote",
+      "protoSteps": ["click [data-go='job:409']", "click [data-act=docq]"],
+      "liveRoute": null,
+      "liveNote": "The live Job screen has no quote-document preview modal."
+    },
+    {
+      "id": "modal-doc-invoice",
+      "name": "Modal — invoice document, preview banner",
+      "tier": 13,
+      "protoFn": "modalHTML() doc/inv",
+      "protoSteps": ["click [data-go='job:402']", "click [data-act=doci]"],
+      "liveRoute": null,
+      "liveNote": "No live invoice-document modal."
+    },
+    {
+      "id": "modal-fd-change",
+      "name": "Modal — FlashDraft, change asked for (job 412)",
+      "tier": 13,
+      "protoFn": "fdHTML() pending change",
+      "protoSteps": ["click [data-go='job:412']", "click [data-act=fd]"],
+      "liveRoute": null,
+      "liveNote": "FlashDraft is a separate real app at /studio/draft, not a Command Center modal."
+    },
+    {
+      "id": "modal-fd-new",
+      "name": "Modal — FlashDraft, no saved profile (job 413)",
+      "tier": 13,
+      "protoFn": "fdHTML() new profile",
+      "protoSteps": ["click [data-go='job:413']", "click [data-act=fd]"],
+      "liveRoute": null,
+      "liveNote": "Same as modal-fd-change."
+    },
+    {
+      "id": "modal-mail-order",
+      "name": "Modal — email, new order with parser reading",
+      "tier": 13,
+      "protoFn": "modalHTML() mail id 3",
+      "protoSteps": ["load", "click .rl.m[data-id='3']"],
+      "liveRoute": null,
+      "liveNote": "Outlook inbox rail is the one Microsoft-dependent feature; no Graph code exists (COMMAND_CENTER_V2_SPEC §2.4)."
+    },
+    {
+      "id": "modal-mail-notice",
+      "name": "Modal — email, supplier price notice",
+      "tier": 13,
+      "protoFn": "modalHTML() mail id 5",
+      "protoSteps": ["load", "click .rl.m[data-id='5']"],
+      "liveRoute": null,
+      "liveNote": "Same as modal-mail-order."
+    },
+    {
+      "id": "modal-sched",
+      "name": "Modal — schedule delivery, day and window options",
+      "tier": 13,
+      "protoFn": "modalHTML() sched",
+      "protoSteps": ["click [data-go=deliveries]", "click [data-act=sched]"],
+      "liveRoute": null,
+      "liveNote": "Live reschedule is inline on DeliveriesWeek, not a modal."
+    },
+    {
+      "id": "modal-follow",
+      "name": "Modal — follow-up email draft",
+      "tier": 13,
+      "protoFn": "modalHTML() follow",
+      "protoSteps": ["click [data-go='job:409']", "click [data-act=follow]"],
+      "liveRoute": null,
+      "liveNote": "No live follow-up draft modal."
+    },
+    {
+      "id": "modal-chg1",
+      "name": "Modal — customer changed the order (re-quote)",
+      "tier": 13,
+      "protoFn": "modalHTML() chg1",
+      "protoSteps": ["click [data-go='job:409']", "click [data-act=chg1]"],
+      "liveRoute": null,
+      "liveNote": "Gap-audit item 8, Missing: no change_order concept exists."
+    },
+    {
+      "id": "modal-chg2",
+      "name": "Modal — add an addendum",
+      "tier": 13,
+      "protoFn": "modalHTML() chg2",
+      "protoSteps": ["click [data-go='job:398']", "click [data-act=chg2]"],
+      "liveRoute": null,
+      "liveNote": "Gap-audit item 9, Missing: no addenda concept exists."
+    },
+    {
+      "id": "credit-applications",
+      "name": "Credit Applications (live-only; v7 has no counterpart)",
+      "tier": 14,
+      "protoFn": null,
+      "protoSteps": [],
+      "liveRoute": "/admin/credit-applications",
+      "liveSteps": ["load"],
+      "liveNote": "LIVE-ONLY. v7's nav has no Credit Applications. Measured for self-consistency with the ported shell only — there is no baseline to diff against."
+    },
+    {
+      "id": "bid-monitor",
+      "name": "Bid Monitor (live-only; v7 has no counterpart)",
+      "tier": 14,
+      "protoFn": null,
+      "protoSteps": [],
+      "liveRoute": "/admin/bid-monitor",
+      "liveSteps": ["load"],
+      "liveNote": "LIVE-ONLY. Same as credit-applications."
+    },
+    {
+      "id": "profile-search",
+      "name": "Find a past profile (live-only; rule #27's one profile panel)",
+      "tier": 14,
+      "protoFn": null,
+      "protoSteps": [],
+      "liveRoute": "/admin/search/profiles",
+      "liveSteps": ["load"],
+      "liveNote": "LIVE-ONLY. v7 has no profile-only search screen; CLAUDE.md rule #27 keeps this one."
+    }
+  ]
+}
