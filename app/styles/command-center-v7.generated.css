@@ -76,7 +76,7 @@ color-scheme:dark;
 .cc-v7{margin:0}
 .cc-v7{font-family:var(--body);font-size:15px;line-height:1.4}.cc-v7-ground{background:var(--bg);color:var(--ink)}
 .cc-v7 a{color:inherit;text-decoration:none}
-.cc-v7 button,.cc-v7 input,.cc-v7 select,.cc-v7 textarea{font:inherit;color:inherit}
+
 .cc-v7 h1,.cc-v7 h2,.cc-v7 h3,.cc-v7 p{margin:0}
 .cc-v7 :focus-visible{outline:3px solid #7DB0FF;outline-offset:2px}
 .cc-v7 ::selection{background:#35507F}

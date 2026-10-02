@@ -144,15 +144,15 @@ test.describe('fidelity — the things a screenshot cannot check', () => {
       .filter(Boolean);
 
     await page.goto('/admin/quotes');
-    // Exclude the screen-reader-only label for the thumbnail column: v7's
-    // equivalent header cell is empty, so counting ours shifts every column by
-    // one and makes a matching set look like a mismatch.
-    const live = (
-      await page.locator('[class*="grid-cols"] > span:not(.sr-only)').allInnerTexts()
-    )
+    // THE SAME SELECTOR ON BOTH SIDES. The live list is now a port of v7's own
+    // markup (CLAUDE.md rule #33), so its header strip IS `.ltab .lh` — there
+    // is no Tailwind grid to find by `[class*="grid-cols"]` any more, and no
+    // screen-reader-only cell to filter out, because v7's first and last header
+    // cells are empty and so are ours. One selector is also a stronger
+    // assertion: it checks the structure matches, not just the words.
+    const live = (await page.locator('.ltab .lh span').allInnerTexts())
       .map((t) => t.trim())
-      .filter(Boolean)
-      .slice(0, proto.length);
+      .filter(Boolean);
 
     expect(live).toEqual(proto);
   });

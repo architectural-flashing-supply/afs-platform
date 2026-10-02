@@ -173,7 +173,11 @@ test.describe('Command Center contrast, measured in the browser', () => {
         const panel = main?.firstElementChild;
         return panel ? getComputedStyle(panel).backgroundColor : null;
       });
-      expect(bg, `${route} working area background`).toBe('rgb(241, 242, 244)'); // afs-bg-band #F1F2F4
+      // v7's own ground. This asserted afs-bg-band #F1F2F4 until the Command
+      // Center became a port of prototype v7, whose light theme resolves --bg
+      // to #F4F5F7 (afs-v7-bg). bg-band could not simply be retuned — it is
+      // also the public marketing site's light palette. See CLAUDE.md rule #33.
+      expect(bg, `${route} working area background`).toBe('rgb(244, 245, 247)'); // afs-v7-bg #F4F5F7
     }
   });
 });

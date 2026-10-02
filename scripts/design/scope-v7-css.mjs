@@ -112,6 +112,37 @@ const PAGE_SELECTORS = new Set(['html', 'body', ':root', 'html,body']);
  */
 export const GROUND = '.cc-v7-ground';
 
+/**
+ * RULES THAT MUST NOT BE SCOPED AT ALL, because scoping them makes them WIN
+ * fights they do not win in the prototype.
+ *
+ * v7 has no Tailwind, so it writes its own form-control reset:
+ *
+ *     button,input,select,textarea{font:inherit;color:inherit}
+ *
+ * Scoped, that becomes `.cc-v7 button{...}` — specificity (0,1,1), an element
+ * selector plus a class. Every Tailwind utility is (0,1,0). So the scoped reset
+ * OUTRANKS `text-afs-chrome-high`, `font-bold`, `text-sm` and every other type
+ * or colour utility on any button, input, select or textarea inside the admin
+ * shell. In the prototype the same rule is (0,0,1) and loses to everything.
+ *
+ * That is not theoretical. It was found by tests/e2e/contrast-live.spec.ts,
+ * which measures real computed styles in a browser: Settings' crimson "Log this
+ * price change" button was rendering its label in the page's inherited
+ * `afs-chrome-mid` instead of the `text-afs-chrome-high` its own className
+ * asks for — white on crimson is 6.45:1, what actually shipped was 3.50:1.
+ * Every unconverted admin control with a Tailwind type or colour class had the
+ * same silent override.
+ *
+ * Dropping the rule loses nothing, because Tailwind's Preflight already
+ * supplies exactly these defaults — `font-family`, `font-size`, `font-weight`,
+ * `line-height`, `letter-spacing` and `color: inherit` on
+ * `button,input,optgroup,select,textarea` — at (0,0,1), which does not compete
+ * with utilities. v7's own controls are unaffected: `.btn`, `.f`, `.mbtn`,
+ * `.dtab`, `.xbtn` and the rest all set their colour explicitly.
+ */
+const DROPPED_SELECTORS = new Set(['button,input,select,textarea']);
+
 /** Declarations from v7's `body` rule that paint, rather than set type. */
 const GROUND_PROPERTIES = new Set(['background', 'background-color', 'color']);
 
@@ -286,6 +317,9 @@ function transform(css) {
     } else if (/^@keyframes\b/i.test(trimmed) || /^@(font-face|page|property|counter-style)\b/i.test(trimmed)) {
       // Percentage keyframe steps and descriptor blocks are not selectors.
       out += `${prelude}{${body}}`;
+    } else if (DROPPED_SELECTORS.has(trimmed.replace(/\s+/g, ''))) {
+      // Deliberately emitted as nothing — see DROPPED_SELECTORS above.
+      out += '';
     } else if (trimmed === 'body' || trimmed === ':root,body' || trimmed === 'body,:root') {
       // v7 paints the page ground on `body`. Split it: typography stays on the
       // scope class, paint moves to the opt-in ground class. See GROUND above.

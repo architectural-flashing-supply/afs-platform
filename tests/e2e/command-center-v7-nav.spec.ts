@@ -67,6 +67,30 @@ test.describe('v7 header', () => {
     }
   });
 
+  test('the header search box submits and lands on the Search page with the query', async ({
+    page,
+  }) => {
+    // PORTED FROM tests/e2e/command-center-v2-nav.spec.ts, which was deleted
+    // with v7 Stage D: that spec asserted the PRE-v7 navigation (three
+    // top-level items, Customers under More) and so could never pass again
+    // against the approved design. This was its one assertion with no
+    // counterpart here, so it moves rather than being lost.
+    //
+    // Updated for v7: /admin/search is now the quotes-and-orders Search screen
+    // (`pageSearch()`), not the profile rail — that moved to
+    // /admin/search/profiles. See CLAUDE.md rules #27 and #33.
+    await page.goto('/admin/command-center');
+    const box = page.getByRole('combobox');
+    await expect(box).toBeVisible();
+    await box.fill('coping');
+    await box.press('Enter');
+
+    await expect(page).toHaveURL(/\/admin\/search\?q=coping/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Search' })).toBeVisible();
+    // The query really arrived — the field on the page is filled from it.
+    await expect(page.locator('input[name="q"]')).toHaveValue('coping');
+  });
+
   test('Credit Applications and Bid Monitor live under More', async ({ page }) => {
     await page.goto('/admin/command-center');
     const more = MORE_NAV.map((i) => i.label);
