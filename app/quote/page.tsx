@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useState, useEffect, useCallback } from 'react';
+import { Fragment, useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { MATERIAL_STOCK_STATUS } from '@/lib/data/catalog';
 import {
@@ -17,10 +17,33 @@ import WasteFactorDisplay from '@/components/quote/WasteFactorDisplay';
 import TrimLengthOptimizerSection from '@/components/quote/TrimLengthOptimizerSection';
 import CrossSellPanel from '@/components/ai/CrossSellPanel';
 import {
+  constraintsForQuoteLabels,
+  getProfileConstraints,
   getProfileStockLengths,
   resolveStockLengthByQuoteLabel,
   type ProfileStockLength,
 } from '@/lib/data/product-profiles';
+// THE ORDER VALIDATOR (SPEC_AI_ORDER_VALIDATOR.md). The same pure engine runs
+// here, live as the customer types, and again server-side at Step 2 -> Next and
+// on submit — so the three can never disagree about the same dimensions. The
+// client half is instant and needs no request; the server half is authoritative
+// and is the only one that can read the catalog's dimension ranges for a GUEST,
+// whose session cannot pass product_profiles' RLS.
+import {
+  findingsForAudience,
+  validateOrder,
+  worstFindingForField,
+  type ProfileConstraints,
+  type ValidationField,
+} from '@/lib/order-validator';
+import type { ValidationMessage, ValidationResponse } from '@/lib/order-validator/api-shape';
+import {
+  FieldValidationMessage,
+  ValidationErrorBanner,
+  ValidationInfoNotes,
+  ValidationWarningBanner,
+  fieldBorderClass,
+} from '@/components/quote/OrderValidationMessages';
 
 type Step = 1 | 2 | 3 | 4;
 type SubmitState = 'idle' | 'submitting' | 'submitted';
@@ -139,7 +162,42 @@ interface QuoteRequestItemInput {
 interface QuoteRequestSuccessResponse {
   requestId: string;
   requestNumber: string;
+  /**
+   * The server-side validator's view of what was accepted. Optional because the
+   * field is additive on a route that has always answered without it — see
+   * app/api/quote-requests/route.ts. Errors are deliberately not included: by
+   * this point the submission is in, and an impossible dimension printed on a
+   * confirmation screen is not something the customer can act on.
+   */
+  validation?: {
+    counts: { error: number; warn: number; info: number };
+    notes: { field: string; message: string }[];
+  };
 }
+
+/** Every step-2 input, so an edit to any of them can clear an acknowledgement. */
+const STEP_2_FIELDS: readonly (keyof QuoteFormData)[] = [
+  'width',
+  'height',
+  'legA',
+  'legB',
+  'lengthFt',
+  'quantity',
+];
+
+/**
+ * The four dimension inputs the validator decorates individually, and their
+ * labels. These are the only fields a customer can both see and fix from step 2,
+ * which is why they are also the only ones that gate Next locally.
+ */
+const DECORATED_FIELDS = ['width', 'height', 'legA', 'legB'] as const;
+type DecoratedField = (typeof DECORATED_FIELDS)[number];
+const DECORATED_FIELD_LABELS: Record<DecoratedField, string> = {
+  width: 'Width (in)',
+  height: 'Height (in)',
+  legA: 'Leg A (in)',
+  legB: 'Leg B (in)',
+};
 
 interface QuoteRequestErrorResponse {
   error: string;
@@ -189,6 +247,17 @@ export default function QuotePage() {
   const [selectedAccessories, setSelectedAccessories] = useState<string[]>([]);
   const [profileStockLengths, setProfileStockLengths] = useState<ProfileStockLength[]>([]);
 
+  // --- Order validator state (SPEC_AI_ORDER_VALIDATOR.md §5) ---
+  const [profileConstraints, setProfileConstraints] = useState<ProfileConstraints[]>([]);
+  const [serverValidation, setServerValidation] = useState<ValidationResponse | null>(null);
+  const [isChecking, setIsChecking] = useState(false);
+  // Acknowledged warnings, keyed by their own message. The spec requires each
+  // warning to be acknowledged explicitly; keying by message means an
+  // acknowledgement cannot survive a change to the wording it referred to.
+  const [acknowledged, setAcknowledged] = useState<string[]>([]);
+  const [submitValidation, setSubmitValidation] =
+    useState<QuoteRequestSuccessResponse['validation']>(undefined);
+
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data }) => setIsAuthenticated(!!data.user));
@@ -199,8 +268,30 @@ export default function QuotePage() {
     getProfileStockLengths(supabase).then(setProfileStockLengths);
   }, []);
 
+  // The dimension ranges, for the live per-keystroke pass. A GUEST gets none of
+  // these — `product_profiles` RLS is `auth.uid() IS NOT NULL` — and that is
+  // handled rather than worked around: the engine simply does not run its range
+  // rules without them, and the server pass at Next catches a range violation
+  // for everyone. Failing silently to an empty list is correct here; the
+  // alternative is a page that cannot render because a reference table did not
+  // answer.
+  useEffect(() => {
+    const supabase = createClient();
+    getProfileConstraints(supabase)
+      .then(setProfileConstraints)
+      .catch(() => setProfileConstraints([]));
+  }, []);
+
   const updateField = (field: Exclude<keyof QuoteFormData, 'rush'>, value: string) => {
     setForm(prev => ({ ...prev, [field]: value }));
+    // AN EDIT INVALIDATES WHAT WAS ACKNOWLEDGED AND WHAT THE SERVER SAID.
+    // Without this, a customer could accept "a 24 inch span in 26 ga is at the
+    // limit", change the width to 40 inches, and walk past a warning about the
+    // new number that they never saw.
+    if (STEP_2_FIELDS.includes(field)) {
+      setAcknowledged([]);
+      setServerValidation(null);
+    }
   };
 
   const isAluminum = form.material ? requiresFinishChoice(form.material) : false;
@@ -227,11 +318,147 @@ export default function QuotePage() {
     isValidOptionalPositive(form.legB);
   const step3Valid = form.projectName.trim() !== '' && form.jobsiteAddress.trim() !== '';
 
-  const canProceed = step === 1 ? step1Valid : step === 2 ? step2Valid : step === 3 ? step3Valid : true;
+  // --- The live validator pass ---
+  // One item, built from the form exactly as it stands, including blanks: the
+  // engine treats an absent dimension as absent rather than as zero, which is
+  // what lets it report on a half-filled form without inventing failures.
+  const liveFindings = useMemo(() => {
+    const constraints = [
+      ...profileConstraints,
+      ...constraintsForQuoteLabels(profileConstraints, form.profileType ? [form.profileType] : []),
+    ];
+    const result = validateOrder({
+      items: [
+        {
+          profileType: form.profileType || null,
+          material: form.material || null,
+          gauge: form.gauge || null,
+          width: toNumberOrNull(form.width),
+          height: toNumberOrNull(form.height),
+          legA: toNumberOrNull(form.legA),
+          legB: toNumberOrNull(form.legB),
+          lengthFt: toNumberOrNull(form.lengthFt),
+          quantity: toNumberOrNull(form.quantity),
+        },
+      ],
+      constraints,
+    });
+    return findingsForAudience(result.findings, 'customer');
+  }, [form, profileConstraints]);
 
-  const goNext = () => { if (canProceed && step < 4) setStep((step + 1) as Step); };
+  /** The live message for one input, or null. Errors outrank warnings. */
+  const fieldFinding = (field: ValidationField): ValidationMessage | null => {
+    const found = worstFindingForField(liveFindings, 0, field);
+    if (!found) return null;
+    return {
+      field: found.field,
+      severity: found.severity,
+      message: found.message,
+      itemIndex: found.itemIndex,
+      fromAi: false,
+    };
+  };
+
+  // Only the four decorated dimension inputs gate Next locally. A customer
+  // cannot see or fix anything else from this step, and disabling Next over a
+  // message that is not on screen is how a form becomes unexplainable.
+  const liveStep2Blocked = DECORATED_FIELDS.some(
+    (field) => worstFindingForField(liveFindings, 0, field)?.severity === 'error'
+  );
+
+  const outstandingWarnings = (serverValidation?.warnings ?? []).filter(
+    (warning) => !acknowledged.includes(warning.message)
+  );
+  const serverErrors = serverValidation?.errors ?? [];
+
+  const canProceed =
+    step === 1
+      ? step1Valid
+      : step === 2
+        ? step2Valid && !liveStep2Blocked && !isChecking
+        : step === 3
+          ? step3Valid
+          : true;
+
+  /**
+   * SPEC §5's Step 2 -> Next gate.
+   *
+   * 1. The live pass has already blocked a dimension error (canProceed above).
+   * 2. The server pass is authoritative — "do not trust client", and it is the
+   *    only one that can read the dimension ranges for a guest.
+   * 3. Errors block. Warnings need an explicit acknowledgement. Neither
+   *    advances.
+   *
+   * IF THE CHECK ITSELF FAILS, THE CUSTOMER ADVANCES. A network error, a
+   * non-OK response or an unreadable body all fall through to the next step: the
+   * submit route runs the same engine server-side anyway, and a validator that
+   * is down must not trap a customer on step 2 with no way forward.
+   */
+  const runServerCheck = async (): Promise<boolean> => {
+    setIsChecking(true);
+    try {
+      const res = await fetch('/api/quote-requests/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: [
+            {
+              profileType: form.profileType || null,
+              material: form.material || null,
+              gauge: form.gauge || null,
+              width: toNumberOrNull(form.width),
+              height: toNumberOrNull(form.height),
+              legA: toNumberOrNull(form.legA),
+              legB: toNumberOrNull(form.legB),
+              lengthFt: toNumberOrNull(form.lengthFt),
+              quantity: toNumberOrNull(form.quantity),
+            },
+          ],
+        }),
+      });
+      if (!res.ok) return true;
+      const data = (await res.json()) as ValidationResponse;
+      if (!Array.isArray(data.errors) || !Array.isArray(data.warnings)) return true;
+      setServerValidation(data);
+      return data.errors.length === 0 && data.warnings.length === 0;
+    } catch {
+      return true;
+    } finally {
+      setIsChecking(false);
+    }
+  };
+
+  const goNext = async () => {
+    if (!canProceed || step >= 4) return;
+    if (step === 2) {
+      // An already-acknowledged set of warnings must not be re-fetched and
+      // re-shown: the customer has answered them, and the acknowledgement is
+      // cleared the moment any step-2 field changes.
+      const alreadyCleared =
+        serverValidation !== null && serverErrors.length === 0 && outstandingWarnings.length === 0;
+      if (!alreadyCleared) {
+        const clear = await runServerCheck();
+        if (!clear) return;
+      }
+    }
+    setStep((step + 1) as Step);
+  };
   const goBack = () => { if (step > 1) setStep((step - 1) as Step); };
   const goToStep = (s: Step) => setStep(s);
+
+  const acknowledgeWarnings = () => {
+    setAcknowledged((prev) => [...prev, ...outstandingWarnings.map((warning) => warning.message)]);
+  };
+
+  /** SPEC §5: "[Revise Dimensions] — returns focus to the relevant input". */
+  const focusField = (field: ValidationField) => {
+    if (typeof document === 'undefined') return;
+    const input = document.getElementById(field);
+    if (input instanceof HTMLElement) {
+      input.focus();
+      input.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+  };
 
   const buildItems = useCallback((): QuoteRequestItemInput[] => {
     if (form.profileType.trim() === '' || form.material.trim() === '' || !isPositiveNumber(form.lengthFt)) {
@@ -298,6 +525,11 @@ export default function QuotePage() {
       }
       const success = data as QuoteRequestSuccessResponse;
       setRequestNumber(success.requestNumber);
+      // The authoritative server-side pass over what was actually stored. Shown
+      // on the confirmation screen so a customer is told plainly that AFS will
+      // be in touch about the points it raised, rather than finding out in a
+      // phone call days later.
+      setSubmitValidation(success.validation);
       setShowEmailCapture(false);
       setSubmitState('submitted');
     } catch {
@@ -341,6 +573,9 @@ export default function QuotePage() {
     setShowEmailCapture(false);
     setGuestEmail('');
     setSelectedAccessories([]);
+    setServerValidation(null);
+    setAcknowledged([]);
+    setSubmitValidation(undefined);
   };
 
   const dimensionSummary = [
@@ -372,6 +607,33 @@ export default function QuotePage() {
                 </>
               ) : null}. Our team will follow up with a formal quote within 1–2 business days.
             </p>
+
+            {/*
+              What the server-side validator raised about the request that was
+              just stored. Warnings and notes only — an error is not shown here
+              because the submission has already been accepted and there is
+              nothing the customer can do about it from this screen, so it would
+              be alarm without an action. Those are logged for the estimator and
+              shown on the admin review screen instead.
+            */}
+            {submitValidation && submitValidation.notes.length > 0 && (
+              <div
+                className="bg-[var(--afs-amber-ghost)] border border-afs-warning rounded px-4 py-3 mb-8 text-left"
+                data-testid="order-validator-submit-notes"
+              >
+                <p className="font-heading text-sm uppercase tracking-wide text-afs-chrome-high mb-2">
+                  AFS will confirm these with you
+                </p>
+                <ul className="flex flex-col gap-2">
+                  {submitValidation.notes.map((note, index) => (
+                    <li key={`${note.field}-${index}`} className="font-body text-sm text-afs-chrome-high">
+                      {note.message}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             <div className="flex gap-4 justify-center flex-wrap">
               <a
                 href="/account/quotes"
@@ -540,34 +802,45 @@ export default function QuotePage() {
                 single-plane.
               </p>
 
+              {/*
+                SPEC §2's UI behaviour: "Red border on input + error message
+                below input". The border and the message both come from the live
+                engine pass, so they cannot disagree with the Next button, which
+                is gated by the same findings.
+              */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6">
-                <div>
-                  <label className={labelClass} htmlFor="width">Width (in)</label>
-                  <input id="width" type="number" min="0" step="0.0625" className={inputClass}
-                    value={form.width} onChange={(e) => updateField('width', e.target.value)} placeholder="0.00" />
-                </div>
-                <div>
-                  <label className={labelClass} htmlFor="height">Height (in)</label>
-                  <input id="height" type="number" min="0" step="0.0625" className={inputClass}
-                    value={form.height} onChange={(e) => updateField('height', e.target.value)} placeholder="0.00" />
-                </div>
-                <div>
-                  <label className={labelClass} htmlFor="legA">Leg A (in)</label>
-                  <input id="legA" type="number" min="0" step="0.0625" className={inputClass}
-                    value={form.legA} onChange={(e) => updateField('legA', e.target.value)} placeholder="0.00" />
-                </div>
-                <div>
-                  <label className={labelClass} htmlFor="legB">Leg B (in)</label>
-                  <input id="legB" type="number" min="0" step="0.0625" className={inputClass}
-                    value={form.legB} onChange={(e) => updateField('legB', e.target.value)} placeholder="0.00" />
-                </div>
+                {DECORATED_FIELDS.map((field) => {
+                  const finding = fieldFinding(field);
+                  return (
+                    <div key={field}>
+                      <label className={labelClass} htmlFor={field}>{DECORATED_FIELD_LABELS[field]}</label>
+                      <input
+                        id={field}
+                        type="number"
+                        min="0"
+                        step="0.0625"
+                        className={`${inputClass} ${fieldBorderClass(finding?.severity ?? null)}`}
+                        aria-invalid={finding?.severity === 'error' ? true : undefined}
+                        aria-describedby={finding ? `${field}-validation` : undefined}
+                        value={form[field]}
+                        onChange={(e) => updateField(field, e.target.value)}
+                        placeholder="0.00"
+                      />
+                      <div id={`${field}-validation`}>
+                        <FieldValidationMessage finding={finding} />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
 
               <div className="grid grid-cols-2 gap-6">
                 <div>
                   <label className={labelClass} htmlFor="lengthFt">Length (ft)</label>
-                  <input id="lengthFt" type="number" min="0" step="0.5" className={inputClass}
+                  <input id="lengthFt" type="number" min="0" step="0.5"
+                    className={`${inputClass} ${fieldBorderClass(fieldFinding('lengthFt')?.severity ?? null)}`}
                     value={form.lengthFt} onChange={(e) => updateField('lengthFt', e.target.value)} placeholder="0" />
+                  <FieldValidationMessage finding={fieldFinding('lengthFt')} />
                 </div>
                 <div>
                   <label className={labelClass} htmlFor="quantity">Quantity</label>
@@ -575,6 +848,17 @@ export default function QuotePage() {
                     value={form.quantity} onChange={(e) => updateField('quantity', e.target.value)} placeholder="1" />
                 </div>
               </div>
+
+              {/*
+                SPEC §5's two banners. The error banner blocks and offers
+                [Revise Dimensions]; the warning banner offers [Acknowledge and
+                Continue]. Both only ever appear after the server pass at Next —
+                a banner that appeared mid-keystroke would shout at a customer
+                who is halfway through typing a number.
+              */}
+              <ValidationErrorBanner findings={serverErrors} onRevise={focusField} />
+              <ValidationWarningBanner findings={outstandingWarnings} onAcknowledge={acknowledgeWarnings} />
+              <ValidationInfoNotes findings={serverValidation?.infos ?? []} />
 
               <WasteFactorDisplay
                 lengthFt={isPositiveNumber(form.lengthFt) ? Number(form.lengthFt) : 0}
@@ -846,11 +1130,12 @@ export default function QuotePage() {
 
           {step < 4 ? (
             <button
-              onClick={goNext}
+              onClick={() => { void goNext(); }}
               disabled={!canProceed}
               className="bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label font-semibold px-8 py-3 rounded text-sm transition-colors disabled:opacity-40 disabled:pointer-events-none"
             >
-              Next
+              {/* SPEC §5: "Show loading state on [Next] button". */}
+              {isChecking ? 'Checking…' : 'Next'}
             </button>
           ) : (
             <button

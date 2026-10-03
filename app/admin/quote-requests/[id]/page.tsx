@@ -8,8 +8,11 @@ import ColorSwatchChip from '@/components/quote/ColorSwatchChip';
 import QuoteEstimatorForm, { type EstimatorLineItem } from '@/components/admin/QuoteEstimatorForm';
 import JobIdentityEditorForm from '@/components/admin/JobIdentityEditorForm';
 import QuoteRequestAttachmentCard from '@/components/admin/QuoteRequestAttachmentCard';
+import OrderValidationPanel from '@/components/admin/OrderValidationPanel';
 import { estimateShipmentWeight, type WeightReferenceGauge } from '@/lib/admin/pricing';
 import { sourceToolLabel } from '@/lib/data/quote-request-source-tool';
+import { constraintsForQuoteLabels, getProfileConstraints } from '@/lib/data/product-profiles';
+import { profileLabelsOf, readOrderValidatorItems } from '@/lib/order-validator/request-items';
 
 const ATTACHMENT_SIGNED_URL_TTL_SECONDS = 900; // 15 minutes — matches lib/data/orders.ts getOrderAttachments
 
@@ -151,6 +154,24 @@ export default async function AdminQuoteRequestDetailPage({ params }: { params: 
     }));
 
   const weightEstimate = estimateShipmentWeight(items, weightReference);
+
+  // THE FABRICATION CHECK (SPEC_AI_ORDER_VALIDATOR.md) — recomputed on read, not
+  // stored. See lib/order-validator/admin-review.ts for why: half the thresholds
+  // behind these findings are still unconfirmed assumptions, so a finding written
+  // at submission time would be frozen against a rule config that has since
+  // changed. The engine is pure, so recomputing costs nothing and is always
+  // current.
+  //
+  // `line_items` is JSONB and nothing guarantees its shape, so it goes through
+  // the same narrowing the API routes use rather than being cast. The ranges are
+  // read with the admin's own session — this page is already behind
+  // requireAdminUser, which passes product_profiles' RLS.
+  const validatorItems = readOrderValidatorItems(items);
+  const profileCatalog = await getProfileConstraints(supabase);
+  const validatorConstraints = [
+    ...profileCatalog,
+    ...constraintsForQuoteLabels(profileCatalog, profileLabelsOf(validatorItems)),
+  ];
 
   return (
     <div>
@@ -304,6 +325,8 @@ export default async function AdminQuoteRequestDetailPage({ params }: { params: 
           </tbody>
         </table>
       </div>
+
+      <OrderValidationPanel items={validatorItems} constraints={validatorConstraints} />
 
       {request.status === 'quoted' ? (
         <div className="bg-[var(--afs-crimson-ghost)] border border-afs-success rounded px-6 py-4">
