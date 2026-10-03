@@ -9955,3 +9955,102 @@ suite load and passes consistently in isolation.
 contrast **24 screens / 253 pairs / 0 unresolved / 0 below** · style gate
 **66 pairs: 63 pass, 0 fail, 0 uncovered, 1 live-only, 2 no-data** ·
 24 screenshots in `test-results/v7-fidelity/`.
+
+---
+
+## 2026-10-03 — PURCHASE ORDER INTEGRATION (ovn `07-purchase-order`, branch `ovn/07-purchase-order`)
+
+Unattended overnight run, FORGE 2.0, in the git worktree
+`C:\Users\manag\Documents\afs-website-ovn-07-purchase-order`. Not merged, not
+deployed, `main` untouched, no migration applied.
+
+### Where to pick this up
+
+Everything needed is in `STATE_OF_THE_BUILD.md`'s 2026-10-03 entry and
+`EES-OVN.07-PURCHASE-ORDER-INTEGRATION.md` (repo root). Short version:
+
+**`companies.require_po` had been in the schema since migration 001 and nothing
+read it.** This item wired a reader (checkout, client and server), a general
+admin writer, and the two customer-facing surfaces SPEC lists that were still
+missing it. Seven commits on `ovn/07-purchase-order`, each a working unit.
+
+### The three things most worth knowing
+
+1. **The guard's position in `create-intent` is load-bearing.** Line 132,
+   before `createAdminClient()` (139), `createOrderFromQuote` (142) and
+   `paymentIntents.create` (184). Move it below any of those and a refused
+   checkout starts creating PaymentIntents.
+
+2. **"Nothing changed for a company without the requirement" is a test.**
+   `lib/checkout/po-number-field.render.test.ts` renders the real component and
+   compares the not-required markup character-for-character with what shipped at
+   `75118cb`. Exactly two SPEC-mandated differences are discounted and named;
+   a third would fail the run.
+
+3. **A pre-existing security hole was found and deliberately not fixed.** See
+   below — it needs Reid.
+
+### DECISION NEEDED FROM REID — `profiles` has no column-level write guard
+
+`users_own_profile` is `FOR ALL USING (auth.uid() = id)` with **no
+`WITH CHECK`** (`001_initial_schema.sql:51`), and nothing in 38 migrations
+narrows it. Postgres reuses `USING` as the check, so a signed-in customer can
+PATCH **any column on their own `profiles` row** — including **`role`**, which
+`is_admin()` and `requireAdminUser()` both read. That is self-escalation to
+admin, not merely a PO bypass.
+
+Not patched here on purpose: it is far outside a PO item, it rewrites the
+platform's core auth policy, and it cannot be tested against a live database
+from this run. **The fix does look safe** — every legitimate `company_id` write
+already goes through the service role (`app/api/team/invite/route.ts:71,188`),
+which bypasses RLS — but that is a claim to verify with a live DB, not to act on
+unattended. **Suggest its own item.**
+
+### What a human needs to do next
+
+1. **Confirm in a browser** (the item is UNVERIFIED until then):
+   - `/admin/customers/{id}` → a "Purchase Order Requirement" panel. Seen live
+     in its **no-company** state only — `proof-ovn07-po-requirement-panel.png`.
+     The checkbox branch needs a customer with a `company_id`.
+   - Checkout with a required-PO company → label "Purchase Order Number *",
+     the hint, Place Order disabled, SPEC §3's sentence shown. **This has never
+     been seen running.**
+2. **Create the missing test fixture** so five skipped Playwright tests can run:
+   a `quotes` row with `status='sent'` owned by `E2E_TEST_EMAIL`, whose company
+   has `require_po = true`. Then set `E2E_REQUIRED_PO_QUOTE_ID`.
+3. **Decide on migration 039** (unapplied). Apply it, then optionally promote
+   the three `NOT VALID` CHECKs with `VALIDATE CONSTRAINT` — the audit queries
+   to run first are written into the migration file.
+4. **Decide on the `profiles` RLS finding above.**
+
+### Compliance report
+
+- **Violations found in this item's own work:** none outstanding.
+- **Two self-inflicted failures, both root-caused and fixed, not worked around:**
+  (a) the vitest JSX option was first set on `esbuild`, which Vite 8 ignores
+  with a warning, and then as the oxc string shorthand, which fails bundler
+  init on *every* file and took `lib/design/v7-deviations.test.ts` down with it
+  — the object form `{ runtime: 'automatic' }` is required, and the reason is
+  recorded in `vitest.config.mts`; (b) a `.replace` in the render test anchored
+  on ` class="` matched the `<label>` instead of the `<input>`. Both were test
+  or config defects, not product defects, and neither was hidden by weakening
+  an assertion.
+- **One pre-existing failure, untouched and reported:** `lib/design/v7-css.test.ts`
+  (stale generated CSS — a CRLF/LF diff on this Windows worktree). Present at
+  `75118cb` before any change here. Its fix regenerates a Command Center v7
+  artefact, and this run was told not to touch v7.
+- **One gate that could not run:** `pnpm lint`. **No ESLint config has ever
+  existed in this repo** — no `.eslintrc*`, no `eslintConfig` in
+  `package.json`, nothing in git history — so `next lint` drops into
+  interactive first-time setup. Creating one would impose a new lint regime on
+  the whole codebase, which is not a PO item's call. `pnpm tsc --noEmit` is the
+  real static gate here and is clean.
+- **One misleading result caught before it was believed:** the first Playwright
+  run reported a failure against the dev server already on `:3000`, which
+  serves a **different checkout** and had never been given this code. A server
+  was started from this worktree on `:3100` and *proved* to be serving it
+  (`PATCH /api/admin/companies/<uuid>` → 401, a route only this branch has)
+  before any result was trusted.
+- **Scope:** no `middleware.ts` change, no v7 file or pixel baseline touched,
+  no migration applied, no deploy, no merge, no real charge, email or SMS. No
+  order was placed at any point; Stripe was never reached.

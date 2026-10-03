@@ -17077,3 +17077,179 @@ session's own screenshots and Playwright passes are evidence to bring to the
 user, not proof. Every screen is asserted against the prototype by an automated
 gate and the side-by-side screenshots are committed, but the look is not marked
 complete until Reid has looked at it.
+
+---
+
+## 2026-10-03 — PURCHASE ORDER INTEGRATION (ovn item `07-purchase-order`, branch `ovn/07-purchase-order`)
+
+**Status: IMPLEMENTED, UNCONFIRMED.** `pnpm tsc --noEmit` is clean, the unit
+suite is green apart from one pre-existing failure, the contrast gate passes
+and Playwright passes what it can reach — but per this file's VERIFICATION
+STANDARD, nobody has confirmed the behaviour in a browser. The required-PO
+checkout block in particular has **never been seen running**, because no quote
+fixture exists to reach it (see UNVERIFIED below).
+
+### What was already there (not rebuilt)
+
+`PO_INTEGRATION_SCOPE.md` (2026-07-30) was re-verified line by line against the
+code rather than trusted. It was still broadly accurate, and two of its gaps had
+closed since it was written:
+
+- `orders.po_number`, `quote_requests.po_number`, `companies.require_po` — all
+  real columns since `001_initial_schema.sql` (lines 442, 565, 71).
+  `invoices.po_number` since migration 035.
+- Checkout already collected a PO and persisted it down **both** payment paths
+  (net terms direct; card via Stripe metadata → webhook / confirm-order →
+  `createOrderFromQuote`). Admin order detail already displayed it.
+- **Closed since the audit:** `require_po` gained one writer
+  (credit-application approval), and the newer quote→invoice PDF gained the PO
+  in its header.
+
+### The gap, and the one sentence that describes it
+
+**`companies.require_po` had existed since the first migration and nothing in
+the repository read it.** The PO field was unconditionally optional for every
+customer, always — and invisible to anyone who chose Pickup, because it sat
+inside the `deliveryMethod === 'ship'` branch.
+
+### What was built
+
+| Area | Change |
+|---|---|
+| Decision module | `lib/checkout/po-number.ts` — max length, trim-or-NULL normalisation, required/optional validation, and both strings SPEC quotes verbatim. One home, four callers. |
+| Field | `components/checkout/PoNumberField.tsx` + `components/checkout/field-classes.ts` (the two class constants lifted out of `app/checkout/page.tsx`, one definition shared). |
+| Checkout client | Resolves `profiles.company_id → companies.require_po`; field moved **out** of the Ship branch; `canSubmit` gains the requirement; SPEC §3's sentence rendered above Place Order. |
+| Checkout server | `create-intent` re-reads the requirement and refuses. **This is the enforcement.** |
+| Admin | `app/api/admin/companies/[id]/route.ts` (PATCH, admin-only, audited, writes `require_po` and nothing else) + `components/admin/CompanyPoRequirementForm.tsx` on `/admin/customers/[id]`. |
+| Customer surfaces | `po_number` added to `/account/orders/[id]` and to the order-derived invoice PDF header (after Status, before Bill To). |
+| Schema | `supabase/migrations/039_po_number_length_check.sql` — **authored, NOT applied.** |
+
+### THE ORDERING IN `create-intent` IS LOAD-BEARING
+
+The PO guard runs at **line 132**; `createAdminClient()` is at **139**,
+`createOrderFromQuote` at **142**, `paymentIntents.create` at **184**. A refused
+checkout therefore creates no PaymentIntent and no `orders` row, and the
+customer has provably not been charged. Do not move the guard below any of
+those three.
+
+### "NOTHING CHANGED FOR EVERYBODY ELSE" IS A TEST, NOT A CLAIM
+
+`lib/checkout/po-number-field.render.test.ts` server-renders the real shipped
+component with `react-dom/server` and asserts the not-required markup
+**character for character** against what `app/checkout/page.tsx` produced at
+`75118cb`. `app/checkout/page.tsx` itself cannot be rendered in a test (Stripe
+Elements, `next/navigation`, and a real `status='sent'` quote owned by the
+signed-in user), which is why the field was extracted and kept hook-free.
+
+**Exactly two things differ for a company with no PO requirement, both
+SPEC-mandated and both asserted:**
+
+1. `maxLength={50}` and the placeholder (SPEC §2). Also closes a latent
+   failure: Stripe caps a PaymentIntent metadata **value** at 500 characters,
+   and the card path puts the PO there — a long paste previously made
+   `paymentIntents.create` throw and surfaced only "Could not start checkout".
+2. The field now renders for **Pickup** as well as Ship. Without this a
+   required-PO customer choosing Pickup could never place an order at all.
+
+### `profiles → companies` IS TWO QUERIES, NEVER AN EMBED
+
+There are **two** foreign keys between those tables — `profiles.company_id →
+companies.id` and `companies.primary_user_id → profiles.id` — so a PostgREST
+embedded select is ambiguous. All three call sites do a second explicit query.
+Recorded in SCHEMA.md TABLE 2 as well.
+
+### Migration 039 does NOT add `require_po`
+
+The item was briefed to "add a company setting for require_po". A live read of
+`001_initial_schema.sql:71` showed the column already exists, so adding one
+would have duplicated applied schema. The migration instead makes SPEC §2's
+"Max: 50 characters" a database fact on all three `po_number` columns, as
+`NOT VALID` CHECKs — enforced on new writes, without scanning rows the file
+cannot see, so it cannot fail on legacy data. Promotion via
+`VALIDATE CONSTRAINT` is a separate step for a human, with the audit queries
+written into the file. Down SQL is in the file.
+
+### A PRE-EXISTING SECURITY FINDING, FOUND HERE AND NOT FIXED HERE
+
+**`profiles`' only write policy is `users_own_profile`, `FOR ALL USING
+(auth.uid() = id)` with no `WITH CHECK` (`001_initial_schema.sql:51`), and no
+migration adds any column-level guard.** Postgres reuses the `USING` expression
+as the check, so a signed-in customer can PATCH **any column on their own row**.
+
+That includes **`role`** (self-escalation to `admin` — `is_admin()` and
+`requireAdminUser()` both read it), **`net_terms`** (granting oneself invoiced
+terms), **`credit_limit`**, **`pricing_tier`**, **`tax_exempt`**, and
+**`company_id`** (joining an arbitrary company, which also grants that
+company's row via the `company_members` SELECT policy and reaches
+company-scoped data from migration 024).
+
+The PO consequence is the least of these — a customer evading their own
+employer's paperwork on their own order. **The `role` escalation is the
+headline.** It is pre-existing, far outside this item, and untestable against a
+live database from here, so it was **reported rather than patched**: rewriting
+the platform's core auth policy as a side effect of a PO item is exactly the
+silent architectural change CLAUDE.md and the run's own scope rules forbid.
+
+**The fix looks safe, and that was verified, not assumed:** every legitimate
+`company_id` write already goes through the **service role**
+(`app/api/team/invite/route.ts:71,188`), which bypasses RLS, so restricting
+`authenticated` from writing these columns would not break Team Accounts.
+**This needs its own item and Reid's decision.**
+
+### Gates
+
+| Gate | Result |
+|---|---|
+| `pnpm tsc --noEmit` | **clean, exit 0** |
+| `pnpm test:unit` | **1 failed / 549 passed** (baseline was 1 / 484 — **+65**, exactly the tests this item added) |
+| The one failure | `lib/design/v7-css.test.ts`, "generated CSS is stale" — a **CRLF-vs-LF** diff on this Windows worktree. **PRE-EXISTING** (present at `75118cb` before any change here) and deliberately untouched: its fix regenerates a Command Center v7 artefact, and this run was instructed not to touch v7. |
+| `pnpm check:contrast` | **PASS — 24 screens, 248 pairs, 0 unresolved, 0 below.** Verified by probe that the gate really does recurse into `CompanyPoRequirementForm`; it does not appear in the output only because every colour pair it uses is already measured on that surface from a sibling file. |
+| `pnpm lint` | **COULD NOT RUN — no ESLint config has ever existed in this repo** (no `.eslintrc*`, no `eslintConfig` in `package.json`, nothing in git history). `next lint` drops into interactive first-time setup. Not created here: adding a lint regime across the whole codebase is not a PO item's business. |
+| Playwright | `tests/e2e/purchase-order.spec.ts` **5 passed / 5 skipped**; `tests/e2e/checkout.spec.ts` **5/5 passed** (regression). |
+
+**The Playwright runs are only meaningful because of one catch:** the dev
+server already listening on `:3000` serves a **different checkout**, and
+reported a failure for code it had never been given. A server was started from
+*this* worktree on `:3100` and confirmed to be serving it (`PATCH
+/api/admin/companies/<uuid>` → 401, a route that exists only here) before
+anything was believed. No order was placed; Stripe was never reached.
+
+### UNVERIFIED — what a human still has to confirm
+
+1. **The required-PO block has never been seen running.** The five skipped
+   Playwright tests need a `quotes` row with `status='sent'` owned by the test
+   account **whose company has `require_po = true`**. No code here fabricates
+   that; set `E2E_REQUIRED_PO_QUOTE_ID` once it exists.
+2. **The admin panel has only been seen in its no-company state** —
+   `proof-ovn07-po-requirement-panel.png` / `-closeup.png`, captured live. The
+   test account has no `company_id`, so the checkbox branch is proved by unit
+   test and by code, not by eye.
+3. Migration 039 is **unapplied**.
+
+### Still not built, deliberately
+
+- **Order-confirmation email** (SPEC §2 lists it) — **no order-confirmation
+  email exists anywhere in the repo** to carry it. Blocked on
+  `SPEC_RESEND_INTEGRATION.md` / `SPEC_EMAIL_TEMPLATES.md`.
+- **PO document upload** — not in the spec; `PO_INTEGRATION_SCOPE.md` §5
+  recommends a separate item.
+- **Any PO-based hold before fabrication** — ruled out by
+  `PO_INTEGRATION_SCOPE.md` §4 and `ORDER_LIFECYCLE_DECISION.md`;
+  `orders.status` has no such state.
+- **Pre-filling checkout's PO from `quote_requests.po_number`** — optional in
+  the audit, and it would change what a non-required checkout renders, which
+  conflicts with the regression lock above.
+
+### Elite Standard Compliance
+
+- [x] `tsc --noEmit` clean — exit 0
+- [ ] lint zero warnings — **NOT APPLICABLE: no ESLint config exists in this repo** (see Gates)
+- [x] no TODO/FIXME/placeholder/dead code in files this item authored
+- [x] tests pass — 549 unit passed, 1 pre-existing failure; 10 Playwright passed, 5 skipped for a missing data fixture
+- [x] edge cases tested — null/undefined/empty/whitespace/non-string/0/1/50/51 chars/Unicode/500-char Stripe breaker/missing company/dangling company_id
+- [x] assertions exact, with diagnostic messages stating why each matters
+- [x] API authenticated and audited; the write names one column; RLS present; the enforcement is server-side and independent of the client
+- [x] no hardcoded business values — the one number (50) is SPEC §2's, named once and shared with the migration
+- [x] migration additive and reversible — down SQL in the file
+- [x] governance files updated
+- [x] **item marked UNVERIFIED pending human browser confirmation**
