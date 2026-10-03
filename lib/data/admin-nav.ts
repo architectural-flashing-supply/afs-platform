@@ -90,4 +90,8 @@ export const UNLINKED_ADMIN_ROUTES: { href: string; why: string }[] = [
     href: '/admin/gbp-photos',
     why: 'Google Business photos: removed from the Command Center. Code kept, unlinked, for the future driver mobile app.',
   },
+  {
+    href: '/admin/cut-plan',
+    why: 'Trim-length cut planner for fabrication. Unlinked because v7 has no nav slot for it and the header is under the whole-screen pixel gate; admin-gated twice, like geometry-test.',
+  },
 ];

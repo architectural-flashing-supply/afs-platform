@@ -4,6 +4,7 @@ import {
   getProfileStockLengths,
   resolveStockLengthBySlug,
   resolveStockLengthByQuoteLabel,
+  readProfileStockLengths,
   type ProfileStockLength,
 } from './product-profiles';
 
@@ -205,7 +206,7 @@ describe('getProfileStockLengths', () => {
    * cast is the narrowest one that satisfies the parameter type — the stub
    * implements exactly the three calls the function makes.
    */
-  function stubClient(data: unknown): SupabaseClient {
+  function stubClient(data: unknown, error: { message: string } | null = null): SupabaseClient {
     const calls: { table?: string; columns?: string; filter?: [string, unknown] } = {};
     const builder = {
       select(columns: string) {
@@ -214,7 +215,7 @@ describe('getProfileStockLengths', () => {
       },
       eq(column: string, value: unknown) {
         calls.filter = [column, value];
-        return Promise.resolve({ data, error: null });
+        return Promise.resolve({ data, error });
       },
     };
     return {
@@ -264,5 +265,53 @@ describe('getProfileStockLengths', () => {
       []
     );
     expect(await getProfileStockLengths(stubClient([])), 'and so does an empty one').toEqual([]);
+  });
+});
+
+describe('readProfileStockLengths tells a failed read apart from an empty one', () => {
+  function readStub(data: unknown, error: { message: string } | null): SupabaseClient {
+    const builder = {
+      select() {
+        return this;
+      },
+      eq() {
+        return Promise.resolve({ data, error });
+      },
+    };
+    return { from: () => builder } as unknown as SupabaseClient;
+  }
+
+  it('reports failed: false when the catalog is simply empty', async () => {
+    const read = await readProfileStockLengths(readStub([], null));
+
+    expect(read.profiles, 'no rows came back').toEqual([]);
+    expect(
+      read.failed,
+      'but the read worked — the screen must say the catalog is empty, not that something broke'
+    ).toBe(false);
+  });
+
+  it('reports failed: true when the read itself errored', async () => {
+    const read = await readProfileStockLengths(readStub(null, { message: 'connection reset' }));
+
+    expect(read.profiles, 'nothing usable came back').toEqual([]);
+    expect(
+      read.failed,
+      'and the screen must not present an unknown as an empty catalog'
+    ).toBe(true);
+  });
+
+  it('reports failed: false and the mapped rows on a successful read', async () => {
+    const read = await readProfileStockLengths(
+      readStub(
+        [{ slug: 'fascia', name: 'Fascia', standard_length_ft: 10, max_length_ft: 12 }],
+        null
+      )
+    );
+
+    expect(read.failed, 'the read worked').toBe(false);
+    expect(read.profiles, 'and the row is mapped').toEqual([
+      { slug: 'fascia', name: 'Fascia', standardLengthFt: 10, maxLengthFt: 12 },
+    ]);
   });
 });
