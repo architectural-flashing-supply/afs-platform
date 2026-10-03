@@ -34,6 +34,14 @@ export interface QuoteForInvoice {
   price_book_snapshot: Record<string, unknown> | null;
   subtotal_cents: number | null;
   total_cents: number | null;
+  /**
+   * The rush surcharge the quote was issued with, in DOLLARS (the column is
+   * `DECIMAL(10,2)` from migration 001). Read so the invoice can PRINT the same
+   * row the quote printed — `invoices` has no rush column and needs none,
+   * because its own `total_cents - subtotal_cents` already carries the figure.
+   * Never recomputed from the rush policy, which may have moved since.
+   */
+  rush_surcharge: number | null;
   revision: number;
   sent_at: string | null;
 }
@@ -104,6 +112,14 @@ export async function createInvoiceFromQuote(
   const subtotalCents =
     quote.subtotal_cents ?? lines.reduce((sum, l) => sum + (l.lineTotalCents ?? 0), 0);
   const totalCents = quote.total_cents ?? subtotalCents;
+  // COPIED, like everything else. Converted from the quote's dollars column
+  // once, here, so the row the invoice prints is the row the customer
+  // approved — not a figure worked out again from a rush policy that may have
+  // changed since the quote went out.
+  const rushSurchargeCents =
+    typeof quote.rush_surcharge === 'number' && Number.isFinite(quote.rush_surcharge)
+      ? Math.round(quote.rush_surcharge * 100)
+      : 0;
 
   const nowIso = approvedAt.toISOString();
   const invoiceNumber = await nextDocumentNumber(supabase, 'invoices');
@@ -153,6 +169,7 @@ export async function createInvoiceFromQuote(
       jobName: job.jobName,
       lines,
       totalCents,
+      surchargeCents: rushSurchargeCents > 0 ? rushSurchargeCents : null,
       approvedAt,
     }),
     quoteId: quote.id,
@@ -178,6 +195,7 @@ export async function createInvoiceFromQuote(
         jobName: job.jobName,
         lines,
         totalCents,
+        surchargeCents: rushSurchargeCents > 0 ? rushSurchargeCents : null,
         approvedAt,
       }),
       quoteId: quote.id,

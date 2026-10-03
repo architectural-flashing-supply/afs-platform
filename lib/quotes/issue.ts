@@ -23,8 +23,17 @@
  * carrying both.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { getResolvedPriceBook } from '@/lib/pricing/db';
+import { getResolvedPriceBook, getRushPolicyBook } from '@/lib/pricing/db';
 import { quoteFromPriceBook } from '@/lib/pricing/quote-math';
+import {
+  evaluateRushLeadTime,
+  evaluateRushSurcharge,
+  rushPolicyInForce,
+  type RushLeadTime,
+  type RushPolicy,
+  type RushSurcharge,
+} from '@/lib/pricing/rush-policy';
+import { shopDateOnly } from '@/lib/delivery/business-days';
 import { toQuoteItemInputs, type JobLineItemGeometry } from '@/lib/pricing/quote-inputs';
 import { appendLedger, ledgerTestTag, type LedgerEntry } from '@/lib/pricing/ledger';
 import { signApproveToken, approveLinkUrl, DEFAULT_APPROVE_TOKEN_TTL_SECONDS } from '@/lib/pricing/approve-token';
@@ -42,11 +51,81 @@ export interface JobForQuote {
   user_id: string | null;
   guest_email: string | null;
   is_rush: boolean;
+  /**
+   * The date the customer asked for, `quote_requests.requested_delivery`.
+   * Read ONLY to check it against the rush policy's minimum notice — it never
+   * decides whether the job is rush (CLAUDE.md rule #15: rush is set by the
+   * customer's own checkbox or an admin's own toggle, and by nothing else).
+   */
+  requested_delivery: string | null;
   po_number: string | null;
   client_business_name: string | null;
   client_name: string | null;
   job_stage: string | null;
   quote_id: string | null;
+}
+
+/**
+ * THE RUSH SIDE OF A QUOTE, in one object, resolved once.
+ *
+ * Carries the POLICY as well as the computed surcharge, because the Job screen
+ * re-totals in the browser as the estimator edits Qty and has to recompute the
+ * surcharge with the SAME `evaluateRushSurcharge` the server uses on Send. One
+ * function, both sides, no drift.
+ */
+export interface RushQuoteContext {
+  policy: RushPolicy | null;
+  /** Non-null when the policy table could not be read. Plain English. */
+  policyUnavailable: string | null;
+  surcharge: RushSurcharge;
+  leadTime: RushLeadTime;
+}
+
+/**
+ * Resolves the rush policy and works out what it says about this job.
+ *
+ * ONE QUERY, AND ONLY FOR A RUSH JOB. A standard job short-circuits to
+ * `not-rush` / `not-rush` without touching the database — there is nothing a
+ * rush policy could say about it.
+ *
+ * `today` is the SHOP's date (`shopDateOnly`), never the server's: Vercel runs
+ * in UTC and Burnet is Central, so a lead time measured from the raw clock
+ * would be a day out every evening (CLAUDE.md rule #24's second hazard).
+ */
+export async function rushContextForJob(
+  supabase: SupabaseClient,
+  job: Pick<JobForQuote, 'is_rush' | 'requested_delivery'>,
+  priced: { subtotalCents: number; lines: readonly { quantity: number }[] } | null,
+  now: Date = new Date()
+): Promise<RushQuoteContext> {
+  if (!job.is_rush) {
+    return {
+      policy: null,
+      policyUnavailable: null,
+      surcharge: evaluateRushSurcharge({ isRush: false, subtotalCents: 0, pieceCount: 0 }, null),
+      leadTime: evaluateRushLeadTime(
+        { isRush: false, requestedDelivery: job.requested_delivery, today: shopDateOnly(now) },
+        null
+      ),
+    };
+  }
+
+  const today = shopDateOnly(now);
+  const book = await getRushPolicyBook(supabase);
+  const policy = rushPolicyInForce(book.policies, today);
+
+  const subtotalCents = priced?.subtotalCents ?? 0;
+  const pieceCount = (priced?.lines ?? []).reduce((sum, l) => sum + l.quantity, 0);
+
+  return {
+    policy,
+    policyUnavailable: book.unavailable,
+    surcharge: evaluateRushSurcharge({ isRush: true, subtotalCents, pieceCount }, policy),
+    leadTime: evaluateRushLeadTime(
+      { isRush: true, requestedDelivery: job.requested_delivery, today },
+      policy
+    ),
+  };
 }
 
 export interface QuoteCustomer {
@@ -113,7 +192,13 @@ export type IssueQuoteOutcome =
       quoteId: string;
       quoteNumber: string;
       revision: number;
+      /** Lines PLUS the rush surcharge — what the customer was asked for. */
       totalCents: number;
+      /** 0 for a standard job, and for a rush with no policy in force. */
+      rushSurchargeCents: number;
+      /** So the route's audit row records WHY the surcharge was what it was. */
+      rushSurchargeState: RushSurcharge['kind'];
+      rushLeadTimeStatus: RushLeadTime['status'];
       approveUrl: string;
       emailStatus: string;
       emailMessage: string;
@@ -177,6 +262,22 @@ export async function issueQuoteForJob(
   const quoteNumber = await nextDocumentNumber(supabase, 'quotes');
   const expiresAt = new Date(now.getTime() + (opts.ttlSeconds ?? DEFAULT_APPROVE_TOKEN_TTL_SECONDS) * 1000);
 
+  // ---- The rush side, decided by AFS, here, on the formal quote -----------
+  //
+  // THE QUOTE IS WHERE THE SURCHARGE IS DECIDED. The customer REQUESTED rush
+  // (a checkbox) and may have given a date; neither of those carries a price,
+  // and the RFQ model says the only dollar amount a customer ever sees is one
+  // AFS set deliberately. This is that moment.
+  //
+  // WITH AN EMPTY `rush_policies` TABLE THIS IS 0, AND EVERY FIGURE WRITTEN
+  // BELOW IS IDENTICAL TO WHAT IT WAS BEFORE THIS CODE EXISTED. That invariant
+  // is asserted directly, over a grid of subtotals and piece counts, in
+  // lib/pricing/rush-policy.test.ts — shipping a rush policy must not silently
+  // change the value of a single quote.
+  const rush = await rushContextForJob(supabase, job, priced, now);
+  const rushSurchargeCents = rush.surcharge.surchargeCents;
+  const totalCents = priced.subtotalCents + rushSurchargeCents;
+
   const { data: insertedQuote, error: quoteError } = await supabase
     .from('quotes')
     .insert({
@@ -189,10 +290,18 @@ export async function issueQuoteForJob(
       // The legacy numeric columns stay populated so every screen already built
       // against `quotes` keeps working; the cents columns are the real ones.
       subtotal: priced.subtotalCents / 100,
-      total: priced.totalCents / 100,
+      total: totalCents / 100,
+      // SUBTOTAL IS THE LINES AND THE TOTAL CARRIES THE SURCHARGE. Their
+      // DIFFERENCE is the rush fee, which is what lets the invoice — whose
+      // table has no rush column — present the same figure without recomputing
+      // anything or needing a migration.
       subtotal_cents: priced.subtotalCents,
-      total_cents: priced.totalCents,
-      rush_surcharge: 0,
+      total_cents: totalCents,
+      // The existing column (migration 001), in dollars like the other legacy
+      // numeric ones. It was hardcoded 0 until now, and three screens already
+      // display it when it is non-zero: the customer's quote in their portal,
+      // the admin order detail, and the invoice PDF.
+      rush_surcharge: rushSurchargeCents / 100,
       line_items: priced.lines,
       price_book_snapshot: {
         pricedAt: nowIso,
@@ -263,7 +372,13 @@ export async function issueQuoteForJob(
     quoteNumber,
     jobName: job.job_name,
     lines: priced.lines,
-    totalCents: priced.totalCents,
+    totalCents,
+    // Only a surcharge that is actually a figure reaches the customer's
+    // document. `null` for a standard job, for an unpriced rush and for an
+    // explicit "no extra charge" — a $0.00 row is noise on a quote, and a rush
+    // nobody has priced must not appear as though it were free.
+    surchargeCents: rushSurchargeCents > 0 ? rushSurchargeCents : null,
+    surchargeLabel: rush.surcharge.customerLabel,
     approveUrl,
     expiresAt,
     revision,
@@ -320,9 +435,18 @@ export async function issueQuoteForJob(
     note: revision > 1 ? `Revision ${revision} of ${job.request_number}` : null,
     payload: {
       quoteNumber,
-      quoteTotalCents: priced.totalCents,
+      quoteTotalCents: totalCents,
+      quoteSubtotalCents: priced.subtotalCents,
       supersedesQuoteId: prior?.id ?? null,
       emailStatus: email.status,
+      // The rush facts travel in the EXISTING payload JSON rather than in new
+      // ledger columns — `pricing_ledger` is append-only and adding a column
+      // would be a migration applied to a live table. `is_rush` above already
+      // carries the flag; these say what it cost and what the policy said.
+      rushSurchargeCents,
+      rushPolicyId: rush.surcharge.policyId,
+      rushSurchargeState: rush.surcharge.kind,
+      rushLeadTimeStatus: rush.leadTime.status,
     },
     testTag,
   }));
@@ -333,13 +457,20 @@ export async function issueQuoteForJob(
     quoteId,
     quoteNumber,
     revision,
-    totalCents: priced.totalCents,
+    totalCents,
+    rushSurchargeCents,
+    rushSurchargeState: rush.surcharge.kind,
+    rushLeadTimeStatus: rush.leadTime.status,
     approveUrl,
     emailStatus: email.status,
     emailMessage: email.message,
     message:
-      email.status === 'sent'
+      (email.status === 'sent'
         ? `Quote ${quoteNumber} emailed to ${recipient}. The job is now waiting on the customer.`
-        : `Quote ${quoteNumber} was saved and the job moved to Quoted. ${email.message}`,
+        : `Quote ${quoteNumber} was saved and the job moved to Quoted. ${email.message}`) +
+      // A rush job whose surcharge could not be worked out is told about HERE,
+      // on the one screen that could act on it, rather than quietly going out
+      // at the standard price. It is not a failure: the quote is sent.
+      (rush.surcharge.kind === 'unpriced' ? ` ${rush.surcharge.message}` : ''),
   };
 }

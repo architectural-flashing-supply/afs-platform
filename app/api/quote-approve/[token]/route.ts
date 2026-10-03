@@ -122,7 +122,7 @@ export async function GET(
     const { data: quoteData } = await admin
       .from('quotes')
       .select(
-        'id, quote_number, request_id, user_id, customer_email, customer_name, line_items, price_book_snapshot, subtotal_cents, total_cents, revision, sent_at, status'
+        'id, quote_number, request_id, user_id, customer_email, customer_name, line_items, price_book_snapshot, subtotal_cents, total_cents, rush_surcharge, revision, sent_at, status'
       )
       .eq('id', row.quote_id)
       .maybeSingle();

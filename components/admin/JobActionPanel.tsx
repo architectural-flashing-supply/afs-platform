@@ -4,6 +4,11 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { JobScreenData } from '@/lib/data/job-screen';
 import { formatCents } from '@/lib/pricing/quote-math';
+import {
+  evaluateRushSurcharge,
+  formatRushPolicySentence,
+  type RushLeadTime,
+} from '@/lib/pricing/rush-policy';
 
 /**
  * Column 3 of the Job screen: THE STAGE-SPECIFIC ACTION, per the approved
@@ -67,7 +72,26 @@ export default function JobActionPanel({ job }: { job: JobScreenData }) {
     const total = material + bends + hems + line.extrasCents;
     return { line, qty, total };
   });
-  const editedTotalCents = editedLines.reduce((sum, l) => sum + l.total, 0);
+  const editedSubtotalCents = editedLines.reduce((sum, l) => sum + l.total, 0);
+
+  // THE RUSH SURCHARGE, RECOMPUTED IN THE BROWSER FROM THE EDITED SUBTOTAL,
+  // THROUGH THE SAME FUNCTION THE SERVER USES ON SEND.
+  //
+  // It has to be recomputed rather than handed down: a percentage surcharge
+  // moves when the estimator edits Qty, and a figure that stopped tracking the
+  // subtotal above it would be a wrong number sitting next to a right one.
+  // `evaluateRushSurcharge` is pure and shared, so what is shown here and what
+  // is emailed cannot drift — the server prices it again from the real policy
+  // when Send is pressed, and gets the same answer.
+  const rushSurcharge = evaluateRushSurcharge(
+    {
+      isRush: job.isRush,
+      subtotalCents: editedSubtotalCents,
+      pieceCount: editedLines.reduce((sum, l) => sum + l.qty, 0),
+    },
+    job.rushQuote?.policy ?? null
+  );
+  const editedTotalCents = editedSubtotalCents + rushSurcharge.surchargeCents;
 
   async function post(
     label: string,
@@ -167,6 +191,23 @@ export default function JobActionPanel({ job }: { job: JobScreenData }) {
                       </td>
                     </tr>
                   ))}
+                  {/* The rush surcharge, only when it is a real figure. An
+                      explicit "no extra charge" policy and an unpriced rush
+                      both add nothing, and a $0.00 row would read as though
+                      somebody had decided it. The unpriced case gets a
+                      sentence under the table instead. */}
+                  {rushSurcharge.kind === 'applied' && rushSurcharge.surchargeCents > 0 && (
+                    <tr>
+                      <td>
+                        <span>Rush surcharge</span>
+                        <span className="note">{rushSurcharge.adminBasis}</span>
+                      </td>
+                      <td />
+                      <td data-testid="quote-rush-surcharge" className="n">
+                        {money(rushSurcharge.surchargeCents)}
+                      </td>
+                    </tr>
+                  )}
                   <tr>
                     <td>Total</td>
                     <td />
@@ -182,6 +223,15 @@ export default function JobActionPanel({ job }: { job: JobScreenData }) {
               <p className="note">
                 Priced from your price book: per bend, cut from 10 × 4 ft sheets.
               </p>
+              {/* A RUSH JOB WITH NO SURCHARGE WORKED OUT SAYS SO, AND SENDING
+                  IS STILL ALLOWED. AFS decides what it will take on; a missing
+                  rush policy is a thing to go and set, not a reason to block a
+                  quote the customer is waiting for. */}
+              {rushSurcharge.kind === 'unpriced' && (
+                <p className="note" data-testid="quote-rush-unpriced">
+                  {rushSurcharge.message}
+                </p>
+              )}
 
               <div className="fld">
                 <label htmlFor="send-to">
@@ -498,10 +548,51 @@ export default function JobActionPanel({ job }: { job: JobScreenData }) {
               ? 'Rush was turned on here, by an admin.'
               : 'Rush is only ever set by the customer ticking it, or by you ticking it here. It is never worked out from a date or from what the note says.'}
         </p>
+
+        {/* WHAT THE RUSH POLICY SAYS, and whether the date they asked for is
+            enough notice. Shown only for a job that really is rush, because
+            `rushQuote` is only built for one — and the whole point of the panel
+            is that these are facts rather than a reminder to go and look.
+
+            THE DATE IS NEVER A REASON THE JOB IS RUSH. CLAUDE.md rule #15: the
+            tick-box above is one of the only two things that can make it rush,
+            and this block only READS the date to compare it with the policy. */}
+        {job.rushQuote !== null && (
+          <>
+            <p className="note" data-testid="rush-policy-sentence">
+              {formatRushPolicySentence(job.rushQuote.policy, job.rushQuote.policyUnavailable)}
+            </p>
+            {LEAD_TIME_NOTE[job.rushQuote.leadTime.status] !== null && (
+              <p className="note" data-testid="rush-lead-time">
+                {job.rushQuote.leadTime.status === 'meets' || job.rushQuote.leadTime.status === 'too-soon'
+                  ? job.rushQuote.leadTime.message
+                  : LEAD_TIME_NOTE[job.rushQuote.leadTime.status]}
+              </p>
+            )}
+          </>
+        )}
       </div>
     </section>
   );
 }
+
+/**
+ * The lead-time sentence for the four statuses that have no figures of their
+ * own. `meets` and `too-soon` carry their own message (it names real dates), so
+ * they are `null` here and the caller uses `leadTime.message` instead.
+ *
+ * A map rather than a chain of ternaries so every status is accounted for by
+ * the type checker — adding a fifth to `RushLeadTime` fails to compile here
+ * rather than rendering nothing.
+ */
+const LEAD_TIME_NOTE: Record<RushLeadTime['status'], string | null> = {
+  'not-rush': null,
+  'no-policy': 'No minimum notice is set, so nothing is being checked against the date they asked for.',
+  'not-set': 'This policy sets no minimum notice, so the date they asked for is yours to judge.',
+  'no-date': 'They did not give a date, so there is nothing to check the notice against.',
+  meets: null,
+  'too-soon': null,
+};
 
 const HEADINGS: Record<JobScreenData['stage'], string> = {
   new: 'The quote',

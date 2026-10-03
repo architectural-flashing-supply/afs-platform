@@ -36,12 +36,40 @@ function escapeHtml(value: string): string {
     .replace(/"/g, '&quot;');
 }
 
+/**
+ * ONE SURCHARGE ROW, SHARED BY THE QUOTE AND THE INVOICE.
+ *
+ * It exists because the TOTAL has to add up from what is printed above it. The
+ * rush surcharge is deliberately not a `QuoteLine` — a fee has no material, no
+ * blank width, no strips-per-sheet and no price-book version, and inventing
+ * those would put fabricated geometry on a customer's document (see
+ * lib/pricing/rush-policy.ts). So it is a row of its own, and it renders ONLY
+ * when there is a figure: a `$0.00` line is noise, and a rush nobody has priced
+ * must never appear as though it had been priced at nothing.
+ */
+function surchargeRow(cents: number | null | undefined, label: string | null | undefined): string {
+  if (typeof cents !== 'number' || !Number.isFinite(cents) || cents <= 0) return '';
+  return `<tr>
+        <td style="padding:8px 0;border-bottom:1px solid ${COLORS.rule};color:${COLORS.ink};">
+          ${escapeHtml(label ?? 'Rush fabrication — priority scheduling')}
+        </td>
+        <td style="padding:8px 0;border-bottom:1px solid ${COLORS.rule};text-align:right;color:${COLORS.ink};white-space:nowrap;">
+          ${formatCents(cents)}
+        </td>
+      </tr>`;
+}
+
 export interface QuoteEmailInput {
   customerName: string | null;
   quoteNumber: string;
   jobName: string | null;
   lines: QuoteLine[];
+  /** Lines PLUS `surchargeCents`. What the Approve button commits them to. */
   totalCents: number;
+  /** The rush surcharge AFS decided, or null when there is none to show. */
+  surchargeCents?: number | null;
+  /** SPEC_RUSH_ORDER.md's own wording, supplied by the caller. No rate in it. */
+  surchargeLabel?: string | null;
   approveUrl: string;
   expiresAt: Date;
   revision: number;
@@ -83,6 +111,7 @@ export function quoteEmailHtml(input: QuoteEmailInput): string {
 
     <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 8px;">
       ${rows}
+      ${surchargeRow(input.surchargeCents, input.surchargeLabel)}
       <tr>
         <td style="padding:12px 0;font-weight:bold;color:${COLORS.ink};font-size:16px;">Total</td>
         <td style="padding:12px 0;text-align:right;font-weight:bold;color:${COLORS.ink};font-size:16px;">
@@ -126,7 +155,11 @@ export interface InvoiceEmailInput {
   quoteNumber: string | null;
   jobName: string | null;
   lines: QuoteLine[];
+  /** COPIED from the quote, never recomputed — lines plus the surcharge. */
   totalCents: number;
+  /** Also copied from the quote, so the invoice reads exactly as it did. */
+  surchargeCents?: number | null;
+  surchargeLabel?: string | null;
   approvedAt: Date;
 }
 
@@ -168,6 +201,7 @@ export function invoiceEmailHtml(input: InvoiceEmailInput): string {
     ${intro}
     <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 8px;">
       ${rows}
+      ${surchargeRow(input.surchargeCents, input.surchargeLabel)}
       <tr>
         <td style="padding:12px 0;font-weight:bold;color:${COLORS.ink};font-size:16px;">Total</td>
         <td style="padding:12px 0;text-align:right;font-weight:bold;color:${COLORS.ink};font-size:16px;">

@@ -44,7 +44,14 @@ import {
   type JobHandoffCorrection,
   type JobHandoffKind,
 } from '@/lib/flashdraft/job-handoff';
-import { getResolvedPriceBook } from '@/lib/pricing/db';
+import { getResolvedPriceBook, getRushPolicyBook } from '@/lib/pricing/db';
+import {
+  evaluateRushLeadTime,
+  rushPolicyInForce,
+  type RushLeadTime,
+  type RushPolicy,
+} from '@/lib/pricing/rush-policy';
+import { shopDateOnly } from '@/lib/delivery/business-days';
 import { quoteFromPriceBook } from '@/lib/pricing/quote-math';
 import { toQuoteItemInputs, type JobLineItemGeometry } from '@/lib/pricing/quote-inputs';
 import { officeInvoiceEmail } from '@/lib/data/office';
@@ -195,6 +202,27 @@ export interface JobScreenData {
    * number from an unfilled cell.
    */
   quotePreview: QuoteResult | null;
+
+  /**
+   * THE RUSH SIDE OF THE QUOTE, for a rush job only (`null` otherwise, and no
+   * query is made for a standard job).
+   *
+   * It carries the POLICY rather than a computed surcharge, deliberately:
+   * `JobActionPanel` re-totals in the browser as the estimator edits Qty, so it
+   * has to work the surcharge out again from the edited subtotal — with the
+   * SAME `evaluateRushSurcharge` the server uses when Send is pressed. One
+   * function, both sides, so the figure on screen and the figure emailed cannot
+   * disagree.
+   *
+   * The LEAD TIME is computed here, on the server, because "today" has to be
+   * the shop's date and not the browser's (CLAUDE.md rule #24).
+   */
+  rushQuote: {
+    policy: RushPolicy | null;
+    /** Non-null when `rush_policies` could not be read. Plain English. */
+    policyUnavailable: string | null;
+    leadTime: RushLeadTime;
+  } | null;
 
   /** The quote that was actually issued, once one has been. */
   issuedQuote: {
@@ -430,6 +458,32 @@ export async function getJobScreen(
     );
   }
 
+  // ---- The rush side, for a rush job only --------------------------------
+  //
+  // ONLY FOR A RUSH JOB, so a standard job costs no extra query: there is
+  // nothing a rush policy could say about it. `getRushPolicyBook` never throws,
+  // so a deployment without migration 039 applied surfaces its reason as the
+  // sentence the panel prints rather than taking this screen down.
+  //
+  // THE LEAD TIME IS DECIDED HERE and not in the browser, because "today" has
+  // to be the shop's own date. Vercel runs in UTC and Burnet is Central, so a
+  // Tuesday-evening comparison worked out from the browser or the raw server
+  // clock would be a day out (CLAUDE.md rule #24's second hazard).
+  let rushQuote: JobScreenData['rushQuote'] = null;
+  if (row.is_rush) {
+    const today = shopDateOnly(now);
+    const book = await getRushPolicyBook(supabase);
+    const policy = rushPolicyInForce(book.policies, today);
+    rushQuote = {
+      policy,
+      policyUnavailable: book.unavailable,
+      leadTime: evaluateRushLeadTime(
+        { isRush: true, requestedDelivery: row.requested_delivery, today },
+        policy
+      ),
+    };
+  }
+
   const { data: quoteRows } = await supabase
     .from('quotes')
     .select('id, quote_number, revision, total_cents, status, sent_at, customer_email')
@@ -530,6 +584,7 @@ export async function getJobScreen(
     shopSubStateLabel: shopSubStateLabel(shopSub),
     followupDraft: row.followup_draft,
     quotePreview,
+    rushQuote,
     issuedQuote,
     invoice: invoiceRow
       ? {

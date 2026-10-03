@@ -71,7 +71,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const { data: found } = await admin
       .from('quote_requests')
       .select(
-        'id, request_number, job_name, line_items, user_id, guest_email, is_rush, po_number, client_business_name, client_name, job_stage, quote_id'
+        'id, request_number, job_name, line_items, user_id, guest_email, is_rush, requested_delivery, po_number, client_business_name, client_name, job_stage, quote_id'
       )
       .eq('id', quoteRequestId)
       .maybeSingle();
@@ -130,6 +130,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         totalCents: result.totalCents,
         emailStatus: result.emailStatus,
         pathfinderPushed: false,
+        // The rush facts, recorded as WHAT and WHY: the figure, and the state
+        // that produced it. `unpriced` on a rush job means no policy was in
+        // force or its value was blank, and the audit row is the place that
+        // stays answerable about it later.
+        rushSurchargeCents: result.rushSurchargeCents,
+        rushSurchargeState: result.rushSurchargeState,
+        rushLeadTimeStatus: result.rushLeadTimeStatus,
       },
     });
 
@@ -139,6 +146,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       quoteNumber: result.quoteNumber,
       revision: result.revision,
       totalCents: result.totalCents,
+      rushSurchargeCents: result.rushSurchargeCents,
+      rushSurchargeState: result.rushSurchargeState,
       emailStatus: result.emailStatus,
       jobStage: 'quoted',
       message: result.message,
