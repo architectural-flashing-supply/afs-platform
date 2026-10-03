@@ -190,6 +190,49 @@ ALTER TABLE profiles ADD CONSTRAINT fk_profiles_company
   FOREIGN KEY (company_id) REFERENCES companies(id);
 ```
 
+**`require_po` IS THE PURCHASE ORDER REQUIREMENT, AND IT IS READ IN TWO PLACES
+ONLY (ovn 07-purchase-order, 2026-10-03).** The column has existed since
+migration 001. Until this item, **nothing in the repository read it** — the PO
+field at checkout was unconditionally optional for every customer, always.
+`SPEC_PURCHASE_ORDER_INTEGRATION.md` §2 makes the field "Required if:
+companies.require_po = true for user's company", and the two readers are:
+
+- `app/checkout/page.tsx` — resolves it for the label, the hint and the
+  Place Order gate. **UX only.**
+- `app/api/checkout/create-intent/route.ts` — re-reads it and refuses the
+  checkout. **This is the enforcement**, and it runs before `createAdminClient()`,
+  before `createOrderFromQuote` and before `paymentIntents.create`, so a refused
+  order creates no PaymentIntent and no `orders` row.
+
+Both read it through the **session** client, so the `company_members` policy
+above is what authorises the read — a customer can only ever see their own
+company's row.
+
+**TWO QUERIES, NEVER A POSTGREST EMBED, for `profiles → companies`.** There are
+**two** foreign keys between those tables — `profiles.company_id → companies.id`
+and `companies.primary_user_id → profiles.id` — so an embedded select is
+ambiguous and needs an explicit constraint-name hint. Every caller
+(`app/checkout/page.tsx`, `create-intent`, `lib/data/customers.ts`) does a
+second explicit query instead.
+
+**Two writers, both admin-only and both audited:**
+`app/api/admin/credit-applications/[id]/route.ts` (on approval, alongside
+`credit_limit`) and `app/api/admin/companies/[id]/route.ts` (the general
+toggle on `/admin/customers/{id}`, per SPEC §3). The second route's UPDATE
+names `require_po` **and nothing else** — `companies` also holds
+`pricing_tier`, `net_terms`, `credit_limit` and `billing_address`, and a
+crafted body must not be able to raise a credit limit through the PO endpoint.
+Do not widen it without specifying company management properly.
+
+**`company_id` is nullable, and most individual customers have no `companies`
+row at all** — it is set only by the Team Accounts flow
+(`app/api/team/invite/route.ts`, which writes it with the **service role**).
+A customer with no company therefore has nowhere to attach a requirement, which
+is why `components/admin/CompanyPoRequirementForm.tsx` renders explanatory copy
+rather than a dead checkbox. Note `profiles.company` (free text the customer
+typed at sign-up) is a different thing from `profiles.company_id` and must not
+be conflated with it.
+
 ---
 
 ## TABLE 3 — materials
