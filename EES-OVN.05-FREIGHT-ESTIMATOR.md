@@ -1030,7 +1030,7 @@ trail) are each closed by a named mechanism. **None present.**
 
 Prompt ID: EES-OVN.05
 Prompt Name: Freight Estimator — manual-entry-first, admin-configurable rate table, override with audit trail
-Word Count: 10276 (body, measured with wc -w)
+Word Count: 10460 (body, measured with wc -w after the self-audit revisions)
 Engineering Proficiency Score: 100/100
 Minimum Required Score: 95/100
 Self-Audit Status: PASS
