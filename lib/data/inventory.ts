@@ -104,9 +104,18 @@ export type AdjustmentLoad =
 /** The newest N adjustments a single read returns. Stated, never silent. */
 export const ADJUSTMENT_PAGE_SIZE = 200;
 
+/**
+ * THE ONE SENTENCE for "the database part of this feature has not been applied
+ * yet". Named once so the screen, the three API routes and any future caller
+ * cannot describe the same situation three different ways — and so it names the
+ * exact file to apply, which is the only action that fixes it.
+ */
+export const NOT_PROVISIONED_MESSAGE =
+  'The inventory tables have not been created in this database yet. Nothing was saved. Apply supabase/migrations/039_inventory_items_and_adjustments.sql.';
+
 /* ------------------------------------------------------------------ shapes */
 
-interface ItemSource {
+export interface InventoryItemSource {
   id: string;
   material_id: string;
   gauge_id: string;
@@ -122,7 +131,13 @@ interface ItemSource {
   gauges: { label: string } | null;
 }
 
-interface AdjustmentSource {
+/**
+ * The ledger row as PostgREST sends it. Exported because
+ * `inventory_apply_adjustment()` returns this same row shape from an RPC, where
+ * there is no joined `profiles` — the adjustments route supplies `null` for it,
+ * since the actor is the session's own admin by construction.
+ */
+export interface InventoryAdjustmentSource {
   id: string;
   item_id: string;
   kind: AdjustmentKind;
@@ -156,7 +171,7 @@ function toNumber(value: number | string): number {
   return toNumberOrNull(value) ?? 0;
 }
 
-export function mapItemRow(row: ItemSource): InventoryItemRow {
+export function mapItemRow(row: InventoryItemSource): InventoryItemRow {
   const onHand = toNumberOrNull(row.qty_on_hand);
   const reserved = toNumber(row.qty_reserved);
   const reorderPoint = toNumberOrNull(row.reorder_point);
@@ -184,7 +199,7 @@ export function mapItemRow(row: ItemSource): InventoryItemRow {
   };
 }
 
-export function mapAdjustmentRow(row: AdjustmentSource): InventoryAdjustmentRow {
+export function mapAdjustmentRow(row: InventoryAdjustmentSource): InventoryAdjustmentRow {
   return {
     id: row.id,
     itemId: row.item_id,
@@ -214,7 +229,7 @@ export function loadStateFromError(error: PostgrestError, where: string): Invent
 
 /* ------------------------------------------------------------------- reads */
 
-const ITEM_SELECT =
+export const INVENTORY_ITEM_SELECT =
   'id, material_id, gauge_id, finish, coil_width_in, stock_unit, qty_on_hand, qty_reserved, reorder_point, retired_at, updated_at, materials(name), gauges(label)';
 
 /**
@@ -228,7 +243,7 @@ const ITEM_SELECT =
 export async function getInventoryItems(supabase: SupabaseClient): Promise<InventoryLoad<InventoryItemRow>> {
   const { data, error } = await supabase
     .from('inventory_items')
-    .select(ITEM_SELECT)
+    .select(INVENTORY_ITEM_SELECT)
     .is('retired_at', null)
     .order('material_id', { ascending: true })
     .order('gauge_id', { ascending: true })
@@ -236,7 +251,7 @@ export async function getInventoryItems(supabase: SupabaseClient): Promise<Inven
 
   if (error) return loadStateFromError(error, 'getInventoryItems');
 
-  const rows = ((data ?? []) as unknown as ItemSource[]).map(mapItemRow);
+  const rows = ((data ?? []) as unknown as InventoryItemSource[]).map(mapItemRow);
   // The database cannot order by the joined material NAME, only by its id, so
   // the readable ordering is applied here. localeCompare rather than `<`, so
   // "Galvalume" and "galvanized" sort the way a person reads them.
@@ -253,11 +268,11 @@ export async function getInventoryItem(
   supabase: SupabaseClient,
   itemId: string
 ): Promise<InventoryLoad<InventoryItemRow>> {
-  const { data, error } = await supabase.from('inventory_items').select(ITEM_SELECT).eq('id', itemId).maybeSingle();
+  const { data, error } = await supabase.from('inventory_items').select(INVENTORY_ITEM_SELECT).eq('id', itemId).maybeSingle();
 
   if (error) return loadStateFromError(error, 'getInventoryItem');
   if (!data) return { state: 'ready', rows: [] };
-  return { state: 'ready', rows: [mapItemRow(data as unknown as ItemSource)] };
+  return { state: 'ready', rows: [mapItemRow(data as unknown as InventoryItemSource)] };
 }
 
 /**
@@ -285,7 +300,7 @@ export async function getInventoryAdjustments(supabase: SupabaseClient, itemId: 
 
   if (error) return loadStateFromError(error, 'getInventoryAdjustments');
 
-  const all = ((data ?? []) as unknown as AdjustmentSource[]).map(mapAdjustmentRow);
+  const all = ((data ?? []) as unknown as InventoryAdjustmentSource[]).map(mapAdjustmentRow);
   const truncated = all.length > ADJUSTMENT_PAGE_SIZE;
   return { state: 'ready', rows: truncated ? all.slice(0, ADJUSTMENT_PAGE_SIZE) : all, truncated };
 }
