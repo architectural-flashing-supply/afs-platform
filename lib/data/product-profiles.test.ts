@@ -1,9 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   resolveStockLengthBySlug,
   resolveStockLengthByQuoteLabel,
   readProfileStockLengths,
+  STOCK_LENGTH_READ_TIMEOUT_MS,
   type ProfileStockLength,
 } from './product-profiles';
 
@@ -316,5 +317,74 @@ describe('readProfileStockLengths tells a failed read apart from an empty one', 
     expect(read.profiles, 'and the row is mapped').toEqual([
       { slug: 'fascia', name: 'Fascia', standardLengthFt: 10, maxLengthFt: 12 },
     ]);
+  });
+});
+
+describe('readProfileStockLengths does not wait forever', () => {
+  it('reports a failure when the read never settles at all', async () => {
+    // ARRANGE — a hard network abort (offline laptop, captive portal, blocked
+    // domain) does NOT make this read reject promptly; the promise simply stays
+    // pending. Observed in a real browser, which is why the timeout exists.
+    vi.useFakeTimers();
+    const hung = {
+      from: () => ({
+        select() {
+          return this;
+        },
+        eq() {
+          return new Promise(() => {
+            /* never settles, exactly like the aborted request */
+          });
+        },
+      }),
+    } as unknown as SupabaseClient;
+
+    // ACT
+    const pending = readProfileStockLengths(hung);
+    await vi.advanceTimersByTimeAsync(STOCK_LENGTH_READ_TIMEOUT_MS);
+    const read = await pending;
+
+    // ASSERT
+    expect(
+      read.failed,
+      'a hung read is a failure the screen can say something about, not a permanent "checking…"'
+    ).toBe(true);
+    expect(read.profiles, 'and it carries no rows').toEqual([]);
+
+    vi.useRealTimers();
+  });
+
+  it('does not give up on a read that settles before the timeout', async () => {
+    vi.useFakeTimers();
+    const slowButFine = {
+      from: () => ({
+        select() {
+          return this;
+        },
+        eq() {
+          return new Promise((resolve) => {
+            setTimeout(
+              () =>
+                resolve({
+                  data: [
+                    { slug: 'fascia', name: 'Fascia', standard_length_ft: 10, max_length_ft: 12 },
+                  ],
+                  error: null,
+                }),
+              STOCK_LENGTH_READ_TIMEOUT_MS - 1000
+            );
+          });
+        },
+      }),
+    } as unknown as SupabaseClient;
+
+    const pending = readProfileStockLengths(slowButFine);
+    await vi.advanceTimersByTimeAsync(STOCK_LENGTH_READ_TIMEOUT_MS);
+    const read = await pending;
+
+    expect(read.failed, 'a slow read that arrives in time is not a failure').toBe(false);
+    expect(read.profiles.length, 'and its row is kept').toBe(1);
+
+    vi.useRealTimers();
   });
 });
