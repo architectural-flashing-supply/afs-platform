@@ -89,20 +89,26 @@ layer too. **Any new admin API route that returns per-session data needs
 `browser.newContext()` inherits `test.use({ storageState })`, so such a probe needs
 `storageState: undefined` explicitly or it is signed in and guards nothing.
 
-### THE 5 RED PLAYWRIGHT TESTS ARE ALL PRE-EXISTING — AND ONE OF THEM IS A REAL BUG
+### THE RED PLAYWRIGHT TESTS: WAS 5, NOW 4 — ALL PROVEN PRE-EXISTING
 
-163 passed, 5 failed, 3 skipped. Every one of the 5 was **proven** pre-existing by
-re-running it with this run's changes stashed at HEAD: `homepage.spec.ts` x2,
-`production-queue.spec.ts` x2, and `modify-in-flashdraft.spec.ts:179`.
+Every one was **proven** pre-existing by re-running it with this run's changes
+stashed at HEAD, not assumed from its file name. Four remain and are untouched
+here: `homepage.spec.ts` x2 (hero CTAs, header logo) and `production-queue.spec.ts`
+x2 (quick advance, rush ordering).
 
-**Do not dismiss the third one as noise.** It is a real disagreement between the
-screen and the database, diagnosed in this run and deliberately not fixed:
-`loadForModify` sets the lineage banner to **rev 5** for a source at revision 4,
-but `performSave`'s `nextRevision = asDuplicate || !savedProfileId ? 1 : revision + 1`
-writes **1**, because `loadForModify` sets `savedProfileId = null` so the first save
-is an INSERT that cannot overwrite the locked original. The banner says 5, the row
-says 1. Which is right is a product decision about what "revision" counts. **PENDING
-REID** — see STATE_OF_THE_BUILD.md's 2026-10-03 entry.
+**The fifth was a real bug and is now FIXED** (Reid's call, same day — see
+STATE_OF_THE_BUILD.md's 2026-10-03 entry). `performSave`'s `!savedProfileId` was
+doing double duty: it meant "brand-new profile with no history" until Part 1 made a
+modified draft INSERT on purpose, after which every modified draft was saved as
+revision 1 under a banner reading "rev 5". **Revision is lineage depth** — migration
+027, `loadForModify`'s comment, the banner and the info panel all already said so;
+the row was the outlier.
+
+**The rule now lives in `lib/flashdraft/revision.ts` with a test**, because an
+inline ternary in a 4,800-line component is a rule nothing can assert — which is
+exactly how it stayed wrong. Its own test then caught a flaw in the new guard
+(`Math.max(1, Math.floor(NaN))` is `NaN`, not 1). `asDuplicate` was deliberately
+left alone.
 
 ### FILES THAT MATTER
 
@@ -116,6 +122,8 @@ lib/data/job-screen.ts                                     flashDraftLink always
 app/admin/command-center/job/[id]/page.tsx                 the red button x3 + per-line
 lib/ai/takeoff-confidence.ts                               AiReadRow.itemIndex / .firstOfItem
 lib/flashdraft/draw-profile-scene.ts                       drawBackground?: boolean
+lib/flashdraft/revision.ts                                 NEW  the revision rule, extracted
+lib/flashdraft/revision.test.ts                            NEW  8 unit tests
 ```
 
 **No migration was needed and none was written.** The correction stamp lives in the

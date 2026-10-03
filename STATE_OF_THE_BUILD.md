@@ -197,8 +197,8 @@ single-door guard's own condition (rule #14) still holds. Rush is untouched
 - `pnpm run build` — **green**, including the `prebuild` contrast gate
   (**24 screens · 248 pairs · 0 unresolved · 0 below threshold**) and the v7 CSS
   regeneration. The new route builds as `ƒ` (dynamic), confirming the cache fix.
-- `pnpm test:unit` — **485/485 across 31 files** (28 new in
-  `lib/flashdraft/job-handoff.test.ts`)
+- `pnpm test:unit` — **493/493 across 32 files** (28 new in
+  `lib/flashdraft/job-handoff.test.ts`, 8 in `lib/flashdraft/revision.test.ts`)
 - `tests/e2e/flashdraft-job-handoff.spec.ts` — **7/7**, no flakes, every row and
   storage object deleted and the cleanup asserted back to zero
 - **v7 pixel gate — 35 MATCHING · 0 NOT MATCHING · 16 no live route · 3 live-only.**
@@ -220,23 +220,50 @@ single-door guard's own condition (rule #14) still holds. Rush is untouched
   | `production-queue.spec.ts:22` quick advance updates order status | yes — same failure at HEAD |
   | `production-queue.spec.ts:50` rush orders appear at top of queue | yes — same failure at HEAD |
 
-### A PRE-EXISTING BUG THIS RUN DIAGNOSED BUT DID NOT FIX
+### THE REVISION BUG — DIAGNOSED, THEN FIXED AT REID'S DIRECTION (same day)
 
-`modify-in-flashdraft.spec.ts:179` is not merely "a known red test" — it is a real
-disagreement between the screen and the database, and the cause is now known:
+`modify-in-flashdraft.spec.ts:179` was never "a known red test". It was a real
+disagreement between the screen and the database:
 
 - `loadForModify` sets `setRevision((dims?.revision ?? 1) + 1)`, so the lineage
-  banner reads **"rev 5"** for a source at revision 4.
-- `performSave` then computes `nextRevision = asDuplicate || !savedProfileId ? 1 :
+  banner read **"rev 5"** and the info panel read **"Revision: 5"** for a source at
+  revision 4.
+- `performSave` computed `nextRevision = asDuplicate || !savedProfileId ? 1 :
   revision + 1`, and `loadForModify` deliberately sets `savedProfileId = null` so
-  the first save is an INSERT that cannot overwrite the locked original.
-- So the first save of a modified draft **always writes `revision: 1`** while the
-  banner says 5. The test asserts 5 and gets 1.
+  the first save is an INSERT that cannot overwrite a LOCKED original.
+- So every modified draft was **written as `revision: 1`** under a screen saying 5.
 
-Either the banner is lying or the row is, and which one is right is a product
-decision about what "revision" counts (the lineage depth, or this row's own edit
-count). **Not fixed here — it is nowhere near this run's scope, and guessing would
-put a wrong number on a saved profile.** PENDING REID.
+**`!savedProfileId` WAS DOING DOUBLE DUTY.** It stood in for "this is a brand-new
+profile with no history", which was true until Part 1 made a modified draft insert
+ON PURPOSE. After that the two stopped meaning the same thing, and the expression
+matched a case it was never written for. **Whether a write is an INSERT or an
+UPDATE is a storage detail; the question the revision number asks is whether the
+drawing has ancestry.**
+
+**WHICH NUMBER IS RIGHT WAS NOT A COIN TOSS.** Four independent places already
+committed to lineage depth: migration 027's own comment ("deleting an original must
+never delete the REVISIONS drawn from it"), `loadForModify`'s comment ("at which
+revision"), the lineage banner, and the info panel. The saved row was the sole
+outlier, so the row is what changed. No data migration was needed — the only two
+`saved_configurations` rows in the live database are revision 1 with no
+`source_profile_id`, so nothing existing was misnumbered, and nothing outside
+`app/studio/draft/page.tsx` reads `dimensions.revision` at all.
+
+**THE RULE IS NOW A TESTED PURE FUNCTION, `lib/flashdraft/revision.ts`.** It was an
+inline ternary in a 4,800-line component, which is why it could be wrong for the
+whole life of Part 1 with nothing able to say so. `asDuplicate` is deliberately
+untouched and still starts at 1 — it was not the defect, and changing it would have
+been a second change riding along with the fix.
+
+**The extraction immediately earned itself:** the new test caught a flaw in the
+author's own guard. `Math.max(1, Math.floor(revision))` does NOT sanitise `NaN` —
+`Math.floor(NaN)` is `NaN` and `Math.max(1, NaN)` is `NaN` — so a source row with a
+nonsense revision would have written `NaN` into the saved row. The guard checks
+`Number.isFinite` first.
+
+`tests/e2e/modify-in-flashdraft.spec.ts` is **4/4, run three times consecutively
+with no flakes.** The known pre-existing Playwright failures are now **four**, not
+five.
 
 **VERIFICATION STANDARD: this is IMPLEMENTED, UNCONFIRMED.** The gates above are
 evidence to bring to Reid, not a substitute for his having opened a job and pressed

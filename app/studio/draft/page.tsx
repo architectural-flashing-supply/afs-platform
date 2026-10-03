@@ -21,6 +21,7 @@ import { formatInches } from '@/lib/utils/format-inches';
 import ProfileViewer3D, { type ProfileBend } from '@/components/studio/ProfileViewer3D';
 import { computeProfilePoints, signedInteriorAngleDeg } from '@/lib/flashdraft/geometry';
 import { drawHemGlyph, HEM_GLYPH_R } from '@/lib/flashdraft/hem-glyph';
+import { nextRevisionNumber } from '@/lib/flashdraft/revision';
 import { ADMIN_JOB_HANDOFF_KEY, type AdminJobHandoffPayload } from '@/lib/flashdraft/admin-job-handoff';
 import {
   JOB_HANDOFF_ITEM_PARAM,
@@ -2832,7 +2833,14 @@ export default function FlashDraftPage() {
       // route added in this phase.
       const { data: ownProfile } = await supabase.from('profiles').select('company_id').eq('id', user.id).single();
       const companyId = (ownProfile?.company_id as string | null) ?? null;
-      const nextRevision = asDuplicate || !savedProfileId ? 1 : revision + 1;
+      // THE REVISION NUMBER — one rule, in lib/flashdraft/revision.ts, with a
+      // test. It lived here as `asDuplicate || !savedProfileId ? 1 :
+      // revision + 1` and was wrong for every modified draft: `!savedProfileId`
+      // meant "brand-new profile" until Part 1 made a modified draft INSERT on
+      // purpose, after which the banner said "rev 5" over a row that said 1.
+      // Extracted because an inline ternary in a file this size is a rule
+      // nothing can assert.
+      const nextRevision = nextRevisionNumber({ revision, savedProfileId, sourceProfileId, asDuplicate });
       const isLockedNow = lock || isLocked;
       // Real canvas screenshot (025_profile_passport_thumbnail.sql), replacing
       // Profile Passport's generic vector-shape thumbnail with what the user
