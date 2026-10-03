@@ -30,6 +30,8 @@ interface OrderDetailRow {
   tracking_number: string | null;
   carrier: string | null;
   shop_photo_url: string | null;
+  /** SPEC_PURCHASE_ORDER_INTEGRATION.md §2 lists "Order detail page". */
+  po_number: string | null;
   created_at: string;
 }
 
@@ -100,7 +102,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
   const { data: orderRaw } = await supabase
     .from('orders')
     .select(
-      'id, order_number, status, subtotal, freight, tax, rush_surcharge, total, payment_method, net_terms, delivery_method, delivery_address, delivery_scheduled_at, delivery_window, tracking_number, carrier, shop_photo_url, created_at'
+      'id, order_number, status, subtotal, freight, tax, rush_surcharge, total, payment_method, net_terms, delivery_method, delivery_address, delivery_scheduled_at, delivery_window, tracking_number, carrier, shop_photo_url, po_number, created_at'
     )
     .eq('id', params.id)
     .eq('user_id', user.id)
@@ -161,6 +163,20 @@ export default async function OrderDetailPage({ params }: { params: { id: string
               ? `Expected ship: ${formatDate(order.delivery_scheduled_at)}`
               : 'Expected ship: will be confirmed by AFS'}
           </p>
+          {/*
+            SPEC_PURCHASE_ORDER_INTEGRATION.md §2 lists the order detail page as
+            a surface the PO number must appear on — the customer's own copy of
+            the reference their accounts team will match the invoice against.
+
+            Rendered only when there is one. Most orders carry no PO, and a row
+            reading "PO Number: —" on all of them would be noise that makes the
+            ones that matter harder to see.
+          */}
+          {order.po_number ? (
+            <p className="font-body text-sm text-afs-chrome-mid mt-1">
+              PO Number: <span className="font-data text-afs-chrome-high">{order.po_number}</span>
+            </p>
+          ) : null}
         </div>
         <div className="flex flex-col items-end gap-3">
           <Badge variant={ORDER_STATUS_VARIANT[order.status] ?? 'chrome'} size="md" pulse={!isDelivered && !isCancelled}>

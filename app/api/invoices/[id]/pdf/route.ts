@@ -70,8 +70,13 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       });
     }
 
-    // The pre-existing order derivation, unchanged.
-    const order = resolved.order as unknown as Parameters<typeof buildInvoicePdfLines>[0];
+    // The pre-existing order derivation. `resolveInvoice` now declares the
+    // wider OrderInvoicePdfSource for this branch (money breakdown, ship-to
+    // address, po_number), so this no longer needs an `as unknown as` cast to
+    // reach buildInvoicePdfLines' parameter type — the columns it draws are in
+    // the type, and a missing one is a compile error rather than an
+    // "undefined" printed on a customer's invoice.
+    const order = resolved.order;
     const { data: lineItemsRaw } = await supabase
       .from('order_line_items')
       .select('description, length_ft, quantity, unit, unit_price, line_total')
@@ -79,7 +84,9 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       .order('sort_order', { ascending: true });
     const lineItems = (lineItemsRaw ?? []) as InvoiceLineItemRecord[];
 
-    const invoice = toInvoiceRow(order as unknown as Parameters<typeof toInvoiceRow>[0]);
+    // Used for the download filename. No cast needed either:
+    // OrderInvoicePdfSource extends the narrower type toInvoiceRow takes.
+    const invoice = toInvoiceRow(order);
 
     // Shared with lib/utils/invoice-pdf.ts's generateInvoicePDF() (used by
     // the dispatch/invoice-send routes) so the layout is defined exactly

@@ -58,6 +58,29 @@ interface OrderInvoiceSource {
   invoice_paid_at: string | null;
 }
 
+/**
+ * What `resolveInvoice`'s order branch really returns: everything
+ * `toInvoiceRow` needs for the status maths, PLUS the columns only the PDF
+ * draws — the money breakdown, the ship-to address, and `po_number`.
+ *
+ * Kept separate from `OrderInvoiceSource` on purpose. The invoice LIST and
+ * `sendInvoiceEmail` both derive an `InvoiceRow` and render no PO number at
+ * all, so requiring the field on the shared type would make two unrelated
+ * queries fetch a column neither displays. This also replaces what used to be
+ * carried only by the `as unknown as` cast in app/api/invoices/[id]/pdf —
+ * `resolveInvoice` already selected four columns its declared type did not
+ * mention.
+ */
+export interface OrderInvoicePdfSource extends OrderInvoiceSource {
+  subtotal: number;
+  freight: number | null;
+  tax: number | null;
+  rush_surcharge: number;
+  delivery_address: { line1?: string; line2?: string; city?: string; state?: string; zip?: string } | null;
+  /** SPEC_PURCHASE_ORDER_INTEGRATION.md §2 — "Invoice PDF header". */
+  po_number: string | null;
+}
+
 export interface InvoiceRecord {
   id: string;
   invoice_number: string;
@@ -193,7 +216,7 @@ export async function resolveInvoice(
   userId?: string
 ): Promise<
   | { kind: 'invoice'; record: InvoiceRecord }
-  | { kind: 'order'; order: OrderInvoiceSource }
+  | { kind: 'order'; order: OrderInvoicePdfSource }
   | { kind: 'none' }
 > {
   let invoiceQuery = supabase.from('invoices').select(INVOICE_COLUMNS).eq('id', id);
@@ -204,12 +227,12 @@ export async function resolveInvoice(
   let orderQuery = supabase
     .from('orders')
     .select(
-      'id, order_number, total, subtotal, freight, tax, rush_surcharge, payment_method, net_terms, delivery_address, created_at, invoice_paid_at'
+      'id, order_number, total, subtotal, freight, tax, rush_surcharge, payment_method, net_terms, delivery_address, created_at, invoice_paid_at, po_number'
     )
     .eq('id', id);
   if (userId) orderQuery = orderQuery.eq('user_id', userId);
   const { data: orderData } = await orderQuery.maybeSingle();
-  if (orderData) return { kind: 'order', order: orderData as unknown as OrderInvoiceSource };
+  if (orderData) return { kind: 'order', order: orderData as unknown as OrderInvoicePdfSource };
 
   return { kind: 'none' };
 }

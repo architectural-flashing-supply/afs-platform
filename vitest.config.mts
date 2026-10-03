@@ -24,10 +24,18 @@ export default defineConfig({
   // untestable from a unit test, which ovn 07-purchase-order needed in order to
   // server-render components/checkout/PoNumberField.tsx and assert its exact
   // markup in both states (lib/checkout/po-number-field.render.test.ts).
-  // 'automatic' is React 17+'s runtime transform, matching what Next emits, so
-  // a component renders here the way it renders in the app.
+  // `{ runtime: 'automatic' }` is React 17+'s JSX transform, matching what Next
+  // emits, so a component renders here the way it renders in the app.
+  //
+  // IT MUST BE THE OBJECT FORM, AND IT MUST BE `oxc` RATHER THAN `esbuild`.
+  // Vite 8 transforms with oxc; setting `esbuild: { jsx: ... }` is accepted,
+  // warned about ("oxc options will be used and esbuild options will be
+  // ignored") and then silently has no effect. And the shorthand
+  // `oxc: { jsx: 'automatic' }` fails bundler initialisation outright with
+  // "Invalid jsx option: `automatic`" — on EVERY file, including plain .ts
+  // ones, which took lib/design/v7-deviations.test.ts down with it.
   oxc: {
-    jsx: 'automatic',
+    jsx: { runtime: 'automatic' },
   },
   test: {
     include: ['lib/**/*.test.ts'],

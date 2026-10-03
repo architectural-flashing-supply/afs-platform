@@ -21,6 +21,15 @@ export interface InvoiceOrderRecord {
   delivery_address: { line1?: string; line2?: string; city?: string; state?: string; zip?: string } | null;
   created_at: string;
   invoice_paid_at: string | null;
+  /**
+   * SPEC_PURCHASE_ORDER_INTEGRATION.md §2 lists "Invoice PDF header".
+   *
+   * The newer quote→invoice path already carried this (an `invoices` row's own
+   * `po_number`, drawn by lib/documents/quote-invoice-pdf.ts); this older
+   * order-derived path did not, so an invoice generated from an order was the
+   * one document in the chain missing the customer's reference.
+   */
+  po_number: string | null;
 }
 
 export interface InvoiceProfileRecord {
@@ -67,6 +76,13 @@ export function buildInvoicePdfLines(
   lines.push({ text: `Invoice Date: ${formatDate(invoice.date)}` });
   lines.push({ text: `Due Date: ${invoice.dueDate ? formatDate(invoice.dueDate) : 'Paid at checkout'}` });
   lines.push({ text: `Status: ${INVOICE_STATUS_LABEL[invoice.status]}` });
+  // After Status, before Bill To — SPEC_PURCHASE_ORDER_INTEGRATION.md §2's
+  // "Invoice PDF header" placement, and the position a contractor's accounts
+  // team reads first when matching an invoice to their own PO. Omitted rather
+  // than printed as a dash when the order has none.
+  if (order.po_number) {
+    lines.push({ text: `PO Number: ${order.po_number}` });
+  }
 
   lines.push({ text: 'Bill To', font: 'bold', size: 11, spaceBefore: 18 });
   lines.push({ text: profile?.full_name ?? '—' });
@@ -135,7 +151,7 @@ export async function generateInvoicePDF(orderId: string): Promise<Buffer> {
   const { data: orderRaw, error: orderError } = await admin
     .from('orders')
     .select(
-      'id, order_number, total, subtotal, freight, tax, rush_surcharge, payment_method, net_terms, delivery_address, created_at, invoice_paid_at, user_id'
+      'id, order_number, total, subtotal, freight, tax, rush_surcharge, payment_method, net_terms, delivery_address, created_at, invoice_paid_at, po_number, user_id'
     )
     .eq('id', orderId)
     .maybeSingle();
