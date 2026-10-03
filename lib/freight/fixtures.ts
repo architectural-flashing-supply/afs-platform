@@ -15,9 +15,11 @@
  * ARRANGE step is reproducible and a failure means the code changed rather than
  * the data did.
  */
+import { resolveBands } from './bands';
 import type {
   FreightInput,
   FreightRateBand,
+  FreightRateTable,
   FreightRateVersion,
   FreightSurcharges,
   FreightZone,
@@ -265,3 +267,52 @@ export const BASE_INPUT: FreightInput = {
 export function inputWith(overrides: Partial<FreightInput>): FreightInput {
   return { ...BASE_INPUT, ...overrides };
 }
+
+// ===========================================================================
+// TABLE BUILDER
+// ===========================================================================
+
+/**
+ * A resolved rate table, assembled the same way `lib/freight/db.ts` assembles
+ * one from PostgREST rows — through the real `resolveBands`, so a test is never
+ * asserting against a hand-written resolution that the production read path
+ * would have produced differently.
+ *
+ * Defaults to the contiguous, fully-priced `ZONE_LOCAL` with full surcharges;
+ * each test overrides the one thing it is about.
+ */
+export function makeTable(
+  overrides: {
+    zones?: readonly FreightZone[];
+    bands?: readonly FreightRateBand[];
+    versions?: readonly FreightRateVersion[];
+    surcharges?: FreightSurcharges | null;
+    asOf?: string;
+  } = {}
+): FreightRateTable {
+  const zones = overrides.zones ?? [ZONE_LOCAL];
+  const bands = overrides.bands ?? CONTIGUOUS_BANDS;
+  const versions = overrides.versions ?? PRICED_VERSIONS;
+  const asOf = overrides.asOf ?? AS_OF;
+
+  const bandsByZone: FreightRateTable['bandsByZone'] = {};
+  for (const zone of zones) {
+    const forZone = bands.filter((band) => band.zoneId === zone.id);
+    if (forZone.length > 0) bandsByZone[zone.id] = resolveBands(forZone, versions, asOf);
+  }
+
+  return {
+    zones: [...zones],
+    bandsByZone,
+    surcharges: overrides.surcharges === undefined ? SURCHARGES_FULL : overrides.surcharges,
+    asOf,
+  };
+}
+
+/** The shipping state: migration 039 applied, nothing entered yet. */
+export const EMPTY_TABLE: FreightRateTable = {
+  zones: [],
+  bandsByZone: {},
+  surcharges: null,
+  asOf: AS_OF,
+};

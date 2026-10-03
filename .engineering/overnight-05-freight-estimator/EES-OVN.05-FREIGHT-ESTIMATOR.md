@@ -462,7 +462,7 @@ data (§3.5). Refusal kinds, each with a message naming what to go and fix:
 
 | kind | condition |
 |---|---|
-| `rate-table-empty` | no zones at all, or no zone has a single priced band |
+| `rate-table-empty` | **STRUCTURAL emptiness only**: no live zone, or no live zone with a live band |
 | `no-zone-selected` | `input.zoneId` is null |
 | `zone-not-found` | the id does not resolve |
 | `zone-retired` | resolves but is retired |
@@ -852,7 +852,8 @@ invented **for tests only** and are never shipped as defaults.
 | E-20 | matched band's version has `rate_cents = null` | | `ok: false`; kinds contain `band-rate-blank`; **no** amount |
 | E-21 | matched band has no versions at all | | same as E-20 |
 | E-22 | table with zero zones | | `ok: false`; kinds contain `rate-table-empty` |
-| E-23 | table with zones but no priced band anywhere | | `ok: false`; kinds contain `rate-table-empty` |
+| E-23 | table with zones but no **band** anywhere | | `ok: false`; kinds contain `rate-table-empty` |
+| E-23b | table with bands whose **rates** are all blank | | `ok: false`; kinds are **exactly** `['band-rate-blank']` — **NOT** `rate-table-empty` |
 | E-24 | priced table, `zoneId = null` | | `ok: false`; kinds contain `no-zone-selected`, **not** `rate-table-empty` |
 | E-25 | priced table, unknown `zoneId` | | `zone-not-found` |
 | E-26 | priced table, retired zone chosen | | `zone-retired` |
@@ -984,6 +985,18 @@ actively looking for defects.
    (ADR-2, C-08).
 8. The first draft did not state the `FREIGHT_ESTIMATOR_SCOPE.md` conflict. That is
    exactly the silent-convenient-reading LAW 3 and S27 forbid. Corrected: §3.4.
+
+**DEVIATION FOUND DURING IMPLEMENTATION, recorded per LAW 8 rather than silently
+applied.** R-14's first definition of `rate-table-empty` was "no zones at all, **or no
+zone has a single priced band**". Writing the test for E-31 — the case that must report
+three refusals at once — exposed it as wrong: a zone whose bands exist but whose *rates*
+are blank would have been reported as an empty table, which would send the estimator to
+build bands that are already there, and would have swallowed the `band-rate-blank`
+refusal that names the exact row to fill in. `rate-table-empty` now means **structural**
+emptiness only — no live zone, or no live zone with a live band — and an unpriced band
+reports `band-rate-blank` naming the band. E-23 was split into E-23 and a new **E-23b**
+asserting the kinds are *exactly* `['band-rate-blank']`, so the old behaviour cannot
+come back. Strictly more useful to the estimator; no requirement was weakened.
 
 **Score, per PART VIII's rubric:**
 
