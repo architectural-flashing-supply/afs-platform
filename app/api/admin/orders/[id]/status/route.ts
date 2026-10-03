@@ -98,7 +98,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
           error: 'Customer has no email on file.',
         };
         if (email) {
-          const stageLabel = getStage(newStatus)?.label ?? newStatus;
+          // The customer's own wording — this is the body of a customer email.
+          const stageLabel = getStage(newStatus)?.customerLabel ?? newStatus;
           emailResult = await sendEmail({
             to: email,
             subject: `Order #${order.order_number} Update: ${stageLabel}`,

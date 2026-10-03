@@ -4,69 +4,99 @@
  * below IS the production sequence and drives QuickAdvanceButton, the status
  * dropdown, and backward-move detection — do not reorder without updating all three.
  *
- * This is the single source of truth for the fabrication stage list — both
- * the admin production queue and the customer ProductionTimeline
- * (components/account/ProductionTimeline.tsx) import ORDER_STAGES from here
- * rather than keeping their own copies (PRODUCTION_QUEUE_AUDIT.md §2h).
+ * THIS FILE IS THE ONLY PLACE A STAGE LABEL IS WRITTEN, for every audience and
+ * every surface. The admin production queue, the status-change email, and all
+ * three variants of ProductionTimeline (components/account/ProductionTimeline.tsx
+ * — customer, admin, public) read their label from here, so when checklist #39
+ * lands, renaming a stage is an edit to this file and nothing else
+ * (PRODUCTION_QUEUE_AUDIT.md §2h, EES-OVN.06 R1).
+ *
+ * The field names say who the label is for: `customerLabel` is the
+ * customer-facing wording (it was called `label` until EES-OVN.06, which was
+ * ambiguous once a third audience existed), `adminLabel` is the shop/office
+ * wording, and `description` is the one-line customer explanation. Which field
+ * a given surface reads is decided in ONE function, `stageLabel()` below —
+ * never by a caller picking a field itself.
  */
 export const ORDER_STAGES = [
   {
     key: 'submitted',
-    label: 'Order Received',
+    customerLabel: 'Order Received',
     adminLabel: 'Submitted',
     description: 'Your order is confirmed and in our system.',
   },
   {
     key: 'received',
-    label: 'Acknowledged',
+    customerLabel: 'Acknowledged',
     adminLabel: 'Acknowledged',
     description: 'Our team has reviewed your order details.',
   },
   {
     key: 'in_queue',
-    label: 'In Production Queue',
+    customerLabel: 'In Production Queue',
     adminLabel: 'In Queue',
     description: 'Scheduled for fabrication.',
   },
   {
     key: 'cutting',
-    label: 'Cutting',
+    customerLabel: 'Cutting',
     adminLabel: 'Cutting',
     description: 'Your material is being cut to specification.',
   },
   {
     key: 'bending',
-    label: 'Forming',
+    customerLabel: 'Forming',
     adminLabel: 'Bending/Forming',
     description: 'Profiles are being bent and formed.',
   },
   {
     key: 'qc',
-    label: 'Quality Check',
+    customerLabel: 'Quality Check',
     adminLabel: 'QC',
     description: 'Final inspection before packaging.',
   },
   {
     key: 'ready',
-    label: 'Ready',
+    customerLabel: 'Ready',
     adminLabel: 'Ready to Ship',
     description: 'Your order is packaged and ready.',
   },
   {
     key: 'shipped',
-    label: 'Shipped',
+    customerLabel: 'Shipped',
     adminLabel: 'Shipped',
     description: 'On its way to you.',
   },
   {
     key: 'delivered',
-    label: 'Delivered',
+    customerLabel: 'Delivered',
     adminLabel: 'Delivered',
     description: 'Order complete.',
   },
 ] as const;
 
 export type OrderStageKey = (typeof ORDER_STAGES)[number]['key'];
+
+/** One entry of ORDER_STAGES, widened off the `as const` tuple. */
+export type OrderStage = (typeof ORDER_STAGES)[number];
+
+/**
+ * The three audiences ProductionTimeline is rendered for
+ * (SPEC_PRODUCTION_TIMELINE.md §1): the signed-in customer's order detail, the
+ * admin order detail, and the anonymous public order-status lookup.
+ */
+export const TIMELINE_VARIANTS = ['customer', 'admin', 'public'] as const;
+export type TimelineVariant = (typeof TIMELINE_VARIANTS)[number];
+
+/**
+ * THE one decision about which label a surface shows. `admin` is the only
+ * audience that reads shop wording; the public tracker shows the customer's
+ * wording because an anonymous visitor is a customer who is not signed in, not
+ * a third vocabulary.
+ */
+export function stageLabel(stage: OrderStage, variant: TimelineVariant): string {
+  return variant === 'admin' ? stage.adminLabel : stage.customerLabel;
+}
 
 /**
  * Employee PWA / delivery-tracking statuses (SPEC_DELIVERY_TRACKING_AND_EMPLOYEE_PWA.md
@@ -83,6 +113,26 @@ export type OrderStageKey = (typeof ORDER_STAGES)[number]['key'];
  */
 export const POST_PRODUCTION_STATUSES = ['in_production', 'packaged', 'out_for_delivery'] as const;
 export type PostProductionStatus = (typeof POST_PRODUCTION_STATUSES)[number];
+
+/**
+ * Where each post-production status sits in the FABRICATION sequence, for the
+ * purpose of drawing a timeline. Moved here from ProductionTimeline in
+ * EES-OVN.06 so the stage vocabulary and its aliases live in one file; the
+ * values are unchanged, and SPEC_PRODUCTION_TIMELINE.md §10 states them.
+ *
+ * DO NOT MERGE THIS WITH `POST_PRODUCTION_STAGE_EQUIVALENT` IN
+ * lib/data/command-center-dashboard.ts. The two deliberately disagree: that one
+ * maps `in_production` to `qc`, this one to `ready`. Which is right is a
+ * question for Reid (recorded UNRESOLVED in EES-OVN.06 §3.3 D4), and the
+ * dashboard's value feeds a frozen Command Center v7 screen whose displayed
+ * percentage would change if it were altered. Unifying them is a visual change
+ * to v7, not a cleanup.
+ */
+export const TIMELINE_POST_PRODUCTION_STAGE: Record<PostProductionStatus, OrderStageKey> = {
+  in_production: 'ready',
+  packaged: 'ready',
+  out_for_delivery: 'shipped',
+};
 
 export type OrderStatus = OrderStageKey | 'cancelled' | PostProductionStatus;
 
