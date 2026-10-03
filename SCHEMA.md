@@ -2932,5 +2932,178 @@ rule #16 says it means: created, unconfirmed, do not retry.
 
 ---
 
+## SALES TAX — `tax_nexus_states` AND `tax_calculations` (migration 039, overnight item 08-taxjar, 2026-10-03)
+
+**MIGRATION FILE WRITTEN, NOT APPLIED.** `supabase/migrations/039_tax_nexus_and_calculations.sql`
+exists and is additive; it has NOT been run against any Supabase project. The
+overnight run that wrote it is forbidden from applying migrations. The highest
+APPLIED migration is still `038_profile_search_shortcuts.sql`.
+
+### TABLE — `tax_nexus_states`
+
+Where AFS has sales tax nexus, and why. **It ships EMPTY and there is no seed
+data in the migration at all.**
+
+```sql
+CREATE TABLE tax_nexus_states (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  state_code      text NOT NULL,              -- CHECK two uppercase letters, UNIQUE
+  collecting      boolean NOT NULL DEFAULT true,
+  nexus_basis     text NOT NULL,              -- physical_presence | economic_threshold
+                                              -- | employee_presence | voluntary
+  registration_id text,                       -- NULL = not supplied
+  effective_from  date NOT NULL,
+  effective_to    date,                       -- NULL = still current
+  note            text,
+  created_by      uuid REFERENCES profiles(id),
+  updated_by      uuid REFERENCES profiles(id),
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  updated_at      timestamptz NOT NULL DEFAULT now()
+);
+```
+
+**WHY IT IS EMPTY, and why that must stay true until AFS's accountant answers.**
+The nexus state list is an open DATA BLOCKER (CLAUDE.md DATA BLOCKERS, checklist
+#31). Nexus is established by physical presence, economic thresholds and employee
+presence, none of which is derivable from this codebase. **An empty table means
+"not configured" — `lib/tax/calculate.ts` answers `not_configured`, calculates
+nothing and collects nothing. It does NOT mean "no tax is owed."** A seeded
+starter list would make the app look configured, calculate confidently, and
+collect the wrong tax in the wrong states. `lib/tax/migration-039.test.ts`
+asserts the migration's INSERT count is zero.
+
+**ONE ROW PER STATE** (`UNIQUE (state_code)`), so a double click on "Add state"
+cannot create two — the same reasoning as `deliveries.shop_job_id` and
+`invoices.quote_id`. A changed nexus is an UPDATE of the effective window plus an
+`admin_audit_log` entry, not a second row, and **retiring never deletes**: the row
+survives with `effective_to` set and `collecting = false`, so a calculation
+recorded months ago still has a readable basis.
+
+**NO VERSION TABLE, unlike the price book,** and the asymmetry is deliberate. A
+price must be reproducible for a quote issued years ago, so `price_book_versions`
+exists. A tax calculation is reproducible from its own snapshot in
+`tax_calculations` below, so the nexus list does not need to be versioned.
+
+**NO `company_id`, deliberately.** A tax nexus is a fact about AFS, the SELLER —
+not about a customer's company. Adding one would model AFS as multi-tenant, which
+it is not, and would invite a future reader to scope AFS's own legal registrations
+per customer. The boundary that actually exists is RLS: admin-only, with no
+`authenticated` or `anon` policy at all, exactly as migration 035 does for
+`price_book_items` and `pricing_ledger`.
+
+### TABLE — `tax_calculations`
+
+The cache AND the record of every provider interaction, in one table. **Money is
+CENTS.**
+
+```sql
+CREATE TABLE tax_calculations (
+  id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  cache_key            text NOT NULL,         -- SHA-256 hex, lib/tax/cache-key.ts
+  provider             text NOT NULL,
+  outcome              text NOT NULL,         -- CHECK IN ('calculated','failed')
+  amount_cents         bigint,                -- NULL for a failure. NEVER 0.
+  rate                 numeric(8,6),
+  taxable_amount_cents bigint,
+  freight_taxable      boolean,
+  jurisdictions        jsonb,
+  to_state             text,
+  to_zip               text,
+  subtotal_cents       bigint NOT NULL,
+  shipping_cents       bigint NOT NULL DEFAULT 0,
+  customer_tax_exempt  boolean NOT NULL DEFAULT false,
+  nexus_fingerprint    text,
+  request_snapshot     jsonb NOT NULL,
+  response_snapshot    jsonb,                 -- the vendor raw body; never the API key
+  problems             jsonb,
+  requires_review      boolean NOT NULL DEFAULT false,
+  reviewed_at          timestamptz,
+  reviewed_by          uuid REFERENCES profiles(id),
+  review_note          text,
+  quote_id             uuid REFERENCES quotes(id) ON DELETE SET NULL,
+  quote_request_id     uuid REFERENCES quote_requests(id) ON DELETE SET NULL,
+  expires_at           timestamptz,           -- NULL on a failure
+  created_by           uuid REFERENCES profiles(id),
+  created_at           timestamptz NOT NULL DEFAULT now()
+);
+```
+
+**THE LOAD-BEARING CONSTRAINT — the database half of "an uncalculated tax is not
+a zero tax":**
+
+```sql
+CHECK ((outcome = 'calculated') = (amount_cents IS NOT NULL))
+```
+
+`lib/tax/types.ts` enforces the same rule in TypeScript by giving the two
+non-answers (`not_configured`, `failed`) **no amount field at all** — not
+`amountCents: null`, absent, because a nullable number is the shape a caller
+writes `?? 0` against. TypeScript is erased at runtime, so Postgres holds the
+same line. Two independent refusals, the same way CLAUDE.md rule #15 backs "rush
+is never inferred" with a CHECK rather than trusting the writers.
+
+**WRITTEN IN THE `IS NOT NULL` FORM ON PURPOSE.** Rule #15 records that the naive
+rush CHECK was ACCEPTED for a NULL source, because `false OR UNKNOWN` is UNKNOWN
+and a CHECK accepts UNKNOWN. `outcome` is NOT NULL and `amount_cents IS NOT NULL`
+is always a real boolean, so this expression can never go UNKNOWN. Do not rewrite
+it into a form that compares `amount_cents` with `=` or `<>`, which would.
+`lib/tax/migration-039.test.ts` fails on that rewrite.
+
+**A FAILURE IS NEVER CACHEABLE**, also by constraint —
+`CHECK (outcome <> 'failed' OR expires_at IS NULL)`. Serving a cached failure
+would turn one vendor blip into a day of refusals, so it is forbidden at the
+database as well as in the reader.
+
+**ONLY PROVIDER INTERACTIONS ARE STORED.** `not_configured`, `exempt` and
+`no_nexus` are decided locally, cost nothing to recompute, and write no row. That
+is what keeps this table meaningful: every row is a real conversation with a tax
+service, so a row count is a vendor-call count and the review queue is not diluted
+by local decisions.
+
+**A CACHED FIGURE NEVER OUTLIVES THE NEXUS WINDOW BEHIND IT.** Two independent
+guards, because the `nexus_fingerprint` alone cannot catch this — when a window
+simply expires, the ROW has not changed, so the fingerprint and the cache key
+still match. `lib/tax/service.ts` gates the lookup on the DESTINATION state's row
+being in force and collecting, and `lib/tax/db.ts` caps a stored row's
+`expires_at` at the window end regardless of the TTL.
+
+Indexes: `(cache_key, expires_at)` for the cache read; `(created_at DESC) WHERE
+requires_review` for the review queue; `(created_at DESC)`; `(quote_id) WHERE
+quote_id IS NOT NULL`.
+
+### RLS — both tables
+
+```sql
+ALTER TABLE tax_nexus_states ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tax_calculations ENABLE ROW LEVEL SECURITY;
+CREATE POLICY admin_all_tax_nexus_states ON tax_nexus_states FOR ALL USING (is_admin());
+CREATE POLICY admin_all_tax_calculations ON tax_calculations FOR ALL USING (is_admin());
+```
+
+Exactly two policies, both `is_admin()`. **No `authenticated` policy and no
+`anon` policy exists**, so with RLS on, a non-admin role reads nothing.
+`lib/tax/migration-039.test.ts` parses every `CREATE POLICY` in the file and fails
+if one names `authenticated`, `anon` or `public`.
+
+### Existing column reused, not duplicated
+
+`profiles.tax_exempt` (TABLE 1, `001_initial_schema.sql:41`) already exists and is
+already editable through `app/api/admin/customers/[id]`. The tax engine consumes
+it and **no new exemption column was added.** An exempt customer produces the
+`exempt` outcome — a justified zero, with the invoice note
+`specs/SPEC_TAXJAR_INTEGRATION.md` section 4 asks for — and the provider is never
+called.
+
+### What tax does NOT touch
+
+`quotes.tax`, `quotes.total` and `invoices.tax_cents` are **unchanged**. Nothing in
+item 08-taxjar writes a tax figure to any customer-facing row;
+`lib/invoices/create.ts` still writes `tax_cents: 0` as a known literal. The
+quote-vs-checkout question is open (see STATE_OF_THE_BUILD.md's 08-taxjar entry),
+and `lib/tax/tax-not-in-money-path.test.ts` fails if any money-path file imports
+`lib/tax`.
+
+---
+
 *SCHEMA.md | AFS | Reid Whitesides | June 2026*
 *Run 001_initial_schema.sql in Supabase before any feature build begins.*

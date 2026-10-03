@@ -17077,3 +17077,243 @@ session's own screenshots and Playwright passes are evidence to bring to the
 user, not proof. Every screen is asserted against the prototype by an automated
 gate and the side-by-side screenshots are committed, but the look is not marked
 complete until Reid has looked at it.
+
+---
+
+## 2026-10-03 — OVERNIGHT ITEM 08-taxjar: SALES TAX NEXUS AND TAX CALCULATION
+
+**Branch:** `ovn/08-taxjar` (worktree `afs-website-ovn-08-taxjar`).
+**Spec:** `specs/SPEC_TAXJAR_INTEGRATION.md`.
+**EES:** `EES-OVN.08-TAXJAR-NEXUS-AND-TAX-CALCULATION.md` (repo root).
+**Status: BUILT AND VERIFIED BY AUTOMATED GATES — UNVERIFIED IN A BROWSER.**
+
+### WHAT EXISTED BEFORE (existence check, executed not assumed)
+
+`grep -rn -i "taxjar|nexus|sales_tax|tax_rate|tax_amount|tax_cents"` over
+`app lib components supabase scripts tests`, plus `find . -iname "*tax*"`.
+**The feature did not exist.** Every hit was one of four things:
+
+1. `app/admin/settings/page.tsx` — a TaxJar status badge reading `TAXJAR_API_KEY`,
+   already saying "Blocked on tax nexus states (checklist #31)". No client, no
+   calculation.
+2. `invoices.tax_cents` — a real column (migration 035), written as the literal
+   `0` by `lib/invoices/create.ts:123`.
+3. `lib/fixtures/command-center-v7.ts`'s `V7_TAX_RATE = 0.0825` — a **fixture-mode
+   demo constant** for the v7 pixel gate. Out of scope, untouched.
+4. `lib/pricing/quote-math.ts:236` — the comment recording tax as a data blocker.
+
+There was no `lib/tax/`, no nexus table, no tax route and no tax admin screen.
+Net-new work; nothing was rebuilt.
+
+### THE ONE RULE THIS ITEM IS BUILT AROUND
+
+**AN UNCALCULATED TAX IS NOT A ZERO TAX.** A missing configuration, an unreachable
+vendor, a malformed vendor response and a rate of genuinely zero are four
+different facts. Collapsing any of the first three into `0` either under-collects
+a tax AFS must legally remit, or puts a figure on a customer's document that
+nobody can stand behind.
+
+`specs/SPEC_TAXJAR_INTEGRATION.md` section 3 does exactly that — its `catch`
+returns `{ taxAmount: 0, taxRate: 0, error: true }`, and the `error` flag is
+discarded by the first caller that reads `.taxAmount`. **That shape was rejected,
+and the rejection is the design**: `TaxOutcome` is a discriminated union in which
+the two non-answers carry **no amount field at all** (not `null` — absent, because
+a nullable number is the shape a caller writes `?? 0` against). `tsc` refuses to
+read one, `collectableTaxCents()` returns `null`, and migration 039 holds the same
+line in Postgres with
+`CHECK ((outcome = 'calculated') = (amount_cents IS NOT NULL))`.
+
+### WHAT WAS BUILT
+
+**`lib/tax/` — engine (10 modules, all unit-tested).**
+`types.ts` (the five-outcome union + `collectableTaxCents`), `config.ts` (pure env
+resolution), `nexus.ts` (pure in-force/collecting logic + the cache fingerprint),
+`calculate.ts` (the pure engine), `response.ts` (a validating parser, never a
+cast), `cache-key.ts` (SHA-256), `providers/mock.ts`, `providers/taxjar.ts`,
+`db.ts` (the only Supabase-touching file), `service.ts` (the composition root).
+
+**Migration `039_tax_nexus_and_calculations.sql` — WRITTEN, NOT APPLIED.** Two
+additive tables, admin-only RLS, and **zero seeded nexus states**. Full detail in
+SCHEMA.md's new SALES TAX section. The highest APPLIED migration is still 038.
+
+**API:** `app/api/admin/tax-nexus/route.ts` (add / update / retire / restore /
+resolve-review) and `app/api/admin/tax-nexus/preview/route.ts`.
+
+**UI:** `app/admin/settings/tax-nexus/page.tsx` +
+`components/admin/TaxNexusEditor.tsx`, linked from a new "Sales tax" section on
+the live Settings screen.
+
+### THE THREE DELIBERATE DEVIATIONS FROM THE SPEC (CLAUDE.md law: no silent deviation)
+
+1. **The spec's silent-zero failure path is rejected** — see above.
+2. **`from_state: 'TX'` is NOT hardcoded.** The spec hardcodes it with the comment
+   `// BLOCKED: infer from ZIP`. CLAUDE.md does place the shop in Burnet, Texas,
+   but the ZIP half is an open blocker (#5) and a tax origin is a legal input to a
+   filing. Hardcoding one half of a blocked pair produces a request that LOOKS
+   complete and is not. Both halves come from env; either missing means
+   `not_configured`, naming the blocker.
+3. **The `taxjar` npm SDK was NOT added.** The spec imports it; `package.json`
+   does not contain it. This repo already has a vendor-REST-client pattern —
+   `lib/integrations/pathfinder-edge.ts` + `pathfinder-response.ts`, a typed
+   `fetch` with an `AbortController` and a hand-written parser — and it was
+   followed instead. The spec also says nexus lives "in the TaxJar dashboard, not
+   in code"; the local table is AFS's own RECORD of what the accountant supplied,
+   which is complementary, and is what makes the empty state and a
+   provider-independent `no_nexus` answer possible.
+
+### TAX IS BUILT AND DELIBERATELY NOT WIRED — AND THAT IS ENFORCED
+
+The item's instruction was conditional: do not wire into checkout totals **unless
+the spec's flow is unambiguous**. It is not, in three independent ways:
+
+- `SPEC_TAXJAR_INTEGRATION.md` section 1 says tax is a **line item on the formal
+  quote** and also "calculated at checkout". `SPEC_CHECKOUT.md` section 2 says the
+  quote shows Tax: "Calculated at checkout", i.e. the quote carries **no** tax
+  figure. Those are mutually exclusive.
+- `app/api/checkout/create-intent/route.ts` charges
+  `Math.round(quote.total * 100)`. A tax computed at checkout is by construction
+  not in `quote.total`, so adding it would charge **more than the figure the
+  customer approved** — against CLAUDE.md's business model and against the
+  protect-existing-behaviour law.
+- All three inputs are missing (no nexus list, no origin ZIP, no API key), so
+  every call would answer `not_configured` anyway.
+
+So nothing customer-facing was touched, and `lib/tax/tax-not-in-money-path.test.ts`
+**enforces** it: a static walk over `app/ components/ lib/ scripts/` that fails if
+any money-path file imports `lib/tax`, with a deny-list AND a catch-all over every
+importer. It also asserts the three literals directly — `create-intent` still
+charges `quote.total` with no tax logic, `create.ts` still writes `tax_cents: 0`,
+`quote-math.ts` still sets `totalCents: subtotalCents` — and asserts its own walk
+reached 200+ files first, because a gate that passes by failing to look is rule
+#28's own failure mode.
+
+**That guard was verified by execution, not assumed.** A temporary
+`@/lib/tax/types` import was added to `lib/pricing/quote-math.ts`; both assertions
+failed, naming the file, the reason and the open decision. The injection was
+reverted and `git diff` on that file is empty.
+
+**PENDING REID — the one real decision.** Before tax can be collected, somebody
+must choose: computed by the estimator and folded into `quotes.total` +
+`quotes.tax` **before** the quote is sent (which keeps "the customer is charged
+exactly the approved figure" true, and needs **no change at all** to
+`create-intent`), or computed at payment and added to the charge (which breaks
+that invariant). Section 14 of the EES specifies the first option in
+implementation detail because it preserves the existing invariant. It is NOT built.
+
+### A REAL DEFECT FOUND AND FIXED DURING THE RUN
+
+The first draft of `service.ts` gated the cache lookup on `nexus.length > 0`. With
+a long `TAX_CACHE_TTL_SECONDS` and a nexus row whose `effective_to` has passed,
+the row is **unchanged** — so the `nexus_fingerprint` matches, the cache key
+matches, and a stale positive tax would be served where the engine would correctly
+answer `no_nexus`. **AFS would over-collect in a state it had stopped collecting
+in.** The fingerprint cannot catch it: it guards against a changed LIST, and here
+nothing changed but the date. Putting `today` in the key would fix it by discarding
+the cache every midnight, which defeats having one.
+
+Fixed with two independent guards: the lookup is gated on the **destination row**
+being in force and collecting, and a stored row's `expires_at` is capped at the
+window end regardless of TTL (capped **early** on purpose — erring early costs one
+vendor call, erring late collects tax AFS is no longer registered to remit). Five
+regression tests, including the exact scenario and the always-safe opposite
+direction.
+
+### GATES — MEASURED, WITH REAL OUTPUT
+
+| Gate | Result |
+|---|---|
+| `pnpm tsc --noEmit` | **exit 0, clean** |
+| `pnpm test:unit` | **779 passed, 1 failed** — the failure is PRE-EXISTING (see below). Baseline was 484 passed / 1 failed; 780 − 485 = 295 new tests, all passing. |
+| `lib/tax` unit tests | **295 passed** across 11 files |
+| Coverage on `lib/tax/**` | **98.98% lines, 95.4% branches, 98.18% functions** (294/297 lines, 291/305 branches, 54/55 functions) — measured, not estimated |
+| `node scripts/audit/contrast-check.mjs` | **PASS — 25 screens, 262 pairs, 0 unresolved, 0 below threshold** |
+| `pnpm build` | **exit 0, compiled successfully** (prebuild runs `css:v7` + the contrast gate) |
+
+**The new screen really is under the contrast gate, which was checked rather than
+assumed:** `PASS /admin/settings/tax-nexus (Settings: /tax-nexus) 14 pairs · 0
+below · worst 3.11:1`. Its placeholder is `afs-ink-700` at **10.31:1 on
+`afs-bg-card`** — rule #23, not `afs-chrome-silver`, which is the gunmetal
+placeholder and measures 1.55:1 here.
+
+### TWO PRE-EXISTING PROBLEMS, DIAGNOSED AND REPORTED RATHER THAN ABSORBED
+
+**1. `lib/design/v7-css.test.ts` fails, and it is NOT stale CSS.** It failed at
+baseline on a clean tree, before any change in this item. Diagnosed: this Windows
+checkout has `core.autocrlf=true` and the repo has **no `.gitattributes`**, so git
+stores `app/styles/command-center-v7.generated.css` LF-only and checkout writes it
+CRLF, while `buildScopedCss()` emits LF — and the test compares raw strings. Proof:
+after `pnpm build` regenerated the file, `git diff` reported **no content change at
+all** (only the line-ending warning) and the test passed. Committing the
+regeneration would not fix it durably, because git re-normalises on commit and
+checkout re-adds the CR. **The file was reverted so the tree matches the baseline
+exactly.** The durable fix is a `.gitattributes` entry pinning that file (or
+`*.css`) to LF, or normalising line endings inside the test's comparison — both
+outside this item's scope. **PENDING REID.**
+
+**2. `pnpm lint` cannot run at all.** `next lint` interactively offers to create an
+ESLint configuration, because this repo has none (no `.eslintrc*`, no
+`eslint.config.*`). So the run brief's "lint on touched files" step is **not
+possible**, and it is reported rather than claimed. No ESLint config was added —
+that is an unrequested repo-wide change. One consequence was fixed: an
+`eslint-disable-next-line` comment written during this item suppressed nothing and
+named a rule that never runs, so it was replaced with an `_`-prefixed parameter.
+
+### ONE DEPENDENCY ADDED, DEV-ONLY
+
+`@vitest/coverage-v8@5.0.0` (pinned to vitest's own version). The repo had **no
+coverage provider**, so the mandated coverage measurement was impossible without
+it. Dev-only, no runtime effect. Revert freely if unwanted — the only cost is that
+the coverage number stops being reproducible.
+
+### ELITE COMPLIANCE CHECKLIST
+
+- [x] `tsc --noEmit` clean — **exit 0**
+- [ ] lint zero warnings on touched files — **NOT POSSIBLE: this repo has no ESLint
+      configuration and `next lint` prompts to create one.** Reported, not hidden.
+- [x] no TODO/FIXME/placeholder/dead code in shipped files — grepped, zero hits
+- [x] tests pass — **295 new, all green; 779/780 overall, the one failure
+      pre-existing and diagnosed**
+- [x] coverage on new code >= 80% — **98.98% lines measured** on `lib/tax/**`
+- [x] edge cases null/empty/boundary/error tested — empty nexus list, bad flag
+      value, unknown mock state, timeout, non-2xx, malformed 200, non-JSON 200,
+      NaN/Infinity/negative/fractional amounts, three-letter and non-ASCII state
+      codes, circular log payload, broken `console.error`
+- [x] assertions exact with diagnostic messages stating why it matters
+- [x] APIs authenticated — session then role, re-checked in the route; service-role
+      writes; RLS admin-only on both tables with **no** `authenticated`/`anon`
+      policy, asserted by parsing the migration
+- [x] no hardcoded business values — **zero seeded nexus states**, no invented
+      rate, no origin ZIP, no `from_state: 'TX'`; the mock's reference rates are
+      labelled as development scaffolding and it **fails rather than guesses** for
+      an unknown state
+- [x] migrations additive and reversible — no ALTER of an existing table, no DROP,
+      no row rewrite (asserted by test); the reversing `DROP`s are printed in the
+      final report
+- [x] governance files updated — this file, SESSION_STATE.md, SCHEMA.md
+- [x] **item marked UNVERIFIED pending human browser confirmation**
+
+### `company_id` — AN HONEST DEVIATION, NOT AN OMISSION
+
+The Six Laws ask for `company_id` on new schema. **A tax nexus is a fact about AFS,
+the seller — not about a customer's company.** Adding `company_id` to
+`tax_nexus_states` would model AFS as multi-tenant, which it is not, and would
+invite a future reader to scope AFS's own legal registrations per customer. The
+law's intent — no cross-tenant leak — is expressed instead by both tables being
+admin-only at the database with no customer-readable policy at all, exactly the
+precedent `price_book_items` and `pricing_ledger` set in migration 035.
+
+### NOT DONE, AND WHY
+
+- **Playwright E2E:** not run. Admin specs need `storageState` against a deployed
+  environment (rule #28), and this run neither deploys nor holds credentials. No
+  E2E pass is claimed.
+- **The migration is not applied,** so the CHECK constraints are verified by
+  parsing the file rather than by Postgres rejecting a row. Stated as the weaker
+  claim it is.
+- **The UI is verified by the contrast gate and code review, not by a browser.**
+  Hence UNVERIFIED.
+- **TaxJar's wire format is unverified** — no API key exists and this run made no
+  network calls. The endpoint, auth header and response shape come from the spec's
+  own field names (written against the real SDK). A validating parser is what makes
+  that safe: a different real shape produces a reported problem, a logged truncated
+  payload and a `failed` outcome flagged for review — never a wrong figure.

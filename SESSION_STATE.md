@@ -9955,3 +9955,120 @@ suite load and passes consistently in isolation.
 contrast **24 screens / 253 pairs / 0 unresolved / 0 below** · style gate
 **66 pairs: 63 pass, 0 fail, 0 uncovered, 1 live-only, 2 no-data** ·
 24 screenshots in `test-results/v7-fidelity/`.
+
+---
+
+## SESSION — 2026-10-03 — OVERNIGHT ITEM 08-taxjar (SALES TAX)
+
+**Branch `ovn/08-taxjar`, worktree `afs-website-ovn-08-taxjar`. Unattended run.**
+Full detail: STATE_OF_THE_BUILD.md's 2026-10-03 08-taxjar entry, and
+`EES-OVN.08-TAXJAR-NEXUS-AND-TAX-CALCULATION.md` at the repo root.
+
+### BASELINE RECORDED BEFORE ANY CHANGE
+
+Working tree clean at `75118cb`. `pnpm tsc --noEmit` exit 0.
+`pnpm test:unit` → **484 passed, 1 failed** (31 files), the failure being
+`lib/design/v7-css.test.ts`. That failure is **pre-existing and is not this
+item's**, and it was diagnosed rather than merely excused — see below.
+
+### WHAT WAS DONE, IN ORDER (one commit per unit)
+
+1. The EES, written before any code.
+2. `lib/tax/types.ts` + `config.ts` — the outcome union and env resolution.
+3. `lib/tax/nexus.ts` — pure nexus logic and the cache fingerprint.
+4. `lib/tax/response.ts` + recorded fixtures — a validating parser.
+5. `lib/tax/cache-key.ts`.
+6. `lib/tax/providers/mock.ts` — fully implemented, non-authoritative.
+7. `lib/tax/providers/taxjar.ts` — typed `fetch`, `AbortController`, no retry.
+8. `lib/tax/calculate.ts` — the engine.
+9. `supabase/migrations/039_tax_nexus_and_calculations.sql` — file only.
+10. `lib/tax/db.ts` + `service.ts`.
+11. The stale-cache fix found in review (below).
+12. `lib/tax/tax-not-in-money-path.test.ts` — the isolation guard.
+13. The admin routes, the Tax nexus screen, and the Settings link.
+14. `lib/tax/db.test.ts` — coverage on the data layer.
+15. Governance.
+
+### COMPLIANCE REPORT — VIOLATIONS FOUND, AND WHAT HAPPENED TO THEM
+
+**1. A stale-cache defect in my own first draft. RESOLVED.** Flagged by an
+automated security review of `service.ts`. The cache lookup was gated on
+`nexus.length > 0`, which let a cached figure outlive the nexus window that
+justified it: when a window merely expires the ROW does not change, so the
+fingerprint and cache key still match, and a stale positive tax would be served
+where the correct answer is `no_nexus` — AFS over-collecting in a state it had
+stopped collecting in. Fixed at root cause with two independent guards (gate on the
+destination row being in force; cap `expires_at` at the window end), plus five
+regression tests. Not suppressed, not deferred.
+
+**2. A wrong expectation in my own test. RESOLVED at the root.** `dollarsToCents`
+was asserted to turn `$12.345` into 1234 cents. Executing `12.345 * 100` showed it
+is exactly `1234.5`, so half-up gives **1235** — the code was right and the test
+was wrong. The expectation was corrected and the float caveat written down rather
+than papered over. No assertion was weakened.
+
+**3. CLAUDE.md rule #24 points at the wrong file. REPORTED.** It states
+`shopDateOnly()` lives in `lib/utils/waiting-time.ts`. It does not — that module
+exports `SHOP_TIME_ZONE`, and the function is in `lib/delivery/business-days.ts`
+(found by grep after the import failed). The import was written against where the
+function really is, with a comment recording the discrepancy. **The rule text is
+wrong and PENDING REID.**
+
+**4. A concatenated Supabase `select()` string. RESOLVED.** supabase-js infers the
+row type from the select literal, so `'a, b' + 'c'` widens to `string` and the
+result comes back `GenericStringError[]`, which then needs a cast through
+`unknown` — exactly the erased, assertion-free cast this codebase avoids. Made one
+literal, as `lib/data/invoices.ts:88` already does. Found by the compiler.
+
+**5. An `eslint-disable` comment that suppressed nothing. RESOLVED.** Written in
+`providers/mock.ts`, then removed on discovering this repo has **no ESLint
+configuration at all**. Replaced with an `_`-prefixed parameter.
+
+**6. `pnpm lint` cannot run. REPORTED, NOT WORKED AROUND.** `next lint`
+interactively offers to create an ESLint config because none exists. The run
+brief's "lint on touched files" step is therefore **not possible**, and that is
+stated rather than claimed as passing. No config was added — an unrequested
+repo-wide change.
+
+**7. The pre-existing `v7-css.test.ts` failure. DIAGNOSED, NOT ABSORBED, NOT
+FIXED.** It is **not** stale CSS. `core.autocrlf=true` on this Windows checkout and
+no `.gitattributes`: git stores the generated file LF-only, checkout writes CRLF,
+`buildScopedCss()` emits LF, and the test compares raw strings. Proof —
+`pnpm build` regenerated the file and `git diff` reported **no content change**,
+only the line-ending warning, and the test then passed. Committing that would not
+fix it durably (git re-normalises on commit), so **the file was reverted and the
+tree matches the baseline exactly**. The durable fix is a `.gitattributes` entry or
+a normalised comparison in the test; both are outside this item. **PENDING REID.**
+
+**8. The isolation guard caught one of my own files. RESOLVED CORRECTLY.** The
+catch-all in `tax-not-in-money-path.test.ts` flagged `app/admin/settings/page.tsx`
+as a new importer of `lib/tax`. It is a genuine admin surface, not a money path, so
+it was added to the allow-list — which is what the failure message itself
+instructs. The guard working on its author is the point of it.
+
+### NO VALIDATION WAS CIRCUMVENTED
+
+No test was skipped, deleted or weakened. No assertion was loosened. No `any`, no
+`@ts-ignore`, no lint suppression (there is no linter to suppress). No gate
+threshold was relaxed and no skip list was added. The contrast gate's
+`0 unresolved` is unchanged at 0. `grep` over every shipped file for
+`TODO|FIXME|XXX|@ts-ignore|: any` returns nothing.
+
+### FINAL GATES
+
+`tsc --noEmit` exit **0** · `pnpm test:unit` **779 passed / 1 pre-existing
+failure** (295 new tests, all green, across 11 new files) · coverage on
+`lib/tax/**` **98.98% lines, 95.4% branches** measured · contrast
+**25 screens / 262 pairs / 0 unresolved / 0 below** · `pnpm build` exit **0**.
+
+Playwright was **not** run: admin specs need `storageState` against a deployed
+environment and this run neither deploys nor holds credentials. No E2E pass is
+claimed.
+
+### THE ITEM IS UNVERIFIED
+
+Automated gates pass, but nobody has opened a browser. The verification steps are
+in the final report and in the EES's Completion Evidence section. The headline
+check: `/admin/settings/tax-nexus` must show the empty state saying **no tax is
+calculated and none is collected**, and "Test a calculation" must answer **"not
+configured"** rather than `$0.00`.
