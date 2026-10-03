@@ -19,5 +19,21 @@ export default defineConfig({
   },
   test: {
     include: ['lib/**/*.test.ts'],
+    // Coverage provider, added with the order validator (ovn/04). The repo had
+    // no coverage setup at all and `--coverage` failed with "Cannot find
+    // dependency '@vitest/coverage-v8'"; the provider is now a devDependency,
+    // pinned to the exact vitest version (5.0.0) because a mismatched pair
+    // prints "Running mixed versions is not supported".
+    //
+    // `all: false` is deliberate: this reports on the files the selected tests
+    // actually import, so `pnpm vitest run --coverage lib/<module>` measures
+    // THAT module rather than diluting it with the whole of lib/. A repo-wide
+    // number is not what any of these prompts asks for.
+    coverage: {
+      provider: 'v8',
+      reporter: ['text'],
+      all: false,
+      exclude: ['**/*.test.ts', '**/fixtures.ts'],
+    },
   },
 });

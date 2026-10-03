@@ -133,12 +133,21 @@ async function validateSubmission(
     );
 
     const visible = findingsForAudience(result.findings, 'customer');
+    const notes = [...acknowledgeableFindings(visible), ...informationalFindings(visible)].map((finding) => ({
+      field: finding.field,
+      message: finding.message,
+    }));
     return {
-      counts: result.counts,
-      notes: [...acknowledgeableFindings(visible), ...informationalFindings(visible)].map((finding) => ({
-        field: finding.field,
-        message: finding.message,
-      })),
+      // Counted over what this reader can see, for the same reason as
+      // app/api/quote-requests/validate/route.ts: the engine's own counts
+      // include admin-scope findings, and a number with nothing behind it is
+      // worse than no number.
+      counts: {
+        error: visible.filter((finding) => finding.severity === 'error').length,
+        warn: acknowledgeableFindings(visible).length,
+        info: informationalFindings(visible).length,
+      },
+      notes,
     };
   } catch (error) {
     console.error('[Order Validator] post-submission validation failed', error);

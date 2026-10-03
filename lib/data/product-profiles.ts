@@ -137,13 +137,38 @@ export function mapProfileConstraintRow(row: ProfileConstraintRow): ProfileConst
   };
 }
 
+/**
+ * READS THE ERROR, NOT JUST THE DATA.
+ *
+ * `getProfileStockLengths` above destructures only `data`, so a failed query and
+ * an empty table are indistinguishable — both come back as `[]`. That matters
+ * much more here: with no ranges the validator silently stops range-checking,
+ * and "no dimension limits were applied" would look exactly like "every
+ * dimension was within its limits".
+ *
+ * It still does not throw. An unreadable reference table must not take down a
+ * quote request (the validate route is a safeguard, not a gate on submission),
+ * so the failure is LOGGED with the real PostgREST message and the caller gets
+ * an empty list it is already designed to cope with. Diagnosed, not hidden.
+ */
 export async function getProfileConstraints(supabase: SupabaseClient): Promise<ProfileConstraints[]> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('product_profiles')
     .select(PROFILE_CONSTRAINT_COLUMNS)
     .eq('is_active', true);
 
-  return ((data ?? []) as unknown as ProfileConstraintRow[]).map(mapProfileConstraintRow);
+  if (error) {
+    console.error('[product_profiles] dimension-range read failed:', error.message, error.code ?? '');
+    return [];
+  }
+  if (!data || data.length === 0) {
+    console.error(
+      '[product_profiles] dimension-range read returned no active rows. Migration 002 seeds 12; with none, the order validator cannot range-check anything.'
+    );
+    return [];
+  }
+
+  return (data as unknown as ProfileConstraintRow[]).map(mapProfileConstraintRow);
 }
 
 /**

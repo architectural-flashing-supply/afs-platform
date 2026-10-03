@@ -147,7 +147,18 @@ export async function POST(request: NextRequest): Promise<NextResponse<Validatio
       errors,
       warnings,
       infos,
-      counts: result.counts,
+      // COUNTED OVER WHAT THIS READER CAN SEE, not over every finding. Caught
+      // against the live route: a Step Flashing returns one admin-scope note
+      // (no product_profiles row, so no range check ran), and the engine's own
+      // `counts` included it — so the response said "1 note" while `infos` was
+      // empty. No content leaked, but a surface rendering the number would show
+      // a count with nothing behind it, and the existence of an internal note
+      // is itself something the customer has no use for.
+      counts: {
+        error: errors.length,
+        warn: warnings.length,
+        info: infos.length,
+      },
       hasAssumedLimits: assumedLimitKeys().length > 0,
     };
     return NextResponse.json(response);

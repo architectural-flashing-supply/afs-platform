@@ -355,6 +355,49 @@ describe('OV_PROFILE_CONSTRAINTS_UNKNOWN', () => {
     ).toContain('Step Flashing');
   });
 
+  it('fires for a row that EXISTS but has every dimension bound NULL (trigger)', () => {
+    // NOT HYPOTHETICAL, and the reason this case exists. Measured against the
+    // live database on 2026-10-03: all twelve product_profiles rows have NULL
+    // for all eight bounds — migration 002's ranges are not in that database.
+    // Before this, a Coping Cap at 4 in wide (the migration says 6 in minimum)
+    // produced no range finding AND no note saying why, because a row existed.
+    const emptyCopingCap: ProfileConstraints = {
+      ...COPING_CAP_CONSTRAINTS,
+      minWidth: null,
+      maxWidth: null,
+      minHeight: null,
+      maxHeight: null,
+      minLegA: null,
+      maxLegA: null,
+      minLegB: null,
+      maxLegB: null,
+    };
+    const found = expectOne(
+      findingsFor({ ...VALID_COPING_CAP_ITEM, width: 4 }, [emptyCopingCap]),
+      'OV_PROFILE_CONSTRAINTS_UNKNOWN'
+    );
+    expect(
+      found.message,
+      `Expected the message to say the profile is in the catalog but has no ranges filled in; got "${found.message}". "No row" and "an empty row" need different wording because the fix is different — one is a missing profile, the other is missing data on a profile that is there.`
+    ).toContain('no width, height or leg ranges filled in');
+    expect(found.audience, 'Expected admin: this is AFS data to go and fill in, not a defect in the drawing.').toBe(
+      'admin'
+    );
+  });
+
+  it('does not fire for a row that has only SOME bounds, because those were checked', () => {
+    // The seeded Fascia row has NULL legs but real width and height ranges, so a
+    // range check genuinely did happen on that line. Reporting it as unchecked
+    // would make the note meaningless by firing on most of the catalog.
+    expect(
+      codesFor(
+        { profileType: 'Fascia', material: 'Copper', gauge: '20 oz', width: 12, height: 6, lengthFt: 10, quantity: 1 },
+        [FASCIA_CONSTRAINTS]
+      ),
+      'Expected nothing: width and height were both checked against real bounds.'
+    ).not.toContain('OV_PROFILE_CONSTRAINTS_UNKNOWN');
+  });
+
   it('does not fire when there is no profile type either, because that is already reported', () => {
     const codes = codesFor({ ...VALID_COPING_CAP_ITEM, profileType: '' }, []);
     expect(

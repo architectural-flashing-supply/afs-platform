@@ -282,30 +282,55 @@ const dimensionAboveMax: ValidationRule = {
   },
 };
 
+/** True when a resolved row carries no usable dimension bound at all. */
+function hasNoDimensionBounds(constraints: ProfileConstraints): boolean {
+  return RANGED_DIMENSIONS.every(
+    (dimension) => minBound(constraints, dimension) === null && maxBound(constraints, dimension) === null
+  );
+}
+
 /**
  * ADMIN ONLY, and it is the honest half of this validator: it says the range
  * check did not happen.
  *
- * Five Quote Builder labels have no `product_profiles` row — Step Flashing,
- * Conductor Head, Downspout, Reglet, Wall Panel / Cladding — and FlashDraft's
- * 'Custom FlashDraft Profile' has none either. For those, no min/max exists to
- * check against, and a silent pass would be indistinguishable from a pass that
- * checked something. The customer is not told, because "AFS holds no dimension
- * data for this profile" is AFS's business, not a defect in their drawing.
+ * TWO WAYS IT CANNOT HAPPEN, and both must be reported or a silent pass is
+ * indistinguishable from a pass that checked something:
+ *
+ *   (a) NO ROW AT ALL. Five Quote Builder labels have none — Step Flashing,
+ *       Conductor Head, Downspout, Reglet, Wall Panel / Cladding — and
+ *       FlashDraft's 'Custom FlashDraft Profile' has none either.
+ *
+ *   (b) A ROW WITH EVERY BOUND NULL. This was NOT hypothetical and is why the
+ *       case exists: measured against the live database on 2026-10-03, ALL
+ *       TWELVE `product_profiles` rows have NULL for all eight dimension bounds.
+ *       Migration 002's ranges are not in that database. Until this case was
+ *       added, a Coping Cap submitted at 4 in wide — half the migration's stated
+ *       6 in minimum — produced no range finding AND no note saying why, because
+ *       a row existed. That is the exact failure mode CLAUDE.md rule #28 calls
+ *       "the gate passing by failing to look".
+ *
+ * The customer is not told either way: "AFS holds no dimension data for this
+ * profile" is AFS's business, not a defect in the customer's drawing.
  */
 const profileConstraintsUnknown: ValidationRule = {
   code: 'OV_PROFILE_CONSTRAINTS_UNKNOWN',
   run(context) {
-    if (context.constraints) return [];
     const type = typeof context.item.profileType === 'string' ? context.item.profileType.trim() : '';
+    // A blank profile type is already reported by OV_PROFILE_TYPE_MISSING;
+    // two findings for one cause is noise on the estimator's screen.
     if (type === '') return [];
+    const { constraints } = context;
+    if (constraints && !hasNoDimensionBounds(constraints)) return [];
+    const reason = constraints
+      ? `"${type}" is in the catalog but has no width, height or leg ranges filled in`
+      : `No dimension ranges are on file for "${type}"`;
     return [
       finding(context, {
         code: 'OV_PROFILE_CONSTRAINTS_UNKNOWN',
         severity: 'info',
         field: 'profileType',
         audience: 'admin',
-        message: `No dimension ranges are on file for "${type}", so width, height and leg limits were not checked on this line. Geometry and sheet-size checks still ran.`,
+        message: `${reason}, so those limits were not checked on this line. Geometry, hem and sheet-size checks still ran.`,
       }),
     ];
   },

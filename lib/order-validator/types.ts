@@ -189,11 +189,21 @@ export interface OrderValidatorItem {
 /**
  * The dimension ranges for one profile, straight off a `product_profiles` row.
  *
- * EVERY BOUND IS INDEPENDENTLY NULLABLE, and that is real: of the 13 seeded
- * rows, Fascia has no leg range, Valley Flashing has no height range, and
- * Custom Profile has no ranges at all
- * (supabase/migrations/002_seed_afs_data.sql). `null` means NO CONSTRAINT —
- * never zero, and never "use the neighbouring profile's".
+ * EVERY BOUND IS INDEPENDENTLY NULLABLE, and that is real twice over.
+ *
+ * In `supabase/migrations/002_seed_afs_data.sql`, which seeds 12 rows: Fascia
+ * has no leg range, Valley Flashing has no height range, and Custom Profile has
+ * no ranges at all.
+ *
+ * And in the LIVE database, far more so. Measured 2026-10-03: all twelve rows
+ * have NULL for all EIGHT bounds — migration 002's ranges are not in that
+ * database, whatever SCHEMA.md's ledger says about 002 being applied. So the
+ * all-NULL case is the normal case today, not an edge case, which is why
+ * `OV_PROFILE_CONSTRAINTS_UNKNOWN` reports a row with no ranges as well as a
+ * missing row.
+ *
+ * `null` means NO CONSTRAINT — never zero, and never "use the neighbouring
+ * profile's".
  */
 export interface ProfileConstraints {
   /** `product_profiles.slug`. */
