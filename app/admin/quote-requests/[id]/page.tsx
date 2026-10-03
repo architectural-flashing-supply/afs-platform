@@ -68,10 +68,40 @@ export default async function AdminQuoteRequestDetailPage({ params }: { params: 
   const supabase = await createClient();
   await requireAdminUser(supabase);
 
+  /**
+   * `profiles!quote_requests_user_id_fkey(...)`, NOT `profiles(...)`.
+   *
+   * THIS SCREEN WAS RETURNING 404 FOR EVERY QUOTE REQUEST. `quote_requests` now
+   * has THREE foreign keys to `profiles` — `user_id` (001), `approved_by` (032)
+   * and `rush_set_by` (034) — so a bare `profiles(...)` embed is ambiguous and
+   * PostgREST refuses it with **HTTP 300 / PGRST201**, listing the candidate
+   * relationships. supabase-js then returns `data: null`, this page read that as
+   * "no such request" and called `notFound()`, and the estimator was
+   * unreachable.
+   *
+   * Measured against the live database, not reasoned about:
+   *   profiles(full_name, company)                       -> HTTP 300 PGRST201
+   *   profiles!quote_requests_user_id_fkey(full_name,…)  -> HTTP 200
+   *
+   * The embed has to name the relationship it means, and the one it means is
+   * the CUSTOMER — `user_id`. `approved_by` and `rush_set_by` are admins, and
+   * silently embedding either would put an AFS employee's name in the Customer
+   * panel.
+   *
+   * THE SAME DEFECT EXISTS ELSEWHERE AND IS NOT FIXED HERE. `quote_requests`,
+   * `orders`, `quotes` and `credit_applications` all now have more than one FK
+   * to `profiles`, and several modules still embed them ambiguously
+   * (`lib/data/admin.ts`, `lib/data/orders.ts`, `lib/data/credit.ts`,
+   * `lib/data/customers.ts`, `lib/data/command-center-dashboard.ts`). Those are
+   * separate screens and a sweep across them is not this item's scope — they
+   * are listed with the measured evidence in STATE_OF_THE_BUILD.md's
+   * 2026-10-03 entry so the next run can take them deliberately rather than
+   * discovering it the same way again.
+   */
   const { data: requestRaw } = await supabase
     .from('quote_requests')
     .select(
-      'id, request_number, status, submitted_at, line_items, jobsite_address, po_number, is_rush, notes, color, finish, client_business_name, client_name, requested_by, user_id, guest_email, quote_id, source_tool, upload_id, profiles(full_name, company, phone, email)'
+      'id, request_number, status, submitted_at, line_items, jobsite_address, po_number, is_rush, notes, color, finish, client_business_name, client_name, requested_by, user_id, guest_email, quote_id, source_tool, upload_id, profiles!quote_requests_user_id_fkey(full_name, company, phone, email)'
     )
     .eq('id', params.id)
     .maybeSingle();
