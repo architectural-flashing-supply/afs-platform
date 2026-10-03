@@ -25,7 +25,9 @@ import { describe, expect, it } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   FREIGHT_MIGRATION_NAME,
+  getFreightRateHistory,
   getFreightRateTable,
+  getFreightSurchargeHistory,
   isRelationMissingError,
 } from './db';
 import { AS_OF, RATE_MEDIUM_CENTS, RESIDENTIAL_CENTS } from './fixtures';
@@ -265,6 +267,26 @@ describe('getFreightRateTable — the three-way answer', () => {
     expect(result.table.surcharges?.freeFreightThresholdCents, 'Also blank, so the rule is not applied.').toBeNull();
   });
 
+  it('resolves the table as of a DATE, so an old quote can be reproduced', async () => {
+    // The fixture's only rate starts 2026-01-01. Resolved as of the day before,
+    // nothing is in force — which is how "a carrier increase does not alter an
+    // already-issued quote" is checkable from the database as well as from the
+    // quote's own freight_estimates row.
+    const result = await getFreightRateTable(populatedClient(), '2025-12-31');
+    expect(result.installed, 'Populated.').toBe(true);
+    if (!result.installed) return;
+
+    expect(
+      result.table.bandsByZone.z1.every((entry) => !entry.isPriced),
+      'Before the rate existed, no band was priced. If this resolved to today\'s rate instead, the ' +
+        'table could not answer "what did this cost when we quoted it".'
+    ).toBe(true);
+    expect(
+      result.table.surcharges,
+      'And no surcharges were in force either, rather than today\'s being applied retroactively.'
+    ).toBeNull();
+  });
+
   it('omits a zone with no bands from bandsByZone rather than giving it an empty array', async () => {
     const result = await getFreightRateTable(populatedClient(), AS_OF);
     expect(result.installed, 'Populated.').toBe(true);
@@ -275,5 +297,87 @@ describe('getFreightRateTable — the three-way answer', () => {
       'Only z1 has bands. The estimate distinguishes "this zone has no bands" from "the table is ' +
         'empty", and an absent key rather than an empty array is what keeps that distinction readable.'
     ).toEqual(['z1']);
+  });
+});
+
+describe('the history readers — what a rate used to be', () => {
+  it('returns every version of one band, newest start date first', async () => {
+    const client = fakeClient({
+      freight_rate_versions: {
+        data: [
+          {
+            id: 'rv-new',
+            band_id: 'b2',
+            rate_cents: 29999,
+            effective_from: '2026-07-01',
+            note: 'Carrier increase',
+            created_by: null,
+            created_at: '2026-06-01T10:00:00.000Z',
+          },
+          {
+            id: 'rv-old',
+            band_id: 'b2',
+            rate_cents: RATE_MEDIUM_CENTS,
+            effective_from: '2026-01-01',
+            note: null,
+            created_by: null,
+            created_at: '2026-01-01T10:00:00.000Z',
+          },
+        ],
+        error: null,
+      },
+    });
+
+    const history = await getFreightRateHistory(client, 'b2');
+
+    expect(
+      history.map((version) => version.id),
+      'The order comes from the query, newest first, because that is the order a history panel reads ' +
+        'in. The reader must not reorder it.'
+    ).toEqual(['rv-new', 'rv-old']);
+    expect(
+      history[0].rateCents,
+      'And the cents must survive the mapping exactly — a history that rounds is not a history.'
+    ).toBe(29999);
+    expect(history[1].note, 'A null note stays null rather than becoming an empty string.').toBeNull();
+  });
+
+  it('returns an empty history for a band nobody has priced', async () => {
+    const history = await getFreightRateHistory(fakeClient({}), 'b-never-priced');
+    expect(
+      history,
+      'An empty array, not null — the caller renders a list, and a null here would be a crash on a band ' +
+        'whose only fault is being new.'
+    ).toEqual([]);
+  });
+
+  it('returns every surcharge version, keeping blanks blank', async () => {
+    const client = fakeClient({
+      freight_surcharge_versions: {
+        data: [
+          {
+            id: 'sv-2',
+            residential_cents: RESIDENTIAL_CENTS,
+            liftgate_cents: null,
+            free_freight_threshold_cents: null,
+            effective_from: '2026-05-01',
+            note: null,
+            created_by: null,
+            created_at: '2026-04-01T10:00:00.000Z',
+          },
+        ],
+        error: null,
+      },
+    });
+
+    const history = await getFreightSurchargeHistory(client);
+
+    expect(history.map((version) => version.id), 'One version, mapped.').toEqual(['sv-2']);
+    expect(
+      history[0].liftgateCents,
+      'A blank in history is still a blank. If the history panel showed $0.00 here it would claim AFS ' +
+        'once charged nothing for a liftgate, which is not what the row says.'
+    ).toBeNull();
+    expect(history[0].residentialCents, 'And a set value is exact.').toBe(RESIDENTIAL_CENTS);
   });
 });
