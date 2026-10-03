@@ -81,6 +81,22 @@ export async function getCustomersList(
   });
 }
 
+/**
+ * The `companies` row this customer belongs to, when they belong to one.
+ *
+ * `profiles.company` is a free-text string the customer typed at sign-up;
+ * `profiles.company_id` is a real FK to a `companies` row, set only by the Team
+ * Accounts flow. They are different things and must not be conflated: the
+ * PO requirement is a column on the real row, so a customer with a `company`
+ * string but no `company_id` has nowhere to put one.
+ */
+export interface CustomerCompany {
+  id: string;
+  name: string;
+  /** `companies.require_po` — SPEC_PURCHASE_ORDER_INTEGRATION.md §3. */
+  requirePo: boolean;
+}
+
 export interface CustomerDetail {
   id: string;
   fullName: string;
@@ -94,6 +110,8 @@ export interface CustomerDetail {
   taxExempt: boolean;
   createdAt: string;
   internalNotes: string | null;
+  /** null when this customer has no `companies` row behind them. */
+  companyAccount: CustomerCompany | null;
 }
 
 interface CustomerDetailSource {
@@ -109,19 +127,51 @@ interface CustomerDetailSource {
   tax_exempt: boolean;
   created_at: string;
   internal_notes: string | null;
+  company_id: string | null;
+}
+
+interface CompanyAccountSource {
+  id: string;
+  name: string;
+  require_po: boolean;
 }
 
 export async function getCustomerDetail(supabase: SupabaseClient, id: string): Promise<CustomerDetail | null> {
   const { data } = await supabase
     .from('profiles')
     .select(
-      'id, full_name, company, email, phone, role, pricing_tier, net_terms, credit_limit, tax_exempt, created_at, internal_notes'
+      'id, full_name, company, email, phone, role, pricing_tier, net_terms, credit_limit, tax_exempt, created_at, internal_notes, company_id'
     )
     .eq('id', id)
     .maybeSingle();
 
   if (!data) return null;
   const row = data as CustomerDetailSource;
+
+  // A SECOND QUERY, NOT A POSTGREST EMBED: `profiles` and `companies` are
+  // joined by two foreign keys (profiles.company_id -> companies.id and
+  // companies.primary_user_id -> profiles.id), so an embedded select is
+  // ambiguous and would need an explicit constraint-name hint.
+  //
+  // Callers of this function are already admin-gated (app/admin/customers/[id]
+  // runs requireAdminUser; the API route checks profiles.role), and the
+  // companies "admin_all_companies" policy covers the read.
+  let companyAccount: CustomerCompany | null = null;
+  if (row.company_id) {
+    const { data: companyRaw } = await supabase
+      .from('companies')
+      .select('id, name, require_po')
+      .eq('id', row.company_id)
+      .maybeSingle();
+    if (companyRaw) {
+      const companyRow = companyRaw as CompanyAccountSource;
+      companyAccount = {
+        id: companyRow.id,
+        name: companyRow.name,
+        requirePo: companyRow.require_po === true,
+      };
+    }
+  }
 
   return {
     id: row.id,
@@ -136,6 +186,7 @@ export async function getCustomerDetail(supabase: SupabaseClient, id: string): P
     taxExempt: row.tax_exempt,
     createdAt: row.created_at,
     internalNotes: row.internal_notes,
+    companyAccount,
   };
 }
 

@@ -8,6 +8,7 @@ import Badge, { type BadgeVariant } from '@/components/ui/Badge';
 import EmptyState from '@/components/ui/EmptyState';
 import CustomerAccountSettingsForm from '@/components/admin/CustomerAccountSettingsForm';
 import CustomerNotesLog from '@/components/admin/CustomerNotesLog';
+import CompanyPoRequirementForm from '@/components/admin/CompanyPoRequirementForm';
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
@@ -78,6 +79,14 @@ export default async function AdminCustomerDetailPage({ params }: { params: { id
           }}
         />
         <CustomerNotesLog customerId={customer.id} notes={notes} />
+        {/*
+          SPEC_PURCHASE_ORDER_INTEGRATION.md §3 puts this control here. It
+          renders in both cases — with the company's checkbox, or with copy
+          explaining where the setting lives when the customer has no company
+          account — because a silently absent panel reads as "this platform has
+          no PO requirement" rather than "this customer has no company".
+        */}
+        <CompanyPoRequirementForm company={customer.companyAccount} customerName={customer.fullName} />
       </div>
 
       <div className="bg-afs-bg-raised border border-afs-border rounded overflow-hidden">

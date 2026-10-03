@@ -107,6 +107,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // TWO QUERIES, NOT A POSTGREST EMBED: profiles and companies are joined by
     // two foreign keys (profiles.company_id and companies.primary_user_id), so
     // an embedded select is ambiguous.
+    //
+    // KNOWN WEAKNESS, PRE-EXISTING AND MUCH WIDER THAN THIS ROUTE. `profiles`'
+    // only write policy is `users_own_profile`, `FOR ALL USING (auth.uid() =
+    // id)` with no WITH CHECK (001_initial_schema.sql:51), so a signed-in
+    // customer can PATCH any column on their own row — including `company_id`,
+    // and therefore out of a company that requires a PO. No migration adds a
+    // column-level guard. The same hole lets a customer write their own `role`
+    // and `net_terms`, which matters far more than a missing PO; it needs its
+    // own item and a human, and is reported rather than patched here. Every
+    // legitimate `company_id` write already goes through the service role
+    // (app/api/team/invite/route.ts:71,188), so the fix would not break Team
+    // Accounts. Do not treat this read as a tenant boundary — it is a business
+    // rule about the caller's own paperwork, and the worst case is an order of
+    // the customer's own that carries no PO.
     const companyId = (profile?.company_id as string | null | undefined) ?? null;
     let requirePo = false;
     if (companyId) {
