@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { ProfileConstraints } from '@/lib/order-validator/types';
 
 // Stock-length lookup for the Trim Length Optimizer (SPEC_TRIM_LENGTH_OPTIMIZER.md,
 // TRIM_OPTIMIZER_SCOPE.md §2-3). product_profiles.standard_length_ft/max_length_ft
@@ -57,4 +58,125 @@ export function resolveStockLengthByQuoteLabel(profiles: ProfileStockLength[], l
     ? profiles.find((p) => p.slug === aliasedSlug)
     : profiles.find((p) => p.name === label);
   return match?.standardLengthFt ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// DIMENSION RANGES for the order validator (SPEC_AI_ORDER_VALIDATOR.md section 2)
+// ---------------------------------------------------------------------------
+
+/**
+ * The min/max columns of the same `product_profiles` rows, read for
+ * lib/order-validator. A sibling of `getProfileStockLengths` above rather than
+ * a new module, for the reason that function's own header gives: these are real,
+ * live-seeded columns on a table this file already owns, and a second reader
+ * would fork `QUOTE_LABEL_TO_SLUG` — the label-aliasing map the Quote Builder's
+ * free-text profile labels have to go through.
+ *
+ * EVERY BOUND IS INDEPENDENTLY NULLABLE AND IS PASSED THROUGH AS NULL. Of the 13
+ * seeded rows, Fascia has no leg range, Valley Flashing has no height range, and
+ * Custom Profile has no ranges at all. NULL means no constraint — never zero —
+ * and coalescing here would invent a limit the catalog does not state.
+ */
+export interface ProfileConstraintRow {
+  slug: string;
+  name: string;
+  min_width: number | null;
+  max_width: number | null;
+  min_height: number | null;
+  max_height: number | null;
+  min_leg_a: number | null;
+  max_leg_a: number | null;
+  min_leg_b: number | null;
+  max_leg_b: number | null;
+  max_length_ft: number | null;
+  requires_consultation: boolean | null;
+}
+
+const PROFILE_CONSTRAINT_COLUMNS =
+  'slug, name, min_width, max_width, min_height, max_height, min_leg_a, max_leg_a, min_leg_b, max_leg_b, max_length_ft, requires_consultation';
+
+/**
+ * A `DECIMAL(8,3)` column arrives from PostgREST as a number, but a numeric
+ * string is also a shape the driver has produced historically, and `Number('')`
+ * is 0 — which would turn "no constraint" into "minimum zero". So the conversion
+ * is explicit and anything unusable becomes null rather than a number.
+ */
+function toNullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  // The explicit empty-string guard is the whole point: Number('') is 0, so
+  // without it an absent minimum becomes "at least zero" and an absent MAXIMUM
+  // becomes "at most zero", which refuses every dimension on the profile.
+  if (trimmed === '') return null;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/**
+ * One row, mapped. Exported so the NULL passthrough and the numeric conversion
+ * can be unit-tested without standing up a Supabase client — the two places this
+ * could go wrong (a NULL becoming 0, a numeric string becoming NaN) are both
+ * properties of this function alone.
+ */
+export function mapProfileConstraintRow(row: ProfileConstraintRow): ProfileConstraints {
+  return {
+    slug: row.slug,
+    name: row.name,
+    minWidth: toNullableNumber(row.min_width),
+    maxWidth: toNullableNumber(row.max_width),
+    minHeight: toNullableNumber(row.min_height),
+    maxHeight: toNullableNumber(row.max_height),
+    minLegA: toNullableNumber(row.min_leg_a),
+    maxLegA: toNullableNumber(row.max_leg_a),
+    minLegB: toNullableNumber(row.min_leg_b),
+    maxLegB: toNullableNumber(row.max_leg_b),
+    maxLengthFt: toNullableNumber(row.max_length_ft),
+    requiresConsultation: row.requires_consultation === true,
+  };
+}
+
+export async function getProfileConstraints(supabase: SupabaseClient): Promise<ProfileConstraints[]> {
+  const { data } = await supabase
+    .from('product_profiles')
+    .select(PROFILE_CONSTRAINT_COLUMNS)
+    .eq('is_active', true);
+
+  return ((data ?? []) as unknown as ProfileConstraintRow[]).map(mapProfileConstraintRow);
+}
+
+/**
+ * The constraints, re-keyed so the validator's own exact label match finds them.
+ *
+ * `app/quote/page.tsx`'s `PROFILE_TYPES` is free-text, not a foreign key, and
+ * three of its labels differ from the catalog name by more than punctuation —
+ * which is exactly what `QUOTE_LABEL_TO_SLUG` above exists for. Resolving the
+ * alias HERE, by returning the row under the label the customer actually chose,
+ * keeps the alias map in one place and lets the engine's matching stay an exact
+ * comparison. A fuzzy match inside the engine would be worse than no match: a
+ * wrong profile row means wrong dimension limits.
+ *
+ * The five labels with no row at all — Step Flashing, Conductor Head, Downspout,
+ * Reglet, Wall Panel / Cladding — are simply absent from the result, and the
+ * engine reports that to the admin rather than inventing a range.
+ */
+export function constraintsForQuoteLabels(
+  constraints: readonly ProfileConstraints[],
+  labels: readonly string[]
+): ProfileConstraints[] {
+  const resolved: ProfileConstraints[] = [];
+  for (const label of labels) {
+    const aliasedSlug = QUOTE_LABEL_TO_SLUG[label];
+    const match = aliasedSlug
+      ? constraints.find((c) => c.slug === aliasedSlug)
+      : constraints.find((c) => c.name === label || c.slug === label);
+    if (!match) continue;
+    // Re-announced under the customer's own label so the engine's exact match
+    // succeeds; `slug` is kept so an admin caller holding a slug still matches.
+    if (!resolved.some((c) => c.name === label && c.slug === match.slug)) {
+      resolved.push({ ...match, name: label });
+    }
+  }
+  return resolved;
 }

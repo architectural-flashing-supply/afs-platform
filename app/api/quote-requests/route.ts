@@ -4,6 +4,14 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/resend/send';
 import { baseEmailTemplate } from '@/lib/resend/templates/base';
 import { isSourceTool } from '@/lib/data/quote-request-source-tool';
+import { constraintsForQuoteLabels, getProfileConstraints } from '@/lib/data/product-profiles';
+import { profileLabelsOf, readOrderValidatorItems } from '@/lib/order-validator/request-items';
+import {
+  acknowledgeableFindings,
+  findingsForAudience,
+  informationalFindings,
+  validateOrder,
+} from '@/lib/order-validator/validate';
 
 interface QuoteRequestItemInput {
   profileType: string;
@@ -35,6 +43,28 @@ interface QuoteRequestItemInput {
 interface QuoteRequestResponse {
   requestId: string;
   requestNumber: string;
+  /**
+   * The order validator's view of what was just submitted (SPEC_AI_ORDER_VALIDATOR.md
+   * section 6's "redundant but authoritative — do not trust client" server-side pass).
+   *
+   * ADDITIVE AND NON-BLOCKING, deliberately. The gate the spec designs is at
+   * Step 2 -> Next, where the customer can still fix a dimension; by the time a
+   * submission reaches here the only useful thing to do with a finding is to
+   * tell them AFS will be in touch about it, which is what the confirmation
+   * screen does. Blocking here would refuse requests this route has always
+   * accepted, on thresholds half of which are still unconfirmed assumptions.
+   *
+   * Errors are deliberately excluded from the payload: an impossible dimension
+   * printed on a confirmation screen is not actionable, and the submission has
+   * already been accepted. They are counted and logged for the estimator
+   * instead.
+   */
+  validation?: PostSubmitValidation;
+}
+
+interface PostSubmitValidation {
+  counts: { error: number; warn: number; info: number };
+  notes: { field: string; message: string }[];
 }
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -50,6 +80,55 @@ function isValidItem(item: unknown): item is QuoteRequestItemInput {
     typeof i.quantity === 'number' &&
     i.quantity > 0
   );
+}
+
+/**
+ * Runs the order validator over an accepted submission.
+ *
+ * NEVER THROWS AND NEVER BLOCKS. It runs after the insert has already succeeded,
+ * so by construction it cannot affect whether a quote request is accepted — the
+ * one property that matters here (ARCHITECTURE.md section 9's posture for the
+ * confirmation email, applied to the same place for the same reason).
+ *
+ * It writes ONE structured server line when there is anything to say, which is
+ * the whole of this feature's observability: there is no column to persist a
+ * finding into, and this run may not apply a migration, so the admin review
+ * screen recomputes instead. That turns out to be the better design anyway — a
+ * stored finding would be frozen against the rule config it was written under,
+ * and half those thresholds are still assumptions that will change when Steve
+ * confirms them.
+ */
+async function validateSubmission(
+  admin: ReturnType<typeof createAdminClient>,
+  rawItems: unknown,
+  requestNumber: string
+): Promise<PostSubmitValidation | undefined> {
+  try {
+    const items = readOrderValidatorItems(rawItems);
+    if (items.length === 0) return undefined;
+
+    const catalog = await getProfileConstraints(admin);
+    const constraints = [...catalog, ...constraintsForQuoteLabels(catalog, profileLabelsOf(items))];
+    const result = validateOrder({ items, constraints });
+    if (result.findings.length === 0) return undefined;
+
+    const codes = [...new Set(result.findings.map((finding) => finding.code))].join(',');
+    console.error(
+      `[Order Validator] request=${requestNumber} errors=${result.counts.error} warns=${result.counts.warn} infos=${result.counts.info} codes=${codes}`
+    );
+
+    const visible = findingsForAudience(result.findings, 'customer');
+    return {
+      counts: result.counts,
+      notes: [...acknowledgeableFindings(visible), ...informationalFindings(visible)].map((finding) => ({
+        field: finding.field,
+        message: finding.message,
+      })),
+    };
+  } catch (error) {
+    console.error('[Order Validator] post-submission validation failed', error);
+    return undefined;
+  }
 }
 
 async function nextRequestNumber(admin: ReturnType<typeof createAdminClient>): Promise<string> {
@@ -203,6 +282,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Submission failed. Please try again.' }, { status: 500 });
     }
 
+    // --- Order validator (SPEC_AI_ORDER_VALIDATOR.md §6's server-side pass) ---
+    // After the insert, so it cannot affect whether the submission was accepted.
+    const validation = await validateSubmission(admin, items, requestNumber);
+
     // --- Customer confirmation email (never blocks the response; ARCHITECTURE.md §9) ---
     let recipientEmail = guestEmail;
     let recipientName: string | null = null;
@@ -239,7 +322,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       });
     }
 
-    const response: QuoteRequestResponse = { requestId, requestNumber };
+    const response: QuoteRequestResponse = { requestId, requestNumber, validation };
     return NextResponse.json(response);
   } catch (error) {
     console.error('[Quote Request Error]', error);
