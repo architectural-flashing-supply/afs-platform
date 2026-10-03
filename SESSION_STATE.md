@@ -9955,3 +9955,129 @@ suite load and passes consistently in isolation.
 contrast **24 screens / 253 pairs / 0 unresolved / 0 below** · style gate
 **66 pairs: 63 pass, 0 fail, 0 uncovered, 1 live-only, 2 no-data** ·
 24 screenshots in `test-results/v7-fidelity/`.
+
+
+---
+
+# SESSION — 2026-10-03 · OVERNIGHT ITEM 09 · LIVE INVENTORY
+
+Unattended run. Branch `ovn/09-live-inventory` in the worktree
+`afs-website-ovn-09-live-inventory`, baseline `75118cb` (clean tree).
+Specification written before any code: **`EES-OVN.09-LIVE-INVENTORY.md`**.
+
+## BASELINE, MEASURED BEFORE ANYTHING WAS TOUCHED
+
+| | |
+|---|---|
+| `git status --short` | clean |
+| `pnpm tsc --noEmit` | clean, zero output |
+| `pnpm test:unit` | **484 passed, 1 failed** (31 files) |
+| `node scripts/audit/contrast-check.mjs` | PASS — 24 screens, 248 pairs, 0 unresolved |
+| The one failure | `lib/design/v7-css.test.ts` — generated v7 CSS reported stale, **whitespace-only diff**. Pre-existing at `75118cb`. Not caused here and not repaired (it would mean editing a v7 artefact, which this run forbids). |
+
+## WHAT WAS DONE
+
+Existence check first: the half of `SPEC_LIVE_INVENTORY.md` that the spec is
+actually about — the customer-facing three-value stock SIGNAL — is already
+built, and not one of its seven files was modified. The gap was numeric
+inventory, which had no table, no module, no route and no UI anywhere.
+
+Built, one commit per unit: migration 039 (file only, never applied);
+`lib/inventory/stock-math.ts` with 68 tests; a static test over the migration's
+text with 41 assertions; `lib/data/inventory.ts` with 17 tests; three API
+routes; the admin screen and its client component; a Playwright spec.
+
+Full detail, ADRs, the compliance checklist and the gate results are in
+**STATE_OF_THE_BUILD.md**'s entry of the same date; the schema is in
+**SCHEMA.md**'s new "LIVE INVENTORY" section.
+
+## COMPLIANCE REPORT — VIOLATIONS FOUND, AND WHETHER THEY WERE RESOLVED
+
+**1. RESOLVED — a quantity could have moved with no ledger row.** An
+adversarial pass over the drafted migration found that
+`admin_all_inventory_items` being `FOR ALL` let an admin session PATCH
+`qty_on_hand` straight through PostgREST. The API route refused it, but a route
+refusing something is not enforcement — CLAUDE.md rule #14's own standard. Closed
+with a `BEFORE INSERT OR UPDATE` trigger gated on a transaction-local flag that
+only `inventory_apply_adjustment()` sets. It binds the service role too.
+
+**2. RESOLVED — the ledger's actor was forgeable.** `p_adjusted_by` was a
+parameter, so one admin could have recorded a change against another admin's
+name, in a log whose whole value is *the reason and who*. The actor is now
+`auth.uid()` when there is a session, a disagreeing parameter raises, and the
+INSERT policy pins `adjusted_by = auth.uid()` independently. `source` is pinned
+to `'admin_ui'` on the same condition, so a session cannot forge the provenance
+of a future ERP import.
+
+**3. RESOLVED — `Math.round(x * 100) / 100` rounded a quantity DOWN.** `1.005`
+is `1.00499…` as a double, so a pound of coil disappeared. Found by a unit test,
+fixed at root by re-parsing through the decimal string, and `1.005` and `2.675`
+are now assertions.
+
+**4. RESOLVED — a non-finite number could defeat the overflow guard.** An
+exponential-notation input made `roundQty` return NaN, and every comparison with
+NaN is false, so `> MAX_QTY` would have *accepted* it.
+
+**5. RESOLVED, AND THE TEST THAT MISSED IT WAS FIXED TOO — the
+not-provisioned state was detected on the wrong error code.** The module looked
+for PostgreSQL's `42P01`; PostgREST keeps its own schema cache and refuses
+before the database is reached, so the real answer is
+`PGRST205 / "Could not find the table 'public.inventory_items' in the schema cache"`.
+The screen therefore showed the generic "could not be read" error instead of the
+panel naming the migration file.
+
+  **The E2E spec passed anyway**, because it accepted whichever of the four
+  states appeared. That is the more important finding: a gate that treats every
+  branch as equally acceptable cannot catch a wrong branch. It now asserts that
+  the generic error panel is **not** the state — the one branch that is never
+  legitimate — so this class of bug cannot be green again. Found by looking at
+  the rendered page, not by reading the code.
+
+**6. NOT RESOLVED, AND NOT RESOLVABLE HERE — `pnpm lint` cannot run.** This
+repository has no ESLint configuration at all (no `.eslintrc*`, no
+`eslintConfig` in `package.json`), so `next lint` drops into its interactive
+setup prompt and lints nothing. Pre-existing; creating a config is a
+repo-configuration change this item does not authorise, and it would lint the
+whole codebase. Substituted with `tsc` strict plus a grep sweep over all 13 new
+files — zero `any`, `@ts-ignore`, `eslint-disable`, `TODO`, `FIXME`,
+`console.log`, literal hex in JSX, or skipped tests. **Recorded as an unmet
+checklist line rather than ticked.**
+
+**7. NOT RESOLVED BY DESIGN — no coverage percentage is reported.** No coverage
+provider is installed, and adding one is a manifest change this item does not
+authorise. Coverage is reported as an enumerated branch list instead. **No
+number is claimed, because none was measured.**
+
+**8. DISCREPANCY RECORDED, NOT ACTED ON.**
+`lib/data/admin-working-area.ts`'s doc comment says "Add a row here in the same
+commit that converts a screen's tokens", but
+`lib/data/workbench.test.ts:275` asserts `LIGHT_WORKING_AREA_SCREENS` as an
+exact array of **v7 conversion stages**, and `/admin/settings/price-book` — a
+Settings sub-page using the very same `LightWorkingArea` wrapper — is likewise
+absent from it. The new inventory screen follows the price-book precedent and is
+not added, so no v7-adjacent test was touched. **The inconsistency between that
+comment and that test is pre-existing and is reported here rather than resolved
+either way.**
+
+## GATES AT THE END OF THE SESSION
+
+`pnpm tsc --noEmit` clean · `pnpm test:unit` **610 passed / 1 failed** (the same
+pre-existing v7-css one; +126 new tests, zero new failures) · contrast
+**25 screens / 264 pairs / 0 unresolved / 0 below** ·
+`playwright test tests/e2e/inventory.spec.ts` **6 passed** against a real local
+server with a real admin session.
+
+`pnpm build` was NOT run: its `prebuild` chain includes `css:v7`, which would
+rewrite the v7 generated file this run must not touch. The contrast gate — the
+other half of that chain, and the one that could fail on this work — was run
+directly and passed. The v7 pixel and style gates were not run because no
+Command Center screen was touched.
+
+## THE ITEM IS UNVERIFIED
+
+Migration 039 is written and deliberately **not applied**, so the screen a human
+will see today is the not-provisioned panel naming the file to run. Three
+things consequently could not be measured against a running database — that an
+adjustment applies, that the ledger refuses an UPDATE, that the
+unlogged-quantity trigger fires — and all three are asserted against the
+migration's text instead. Nothing beyond that is claimed.

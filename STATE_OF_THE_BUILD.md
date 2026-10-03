@@ -17077,3 +17077,285 @@ session's own screenshots and Playwright passes are evidence to bring to the
 user, not proof. Every screen is asserted against the prototype by an automated
 gate and the side-by-side screenshots are committed, but the look is not marked
 complete until Reid has looked at it.
+
+---
+
+# 2026-10-03 — OVERNIGHT ITEM 09: LIVE INVENTORY
+
+Branch `ovn/09-live-inventory`, worktree
+`C:\Users\manag\Documents\afs-website-ovn-09-live-inventory`, baseline `75118cb`.
+Specification: **`EES-OVN.09-LIVE-INVENTORY.md`** (project root, 30 acceptance
+criteria). **Nothing was deployed, merged, or applied to Supabase.**
+
+## WHAT ALREADY EXISTED (checked first, not rebuilt)
+
+`specs/SPEC_LIVE_INVENTORY.md`'s own subject — the customer-facing three-value
+stock **SIGNAL** — is BUILT and was left alone: `products.stock_type` /
+`products.lead_time_days` (migration 001), `lib/data/product-stock.ts`
+(`withLiveStock`, `getProductStockRows`), `components/admin/ProductStockTable.tsx`,
+`app/api/admin/inventory/products/[productId]/route.ts`,
+`app/api/admin/inventory/bulk/route.ts`, the Settings section with its empty
+state, and `components/product/StockBadge.tsx`. Not one of those files was
+modified.
+
+**The gap was numeric inventory**: zero matches across
+`supabase/migrations/` for `inventory_items`, `qty_on_hand`, `reorder`, and
+zero matches across `app/ components/ lib/` for `low_stock` / `lowStock` /
+`reorderPoint`. No table anywhere held a real quantity.
+
+## THE SCOPING DECISION, AND WHY IT IS NOT A CONTRADICTION
+
+SPEC §1 says in terms: *"This is NOT a real-time inventory management system.
+It is a signal system."* Its header marks stock levels (#56) and ERP (#55)
+BLOCKED, and §4 defers numeric inventory to "WHEN ERP INTEGRATION ARRIVES".
+The queue item asks for on-hand / reserved / reorder-point columns, an
+adjustment log and a low-stock indicator, bounded by *"Ship with an empty table
+and a clear empty state; no invented stock numbers."*
+
+Resolved per CLAUDE.md's own DATA BLOCKERS rule — *"built with correct
+architecture and explicit placeholder behavior — they are not skipped"* — as:
+the STRUCTURE is built in full; **no quantity is invented** (a never-counted row
+is NULL, not 0); **nothing customer-facing changed** (the spec permits a
+customer the signal and a lead-time range, and permits no quantity); and **no
+ERP sync endpoint was created**, because §4 defers it and the schema takes an
+ERP writer as one more adjustment `source` with no refactor.
+
+## WHAT WAS BUILT
+
+**`supabase/migrations/039_inventory_items_and_adjustments.sql` — FILE ONLY,
+NOT APPLIED.** Full column list, constraints, RLS and rollback: SCHEMA.md's new
+"LIVE INVENTORY" section. The load-bearing decisions:
+
+- **A blank is never a zero.** `qty_on_hand` and `reorder_point` are NULLABLE
+  with no DEFAULT — NULL means nobody has counted / nobody has said what low
+  means. `qty_reserved` is the one `DEFAULT 0`, on the same reasoning that makes
+  `extras` the exception in rule #19.
+- **`qty_on_hand >= qty_reserved` is deliberately NOT constrained.** A count
+  below what is reserved is a real event and the count is the truth; it surfaces
+  as a negative available quantity, named in words.
+- **Append-only, twice over:** a `BEFORE UPDATE OR DELETE` trigger that RAISES
+  `42501`, and RLS with SELECT + INSERT policies and no UPDATE or DELETE policy
+  at all. A **separate** function from 035's `afs_append_only()`, which is
+  unmodified — 035's message says "pricing history" and carries a `test_tag`
+  escape hatch this ledger must not have.
+- **A quantity cannot move without a ledger row, enforced by Postgres.** The
+  item policy is `FOR ALL`, so a session could otherwise PATCH `qty_on_hand`
+  through PostgREST. A `BEFORE INSERT OR UPDATE` trigger refuses any quantity
+  change unless the transaction-local flag `afs.inventory_apply` is on, and only
+  `inventory_apply_adjustment()` ever sets it, around its own UPDATE.
+- **One transaction for the two writes.** `inventory_apply_adjustment()`,
+  `SECURITY INVOKER`, locks the item `FOR UPDATE`, checks idempotency, compares
+  the caller's expectation with `IS NOT DISTINCT FROM` (NULL-safe, or every
+  first count would report a conflict), writes the quantities and inserts the
+  ledger row. It is handed the computed result and does **not** own a second
+  copy of the math.
+- **Who and where-from are not taken on trust.** With a session the actor IS
+  `auth.uid()`, a disagreeing `p_adjusted_by` raises, `source` is pinned to
+  `'admin_ui'`, and the INSERT policy pins `adjusted_by = auth.uid()`
+  independently.
+- **No seed. Not one row.** Which material, gauge, finish, coil width and unit
+  AFS really keeps is not derivable from this repository; seeding the cartesian
+  product would create rows for stock AFS may never carry.
+
+**`lib/inventory/stock-math.ts`** — the ONE place that decides what available
+means, what counts as low, and which adjustments are legal. 68 unit tests.
+`stockLevel` resolves in a fixed order (`uncounted` → `out` → `no_threshold` →
+`low` → `ok`), compares **available** rather than on hand, uses `<=` at the
+reorder point, and keeps `reorderPoint = 0` distinct from `null`.
+
+**`lib/data/inventory.ts`** — reads on the SESSION client, so the RLS policies
+are the real boundary. Returns `ready | not_provisioned | error` rather than a
+bare array, because "the migration has not been run" is an operator action and
+"something broke" is a fault, and an empty array would have said neither.
+
+**Three API routes** under `app/api/admin/inventory/items/` — list/create,
+definition edit/retire, history/apply. 401 then 403 before any inventory data is
+touched. A quantity field in a create or edit body is a 400 naming the right
+route. A unit change on an item with existing quantities is a 409: it would
+reinterpret every number and the whole history with nothing looking broken.
+"Delete" is **retire** (`price_book_items`' precedent) — the ledger references
+the item `ON DELETE RESTRICT`, and deleting the thing an append-only history is
+about would orphan it.
+
+**`/admin/settings/inventory`** + `loading.tsx` +
+`components/admin/InventoryManager.tsx` — light working area under the gunmetal
+header, linked from the Settings section SPEC §3 puts stock management in. The
+component does no arithmetic and holds no threshold; every number and chip
+arrives derived.
+
+## TWO DEFECTS THE TESTS FOUND, AND ONE A LIVE RUN FOUND
+
+1. **`Math.round(x * 100) / 100` loses metal.** `1.005` is `1.00499…` as a
+   double, so the naive two-place round returns `1.00`. `roundQty` now re-parses
+   through the decimal string. Found by `stock-math.test.ts`, not by reading.
+2. **An exponential-notation input made `roundQty` return NaN**, which would
+   have sailed straight past the `> MAX_QTY` overflow guard, because every
+   comparison with NaN is false — the overflow would have been *accepted*.
+3. **`PGRST205`, not `42P01`.** `isNotProvisionedError` was written looking for
+   PostgreSQL's `undefined_table`. Opening the real screen showed the generic
+   error panel instead of the one naming the migration file: **PostgREST keeps
+   its own schema cache and refuses before Postgres is reached**, so `42P01`
+   never arrives. The live payload is
+   `PGRST205 / "Could not find the table 'public.inventory_items' in the schema cache"`.
+   Fixed, and the exact payload is now a unit test.
+
+   **The E2E spec had PASSED while the screen was wrong**, because it accepted
+   any of the four states. It now asserts that the generic error panel is NOT
+   the state — the one branch that is never legitimate — so the same class of
+   bug cannot be green again.
+
+## GAP — AUTOMATIC RESERVATION ON ORDER APPROVAL: NOT BUILT
+
+The queue item's own condition: *"ONLY if the spec defines it and it can be done
+without touching existing order status transitions (otherwise record the gap)."*
+
+`specs/SPEC_LIVE_INVENTORY.md` does not define reservation at all — the word
+does not appear in it. Both halves of the condition fail besides: **nothing in
+the repository maps an order, a quote line or a `machine_job` to a material +
+gauge + finish + coil-width stock row**, and no order carries a quantity in a
+stock unit, so an automatic reservation would have to **invent the quantity to
+reserve**. Order creation is `createOrderFromQuote()` from two call sites
+(`ORDER_LIFECYCLE_DECISION.md §1`), and hooking it would mean editing an order
+path this item holds fixed.
+
+**What exists instead:** `reserve` and `release` are first-class, fully
+implemented, fully tested adjustment kinds an admin applies by hand with a
+reason, so the reservation MATH is real and under test. An automatic caller
+later is one more caller of the same function.
+
+## ADR — DECISIONS AND WHAT THEY TRADE OFF
+
+**No `company_id` on either table.** In this schema `companies` is the
+CUSTOMER's organisation (SCHEMA.md TABLE 2), reached through
+`profiles.company_id`; `orders` references `profiles(id)` directly. Coil in the
+Burnet shop belongs to AFS, so a `company_id` could only be a dead always-NULL
+column or an assertion that a contractor owns AFS's metal — wrong in the
+dangerous direction. The boundary used is `is_admin()`, exactly as
+`price_book_items` / `price_book_versions` / `pricing_ledger` (035).
+**Trade-off:** if AFS ever runs a second shop, a `location_id` is the column to
+add — not `company_id`. `lib/inventory/migration-rls.test.ts` asserts the
+policies are present AND that `company_id` is absent.
+
+**Four units, enumerated.** `sheet | coil | linear_foot | pound`, CHECK, no
+default. A quantity without a unit is not a fact, and all three quantities on a
+row share the row's unit, which is what lets the math be unit-agnostic.
+**Trade-off:** one pile of metal counted two ways needs two items. Accepted,
+because converting between them would need a density/width table nobody has
+supplied.
+
+**`finish` is free text, not an FK.** `lib/data/metal-colors.ts` states the
+printed NAME is the source of truth for ordering and that its hexes are
+approximations; there is no `metal_colors` table. A CHECK over 69 vendor-chart
+names would go stale and then silently refuse real stock. **Trade-off:** two
+spellings of one colour make two items. Mitigated by a `<datalist>` of all 69
+known names.
+
+**`gauge_id` is NOT NULL.** Sheet metal without a gauge cannot be quoted or
+bent. **Consequence:** a material with no active `gauges` row cannot have
+inventory, and the create form omits it and says why.
+
+**A Settings sub-page, not a nav entry.** SPEC §3 puts stock management under
+`/admin/settings`; `/admin/settings/price-book` is the established shape. A nav
+entry would touch `lib/data/admin-nav.ts`, which the v7 pixel gate and
+`admin-nav.test.ts` both measure.
+
+## ELITE STANDARD COMPLIANCE CHECKLIST
+
+- [x] **`tsc --noEmit` clean** — run after every unit; final run zero output.
+- [ ] **lint zero warnings on touched files** — **NOT RUN, AND IT CANNOT BE.**
+  This repository has **no ESLint configuration** (no `.eslintrc*`, no
+  `eslintConfig` in `package.json`), so `pnpm lint` / `next lint` drops into its
+  interactive "How would you like to configure ESLint?" setup prompt and lints
+  nothing. Pre-existing, and creating a config is a repo-configuration change
+  this item does not authorise. Substituted with `tsc` strict (clean) and a grep
+  sweep over all 13 new files: **zero** `any`, `as any`, `@ts-ignore`,
+  `@ts-nocheck`, `eslint-disable`, `TODO`, `FIXME`, `console.log`, literal hex
+  in JSX, or skipped/`.todo` tests.
+- [x] **No TODO/FIXME/placeholder/dead code** — grep output above.
+- [x] **Tests pass** — unit **610 passed**, 1 failed. Baseline was **484 passed,
+  1 failed**: +126 new tests, and **the same single pre-existing failure**.
+- [x] **Edge cases tested** — NULL vs zero, the `reorderPoint = 0` falsy trap,
+  count-below-reserved, float rounding at `1.005`, `numeric(12,2)` overflow,
+  NaN/Infinity, exponential notation, double-click idempotency, the two-admin
+  race, a unit change under existing quantities, and the unapplied-migration
+  state this deployment is actually in.
+- [x] **Assertions exact, with diagnostic messages** — every `expect` in the
+  three new suites carries a message saying what was expected and why it
+  matters.
+- [x] **APIs authenticated and role-scoped; RLS present; no cross-tenant leak**
+  — 401 then 403 on all six handlers before any data access; RLS in the
+  migration asserted by a static test; reads use the SESSION client so the
+  policies apply. **There is no cross-company surface to leak**: see the
+  `company_id` ADR above. **A customer-facing leak test is not applicable and
+  the reason is structural** — no customer-readable policy exists on either
+  table, and no customer-facing file was modified
+  (`git diff --name-only 75118cb..HEAD` contains nothing under
+  `components/product/`, `app/products`, `app/quote*`, `app/account`,
+  `app/(marketing)`, `app/(public)`).
+- [x] **No hardcoded business values** — no seed row, no default quantity, no
+  lead time, no price. The only literal is `MAX_QTY = 9999999999.99`, which is
+  the documented limit of `numeric(12,2)`.
+- [x] **Migration additive and reversible** — no DROP/ALTER-DROP/DELETE/
+  TRUNCATE/UPDATE of existing data; asserted by the static test with comments
+  stripped. Rollback SQL in SCHEMA.md and in the migration, as a comment on
+  purpose.
+- [x] **Governance updated** — this section, SESSION_STATE.md, SCHEMA.md.
+- [x] **Coverage** — reported as enumerated branch coverage, not a number:
+  there is **no coverage provider installed** (`@vitest/coverage-v8` is absent
+  from `devDependencies`), and adding one is a manifest change this item does not
+  authorise. All 9 `stockLevel` branches, all 8 acceptance and all 12 refusal
+  paths of `applyAdjustment`, and all 4 load-state branches have a named test.
+  **No percentage is claimed, because none was measured.**
+- [x] **UNVERIFIED pending human browser confirmation** — see below.
+
+## GATES, ALL RUN IN THIS SESSION
+
+| Gate | Result |
+|---|---|
+| `pnpm tsc --noEmit` | **clean**, zero output |
+| `pnpm test:unit` | **610 passed, 1 failed** (34 files). The failure is pre-existing — see below |
+| `node scripts/audit/contrast-check.mjs` | **PASS — 25 screens, 264 colour pairs, 0 unresolved, 0 below threshold.** Baseline was 24 screens / 248 pairs; the new screen is discovered automatically because it sits under `/admin/settings`. Its worst pair is 3.11:1 against a 3:1 form-field rule |
+| `playwright test tests/e2e/inventory.spec.ts` | **6 passed**, against a real local dev server with a real admin session |
+| `pnpm lint` | **NOT RUNNABLE** — no ESLint config in this repository (pre-existing) |
+
+**THE ONE UNIT FAILURE IS PRE-EXISTING AND IS NOT THIS ITEM'S.**
+`lib/design/v7-css.test.ts` reports
+`app/styles/command-center-v7.generated.css is stale`. It fails at `75118cb`
+with a clean working tree, before any file here was touched, and the diff is
+**whitespace only** (trailing-space / blank-line normalisation in this
+worktree's checkout of the generated file). It was **not** repaired: regenerating
+that file would modify a v7 artefact, which this run's rules forbid.
+`git diff --name-only 75118cb..HEAD` touches no v7 file, no CSS, and no design
+script.
+
+**NOT RUN, and stated rather than implied:** `pnpm build` (its `prebuild` chain
+is the contrast gate, which was run directly, plus `css:v7`, which would rewrite
+the v7 generated file this run must not touch), the v7 pixel gate and style gate
+(no Command Center screen was touched), and the rest of the Playwright suite
+(outside this item's scope; the five pre-existing failures recorded in the v7
+Stage G entry were not re-measured).
+
+## WHAT A HUMAN STILL HAS TO DO — THIS ITEM IS UNVERIFIED
+
+1. **Apply the migration.** Until
+   `supabase/migrations/039_inventory_items_and_adjustments.sql` is run, the
+   screen shows the not-provisioned panel and nothing else. That is correct
+   behaviour, not a bug, and it names the file.
+2. **Then look at `/admin/settings/inventory` in a browser** and confirm: the
+   empty state, adding an item, the "Not counted" chip on a new row, a first
+   count, a reserve, a reserve beyond available being refused in plain English,
+   the history panel, and a retire.
+3. **Three things this run could not measure, because the tables do not exist:**
+   that an adjustment really applies end to end, that the ledger really refuses
+   an UPDATE, and that the unlogged-quantity trigger really fires. All three are
+   asserted against the migration's TEXT; none is asserted against a running
+   database. Re-run `tests/e2e/inventory.spec.ts` once the migration is applied —
+   its state assertion will then exercise the empty/populated branch instead.
+4. **Open design question, PENDING REID:** should a customer-facing stock signal
+   ever be DERIVED from these quantities (SPEC §4's "stock_type will be computed
+   from ERP quantity-on-hand")? Not built, not stubbed, and deliberately not
+   decided here — it would put a quantity behind a customer-visible label.
+
+Screenshot: `proof-09-inventory-not-provisioned.png` (the real screen, real
+admin session, migration unapplied).
+

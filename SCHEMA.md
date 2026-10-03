@@ -2932,5 +2932,199 @@ rule #16 says it means: created, unconfirmed, do not retry.
 
 ---
 
+## LIVE INVENTORY — `inventory_items` + `inventory_adjustments` (migration 039, 2026-10-03)
+
+Overnight item `09-live-inventory`. Full specification:
+`EES-OVN.09-LIVE-INVENTORY.md`.
+
+**NOT APPLIED.** `supabase/migrations/039_inventory_items_and_adjustments.sql`
+was written during an unattended run whose rules forbid applying a migration.
+It has not been run against any Supabase project, and the app renders an
+explicit "the database part of this is not switched on yet" panel naming the
+file, rather than an empty table that would read as "no stock is tracked".
+Verified live: the real error is PostgREST's **`PGRST205`** ("Could not find
+the table 'public.inventory_items' in the schema cache"), **not** PostgreSQL's
+`42P01` — PostgREST refuses from its own schema cache before the database is
+reached. `lib/data/inventory.ts` detects both.
+
+### What this is, and what it is NOT
+
+`specs/SPEC_LIVE_INVENTORY.md` governs the customer-facing three-value stock
+SIGNAL — `products.stock_type` and `products.lead_time_days`, already in
+`001_initial_schema.sql` and already wired. **These two tables are not that.**
+They are the AFS-internal quantity record the spec defers to its §4 "WHEN ERP
+INTEGRATION ARRIVES", built as structure with no invented numbers per
+CLAUDE.md's DATA BLOCKERS rule. **No customer sees a quantity from either
+table. There is no customer-readable policy on either.**
+
+### TABLE — `inventory_items`
+
+```sql
+id             uuid PRIMARY KEY DEFAULT gen_random_uuid()
+material_id    uuid NOT NULL REFERENCES materials(id) ON DELETE RESTRICT
+gauge_id       uuid NOT NULL REFERENCES gauges(id)    ON DELETE RESTRICT
+finish         text              -- printed colour NAME, or NULL for mill finish
+coil_width_in  numeric(6,2)      -- NULL for a unit with no coil width
+stock_unit     text NOT NULL     -- CHECK, NO DEFAULT
+qty_on_hand    numeric(12,2)     -- NULL = NEVER COUNTED. Never 0 by default.
+qty_reserved   numeric(12,2) NOT NULL DEFAULT 0
+reorder_point  numeric(12,2)     -- NULL = no threshold set. 0 is a threshold.
+retired_at     timestamptz
+retired_by     uuid REFERENCES profiles(id)
+created_by     uuid REFERENCES profiles(id)
+created_at     timestamptz NOT NULL DEFAULT now()
+updated_at     timestamptz NOT NULL DEFAULT now()
+```
+
+Constraints: `inventory_items_stock_unit_check`
+(`'sheet','coil','linear_foot','pound'`), `inventory_items_quantities_non_negative`,
+`inventory_items_coil_width_positive`, `inventory_items_finish_length`
+(non-blank, at most 120), `inventory_items_retired_pair` (both set or neither).
+
+**A BLANK IS NEVER A ZERO** — CLAUDE.md rule #19 applied to quantities.
+`qty_on_hand` and `reorder_point` are NULLABLE with **no DEFAULT**: NULL means
+nobody has counted / nobody has said what low means. `qty_reserved` is the one
+deliberate exception at `DEFAULT 0`, for the same reason `extras` is the
+exception in rule #19 — nothing reserved is a fact, no metal is a guess.
+
+**`qty_on_hand >= qty_reserved` is DELIBERATELY NOT constrained.** A physical
+count below what is reserved is a real event (shrinkage, a mis-count), the
+count is the truth, and refusing it would force somebody to record a number
+they did not measure. It surfaces as a NEGATIVE available quantity, named in
+words on the screen.
+
+**Identity:** `uq_inventory_items_identity`, a **partial UNIQUE EXPRESSION
+index** on `(material_id, gauge_id, COALESCE(finish,''),
+COALESCE(coil_width_in,-1), stock_unit) WHERE retired_at IS NULL`. It cannot be
+a plain UNIQUE constraint: PostgreSQL defaults to NULLS DISTINCT, which would
+allow unlimited duplicate mill-finish rows — the row shape AFS has most of.
+Partial, so retiring a row frees its slot.
+
+### TABLE — `inventory_adjustments` (APPEND ONLY)
+
+```sql
+id                uuid PRIMARY KEY DEFAULT gen_random_uuid()
+item_id           uuid NOT NULL REFERENCES inventory_items(id) ON DELETE RESTRICT
+kind              text NOT NULL   -- count|receipt|consumption|reserve|release
+source            text NOT NULL DEFAULT 'admin_ui'  -- admin_ui|erp_sync|import
+delta_on_hand     numeric(12,2)
+counted_on_hand   numeric(12,2)
+delta_reserved    numeric(12,2)
+on_hand_after     numeric(12,2)
+reserved_after    numeric(12,2) NOT NULL
+reason            text NOT NULL   -- CHECK length(btrim(reason)) >= 3
+adjusted_by       uuid NOT NULL REFERENCES profiles(id)
+client_request_id uuid            -- idempotency key
+created_at        timestamptz NOT NULL DEFAULT now()
+```
+
+`inventory_adjustments_shape` requires exactly the fields each kind means and
+NULL for the rest; `inventory_adjustments_sign` requires the sign to agree with
+the kind (a "receipt" of a negative amount is a mis-keyed consumption and is
+refused); `uq_inventory_adjustments_client_request` is UNIQUE on
+`(item_id, client_request_id)`, so a double-clicked Apply cannot apply a delta
+twice.
+
+**Immutable, two independent refusals** — the same belt-and-braces as the
+pricing ledger (CLAUDE.md rule #20):
+
+1. `inventory_adjustments_append_only`, a `BEFORE UPDATE OR DELETE` trigger on
+   `afs_inventory_append_only()`, which RAISES `42501`. It binds the table owner
+   and the service role, which a missing policy would not.
+2. RLS with a **SELECT policy and an INSERT policy only**. There is **no UPDATE
+   policy and no DELETE policy at all**. Do not add one.
+
+`afs_inventory_append_only()` is a **separate function from 035's
+`afs_append_only()`**, which is unmodified. 035's message says "This table is
+the pricing history" and it carries a `test_tag` escape hatch for pricing E2E
+cleanup. This ledger has **no escape hatch of any kind** — no test creates an
+inventory row.
+
+### A QUANTITY CANNOT MOVE WITHOUT A LEDGER ROW
+
+`inventory_items`'s policy is `FOR ALL`, because an item really is created,
+edited and retired. That alone would also let an admin session PATCH
+`qty_on_hand` straight through PostgREST with no ledger row behind it. So
+`inventory_items_quantities_through_ledger`, a `BEFORE INSERT OR UPDATE`
+trigger, refuses any change to `qty_on_hand` / `qty_reserved` — and any INSERT
+arriving with one — unless the **transaction-local** flag
+`afs.inventory_apply` is on. The only thing that ever sets it is
+`inventory_apply_adjustment()`, around its own UPDATE. The API route refuses a
+quantity field too, but that is the explanation; this is the guarantee.
+
+### FUNCTION — `inventory_apply_adjustment(...)`, `SECURITY INVOKER`
+
+The ONLY writer of a quantity. One transaction: idempotency check, `SELECT ...
+FOR UPDATE` on the item, an `IS NOT DISTINCT FROM` comparison of the caller's
+expected quantities (NULL-safe, so a first count is not reported as a
+conflict), the UPDATE, and the ledger INSERT.
+
+`SECURITY INVOKER` on purpose — the caller's RLS still applies, so the
+admin-only policies remain the real boundary.
+
+**It does not recompute the business math.** `lib/inventory/stock-math.ts` is
+the one place that decides what available means, what counts as low and which
+adjustments are legal; the function is handed the computed result. The CHECK
+constraints are the independent backstop.
+
+**Who and where-from are not taken on trust.** When `auth.uid()` is non-null
+the actor IS `auth.uid()`, a disagreeing `p_adjusted_by` raises, and `source`
+is pinned to `'admin_ui'`. The INSERT policy pins `adjusted_by = auth.uid()`
+independently. The service role (`auth.uid()` NULL) supplies its own actor —
+that is how the deferred `erp_sync` and `import` writers will arrive.
+
+### RLS — admin only
+
+```sql
+ALTER TABLE inventory_items       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE inventory_adjustments ENABLE ROW LEVEL SECURITY;
+CREATE POLICY admin_all_inventory_items ON inventory_items
+  FOR ALL USING (is_admin()) WITH CHECK (is_admin());
+CREATE POLICY admin_read_inventory_adjustments ON inventory_adjustments
+  FOR SELECT USING (is_admin());
+CREATE POLICY admin_insert_inventory_adjustments ON inventory_adjustments
+  FOR INSERT WITH CHECK (is_admin() AND adjusted_by = auth.uid());
+```
+
+**NO `company_id` ON EITHER TABLE, and that is deliberate.** In this schema
+`companies` (TABLE 2) is the CUSTOMER's organisation, reached through
+`profiles.company_id`; `orders` references `profiles(id)` directly. Coil in the
+Burnet shop belongs to AFS, so a `company_id` here could only be a dead
+always-NULL column or an assertion that a contractor owns AFS's metal — which
+would make the policy wrong in the dangerous direction. The tenancy boundary
+for an AFS-internal back-office table in this codebase is `is_admin()`, exactly
+as `price_book_items`, `price_book_versions` and `pricing_ledger` use.
+`lib/inventory/migration-rls.test.ts` asserts both halves: the policies are
+present and `company_id` is absent.
+
+### NO SEED. NOT ONE ROW.
+
+035 seeds 24 price-book items because a price-book line's IDENTITY is derivable
+from `materials` x `gauges`. Inventory is not: which material, gauge, finish,
+coil width and unit AFS actually keeps, and how much of each, is not derivable
+from anything in this repository. Seeding the cartesian product would create
+rows for stock AFS may never carry, each reading "Not counted" forever.
+
+### Rollback
+
+Recorded as a COMMENT in the migration, not as runnable SQL — dropping an
+append-only history should never be a command somebody can run by accident:
+
+```sql
+DROP FUNCTION IF EXISTS inventory_apply_adjustment(uuid, text, numeric, numeric,
+  numeric, numeric, numeric, numeric, numeric, text, uuid, uuid, text);
+DROP TRIGGER  IF EXISTS inventory_adjustments_append_only ON inventory_adjustments;
+DROP TRIGGER  IF EXISTS inventory_items_quantities_through_ledger ON inventory_items;
+DROP FUNCTION IF EXISTS afs_inventory_quantities_through_ledger();
+DROP FUNCTION IF EXISTS afs_inventory_append_only();
+DROP TABLE    IF EXISTS inventory_adjustments;
+DROP TABLE    IF EXISTS inventory_items;
+```
+
+Reversible because nothing outside these two tables is altered: no existing
+column is added to, renamed or dropped, and no existing row is touched.
+
+---
+
 *SCHEMA.md | AFS | Reid Whitesides | June 2026*
 *Run 001_initial_schema.sql in Supabase before any feature build begins.*

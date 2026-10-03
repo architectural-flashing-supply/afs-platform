@@ -79,10 +79,26 @@ const ADJUSTMENT_SOURCE = {
 /* -------------------------------------------------- not-provisioned detection */
 
 describe('isNotProvisionedError', () => {
-  it('recognises a missing table, which is exactly what an unapplied migration 039 produces', () => {
+  it('recognises PGRST205, which is what an unapplied migration 039 ACTUALLY produces', () => {
+    // MEASURED LIVE, not assumed. This module first looked only for
+    // PostgreSQL's 42P01, and opening the real screen reported the generic
+    // "could not be read" error instead of the panel that names the migration
+    // file: PostgREST keeps its OWN SCHEMA CACHE and refuses the request before
+    // Postgres is ever reached, so 42P01 never arrives. Below is the exact
+    // payload the live database returned on 2026-10-03.
+    expect(
+      isNotProvisionedError({
+        code: 'PGRST205',
+        message: "Could not find the table 'public.inventory_items' in the schema cache",
+      }),
+      'PGRST205 is the live signal that the migration has not been applied. Missing it turns an operator action ("run the migration") into a reported fault, and sends somebody debugging the wrong thing.'
+    ).toBe(true);
+  });
+
+  it('still recognises PostgreSQL 42P01, for a path that does reach the database', () => {
     expect(
       isNotProvisionedError(postgrestError('42P01', 'relation "inventory_items" does not exist')),
-      '42P01 means the table is not there yet — an operator action, not a fault, and the screen must say so rather than showing an empty list'
+      '42P01 is what SQL itself raises — a function body or a future server-side call would see it even though PostgREST does not send it'
     ).toBe(true);
   });
 
@@ -94,13 +110,13 @@ describe('isNotProvisionedError', () => {
     ).toBe(true);
   });
 
-  it('recognises the schema-cache message for this feature\'s own RPC', () => {
-    expect(
-      isNotProvisionedError(
-        postgrestError('', 'Could not find the function public.inventory_apply_adjustment in the schema cache')
-      ),
-      'PostgREST does not always surface a SQLSTATE for a missing RPC, and this message is the only signal left'
-    ).toBe(true);
+  it('falls back to the message for any of the three objects this migration owns', () => {
+    for (const name of ['inventory_items', 'inventory_adjustments', 'inventory_apply_adjustment']) {
+      expect(
+        isNotProvisionedError(postgrestError('', `Could not find public.${name} in the schema cache`)),
+        `when no code is surfaced at all, a message naming ${name} is the only signal left`
+      ).toBe(true);
+    }
   });
 
   it('does NOT explain away an unrelated failure as a missing migration', () => {
@@ -114,7 +130,7 @@ describe('isNotProvisionedError', () => {
     ).toBe(false);
     expect(
       isNotProvisionedError(postgrestError('', 'Could not find the function public.something_else in the schema cache')),
-      'the message match is narrowed to this feature\'s own RPC name, so another feature\'s missing function is not quietly swallowed here'
+      'the message fallback is narrowed to the three objects migration 039 owns, so another feature\'s missing object is never quietly swallowed here'
     ).toBe(false);
     expect(isNotProvisionedError(null), 'no error is not a missing table').toBe(false);
   });

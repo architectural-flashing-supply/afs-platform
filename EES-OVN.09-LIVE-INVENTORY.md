@@ -922,7 +922,7 @@ without a ledger row — is the reason §9.8 exists.
 ENGINEERING COMPLETION RECORD
 Prompt ID: EES-OVN.09
 Prompt Name: Live Inventory — Shop Material Stock, Adjustment Ledger, Low-Stock Signal
-Word Count: 8399
+Word Count: 8851
 Engineering Proficiency Score: 100/100
 Minimum Required Score: 95/100
 Self-Audit Status: PASS

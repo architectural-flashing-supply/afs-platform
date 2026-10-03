@@ -32,24 +32,48 @@ import {
  * different responses.
  */
 
-/** PostgreSQL / PostgREST codes that mean "this object does not exist yet". */
-const UNDEFINED_TABLE = '42P01';
-const UNDEFINED_FUNCTION = '42883';
-/** PostgREST's own code when an RPC name is not in the exposed schema. */
-const PGRST_NO_FUNCTION = 'PGRST202';
+/**
+ * The codes that mean "this object has not been created yet".
+ *
+ * ================= PGRST205 IS THE ONE THAT ACTUALLY HAPPENS =================
+ *
+ * The obvious code to look for is PostgreSQL's `42P01 undefined_table`, and
+ * this module was written expecting it. It never arrives. PostgREST keeps its
+ * own SCHEMA CACHE and refuses the request before Postgres is reached, so an
+ * unapplied migration comes back as:
+ *
+ *   code:    'PGRST205'
+ *   message: "Could not find the table 'public.inventory_items' in the schema cache"
+ *   hint:    "Perhaps you meant the table 'public.price_book_items'"
+ *
+ * Measured live against the real database on 2026-10-03, by opening the screen
+ * — which reported the generic "could not be read" error instead of the panel
+ * that names the migration file. 42P01 and 42883 are kept because a direct SQL
+ * path (a function body, a future server-side call) does raise them, but
+ * PGRST205 and PGRST202 are what PostgREST sends.
+ */
+const NOT_PROVISIONED_CODES = new Set([
+  '42P01', // PostgreSQL undefined_table — raised by SQL, not by PostgREST
+  '42883', // PostgreSQL undefined_function — likewise
+  'PGRST205', // PostgREST: table not in the schema cache. THE LIVE CASE.
+  'PGRST202', // PostgREST: function not in the schema cache
+]);
+
+/** The three database objects migration 039 creates, and nothing else. */
+const OWNED_OBJECT_NAMES = ['inventory_items', 'inventory_adjustments', 'inventory_apply_adjustment'];
 
 export function isNotProvisionedError(error: Pick<PostgrestError, 'code' | 'message'> | null): boolean {
   if (!error) return false;
-  if (error.code === UNDEFINED_TABLE || error.code === UNDEFINED_FUNCTION || error.code === PGRST_NO_FUNCTION) {
-    return true;
-  }
-  // PostgREST does not always surface the SQLSTATE for a missing RPC, and the
-  // schema-cache message is the only signal left. Matched narrowly on the two
-  // names this feature owns, so an unrelated failure is never mistaken for a
-  // missing migration and quietly explained away.
+  if (NOT_PROVISIONED_CODES.has(error.code)) return true;
+
+  // A fallback for the case where no code is surfaced at all. Narrowed to the
+  // three object names this feature owns, so an unrelated failure is never
+  // mistaken for a missing migration and quietly explained away — a real RLS
+  // refusal or a connection fault has to stay a reported fault.
   const message = (error.message ?? '').toLowerCase();
+  const namesThisFeature = OWNED_OBJECT_NAMES.some((name) => message.includes(name));
   return (
-    message.includes('inventory_apply_adjustment') &&
+    namesThisFeature &&
     (message.includes('does not exist') || message.includes('could not find') || message.includes('schema cache'))
   );
 }
