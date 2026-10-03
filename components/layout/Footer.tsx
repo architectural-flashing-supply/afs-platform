@@ -47,7 +47,12 @@ export default function Footer() {
                 { label: 'Upload a Drawing', href: '/upload' },
                 { label: 'Request a Quote', href: '/quote' },
                 { label: 'Architect Portal', href: '/architects' },
-                { label: 'Track an Order', href: '/account/orders' },
+                // /order-status, not /account/orders: this is a PUBLIC footer,
+                // and /account/orders requires a session, so an anonymous
+                // visitor following this link landed on /login. The public
+                // lookup verifies by order number + the order's own email
+                // instead (EES-OVN.06 R4.4).
+                { label: 'Track an Order', href: '/order-status' },
                 { label: 'FAQ', href: '/faq' },
               ].map(item => (
                 <li key={item.label}>

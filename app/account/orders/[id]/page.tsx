@@ -269,6 +269,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
       <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-6 mb-8">
         <h2 className="font-heading text-lg text-afs-chrome-high mb-4">Production Status</h2>
         <ProductionTimeline
+          variant="customer"
           currentStatus={order.status}
           statusHistory={statusHistory}
           estimatedShipDate={order.delivery_scheduled_at}

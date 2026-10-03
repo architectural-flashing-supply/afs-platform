@@ -6,6 +6,7 @@ import { getAdminOrderDetail, getOrderAttachments, getOrderStatusHistory } from 
 import { STATUS_LABEL, STATUS_VARIANT } from '@/lib/admin/orderStages';
 import Badge from '@/components/ui/Badge';
 import StatusAdvancer from '@/components/admin/StatusAdvancer';
+import ProductionTimeline from '@/components/account/ProductionTimeline';
 import AdminNotesPanel from '@/components/admin/AdminNotesPanel';
 import PreShipPhotoSection from '@/components/admin/PreShipPhotoSection';
 
@@ -14,16 +15,6 @@ const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: '
 function formatDate(iso: string | null): string {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
-function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
 }
 
 function formatDimensions(item: { widthIn: number | null; heightIn: number | null; legAIn: number | null; legBIn: number | null }): string {
@@ -285,26 +276,35 @@ export default async function AdminOrderDetailPage({ params }: { params: { id: s
         )}
       </div>
 
+      {/*
+        Production Timeline, admin variant — SPEC_PRODUCTION_TIMELINE.md §1's
+        "shared across three surfaces". This replaced a hand-rolled list of the
+        status-history rows (status + note + who + when). The timeline shows
+        every one of those facts AND the stages this order has not reached yet,
+        in shop wording, read from the same getOrderStatusHistory() rows; the
+        old list could only show changes that had already happened, so "what is
+        left" was never on this screen.
+
+        EDITING IS STILL StatusAdvancer'S JOB, above. The spec's §8 advancement
+        UX — one-click advance, manual override, backward-move confirmation —
+        is already built there and is a better fit for an editable surface than
+        a timeline; this panel is the reading half beside it, and the two share
+        no state.
+      */}
       <div className="bg-afs-bg-raised border border-afs-border rounded p-6">
-        <h2 className="font-heading text-lg text-afs-chrome-high mb-4">Status History</h2>
-        {statusHistory.length === 0 ? (
-          <p className="font-body text-sm text-afs-chrome-mid">No status changes recorded yet.</p>
-        ) : (
-          <ul className="flex flex-col gap-3">
-            {statusHistory.map((entry) => (
-              <li key={entry.id} className="flex items-start justify-between gap-4 border-b border-afs-border last:border-b-0 pb-3 last:pb-0">
-                <div>
-                  <p className="font-body text-sm text-afs-chrome-high">
-                    {STATUS_LABEL[entry.status] ?? entry.status}
-                    {entry.changedByName && <span className="text-afs-chrome-mid"> · by {entry.changedByName}</span>}
-                  </p>
-                  {entry.note && <p className="font-body text-xs text-afs-chrome-mid mt-1">{entry.note}</p>}
-                </div>
-                <span className="font-data text-xs text-afs-chrome-silver shrink-0">{formatDateTime(entry.createdAt)}</span>
-              </li>
-            ))}
-          </ul>
-        )}
+        <h2 className="font-heading text-lg text-afs-chrome-high mb-4">Production Timeline</h2>
+        <ProductionTimeline
+          variant="admin"
+          currentStatus={order.status}
+          statusHistory={statusHistory.map((entry) => ({
+            status: entry.status,
+            changedAt: entry.createdAt,
+            note: entry.note,
+            changedByName: entry.changedByName,
+          }))}
+          trackingNumber={order.trackingNumber}
+          carrier={order.carrier}
+        />
       </div>
     </div>
   );

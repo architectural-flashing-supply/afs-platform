@@ -17,7 +17,25 @@ export default defineConfig({
       '@': fileURLToPath(new URL('.', import.meta.url)),
     },
   },
+  // tsconfig.json sets `jsx: "preserve"` (Next.js compiles JSX itself), and the
+  // transform honours it — so a .tsx test file reached node with its JSX intact
+  // and failed to parse ("Unexpected JSX expression"). Overriding to the
+  // automatic runtime here is what makes component render tests possible WITHOUT
+  // adding a dependency: components/**/*.test.tsx renders through
+  // react-dom/server's renderToStaticMarkup, which needs no jsdom and no
+  // testing library. Only this test runner is affected; the app's own build is
+  // untouched.
+  //
+  // It is `oxc`, not `esbuild`: this Vite major transforms with oxc, and setting
+  // the esbuild options instead is accepted silently with a warning and then
+  // ignored — which looks like a config that works and is not one.
+  oxc: {
+    jsx: { runtime: 'automatic', importSource: 'react' },
+  },
   test: {
-    include: ['lib/**/*.test.ts'],
+    // .tsx is included so a COMPONENT can be unit-tested beside the module it
+    // renders (EES-OVN.06). End-to-end specs still live under tests/** and run
+    // exclusively through Playwright.
+    include: ['lib/**/*.test.ts', 'lib/**/*.test.tsx', 'components/**/*.test.tsx'],
   },
 });

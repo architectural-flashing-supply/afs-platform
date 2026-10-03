@@ -134,6 +134,23 @@ export const TIMELINE_POST_PRODUCTION_STAGE: Record<PostProductionStatus, OrderS
   out_for_delivery: 'shipped',
 };
 
+/**
+ * Human wording for the three post-production statuses. Written ONCE here, for
+ * the same reason the stage labels are: `STATUS_LABEL` below, the timeline's
+ * banner text and the customer-facing `ORDER_STATUS_LABEL` all need it, and
+ * three hand-kept copies of "Out for Delivery" is three places a rename has to
+ * land. Unlike a fabrication stage these statuses read the same to the shop and
+ * to the customer, so there is one string each rather than a pair.
+ */
+export const POST_PRODUCTION_LABEL: Record<PostProductionStatus, string> = {
+  in_production: 'In Production',
+  packaged: 'Packaged',
+  out_for_delivery: 'Out for Delivery',
+};
+
+/** Shown wherever a cancelled order's status is named. */
+export const CANCELLED_LABEL = 'Cancelled';
+
 export type OrderStatus = OrderStageKey | 'cancelled' | PostProductionStatus;
 
 export const ACTIVE_ORDER_STATUSES: OrderStageKey[] = ORDER_STAGES.filter((s) => s.key !== 'delivered').map(
@@ -173,12 +190,11 @@ export function isBackwardMove(from: string, to: string): boolean {
   return b < a;
 }
 
+/** Admin/shop wording for every value `orders.status` can hold. */
 export const STATUS_LABEL: Record<string, string> = {
   ...Object.fromEntries(ORDER_STAGES.map((s) => [s.key, s.adminLabel])),
-  in_production: 'In Production',
-  packaged: 'Packaged',
-  out_for_delivery: 'Out for Delivery',
-  cancelled: 'Cancelled',
+  ...POST_PRODUCTION_LABEL,
+  cancelled: CANCELLED_LABEL,
 };
 
 export type StatusBadgeVariant = 'success' | 'warning' | 'error' | 'chrome' | 'info';

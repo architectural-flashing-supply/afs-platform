@@ -25,6 +25,7 @@
  */
 import {
   ORDER_STAGES,
+  POST_PRODUCTION_LABEL,
   POST_PRODUCTION_STATUSES,
   TIMELINE_POST_PRODUCTION_STAGE,
   stageIndex,
@@ -182,13 +183,6 @@ export function resolveTrackingUrl(
   const resolver = CARRIER_TRACKING_URLS[key];
   return resolver ? resolver(trackingNumber) : null;
 }
-
-/** Human-readable name for a status outside the fabrication sequence. */
-const POST_PRODUCTION_LABEL: Record<PostProductionStatus, string> = {
-  in_production: 'In Production',
-  packaged: 'Packaged',
-  out_for_delivery: 'Out for Delivery',
-};
 
 function isPostProduction(status: string): status is PostProductionStatus {
   return (POST_PRODUCTION_STATUSES as readonly string[]).includes(status);
