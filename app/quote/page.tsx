@@ -15,6 +15,7 @@ import ColorField from '@/components/quote/ColorField';
 import FinishColorField from '@/components/quote/FinishColorField';
 import WasteFactorDisplay from '@/components/quote/WasteFactorDisplay';
 import TrimLengthOptimizerSection from '@/components/quote/TrimLengthOptimizerSection';
+import MaterialCalculatorSection from '@/components/quote/MaterialCalculatorSection';
 import CrossSellPanel from '@/components/ai/CrossSellPanel';
 import {
   getProfileStockLengths,
@@ -187,6 +188,10 @@ export default function QuotePage() {
   const [showEmailCapture, setShowEmailCapture] = useState(false);
   const [guestEmail, setGuestEmail] = useState('');
   const [selectedAccessories, setSelectedAccessories] = useState<string[]>([]);
+  // Separate from selectedAccessories on purpose. CrossSellPanel owns that state
+  // wholesale through a single onSelectionChange callback, so a second producer sharing
+  // the setter would clobber its selections (and be clobbered by them).
+  const [calculatorAccessories, setCalculatorAccessories] = useState<string[]>([]);
   const [profileStockLengths, setProfileStockLengths] = useState<ProfileStockLength[]>([]);
 
   useEffect(() => {
@@ -268,6 +273,13 @@ export default function QuotePage() {
     const notes = [
       form.projectName.trim() ? `Project: ${form.projectName.trim()}` : null,
       selectedAccessories.length > 0 ? `Requested accessories: ${selectedAccessories.join(', ')}` : null,
+      // Auto Material Calculator selections (SPEC_AUTO_MATERIAL_CALCULATOR.md §3's
+      // "[Add to request]"). Null whenever the section is gated off or nothing is
+      // ticked, so the existing .filter(Boolean) drops it and this string is
+      // byte-identical to what it was before the calculator existed.
+      calculatorAccessories.length > 0
+        ? `Calculator accessories: ${calculatorAccessories.join(', ')}`
+        : null,
       form.notes.trim() || null,
     ].filter(Boolean).join('\n\n') || null;
 
@@ -304,7 +316,7 @@ export default function QuotePage() {
       setSubmitError('Submission failed. Please try again.');
       setSubmitState('idle');
     }
-  }, [buildItems, form, selectedAccessories, colorSatisfied, isAluminum]);
+  }, [buildItems, form, selectedAccessories, calculatorAccessories, colorSatisfied, isAluminum]);
 
   const handleSubmit = () => {
     if (buildItems().length === 0) {
@@ -341,6 +353,7 @@ export default function QuotePage() {
     setShowEmailCapture(false);
     setGuestEmail('');
     setSelectedAccessories([]);
+    setCalculatorAccessories([]);
   };
 
   const dimensionSummary = [
@@ -664,6 +677,22 @@ export default function QuotePage() {
                   value={form.notes} onChange={(e) => updateField('notes', e.target.value)}
                   placeholder="Anything else we should know about this project?" />
               </div>
+
+              {/* SPEC_AUTO_MATERIAL_CALCULATOR.md §3 ("UI DISPLAY IN WIZARD STEP 3") and
+                  queue.yaml p7-002 ("CrossSellPanel — embedded below
+                  AutoMaterialCalculator in wizard Step 3") both put the deterministic
+                  calculator above the AI cross-sell panel. Feature-gated and OFF by
+                  default: with NEXT_PUBLIC_AFS_MATERIAL_CALCULATOR unset it renders
+                  nothing and this step is unchanged. */}
+              <MaterialCalculatorSection
+                lengthFt={isPositiveNumber(form.lengthFt) ? Number(form.lengthFt) : 0}
+                quantity={isPositiveNumber(form.quantity) ? Number(form.quantity) : 0}
+                profileType={form.profileType}
+                material={form.material}
+                gauge={form.gauge}
+                stockLengthFt={resolveStockLengthByQuoteLabel(profileStockLengths, form.profileType)}
+                onSelectionChange={setCalculatorAccessories}
+              />
 
               <CrossSellPanel
                 profileTypes={[form.profileType].filter(Boolean)}
