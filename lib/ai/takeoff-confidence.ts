@@ -63,6 +63,18 @@ export interface AiReadRow {
   unsure: boolean;
   /** The model's own note about this item, shown under the row when present. */
   note: string | null;
+  /**
+   * Which `result_items[]` entry this row was read off.
+   *
+   * Carried so a per-line action can be attached to the ITEM, which is the
+   * granularity the model's confidence is actually reported at. A caller must
+   * NOT treat this as an index into `quote_requests.line_items` — those are two
+   * different arrays, and the Job screen only offers a per-line action when it
+   * has checked that they correspond one-to-one.
+   */
+  itemIndex: number;
+  /** True on the first row of each item, so a per-item control is rendered once. */
+  firstOfItem: boolean;
 }
 
 function dim(label: string, value: number | null | undefined, unit = 'in'): string | null {
@@ -85,9 +97,18 @@ export function buildAiReadRows(items: TakeoffReadItem[]): AiReadRow[] {
     const note = item.aiNote?.trim() ? item.aiNote.trim() : null;
     const prefix = items.length > 1 ? `Item ${index + 1}: ` : '';
 
+    let isFirstRowOfThisItem = true;
     const push = (term: string, value: string | null) => {
       if (value === null || value.trim() === '') return;
-      rows.push({ term: `${prefix}${term}`, value, unsure, note });
+      rows.push({
+        term: `${prefix}${term}`,
+        value,
+        unsure,
+        note,
+        itemIndex: index,
+        firstOfItem: isFirstRowOfThisItem,
+      });
+      isFirstRowOfThisItem = false;
     };
 
     push('Profile', item.profileType ?? null);

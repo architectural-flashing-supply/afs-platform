@@ -24,7 +24,107 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
-## v7 PIXEL GATE (2026-10-02, branch `cc-v7-pixel`) — CURRENT HANDOFF
+## JOB -> FLASHDRAFT HANDOFF (2026-10-03, branch `cc-flashdraft-handoff`) — CURRENT HANDOFF
+
+**The FlashDraft button on a Command Center job now opens the real editor with
+that order's profile in it. Before this run it was, depending on the screen,
+missing, inert, or a link to a blank canvas.**
+
+### THE ONE THING TO CHECK FIRST
+
+Open `http://localhost:3000/admin/command-center`, click any job, and press the
+red **Design in FlashDraft** at the top right. It should open `/studio/draft` with
+the order's material, gauge, length, quantity and job info filled in — and, if the
+customer drew it, the actual profile on the canvas, editable. Save it and the
+correction is written back onto the job, which then says who corrected it and when.
+
+**This is IMPLEMENTED, UNCONFIRMED by this document's own standard.** Gates and
+screenshots are in STATE_OF_THE_BUILD.md's 2026-10-03 entry; Reid has not pressed
+the button himself.
+
+### THE ANSWER TO "THE MARTINEZ BUILDERS ORDER SHOWS A STATIC IMAGE"
+
+**That screen is the FIXTURE demo, not live data.** "Martinez Builders" exists only
+in `lib/fixtures/command-center-v7.ts` (job 413) and in the v7 prototype; the live
+database has **zero** `field_photo_quote` rows. It is reachable only at
+`?fixture=v7` with `CC_FIXTURE=1` set — which it is, in `.env.local`.
+
+**The fixture screens were deliberately left alone.** The v7 pixel gate measures
+them against the prototype (rule #34), and a fixture job is not a real quote
+request, so its button has no handoff to build. **Looking at `?fixture=v7` again
+will show no change. The live Job screen behind it is where the fix is.**
+
+### THREE THINGS LEFT OPEN — PENDING REID
+
+1. **The field app saves no geometry, by design.** `app/api/field/quote-request`
+   inserts `line_items: []`; `app/field/contractor/page.tsx` is "strictly photo +
+   optional job-identity fields — no FlashDraft, no drawing tool." The handoff
+   therefore opens BLANK with the photo behind the canvas to trace, and invents
+   nothing. Closing the gap means either a drawing step in the field app or an AI
+   takeoff pass over the photo writing `takeoff_uploads.result_items`. **Not decided
+   here.**
+2. **v7's side-by-side "original email beside this reading" still has no live
+   route.** `source-sketch`/`source-photo` are `liveRoute: null` in
+   `SCREEN_MANIFEST.json`. Reid chose on 2026-10-03 to put the button where the
+   parser takeoff actually lives instead of building that screen. **The fixture Job
+   screen still links to `/admin/command-center/job/412/source`, which does not
+   exist — a dangling link, unfixed.**
+3. **The live Workbench still has no FlashDraft button on its cards.** v7 puts one
+   on every `new`-lane card (prototype line 1250). `liveCardButtons` emits five
+   action kinds and none is v7's `fd`. Out of scope for this run; the Job screen one
+   click away now does the job.
+
+### A SECURITY DEFECT THIS RUN FOUND AND FIXED — WORTH REMEMBERING
+
+The new admin GET route was being **served from Next's route cache to an
+unauthenticated caller**: 200, with another customer's job on it. The admin check
+ran once for the first authorised caller and every later request was answered from
+the cached body. `export const dynamic = 'force-dynamic'` fixes it, and every
+comparable admin read here already declared it.
+
+**CLAUDE.md rule #22 is about the same hazard one layer down** (the service-role
+Supabase client and `cache: 'no-store'`). It should be read as covering the route
+layer too. **Any new admin API route that returns per-session data needs
+`force-dynamic`, and a signed-out probe in its spec is what proves it** — note that
+`browser.newContext()` inherits `test.use({ storageState })`, so such a probe needs
+`storageState: undefined` explicitly or it is signed in and guards nothing.
+
+### THE 5 RED PLAYWRIGHT TESTS ARE ALL PRE-EXISTING — AND ONE OF THEM IS A REAL BUG
+
+163 passed, 5 failed, 3 skipped. Every one of the 5 was **proven** pre-existing by
+re-running it with this run's changes stashed at HEAD: `homepage.spec.ts` x2,
+`production-queue.spec.ts` x2, and `modify-in-flashdraft.spec.ts:179`.
+
+**Do not dismiss the third one as noise.** It is a real disagreement between the
+screen and the database, diagnosed in this run and deliberately not fixed:
+`loadForModify` sets the lineage banner to **rev 5** for a source at revision 4,
+but `performSave`'s `nextRevision = asDuplicate || !savedProfileId ? 1 : revision + 1`
+writes **1**, because `loadForModify` sets `savedProfileId = null` so the first save
+is an INSERT that cannot overwrite the locked original. The banner says 5, the row
+says 1. Which is right is a product decision about what "revision" counts. **PENDING
+REID** — see STATE_OF_THE_BUILD.md's 2026-10-03 entry.
+
+### FILES THAT MATTER
+
+```
+lib/flashdraft/job-handoff.ts                              NEW  the one contract
+lib/flashdraft/job-handoff.test.ts                         NEW  28 unit tests
+app/api/admin/command-center/job-handoff/[id]/route.ts     NEW  GET + POST
+tests/e2e/flashdraft-job-handoff.spec.ts                   NEW  7 e2e, self-cleaning
+app/studio/draft/page.tsx                                  ?loadRequest=, write-back, underlay
+lib/data/job-screen.ts                                     flashDraftLink always resolves now
+app/admin/command-center/job/[id]/page.tsx                 the red button x3 + per-line
+lib/ai/takeoff-confidence.ts                               AiReadRow.itemIndex / .firstOfItem
+lib/flashdraft/draw-profile-scene.ts                       drawBackground?: boolean
+```
+
+**No migration was needed and none was written.** The correction stamp lives in the
+existing `quote_requests.line_items` JSONB, because it is per-line and a column
+would be per-request.
+
+---
+
+## v7 PIXEL GATE (2026-10-02, branch `cc-v7-pixel`) — PREVIOUS HANDOFF
 
 **The acceptance gate was wrong, not the complaint. It has been replaced.**
 

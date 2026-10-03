@@ -346,6 +346,44 @@ not by reading the number. Keep doing that.
 
 ---
 
+## 6b. THE GATE MEASURES THE FIXTURE SCREENS, SO IT CANNOT SEE A LIVE-ONLY CHANGE
+
+**Added 2026-10-03, branch `cc-flashdraft-handoff`. This is a coverage boundary,
+not a defect, and it is written down so nobody mistakes a green run for coverage
+it does not have.**
+
+`app/admin/command-center/job/[id]/page.tsx` branches on `isFixtureMode` **before**
+it loads anything: in fixture mode it renders `V7Job`, and the live three-column
+screen below that branch is never reached. The same split exists on every screen
+fixture mode substitutes data for. The pixel gate always runs in fixture mode —
+it has to, or the diff would be measuring the database against a demo (rule #34) —
+so **a change that only touches the live branch moves no pixel the gate looks at.**
+
+That is exactly what the job -> FlashDraft handoff was. It added a red
+**Design in FlashDraft** button to the live Job screen's header, its profile pane
+and its parser-takeoff pane, and the gate came back:
+
+```
+35 MATCHING · 0 NOT MATCHING · 16 no live route · 3 live-only
+```
+
+— byte-identical to the baseline. **No baseline was updated, because no baseline
+moved.** A run that changes a live-only branch should expect exactly this, and
+should NOT go looking for a screen to re-baseline to prove it did something.
+
+**What covers the live branch instead:** `tests/e2e/flashdraft-job-handoff.spec.ts`
+(7 tests, real rows, real browser), the `prebuild` contrast gate — which reads the
+JSX directly and therefore DOES see live-only markup — and
+`tests/e2e/contrast-live.spec.ts`.
+
+**The corollary matters more than the observation.** The fixture Job screen's own
+FlashDraft buttons still point at a bare `/studio/draft`, because they belong to v7
+and a fixture job is not a real quote request. Pressing one on `?fixture=v7` will
+look exactly as unhelpful as it did before. That is correct for a prototype port and
+wrong as a demonstration of the feature — **demonstrate it on a live job.**
+
+---
+
 ## 7. THE GATE'S OWN RULES, SO A FUTURE RUN CANNOT QUIETLY WEAKEN IT
 
 - **The baseline comes only from the untouched prototype**, re-rendered every

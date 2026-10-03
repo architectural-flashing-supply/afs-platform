@@ -2,9 +2,11 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { requireAdminUser } from '@/lib/admin/auth';
-import { getJobScreen, pointsToSvgPath } from '@/lib/data/job-screen';
+import { getJobScreen, pointsToSvgPath, type FlashDraftLink } from '@/lib/data/job-screen';
 import { JOB_STAGES, JOB_STAGE_LABELS, stageIndex } from '@/lib/data/job-stage';
 import { UNSURE_FOOTNOTE } from '@/lib/ai/takeoff-confidence';
+import { flashDraftJobHref } from '@/lib/flashdraft/job-handoff';
+import { SHOP_TIME_ZONE } from '@/lib/utils/waiting-time';
 import LightWorkingArea from '@/components/admin/LightWorkingArea';
 import JobActionPanel from '@/components/admin/JobActionPanel';
 import PastProfileThumb from '@/components/admin/PastProfileThumb';
@@ -47,6 +49,48 @@ const ROW_CLASS: Record<'sure' | 'unsure', string> = {
   sure: 'row',
   unsure: 'row unsure',
 };
+
+/**
+ * "DESIGN IN FLASHDRAFT" — one component, rendered in all three places the
+ * estimator might reach for it, so the label, the destination and the line item
+ * it opens can never differ between them.
+ *
+ * `btn red` is v7's ONE action colour (CLAUDE.md rule #33: v7's block 3
+ * redeclares `--red:#C8102E` and that is the only red the Command Center has).
+ * No new token, no new colour, and no Tailwind utility on a v7 class — the
+ * appearance comes entirely from the generated v7 CSS.
+ */
+function FlashDraftButton({ link, testId }: { link: FlashDraftLink; testId: string }) {
+  return (
+    <Link href={link.href} className="btn red" data-testid={testId}>
+      {link.label}
+    </Link>
+  );
+}
+
+/**
+ * The correction stamp, in the shop's own words rather than an ISO string —
+ * and IN THE SHOP'S OWN TIME ZONE.
+ *
+ * This page is a SERVER component, so a bare `toLocaleString` formats in the
+ * server's zone. Vercel runs in UTC and the shop is in Burnet, Texas, so a
+ * correction made at 4pm Central would have been printed to Steve as 9pm or
+ * 10pm on a screen with no offset on it. Same hazard CLAUDE.md rule #24 records
+ * for delivery dates, and the same one clock answers it. (The matching banner
+ * inside FlashDraft needs no zone: it renders in the browser, which is already
+ * on shop time when Steve is the one looking.)
+ */
+function formatCorrectedAt(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return 'an earlier date';
+  return d.toLocaleString('en-US', {
+    timeZone: SHOP_TIME_ZONE,
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
 
 export default async function JobScreenPage({
   params,
@@ -121,6 +165,10 @@ export default async function JobScreenPage({
               </li>
             ))}
           </ol>
+          {/* THE PROMINENT ONE. Beside the stage strip, at the top of the
+              screen, so redesigning a profile the parser got wrong is reachable
+              without scrolling past the parser's reading to find it. */}
+          <FlashDraftButton link={job.flashDraftLink} testId="job-flashdraft-header" />
         </div>
 
         <div className="cols">
@@ -207,13 +255,46 @@ export default async function JobScreenPage({
                     <span className="v" data-unsure={r.unsure ? 'true' : 'false'}>
                       {r.value}
                     </span>
-                    <span className="sure">{r.unsure ? 'Check' : 'Sure'}</span>
+                    {/* PER-LINE "FIX IN FLASHDRAFT", and three conditions have
+                        to hold before it appears. The item is one the AI was
+                        NOT sure about (`r.unsure`, which is
+                        lib/ai/takeoff-confidence.ts's real per-item confidence,
+                        never a value invented here); the parser's items really
+                        do correspond to this order's lines; and this is the
+                        item's first row, so one control appears per item rather
+                        than one per field. The model reports confidence per
+                        item, so the action is per item. */}
+                    {r.unsure && r.firstOfItem && job.aiRead!.perItemAddressable ? (
+                      <Link
+                        href={flashDraftJobHref(job.id, r.itemIndex)}
+                        className="btn red sm"
+                        data-testid={`job-flashdraft-line-${r.itemIndex}`}
+                      >
+                        Fix in FlashDraft
+                      </Link>
+                    ) : (
+                      <span className="sure">{r.unsure ? 'Check' : 'Sure'}</span>
+                    )}
                   </div>
                 ))}
                 {job.aiRead.anyUnsure && <p className="note">{UNSURE_FOOTNOTE}</p>}
                 {job.aiRead.processingNotes && (
                   <p className="note">The AI also noted: {job.aiRead.processingNotes}</p>
                 )}
+                {/* THE PARSER-TAKEOFF PANE'S OWN BUTTON. This is the half of
+                    v7's side-by-side "original email beside this reading" that
+                    the live app actually has — see docs/design/
+                    V7_PIXEL_REPORT.md, where `source-sketch`/`source-photo` are
+                    recorded as having NO LIVE ROUTE. Steve reads the parser's
+                    output here, so this is where "the parser got it wrong"
+                    needs an answer. */}
+                <div className="bar">
+                  <FlashDraftButton link={job.flashDraftLink} testId="job-flashdraft-takeoff" />
+                </div>
+                <p className="note">
+                  If the reading above is wrong, redraw the profile instead of correcting it in
+                  words. Saving in FlashDraft writes the corrected drawing back onto this job.
+                </p>
               </>
             ) : (
               <p className="hint">
@@ -274,17 +355,24 @@ export default async function JobScreenPage({
               </dl>
             ))}
 
-            {job.flashDraftLink.kind === 'modify' ? (
-              <Link
-                href={job.flashDraftLink.href}
-                className="btn slate"
-              >
-                Open in FlashDraft
-              </Link>
-            ) : (
-              <p className="needbox">
-                <b>Open in FlashDraft is not available here. </b>
-                {job.flashDraftLink.reason}
+            {/* THE PROFILE PANE'S OWN COPY OF THE BUTTON. v7 puts it inside
+                `profStrip()` (prototype line 1340) right under the drawing,
+                which is where an estimator looking at the shape reaches for
+                it. The header carries the same action for someone who has
+                already decided. Both are the one `flashDraftLink` — they
+                cannot word or aim the action differently. */}
+            <FlashDraftButton link={job.flashDraftLink} testId="job-flashdraft-profile" />
+            <p className="hint">{job.flashDraftLink.hint}</p>
+            {job.flashDraftLink.matchedProfileName && (
+              <p className="hint">
+                This shape matches a saved profile: <b>{job.flashDraftLink.matchedProfileName}</b>.
+              </p>
+            )}
+            {job.flashDraftLink.correction && (
+              <p className="hint" data-testid="job-flashdraft-corrected">
+                Corrected in FlashDraft by{' '}
+                <b>{job.flashDraftLink.correction.correctedByName ?? 'an admin'}</b> on{' '}
+                {formatCorrectedAt(job.flashDraftLink.correction.correctedAt)}.
               </p>
             )}
 

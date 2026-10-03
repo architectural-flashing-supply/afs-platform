@@ -199,6 +199,23 @@ export interface DrawProfileSceneParams {
   paint?: DrawScenePaintState;
   /** Default true — the offscreen shop snapshot still shows the same drafting grid the live canvas does. */
   drawGrid?: boolean;
+  /**
+   * Default true. Set FALSE only when something is rendered BEHIND the canvas
+   * and is meant to show through — today that is the job-handoff reference
+   * photo an estimator traces over (lib/flashdraft/job-handoff.ts).
+   *
+   * WHY THE PHOTO IS AN <img> BEHIND THE CANVAS AND NOT A `drawImage` CALL.
+   * performSave captures the profile thumbnail with `canvasRef.current
+   * .toDataURL()`, and its own comment records that this is safe precisely
+   * because the canvas is never drawn to with cross-origin content. A field
+   * photo arrives on a signed Supabase Storage URL — cross-origin — so
+   * compositing it into the bitmap would risk TAINTING the canvas and making
+   * every save throw. Leaving the background unpainted and putting the image
+   * underneath gets the same picture with none of that, and keeps the
+   * customer's photograph out of the saved profile's thumbnail, where it does
+   * not belong.
+   */
+  drawBackground?: boolean;
   /** Grid phase offset — the live canvas's own pan state. Defaults to {x:0,y:0} (the offscreen snapshot has no pan). */
   pan?: ScreenPoint;
 }
@@ -231,12 +248,15 @@ export function drawProfileScene(params: DrawProfileSceneParams): void {
     interaction = NO_INTERACTION,
     paint,
     drawGrid = true,
+    drawBackground = true,
     pan = { x: 0, y: 0 },
   } = params;
 
   ctx.clearRect(0, 0, cssWidth, cssHeight);
-  ctx.fillStyle = colors.background;
-  ctx.fillRect(0, 0, cssWidth, cssHeight);
+  if (drawBackground) {
+    ctx.fillStyle = colors.background;
+    ctx.fillRect(0, 0, cssWidth, cssHeight);
+  }
 
   if (drawGrid) {
     const step = GRID_INCHES * pixelsPerInch * zoom;

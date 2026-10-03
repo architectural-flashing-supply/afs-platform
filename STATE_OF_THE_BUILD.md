@@ -34,6 +34,216 @@ summary, not a replacement for it.
 
 ---
 
+## 2026-10-03 — THE JOB -> FLASHDRAFT HANDOFF (branch `cc-flashdraft-handoff`)
+
+**"Draw it in FlashDraft" was a dead end or a blank canvas. It now opens the
+order's own profile, editable, and saving sends the correction back.**
+
+### WHAT WAS ACTUALLY WRONG, TRACED END TO END
+
+The reported symptom was a field-app order — "the Martinez Builders order,
+FlashDraft coping" — whose FlashDraft button showed a static image. The trace
+found three separate defects and one piece of missing data:
+
+1. **The live Job screen's button was usually ABSENT.** `lib/data/job-screen.ts`
+   resolved it as `?modifyProfile=<saved_configurations.id>`, matched by
+   `geometry_fingerprint`. That link only exists when the customer ALSO saved
+   their drawing as a profile. Every other job — including one carrying perfectly
+   good `points` on its own line item — got a `needbox` reading **"Open in
+   FlashDraft is not available here"**. Measured live: all 9 rows in the database
+   hit that branch.
+2. **The live Workbench had NO FlashDraft control at all.** `liveCardButtons` in
+   `lib/data/v7-view/from-live.ts` emits five action kinds and none of them is
+   v7's `fd`.
+3. **In FIXTURE mode the buttons existed and went nowhere.** The Workbench card's
+   "Finish in FlashDraft" is a `<button>` with no handler (`V7Workbench`'s
+   `onAction` handles only `machine`); the Job screen's "Draw it in FlashDraft" is
+   `<a href="/studio/draft">` — a BLANK canvas (`lib/data/v7-view/job.ts:215`).
+   That screen, with its static inline `<svg>` of the profile above a button that
+   throws it away, is what was being looked at.
+4. **"Martinez Builders" is FIXTURE DATA, not a database row.**
+   `lib/fixtures/command-center-v7.ts:348`, job 413, `src:'Field app'`. There are
+   **zero** `field_photo_quote` rows in the live database.
+
+### WHAT IS ACTUALLY STORED, BY SOURCE (measured, not assumed)
+
+| field | where | structured |
+|---|---|---|
+| `points[]`, `hemStart`/`hemEnd`, `bendRadiiIn`, `profileName` | `quote_requests.line_items[]` | **YES — `afs-flashdraft` rows only** |
+| `legA`/`legB`/`width`/`height`, `profileType` | `quote_requests.line_items[]` | partial — `afs-quote-builder`, no bends/angles/hems |
+| `geometryImage` | `quote_requests.line_items[]` | no — base64 PNG |
+| `material`/`gauge`/`lengthFt`/`quantity`, `color`/`finish` | line item / row | yes, all non-field sources |
+| the field-app photo | `takeoff_uploads` via `quote_requests.upload_id` | no — image only |
+| **field-app GEOMETRY** | **nowhere** | **DOES NOT EXIST** |
+
+Live counts at the time of the audit: `afs-quote-builder` 8, `afs-flashdraft` 1,
+`field_photo_quote` 0.
+
+### THE FIELD-APP GAP, STATED PLAINLY — PENDING REID
+
+`app/api/field/quote-request/route.ts` inserts `line_items: []` **by design**, and
+`app/field/contractor/page.tsx` says so in its own header: "strictly photo +
+optional job-identity fields — no FlashDraft, no drawing tool." A field submission
+therefore carries a photograph of a piece of paper and nothing a machine can bend.
+
+**Nothing in this run invents geometry from it, and nothing should.** The honest
+fix is the one that shipped: open the real editor BLANK with that photo behind the
+canvas to trace. Closing the gap properly means the field app gaining a drawing
+step, or an AI takeoff pass over the photo writing `takeoff_uploads.result_items`;
+which of those is wanted is Reid's call and is NOT decided here.
+
+### WHAT SHIPPED
+
+**`lib/flashdraft/job-handoff.ts`** — one contract, keyed on the QUOTE REQUEST
+(which every job has) rather than a saved profile (which only some have). Three
+honest outcomes: `geometry` (the order's drawing, editable), `reference` (blank
+canvas, the customer's photo behind it), `metadata` (blank canvas, specification
+filled in). A quote-builder item's `legA`/`legB`/`width`/`height` is **never**
+promoted to geometry — the bend count, the angles, the hems and the handedness are
+all absent, and rule #12 is that the signed interior angle IS the bend.
+
+**`app/api/admin/command-center/job-handoff/[id]`** — GET serves the handoff, POST
+writes the correction back. Admin-checked server-side on both verbs; the `?admin=1`
+in the URL is a UI hint and grants nothing. The write-back **MERGES** onto the line
+item — the customer's own `unit`, `quantity` and the rest survive — and stamps
+`correctedAt`, `correctedBy`, `correctedByName`, `correctedProfileId`, plus an
+`admin_audit_log` row. **No migration: `line_items` is JSONB and the stamp is
+per-line, which a per-request column could not be.**
+
+**FlashDraft** (`app/studio/draft/page.tsx`) — `?loadRequest=<id>&item=<n>` loads
+it; a banner says which job is open and what saving will do; the write-back fires
+on `performSave`'s success path and reports itself in place. A reference photo
+renders as an `<img>` BEHIND the canvas with a show/hide toggle and a fade slider,
+and the canvas stops painting its own background (`drawBackground: false`, new to
+`drawProfileScene`).
+
+**The Job screen** — the red `btn red` button in THREE places from ONE
+`flashDraftLink`: the header (prominent), the profile pane, and the parser-takeoff
+pane. Plus a per-line **"Fix in FlashDraft"** on any item the AI was unsure about.
+
+### THE PER-LINE ACTION IS GATED ON A CHECK THAT HAD TO BE ADDED
+
+Rule #17's `lib/ai/takeoff-confidence.ts` really does carry per-ITEM confidence, so
+a per-line action is honest — but `takeoff_uploads.result_items` and
+`quote_requests.line_items` are **two different arrays**. They correspond
+one-to-one in the ordinary case and NOT AT ALL for a field-app job, which arrives
+with `line_items = []` however many items the parser found. `aiRead.perItemAddressable`
+is therefore computed from the two lengths, and the per-line button is withheld when
+they disagree. Without it every per-line link would resolve to line 0 and silently
+claim to be fixing a different one. `AiReadRow` gained `itemIndex` and `firstOfItem`
+in the one confidence module rather than a second vocabulary anywhere else.
+
+### FOUR DEFECTS FOUND BY THE WORK'S OWN TESTS, NOT BY READING THE CODE
+
+1. **The GET was served from Next's route cache to an ANONYMOUS caller — 200, with
+   another customer's job on it.** The new spec's signed-out probe caught it. The
+   admin check ran once for the first authorised caller and every later request was
+   answered from the cached body without reaching it. Fixed with
+   `export const dynamic = 'force-dynamic'`, which every comparable admin read in
+   this codebase already declares (`profile-thumbnail/[id]`,
+   `shop-queue/drawing/[id]`, `typeahead`). **This is CLAUDE.md rule #22's hazard one
+   layer up — at the route rather than at the Supabase client — and the rule should
+   be read as covering both.**
+2. **`takeoff_uploads.file_type` holds a FILE EXTENSION (`.jpg`), never a MIME
+   type** — both writers do it (`app/api/field/photo-upload`, `app/api/upload`). The
+   obvious `startsWith('image/')` test matched nothing and silently demoted every
+   field-app job to "no image", which is the one case the feature exists for. One
+   predicate now, `isTraceableImageType`, shared by the route and the Job screen so
+   the label cannot promise a photo the canvas will not show. HEIC is excluded
+   deliberately: the field app accepts it and Chrome cannot decode it in an `<img>`.
+3. **CSS `opacity` on the underlay faded the CANVAS GROUND with it**, so the whole
+   drawing area came out muddy and several shades off `#C4C4C4`. Split into an
+   opaque wrapper and a faded `<img>`.
+4. **`browser.newContext()` INHERITS `test.use({ storageState })`** — the spec's
+   "anonymous" guard was running fully signed in and passing a 200 off as the
+   signed-out case. `storageState: undefined` is now explicit, and that is what
+   exposed defect 1.
+
+**The photo is NOT composited into the canvas, and that is deliberate.**
+`performSave` captures the thumbnail with `canvasRef.current.toDataURL()`, whose own
+comment records that it is safe because the canvas is never drawn to with
+cross-origin content. A signed Storage URL is cross-origin; `drawImage` would risk
+TAINTING the canvas and making every save throw. The `<img>`-behind approach also
+keeps the customer's photograph out of the saved profile's thumbnail.
+
+### WHAT WAS DELIBERATELY NOT BUILT
+
+**v7's side-by-side "original email beside this reading" has NO LIVE ROUTE and still
+does not.** `SCREEN_MANIFEST.json` records `source-sketch` and `source-photo` as
+`liveRoute: null`, and the pixel gate prints them as `NO LIVE ROUTE` every run. The
+fixture Job screen links to `/admin/command-center/job/412/source`, which does not
+exist. Reid chose (2026-10-03) to put the button where the parser takeoff actually
+lives rather than build that screen. **The dangling fixture link is UNFIXED and
+remains a known gap.**
+
+**The fixture screens were not touched.** v7 is the design authority (rule #33) and
+the pixel gate measures the FIXTURE Job screen (`V7Job`), not the live one. Adding
+buttons there would have broken fidelity, and a fixture job is not a real quote
+request so its button has no handoff to build. **The screen the symptom was reported
+against is still a demo; the live screen behind it now works.**
+
+### NOTHING HERE IS A DOOR TO THE MACHINE
+
+The handoff route imports nothing from `lib/integrations/pathfinder-edge.ts` and
+touches neither `status`, `job_stage`, `approved_at` nor `approval_channel` —
+correcting a drawing is not an approval of anything, and the e2e spec asserts the
+job is still `status='submitted'`, `job_stage='new'` after a write-back, so the
+single-door guard's own condition (rule #14) still holds. Rush is untouched
+(rule #15) and no price is computed or returned.
+
+### GATES, RUN IN THIS SESSION
+
+- `pnpm tsc --noEmit` — **0 errors**
+- `pnpm run build` — **green**, including the `prebuild` contrast gate
+  (**24 screens · 248 pairs · 0 unresolved · 0 below threshold**) and the v7 CSS
+  regeneration. The new route builds as `ƒ` (dynamic), confirming the cache fix.
+- `pnpm test:unit` — **485/485 across 31 files** (28 new in
+  `lib/flashdraft/job-handoff.test.ts`)
+- `tests/e2e/flashdraft-job-handoff.spec.ts` — **7/7**, no flakes, every row and
+  storage object deleted and the cleanup asserted back to zero
+- **v7 pixel gate — 35 MATCHING · 0 NOT MATCHING · 16 no live route · 3 live-only.**
+  **Identical to the baseline; no screen moved and NO BASELINE WAS UPDATED.** The new
+  button is on the LIVE Job screen and the gate measures the fixture one, so there is
+  no pixel change to document. That is a real coverage boundary, now recorded in
+  `docs/design/V7_PIXEL_REPORT.md`.
+- `pnpm lint` — **NOT RUN: this repo has no ESLint configuration**, so `next lint`
+  prompts to create one interactively. Pre-existing; not configured here.
+- **Full Playwright suite — 163 passed, 5 failed, 3 skipped.** All 5 failures were
+  **PROVEN pre-existing** by re-running them with this run's changes stashed at
+  HEAD, not assumed from their file names:
+
+  | failing test | proven pre-existing |
+  |---|---|
+  | `homepage.spec.ts:238` hero dual CTAs resolve to /quote and /about/services | yes — same failure at HEAD |
+  | `homepage.spec.ts:253` header logo renders oversized (76px) | yes — same failure at HEAD |
+  | `modify-in-flashdraft.spec.ts:179` saving a modified draft creates a NEW linked row | yes — same failure, **same values**, at HEAD |
+  | `production-queue.spec.ts:22` quick advance updates order status | yes — same failure at HEAD |
+  | `production-queue.spec.ts:50` rush orders appear at top of queue | yes — same failure at HEAD |
+
+### A PRE-EXISTING BUG THIS RUN DIAGNOSED BUT DID NOT FIX
+
+`modify-in-flashdraft.spec.ts:179` is not merely "a known red test" — it is a real
+disagreement between the screen and the database, and the cause is now known:
+
+- `loadForModify` sets `setRevision((dims?.revision ?? 1) + 1)`, so the lineage
+  banner reads **"rev 5"** for a source at revision 4.
+- `performSave` then computes `nextRevision = asDuplicate || !savedProfileId ? 1 :
+  revision + 1`, and `loadForModify` deliberately sets `savedProfileId = null` so
+  the first save is an INSERT that cannot overwrite the locked original.
+- So the first save of a modified draft **always writes `revision: 1`** while the
+  banner says 5. The test asserts 5 and gets 1.
+
+Either the banner is lying or the row is, and which one is right is a product
+decision about what "revision" counts (the lineage depth, or this row's own edit
+count). **Not fixed here — it is nowhere near this run's scope, and guessing would
+put a wrong number on a saved profile.** PENDING REID.
+
+**VERIFICATION STANDARD: this is IMPLEMENTED, UNCONFIRMED.** The gates above are
+evidence to bring to Reid, not a substitute for his having opened a job and pressed
+the button himself.
+
+---
+
 ## 2026-10-02 - THE FIDELITY AUTHORITY CHANGED (branch `cc-v7-pixel`)
 
 **The owner's report was "nothing matches" while the acceptance gate passed
