@@ -652,15 +652,34 @@ RecentQuotesCard.tsx
   Status badge per item
 
 ProductionTimeline.tsx
-  Vertical stage-by-stage timeline
+  THE shared production-status timeline, three variants, three real call sites
+  (EES-OVN.06): variant="customer" here, variant="admin" on
+  app/admin/orders/[id], variant="public" inside
+  components/track/OrderStatusLookup.tsx. `variant` is required, no default.
+  Vertical stage-by-stage timeline, <ol role="list"> + <li> per stage,
+  aria-current="step" on the active row, visible role="progressbar"
+  ("Cutting - stage 4 of 9")
   Completed: filled crimson dot
   Active: pulsing crimson dot
-  Pending: empty chrome-dim dot, dashed connector
-  Shop photo between qc and ready stages
-  Tracking link when shipped
+  Pending: empty chrome-base dot, dashed connector, chrome-silver label
+    (chrome-dim measures 2.88:1 on afs-bg-raised and this component is inside
+    the contrast build gate - CLAUDE.md rules #18/#28/#29)
+  Shop photo between qc and ready stages, opens full size via ImageLightbox
+  Tracking link when shipped, afs-danger-on-dark, plain text for an unknown
+    carrier rather than a guessed URL
+  loadState: 'ready' | 'loading' | 'error' + an empty state that still draws
+    all nine stages
+  Every presentation decision comes from lib/production/timeline-view.ts and
+    every label from lib/admin/orderStages.ts - this file holds neither
+
+PreShipPhotoThumb.tsx
+  The timeline's photo slot. 'use client' only because ImageLightbox needs
+  state; split out so ProductionTimeline stays renderable from a server
+  component on two pages and from inside a client component on the third
 
 OrderDetailPage.tsx
-  OrderDetailHeader, OrderLineItemsTable (read-only), ProductionTimeline,
+  OrderDetailHeader, OrderLineItemsTable (read-only),
+  ProductionTimeline variant="customer",
   OrderAttachments, DeliverySection, PaymentSection, ReorderSection
 
 QuoteDetailPage.tsx (/account/quotes/[id])
@@ -1135,3 +1154,24 @@ app/studio/profile-viewer/[profileId]/page.tsx
 *LAYER 12's FlashDraft entry rewritten for the afs-044 complete architecture rewrite (lib/flashdraft/ + components/studio/flashdraft/, 12 files replacing the old single-file page.tsx), 2026-07-15.*
 *LAYER 12's FlashDraft entry corrected back to the single-file page.tsx after afs-044 was reverted (afs-045, commit b37d936), 2026-07-15 — lib/flashdraft/ and components/studio/flashdraft/ no longer exist. Also corrected two pre-existing staleness bugs found during this pass, unrelated to the revert: the bend-angle indicator and 2D/3D toggle descriptions still described superseded afs-034/afs-038 behavior instead of afs-040/afs-042's actual current rendering.*
 *Updated after GEOMETRY_AUDIT.md and its follow-up centralization work: BendSequenceDiagram.tsx's entry (LAYER 10) now notes its reconstruction math is centralized in the new lib/flashdraft/geometry.ts; a new app/admin/geometry-test/page.tsx entry added (LAYER 10); LAYER 12's FlashDraft entry documents the Load from Library RLS fix (two new API routes, app/api/studio/library-list and app/api/studio/load-profile/[id]) and ProfileLibraryBrowser's new per-step bend breakdown in its card modal; the afs-044/045 blockquote corrected to note lib/flashdraft/ exists again (geometry.ts only — not the reverted 12-file architecture, and components/studio/flashdraft/ still does not exist). See STATE_OF_THE_BUILD.md's PROFILE GEOMETRY ENGINE section for full detail.*
+
+---
+
+## PUBLIC ORDER TRACKING (`components/track/`) — added EES-OVN.06
+
+DeliveryTrackingMap.tsx
+  Full-screen live delivery map for /track/[orderId] (token-addressed, GPS
+  driver dot). Untouched by EES-OVN.06 and NOT where the timeline lives
+
+OrderStatusLookup.tsx  (/order-status)
+  The public tracker of SPEC_PRODUCTION_TIMELINE.md §1 — "read-only, minimal
+  variant". Order number + the order's own account email, POSTed to the
+  existing rate-limited /api/track/verify (which had no caller at all before
+  this), then ProductionTimeline variant="public".
+  States: idle form, field-level validation, loading (the timeline's own
+  loading state), error (the route's wording verbatim, which deliberately does
+  not distinguish "no such order" from "email does not match"), found.
+  No price appears here — AFS is an RFQ platform and the endpoint returns no
+  money field.
+  Not under /track because AppChrome strips the nav and footer from every
+  /track path so the map can fill the viewport.

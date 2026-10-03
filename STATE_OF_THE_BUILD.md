@@ -17077,3 +17077,154 @@ session's own screenshots and Playwright passes are evidence to bring to the
 user, not proof. Every screen is asserted against the prototype by an automated
 gate and the side-by-side screenshots are committed, but the look is not marked
 complete until Reid has looked at it.
+
+
+---
+
+## 2026-10-03 — ovn 06-production-timeline: the timeline is genuinely shared now
+
+**Spec:** `specs/SPEC_PRODUCTION_TIMELINE.md`. **EES:**
+`EES-OVN.06-PRODUCTION-TIMELINE.md` (project root). Branch
+`ovn/06-production-timeline`, worktree of the main checkout. No deploy, no merge,
+no migration, `middleware.ts` untouched.
+
+### What already existed, and what the gap actually was
+
+The component was built and good, and `lib/admin/orderStages.ts` was already the
+single stage config. The customer surface was complete, including the two fixes
+`PRODUCTION_QUEUE_AUDIT.md` asked for (the pre-ship photo URL is signed; the
+estimated ship date is passed). So this was not a build-from-nothing item. The
+gap was four things:
+
+1. **One call site, no `variant`.** The `admin` and `public` branches had been
+   DELETED in an earlier pass, because grep found exactly one render call and
+   dead branches are worse than missing ones (audit §2b). That reasoning was
+   right. This run satisfied it the other way round: the variants are back **and
+   each got a real call site in the same commit.**
+2. **No list or progress semantics.** Nine `<div>`s. A screen-reader user had no
+   way to know the sequence was a sequence or where in it the order sat.
+3. **No loading, empty or error state** — which the one existing surface could
+   get away with because it renders server-side from a resolved query, and the
+   new public surface cannot.
+4. **`label` vs `adminLabel` vs `description`.** Fine for two audiences,
+   ambiguous for three.
+
+### The public tracker was not where the spec thought it was
+
+`SITEMAP.md:250` has described `/track/[id]` as **"Email verify"** since it was
+written. What was BUILT there is a token-addressed, full-screen live delivery
+map. And `POST /api/track/verify` — the email-verify endpoint, complete:
+order number plus the matching account email, rate-limited 10/hr/IP, returning
+status, history, scheduled date, tracking and a SIGNED photo URL — **had no
+caller anywhere in `app/`, `components/`, `lib/` or `tests/`.**
+
+So the public variant got its own route, `/order-status`, and gave that endpoint
+its caller. The map was not rebuilt and not touched. `/order-status` rather than
+`/track/lookup` because `components/layout/AppChrome.tsx`'s
+`NO_CHROME_PREFIXES` strips the site nav and footer from every `/track` path so
+the map can fill the viewport — a public lookup page wants ordinary chrome, and
+editing shared layout logic to carve out an exception would have been the wrong
+trade.
+
+`components/layout/Footer.tsx`'s **"Track an Order" link now points there.** It
+pointed at `/account/orders`, which requires a session — a public footer link
+that bounced an anonymous visitor to `/login`.
+
+### Wiring the admin variant put the component under the build gate, and the gate earned its keep
+
+`/admin/orders/[id]` is one of `scripts/audit/contrast-check.mjs`'s 24 screens
+(CLAUDE.md rule #28), and that script recurses into the components a page
+renders. So the moment the timeline appeared there, every colour in it was
+measured. Four known-rule violations, all corrected:
+
+| Was | Measured | Now | Rule |
+|---|---|---|---|
+| `afs-chrome-dim` pending label | **2.88:1** on `afs-bg-raised` | `afs-chrome-silver` (7.13:1) | #18 |
+| `afs-chrome-base` timestamp | 4.26:1 as body text | `afs-chrome-mid` (5.99:1) | #18 |
+| `afs-crimson` as TEXT (tracking link, eyebrow) | **1.42:1** on gunmetal | `afs-danger-on-dark` | #29 |
+| `bg-[var(--afs-crimson-ghost)]` | counted **unresolved** | real tokens | #28 |
+
+And then a fifth that nobody had reasoned about: **`afs-chrome-mid` is 4.04:1 on
+`afs-bg-overlay`**, the lightest gunmetal, which is where the error panel sits.
+Rules #18 and #23 are about picking a token for a surface; this is the same
+mistake one surface along, and the gate found it in a panel that had not existed
+for five minutes. Fixed to `afs-chrome-silver` (4.80:1) in both the timeline and
+the public lookup page.
+
+`/admin/orders/[id]` went from **17 measured pairs to 21**, which is the proof
+the component really came under the gate rather than being invisible to it. Gate
+final: **24 screens · 252 pairs · 0 unresolved · 0 below threshold · PASS.**
+No threshold relaxed, no skip list, no deviation added.
+
+Per rule #18, **nothing outside this component was swept** — the 21 files still
+using `afs-chrome-dim` as a placeholder remain PENDING REID and were not touched.
+
+### Two things found on the way, recorded rather than worked around
+
+- **`/admin/orders` is no longer the Production Queue.** It is v7's office
+  Orders list (`V7List`), and its rows link to
+  `/admin/command-center/job/<id>`, not to `/admin/orders/<id>`. The admin order
+  DETAIL is reached from the Customers detail screen and from
+  `/admin/quotes/new`. Nothing about that was changed here; it is why the admin
+  e2e case navigates via Customers.
+- **`tests/e2e/production-queue.spec.ts` already fails two cases** for the same
+  reason — it looks for `queue-row-0` on `/admin/orders`, which that screen no
+  longer renders. **PRE-EXISTING**, demonstrated: the failing selector lives in
+  `components/admin/ProductionQueueTable.tsx` and the page is
+  `app/admin/orders/page.tsx`, and `git diff --name-only 75118cb..HEAD` touches
+  neither. Not this item's to fix — rewriting that spec against a v7 screen is
+  its own piece of work.
+
+### UNRESOLVED — needs Reid
+
+1. **`in_production` maps to two different stages.**
+   `lib/admin/orderStages.ts`'s `TIMELINE_POST_PRODUCTION_STAGE` says `ready`
+   (which is what the spec §10 states and what shipped);
+   `lib/data/command-center-dashboard.ts`'s `POST_PRODUCTION_STAGE_EQUIVALENT`
+   says `qc`. They were NOT unified, deliberately: the dashboard's value feeds a
+   frozen Command Center v7 screen whose displayed percentage would change.
+   Both files now carry a do-not-merge note naming the other.
+2. **`ProductionQueueTable` / `ProductionQueueRealtime` appear to be orphaned**
+   now that `/admin/orders` is v7's list. Not investigated beyond noticing it,
+   and not touched.
+3. **`pnpm lint` cannot run on this repository.** There is no ESLint config of
+   any kind (no `.eslintrc*`, no `eslintConfig` in `package.json`), so
+   `next lint` drops into its interactive "how would you like to configure
+   ESLint?" prompt and exits 1. Pre-existing; configuring ESLint across this
+   codebase is not a production-timeline change.
+4. **`lib/design/v7-css.test.ts` fails and failed before this run** — the
+   generated v7 stylesheet is reported stale on a single line differing only in
+   trailing whitespace, i.e. a line-ending artefact of this Windows worktree.
+   Regenerating it was deliberately not done: it is a v7 artefact and this run is
+   forbidden to touch those.
+
+### Elite Standard Compliance
+
+| Check | Status | Evidence |
+|---|---|---|
+| `pnpm tsc --noEmit` clean | **YES** | exit 0, no output |
+| Lint zero warnings on touched files | **NOT POSSIBLE** | no ESLint config exists in this repo — see UNRESOLVED 3 |
+| No TODO / FIXME / placeholder / dead code | **YES** | none added; `formatDateTime` in the admin page became unused when its panel was replaced and was removed |
+| Tests pass | **YES** | 556 passed / 557, the 1 failure pre-existing and named above (baseline was 484/485) |
+| Coverage on new code >= 80% | **NOT MEASURED** | this repo has no coverage tooling installed (`vitest` without `@vitest/coverage-*`); adding one is a dependency change outside this item. Instead: every exported function and every branch of `buildTimelineView` is exercised by name in `lib/production/timeline-view.test.ts` (47 tests), and all three variants plus all three load states are rendered in `components/account/ProductionTimeline.test.tsx` (25 tests) |
+| Edge cases null / empty / boundary / error tested | **YES** | unknown status, cancelled-before-any-stage, duplicate and unsorted history, a history row for a stage that does not exist, null/undefined/blank for every optional prop, first and last stage, unknown carrier |
+| Assertions exact with messages | **YES** | every `expect` in both new suites carries a message naming what the failure would mean on screen |
+| APIs authenticated, scoped, RLS present, leak test | **N/A — NO NEW API** | the one endpoint consumed is unchanged: `POST /api/track/verify` already matches order number against the order's own account email and rate-limits per IP. The public page sends no identifier it was not given |
+| No hardcoded values | **YES** | every stage label comes from the config module, asserted by a test that fails if a label string appears in the component |
+| Migrations additive and reversible | **N/A** | no migration. Every field the three variants need already exists |
+| Governance files updated | **YES** | this entry, SESSION_STATE.md, SPEC_PRODUCTION_TIMELINE.md §2/§3/§4/§9/§10, SITEMAP.md, COMPONENT_MAP.md |
+| Item marked UNVERIFIED pending human browser confirmation | **YES** | see below |
+
+### UNVERIFIED — what a human still has to look at
+
+The `/order-status` page was driven in a real browser: it loads anonymously, an
+empty submit names the field at fault and never reaches the endpoint, a
+non-existent order shows the route's own wording with no stack frame, no dollar
+amount appears, and the footer link resolves here. **The two authenticated
+surfaces were NOT exercised live, because this environment has no `orders` row to
+open** — `/account/orders` is empty for the test account and no customer the
+Customers screen surfaces has an order. Both e2e cases skip with that reason
+printed rather than passing vacuously. The admin variant's presence on
+`/admin/orders/[id]` IS proven mechanically: the contrast gate's own output lists
+`components/account/ProductionTimeline.tsx` under that screen, which it could
+only do by walking that page's real render tree.

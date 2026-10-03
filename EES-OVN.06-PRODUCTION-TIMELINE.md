@@ -559,13 +559,108 @@ repository assumption where verification was possible, no contradictory
 requirement, no destructive migration, no unsafe security requirement, and
 completion is objectively determinable from §12.
 
+## 17. COMPLETION EVIDENCE — recorded after execution
+
+### Files created
+
+```
+lib/production/timeline-view.ts                      pure view model, 3 variants
+lib/production/timeline-view.test.ts                 47 tests
+components/account/ProductionTimeline.test.tsx       25 component render tests
+components/account/PreShipPhotoThumb.tsx             client lightbox thumbnail
+components/track/OrderStatusLookup.tsx               public variant's surface
+app/order-status/page.tsx                            public route + metadata
+tests/e2e/production-timeline.spec.ts                8 cases
+EES-OVN.06-PRODUCTION-TIMELINE.md                    this document
+```
+
+### Files modified
+
+```
+lib/admin/orderStages.ts                 label -> customerLabel; stageLabel();
+                                         TimelineVariant; TIMELINE_POST_PRODUCTION_STAGE;
+                                         POST_PRODUCTION_LABEL; CANCELLED_LABEL
+components/account/ProductionTimeline.tsx  rebuilt onto the view model: variant,
+                                         loadState, ol/li + progressbar + aria-current,
+                                         colour pass
+app/account/orders/[id]/page.tsx         variant="customer"
+app/admin/orders/[id]/page.tsx           hand-rolled Status History -> variant="admin";
+                                         unused formatDateTime removed
+app/api/admin/orders/[id]/status/route.ts  ?.label -> ?.customerLabel
+components/layout/Footer.tsx             "Track an Order" -> /order-status
+vitest.config.mts                        oxc.jsx automatic; .tsx test include
+specs/SPEC_PRODUCTION_TIMELINE.md        S2/S3/S4 corrected, S9/S10 rewritten as-built
+SITEMAP.md, COMPONENT_MAP.md             /order-status and the new components
+STATE_OF_THE_BUILD.md, SESSION_STATE.md  dated appends
+```
+
+No migration was written (none is needed), `middleware.ts` is untouched, and no
+file under `docs/design/command-center-v7/` appears in the diff.
+
+### Commands run, and their real results
+
+| Command | Result |
+|---|---|
+| `pnpm tsc --noEmit` | exit 0, no output |
+| `pnpm test:unit` | **556 passed / 557**, 32 files passed / 33. The single failure is `lib/design/v7-css.test.ts`, failing identically at baseline |
+| `node scripts/audit/contrast-check.mjs` | **PASS** — 24 screens, 252 pairs, **0 unresolved, 0 below threshold**. `/admin/orders/[id]` 17 pairs at baseline -> **21** now |
+| `npx playwright test tests/e2e/production-timeline.spec.ts` | **6 passed, 2 skipped** (the two skips print their reason: no order row exists in this environment) |
+| `pnpm lint` | **CANNOT RUN** — no ESLint config exists in this repository, so `next lint` enters its interactive setup prompt and exits 1. Pre-existing |
+
+### Acceptance criteria
+
+AC-01 through AC-16 are each asserted by a named test in
+`lib/production/timeline-view.test.ts` or
+`components/account/ProductionTimeline.test.tsx`, all passing. AC-17, AC-18 and
+AC-19 are the three commands above. AC-20's five public cases pass live; its
+footer-href half passes live. AC-21 is **PARTIALLY VERIFIED**: the contrast
+gate's output names `components/account/ProductionTimeline.tsx` under
+`/admin/orders/[id]`, which it can only do by walking that page's real render
+tree, so the component IS mounted there — but the Playwright assertion could not
+run because this environment has no order to open, and it skips rather than
+passing vacuously. AC-22 holds: `git diff --name-only` lists no v7 file, no
+migration and not `middleware.ts`.
+
+### Known limitations
+
+1. The customer and admin variants were not rendered against real data in a
+   browser during this run. **UNVERIFIED pending a human** — steps in the FINAL
+   REPORT.
+2. Coverage was not measured: this repository has no coverage tooling installed,
+   and adding `@vitest/coverage-*` is a dependency change outside this item.
+3. `in_production`'s two different stage mappings were left disagreeing on
+   purpose (§3.3 D4). **UNRESOLVED — Reid's call.**
+4. Stage labels remain placeholders. Checklist #39 is still outstanding, which is
+   exactly why they now live in one file with one accessor.
+
+### Implementation self-audit
+
+Re-reviewed as another engineer's work, against §12. Four defects were found
+during execution and fixed rather than rationalised: a test that asserted admin
+tracking on an unshipped order (the test was wrong, not the code); a money-field
+guard whose regex matched `totalStages`; `esbuild.jsx` silently ignored because
+this Vite major uses oxc; and a Playwright `getAttribute()` on an absent element
+that turned "no order to open" into a 30-second timeout. One real product defect
+was found by the contrast gate after the code was written — `afs-chrome-mid` at
+4.04:1 on `afs-bg-overlay` — and fixed in both places it occurred. Nothing was
+skipped, no assertion weakened, no threshold relaxed.
+
+Score on the executed work: technical correctness 15, completeness 14 (AC-21 is
+only partially verifiable in this environment, and that is stated rather than
+claimed), repository grounding 10, architectural consistency 10, requirement
+clarity 10, acceptance-test quality 10, edge-case and failure coverage 10,
+security and data integrity 5, implementation executability 10, reviewability and
+evidence quality 5. **Total 99/100.**
+
+---
+
 ---
 
 ENGINEERING COMPLETION RECORD
 Prompt ID: EES-OVN.06
 Prompt Name: Production Timeline — shared component, three variants, config-driven stage labels
-Word Count: 3671
-Engineering Proficiency Score: 100/100
+Word Count: 5791
+Engineering Proficiency Score: 99/100
 Minimum Required Score: 95/100
 Self-Audit Status: PASS
 Repository Grounding Verified: YES

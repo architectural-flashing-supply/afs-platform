@@ -9955,3 +9955,67 @@ suite load and passes consistently in isolation.
 contrast **24 screens / 253 pairs / 0 unresolved / 0 below** · style gate
 **66 pairs: 63 pass, 0 fail, 0 uncovered, 1 live-only, 2 no-data** ·
 24 screenshots in `test-results/v7-fidelity/`.
+
+
+---
+
+## 2026-10-03 — ovn 06-production-timeline
+
+**Item:** `06-production-timeline`. Build `SPEC_PRODUCTION_TIMELINE.md`'s shared
+timeline with its three variants, drive every label from one config module, reuse
+what exists, and change neither the Command Center v7 screens nor the Production
+Queue. Unattended overnight run on branch `ovn/06-production-timeline`.
+
+**Baseline before touching anything** (so nothing below is attributed wrongly):
+`pnpm tsc --noEmit` clean · `pnpm test:unit` **484 passed / 1 failed** (the
+failure `lib/design/v7-css.test.ts`, generated v7 CSS reported stale on one
+whitespace-only line) · contrast gate **24 screens / 248 pairs / 0 unresolved /
+0 below / PASS**.
+
+**Existence check.** Substantially built: `components/account/ProductionTimeline.tsx`
+(customer only, no `variant`), `lib/admin/orderStages.ts` (already the single
+stage config), the customer order detail fully wired with a signed photo URL and
+an estimated ship date. NOT rebuilt. The gaps implemented were the two missing
+variants with real call sites, list + progress accessibility semantics, the
+loading/empty/error states, and the label-field naming.
+
+**Did not touch**, by rule or by choice: `middleware.ts`; every v7 Command Center
+screen and everything under `docs/design/command-center-v7/`; `/admin/orders`
+and `ProductionQueueTable`; `StatusAdvancer` and `QuickAdvanceButton`;
+`app/track/[orderId]` and `DeliveryTrackingMap`;
+`app/api/track/verify/route.ts` (consumed, not edited);
+`lib/data/command-center-dashboard.ts`; `AppChrome`; `NavBar`; every migration.
+No migration was written: every field the three variants need already exists, and
+an unused migration file would be noise.
+
+**Compliance report — violations found and what happened to each:**
+
+| Found | Where | Resolved |
+|---|---|---|
+| `afs-chrome-dim` as text on gunmetal, 2.88:1 (rule #18) | `ProductionTimeline.tsx` pending stage labels and dot borders | YES — `afs-chrome-silver` / `afs-chrome-base` |
+| `afs-crimson` as a TEXT colour, 1.42:1 (rule #29) | tracking link, in-progress eyebrow | YES — `afs-danger-on-dark`; the `.eyebrow-label` CSS class was dropped there because a globals.css colour cannot be overridden by a utility at equal specificity |
+| arbitrary `bg-[var(--afs-crimson-ghost)]`, counted `unresolved` (rule #28) | cancelled banner | YES — real tokens |
+| `afs-chrome-mid` at 4.04:1 on `afs-bg-overlay` | the new error panel, in both the timeline and the lookup page | YES — `afs-chrome-silver`, 4.80:1. Found by the gate, not by eye |
+| One hand-rolled status-history list duplicating what the timeline shows | `app/admin/orders/[id]/page.tsx` | YES — replaced by `variant="admin"`; the now-unused `formatDateTime` helper removed |
+| `'In Production'` / `'Packaged'` / `'Out for Delivery'` written in three files | `orderStages.ts`, `timeline-view.ts`, `ProductionTimeline.tsx` | YES — `POST_PRODUCTION_LABEL` in the config module, imported by all three |
+| A complete endpoint with no caller | `app/api/track/verify/route.ts` | YES — `/order-status` is its caller |
+| A public footer link requiring a session | `components/layout/Footer.tsx` "Track an Order" → `/account/orders` | YES — → `/order-status` |
+| `lib/design/v7-css.test.ts` failing | pre-existing, whitespace-only staleness | NO, and deliberately: regenerating it means editing a v7 artefact this run may not touch |
+| `tests/e2e/production-queue.spec.ts` failing 2 cases | pre-existing: `/admin/orders` is v7's list now, `queue-row-0` is gone | NO — out of this item's scope, reported in STATE_OF_THE_BUILD.md |
+| `pnpm lint` unrunnable | no ESLint config in the repo at all | NO — pre-existing, and configuring ESLint repo-wide is not a timeline change |
+
+**Testing.** `lib/production/timeline-view.test.ts` 47 · `components/account/ProductionTimeline.test.tsx`
+25 (real render tests through `react-dom/server`, no new dependency — and
+`vitest.config.mts` needed `oxc.jsx`, not `esbuild.jsx`, because this Vite major
+transforms with oxc and accepts the esbuild options with a warning and then
+ignores them) · `tests/e2e/production-timeline.spec.ts` 6 passing without
+credentials, 2 skipping honestly because this environment has no order row.
+
+**Final gates:** tsc **0** · vitest **556 passed / 557** (1 pre-existing
+failure) · contrast **24 screens / 252 pairs / 0 unresolved / 0 below / PASS**,
+with `/admin/orders/[id]` up from 17 measured pairs to 21 · Playwright
+`production-timeline.spec.ts` **6 passed / 2 skipped**.
+
+**Item status: UNVERIFIED pending Reid's own look in a browser.** The public page
+was driven live; the customer and admin variants have no data in this
+environment to render against, and that is said plainly rather than papered over.

@@ -82,6 +82,18 @@ app/
 ├── quote/page.tsx                   /quote — Quote Request Wizard, no prices shown
 ├── upload/page.tsx                  /upload — Blueprint Takeoff AI, no prices
 ├── track/[orderId]/page.tsx         /track/[orderId] — public tracker, no full auth
+│                                     (token-addressed LIVE DELIVERY MAP — not the
+│                                     email-verify tracker the matrix below means)
+├── order-status/page.tsx            /order-status — PUBLIC order-status lookup
+│                                     (order number + the order's own account
+│                                     email, via POST /api/track/verify;
+│                                     ProductionTimeline variant="public").
+│                                     Added EES-OVN.06. NOT under /track, because
+│                                     AppChrome strips the nav and footer from
+│                                     every /track path for the full-screen map.
+│                                     This is where the Footer's "Track an Order"
+│                                     link points — it used to point at
+│                                     /account/orders, which needs a session.
 │
 ├── studio/                          Design Studio — primary NavBar destination
 │   ├── page.tsx                     /studio — 4 tab-card landing (Scan to Quote/Photo to
@@ -170,6 +182,8 @@ app/
     ├── templates/route.ts                             GET POST
     ├── templates/[id]/use/route.ts                     POST
     ├── track/verify/route.ts                          POST — order tracker email verify
+    │                                                   (consumed by /order-status since
+    │                                                    EES-OVN.06; had no caller before)
     ├── recommendations/material/route.ts               POST
     ├── recommendations/cross-sell/route.ts             POST
     ├── architects/installation-advisor/route.ts        POST
@@ -247,7 +261,18 @@ Route Pattern                Auth Required   Role           Notes
                                                              through afs-hv-009) — was missing
                                                              from this matrix before hp-024
                                                              (app/hailview/page.tsx).
-/track/[id]                  No             —              Email verify
+/track/[id]                  No             —              Live delivery map, addressed by
+                                                             orders.tracking_token. This row
+                                                             said "Email verify" for a long
+                                                             time; what was BUILT here is the
+                                                             map. The email-verify tracker it
+                                                             described is /order-status (see
+                                                             below) — EES-OVN.06.
+/order-status                No             —              Email verify. Order number + the
+                                                             order's own account email, through
+                                                             the rate-limited (10/hr/IP)
+                                                             POST /api/track/verify. Public,
+                                                             no session, no token.
 /architects                  No             —              Public
 /architects/spec-writer      Yes            architect|admin
 /architects/cad-library      Partial        any            Browse public, download auth
