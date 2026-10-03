@@ -41,6 +41,18 @@ interface QuoteFormData {
   jobsiteAddress:  string;
   poNumber:        string;
   rush:            boolean;
+  /**
+   * The date the customer would like it by — `quote_requests.requested_delivery`
+   * (migration 001), which the intake route already reads and persists.
+   *
+   * IT IS NOT A RUSH REQUEST. CLAUDE.md rule #15: `is_rush` is set by the
+   * toggle beside this field or by an admin's own toggle, and by nothing else —
+   * never worked out from a date. A customer with a date and no tick is asking
+   * for a standard job delivered by then; a customer with a tick and no date is
+   * asking for priority with no deadline in mind. Both are real, and conflating
+   * them is what this field must not do.
+   */
+  neededBy:        string;
   notes:           string;
   // Job-identity intake fields (migration 018, afs-jf-000) — all optional,
   // never block submit (afs-jf-003). clientBusinessName/clientName/
@@ -66,6 +78,7 @@ const EMPTY_FORM: QuoteFormData = {
   jobsiteAddress: '',
   poNumber:       '',
   rush:           false,
+  neededBy:       '',
   notes:          '',
   clientBusinessName: '',
   clientName:         '',
@@ -175,6 +188,23 @@ const optionClass = 'bg-afs-bg-overlay text-afs-chrome-high';
 
 const labelClass = 'font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-2 block';
 
+/**
+ * The earliest date the "When do you need it?" picker will offer: today.
+ *
+ * Computed from the BROWSER's clock on purpose, which is the one place in this
+ * codebase where that is the right clock — the customer is picking a date out
+ * of their own calendar, and offering them a day that is already yesterday
+ * where they are sitting would be the bug. It is a convenience bound on a
+ * picker and nothing more: it is not validation (a `min` attribute is trivially
+ * bypassed), nothing downstream treats it as one, and the Job screen compares
+ * whatever arrives against the shop's own date in the shop's own time zone.
+ */
+function todayForPicker(): string {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
 export default function QuotePage() {
   const [step, setStep]         = useState<Step>(1);
   const [form, setForm]         = useState<QuoteFormData>(EMPTY_FORM);
@@ -188,10 +218,21 @@ export default function QuotePage() {
   const [guestEmail, setGuestEmail] = useState('');
   const [selectedAccessories, setSelectedAccessories] = useState<string[]>([]);
   const [profileStockLengths, setProfileStockLengths] = useState<ProfileStockLength[]>([]);
+  // SET AFTER MOUNT, not in the initialiser. Next.js server-renders a client
+  // component, so `new Date()` would run once on the server (UTC) and again in
+  // the browser (the customer's zone) and the two could disagree by a day,
+  // which React reports as a hydration mismatch. Starting empty and filling it
+  // in costs nothing: `min` is a convenience bound on a picker, so having it
+  // one tick later than the input itself is invisible and cannot be wrong.
+  const [minNeededByDate, setMinNeededByDate] = useState<string>('');
 
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data }) => setIsAuthenticated(!!data.user));
+  }, []);
+
+  useEffect(() => {
+    setMinNeededByDate(todayForPicker());
   }, []);
 
   useEffect(() => {
@@ -283,6 +324,12 @@ export default function QuotePage() {
           clientName: form.clientName.trim() || null,
           requestedBy: form.requestedBy.trim() || null,
           isRush: form.rush,
+          // Two SEPARATE fields, sent separately, and the route keeps them
+          // separate: it reads `isRush === true` off the toggle and stores the
+          // date verbatim, looking at neither to decide the other. CLAUDE.md
+          // rule #15, and `lib/data/rush-explicit-only.test.ts` fails the build
+          // if that ever stops being true.
+          requestedDelivery: form.neededBy || null,
           notes,
           color: form.color.trim() || null,
           finish: isAluminum ? (form.finish || null) : null,
@@ -656,6 +703,51 @@ export default function QuotePage() {
                     {form.rush ? 'Rush requested' : 'Standard timeline'}
                   </span>
                 </button>
+                {/* SPEC_RUSH_ORDER.md §2's own placeholder wording, verbatim.
+                    It stays a placeholder because the rush definition and
+                    turnaround are checklist #32 and have not been supplied —
+                    and it carries NO price, because a customer sees a dollar
+                    amount only on the formal quote AFS sends them. */}
+                {form.rush && (
+                  <p data-testid="rush-promise" className="font-body text-xs text-afs-chrome-mid mt-2 max-w-prose">
+                    Rush orders receive priority scheduling. AFS will confirm turnaround in your
+                    formal quote.
+                  </p>
+                )}
+              </div>
+
+              {/* THE REQUESTED-BY DATE — a separate question from rush, and
+                  labelled so a customer reads it as one.
+
+                  A date on its own does NOT make this a rush order: the toggle
+                  above is the only thing on this page that does (CLAUDE.md
+                  rule #15, enforced in Postgres by migration 034's
+                  quote_requests_rush_needs_explicit_source CHECK). Saying so
+                  here means the code and the customer's understanding of it
+                  agree, which is the part a constraint cannot enforce.
+
+                  It writes `quote_requests.requested_delivery` — a column that
+                  already exists and which the intake route already reads, so
+                  this field needed no migration and no route change. The Job
+                  screen compares it against the rush policy's minimum notice
+                  and tells the estimator if it is too soon. */}
+              <div className="mb-6">
+                <label className={labelClass} htmlFor="neededBy">
+                  When do you need it? (optional)
+                </label>
+                <input
+                  id="neededBy"
+                  data-testid="needed-by"
+                  type="date"
+                  className={inputClass}
+                  value={form.neededBy}
+                  min={minNeededByDate}
+                  onChange={(e) => updateField('neededBy', e.target.value)}
+                />
+                <p className="font-body text-xs text-afs-chrome-mid mt-2 max-w-prose">
+                  A date on its own is not a rush request — tick Rush Order above if you need this
+                  prioritised. We will confirm the date we can hit on your formal quote.
+                </p>
               </div>
 
               <div>
@@ -786,6 +878,12 @@ export default function QuotePage() {
                         }`}>
                           {form.rush ? 'RUSH REQUESTED' : 'STANDARD'}
                         </span>
+                      </td>
+                    </tr>
+                    <tr className="border-b border-afs-chrome-dim">
+                      <td className="font-label text-xs uppercase text-afs-chrome-mid px-4 py-3">Needed by</td>
+                      <td data-testid="review-needed-by" className="font-body text-afs-chrome-high px-4 py-3">
+                        {form.neededBy || 'No date given'}
                       </td>
                     </tr>
                     <tr>
