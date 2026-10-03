@@ -352,9 +352,34 @@ export default async function AdminSettingsPage({
 
       <section className="mb-8">
         <h2 className="font-heading text-lg text-afs-chrome-high mb-4">Inventory / Stock Status</h2>
+
+        {/* TWO DIFFERENT THINGS, DELIBERATELY IN ONE SECTION, because SPEC_LIVE_INVENTORY.md
+            §3 puts stock management here and a reader needs to see which is which.
+
+            BELOW: the customer-facing SIGNAL — the three-value products.stock_type
+            shown as a coloured dot in the catalogue. No quantity, ever.
+
+            THE LINK: the AFS-internal QUANTITY record — what metal is actually on
+            the floor, what is promised, what is low. Admin only, and a sub-page
+            rather than a panel for the same reason the price book is one (prompt
+            09-live-inventory). */}
+        <Link
+          href="/admin/settings/inventory"
+          className="flex items-center justify-between gap-4 bg-afs-bg-raised border border-afs-border rounded p-5 hover:bg-afs-bg-surface transition-colors mb-4"
+        >
+          <div>
+            <p className="font-heading text-base text-afs-chrome-high">Shop material inventory</p>
+            <p className="font-body text-xs text-afs-chrome-mid mt-1">
+              What metal is on the floor, what is promised to a job, and what is running low — with every change
+              written down, with its reason and who made it. Only you see this; a customer never sees a quantity.
+            </p>
+          </div>
+          <span className="font-label text-xs text-afs-danger-on-dark shrink-0">Open →</span>
+        </Link>
+
         <p className="font-body text-xs text-afs-chrome-mid mb-4 max-w-2xl">
-          A manually-set signal, not a real-time quantity count — AFS fabricates custom, so nothing is
-          truly "in stock." Set which products fabricate fast from material on hand vs. require a
+          Below is the signal customers DO see: a manually-set status, not a quantity count — AFS fabricates custom,
+          so nothing is truly "in stock." Set which products fabricate fast from material on hand vs. require a
           special order (see SPEC_LIVE_INVENTORY.md).
         </p>
         {stockRows.length === 0 ? (
