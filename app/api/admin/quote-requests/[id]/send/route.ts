@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { computeLineTotal, round2 } from '@/lib/admin/pricing';
+import { logAdminAction } from '@/lib/admin/audit';
+import { estimateFreight } from '@/lib/freight/estimate';
+import { getFreightRateTable } from '@/lib/freight/db';
+import { auditDelta, buildFreightEstimateRecord, finalCentsToQuoteDollars } from '@/lib/freight/override';
+import type { FreightInput } from '@/lib/freight/types';
 
 interface SendLineItemInput {
   profileType: string;
@@ -43,6 +49,64 @@ function describeItem(item: SendLineItemInput): string {
   if (item.material) parts.push(item.material);
   if (item.gauge) parts.push(item.gauge);
   return parts.join(' — ');
+}
+
+/**
+ * THE FREIGHT OVERRIDE, IN CENTS, FROM THE REQUEST.
+ *
+ * Prefers the explicit `freightCents` the current client sends, and falls back
+ * to converting the long-standing `freight` dollar field, so a cached bundle
+ * still works. Returns `null` for an empty box — which is NOT zero: an empty
+ * box means "no freight on this quote", and a typed 0 means "freight waived",
+ * and `buildFreightEstimateRecord` records those as different facts.
+ */
+function overrideCentsFromBody(body: Record<string, unknown>): number | null {
+  const cents = body.freightCents;
+  if (typeof cents === 'number' && Number.isFinite(cents) && Number.isInteger(cents) && cents >= 0) {
+    return cents;
+  }
+  const dollars = body.freight;
+  if (typeof dollars === 'number' && Number.isFinite(dollars) && dollars >= 0) {
+    return Math.round(dollars * 100);
+  }
+  return null;
+}
+
+/**
+ * THE FREIGHT ESTIMATOR'S INPUTS, FROM THE REQUEST.
+ *
+ * Note what is NOT read here: any computed freight total. The client sends the
+ * inputs it was given and the figure in the box; this route re-reads the rate
+ * table and re-computes the estimate itself. A client-supplied total accepted
+ * as "what the rate table said" would let a crafted request write a rate the
+ * table never contained into `freight_estimates`, which is append-only and is
+ * meant to be the honest record of how freight was priced.
+ *
+ * Every field is defaulted conservatively rather than rejected, because freight
+ * must never be the reason a quote cannot be sent: a missing zone or weight
+ * simply produces a refusal, and the figure in the box carries the quote.
+ */
+function freightInputFromBody(body: Record<string, unknown>, subtotalCents: number): FreightInput {
+  const raw = body.freightInputs;
+  const source = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  const num = (value: unknown): number =>
+    typeof value === 'number' && Number.isFinite(value) ? value : Number.NaN;
+  const count = (value: unknown): number =>
+    typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.trunc(value) : 0;
+
+  return {
+    zoneId: typeof source.zoneId === 'string' && source.zoneId !== '' ? source.zoneId : null,
+    weightLbs: num(source.weightLbs),
+    weightMatchedItems: count(source.weightMatchedItems),
+    weightTotalItems: count(source.weightTotalItems),
+    longestPieceFt: num(source.longestPieceFt),
+    isResidential: source.isResidential === true,
+    requiresLiftgate: source.requiresLiftgate === true,
+    // Taken from the line items this route just priced, NEVER from the body:
+    // the free-freight threshold is decided by the real merchandise subtotal,
+    // and a client that could set it could waive its own freight.
+    merchandiseSubtotalCents: subtotalCents,
+  };
 }
 
 async function nextQuoteNumber(supabase: Awaited<ReturnType<typeof createClient>>): Promise<string> {
@@ -96,8 +160,6 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
     const lineItems = rawItems as SendLineItemInput[];
 
-    const freight =
-      typeof body.freight === 'number' && Number.isFinite(body.freight) && body.freight >= 0 ? body.freight : null;
     const estimatorNotes = typeof body.estimatorNotes === 'string' ? body.estimatorNotes : null;
 
     const { data: requestRaw, error: requestError } = await supabase
@@ -127,6 +189,54 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     const subtotal = round2(
       lineItems.reduce((sum, item) => sum + computeLineTotal(item.unitPrice, item.quantity, item.lengthFt), 0)
     );
+
+    // ---- FREIGHT, DECIDED HERE AND NOT BY THE CLIENT ----------------------
+    //
+    // The client sends the estimator's INPUTS and the figure in the freight
+    // box. This route re-reads the rate table and re-computes the estimate
+    // itself, so `computed_cents` in the audit row is always this server's own
+    // arithmetic over the rate table as it stands right now. See
+    // `freightInputFromBody` for why that matters.
+    //
+    // Freight must never be the reason a quote cannot be sent: if the table is
+    // not installed, or cannot price the job, or the box is empty, the quote
+    // still goes out — with the figure that was typed, or with no freight line
+    // at all, exactly as it did before any of this existed.
+    const overrideCents = overrideCentsFromBody(body);
+    const freightInput = freightInputFromBody(body, Math.round(subtotal * 100));
+
+    const freightTableResult = await getFreightRateTable(supabase).catch((tableError: unknown) => {
+      // A rate table that cannot be read is not a reason to block a quote. The
+      // figure in the box still carries it, and the failure is logged rather
+      // than swallowed silently.
+      console.error('[Admin Send Quote Freight Table Error]', tableError);
+      return null;
+    });
+
+    const freightEstimate =
+      freightTableResult !== null && freightTableResult.installed
+        ? estimateFreight(freightInput, freightTableResult.table)
+        : null;
+
+    const freightRecord =
+      freightEstimate === null
+        ? null
+        : buildFreightEstimateRecord({
+            result: freightEstimate,
+            input: freightInput,
+            overrideCents,
+          });
+
+    // What actually goes on the quote, in the dollars `quotes.freight` holds.
+    // When the rate table is absent the typed figure is used directly — which
+    // is the whole of the old behaviour, preserved.
+    const freight: number | null =
+      freightRecord !== null && freightRecord.ok
+        ? finalCentsToQuoteDollars(freightRecord.record.finalCents)
+        : overrideCents !== null
+          ? finalCentsToQuoteDollars(overrideCents)
+          : null;
+
     const total = round2(subtotal + (freight ?? 0));
 
     const quoteNumber = await nextQuoteNumber(supabase);
@@ -183,6 +293,71 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       .eq('id', quoteRequest.id);
     if (updateError) {
       console.error('[Admin Send Quote Request Update Error]', updateError);
+    }
+
+    /**
+     * THE FREIGHT AUDIT TRAIL — one append-only `freight_estimates` row, plus
+     * one `admin_audit_log` entry.
+     *
+     * WRAPPED SO IT CANNOT BLOCK THE QUOTE, for the same reason the
+     * notification below is (ARCHITECTURE.md section 9): an audit write failing
+     * must not strand a customer's quote. The figure itself is already safe on
+     * `quotes.freight`, so nothing is lost if this row does not land — only the
+     * explanation of how it was arrived at, and the failure is logged.
+     *
+     * Skipped entirely when there is nothing to record: no rate table and no
+     * typed figure means the quote simply has no freight line, and inventing a
+     * row to say so would be a record of a decision nobody made.
+     */
+    if (freightRecord !== null && freightRecord.ok) {
+      const record = freightRecord.record;
+      try {
+        // Service role: freight_estimates has SELECT and INSERT policies only
+        // (migration 039 §7), and the insert is the authoritative record rather
+        // than something the acting session should be able to shape.
+        const admin = createAdminClient();
+        const { error: freightAuditError } = await admin.from('freight_estimates').insert({
+          quote_id: quote.id,
+          quote_request_id: quoteRequest.id,
+          zone_id: record.zoneId,
+          zone_name: record.zoneName,
+          weight_lbs: Number.isFinite(record.weightLbs) ? record.weightLbs : null,
+          weight_lbs_matched: record.weightMatchedItems,
+          weight_lbs_total_items: record.weightTotalItems,
+          longest_piece_ft: Number.isFinite(record.longestPieceFt) ? record.longestPieceFt : null,
+          freight_class: record.freightClass,
+          is_residential: record.isResidential,
+          requires_liftgate: record.requiresLiftgate,
+          merchandise_subtotal_cents: record.merchandiseSubtotalCents,
+          basis: record.basis,
+          computed_cents: record.computedCents,
+          override_cents: record.overrideCents,
+          final_cents: record.finalCents,
+          band_id: record.bandId,
+          rate_version_ids: record.rateVersionIds.length > 0 ? record.rateVersionIds : null,
+          surcharge_version_id: record.surchargeVersionId,
+          breakdown: record.breakdown,
+          refusals: record.refusals,
+          notes: record.notes.length > 0 ? record.notes.join(' ') : null,
+          override_reason: record.overrideReason,
+          actor_id: user.id,
+          actor_email: user.email ?? null,
+        });
+        if (freightAuditError) {
+          console.error('[Admin Send Quote Freight Audit Error]', freightAuditError);
+        }
+
+        await logAdminAction({
+          adminId: user.id,
+          action: 'quote_freight_set',
+          resourceType: 'quote',
+          resourceId: quote.id,
+          beforeValue: auditDelta(record).old,
+          afterValue: auditDelta(record).new,
+        });
+      } catch (freightAuditError) {
+        console.error('[Admin Send Quote Freight Audit Error]', freightAuditError);
+      }
     }
 
     // Notification failure must never block the quote from being sent (ARCHITECTURE.md section 9).

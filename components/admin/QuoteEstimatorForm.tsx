@@ -10,6 +10,9 @@ import {
   getFreightClass,
   type WeightEstimateResult,
 } from '@/lib/admin/pricing';
+import { parseDollarsToCents } from '@/lib/pricing/quote-math';
+import FreightEstimatePanel, { type FreightPanelInputs } from '@/components/admin/FreightEstimatePanel';
+import type { FreightRateTable } from '@/lib/freight/types';
 
 export interface EstimatorLineItem {
   profileType: string;
@@ -30,6 +33,14 @@ interface QuoteEstimatorFormProps {
   items: EstimatorLineItem[];
   jobsiteAddress: string | null;
   weightEstimate: WeightEstimateResult;
+  /**
+   * The freight rate table as of today, or `null` when migration 039 has not
+   * been applied on this deployment — which is the state of every deployment
+   * today. Either way the freight box below still works; see
+   * `FreightEstimatePanel`.
+   */
+  freightTable: FreightRateTable | null;
+  freightNotInstalledReason: string | null;
 }
 
 const inputClass =
@@ -54,7 +65,14 @@ function formatDimensions(item: EstimatorLineItem): string {
   return parts.length ? parts.join('   ') : '—';
 }
 
-export default function QuoteEstimatorForm({ requestId, items, jobsiteAddress, weightEstimate }: QuoteEstimatorFormProps) {
+export default function QuoteEstimatorForm({
+  requestId,
+  items,
+  jobsiteAddress,
+  weightEstimate,
+  freightTable,
+  freightNotInstalledReason,
+}: QuoteEstimatorFormProps) {
   const router = useRouter();
   const [unitPrices, setUnitPrices] = useState<string[]>(() => items.map(() => ''));
   const [freight, setFreight] = useState('');
@@ -80,6 +98,27 @@ export default function QuoteEstimatorForm({ requestId, items, jobsiteAddress, w
     [items]
   );
   const freightClass = getFreightClass(longestPieceFt);
+
+  /**
+   * The freight estimator's inputs. Pre-filled from the job itself — the weight
+   * from `estimateShipmentWeight`'s seeded-gauge match and the longest piece
+   * from the line items — and editable, because the estimator may know better
+   * than a free-text material/gauge match does.
+   *
+   * Held as STRINGS so a half-typed or cleared box is not silently a 0: an
+   * empty weight box becomes NaN, which `estimateFreight` reports as
+   * `bad-weight` rather than looking up the lightest band.
+   *
+   * The zone starts unselected, never guessed from the jobsite address.
+   */
+  const [freightInputs, setFreightInputs] = useState<FreightPanelInputs>(() => ({
+    zoneId: null,
+    weightLbs: weightEstimate.matchedCount > 0 ? String(Math.round(weightEstimate.totalLbs)) : '',
+    longestPieceFt: longestPieceFt > 0 ? String(longestPieceFt) : '',
+    isResidential: false,
+    requiresLiftgate: false,
+  }));
+
   const freightAmount = Number(freight);
   const hasValidFreight = freight.trim() !== '' && Number.isFinite(freightAmount) && freightAmount >= 0;
   const total = round2(subtotal + (hasValidFreight ? freightAmount : 0));
@@ -119,6 +158,25 @@ export default function QuoteEstimatorForm({ requestId, items, jobsiteAddress, w
             unitPrice: Number(unitPrices[i]),
           })),
           freight: hasValidFreight ? freightAmount : null,
+          // The same figure in cents, which is what every freight table and the
+          // audit row speak. Sent alongside the dollar field rather than
+          // replacing it, so the route keeps working for a cached bundle.
+          freightCents: hasValidFreight ? parseDollarsToCents(freight) : null,
+          /**
+           * The INPUTS, never the computed estimate. The route re-reads the
+           * rate table and re-computes it server-side; a client-supplied total
+           * accepted as "what the table said" would let a crafted request write
+           * a rate the table never contained into an append-only audit table.
+           */
+          freightInputs: {
+            zoneId: freightInputs.zoneId,
+            weightLbs: Number(freightInputs.weightLbs.trim()),
+            weightMatchedItems: weightEstimate.matchedCount,
+            weightTotalItems: weightEstimate.totalCount,
+            longestPieceFt: Number(freightInputs.longestPieceFt.trim()),
+            isResidential: freightInputs.isResidential,
+            requiresLiftgate: freightInputs.requiresLiftgate,
+          },
           estimatorNotes: estimatorNotes.trim() || null,
         }),
       });
@@ -221,45 +279,25 @@ export default function QuoteEstimatorForm({ requestId, items, jobsiteAddress, w
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-afs-bg-raised border border-afs-border rounded p-6">
-          <h3 className="font-heading text-lg text-afs-chrome-high mb-4">Freight</h3>
-          <div className="mb-4">
-            <span className={labelClass}>Destination</span>
-            <p className="font-body text-sm text-afs-chrome-high whitespace-pre-line">
-              {jobsiteAddress || '—'}
-            </p>
-          </div>
-          <div>
-            <label className={labelClass} htmlFor="freight-amount">
-              Freight Amount ($)
-            </label>
-            <input
-              id="freight-amount"
-              type="number"
-              min="0"
-              step="0.01"
-              value={freight}
-              onChange={(e) => setFreight(e.target.value)}
-              placeholder="0.00"
-              className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-data"
-            />
-          </div>
-          <div className="mt-4 pt-4 border-t border-afs-border flex flex-col gap-1.5">
-            <div className="flex justify-between font-body text-xs">
-              <span className="text-afs-chrome-mid">Longest piece</span>
-              <span className="font-data text-afs-chrome-high">
-                {longestPieceFt > 0 ? `${longestPieceFt} ft → Class ${freightClass}` : '—'}
-              </span>
-            </div>
-            <div className="flex justify-between font-body text-xs">
-              <span className="text-afs-chrome-mid">Estimated weight</span>
-              <span className="font-data text-afs-chrome-high">
-                {weightEstimate.matchedCount > 0 ? `~${Math.round(weightEstimate.totalLbs)} lbs` : '—'} (
-                {weightEstimate.matchedCount} of {weightEstimate.totalCount} items matched)
-              </span>
-            </div>
-          </div>
-        </div>
+        {/* The freight panel. The "Freight Amount ($)" box that used to be
+            here IS STILL THERE, inside it, and is still what decides the quote
+            — everything else exists to help put a better number in it. With no
+            rate table (every deployment today: migration 039 is written and
+            not applied) the panel says so and the box is the whole feature,
+            which is SPEC_FREIGHT_ESTIMATOR.md §3's own interim behaviour. */}
+        <FreightEstimatePanel
+          jobsiteAddress={jobsiteAddress}
+          table={freightTable}
+          notInstalledReason={freightNotInstalledReason}
+          inputs={freightInputs}
+          onInputsChange={setFreightInputs}
+          freight={freight}
+          onFreightChange={setFreight}
+          merchandiseSubtotalCents={Math.round(subtotal * 100)}
+          weightMatchedItems={weightEstimate.matchedCount}
+          weightTotalItems={weightEstimate.totalCount}
+          freightClassFallback={freightClass}
+        />
 
         <div className="bg-afs-bg-raised border border-afs-border rounded p-6">
           <h3 className="font-heading text-lg text-afs-chrome-high mb-4">Estimator Notes</h3>

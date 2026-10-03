@@ -9,6 +9,7 @@ import QuoteEstimatorForm, { type EstimatorLineItem } from '@/components/admin/Q
 import JobIdentityEditorForm from '@/components/admin/JobIdentityEditorForm';
 import QuoteRequestAttachmentCard from '@/components/admin/QuoteRequestAttachmentCard';
 import { estimateShipmentWeight, type WeightReferenceGauge } from '@/lib/admin/pricing';
+import { getFreightRateTable } from '@/lib/freight/db';
 import { sourceToolLabel } from '@/lib/data/quote-request-source-tool';
 
 const ATTACHMENT_SIGNED_URL_TTL_SECONDS = 900; // 15 minutes — matches lib/data/orders.ts getOrderAttachments
@@ -151,6 +152,15 @@ export default async function AdminQuoteRequestDetailPage({ params }: { params: 
     }));
 
   const weightEstimate = estimateShipmentWeight(items, weightReference);
+
+  // The freight rate table, resolved as of today. Returns a NOT-INSTALLED
+  // result rather than throwing when migration 039 has not been applied, which
+  // is the state of every deployment today — so the estimator still loads and
+  // the freight box still works, with one sentence saying why there is no
+  // automatic estimate. Any other read failure propagates to the section's
+  // error boundary, because "no rates" and "the database refused us" must not
+  // look the same.
+  const freightResult = await getFreightRateTable(supabase);
 
   return (
     <div>
@@ -330,6 +340,8 @@ export default async function AdminQuoteRequestDetailPage({ params }: { params: 
           items={items}
           jobsiteAddress={jobsiteAddress}
           weightEstimate={weightEstimate}
+          freightTable={freightResult.installed ? freightResult.table : null}
+          freightNotInstalledReason={freightResult.installed ? null : freightResult.reason}
         />
       )}
     </div>
