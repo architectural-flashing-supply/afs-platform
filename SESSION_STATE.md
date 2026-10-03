@@ -9955,3 +9955,93 @@ suite load and passes consistently in isolation.
 contrast **24 screens / 253 pairs / 0 unresolved / 0 below** · style gate
 **66 pairs: 63 pass, 0 fail, 0 uncovered, 1 live-only, 2 no-data** ·
 24 screenshots in `test-results/v7-fidelity/`.
+
+---
+
+# SESSION — 2026-10-03 — ovn/04-order-validator
+
+**Unattended overnight run.** Branch `ovn/04-order-validator` in a worktree.
+Nothing merged, nothing deployed, no migration applied, no real email, SMS or
+charge, no secret read or printed.
+
+## METHOD: SPEC BEFORE CODE
+
+`EES-OVN.04-ORDER-VALIDATOR.md` was written and self-audited BEFORE any
+implementation, and it is at the project root. Its section 18 is appended after
+execution and records, honestly, every place where reality differed from the plan
+— rather than quietly editing the plan to match what was built.
+
+## BASELINE, MEASURED BEFORE ANY EDIT
+
+```
+git status        clean, branch ovn/04-order-validator at 75118cb
+pnpm tsc --noEmit exit 0
+pnpm test:unit    31 files, 485 tests -> 484 pass, 1 FAIL
+                  lib/design/v7-css.test.ts (pre-existing, unrelated)
+```
+
+At the end: **765 tests, 764 pass, the same one failure, for the same reason.**
+280 tests added, every one passing, no new failure.
+
+## WHAT THE SESSION FOUND THAT NOBODY WAS LOOKING FOR
+
+**1. The live `product_profiles` table has no dimension ranges.** All 12 active
+rows have NULL for all eight bounds; `max_length_ft` differs from migration 002;
+`requires_consultation` is false on every row including the four the migration
+sets true. `SCHEMA.md` records 002 as applied live. Measured by logging the real
+rows the route loaded through its own service-role client, not assumed. The range
+rules therefore ship complete, unit-tested against the migration's values, and
+DORMANT. **PENDING STEVE.**
+
+**2. That exposed a defect in this item's own design.** The
+"no ranges were checked on this line" note fired only when NO row resolved —
+so against the live data, where every row resolves and every row is empty, a
+4-inch coping cap produced no range finding AND no note. The admin panel would
+have said "nothing to flag" about a line nothing was checked on. Fixed, with a
+negative case asserted too (a row with only SOME bounds must not fire it).
+
+**3. Four contrast failures in this item's own UI**, on two surfaces the build
+gate does not cover because neither is in `lib/data/admin-nav.ts`. The worst:
+`afs-crimson` as the erroring input's border measures **1.15:1** against the
+panel behind it — the spec asks for a "red border on input" and there would have
+been no visible border at all. Found by computing the ratios, not by reading the
+token names. `lib/design/order-validator-contrast.test.ts` now gates them.
+
+**4. The pre-existing `v7-css.test.ts` failure is a line-ending artefact** —
+committed CRLF against a generator that emits LF, compared as strings. Diagnosed
+in passing, deliberately NOT fixed: it would commit a whole-file line-ending
+change to a v7 artefact, which is not this item's to make.
+
+## COMPLIANCE REPORT — VIOLATIONS FOUND, AND WHAT HAPPENED
+
+| Violation | Where | Resolved? |
+|---|---|---|
+| A rule could pass by failing to look | this item's `OV_PROFILE_CONSTRAINTS_UNKNOWN` | **YES** — now fires on an empty row too |
+| Four pairs below WCAG AA | this item's two UIs | **YES** — all on `afs-*-on-dark` or white, with a standing test |
+| A reader that cannot tell a failed query from an empty table | `getProfileConstraints` | **YES** — reads `error`, logs it, still returns `[]` |
+| Wire `counts` included findings the reader cannot see | both API routes | **YES** — counted per audience |
+| A spec'd error boundary that cannot catch what it was asked to | the admin panel | **YES** — containment moved into `buildAdminReview`, which never throws |
+| Unbounded per-item work on an uncapped, unauthenticated route | after a security review of the diff | **YES** — Set-based dedupe, a 1000-point polyline cap with an explicit 400, and a validation cap on the submit route that LOGS when it stops short. Neither route narrows what it ACCEPTS. |
+| My own over-broad claim in a test | `afs-warning` does clear the 3:1 rule | **YES** — the test now says so rather than asserting a premise the palette contradicts |
+
+**NOT resolved, deliberately, and recorded instead:** ESLint is not configured in
+this repository at all, so there is no lint gate to run; `pnpm build` fails in
+`next/font/google` on `app/layout.tsx`, a file this item does not touch; a guest
+cannot read `product_profiles` under its RLS, which affects the pre-existing
+stock-length reader too; and `app/quote/page.tsx` carries a pre-existing
+hardcoded `#B8BEC8`, confirmed present at the baseline commit. None of these were
+introduced here and none is in this item's scope.
+
+## HANDOFF — WHAT THE NEXT AGENT NEEDS, FROM THE FILES ALONE
+
+Read `EES-OVN.04-ORDER-VALIDATOR.md` (root) and this file's companion entry in
+`STATE_OF_THE_BUILD.md`. The engine is `lib/order-validator/`; every threshold is
+in `limits.ts` with its provenance recorded as DATA, and `assumedLimitKeys()` is
+what the admin panel lists — so "which numbers are still guesses" is an assertion
+rather than a memory. The AI layer is off behind `AFS_ORDER_VALIDATOR_AI` and
+cannot block, cannot report a price and cannot throw.
+
+**The item is UNVERIFIED until a human looks at it in a browser.** The admin
+panel especially: `/admin/quote-requests` lists zero rows on this database, so a
+quote request has to be submitted first. Exact steps are in the run's final
+report.

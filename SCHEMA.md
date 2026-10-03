@@ -313,6 +313,54 @@ CREATE POLICY "admin_write_profiles" ON product_profiles
   );
 ```
 
+### MEASURED AGAINST THE LIVE DATABASE, 2026-10-03 (ovn/04-order-validator)
+
+**THE EIGHT DIMENSION BOUNDS ARE NULL ON EVERY LIVE ROW. The ranges in
+`002_seed_afs_data.sql` are not in the live database.** Read with the
+service-role client through `getProfileConstraints` and logged, not inferred:
+
+```
+12 active rows (002 seeds 12).
+
+min_width  max_width  min_height  max_height
+min_leg_a  max_leg_a  min_leg_b   max_leg_b     NULL on all 12 rows
+
+max_length_ft          populated, but NOT 002's values:
+                       coping-cap 20 (002: 12), scupper 10 (002: NULL),
+                       standing-seam-roofing 40 (002: 40)
+
+requires_consultation  FALSE on all 12, including scupper, expansion-joint,
+                       standing-seam-roofing and custom-profile, which 002
+                       sets TRUE
+
+name                   'Window/Door Flashing' live; 002 writes
+                       'Window & Door Flashing'
+```
+
+This file's migration ledger records 001-002 as confirmed applied live. The
+columns disagree, and the columns are the higher authority. Whatever populated
+this table was not the committed seed as written.
+
+**What depends on it.** `lib/order-validator/` range-checks a customer's
+dimensions against these columns (SPEC_AI_ORDER_VALIDATOR.md section 2). With
+every bound NULL, `OV_DIMENSION_BELOW_MIN`, `OV_DIMENSION_ABOVE_MAX` and
+`OV_REQUIRES_CONSULTATION` cannot fire — they are implemented and unit-tested
+against 002's values and are dormant until this table is filled in. The validator
+reports that honestly rather than passing silently: a resolved row with no bounds
+produces an admin-scope note saying the limits were not checked, exactly as a
+missing row does.
+
+**NULL IS NOT ZERO HERE, AND THAT IS LOAD-BEARING.** Every bound is
+independently nullable by design — 002 itself leaves Fascia's legs, Valley
+Flashing's height and all of Custom Profile's bounds NULL. A reader that
+coalesced NULL to 0 would turn an absent MAXIMUM into "at most zero" and refuse
+every dimension on the profile; `lib/data/product-profiles.ts` guards the
+`Number('') === 0` case explicitly for that reason.
+
+**PENDING STEVE: the real ranges.** They sit with the existing DATA BLOCKERS
+entry "Product catalog — profiles, materials, gauges". Nothing was invented to
+fill the gap.
+
 ---
 
 ## TABLE 7 — products

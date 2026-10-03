@@ -759,7 +759,7 @@ schema and the real route. **No critical defect. Self-audit PASS.**
 ENGINEERING COMPLETION RECORD
 Prompt ID: EES-OVN.04
 Prompt Name: Order Validator — deterministic rule engine, customer/admin scope, optional advisory AI
-Word Count: 4318
+Word Count: 8945 (whole document, including the appended section 18)
 Engineering Proficiency Score: 100/100
 Minimum Required Score: 95/100
 Self-Audit Status: PASS
@@ -767,3 +767,194 @@ Repository Grounding Verified: YES
 Acceptance Criteria Verified for Specification Completeness: YES
 Critical Deficiencies Remaining: NONE
 Ready for Engineering Execution: YES
+
+---
+
+## 18. IMPLEMENTATION DELTAS — WHAT THE BUILD FOUND THAT THE SPECIFICATION DID NOT
+
+This section is appended after execution. Everything above describes the plan as
+written before any code; this records where reality differed, because a
+specification quietly edited to match what was built proves nothing.
+
+### D10 — THE LIVE `product_profiles` TABLE HAS NO DIMENSION RANGES AT ALL
+
+**The single most important finding of this item, and it changes what the
+feature can do today.**
+
+Measured against the live database on 2026-10-03 by logging the real rows the
+validate route loaded through its own service-role client:
+
+```
+12 active rows — not 13. Migration 002 seeds 12; section 3.4 above said 13 and was wrong.
+
+Every row:  min_width  max_width  min_height  max_height
+            min_leg_a  max_leg_a  min_leg_b   max_leg_b     ALL NULL
+
+max_length_ft  populated, but NOT with the migration's values:
+               coping-cap 20 (migration: 12), scupper 10 (migration: NULL),
+               standing-seam-roofing 40 (migration: 40)
+
+requires_consultation  FALSE on every row, including scupper, expansion-joint,
+                       standing-seam-roofing and custom-profile, which
+                       migration 002 sets to TRUE
+
+name  'Window/Door Flashing' live, 'Window & Door Flashing' in migration 002
+```
+
+`SCHEMA.md`'s migration ledger records 001-002 as confirmed applied live. The
+columns say the ranges in that file are not in that database. Both cannot be
+true, and the database wins (SOURCE-OF-TRUTH PRECEDENCE rule 2 over rule 7).
+
+**Consequences, stated plainly:**
+
+| Rule | Status against the LIVE database |
+|---|---|
+| `OV_DIMENSION_BELOW_MIN` / `OV_DIMENSION_ABOVE_MAX` | **Cannot fire.** Implemented, unit-tested bound by bound against migration 002's values, and dormant until the ranges are populated. |
+| `OV_LENGTH_ABOVE_PROFILE_MAX` | **Works**, verified live — a 25 ft coping cap is refused against the live 20 ft. |
+| `OV_REQUIRES_CONSULTATION` | **Cannot fire.** Every live row is `false`. |
+| `OV_PROFILE_CONSTRAINTS_UNKNOWN` | **Now fires**, after D11's fix. |
+| Everything else — geometry, hems, bend count, sheet fit, coping legs, gauge span, step-flashing minimum | **Works**, verified live. |
+
+This is a DATA question for Steve and Reid, not a code defect, and it belongs
+beside the existing DATA BLOCKERS entry "Product catalog — profiles, materials,
+gauges". No ranges were invented to paper over it.
+
+### D11 — A DEFECT IN THIS ITEM'S OWN DESIGN, FOUND BY D10
+
+`OV_PROFILE_CONSTRAINTS_UNKNOWN` as specified in R-E-04 fired only when **no
+`product_profiles` row** resolved. Against the live data every row resolves and
+every row is empty, so a Coping Cap submitted at 4 in wide produced **no range
+finding and no note saying why**. The admin panel would have reported "nothing to
+flag" on a line nothing had been checked on — precisely the failure CLAUDE.md
+rule #28 calls passing by failing to look.
+
+**Fixed:** the rule now also fires when a resolved row has every one of its eight
+bounds NULL, with wording that separates the two causes ("no dimension ranges are
+on file for X" against "X is in the catalog but has no ranges filled in"),
+because the remedy differs. Two new cases in `rules.test.ts` cover it, including
+the negative case — a row with only SOME bounds (the seeded Fascia) must NOT fire
+it, or the note fires on most of the catalog and means nothing.
+
+### D12 — `getProfileConstraints` NOW READS `error`, NOT JUST `data`
+
+The sibling reader beside it (`getProfileStockLengths`) destructures only `data`,
+so a failed query and an empty table are indistinguishable. For stock lengths
+that is cosmetic; here it is the difference between "no limits were applied" and
+"every dimension was within its limits". It logs the real PostgREST message and
+still returns `[]` — an unreadable reference table must not take down a quote
+request. The pre-existing reader was left alone (Law 7).
+
+### D13 — THE WIRE `counts` ARE COUNTED PER AUDIENCE
+
+Caught against the live route: a Step Flashing returned `counts.info = 1` with an
+empty `infos` array, because the engine's counts span every finding and that one
+was admin-scope. No content leaked, but a surface rendering the number would show
+a count with nothing behind it. Both routes now count over the audience-filtered
+set.
+
+### D14 — `PanelErrorBoundary` CANNOT BE USED HERE (supersedes R-UA-05)
+
+R-UA-05 specified wrapping the admin panel in
+`components/ui/PanelErrorBoundary.tsx`. That file's own header says it catches
+render errors in a **client** subtree and explicitly does not catch errors thrown
+"during server rendering of a server component". The admin panel is a server
+component, so the boundary would have been decoration. Containment lives in
+`buildAdminReview` instead, which never throws and returns `checked: false`; the
+panel then renders CLAUDE.md rule #30's wording — what did **not** happen.
+Asserted with a hostile Proxy item in `admin-review.test.ts`.
+
+### D15 — FOUR CONTRAST FAILURES IN THIS ITEM'S OWN UI
+
+Neither surface is in `scripts/audit/contrast-check.mjs`'s screen list (`/quote`
+is public; `/admin/quote-requests` is not in `lib/data/admin-nav.ts`), so nobody
+was gating them. Computed from the real tokens:
+
+```
+afs-crimson as the erroring input's border on afs-bg-overlay   1.15:1  (needs 3)
+afs-warning in the same place                                  2.47:1  (needs 3)
+afs-crimson as the admin severity chip's outline on bg-raised  1.71:1  (needs 3)
+afs-chrome-silver on the composited amber banner (#625E5D)     4.13:1  (needs 4.5)
+```
+
+The first is the one that mattered: SPEC section 2 asks for a "red border on
+input", the step-2 inputs are `bg-afs-bg-overlay` on a panel that is also
+`bg-afs-bg-overlay`, and at 1.15:1 there would have been no visible border at
+all. All now use the `afs-*-on-dark` family or white.
+`lib/design/order-validator-contrast.test.ts` is the standing gate for these
+pairs and asserts both premises, so a retheme cannot make it vacuous. It also
+corrected an over-broad claim of mine: `afs-warning` really does clear the 3:1
+boundary rule, and the test now says so.
+
+### D16 — ESLint IS NOT CONFIGURED IN THIS REPOSITORY
+
+`pnpm lint` runs `next lint`, which prompts interactively to set ESLint up for
+the first time; there is no `.eslintrc*`, no `eslint` dependency and no
+`eslintConfig` block. There is therefore no lint gate to run on the touched
+files, and configuring one would be a repository-wide change outside this item —
+it would lint hundreds of pre-existing files. Recorded, not changed. The real
+static gates here are `pnpm tsc --noEmit`, `scripts/audit/contrast-check.mjs` and
+the unit suite, all of which were run.
+
+### D17 — `pnpm build` FAILS IN THIS ENVIRONMENT, IN A FILE THIS ITEM DOES NOT TOUCH
+
+```
+An error occurred in `next/font`.
+TypeError: Cannot read properties of null (reading '1')
+  ... next/font/google/target.css?{"path":"app\layout.tsx","import":"JetBrains_Mono",...}
+```
+
+`app/layout.tsx` is not in this item's diff. Both `prebuild` steps pass
+(`scripts/design/scope-v7-css.mjs`, and the contrast gate at 24 screens, 248
+pairs, 0 unresolved, 0 below threshold). `fonts.googleapis.com` answers 200 from
+this machine, so it is not a plain outage — the loader's own parse of the fetched
+CSS returns null. Not investigated further: it is outside this item and nothing
+in this item can reach it. Compilation of every changed file was verified instead
+by `pnpm tsc --noEmit` (clean) and under `next dev`, where `/quote`, the validate
+route and the admin quote-review page all compiled and served.
+
+### D18 — ONE DEPENDENCY WAS ADDED, DELIBERATELY
+
+`@vitest/coverage-v8@5.0.0`, a devDependency, pinned to the exact `vitest`
+version because a mismatched pair prints "Running mixed versions is not
+supported". The repository had no coverage provider at all and `--coverage`
+failed outright, while the Elite Standard requires a measured coverage number on
+new code. A `coverage` block was added to `vitest.config.mts` with `all: false`,
+so `pnpm vitest run --coverage lib/<module>` measures that module rather than
+diluting it with the whole of `lib/`. No runtime dependency was added.
+
+### D19 — THE ADMIN PANEL IS NOT VISUALLY VERIFIED, AND CANNOT BE HERE
+
+`/admin/quote-requests` lists **zero rows** on this database — migration 030
+deleted the pre-V2 job data and nothing has been submitted since. The page module
+and the panel were proved to compile and execute under a real admin session by
+requesting a non-existent id and receiving **404, not 500**, chosen precisely
+because opening a REAL request flips its status from `submitted` to `reviewing`,
+a live data mutation this run must not make. Visual confirmation needs a human to
+submit one quote request first; the steps are in the final report. The item is
+**UNVERIFIED** until then, per the run's Six Laws.
+
+### D20 — THE PRE-EXISTING `v7-css.test.ts` FAILURE IS A LINE-ENDING ARTEFACT
+
+Diagnosed while running the generator: `scripts/design/scope-v7-css.mjs` reports
+"unchanged — 1082 lines" and yet `git status` shows the file modified, with an
+empty `git diff --stat` and only a CRLF warning. The committed
+`app/styles/command-center-v7.generated.css` has CRLF line endings; the generator
+emits LF; `lib/design/v7-css.test.ts` compares the two as strings. The file was
+reverted and the failure left exactly as found — it is not this item's to fix,
+and "fixing" it would commit a whole-file line-ending change to a v7 artefact.
+
+### COUNTS AT COMPLETION
+
+```
+Rules       24 declared, 24 implemented.
+            1 spec rule not implementable: SPEC section 3's counter-flashing
+            lap check (D7) — no `lap` field exists anywhere in the data model.
+Coverage    lib/order-validator — 98.6% statements, 94.78% branches,
+            100% functions, 99.56% lines.
+```
+
+The self-audit in section 17 stands at 100/100 **for the specification**. The
+implementation's own honest score, which has to account for D10 (a shipped
+feature whose range rules are dormant against live data through no fault of the
+code) and D19 (not visually verified), is recorded in the FINAL REPORT rather
+than restated here.
