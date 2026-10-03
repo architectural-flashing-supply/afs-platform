@@ -52,6 +52,26 @@ function categoryFor(materialLabel: string): MaterialCategory | undefined {
   return MATERIAL_LABEL_TO_CATEGORY[normalizeMaterialLabel(materialLabel)];
 }
 
+/**
+ * The same lookup, public, for callers outside the colour rules.
+ *
+ * Added for the order validator (lib/order-validator/rules.ts), whose
+ * gauge-versus-width rule is stated per material CATEGORY
+ * (SPEC_AI_ORDER_VALIDATOR.md section 3 says "22ga galvanized", not "22 ga Galvanized
+ * Steel"). It is a wrapper rather than an `export` on `categoryFor` itself so
+ * the public name says what it takes, and it returns `null` rather than
+ * `undefined` because every other optional value crossing a module boundary in
+ * this codebase is `null`.
+ *
+ * Going through `categoryFor` is the point: that function is where the legacy
+ * material-spelling tolerance lives, and a second caller resolving the map
+ * directly would lose it.
+ */
+export function materialCategoryForLabel(materialLabel: string | null | undefined): MaterialCategory | null {
+  if (typeof materialLabel !== 'string' || materialLabel.trim() === '') return null;
+  return categoryFor(materialLabel) ?? null;
+}
+
 export type ColorPalette = 'mcelroy' | 'pacclad' | 'pacclad_anodized';
 
 /**
