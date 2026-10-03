@@ -284,6 +284,11 @@ export interface RecordCalculationInput {
   /** The vendor's raw body, when there was one. */
   responseSnapshot?: unknown;
   cacheTtlSeconds: number;
+  /**
+   * The `effective_to` of the nexus row that justified this calculation, or null
+   * for an open-ended one. Caps the cached lifetime — see `expiresAt` below.
+   */
+  nexusEffectiveTo?: string | null;
   now: Date;
   actorId: string | null;
   quoteId?: string | null;
@@ -316,9 +321,28 @@ export async function recordCalculation(
   // A failure gets NO expiry, so it can never be served from cache. Migration
   // 039's CHECK refuses the alternative anyway; this is the writer agreeing with
   // it rather than relying on it.
-  const expiresAt = isCalculated
-    ? new Date(input.now.getTime() + input.cacheTtlSeconds * 1000).toISOString()
-    : null;
+  //
+  // AND A FIGURE NEVER OUTLIVES THE NEXUS WINDOW THAT JUSTIFIED IT. A row
+  // calculated while AFS collected in a state must not still be servable after
+  // that registration ended, however long TAX_CACHE_TTL_SECONDS is — otherwise a
+  // stale positive tax would be served where the correct answer is no_nexus.
+  //
+  // The cap is `effective_to` at 00:00 UTC, which is deliberately EARLY rather
+  // than exact: the shop is in US Central, so shop-local end-of-day on that date
+  // is ~06:00 UTC the following day, and this cap therefore expires the row
+  // before its final shop day rather than after it. Erring early costs one extra
+  // vendor call; erring late collects tax AFS is no longer registered to remit.
+  // Exactness is not needed because service.ts refuses to READ an out-of-window
+  // row at all — this is the second of two independent guards.
+  const ttlExpiry = input.now.getTime() + input.cacheTtlSeconds * 1000;
+  const windowExpiry =
+    typeof input.nexusEffectiveTo === 'string' && input.nexusEffectiveTo !== ''
+      ? Date.parse(`${input.nexusEffectiveTo}T00:00:00Z`)
+      : Number.NaN;
+  const effectiveExpiry = Number.isFinite(windowExpiry)
+    ? Math.min(ttlExpiry, windowExpiry)
+    : ttlExpiry;
+  const expiresAt = isCalculated ? new Date(effectiveExpiry).toISOString() : null;
 
   const row = {
     cache_key: input.cacheKey,

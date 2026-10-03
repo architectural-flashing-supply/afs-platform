@@ -31,6 +31,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { calculateTax } from './calculate';
+import { findNexusForState } from './nexus';
 import { resolveTaxConfigFromEnv, type TaxConfig, type TaxEnv } from './config';
 import {
   cacheKeyFor,
@@ -122,13 +123,42 @@ export async function calculateTaxForOrder(
   const nexus = await getNexusStates(supabase);
   const today = shopDateOnly(now);
 
+  // The row that will actually justify a provider call, if any. Resolved HERE
+  // rather than inferred from `nexus.length`, for the reason in the next comment.
+  const nexusRow = findNexusForState(nexus, input.request.toState, today);
+  const inForceAndCollecting = nexusRow !== null && nexusRow.collecting;
+
   // ---- Would a vendor call even happen? -----------------------------------
   // The cache is only worth consulting when the alternative is a network
   // request. An exemption, a missing configuration and a non-nexus state are all
   // decided locally in microseconds, so looking them up would cost a database
   // round trip to save nothing.
+  //
+  // ============ WHY THIS TESTS THE DESTINATION ROW, NOT `nexus.length > 0` ============
+  //
+  // A CACHED FIGURE MUST NOT OUTLIVE THE NEXUS WINDOW IT WAS COMPUTED UNDER.
+  //
+  // This condition used to read `nexus.length > 0`, and that was a real defect.
+  // Consider a TX row with `effective_to = 2026-10-31` and a long
+  // TAX_CACHE_TTL_SECONDS. A calculation on 2026-10-30 stores a positive figure.
+  // On 2026-11-02 the same request arrives: the nexus row has NOT changed, so
+  // `nexusFingerprint` is identical and the cache key MATCHES — and the stale
+  // positive tax would be served, when the engine would correctly have answered
+  // `no_nexus`. AFS would be over-collecting in a state it had stopped
+  // collecting in.
+  //
+  // The fingerprint cannot catch this, and that is the point worth remembering:
+  // it protects against a changed LIST, and here nothing changed except the date.
+  // Putting `today` in the cache key would fix it by throwing the cache away
+  // every midnight, which defeats having one. Checking the destination row's
+  // in-force status before looking up costs nothing and is exact — if the window
+  // has closed, the local answer is already `no_nexus` and no cache is involved.
+  //
+  // The opposite direction was always safe: a not-yet-started window yields
+  // `no_nexus`, which is decided locally and writes no row, so there is nothing
+  // to go stale.
   const couldCallProvider =
-    provider !== null && config.origin !== null && nexus.length > 0 && !input.customerTaxExempt;
+    provider !== null && config.origin !== null && inForceAndCollecting && !input.customerTaxExempt;
 
   if (couldCallProvider && config.origin !== null) {
     const cacheKey = cacheKeyFor({
@@ -197,6 +227,11 @@ export async function calculateTaxForOrder(
           exempt: input.customerTaxExempt,
           nexus,
           cacheTtlSeconds: config.cacheTtlSeconds,
+          // DEFENCE IN DEPTH for the staleness bug described above: a stored row
+          // may not outlive the nexus window that justified it, whatever the TTL
+          // is set to. The guard above already prevents a stale row being READ;
+          // this prevents one being WRITTEN with a lifetime it has no right to.
+          nexusEffectiveTo: nexusRow?.effectiveTo ?? null,
           now,
           actorId: input.actorId,
           quoteId: input.quoteId ?? null,

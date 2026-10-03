@@ -509,3 +509,163 @@ describe('summariseTaxConfig — the admin panel, with no secret in it', () => {
     expect(summary.readyToCalculate).toBe(false);
   });
 });
+
+// ===========================================================================
+// REGRESSION: a cached figure must not outlive the nexus window behind it.
+//
+// Found by an automated security review of the first draft of service.ts, which
+// gated the cache lookup on `nexus.length > 0` rather than on the DESTINATION
+// state's in-force status. Recorded here as a test rather than only as a comment,
+// because the failure needs no code change to reappear — only the passage of
+// time — and `nexusFingerprint` cannot detect it: the row never changes.
+// ===========================================================================
+
+describe('REGRESSION: a cached figure never outlives its nexus window', () => {
+  it('does not consult the cache once the destination nexus window has closed', async () => {
+    // ARRANGE — TX nexus that ended on 2026-10-31, and a cache row that would be
+    // returned if it were looked up. "Now" is after the window closed.
+    const db = fakeDb({
+      nexus: [{ ...NEXUS_TX_COLLECTING, effectiveTo: '2026-10-31' }],
+      cacheHit: {
+        amount_cents: 8250,
+        rate: 0.0825,
+        taxable_amount_cents: 100_000,
+        freight_taxable: false,
+        jurisdictions: null,
+        provider: 'taxjar',
+      },
+    });
+
+    // ACT
+    const result = await calculateTaxForOrder(db.client, {
+      request: REQUEST,
+      customerTaxExempt: false,
+      actorId: null,
+      env: { ...CONFIGURED_ENV, TAX_PROVIDER: 'taxjar', TAXJAR_API_KEY: 'k' },
+      now: new Date('2026-11-02T15:00:00Z'),
+    });
+
+    // ASSERT
+    expect(
+      result.outcome.kind,
+      'THE REGRESSION. The nexus row is unchanged, so the cache key still matches and the stale ' +
+        '$82.50 would have been served — meaning AFS over-collects in a state it stopped collecting ' +
+        'in. Gating the lookup on the destination row being in force makes the correct local answer ' +
+        'win instead.'
+    ).toBe('no_nexus');
+    expect(collectableTaxCents(result.outcome), 'The window has closed, so nothing is owed.').toBe(0);
+    expect(result.fromCache, 'No cached figure may be used here.').toBe(false);
+  });
+
+  it('does not consult the cache before the window opens', async () => {
+    // ARRANGE — the always-safe direction, asserted so it stays safe.
+    const db = fakeDb({
+      nexus: [{ ...NEXUS_TX_COLLECTING, effectiveFrom: '2027-01-01' }],
+      cacheHit: {
+        amount_cents: 8250,
+        rate: 0.0825,
+        taxable_amount_cents: 100_000,
+        freight_taxable: false,
+        jurisdictions: null,
+        provider: 'taxjar',
+      },
+    });
+
+    // ACT
+    const result = await calculateTaxForOrder(db.client, {
+      request: REQUEST,
+      customerTaxExempt: false,
+      actorId: null,
+      env: { ...CONFIGURED_ENV, TAX_PROVIDER: 'taxjar', TAXJAR_API_KEY: 'k' },
+      now: new Date('2026-10-03T15:00:00Z'),
+    });
+
+    // ASSERT
+    expect(result.outcome.kind).toBe('no_nexus');
+    expect(result.fromCache).toBe(false);
+  });
+
+  it('does not consult the cache for a state recorded as not collecting', async () => {
+    // ARRANGE
+    const db = fakeDb({
+      nexus: [NEXUS_CA_NOT_COLLECTING],
+      cacheHit: {
+        amount_cents: 7000,
+        rate: 0.07,
+        taxable_amount_cents: 100_000,
+        freight_taxable: false,
+        jurisdictions: null,
+        provider: 'taxjar',
+      },
+    });
+
+    // ACT
+    const result = await calculateTaxForOrder(db.client, {
+      request: { ...REQUEST, toState: 'CA', toZip: '90001' },
+      customerTaxExempt: false,
+      actorId: null,
+      env: { ...CONFIGURED_ENV, TAX_PROVIDER: 'taxjar', TAXJAR_API_KEY: 'k' },
+      now: new Date('2026-10-03T15:00:00Z'),
+    });
+
+    // ASSERT
+    expect(
+      result.outcome.kind,
+      'A state AFS has stopped collecting in must not keep serving figures from when it did.'
+    ).toBe('no_nexus');
+    expect(result.fromCache).toBe(false);
+  });
+
+  it('caps a stored row\'s expiry at the nexus window end, whatever the TTL says', async () => {
+    // ARRANGE — a 365-day TTL against a window that closes in two days.
+    const db = fakeDb({
+      nexus: [{ ...NEXUS_TX_COLLECTING, effectiveTo: '2026-10-05' }],
+      cacheHit: null,
+    });
+
+    // ACT
+    await calculateTaxForOrder(db.client, {
+      request: REQUEST,
+      customerTaxExempt: false,
+      actorId: null,
+      env: { ...CONFIGURED_ENV, TAX_CACHE_TTL_SECONDS: String(365 * 24 * 60 * 60) },
+      now: new Date('2026-10-03T15:00:00Z'),
+    });
+
+    // ASSERT
+    const row = db.inserted[0]?.row;
+    expect(row, 'A calculated row must have been written.').toBeDefined();
+    if (!row) throw new Error('unreachable');
+    const expiresAt = String(row.expires_at);
+    expect(
+      Date.parse(expiresAt) <= Date.parse('2026-10-05T00:00:00Z'),
+      'DEFENCE IN DEPTH. A 365-day TTL must not store a figure that outlives the registration that ' +
+        `justified it. Expected an expiry no later than 2026-10-05T00:00:00Z, got ${expiresAt}. ` +
+        'The cap is deliberately early rather than exact: erring early costs one vendor call, erring ' +
+        'late collects tax AFS is no longer registered to remit.'
+    ).toBe(true);
+  });
+
+  it('leaves the TTL alone for an open-ended nexus window', async () => {
+    // ARRANGE — effectiveTo is null, so there is no window to cap against.
+    const db = fakeDb({ nexus: [NEXUS_TX_COLLECTING], cacheHit: null });
+    const now = new Date('2026-10-03T15:00:00Z');
+
+    // ACT
+    await calculateTaxForOrder(db.client, {
+      request: REQUEST,
+      customerTaxExempt: false,
+      actorId: null,
+      env: { ...CONFIGURED_ENV, TAX_CACHE_TTL_SECONDS: '3600' },
+      now,
+    });
+
+    // ASSERT
+    const row = db.inserted[0]?.row;
+    if (!row) throw new Error('A calculated row must have been written.');
+    expect(
+      String(row.expires_at),
+      'With no window end, the ordinary TTL applies: one hour after now.'
+    ).toBe(new Date(now.getTime() + 3600 * 1000).toISOString());
+  });
+});
