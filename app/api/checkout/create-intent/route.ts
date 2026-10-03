@@ -3,6 +3,7 @@ import Stripe from 'stripe';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createOrderFromQuote, type DeliveryAddressInput } from '@/lib/data/orders';
+import { validatePoNumber } from '@/lib/checkout/po-number';
 
 let stripe: Stripe | null = null;
 function getStripe(): Stripe {
@@ -85,7 +86,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('net_terms')
+      .select('net_terms, company_id')
       .eq('id', user.id)
       .single();
     const netTerms = (profile?.net_terms as number | undefined) ?? 0;
@@ -93,6 +94,47 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (body.paymentMethod === 'net_terms' && netTerms <= 0) {
       return NextResponse.json({ error: 'Net terms are not available on this account.' }, { status: 403 });
     }
+
+    // ── THE PURCHASE ORDER GUARD ────────────────────────────────────────────
+    // THIS IS THE ENFORCEMENT. The checkout page disables Place Order without a
+    // required PO, but that is UX: a customer can POST straight to this route.
+    //
+    // `requirePo` is read from `companies.require_po` for the caller's OWN
+    // company — never taken from the request body, which the caller controls.
+    // The read goes through the SESSION client so the companies
+    // "company_members" RLS policy (001_initial_schema.sql:76) authorises it.
+    //
+    // TWO QUERIES, NOT A POSTGREST EMBED: profiles and companies are joined by
+    // two foreign keys (profiles.company_id and companies.primary_user_id), so
+    // an embedded select is ambiguous.
+    const companyId = (profile?.company_id as string | null | undefined) ?? null;
+    let requirePo = false;
+    if (companyId) {
+      const { data: companyRow, error: companyError } = await supabase
+        .from('companies')
+        .select('require_po')
+        .eq('id', companyId)
+        .maybeSingle();
+      if (companyError) {
+        // Fail open, and say so in the log. The row is one the RLS policy
+        // already guarantees this caller can see, so an error here is
+        // infrastructural; refusing every order of every company whenever this
+        // read hiccups would be a worse outcome than missing a PO on one.
+        console.error('[Checkout Create Intent] Could not read companies.require_po', companyError);
+      }
+      requirePo = companyRow?.require_po === true;
+    }
+
+    // ORDERING IS LOAD-BEARING: this runs BEFORE createAdminClient(), BEFORE
+    // the net-terms branch that inserts an order, and BEFORE getStripe() —
+    // so a rejected checkout creates no PaymentIntent and no order row, and the
+    // customer has provably not been charged.
+    const poValidation = validatePoNumber(body.poNumber, requirePo);
+    if (!poValidation.ok) {
+      return NextResponse.json({ error: poValidation.error }, { status: 400 });
+    }
+    const poNumber = poValidation.value;
+    // ────────────────────────────────────────────────────────────────────────
 
     const admin = createAdminClient();
 
@@ -106,7 +148,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         deliveryAddress: body.deliveryMethod === 'ship' ? body.address ?? null : null,
         contactName: body.deliveryMethod === 'pickup' ? body.contactName ?? null : null,
         contactPhone: body.deliveryMethod === 'pickup' ? body.contactPhone ?? null : null,
-        poNumber: body.poNumber ?? null,
+        // The validated, trimmed-or-null value — not the raw body field.
+        poNumber,
         stripePaymentIntentId: null,
       });
       if (!created) {
@@ -123,7 +166,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       quoteId: quote.id,
       userId: user.id,
       deliveryMethod: body.deliveryMethod,
-      poNumber: body.poNumber ?? '',
+      // Validated and trimmed. Stripe caps a metadata value at 500 characters;
+      // validatePoNumber has already refused anything over 50, so this can no
+      // longer make paymentIntents.create throw. The webhook and
+      // confirm-order read it back out with `metadata.poNumber || null`, so ''
+      // still means "no PO" on the way home.
+      poNumber: poNumber ?? '',
     };
     if (body.deliveryMethod === 'ship' && body.address) {
       metadata.address = body.address.address ?? '';

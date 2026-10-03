@@ -11,6 +11,9 @@ import {
   useElements,
 } from '@stripe/react-stripe-js';
 import { createClient } from '@/lib/supabase/client';
+import PoNumberField from '@/components/checkout/PoNumberField';
+import { CHECKOUT_INPUT_CLASS, CHECKOUT_LABEL_CLASS } from '@/components/checkout/field-classes';
+import { PO_REQUIRED_ERROR, isPoNumberSatisfied, normalizePoNumber } from '@/lib/checkout/po-number';
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? '');
 
@@ -57,9 +60,13 @@ interface OrderSuccess {
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
-const inputClass =
-  'w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body';
-const labelClass = 'font-label text-xs uppercase tracking-wide text-afs-chrome-mid block mb-1.5';
+// Moved to components/checkout/field-classes.ts when the PO Number input was
+// extracted into its own component — one definition, shared, rather than two
+// literals that must stay identical with nothing keeping them that way. The
+// values are unchanged; these aliases keep the rest of this file's JSX as it
+// was.
+const inputClass = CHECKOUT_INPUT_CLASS;
+const labelClass = CHECKOUT_LABEL_CLASS;
 
 export default function CheckoutPage() {
   return (
@@ -85,6 +92,7 @@ function CheckoutPageInner() {
   const [quote, setQuote] = useState<QuoteData | null>(null);
   const [lineItems, setLineItems] = useState<QuoteLineItem[]>([]);
   const [netTerms, setNetTerms] = useState(0);
+  const [requirePo, setRequirePo] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -144,15 +152,43 @@ function CheckoutPageInner() {
 
       const { data: profileRow } = await supabase
         .from('profiles')
-        .select('net_terms')
+        .select('net_terms, company_id')
         .eq('id', user.id)
         .single();
+
+      // SPEC_PURCHASE_ORDER_INTEGRATION.md §2: the PO field is "Required if:
+      // companies.require_po = true for user's company".
+      //
+      // Read through the SESSION client, so the companies "company_members" RLS
+      // policy (001_initial_schema.sql:76) is what authorises it — a customer
+      // can only ever see their own company's row.
+      //
+      // TWO QUERIES, NOT A POSTGREST EMBED: `profiles` and `companies` are
+      // joined by two foreign keys (profiles.company_id -> companies.id and
+      // companies.primary_user_id -> profiles.id), which makes an embedded
+      // select ambiguous.
+      const companyId = (profileRow?.company_id as string | null | undefined) ?? null;
+      let companyRequiresPo = false;
+      if (companyId) {
+        const { data: companyRow } = await supabase
+          .from('companies')
+          .select('require_po')
+          .eq('id', companyId)
+          .maybeSingle();
+        // A failed or missing read resolves to "not required". The server is the
+        // enforcement point (app/api/checkout/create-intent/route.ts re-reads
+        // this and refuses), so guessing false can only fail to warn early —
+        // whereas guessing true would block a customer who has no requirement
+        // at all, which is the worse failure.
+        companyRequiresPo = companyRow?.require_po === true;
+      }
 
       if (cancelled) return;
 
       setQuote(quoteRow as QuoteData);
       setLineItems((lineItemRows ?? []) as QuoteLineItem[]);
       setNetTerms((profileRow?.net_terms as number | undefined) ?? 0);
+      setRequirePo(companyRequiresPo);
       setLoadState('ready');
     }
 
@@ -189,7 +225,7 @@ function CheckoutPageInner() {
 
   return (
     <Elements stripe={stripePromise}>
-      <CheckoutForm quote={quote} lineItems={lineItems} netTerms={netTerms} />
+      <CheckoutForm quote={quote} lineItems={lineItems} netTerms={netTerms} requirePo={requirePo} />
     </Elements>
   );
 }
@@ -198,10 +234,13 @@ function CheckoutForm({
   quote,
   lineItems,
   netTerms,
+  requirePo,
 }: {
   quote: QuoteData;
   lineItems: QuoteLineItem[];
   netTerms: number;
+  /** `companies.require_po` for this customer's company; false when they have none. */
+  requirePo: boolean;
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -229,7 +268,13 @@ function CheckoutForm({
   const deliveryComplete =
     deliveryMethod === 'ship' ? address.trim().length > 0 : contactName.trim().length > 0 && contactPhone.trim().length > 0;
   const paymentComplete = paymentMethod === 'net_terms' ? true : cardComplete;
-  const canSubmit = legalComplete && deliveryComplete && paymentComplete && !submitting;
+  // SPEC §3: "If user attempts submit without PO: ... Submit blocked".
+  // When requirePo is false this term is constantly true, so gating is
+  // arithmetically identical to before this feature existed. This is UX only —
+  // the create-intent route re-reads require_po and refuses independently, so a
+  // direct POST cannot get past it.
+  const poComplete = isPoNumberSatisfied(poNumber, requirePo);
+  const canSubmit = legalComplete && deliveryComplete && poComplete && paymentComplete && !submitting;
 
   const handlePlaceOrder = useCallback(async () => {
     if (!canSubmit) return;
@@ -247,7 +292,9 @@ function CheckoutForm({
           address: deliveryMethod === 'ship' ? { address, residential } : undefined,
           contactName: deliveryMethod === 'pickup' ? contactName : undefined,
           contactPhone: deliveryMethod === 'pickup' ? contactPhone : undefined,
-          poNumber: poNumber || null,
+          // Trimmed-or-null, so '', '   ' and a missing field all reach
+          // orders.po_number as one state instead of three.
+          poNumber: normalizePoNumber(poNumber),
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -410,19 +457,6 @@ function CheckoutForm({
                 />
                 Is this a residential address?
               </label>
-              <div>
-                <label className={labelClass} htmlFor="po-number">
-                  PO Number <span className="normal-case text-afs-chrome-dim">(optional)</span>
-                </label>
-                <input
-                  id="po-number"
-                  type="text"
-                  value={poNumber}
-                  onChange={(e) => setPoNumber(e.target.value)}
-                  disabled={submitting}
-                  className={`${inputClass} font-data`}
-                />
-              </div>
             </div>
           ) : (
             <div className="flex flex-col gap-4">
@@ -461,6 +495,24 @@ function CheckoutForm({
               </div>
             </div>
           )}
+
+          {/*
+            OUTSIDE the Ship/Pickup branch, deliberately. This input used to sit
+            inside the Ship arm, so a customer who chose Pickup never saw it and
+            their order carried no PO at all — and once a company requires one,
+            that placement would have made the order unplaceable. A PO number is
+            an accounting field, not a shipping field.
+            SPEC_PURCHASE_ORDER_INTEGRATION.md §2 puts it in "checkout Section 1
+            (Delivery Information)", which is here.
+          */}
+          <div className="mt-4">
+            <PoNumberField
+              value={poNumber}
+              onChange={setPoNumber}
+              required={requirePo}
+              disabled={submitting}
+            />
+          </div>
         </div>
 
         <div className="bg-afs-bg-raised border border-afs-chrome-dim rounded p-6 mb-6">
@@ -582,6 +634,21 @@ function CheckoutForm({
 
         {submitError && (
           <p className="font-body text-sm text-afs-crimson mb-4">{submitError}</p>
+        )}
+
+        {/*
+          SPEC_PURCHASE_ORDER_INTEGRATION.md §3 asks for BOTH halves — the
+          sentence and the block — so the disabled button alone is not enough:
+          nothing else in this form explains why Place Order is unavailable, and
+          a customer staring at a dead button has nothing to act on.
+
+          Guarded on `requirePo`, so for a company without the requirement this
+          element never exists and the page is unchanged.
+        */}
+        {requirePo && !poComplete && !submitError && (
+          <p className="font-body text-sm text-afs-danger-on-dark mb-4" role="status">
+            {PO_REQUIRED_ERROR}
+          </p>
         )}
 
         <button
