@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
-  getProfileStockLengths,
   resolveStockLengthBySlug,
   resolveStockLengthByQuoteLabel,
   readProfileStockLengths,
@@ -198,7 +197,7 @@ describe('resolveStockLengthByQuoteLabel', () => {
   });
 });
 
-describe('getProfileStockLengths', () => {
+describe('readProfileStockLengths asks the catalog for exactly what it needs', () => {
   /**
    * A stub of the PostgREST boundary, not of the function under test. The
    * elite test standard requires external dependencies to be mocked rather
@@ -232,7 +231,7 @@ describe('getProfileStockLengths', () => {
   it('reads only the four stock-length columns, from active rows only', async () => {
     const client = stubClient([]);
 
-    await getProfileStockLengths(client);
+    await readProfileStockLengths(client);
 
     const calls = (client as unknown as { __calls: { table: string; columns: string; filter: [string, unknown] } })
       .__calls;
@@ -249,7 +248,7 @@ describe('getProfileStockLengths', () => {
       { slug: 'scupper', name: 'Scupper', standard_length_ft: null, max_length_ft: null },
     ]);
 
-    const profiles = await getProfileStockLengths(client);
+    const { profiles } = await readProfileStockLengths(client);
 
     expect(profiles, 'both rows map field for field, NULL included').toEqual([
       { slug: 'coping-cap', name: 'Coping Cap', standardLengthFt: 10, maxLengthFt: 12 },
@@ -261,10 +260,14 @@ describe('getProfileStockLengths', () => {
     // PostgREST returns `data: null` on an error. The optimizer section renders
     // nothing for an empty list, which is the right outcome: no stock length
     // resolves, so the spec's §3 condition is simply not met.
-    expect(await getProfileStockLengths(stubClient(null)), 'null data becomes an empty list').toEqual(
-      []
-    );
-    expect(await getProfileStockLengths(stubClient([])), 'and so does an empty one').toEqual([]);
+    expect(
+      (await readProfileStockLengths(stubClient(null))).profiles,
+      'null data becomes an empty list'
+    ).toEqual([]);
+    expect(
+      (await readProfileStockLengths(stubClient([]))).profiles,
+      'and so does an empty one'
+    ).toEqual([]);
   });
 });
 

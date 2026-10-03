@@ -34,8 +34,13 @@ export interface ProfileStockLengthRead {
 /**
  * THE ONE QUERY. Both the customer-facing quote form and the admin Cut Plan
  * screen read stock lengths through here, so there is a single column list and
- * a single mapper. `getProfileStockLengths` below is the same read with the
- * failure flag dropped, kept because that is the shape already in use.
+ * a single mapper, and both can tell a failed read apart from an empty catalog.
+ *
+ * There used to be a second export beside it that returned the rows alone and
+ * swallowed the error. It was removed rather than kept for convenience: its
+ * only remaining caller was its own test, and a function that cannot report a
+ * failure is the reason the quote form could not distinguish "the lookup broke"
+ * from "this profile has no stock length".
  */
 export async function readProfileStockLengths(
   supabase: SupabaseClient
@@ -58,13 +63,16 @@ export async function readProfileStockLengths(
   };
 }
 
-export async function getProfileStockLengths(supabase: SupabaseClient): Promise<ProfileStockLength[]> {
-  return (await readProfileStockLengths(supabase)).profiles;
-}
-
 // lib/utils/profile-svg.ts's ProfileType is a 16-member slug union built for FlashDraft
 // geometry — only 5 values are real product_profiles.slugs. Exact slug match; no row
 // (or a NULL standard_length_ft, e.g. scupper/custom-profile) resolves to null.
+//
+// NO PRODUCTION CALLER TODAY. It was written for app/configure/page.tsx, which
+// no longer exists — the Configurator was eliminated and FlashDraft is the only
+// drawing tool. Kept rather than deleted because a slug-keyed lookup is what a
+// FlashDraft-side caller would need, and its behaviour is pinned by
+// ./product-profiles.test.ts either way. Recorded here so the next reader does
+// not have to work out why nothing calls it.
 export function resolveStockLengthBySlug(profiles: ProfileStockLength[], slug: string): number | null {
   const match = profiles.find((p) => p.slug === slug);
   return match?.standardLengthFt ?? null;

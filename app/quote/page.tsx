@@ -17,10 +17,11 @@ import WasteFactorDisplay from '@/components/quote/WasteFactorDisplay';
 import TrimLengthOptimizerSection from '@/components/quote/TrimLengthOptimizerSection';
 import CrossSellPanel from '@/components/ai/CrossSellPanel';
 import {
-  getProfileStockLengths,
+  readProfileStockLengths,
   resolveStockLengthByQuoteLabel,
   type ProfileStockLength,
 } from '@/lib/data/product-profiles';
+import type { StockLengthStatus } from '@/components/quote/TrimLengthOptimizerSection';
 
 type Step = 1 | 2 | 3 | 4;
 type SubmitState = 'idle' | 'submitting' | 'submitted';
@@ -188,15 +189,36 @@ export default function QuotePage() {
   const [guestEmail, setGuestEmail] = useState('');
   const [selectedAccessories, setSelectedAccessories] = useState<string[]>([]);
   const [profileStockLengths, setProfileStockLengths] = useState<ProfileStockLength[]>([]);
+  const [stockLengthStatus, setStockLengthStatus] = useState<StockLengthStatus>('loading');
 
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data }) => setIsAuthenticated(!!data.user));
   }, []);
 
+  // The stock-length catalog, for the Trim Length Optimizer. The status is
+  // tracked as well as the rows because "the read failed" and "this profile has
+  // no stock length" are different things and the section says different words
+  // for each. The rejection handler is not decoration: without it a failed read
+  // left the section rendering nothing, indistinguishable from a profile that
+  // genuinely has no stock length, and logged an unhandled rejection.
   useEffect(() => {
+    let cancelled = false;
     const supabase = createClient();
-    getProfileStockLengths(supabase).then(setProfileStockLengths);
+
+    readProfileStockLengths(supabase)
+      .then(({ profiles, failed }) => {
+        if (cancelled) return;
+        setProfileStockLengths(profiles);
+        setStockLengthStatus(failed ? 'error' : 'ready');
+      })
+      .catch(() => {
+        if (!cancelled) setStockLengthStatus('error');
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const updateField = (field: Exclude<keyof QuoteFormData, 'rush'>, value: string) => {
@@ -584,6 +606,7 @@ export default function QuotePage() {
                 lengthFt={isPositiveNumber(form.lengthFt) ? Number(form.lengthFt) : 0}
                 quantity={isPositiveNumber(form.quantity) ? Number(form.quantity) : 0}
                 stockLengthFt={resolveStockLengthByQuoteLabel(profileStockLengths, form.profileType)}
+                status={stockLengthStatus}
               />
             </div>
           )}
