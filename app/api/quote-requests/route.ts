@@ -6,6 +6,7 @@ import { baseEmailTemplate } from '@/lib/resend/templates/base';
 import { isSourceTool } from '@/lib/data/quote-request-source-tool';
 import { constraintsForQuoteLabels, getProfileConstraints } from '@/lib/data/product-profiles';
 import { profileLabelsOf, readOrderValidatorItems } from '@/lib/order-validator/request-items';
+import { MAX_ITEMS_PER_VALIDATION } from '@/lib/order-validator/api-shape';
 import {
   acknowledgeableFindings,
   findingsForAudience,
@@ -104,8 +105,22 @@ async function validateSubmission(
   requestNumber: string
 ): Promise<PostSubmitValidation | undefined> {
   try {
-    const items = readOrderValidatorItems(rawItems);
-    if (items.length === 0) return undefined;
+    const allItems = readOrderValidatorItems(rawItems);
+    if (allItems.length === 0) return undefined;
+
+    // THE SUBMISSION IS NEVER NARROWED — only the validation pass is. This route
+    // has always accepted an items array of any length, and refusing one now
+    // would break behaviour it is this prompt's job to leave alone. But the
+    // validator's per-item cost is real, so it looks at the first
+    // MAX_ITEMS_PER_VALIDATION and SAYS SO when it stopped short, rather than
+    // reporting on part of a request as though it had read all of it.
+    const items = allItems.slice(0, MAX_ITEMS_PER_VALIDATION);
+    const unchecked = allItems.length - items.length;
+    if (unchecked > 0) {
+      console.error(
+        `[Order Validator] request=${requestNumber} checked ${items.length} of ${allItems.length} items; ${unchecked} not checked (per-request cap).`
+      );
+    }
 
     const catalog = await getProfileConstraints(admin);
     const constraints = [...catalog, ...constraintsForQuoteLabels(catalog, profileLabelsOf(items))];

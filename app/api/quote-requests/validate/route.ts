@@ -42,7 +42,12 @@ import {
   type ValidationErrorResponse,
   type ValidationResponse,
 } from '@/lib/order-validator/api-shape';
-import { profileLabelsOf, readOrderValidatorItems } from '@/lib/order-validator/request-items';
+import {
+  MAX_POINTS_PER_ITEM,
+  countOversizedPolylines,
+  profileLabelsOf,
+  readOrderValidatorItems,
+} from '@/lib/order-validator/request-items';
 import {
   acknowledgeableFindings,
   blockingFindings,
@@ -94,6 +99,18 @@ export async function POST(request: NextRequest): Promise<NextResponse<Validatio
     if (body.items.length > MAX_ITEMS_PER_VALIDATION) {
       return NextResponse.json(
         { error: `A quote request can be checked up to ${MAX_ITEMS_PER_VALIDATION} items at a time.` },
+        { status: 400 }
+      );
+    }
+
+    // The self-intersection check compares every non-adjacent segment pair, so
+    // its cost is quadratic in the point count and this route is
+    // unauthenticated. Refused explicitly rather than silently losing the
+    // geometry checks on an over-long polyline — no real drawing is close to
+    // this, so a caller that hits it has a bug or worse and should be told.
+    if (countOversizedPolylines(body.items) > 0) {
+      return NextResponse.json(
+        { error: `A drawn profile can carry up to ${MAX_POINTS_PER_ITEM} points.` },
         { status: 400 }
       );
     }

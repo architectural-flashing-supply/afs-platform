@@ -28,6 +28,23 @@ function readHem(raw: unknown): ValidatableHem | null {
 }
 
 /**
+ * The most points a drawn profile may carry into the validator.
+ *
+ * `findSelfIntersections` compares every non-adjacent segment pair, so its cost
+ * is quadratic in the point count. The validate endpoint is unauthenticated (as
+ * the submit endpoint it guards has always been), which makes an unbounded
+ * polyline a real way to burn server time: fifty items of ten thousand points
+ * each is billions of orientation tests from one request.
+ *
+ * 1000 is three orders of magnitude above anything real — a FlashDraft profile
+ * is a handful of points, and the most complex shape in the shop's send history
+ * is nowhere near a hundred. The cap is enforced at the API boundary with an
+ * explicit 400 rather than only here, so a caller is told rather than quietly
+ * losing the geometry checks.
+ */
+export const MAX_POINTS_PER_ITEM = 1000;
+
+/**
  * FlashDraft's polyline, in world inches. Every point must be a finite pair or
  * the whole polyline is discarded — a half-read drawing would be measured, and a
  * measurement of a shape nobody drew is worse than no measurement. The geometry
@@ -35,6 +52,7 @@ function readHem(raw: unknown): ValidatableHem | null {
  */
 function readPoints(raw: unknown): { x: number; y: number }[] | null {
   if (!Array.isArray(raw)) return null;
+  if (raw.length > MAX_POINTS_PER_ITEM) return null;
   const points: { x: number; y: number }[] = [];
   for (const entry of raw) {
     if (!entry || typeof entry !== 'object') return null;
@@ -93,12 +111,41 @@ export function readOrderValidatorItems(raw: unknown): OrderValidatorItem[] {
   return items;
 }
 
-/** The distinct, non-empty profile labels in a set of items. */
+/**
+ * The distinct, non-empty profile labels in a set of items, in first-seen order.
+ *
+ * Deduplicated through a Set rather than `labels.includes`, so the cost is
+ * linear in the item count instead of quadratic. With fifty items that
+ * difference is immaterial; it matters because this is reached from the
+ * unauthenticated validate endpoint, where "immaterial per request" is the wrong
+ * unit to reason in.
+ */
 export function profileLabelsOf(items: readonly OrderValidatorItem[]): string[] {
+  const seen = new Set<string>();
   const labels: string[] = [];
   for (const item of items) {
     const label = typeof item.profileType === 'string' ? item.profileType.trim() : '';
-    if (label !== '' && !labels.includes(label)) labels.push(label);
+    if (label === '' || seen.has(label)) continue;
+    seen.add(label);
+    labels.push(label);
   }
   return labels;
+}
+
+/**
+ * The number of items in a raw body whose `points` array is over the cap.
+ *
+ * Counted rather than silently dropped so the API boundary can refuse the
+ * request and say why. CLAUDE.md rule #28's principle, applied to a payload
+ * limit: a cap that is not reported looks exactly like coverage.
+ */
+export function countOversizedPolylines(raw: unknown): number {
+  if (!Array.isArray(raw)) return 0;
+  let count = 0;
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+    const points = (entry as { points?: unknown }).points;
+    if (Array.isArray(points) && points.length > MAX_POINTS_PER_ITEM) count += 1;
+  }
+  return count;
 }
