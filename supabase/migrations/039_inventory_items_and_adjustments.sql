@@ -332,6 +332,63 @@ CREATE TRIGGER inventory_adjustments_append_only
   FOR EACH ROW EXECUTE FUNCTION afs_inventory_append_only();
 
 -- ===========================================================================
+-- 3b. A QUANTITY CANNOT MOVE WITHOUT A LEDGER ROW — ENFORCED BY THE DATABASE
+-- ===========================================================================
+--
+-- §5's `admin_all_inventory_items` policy is FOR ALL, because an item really is
+-- created, edited and retired by an admin. Left at that, it also lets an admin
+-- session PATCH `qty_on_hand` straight through PostgREST and move a number with
+-- no ledger row behind it. The API route refuses that (it rejects any quantity
+-- field in the body), but a route refusing something is not enforcement — it is
+-- the same "hiding a button" that CLAUDE.md rule #14 says is not the guarantee.
+-- The guarantee is this trigger.
+--
+-- It refuses ANY change to qty_on_hand / qty_reserved, and any INSERT that
+-- arrives carrying a quantity, unless the transaction-local flag
+-- `afs.inventory_apply` is on — and the ONLY thing that ever sets that flag is
+-- `inventory_apply_adjustment()` (§4), immediately around its own UPDATE, which
+-- inserts the ledger row in the same transaction. So "a quantity only changes
+-- through a logged adjustment" is a database fact rather than a convention.
+--
+-- `set_config(..., true)` is TRANSACTION-local: the flag cannot leak into
+-- another statement on a pooled connection. `current_setting(..., true)`
+-- returns NULL rather than erroring when the setting was never set, which is
+-- why the comparison is `IS DISTINCT FROM` and not `<>`.
+--
+-- The definition columns — finish, coil width, reorder point, stock unit,
+-- retirement — are deliberately NOT guarded: those are edits, not quantities,
+-- and `admin_audit_log` already records them (lib/admin/audit.ts).
+CREATE OR REPLACE FUNCTION afs_inventory_quantities_through_ledger() RETURNS trigger LANGUAGE plpgsql AS $fn$
+BEGIN
+  IF current_setting('afs.inventory_apply', true) IS NOT DISTINCT FROM 'on' THEN
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.qty_on_hand IS NOT NULL OR NEW.qty_reserved <> 0 THEN
+      RAISE EXCEPTION
+        'An inventory item is created with no quantity. Record a count adjustment instead — that is what writes the history.'
+        USING ERRCODE = '42501';
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  IF NEW.qty_on_hand IS DISTINCT FROM OLD.qty_on_hand
+     OR NEW.qty_reserved IS DISTINCT FROM OLD.qty_reserved THEN
+    RAISE EXCEPTION
+      'A quantity changes only through inventory_apply_adjustment(), which writes the ledger row in the same transaction. Direct updates to qty_on_hand / qty_reserved are refused.'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN NEW;
+END $fn$;
+
+DROP TRIGGER IF EXISTS inventory_items_quantities_through_ledger ON inventory_items;
+CREATE TRIGGER inventory_items_quantities_through_ledger
+  BEFORE INSERT OR UPDATE ON inventory_items
+  FOR EACH ROW EXECUTE FUNCTION afs_inventory_quantities_through_ledger();
+
+-- ===========================================================================
 -- 4. ONE TRANSACTION: inventory_apply_adjustment()
 -- ===========================================================================
 --
@@ -360,6 +417,18 @@ CREATE TRIGGER inventory_adjustments_append_only
 -- NULL for a never-counted item, and `NULL = NULL` is UNKNOWN, so `=` would
 -- report a conflict on every first count — the one case that is guaranteed to
 -- happen.
+--
+-- WHO AND WHERE FROM ARE NOT TAKEN ON TRUST. A ledger whose whole value is
+-- "the reason and WHO" must not let one admin record a change against another
+-- admin's name, and `p_adjusted_by` is just a parameter. So when there IS a
+-- session (`auth.uid()` is not null), the actor is `auth.uid()` and a
+-- disagreeing `p_adjusted_by` raises — the caller may state who it is, but not
+-- choose. `p_source` is pinned to 'admin_ui' on the same condition, so a
+-- session cannot forge the provenance of a future ERP import. `auth.uid()` is
+-- NULL only for the service role, which is how the deferred 'erp_sync' and
+-- 'import' writers of §2 will arrive; those supply the actor explicitly, and
+-- RLS does not apply to them in any case. §5's INSERT policy pins the same
+-- thing a second time, independently, for a session.
 CREATE OR REPLACE FUNCTION inventory_apply_adjustment(
   p_item_id            uuid,
   p_kind               text,
@@ -383,7 +452,31 @@ DECLARE
   v_existing inventory_adjustments;
   v_item     inventory_items;
   v_row      inventory_adjustments;
+  v_uid      uuid   := auth.uid();
+  v_actor    uuid;
+  v_source   text;
 BEGIN
+  IF v_uid IS NOT NULL THEN
+    IF p_adjusted_by IS DISTINCT FROM v_uid THEN
+      RAISE EXCEPTION 'An adjustment is recorded against the signed-in admin, and cannot be attributed to anyone else.'
+        USING ERRCODE = 'insufficient_privilege';
+    END IF;
+    IF p_source IS DISTINCT FROM 'admin_ui' THEN
+      RAISE EXCEPTION 'A signed-in admin records source ''admin_ui''. Other sources are written by the service role only.'
+        USING ERRCODE = 'insufficient_privilege';
+    END IF;
+    v_actor  := v_uid;
+    v_source := 'admin_ui';
+  ELSE
+    -- Service role: no session to read an actor from, so it must be supplied.
+    IF p_adjusted_by IS NULL THEN
+      RAISE EXCEPTION 'adjusted_by is required: every adjustment records who made it.'
+        USING ERRCODE = 'not_null_violation';
+    END IF;
+    v_actor  := p_adjusted_by;
+    v_source := p_source;
+  END IF;
+
   -- IDEMPOTENCY FIRST, before the lock: a retry of a request that already
   -- succeeded returns the original row and changes nothing.
   IF p_client_request_id IS NOT NULL THEN
@@ -415,18 +508,23 @@ BEGIN
       USING ERRCODE = 'serialization_failure';
   END IF;
 
+  -- The flag §3b's trigger looks for, on for exactly this one statement and
+  -- transaction-local so it cannot leak. Turned off again immediately, so a
+  -- second, direct UPDATE later in the same transaction is still refused.
+  PERFORM set_config('afs.inventory_apply', 'on', true);
   UPDATE inventory_items
      SET qty_on_hand  = p_on_hand_after,
          qty_reserved = p_reserved_after,
          updated_at   = now()
    WHERE id = p_item_id;
+  PERFORM set_config('afs.inventory_apply', 'off', true);
 
   INSERT INTO inventory_adjustments (
     item_id, kind, source, delta_on_hand, counted_on_hand, delta_reserved,
     on_hand_after, reserved_after, reason, adjusted_by, client_request_id
   ) VALUES (
-    p_item_id, p_kind, p_source, p_delta_on_hand, p_counted_on_hand, p_delta_reserved,
-    p_on_hand_after, p_reserved_after, p_reason, p_adjusted_by, p_client_request_id
+    p_item_id, p_kind, v_source, p_delta_on_hand, p_counted_on_hand, p_delta_reserved,
+    p_on_hand_after, p_reserved_after, p_reason, v_actor, p_client_request_id
   )
   RETURNING * INTO v_row;
 
@@ -450,6 +548,17 @@ COMMENT ON FUNCTION inventory_apply_adjustment IS
 -- NOTHING ELSE: there is no UPDATE policy and no DELETE policy, so a session
 -- has no route to either operation even before the §3 trigger is consulted. Do
 -- not add one.
+--
+-- THE INSERT POLICY ALSO PINS THE ACTOR: `adjusted_by = auth.uid()`. A session
+-- can only write a ledger row against its OWN name, so "who made this change"
+-- cannot be forged even by a caller that goes around
+-- `inventory_apply_adjustment()` and inserts directly. §4 refuses the same
+-- thing independently; this is the half that holds when the function is not the
+-- one doing the insert. The service role bypasses RLS entirely, which is how
+-- the deferred ERP and import writers of §2 will supply their own actor.
+--
+-- An item's FOR ALL policy is NOT a licence to move a quantity: §3b's trigger
+-- refuses that regardless of policy, including for the service role.
 
 ALTER TABLE inventory_items       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inventory_adjustments ENABLE ROW LEVEL SECURITY;
@@ -464,7 +573,7 @@ CREATE POLICY admin_read_inventory_adjustments ON inventory_adjustments
 
 DROP POLICY IF EXISTS admin_insert_inventory_adjustments ON inventory_adjustments;
 CREATE POLICY admin_insert_inventory_adjustments ON inventory_adjustments
-  FOR INSERT WITH CHECK (is_admin());
+  FOR INSERT WITH CHECK (is_admin() AND adjusted_by = auth.uid());
 
 -- ===========================================================================
 -- 6. NO SEED. NOT ONE ROW.
@@ -490,6 +599,8 @@ CREATE POLICY admin_insert_inventory_adjustments ON inventory_adjustments
 --     uuid, text, numeric, numeric, numeric, numeric, numeric,
 --     numeric, numeric, text, uuid, uuid, text);
 --   DROP TRIGGER  IF EXISTS inventory_adjustments_append_only ON inventory_adjustments;
+--   DROP TRIGGER  IF EXISTS inventory_items_quantities_through_ledger ON inventory_items;
+--   DROP FUNCTION IF EXISTS afs_inventory_quantities_through_ledger();
 --   DROP FUNCTION IF EXISTS afs_inventory_append_only();
 --   DROP TABLE    IF EXISTS inventory_adjustments;
 --   DROP TABLE    IF EXISTS inventory_items;

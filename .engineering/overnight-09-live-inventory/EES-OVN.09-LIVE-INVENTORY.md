@@ -430,7 +430,9 @@ on. Refusals, each with its reason:
 
 | Kind | Refused when | Message shape |
 |---|---|---|
-| any | `!Number.isFinite(amount)` or `amount === 0` | "Enter an amount other than zero." |
+| any | `!Number.isFinite(amount)` | "Enter an amount as a number." |
+| any | `amount < 0` | The amount is always a positive magnitude; the **kind** carries the sign, because asking somebody to type a minus sign to use metal is how a mis-keyed receipt happens |
+| any except `count` | `amount === 0` | "Enter an amount other than zero." A count of zero is a real measurement, so `count` is the one kind that allows it |
 | any | result would exceed `MAX_QTY` (`9999999999.99`, the limit of `numeric(12,2)`) | "That is larger than this field can store." — caught here so the user sees a sentence, not a Postgres `22003` |
 | `count` | `counted < 0` | "A count cannot be negative." |
 | `receipt` / `consumption` | `onHand === null` | "Record a count first — this item has never been counted." (naming the fix, as rule #19's quote refusal does) |
@@ -504,6 +506,28 @@ It runs in a single transaction, takes `FOR UPDATE` on the item row, and:
 
 It is `SECURITY INVOKER` on purpose, so the caller's RLS still applies — a
 `SECURITY DEFINER` function here would be a way around the admin-only policies.
+
+**Three further holes were found by an adversarial review of the drafted
+migration and closed in it (added after the first draft; see §16.3):**
+
+- **The actor was taken on trust.** `p_adjusted_by` was just a parameter, so one
+  admin could record a change against another admin's name — in a ledger whose
+  whole value is *the reason and who*. Now: when `auth.uid()` is non-null the
+  actor **is** `auth.uid()`, a disagreeing `p_adjusted_by` raises, and the
+  INSERT policy independently pins `adjusted_by = auth.uid()`.
+- **Provenance was forgeable.** A session could pass `source='erp_sync'`. Now
+  pinned to `'admin_ui'` whenever there is a session; the other two sources are
+  service-role only, which is how the deferred ERP/import writers arrive.
+- **A quantity could move with no ledger row.** `admin_all_inventory_items` is
+  `FOR ALL`, so an admin session could `PATCH qty_on_hand` straight through
+  PostgREST. The route refused it, but a route refusing something is not
+  enforcement — CLAUDE.md rule #14's own standard. Now a
+  `BEFORE INSERT OR UPDATE` trigger on `inventory_items` refuses any change to
+  `qty_on_hand`/`qty_reserved` (and any insert carrying one) unless the
+  **transaction-local** flag `afs.inventory_apply` is on, and
+  `inventory_apply_adjustment()` is the only thing that ever sets it, around its
+  own `UPDATE`. INV-05 is therefore a database fact rather than a convention,
+  and it binds the service role too.
 
 **It does not recompute the business math.** It is handed `p_on_hand_after` /
 `p_reserved_after`, already computed by `stock-math.ts`, and enforces only
@@ -644,6 +668,8 @@ Each numbered step is one commit, so a dead session loses at most one unit.
 | **AC-26** | No new file contains `any`, `@ts-ignore`, `eslint-disable`, `TODO`, `FIXME`, a `.skip`/`.todo` test, or a literal `#rrggbb` in JSX. |
 | **AC-27** | Governance updated by **append**: a dated section in `STATE_OF_THE_BUILD.md` (with the Elite Compliance checklist), one in `SESSION_STATE.md`, one in `SCHEMA.md`, and `queue.yaml` marked. No existing text rewritten. |
 | **AC-28** | The automatic-reservation-on-order-approval gap is recorded explicitly in the final report and in `STATE_OF_THE_BUILD.md`, with the reason it was not built. |
+| **AC-29** | The migration binds a `BEFORE INSERT OR UPDATE` trigger on `inventory_items` that refuses a change to `qty_on_hand`/`qty_reserved` unless the transaction-local `afs.inventory_apply` flag is on, and `inventory_apply_adjustment()` is the only place in the file that calls `set_config` for it. |
+| **AC-30** | `inventory_apply_adjustment()` binds the actor to `auth.uid()` and pins `source` to `'admin_ui'` whenever there is a session, and the `inventory_adjustments` INSERT policy carries `adjusted_by = auth.uid()`. |
 
 ---
 
@@ -651,7 +677,7 @@ Each numbered step is one commit, so a dead session loses at most one unit.
 
 | AC | Verification |
 |---|---|
-| AC-01, AC-02, AC-03, AC-04, AC-05 | `lib/inventory/migration-rls.test.ts` — a **static test over the migration's text**. Reads the `.sql` file and asserts each clause. This is the item's own stated test requirement ("RLS policy presence in the migration text") and it is the only honest check available, because the migration is deliberately unapplied. |
+| AC-01 … AC-05, AC-29, AC-30 | `lib/inventory/migration-rls.test.ts` — a **static test over the migration's text**. Reads the `.sql` file and asserts each clause. This is the item's own stated test requirement ("RLS policy presence in the migration text") and it is the only honest check available, because the migration is deliberately unapplied. |
 | AC-06 … AC-11 | `lib/inventory/stock-math.test.ts` |
 | AC-12 | `lib/data/inventory.test.ts` |
 | AC-13 … AC-16 | Code inspection against the written contract **plus** the E2E 401 assertion (AC-18). Honestly stated: a full authenticated matrix for all six handlers cannot be exercised while the tables do not exist, and that limitation is reported rather than papered over with a mock that proves only itself. |
@@ -830,6 +856,16 @@ caller of the same function — no refactor.
 | A-06 | "Delete" in "admin CRUD" means retire. | An append-only ledger `ON DELETE RESTRICT`-references the item; `price_book_items` sets the precedent. |
 | A-07 | The low-stock comparison is on **available** (`onHand - reserved`), not on `onHand`. | Reserved metal is spoken for. Comparing on hand would say "in stock" about metal already promised, which is the more dangerous error. |
 | A-08 | `reorderPoint = 0` means "tell me when it is out", and is distinct from `null`. | `0` is a threshold somebody set; `null` is nobody having said. Pinned by a test, because conflating them is the classic falsy bug. |
+
+### 16.3 Post-draft hardening of migration 039
+
+An adversarial security pass over the drafted migration found three real holes,
+all of them in the same class — *the route enforced it, the database did not* —
+and all three were closed in the migration before it was used. They are
+described in §9.8 and covered by AC-29 and AC-30. Recording them here rather
+than quietly rewriting the spec: the first draft's INV-05 was true of the API
+and not of the database, and the difference matters on a platform whose own rule
+#14 says "hiding a button is not enforcement; the database check is".
 
 ---
 
