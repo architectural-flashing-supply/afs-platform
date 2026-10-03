@@ -9955,3 +9955,120 @@ suite load and passes consistently in isolation.
 contrast **24 screens / 253 pairs / 0 unresolved / 0 below** · style gate
 **66 pairs: 63 pass, 0 fail, 0 uncovered, 1 live-only, 2 no-data** ·
 24 screenshots in `test-results/v7-fidelity/`.
+
+---
+
+## ovn-02 — 2026-10-03 — `02-trim-optimizer` (overnight, unattended)
+
+Branch `ovn/02-trim-optimizer`, a worktree of the main checkout. Spec written
+before any code, as `EES-OVN.02-TRIM-LENGTH-OPTIMIZER.md` at the project root.
+Full engineering detail is in STATE_OF_THE_BUILD.md's ovn-02 section; this is the
+session log and the compliance report.
+
+### BASELINE, MEASURED BEFORE ANYTHING WAS TOUCHED
+
+Clean tree at `75118cb`. `pnpm tsc --noEmit` clean. `pnpm test:unit` **484 passed
+/ 1 failed** — `lib/design/v7-css.test.ts`, "generated v7 CSS is stale". That
+failure is pre-existing, is a Command Center v7 artifact this run is forbidden to
+touch, and **was still the only failure at the end of the run**. It was recorded,
+not absorbed and not fixed.
+
+### WHAT WAS BUILT, IN THE ORDER IT WAS COMMITTED
+
+1. The EES, plus `lib/trim-optimizer/sixteenths.ts` — 12 tests.
+2. `lib/trim-optimizer/{types,optimize,index}.ts` — 56 tests. The engine.
+3. `lib/utils/trim-optimizer.test.ts` characterising the SHIPPED spec §2
+   function, then its guard — 13 tests.
+4. `lib/data/product-profiles.test.ts` — 22 tests over the stock-length
+   resolvers, the failed-vs-empty read, and the read timeout.
+5. `/admin/cut-plan` + `components/admin/CutPlanWorkbench.tsx` + `loading.tsx` +
+   `error.tsx` + the `UNLINKED_ADMIN_ROUTES` entry.
+6. The quote form's loading and error states.
+7. Two Playwright specs, 16 tests, run against a local dev server.
+8. Migration 039 (written, not applied) and the live-data divergence.
+
+### COMPLIANCE REPORT — VIOLATIONS FOUND, AND WHETHER THEY WERE RESOLVED
+
+**RESOLVED IN THIS RUN:**
+
+- `lib/utils/trim-optimizer.ts` would **hang the browser**: a stock length equal
+  to the kerf made `neededLf / 0` Infinity, `Math.ceil` Infinity, and the cut-list
+  loop unbounded. Below the kerf it produced a negative piece count and a silently
+  empty list beside nonsense totals. Guarded, with eight characterisation tests
+  run against the PRE-guard source to prove no existing answer changed.
+- A read that never answers left the quote form on "Checking stock lengths…"
+  **forever** — a hard abort does not make the PostgREST read reject. Now raced
+  against the codebase's existing 8 s read timeout.
+- A failed catalog read was **indistinguishable from a profile with no stock
+  length**, because `getProfileStockLengths` swallowed the error. That function is
+  gone; `readProfileStockLengths` reports `failed` and both screens say different
+  words for it.
+- `aria-label="Remove piece N"` on a button whose visible label reads "Clear"
+  violates **WCAG 2.5.3 Label in Name**. Corrected, and the stock-length Remove
+  button now names the length it removes.
+- Two contrast pairs on the new screen were measured and fixed before shipping:
+  `afs-chrome-base` on `afs-bg-raised` at **4.26:1** against a 4.5:1 rule, and
+  the crimson eyebrow at **1.42:1** as text on gunmetal.
+- A blank number field read as **zero** — and zero is a legitimate kerf, so an
+  emptied box would silently have produced a different, worse plan. It reads as
+  unanswered now.
+- **One of this run's own tests was passing for the wrong reason.** A
+  `toHaveCount(0)` with no positive signal in front of it is also true while the
+  data is still loading. Both negative e2e assertions now await the catalog
+  response first, and the one that was also wrong about the data was replaced.
+
+**FOUND, NOT RESOLVED — PENDING REID:**
+
+- **The customer-facing cut list has never rendered for a signed-out visitor.**
+  RLS on `product_profiles` requires `auth.uid()`, and `/quote` is public.
+  Migration `039_product_profiles_public_read.sql` fixes it and is **written but
+  NOT APPLIED**, because this run must not apply migrations.
+- **The live `product_profiles` rows do not match the seed file** on stock
+  lengths, max lengths, `requires_consultation` and one display name. Nothing was
+  changed; both column sets are recorded as test fixtures and the table is in
+  SCHEMA.md. Which set is correct is a question for Reid and Steve.
+- **Other admin pages still set the page eyebrow as crimson text at 1.42:1 on
+  gunmetal** (`shop-library`, `geometry-test`, `quickbooks`, `orders-crm` among
+  them). None is reachable by the contrast gate, because none is under a nav
+  route. Not swept — same shape as rule #18's `afs-chrome-dim` list, and Reid's
+  call.
+- **`pnpm lint` cannot run in this repository at all.** There is no ESLint config
+  and no `eslint` binary; the command opens Next's interactive setup prompt. No
+  linter was installed to make a checklist item green.
+- **Coverage cannot be measured.** `@vitest/coverage-v8` is not installed;
+  `vitest --coverage` exits `MISSING DEPENDENCY`. No dependency was added and **no
+  number was estimated in its place**.
+
+**THREE HARNESS OBSERVATIONS, recorded because they cost this session time:**
+
+- `tests/e2e/auth.setup.ts` **leaks the test password into Playwright output and
+  into `test-results/` traces** when it flakes: the login form submits natively as
+  a GET before hydration, so the credentials end up in a logged URL. The flake is
+  pre-existing; the leak is worth fixing on its own.
+- A `next build` run while `pnpm dev` is live **destroys the dev server's
+  `.next`** with an EPERM and leaves every `/_next/static/*` chunk 404ing. The
+  symptom is unrelated-looking: nothing hydrates, so Playwright's login submits
+  natively and every admin spec fails. Stop the dev server first.
+- `pnpm build` runs `prebuild`, which REGENERATES
+  `app/styles/command-center-v7.generated.css`. With that file already stale at
+  baseline, a plain `pnpm build` would have rewritten a committed v7 artifact.
+  The build gate was therefore run as `pnpm exec next build`, deliberately
+  skipping the chain, and `git status app/styles/` confirmed nothing changed.
+
+### WHAT THIS RUN DID NOT DO
+
+No deploy, no merge, no `main` contact, no migration applied, no `middleware.ts`
+change, no Command Center v7 screen or baseline touched, no real email, SMS or
+charge, no nav item added, no dependency added or removed, no secret read or
+printed, and no row changed in any database. One read-only PostgREST query was
+made against the live project to establish the divergence above, and the
+temporary script that made it was deleted.
+
+### FINAL GATES
+
+`tsc --noEmit` **0** · `pnpm test:unit` **587 passed / 1 pre-existing failure
+(588 total)** · `pnpm exec next build` **compiled successfully, 162 pages** ·
+contrast **24 screens / 248 pairs / 0 unresolved / 0 below** · Playwright **16 new
+tests passing**, plus `no-configurator` and `command-center-v7-nav` green.
+
+**ITEM MARKED UNVERIFIED** pending Reid's confirmation in a browser.

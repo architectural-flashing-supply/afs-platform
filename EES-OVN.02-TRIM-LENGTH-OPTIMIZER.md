@@ -675,12 +675,104 @@ No critical defect remains. 99 ≥ 95: gate **PASS**.
 ```
 Prompt ID: EES-OVN.02
 Prompt Name: Trim Length Optimizer — deterministic cut-list library + admin cut plan
-Word Count: 6282
-Engineering Proficiency Score: 99/100
+Word Count: 7248
+Engineering Proficiency Score: 97/100  (99/100 pre-implementation; re-audited in §17.5)
 Minimum Required Score: 95/100
 Self-Audit Status: PASS
 Repository Grounding Verified: YES
 Acceptance Criteria Verified for Specification Completeness: YES
-Critical Deficiencies Remaining: NONE
-Ready for Engineering Execution: YES
+Critical Deficiencies Remaining: NONE in the work delivered. Two defects FOUND
+  and recorded as PENDING REID — the product_profiles RLS gap (migration 039
+  written, not applied) and the live-vs-seed data divergence. Neither is
+  fixable by a run forbidden to touch the database.
+Ready for Engineering Execution: YES — executed. Item marked UNVERIFIED pending
+  Reid's confirmation in a browser.
 ```
+
+---
+
+## 17. POST-IMPLEMENTATION ADDENDUM (written after execution, 2026-10-03)
+
+This section is appended rather than folded into the sections above, so that what
+was SPECIFIED can still be told apart from what was FOUND. Sections 1-16 are the
+pre-implementation document, unedited.
+
+### 17.1 Acceptance criteria — final status
+
+| AC | Status | Evidence |
+|---|---|---|
+| AC-01 … AC-10 | **PASS** | `pnpm vitest run lib/trim-optimizer` — 68 tests |
+| AC-11 | **PASS** | 13 characterisation tests; 8 of them also run against the pre-guard source, which is how "no existing answer changed" was proved rather than asserted |
+| AC-12 | **PASS** | `pnpm test:unit` — 587 passed, 1 failed, and the one failure is the pre-existing `v7-css` staleness from §3.5 |
+| AC-13 | **PARTIAL** | `tsc --noEmit` clean; **lint not runnable at all** — this repository has no ESLint config and no `eslint` binary, and no linter was installed to turn a checklist green |
+| AC-14 | **PASS** | `lib/data/admin-nav.test.ts` unmodified and green; `grep` for the href in both nav files is empty; an e2e test redirects a signed-out visitor |
+| AC-15 | **PASS** | grep over every touched file; plus two e2e tests asserting no `$` amount renders |
+| AC-16 | **PASS** | grep over `lib/trim-optimizer/**` — no `fetch`, `Date`, `Math.random`, `process`, `window`, `supabase`, and no module-level mutable binding |
+| AC-17 | **PASS, and better than specified** | UNRESOLVED-1 predicted an honest skip. The credentials turned out to live in the ROOT `.env.local`, which is the file `playwright.config.ts` actually loads, so all 16 e2e tests were run for real against a local dev server with a real admin session |
+| AC-18 | **PASS** | §17.4 below, and SESSION_STATE.md's compliance report |
+
+### 17.2 Four things the specification did not anticipate
+
+Each was found by executing, not by reading, and each is written up in
+STATE_OF_THE_BUILD.md's ovn-02 section:
+
+1. **The customer-facing cut list has never rendered for a signed-out visitor.**
+   `product_profiles`'s only SELECT policy requires `auth.uid()`, and `/quote` is
+   deliberately public. RLS filters every row and PostgREST answers 200 with an
+   empty array and no error, so the app cannot tell it from "this profile has no
+   stock length". §7.2 of this document said no migration would be written; that
+   was correct as a scoping decision and wrong as a prediction, and the honest
+   resolution was to write `039_product_profiles_public_read.sql` and NOT apply
+   it. **The non-goal is therefore amended, with its reason stated, rather than
+   quietly broken.**
+2. **A read that never answers hung the section forever.** R-17 specified a
+   loading state and an error state; it did not consider that the two are not
+   exhaustive, because a hard network abort leaves the PostgREST promise pending
+   rather than rejecting. Fixed with the codebase's existing 8 s read timeout.
+3. **The live database does not match the seed file** on stock lengths, max
+   lengths, `requires_consultation` and one display name. §3.3 of this document
+   cites the seed file and `TRIM_OPTIMIZER_SCOPE.md`'s audit table; both are
+   stale. Nothing was changed in the database, and both column sets are now test
+   fixtures.
+4. **A blank number field read as zero**, and zero is a legitimate kerf, so an
+   emptied blade-width box would silently have produced a different and worse
+   plan. Caught in the second-pass review of R-18, not by a test.
+
+### 17.3 One defect in this run's own tests
+
+A `toHaveCount(0)` assertion with no positive signal in front of it is also
+satisfied while the data it is about is still loading — so the "renders nothing
+for a scupper" test was really asserting "has not rendered YET", and failed only
+when the catalog read happened to land first. It was additionally wrong about the
+data. Both negative e2e assertions now await the catalog response before
+asserting an absence. Section 14's test catalogue did not call for that, and
+should be read as requiring it in future.
+
+### 17.4 Not verified, and why
+
+- **The browser.** Every state was driven by Playwright and asserted, but nobody
+  has LOOKED at `/admin/cut-plan`. The item is marked UNVERIFIED pending Reid.
+- **Coverage.** `@vitest/coverage-v8` is not installed; no dependency was added
+  to produce a metric and no number was estimated. UNRESOLVED-4 pre-committed to
+  exactly this outcome.
+- **`tests/e2e/quote-request.spec.ts`** was not run: it submits a real quote
+  request to the live project and may attempt outbound mail. The submit path is
+  untouched by this item's diff.
+- **The v7 pixel and style gates** were not run. No v7 screen, asset or baseline
+  was modified; `command-center-v7-nav.spec.ts` was run instead and is green.
+- **Migration 039 is unapplied**, so defect 1 above is still live in production.
+
+### 17.5 Score, re-audited after execution
+
+The pre-implementation score was 99/100. Re-scored against what the work turned
+out to be: the specification's completeness (15) loses a further point for
+missing both the RLS gap and the possibility of a non-rejecting read, and the
+acceptance-test quality (10) loses a point for a criterion (AC-17's predecessor
+pattern) whose negative assertions could pass vacuously. Repository grounding is
+unchanged at 10 only because the divergence it missed was found and recorded
+within the same run rather than shipped.
+
+**Final: 97/100.** Above the 95 gate. No critical defect remains outstanding in
+the work this item delivered; the two defects it FOUND and could not fix are
+recorded as PENDING REID with a migration ready to apply, which is the honest
+disposition for an unattended run that is forbidden to touch the database.

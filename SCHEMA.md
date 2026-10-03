@@ -2932,5 +2932,95 @@ rule #16 says it means: created, unconfirmed, do not retry.
 
 ---
 
+## ovn-02 (2026-10-03) — product_profiles: ONE POLICY FILE WRITTEN, NOT APPLIED,
+## AND THE LIVE ROWS DO NOT MATCH THE SEED FILE
+
+Written by the overnight `02-trim-optimizer` item. Both halves below are
+measurements taken against the live project, not readings of a document.
+
+### MIGRATION 039 — `039_product_profiles_public_read.sql` (WRITTEN, **NOT APPLIED**)
+
+Adds one SELECT policy and nothing else:
+
+```sql
+CREATE POLICY product_profiles_public_read
+  ON product_profiles
+  FOR SELECT
+  USING (is_active = true);
+```
+
+**The defect it fixes.** TABLE 6's only SELECT policy is still
+`authenticated_read_profiles`, `auth.uid() IS NOT NULL AND is_active = true`
+(001_initial_schema.sql:195). `app/quote/page.tsx` is deliberately PUBLIC — a
+guest submits a quote request without ever logging in — so for every signed-out
+visitor RLS filters all twelve rows out, PostgREST answers **200 with an empty
+array and no error**, and the Trim Length Optimizer's cut list silently never
+renders. The app cannot tell that apart from "this profile has no standard stock
+length", which is why it went unnoticed.
+
+Proven by running the same Playwright flow both ways: with a session the section
+prints "You need 47 LF. We stock this profile in 10 ft lengths."; without one it
+prints nothing at all.
+
+`is_active = true` is KEPT, so a retired profile stays invisible exactly as it is
+to a signed-in user today — this widens WHO may read an active row, not WHICH
+rows are readable. Writes are untouched: `admin_write_profiles` is left exactly
+as it is and only a SELECT policy is added. The table holds public catalog
+content (name, slug, category, description, dimensional ranges, stock lengths);
+no customer data, no pricing. Same reasoning, and the same shape, as
+`033_building_codes_public_read.sql`.
+
+It is a FILE ONLY. The overnight brief forbids applying a migration, so until
+Reid applies it the customer-facing cut list remains invisible to signed-out
+visitors. `tests/e2e/trim-optimizer-quote-states.spec.ts` therefore runs signed
+in and says so in its header; when 039 is applied, its `test.use` can be dropped.
+
+DOWN: `DROP POLICY IF EXISTS product_profiles_public_read ON product_profiles;`
+
+### THE LIVE ROWS DIVERGE FROM `002_seed_afs_data.sql`
+
+Read over PostgREST with the service role on 2026-10-03. Twelve rows, all
+`is_active = true`. The seed file's declared values are in the left column and
+TRIM_OPTIMIZER_SCOPE.md's §2 audit table repeats them, so both are stale:
+
+| slug | seed std/max ft | **LIVE std/max ft** | seed `requires_consultation` | **LIVE** |
+|---|---|---|---|---|
+| base-flashing | 10 / 12 | 10 / **20** | false | false |
+| coping-cap | 10 / 12 | 10 / **20** | false | false |
+| counter-flashing | 10 / 12 | 10 / **20** | false | false |
+| custom-profile | **NULL / NULL** | **10 / 20** | **true** | **false** |
+| drip-edge | 10 / 12 | 10 / **20** | false | false |
+| expansion-joint | 10 / 20 | 10 / 20 | false | false |
+| fascia | 10 / 12 | 10 / **20** | false | false |
+| gravel-stop | 10 / 12 | 10 / **20** | false | false |
+| scupper | **NULL / NULL** | **10 / 10** | **true** | **false** |
+| standing-seam-roofing | **20** / 40 | **10** / 40 | false | false |
+| valley-flashing | 10 / 12 | 10 / **20** | false | false |
+| window-door-flashing | 10 / 12 | 10 / **20** | false | false |
+
+One `name` also differs: the seed file says `Window & Door Flashing`, the live
+row says **`Window/Door Flashing`** — no ampersand, no spaces. The quote form's
+alias map survives that rename only because it resolves to a SLUG rather than to
+a display name, which is now a load-bearing reason for its shape rather than an
+incidental one.
+
+**Consequences, stated plainly.** No live row has a NULL `standard_length_ft`,
+so there is currently no profile whose cut list is hidden for want of a stock
+length — twelve of the quote form's seventeen labels resolve to 10 ft and the
+five that resolve to nothing are the five with no row at all (Step Flashing,
+Conductor Head, Downspout, Reglet, Wall Panel / Cladding). `max_length_ft` is
+not read by any code this item added.
+
+**Nothing was changed in the database.** Both column sets are recorded as
+fixtures in `lib/data/product-profiles.test.ts` — the seed file's values,
+because they are the only ones that exercise the NULL branch at all, and the
+live values, because they are what really resolves today. **Which set is CORRECT
+is a question for Reid and Steve**, not something this run could decide: a
+scupper having a 10 ft standard stock length, and `requires_consultation` being
+false on a custom profile, both look like data somebody changed by hand rather
+than intent.
+
+---
+
 *SCHEMA.md | AFS | Reid Whitesides | June 2026*
 *Run 001_initial_schema.sql in Supabase before any feature build begins.*

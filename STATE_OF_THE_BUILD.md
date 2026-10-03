@@ -17077,3 +17077,243 @@ session's own screenshots and Playwright passes are evidence to bring to the
 user, not proof. Every screen is asserted against the prototype by an automated
 gate and the side-by-side screenshots are committed, but the look is not marked
 complete until Reid has looked at it.
+
+---
+
+## ovn-02 — 2026-10-03 — TRIM LENGTH OPTIMIZER: THE DISCRETE CUT PLANNER, PLUS
+## TWO LIVE DEFECTS AND A DATA DIVERGENCE THE TESTS FOUND
+
+Overnight item `02-trim-optimizer`, branch `ovn/02-trim-optimizer` (a worktree
+of the main checkout). Built against `specs/SPEC_TRIM_LENGTH_OPTIMIZER.md`, with
+the full specification written first as
+`EES-OVN.02-TRIM-LENGTH-OPTIMIZER.md` at the project root.
+
+### WHAT ALREADY EXISTED, AND WAS NOT REBUILT
+
+The existence check found the spec substantially built, so it was left alone:
+`lib/utils/trim-optimizer.ts` (the spec's §2 algorithm, transcribed verbatim),
+`lib/data/product-profiles.ts`, `components/quote/TrimLengthOptimizerSection.tsx`
+and its wiring into `app/quote/page.tsx` Step 2 were all already shipping. What
+had NEVER existed: a single unit test over any of it, bin packing over discrete
+pieces, support for more than one stock length, an explicit error result, and any
+fabrication-facing surface.
+
+`app/configure/page.tsx` — `TRIM_OPTIMIZER_SCOPE.md` §4's second mount point —
+**no longer exists**: the Configurator was eliminated and FlashDraft is the only
+drawing tool. It was not recreated.
+
+### THE DISCREPANCY BETWEEN THE ITEM AND THE SPEC, AND HOW IT WAS RESOLVED
+
+The spec's §2 is not bin packing. It models an order as one continuous run of
+linear feet and chops it into stock-length chunks; it takes no piece list, no
+quantities and no second stock length, and it cannot express "a 12 ft finished
+piece cannot be made from 10 ft stock". The queue item asked for exactly those
+things.
+
+**Both are kept, as two functions answering two different questions, and neither
+is implemented in terms of the other.** `optimizeTrimLength` in
+`lib/utils/trim-optimizer.ts` answers "how much stock does this many LINEAR FEET
+consume?" — the right question for a lapped run, the algorithm the spec
+specifies, and the one the customer's quote form already prints. **Its numbers
+are unchanged**, and eight characterisation tests were run against the pre-change
+source as well as the post-change source to prove it. `optimizeCutPlan` in the
+new `lib/trim-optimizer/` answers "which discrete finished pieces come off which
+stock piece?". Each file's header names the other.
+
+### THE NEW LIBRARY — `lib/trim-optimizer/`
+
+Pure, deterministic, and it never throws. `sixteenths.ts` (the 1/16-inch grid),
+`types.ts` (contracts), `optimize.ts` (validation, packing, plan assembly),
+`index.ts`. Four decisions are load-bearing and each is pinned by a test:
+
+1. **INTEGER SIXTEENTHS OF AN INCH, END TO END.** Not tidiness: 1/16 is dyadic
+   and therefore exact in float64, so `total stock = finished + kerf + leftover`
+   is asserted with `toBe()` rather than a tolerance, per stock piece, per
+   profile and in the plan totals, across nine fixtures and both strategies.
+   The unit is this codebase's own (`lib/utils/format-inches.ts`, and every
+   `step="0.0625"` input), reused rather than invented.
+
+2. **THE KERF LANDS BETWEEN PIECES, NOT ONCE PER BAR.** A bar carrying `k` cuts
+   totalling `T` is feasible iff `T + (k-1)·kerf <= S`; a surviving gross
+   remainder costs one more cut to sever, clamped so an off-cut can never be
+   negative. The spec's "one kerf per stock piece" model charges a cut that is
+   not made when a finished piece uses the whole bar — it would report **two**
+   10 ft bars for one 10 ft finished piece, and ten of the twelve live profiles
+   stock at exactly 10 ft, which makes that the commonest case in the real data.
+
+3. **PLURAL STOCK LENGTHS ARE EVALUATED, NOT GUESSED.** One candidate plan per
+   distinct stock length used alone, plus one that may mix them, least waste
+   wins, ties broken deterministically. "Shortest bar that fits the piece" alone
+   puts one 60 in piece on each 120 in bar at ~50% waste where a 240 in bar
+   carries three at ~25% — the counter-example is written into the code so it
+   cannot be simplified back out.
+
+4. **SNAPPING HAS A DIRECTION PER ROLE.** A required piece rounds UP, an
+   available stock length rounds DOWN, the kerf rounds UP. None can
+   under-provision metal, which is the principle `applyWasteFactor` already
+   states as "always round UP — never under-order".
+
+Seven error codes, every one returned rather than thrown and every one tested:
+`no_stock_lengths`, `invalid_stock_length`, `invalid_kerf`, `invalid_piece`,
+`duplicate_piece_id`, `piece_exceeds_stock`, `too_many_pieces`. Zero quantities
+and an empty piece list are valid answers, not errors, and an empty plan reports
+0% waste rather than `NaN`. `MAX_TOTAL_PIECES = 5000` is documented as a
+computational guard, not a business limit; the cap itself is tested as plannable
+(556 bars, every inch accounted for) and one past it is tested as declined.
+
+### THE NEW SCREEN — `/admin/cut-plan`
+
+Admin-gated twice (the `/admin` layout plus a page-local `requireAdminUser`) and
+**deliberately unlinked**, registered in `lib/data/admin-nav.ts`'s
+`UNLINKED_ADMIN_ROUTES` with its reason, exactly as `/admin/geometry-test` is.
+It is NOT in `TOP_LEVEL_NAV` or `MORE_NAV`: v7's header is shared by every
+Command Center screen and sits under the whole-screen pixel gate, so adding a nav
+item would have been a v7 change this run must not make. The existing generic nav
+test asserts the whole posture without being modified.
+
+Gunmetal, not the light working area — it is not one of the converted V2 screens.
+All four states are real: `loading.tsx` for the catalog read, `error.tsx`
+rendering `ErrorScreen` in dark tone, an empty state that distinguishes "no piece
+entered yet" from "every quantity is zero", and the plan. **No v7 screen, no v7
+asset and no gate baseline was touched.**
+
+Two colour pairs were MEASURED rather than assumed, and both were changed:
+`afs-chrome-base` on `afs-bg-raised` is **4.26:1** against a 4.5:1 body-text
+rule, and the crimson eyebrow that every other admin page sets as TEXT is
+**1.42:1** on gunmetal (rule #29). The eyebrow here is a crimson chip with white
+text at 6.45:1 instead. **Other admin pages still set that eyebrow as crimson
+text** — `shop-library`, `geometry-test`, `quickbooks`, `orders-crm` among them,
+none of which the contrast gate reaches because none is under a nav route. Not
+swept: that is Reid's call, and it is the same shape as rule #18's
+`afs-chrome-dim` list.
+
+A blank number field is deliberately NOT a zero. `Number('')` is 0 and 0 is a
+legitimate kerf (a shear takes no metal), so an emptied blade-width box would
+have silently become a different, worse plan; it reads as unanswered instead and
+the screen says so. Same principle as rule #19's "a blank is never a zero",
+applied to a measurement rather than a price.
+
+### TWO LIVE DEFECTS, BOTH FOUND BY RUNNING THE THING
+
+**1. THE CUSTOMER-FACING CUT LIST HAS NEVER RENDERED FOR A SIGNED-OUT VISITOR.**
+`product_profiles`'s only SELECT policy is `auth.uid() IS NOT NULL`
+(001_initial_schema.sql:195) and `/quote` is deliberately public. RLS filters
+every row, PostgREST answers 200 with an empty array and **no error**, and the
+app cannot tell that from "this profile has no stock length" — so the section
+silently never appears. Proven by running the same flow with and without a
+session. `supabase/migrations/039_product_profiles_public_read.sql` fixes it,
+follows `033_building_codes_public_read.sql`'s precedent exactly, and is **NOT
+APPLIED** — the brief forbids applying migrations. Full detail and the DOWN SQL:
+SCHEMA.md's ovn-02 section. **PENDING REID.**
+
+**2. A READ THAT NEVER ANSWERS LEFT THE SECTION CHECKING FOREVER.** A hard
+network abort does not make the PostgREST read reject; the promise simply stays
+pending, and the quote form sat on "Checking stock lengths…" indefinitely.
+`readProfileStockLengths` now races the read against
+`STOCK_LENGTH_READ_TIMEOUT_MS` — 8000 ms, which is `PATHFINDER_READ_TIMEOUT_MS`
+reused rather than a new guess (rule #32's principle, applied to a read that
+writes nothing). Both failure shapes are covered end to end: a 500 answer and a
+hard abort.
+
+Alongside them, `getProfileStockLengths` was **removed**. A read that swallows its
+own error is what made "the lookup broke" and "this profile has no stock length"
+look identical; its last caller was its own test. One query, one mapper, a
+`failed` flag both screens render different words for.
+
+### THE LIVE DATABASE DOES NOT MATCH THE SEED FILE
+
+Read over PostgREST on 2026-10-03 while testing. `scupper` and `custom-profile`
+have a 10 ft standard length where the seed file says NULL;
+`standing-seam-roofing` has 10 ft where the file says 20; `max_length_ft` is 20
+where the file says 12 on nine rows; `requires_consultation` is false on all
+twelve where the file sets it true on two; and one display name differs
+(`Window/Door Flashing`, not `Window & Door Flashing`). `TRIM_OPTIMIZER_SCOPE.md`
+§2's audit table repeats the file's values and is therefore stale too.
+
+Nothing in the database was changed. Both column sets are now fixtures in
+`lib/data/product-profiles.test.ts`. **Which set is correct is a question for
+Reid and Steve** — a scupper with a standard stock length, and
+`requires_consultation` false on a custom profile, look like hand edits rather
+than intent. Full table: SCHEMA.md's ovn-02 section. **PENDING REID.**
+
+### ONE OF THIS RUN'S OWN TESTS WAS PASSING FOR THE WRONG REASON
+
+"renders nothing for a scupper" asserted `toHaveCount(0)` immediately, which is
+also true while the catalog read is in flight — so it was really asserting "has
+not rendered YET", and it failed only when the read happened to land first. It
+was also wrong about the data (a live scupper does get a cut list). It now uses
+`Step Flashing`, which has no catalog row at all, and **awaits the catalog
+response before asserting the absence**. The sibling negative test got the same
+treatment. Recorded because the lesson generalises: a `toHaveCount(0)` with no
+positive signal in front of it is not an assertion.
+
+### ELITE STANDARD COMPLIANCE CHECKLIST
+
+- [x] `pnpm tsc --noEmit` clean — **0 errors**, run after every unit of work.
+- [ ] **lint zero warnings on touched files — NOT RUN, AND NOT RUNNABLE.** This
+      repository has no ESLint configuration and no `eslint` binary installed;
+      `pnpm lint` opens Next's interactive "How would you like to configure
+      ESLint?" setup prompt. Installing a linter and a config is a dependency
+      change nobody asked for, so it was not done. The static gates that DO exist
+      were all run: `tsc` strict, the contrast gate, and the repo's own static
+      tests.
+- [x] No TODO / FIXME / placeholder / dead code / `any` / `@ts-ignore` /
+      `eslint-disable` / `console.` in any file this item touched — grepped, not
+      asserted. One pre-existing dead export (`resolveStockLengthBySlug`, whose
+      caller was the deleted Configurator page) is documented in place rather
+      than removed, being out of scope.
+- [x] Tests pass: **unit 587 passed, 1 failed** — and that one failure,
+      `lib/design/v7-css.test.ts` (generated v7 CSS is stale), **was already
+      failing at baseline on a clean tree** and is a Command Center v7 artifact
+      this run is forbidden to touch. Baseline was 484 passed / 1 failed;
+      **103 new unit tests, all green**. **Playwright: 16 new tests, all passing**
+      against a local dev server with a real admin session.
+- [ ] **Coverage on new code — NOT MEASURED.** `@vitest/coverage-v8` is not
+      installed and no coverage provider exists in this repository; `vitest
+      --coverage` exits with `MISSING DEPENDENCY`. No dependency was added to
+      satisfy a metric. **No number is estimated in its place.** What can be
+      stated instead: every exported symbol of `lib/trim-optimizer/` is called by
+      a test, all seven error codes are reached, both packing strategies run over
+      all nine property fixtures, and the two branches with no test are the two
+      documented-unreachable defensive ones (`closeBin` with no cuts, and
+      `planProfile`'s `?? empty` fallback).
+- [x] Edge cases tested: null/undefined/empty/zero/boundary/non-finite/duplicate/
+      over-cap, plus exact fit, one sixteenth over, piece-equals-bar, and a
+      remnant thinner than the blade.
+- [x] Assertions exact, with a diagnostic message on every non-obvious one.
+- [x] API authenticated — **no new API route was created at all**; the engine is
+      pure and the screen computes in the browser. The screen is admin-gated
+      twice and that is asserted by an e2e test and by the nav unit test.
+- [x] `company_id` scoping / cross-company leak test — **NOT APPLICABLE.** This
+      item reads one public catalog table and writes nothing; there is no tenant
+      data on the path. `product_profiles` has no `company_id` column.
+- [x] No hardcoded business values. The kerf default is the spec's own 0.0208 ft
+      snapped to the grid; the timeout is the codebase's existing read timeout;
+      `MAX_TOTAL_PIECES` is a documented computational guard. No stock length, no
+      waste percentage and no reusable-remnant threshold was invented — which is
+      why the engine deliberately has **no** `minUsableRemnantIn` setting.
+- [x] Migration additive and reversible — one policy ADD, DOWN SQL stated in the
+      file and in SCHEMA.md. **Not applied.**
+- [x] Governance files updated: this file, SESSION_STATE.md, SCHEMA.md.
+      `queue.yaml` has no entry for this overnight item and none was invented.
+- [x] **ITEM MARKED UNVERIFIED pending Reid's confirmation in a browser.** Every
+      number above is from a command run in this session, but this project's
+      standard is that a session's own passes are evidence to bring to the user,
+      not proof.
+
+### GATES, ALL RUN IN THIS SESSION
+
+`pnpm tsc --noEmit` **0 errors** · `pnpm test:unit` **587 passed / 1
+pre-existing failure** · `pnpm exec next build` **compiled successfully, 162
+pages, `/admin/cut-plan` present** (run as `next build` directly, deliberately
+skipping `prebuild` so the generated v7 CSS could not be rewritten) ·
+`scripts/audit/contrast-check.mjs` **24 screens, 248 pairs, 0 unresolved, 0 below
+threshold** · Playwright **16 new tests passing**, plus
+`no-configurator.spec.ts` and `command-center-v7-nav.spec.ts` green as a
+regression check.
+
+**NOT RUN, and why:** `tests/e2e/quote-request.spec.ts` submits a real quote
+request to the live project and may attempt outbound mail, which this run is
+forbidden to do; the submit path is untouched by this item's diff. The v7 pixel
+and style gates were not run — no v7 screen, asset or baseline was modified, and
+the nav spec covers the shared header.

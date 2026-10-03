@@ -78,6 +78,21 @@ function oneDecimal(value: number): string {
   return (Math.round(value * 10) / 10).toFixed(1);
 }
 
+/**
+ * A BLANK FIELD IS NOT A ZERO.
+ *
+ * `Number('')` is 0, and 0 is a legitimate value for both of the numbers this
+ * screen takes — a shear has no kerf, and a zeroed line has no pieces. So a
+ * cleared field would silently become a real, different plan: an emptied kerf
+ * box would reserve no blade width at all and under-provision every bar. Blank
+ * becomes NaN instead, which the engine answers with `invalid_kerf` or
+ * `invalid_piece` and the screen renders as "Not enough to plan yet" — the same
+ * principle CLAUDE.md rule #19 states for the price book, applied to a measurement.
+ */
+function numberOrBlank(raw: string): number {
+  return raw.trim() === '' ? Number.NaN : Number(raw);
+}
+
 export default function CutPlanWorkbench({ profiles, catalogFailed }: CutPlanWorkbenchProps) {
   const catalogLengthsFt = useMemo(() => catalogStockLengthsFt(profiles), [profiles]);
 
@@ -109,8 +124,8 @@ export default function CutPlanWorkbench({ profiles, catalogFailed }: CutPlanWor
       .map((row) => ({
         id: row.key,
         profile: row.profile.trim(),
-        lengthIn: Number(row.lengthIn),
-        quantity: Number(row.quantity),
+        lengthIn: numberOrBlank(row.lengthIn),
+        quantity: numberOrBlank(row.quantity),
       }));
 
     const input: CutPlanInput = {
@@ -119,7 +134,7 @@ export default function CutPlanWorkbench({ profiles, catalogFailed }: CutPlanWor
         lengthIn: feet * 12,
         label: `${feet} ft`,
       })),
-      settings: { kerfIn: Number(kerfIn), strategy },
+      settings: { kerfIn: numberOrBlank(kerfIn), strategy },
     };
 
     return optimizeCutPlan(input);
@@ -148,7 +163,7 @@ export default function CutPlanWorkbench({ profiles, catalogFailed }: CutPlanWor
   }
 
   function addExtraLength() {
-    const feet = Number(extraLengthDraft);
+    const feet = numberOrBlank(extraLengthDraft);
     if (!Number.isFinite(feet) || feet <= 0) {
       setExtraLengthProblem('Enter a stock length in feet, greater than zero. Nothing was added.');
       return;

@@ -21,9 +21,12 @@ import { test, expect } from '@playwright/test';
  *   6. A stock length typed by hand is really used; a duplicate and a zero are
  *      each refused in words that say nothing was added; and removing it puts
  *      the 12 ft piece back out of reach.
- *   7. No price, anywhere. This screen is quantities only
+ *   7. An emptied blade-width box reads as unanswered rather than as a zero —
+ *      and a zero typed on purpose still plans, because a shear really does
+ *      take no metal.
+ *   8. No price, anywhere. This screen is quantities only
  *      (specs/SPEC_TRIM_LENGTH_OPTIMIZER.md §1) and AFS is an RFQ platform.
- *   8. A visitor with no session is redirected away from it.
+ *   9. A visitor with no session is redirected away from it.
  *
  * ================== NOTHING IS WRITTEN, AND NOTHING IS SENT ==================
  *
@@ -112,7 +115,7 @@ test.describe('Cut Plan', () => {
       'and the reason has to be in words the estimator can act on'
     ).toBeVisible();
     await expect(
-      page.getByText('Stock pieces'),
+      page.getByText('Stock pieces', { exact: true }),
       'no totals panel may appear beside a refusal'
     ).toHaveCount(0);
   });
@@ -175,6 +178,37 @@ test.describe('Cut Plan', () => {
     await expect(
       page.getByText(/longer than the longest stock length available/),
       'with the 16 ft bar gone, a 12 ft piece has nothing to come off'
+    ).toBeVisible();
+  });
+
+  test('treats an emptied blade-width box as unanswered, not as zero', async ({ page }) => {
+    await page.goto('/admin/cut-plan');
+
+    await page.locator('#piece-1-profile').fill('Coping Cap');
+    await page.locator('#piece-1-length').fill('96');
+    await page.locator('#piece-1-quantity').fill('10');
+    await expect(page.getByText('20.0%', { exact: true })).toBeVisible();
+
+    // Number('') is 0, and 0 is a LEGITIMATE kerf (a shear takes no metal), so a
+    // cleared box would silently become a different, worse plan rather than a
+    // question. It has to read as unanswered.
+    await page.locator('#kerf').fill('');
+
+    await expect(
+      page.getByText('Not enough to plan yet'),
+      'an emptied blade-width box is a question, not a zero'
+    ).toBeVisible();
+    await expect(page.getByText(/blade width \(kerf\) must be zero or a positive number/)).toBeVisible();
+    await expect(
+      page.getByText('Stock pieces', { exact: true }),
+      'and no plan is shown while it is unanswered'
+    ).toHaveCount(0);
+
+    // Zero typed deliberately is a real setting and does plan.
+    await page.locator('#kerf').fill('0');
+    await expect(
+      page.getByText('Stock pieces', { exact: true }),
+      'a kerf of zero typed on purpose is a shear, and plans fine'
     ).toBeVisible();
   });
 
