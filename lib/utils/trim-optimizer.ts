@@ -1,5 +1,5 @@
 // Trim Length Optimizer — SPEC_TRIM_LENGTH_OPTIMIZER.md §2 (unchanged algorithm).
-// Pure function of neededLf + stockLengthFt, same pattern as lib/utils/material-calc.ts:
+// Pure function of neededLf + stockLengthFt, same pattern as lib/material-calculator/waste.ts:
 // no API route, no pricing, just linear-footage/cut-list math.
 
 export interface CutPiece {

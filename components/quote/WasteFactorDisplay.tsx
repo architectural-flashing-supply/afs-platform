@@ -1,4 +1,4 @@
-import { calculateWasteAdjustedQuantity } from '@/lib/utils/material-calc';
+import { calculateWasteAdjustedQuantity } from '@/lib/material-calculator';
 
 interface WasteFactorDisplayProps {
   lengthFt: number;
