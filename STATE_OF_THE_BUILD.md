@@ -34,6 +34,119 @@ summary, not a replacement for it.
 
 ---
 
+## 2026-10-03 — OVERNIGHT ITEM 01-audit: REGISTRY VERSUS CODE (branch `ovn/01-audit`, read-only)
+
+**No application code, migration, test or configuration file was changed.** The
+deliverables are two root documents: `AUDIT-OVERNIGHT-REGISTRY-VS-CODE.md`
+(10,530 words) and `AUDIT-OVERNIGHT-QUEUE-PROPOSAL.md` (8,349 words). This entry
+is a pointer, not a summary — the evidence is in those files.
+
+### WHAT THE AUDIT MEASURED
+
+All 54 distinct `SPEC_*.md` classified BUILT / PARTIAL / MISSING /
+BLOCKED-ON-DATA / BLOCKED-ON-KEYS / DEFERRED-BY-DECISION with a path per row:
+**32 built, 12 partial, 4 blocked on client data, 2 missing
+(`SPEC_AI_ORDER_VALIDATOR`, `SPEC_TAXJAR_INTEGRATION`), 2 deferred by decision,
+1 regressed.** Plus every `SITEMAP.md` route in both directions, the five named
+Command Center items, the five failing Playwright tests, 14 governance-vs-code
+contradictions, 9 additional findings and 8 explicitly unresolved items.
+
+### THREE OF THE BRIEF'S FIVE "STILL UNBUILT" COMMAND CENTER ITEMS ARE BUILT
+
+The brief listed invoices table/checklist, Stage C, Stage F, the mail parser and
+delivery-scheduling columns. Measured against code: **the `invoices` table and
+the Approved checklist shipped in v2-03** (migration 035 lines 452/481/483;
+`components/admin/JobActionPanel.tsx:318-356`, `data-testid="approved-checklist"`,
+whose own header says "the `invoices` table now exists"), and
+**delivery scheduling shipped in v2-04 as a TABLE rather than as columns**, a
+choice migration 037 argues in its own header ("a table wins on one fact: …
+columns would carry the current value and lose the actor"). Stage C, Stage F and
+the mail parser are confirmed unbuilt. The stale premise traces to
+`docs/COMMAND_CENTER_V2_SPEC.md` §3, which is a PRE-BUILD audit map still being
+read as current status.
+
+### THE TWO HIGH-SEVERITY DOCUMENT DEFECTS
+
+**`SITEMAP.md` is wrong by 96 files.** It claims 111 (57 pages + 54 routes);
+measured, this repository has **88 `page.tsx` and 119 `route.ts` — 207**. It also
+documents seven routes that DO NOT EXIST, verified one by one:
+`/studio/profile-viewer/[id]`, `/api/studio/match-profile`,
+`/api/studio/load-profile`, `/api/studio/library-list`,
+**`/api/admin/pathfinder/push-profile`**, **`/api/admin/pathfinder/submit-job`**
+and `/api/machine-bridge/status`. The two in bold were deleted on 2026-09-30 to
+establish rule #14's single door — the sitemap still describes three ways to
+reach the Thalmann. Regenerating it from the filesystem, with a test that keeps
+it honest, is the queue proposal's Q-01.
+
+### A PRE-EXISTING UNIT FAILURE THIS GOVERNANCE DOES NOT RECORD
+
+`pnpm test:unit` in a fresh worktree is **484/485**, not 485/485:
+`lib/design/v7-css.test.ts` > "is exactly what the transform produces right now"
+fails. **It is not a stale stylesheet — it is CRLF.** `core.autocrlf=true`,
+`git ls-files --eol` reports `i/lf w/crlf`, there is **no `.gitattributes`**, and
+the two strings were proven equal after CRLF→LF normalisation and unequal
+byte-for-byte. Prior runs saw 485/485 because `prebuild` rewrites that file with
+LF before the suite runs. **The repository does not pass its own unit suite on a
+clean Windows checkout that has never been built.** Queue item Q-13, which must
+be its own commit because `.gitattributes` renormalises the whole tree.
+
+### SPEC_PRODUCTION_QUEUE HAS SILENTLY REGRESSED, AND THAT IS TWO OF THE FIVE RED TESTS
+
+The v7 Phase 2 rebuild of `/admin/orders` orphaned `ProductionQueueTable.tsx`,
+`ProductionQueueRealtime.tsx` and `QuickAdvanceButton.tsx`. A repo-wide grep
+finds those names **only inside comments** — including
+`app/admin/orders/page.tsx:24`'s "`ProductionQueueTable` and
+`ProductionQueueRealtime` are untouched", which is true of their contents and
+misleading about their status. `tests/e2e/production-queue.spec.ts:22` and `:50`
+still look for `queue-row-0` / `quick-advance-0` / "No orders in this stage." at
+a URL that no longer renders them, and cannot even reach their own graceful skip.
+
+### THE FIVE FAILING PLAYWRIGHT TESTS — CAUSES, ALL TRACED TO SOURCE
+
+| failing test | cause, verified in this session |
+|---|---|
+| `homepage.spec.ts:238` | `HeroSection.tsx:83` points "View Our Work" at `/design-studio`; the test expects `/about/services`. Stale test — but `/design-studio` is itself the unreconciled duplicate `SITEMAP.md` flags |
+| `homepage.spec.ts:253` | `NavBar.tsx:130` renders the logo at `width={160}`; the test expects `76`. (`AfsLogo.tsx:16` uses `200` — a third value.) A second latent failure in the same test: `getByText` cannot match the brand string, which exists only as the image's `alt` |
+| `modify-in-flashdraft.spec.ts:179` | `page.tsx:3470` sets the banner to `revision+1` (5) while `:3466` nulls `savedProfileId` so `:2835`'s `nextRevision` is **1**. Screen and row disagree. PENDING REID — re-derived from source, agrees with the 2026-10-03 diagnosis |
+| `production-queue.spec.ts:22` | orphaned production queue, above |
+| `production-queue.spec.ts:50` | same root cause |
+
+**They were NOT re-run.** `playwright.config.ts:35` defaults `baseURL` to
+`http://localhost:3000`, `.env.local` sets no `PLAYWRIGHT_BASE_URL`, and this run
+was forbidden a dev server. Every cause above comes from reading the application
+source, not from the test name and not from the prior entry.
+
+### WHAT WAS NOT MEASURED, AND MUST NOT BE READ AS MEASURED
+
+**The live database was not reachable from this session** — the available
+Supabase connection lists three unrelated projects and not AFS. Every judgement
+about *seed* rows (`finishes` empty, `cad_library_files` empty) rests on the
+absence of an INSERT in any of the 38 migrations: strong, not conclusive.
+`pnpm build` was not run (its `prebuild` writes a tracked file); `pnpm lint` was
+not run (this repo has no ESLint config — pre-existing).
+
+### GATES
+
+`pnpm tsc --noEmit` **exit 0**, run twice (start and end). `pnpm test:unit`
+**484/485**, the one failure diagnosed above and pre-existing. `git diff --stat`
+shows **documentation only**.
+
+### SEVEN DECISIONS ARE WAITING, AND THREE OF THEM GATE THE RED SUITE
+
+Q-15 (delete the orphaned production queue, or restore it at a new URL?),
+Q-16 (does `revision` mean lineage depth or this row's edit count?),
+Q-17 (hero CTA: `/about/services` or `/design-studio` — and does
+`/design-studio` survive?), Q-18 ("Photo to Quote" is a false door — repoint it,
+build the photo mode, or remove the tab?), Q-19 (Stage C: move billing to
+shop-finish, or keep it and add reconciliation only?), Q-20 (change-order void
+semantics against rule #14's guard), Q-21 (addendum schema shape). **The first
+three each gate one or two of the five red tests, so the suite cannot be made
+green without Reid.** Full statements in `AUDIT-OVERNIGHT-QUEUE-PROPOSAL.md` §5.
+
+**Status: AUDIT — nothing implemented, nothing to confirm behaviourally.**
+
+---
+
 ## 2026-10-03 — THE JOB -> FLASHDRAFT HANDOFF (branch `cc-flashdraft-handoff`)
 
 **"Draw it in FlashDraft" was a dead end or a blank canvas. It now opens the

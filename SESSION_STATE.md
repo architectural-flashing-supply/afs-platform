@@ -24,6 +24,72 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
+## OVERNIGHT ITEM 01-audit — REGISTRY VERSUS CODE (2026-10-03, branch `ovn/01-audit`) — CURRENT AUDIT HANDOFF
+
+*The entry below this one, the Job -> FlashDraft handoff, is still the current
+BUILD handoff and is unchanged by this run. This run changed no code.*
+
+**Read-only audit. No application code, migration, test or config was changed.**
+Deliverables: `AUDIT-OVERNIGHT-REGISTRY-VS-CODE.md` and
+`AUDIT-OVERNIGHT-QUEUE-PROPOSAL.md`, both at the project root. The dated entry in
+`STATE_OF_THE_BUILD.md` carries the findings; this entry is the handoff.
+
+### WHERE THE NEXT SESSION SHOULD START
+
+`AUDIT-OVERNIGHT-QUEUE-PROPOSAL.md` §7 proposes a six-prompt first queue, chosen
+so that **none of it needs a decision, an external key, or data that has not
+arrived**: Q-01 regenerate `SITEMAP.md` from the filesystem (with a test that
+keeps it honest) · Q-03 complete `UNLINKED_ADMIN_ROUTES` · Q-08 gate the public
+`/studio/hem-debug` debug route · Q-02 actually send the team-invitation email
+(`app/api/team/invite/route.ts` sends nothing today, so the flow cannot complete)
+· Q-05 copy the estimate to the office when a quote is sent (gap item 6) · Q-04
+build `SPEC_AI_ORDER_VALIDATOR`, the largest spec with zero implementing code.
+Each carries a one-paragraph prompt skeleton naming the modules to reuse, the
+`CLAUDE.md` rules that constrain it, and its acceptance tests.
+
+### WHAT A NEXT SESSION MUST NOT ASSUME
+
+1. **`SITEMAP.md` is not a map of this app.** It under-reports by 96 files and
+   lists seven routes that do not exist, two of which are PathfinderEdge push
+   endpoints deleted to establish rule #14's single door. Do not plan from it
+   until Q-01 runs.
+2. **`docs/COMMAND_CENTER_V2_SPEC.md` §3 is a PRE-BUILD audit map, not current
+   status.** It says there is no `invoices` table; there is (migration 035). It
+   says the price book, the Search UI and auto-scheduled deliveries are missing;
+   all three shipped in v2-01…v2-05.
+3. **`pnpm test:unit` is 484/485 on a fresh checkout, not 485/485.**
+   `lib/design/v7-css.test.ts` fails on CRLF because there is no
+   `.gitattributes` and `core.autocrlf=true`. It passes only after `pnpm build`
+   has rewritten the generated stylesheet. Do not "fix" the test.
+4. **Four root audit documents are stale and will mislead:**
+   `PICKUP_SCHEDULING_SCOPE.md` (says pickup is unbuilt — it was committed
+   `b10ed55` the day after that doc was last touched), `INVOICE_AUDIT.md`
+   (predates the `invoices` table by two months), `MATERIAL_CALC_SCOPE.md` /
+   `COMPONENT_MAP.md` (name an `AutoMaterialCalculator.tsx` that does not
+   exist), and `specs/SPEC_TRIM_LENGTH_OPTIMIZER.md`'s "BLOCKED" header (the
+   data it waits for is already seeded).
+
+### SEVEN OPEN DECISIONS FOR REID
+
+Stated as single questions in `AUDIT-OVERNIGHT-QUEUE-PROPOSAL.md` §5. **Three of
+them gate the red Playwright suite**, so it cannot be made green without him:
+the orphaned production queue (delete or restore?), FlashDraft's `revision`
+semantics (lineage depth or this row's edit count?), and the hero's secondary CTA
+(`/about/services` or `/design-studio` — and does `/design-studio` survive?). The
+other four are the "Photo to Quote" false door (whose answer is the same as the
+field-app geometry gap already PENDING REID), Stage C, and Stage F's two halves.
+
+### GATES RUN IN THIS SESSION
+
+`pnpm tsc --noEmit` exit 0, twice. `pnpm test:unit` 484 passed / 1 failed / 485.
+`pnpm build` not run (its `prebuild` writes a tracked file and this run was
+read-only). `pnpm lint` not run (no ESLint config in this repo — pre-existing).
+Playwright not run (`baseURL` defaults to localhost and no dev server was
+permitted). The live database was **not** reachable from this session, so every
+seed-data claim rests on the migration files.
+
+---
+
 ## JOB -> FLASHDRAFT HANDOFF (2026-10-03, branch `cc-flashdraft-handoff`) — CURRENT HANDOFF
 
 **The FlashDraft button on a Command Center job now opens the real editor with
