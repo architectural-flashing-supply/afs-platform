@@ -844,3 +844,97 @@ Repository Grounding Verified: YES
 Acceptance Criteria Verified for Specification Completeness: YES
 Critical Deficiencies Remaining: NONE
 Ready for Engineering Execution: YES
+
+---
+
+# POST-IMPLEMENTATION ADDENDUM — 2026-10-03
+
+Everything above is the specification as written BEFORE any code. This addendum
+records what execution changed, so the document stays a true record rather than
+an aspirational one. Full evidence: `STATE_OF_THE_BUILD.md`'s 2026-10-03 entry.
+
+## What the specification did not anticipate
+
+**1. A live floating-point defect in the formula being moved.** `Math.ceil(100 *
+1.1)` is 111, because `100 * 1.1 === 110.00000000000001`. The spec's own worked
+example says 110, and `/quote` Step 2 was rendering 111. This was not in the
+plan; it was found by writing AC-02 down as an assertion and watching it fail.
+Added `lib/material-calculator/rounding.ts` and `rounding.test.ts`, neither of
+which appears in SCOPE above. Two further instances of the same class were found
+by sweeping the real input domain (`25 * 2.2` and `21 / 0.7`).
+
+**2. A denial-of-service hole in the new public route.** `optimizeTrimLength`
+allocates one object per cut piece, and nothing bounded the piece count on an
+unauthenticated endpoint. Added `maxRawQuantityLf` and `maxStockPieces` to
+`config.ts` as RESOURCE guards (assumption A-06, which was not in the original
+assumptions table), and exported `stockPiecesNeeded` from
+`lib/utils/trim-optimizer.ts` so the guard uses the same function it guards —
+a modification to a file SCOPE listed as "RETAINED, UNTOUCHED".
+
+**3. The feature gate was unreachable, and every pre-existing check agreed it was
+fine.** `isMaterialCalculatorEnabled(env = process.env)` defeats webpack's
+DefinePlugin, which substitutes the literal text `process.env.NEXT_PUBLIC_<NAME>`
+and cannot follow `process.env` through a parameter default. R-9.2 specified the
+injected-env shape and R-9.3 warned about the `NEXT_PUBLIC_` prefix; neither
+anticipated that the INJECTION ITSELF was the problem. `tsc` was clean, all 141
+unit tests passed, and the gate-off E2E specs passed. Only a build with the flag
+actually set found it.
+
+**That is the methodological finding worth keeping: a feature gate tested only in
+its OFF position has not been tested.** AC-22 (gate off, nothing renders) was
+satisfied by both a working off-switch and a dead feature. The EES should have
+required a gate-ON acceptance criterion from the start; it did not, and the item
+nearly shipped a feature nobody could turn on.
+
+**4. One acceptance criterion was wrong, not the code.** The first E2E run
+asserted `TrimLengthOptimizerSection` renders in Step 2. It does not, for a
+guest: `product_profiles` is RLS-gated to authenticated users, so
+`getProfileStockLengths` returns `[]` and the panel correctly hides. The
+assertion was replaced with the real contract. That the Trim Length Optimizer
+never appears for a guest at all is a pre-existing product question for Reid.
+
+## Acceptance criteria — final status
+
+AC-01 to AC-19 and AC-24 to AC-28: **PASS**, by `pnpm tsc --noEmit` (exit 0) and
+`pnpm test:unit` (625 passed of 626; the single failure is the pre-existing
+`lib/design/v7-css.test.ts` line-ending artefact, red at baseline too).
+
+AC-20, AC-21, AC-22: **PASS**, by `tests/e2e/material-calculator.spec.ts` against
+local production builds of this branch — 13 passed / 2 skipped with the gate off,
+13 passed / 2 skipped with the gate on.
+
+AC-23: **PASS by inspection**, as specified. The `notes` entry is `null` whenever
+`calculatorAccessories` is empty and is dropped by the pre-existing
+`.filter(Boolean)`; the submit path was deliberately not re-exercised, because
+`tests/e2e/quote-request.spec.ts` submits a real quote request and an unattended
+run must not. A spec that walks all four steps and reads the review screen
+WITHOUT submitting was added instead.
+
+**AC-29 (new, added during execution):** with the gate ON, Step 3 renders the §3
+panel expanded, showing 100 LF / +10 LF / 110 LF, the literal "(estimated)"
+qualifier, the honest accessory empty state, and no dollar amount; and the
+accordion collapses and re-expands. **PASS.** This is the criterion whose absence
+let defect 3 above survive every other check.
+
+## Score after execution
+
+The specification scored 100/100 before implementation. Judged against what
+execution revealed, **the honest score is 93/100**: it lost 7 points on
+acceptance-test quality and edge-case coverage for having no gate-ON criterion —
+a gap that allowed a completely unreachable feature to satisfy every stated
+check. The defect was found and fixed within the run and AC-29 now closes it, so
+the DELIVERED work meets the bar; the specification as originally written did
+not. Recording that rather than back-dating the score is the point of this
+addendum.
+
+ENGINEERING COMPLETION RECORD (post-implementation)
+Prompt ID: EES-OVN.03
+Prompt Name: Auto Material Calculator — deterministic quantity library, accessory rules, wizard wiring
+Word Count: 644 (this addendum)
+Engineering Proficiency Score: 93/100 as specified; 97/100 as delivered
+Minimum Required Score: 95/100
+Self-Audit Status: PASS as delivered; FAIL as originally specified (missing gate-ON acceptance criterion, now AC-29)
+Repository Grounding Verified: YES
+Acceptance Criteria Verified for Specification Completeness: YES
+Critical Deficiencies Remaining: NONE
+Ready for Engineering Execution: EXECUTED — COMPLETE, UNVERIFIED pending Reid's own look at Step 3
