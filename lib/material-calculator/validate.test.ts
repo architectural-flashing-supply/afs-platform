@@ -277,6 +277,126 @@ describe('validateMaterialCalcInput — stockLengthFt', () => {
   });
 });
 
+/**
+ * RESOURCE GUARDS, not business rules.
+ *
+ * POST /api/calculator/materials is PUBLIC and unauthenticated — the quote wizard
+ * supports guest submission — so its inputs are attacker-controlled.
+ * `optimizeTrimLength` builds a cut list with one object per piece, which makes the
+ * piece count an allocation size: a request for 1e9 ft x 1e9 pieces against a
+ * hand-picked stock length asks the server for tens of millions of objects.
+ */
+describe('validateMaterialCalcInput — resource guards on a public route', () => {
+  it('rejects a total footage beyond what the calculator handles', () => {
+    // ARRANGE — 1e9 ft x 1e9 pieces is 1e18 LF
+    const input: MaterialCalcInput = { lengthFt: 1e9, quantity: 1e9 };
+
+    // ACT
+    const result = validateMaterialCalcInput(input);
+
+    // ASSERT
+    expect(
+      result.ok,
+      `1e18 LF must be refused. Each field is individually positive and finite, so the ` +
+        `only thing that catches it is the combined bound — and without it this reaches ` +
+        `the cut-list loop. Got ${JSON.stringify(result)}.`
+    ).toBe(false);
+  });
+
+  it(`accepts exactly ${MATERIAL_CALCULATOR_CONFIG.maxRawQuantityLf} LF, the bound itself`, () => {
+    // ARRANGE / ACT
+    const result = validateMaterialCalcInput({
+      lengthFt: MATERIAL_CALCULATOR_CONFIG.maxRawQuantityLf,
+      quantity: 1,
+    });
+
+    // ASSERT
+    expect(
+      result,
+      `The bound is inclusive: it marks where an input stops being an order, not where ` +
+        `AFS declines the work. Got ${JSON.stringify(result)}.`
+    ).toEqual({ ok: true });
+  });
+
+  it('accepts a large but real order — 500 pieces of 20 ft', () => {
+    // ARRANGE — 10,000 LF, a genuinely big commercial job
+    // ACT
+    const result = validateMaterialCalcInput({ lengthFt: 20, quantity: 500, stockLengthFt: 10 });
+
+    // ASSERT
+    expect(
+      result,
+      `A 10,000 LF job on 10 ft stock is about 1,002 pieces — a real order that must not ` +
+        `be caught by a guard aimed at 33-million-piece requests. ` +
+        `Got ${JSON.stringify(result)}.`
+    ).toEqual({ ok: true });
+  });
+
+  it('rejects a cut list longer than the calculator will build', () => {
+    // ARRANGE — 100,000 LF against 1 ft stock is about 100,002 pieces
+    const input: MaterialCalcInput = { lengthFt: 100000, quantity: 1, stockLengthFt: 1 };
+
+    // ACT
+    const result = validateMaterialCalcInput(input);
+
+    // ASSERT
+    expect(
+      result.ok,
+      `A six-figure piece count must be refused before optimizeTrimLength allocates one ` +
+        `object per piece. Got ${JSON.stringify(result)}.`
+    ).toBe(false);
+    expect(
+      result.ok === false ? result.errors[0].field : '',
+      `The error must name 'stockLengthFt', since that is the field that makes the piece ` +
+        `count explode. Got ${JSON.stringify(result)}.`
+    ).toBe('stockLengthFt');
+  });
+
+  it('reports the footage problem rather than the piece-count problem when both apply', () => {
+    // ARRANGE — an absurd footage AND an absurd stock length
+    const input: MaterialCalcInput = { lengthFt: 1e9, quantity: 1e9, stockLengthFt: 0.03 };
+
+    // ACT
+    const result = validateMaterialCalcInput(input);
+
+    // ASSERT
+    expect(
+      result.ok === false ? result.errors.map((e) => e.field) : [],
+      `The footage bound is the root cause and the piece count is its consequence, so ` +
+        `only the footage is reported — and critically, the piece count is never COMPUTED ` +
+        `for an input this size. Got ${JSON.stringify(result)}.`
+    ).toEqual(['quantity']);
+  });
+
+  it('reports a bad length as a bad length, not as an oversized order', () => {
+    // ARRANGE — the resource guards must not run on fields that are already invalid
+    const input = { lengthFt: Number.NaN, quantity: 10 } as MaterialCalcInput;
+
+    // ACT
+    const result = validateMaterialCalcInput(input);
+
+    // ASSERT
+    expect(
+      result.ok === false ? result.errors.map((e) => e.field) : [],
+      `NaN x 10 is NaN, which is not greater than any bound, so the guards must be ` +
+        `skipped and the real problem named. Got ${JSON.stringify(result)}.`
+    ).toEqual(['lengthFt']);
+  });
+
+  it('calculateMaterials refuses an allocation-sized request instead of attempting it', () => {
+    // ARRANGE — the end-to-end guard: this is the call the public route makes
+    const input: MaterialCalcInput = { lengthFt: 1e9, quantity: 1e9, stockLengthFt: 0.03 };
+
+    // ACT / ASSERT
+    expect(
+      () => calculateMaterials(input),
+      `calculateMaterials must throw before optimizeTrimLength is reached. If this test ` +
+        `ever hangs or runs out of memory instead of throwing, the guard has been removed ` +
+        `and the public route is a denial-of-service vector.`
+    ).toThrow(MaterialCalcInputError);
+  });
+});
+
 describe('validateMaterialCalcInput — several bad fields at once', () => {
   it('reports every offending field rather than stopping at the first', () => {
     // ARRANGE

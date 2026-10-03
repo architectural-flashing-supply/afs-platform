@@ -365,14 +365,32 @@ describe('static guard — one waste-factor formula, one stock-length formula', 
         `import it, so there is exactly one stock-length formula in the repository.`
     ).toBe(true);
 
-    const reimplemented = librarySourceFiles().filter((file) =>
-      /piecesNeeded|usableLengthFt|cutList/.test(file.source)
-    );
+    // No file here may compute a piece count or a cut list itself. validate.ts needs
+    // the piece count for its resource guard and IMPORTS stockPiecesNeeded from the
+    // trim optimizer to get it — so the test looks for the arithmetic, not the word.
+    const reimplemented = librarySourceFiles().filter((file) => {
+      const code = file.source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+      return (
+        /Math\.ceil\s*\([^)]*\/\s*\(?\s*stockLength/.test(code) ||
+        /usableLengthFt\s*=/.test(code) ||
+        /cutList\s*[:=]/.test(code)
+      );
+    });
     expect(
       reimplemented.map((f) => f.name),
-      `No file here may contain its own cut-list arithmetic. Found ` +
+      `No file here may contain its own cut-list or piece-count arithmetic — import ` +
+        `stockPiecesNeeded / optimizeTrimLength instead. Found ` +
         `${JSON.stringify(reimplemented.map((f) => f.name))}.`
     ).toEqual([]);
+
+    expect(
+      readFileSync(join(LIBRARY_DIR, 'validate.ts'), 'utf8').includes(
+        "import { stockPiecesNeeded } from '@/lib/utils/trim-optimizer'"
+      ),
+      `validate.ts's resource guard must get the piece count from the same function ` +
+        `optimizeTrimLength uses. Two copies of that expression would be two answers to ` +
+        `the same question, and the guard could pass while the thing it guards overflows.`
+    ).toBe(true);
   });
 });
 

@@ -104,6 +104,29 @@ export interface MaterialCalculatorConfig {
    * is known, per_sqft moves to supportedCalcMethods.
    */
   readonly uncalculableCalcMethods: readonly CalcMethod[];
+
+  /**
+   * RESOURCE GUARD, NOT A BUSINESS RULE — and the distinction matters, because
+   * this file is otherwise forbidden to hold a number nobody has confirmed.
+   *
+   * `POST /api/calculator/materials` is a PUBLIC, unauthenticated route (the quote
+   * wizard supports guest submission), so its inputs are attacker-controlled.
+   * 1,000,000 LF is 189 miles of flashing: nobody is deciding a business policy by
+   * refusing it, it is simply not an order. Without a bound here, a request of
+   * `lengthFt: 1e9, quantity: 1e9` reaches optimizeTrimLength, whose cut-list loop
+   * pushes one object per piece and exhausts the server's memory.
+   */
+  readonly maxRawQuantityLf: number;
+
+  /**
+   * RESOURCE GUARD, NOT A BUSINESS RULE. `optimizeTrimLength` builds a cut list
+   * with one entry per piece, so the piece count is an allocation size. A request
+   * for 1,000,000 LF against a 0.03 ft stock length would ask for 33 million
+   * objects. A real cut list nobody would read is already far below 10,000 — this
+   * is the point past which the answer is a denial of service rather than a cut
+   * list, not the point past which AFS declines the work.
+   */
+  readonly maxStockPieces: number;
 }
 
 export const MATERIAL_CALCULATOR_CONFIG: MaterialCalculatorConfig = {
@@ -116,6 +139,8 @@ export const MATERIAL_CALCULATOR_CONFIG: MaterialCalculatorConfig = {
   fixedRoundingMode: 'exact',
   supportedCalcMethods: ['per_lf', 'per_piece', 'fixed'],
   uncalculableCalcMethods: ['per_sqft'],
+  maxRawQuantityLf: 1_000_000,
+  maxStockPieces: 10_000,
 };
 
 /**

@@ -12,6 +12,7 @@
  * formula sees a bad number.
  */
 
+import { stockPiecesNeeded } from '@/lib/utils/trim-optimizer';
 import { MATERIAL_CALCULATOR_CONFIG } from './config';
 import type {
   MaterialCalcInput,
@@ -94,6 +95,45 @@ export function validateMaterialCalcInput(input: MaterialCalcInput): MaterialCal
         field: 'stockLengthFt',
         message: `Stock length must be longer than the saw kerf (${MATERIAL_CALCULATOR_CONFIG.kerfAllowanceFt} ft).`,
       });
+    }
+  }
+
+  // RESOURCE GUARDS. Everything above is a business rule; these two are not, and
+  // they exist because POST /api/calculator/materials is PUBLIC and unauthenticated
+  // (the quote wizard supports guest submission), so its inputs are
+  // attacker-controlled. They run only once the fields they combine are known-good,
+  // so a bad length is reported as a bad length rather than as an oversized order.
+  if (errors.length === 0) {
+    const rawQtyLf = input.lengthFt * input.quantity;
+
+    if (rawQtyLf > MATERIAL_CALCULATOR_CONFIG.maxRawQuantityLf) {
+      errors.push({
+        field: 'quantity',
+        message:
+          `Length x quantity comes to ${rawQtyLf} LF, beyond the ` +
+          `${MATERIAL_CALCULATOR_CONFIG.maxRawQuantityLf} LF this calculator handles. ` +
+          `Contact AFS directly for an order this size.`,
+      });
+    } else if (input.stockLengthFt !== undefined && input.stockLengthFt !== null) {
+      // optimizeTrimLength pushes one object per piece, so the piece count is an
+      // allocation size and has to be known BEFORE the list is built. stockPiecesNeeded
+      // is the very function optimizeTrimLength uses, imported rather than copied, so
+      // the check and the thing it is checking cannot disagree.
+      const piecesNeeded = stockPiecesNeeded(
+        rawQtyLf,
+        input.stockLengthFt,
+        MATERIAL_CALCULATOR_CONFIG.kerfAllowanceFt
+      );
+
+      if (piecesNeeded > MATERIAL_CALCULATOR_CONFIG.maxStockPieces) {
+        errors.push({
+          field: 'stockLengthFt',
+          message:
+            `Cutting ${rawQtyLf} LF from ${input.stockLengthFt} ft stock would take ` +
+            `${piecesNeeded} pieces, beyond the ${MATERIAL_CALCULATOR_CONFIG.maxStockPieces} ` +
+            `this calculator lists.`,
+        });
+      }
     }
   }
 
