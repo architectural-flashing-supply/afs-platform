@@ -468,6 +468,43 @@ export type RushPolicyParse =
 export const MAX_RUSH_POLICY_NAME_LENGTH = 120;
 
 /**
+ * "2.5" as typed in a box -> 250 basis points. `null` for an empty box;
+ * `'invalid'` for anything that is not a rate.
+ *
+ * It lives here rather than in the editor component for one reason: the editor
+ * is a `.tsx` client component and the unit-test harness only collects
+ * `lib/**\/*.test.ts`, so a parser left in there could not be tested. The same
+ * reasoning put `parseDollarsToCents` in `quote-math.ts`, and this is its
+ * sibling — a percentage typed by a person, turned into the integer the
+ * database holds.
+ *
+ * TWO DECIMAL PLACES AND NO MORE, because two decimal places of a percent IS
+ * one basis point. The regex restricts the input to that precision, so the
+ * `Math.round` can only ever be removing float representation error, never
+ * silently discarding a figure Steve meant.
+ */
+export function parsePercentToBasisPoints(raw: string): number | null | 'invalid' {
+  const trimmed = raw.trim().replace(/%$/, '').trim();
+  if (trimmed === '') return null;
+  if (!/^\d+(\.\d{1,2})?$/.test(trimmed)) return 'invalid';
+  const bp = Math.round(Number(trimmed) * 100);
+  return bp > MAX_RUSH_PERCENT_BP ? 'invalid' : bp;
+}
+
+/**
+ * "5" as typed in a box -> 5 business days. `null` for an empty box, which
+ * means "no minimum set" and NEVER nought days of notice; `'invalid'` for
+ * anything that is not a whole number of days within the database's bound.
+ */
+export function parseLeadDays(raw: string): number | null | 'invalid' {
+  const trimmed = raw.trim();
+  if (trimmed === '') return null;
+  if (!/^\d+$/.test(trimmed)) return 'invalid';
+  const days = Number(trimmed);
+  return days > MAX_RUSH_LEAD_TIME_DAYS ? 'invalid' : days;
+}
+
+/**
  * Turns a request body into a policy, or into the one sentence that says why it
  * is not one.
  *

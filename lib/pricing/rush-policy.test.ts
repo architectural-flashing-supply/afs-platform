@@ -9,6 +9,8 @@ import {
   formatRushPolicySentence,
   formatShortDate,
   isRushSurchargeType,
+  parseLeadDays,
+  parsePercentToBasisPoints,
   parseRushPolicyInput,
   rushPolicyInForce,
   type RushPolicy,
@@ -630,6 +632,66 @@ describe('parseRushPolicyInput refuses a half-made decision', () => {
     expect(withNote.ok && withNote.draft.note).toBe('agreed with Steve');
     const blankNote = parseRushPolicyInput({ ...base, note: '   ' }, TODAY);
     expect(blankNote.ok && blankNote.draft.note).toBeNull();
+  });
+});
+
+describe('parsePercentToBasisPoints turns what a person typed into an integer', () => {
+  it('reads a rate with one or two decimal places exactly', () => {
+    expect(parsePercentToBasisPoints('2.5'), 'two and a half percent is 250 basis points').toBe(250);
+    expect(parsePercentToBasisPoints('10')).toBe(1000);
+    expect(parsePercentToBasisPoints('0.25')).toBe(25);
+    expect(parsePercentToBasisPoints('0')).toBe(0);
+    expect(parsePercentToBasisPoints('1.05')).toBe(105);
+  });
+
+  it('tolerates whitespace and a typed percent sign', () => {
+    expect(parsePercentToBasisPoints('  2.5 % ')).toBe(250);
+    expect(parsePercentToBasisPoints('2.5%')).toBe(250);
+  });
+
+  it('AN EMPTY BOX IS null, NOT NOUGHT', () => {
+    expect(
+      parsePercentToBasisPoints(''),
+      'an empty box has to stay distinguishable from a typed 0, or a blank becomes a price of nothing'
+    ).toBeNull();
+    expect(parsePercentToBasisPoints('   ')).toBeNull();
+  });
+
+  it('refuses junk, a negative rate and more precision than a basis point', () => {
+    for (const bad of ['abc', '2.5.5', '-1', '1e3', '2.555', '.5', '2,5']) {
+      expect(parsePercentToBasisPoints(bad), `"${bad}" is not a rate`).toBe('invalid');
+    }
+  });
+
+  it('refuses a rate above the database bound rather than letting the insert fail', () => {
+    expect(parsePercentToBasisPoints('1001'), '1001% is above the 1000% bound').toBe('invalid');
+    expect(parsePercentToBasisPoints('1000'), 'exactly the bound is accepted').toBe(MAX_RUSH_PERCENT_BP);
+  });
+});
+
+describe('parseLeadDays turns what a person typed into whole working days', () => {
+  it('reads a whole number of days', () => {
+    expect(parseLeadDays('5')).toBe(5);
+    expect(parseLeadDays(' 10 ')).toBe(10);
+  });
+
+  it('A NOUGHT IS A REAL ANSWER and an empty box is not', () => {
+    expect(parseLeadDays('0'), 'same-day rush is a legitimate policy').toBe(0);
+    expect(
+      parseLeadDays(''),
+      'an empty box means "I would rather judge each one", which is not the same as "no notice needed"'
+    ).toBeNull();
+  });
+
+  it('refuses a fraction, a negative and junk', () => {
+    for (const bad of ['2.5', '-1', 'five', '1 day']) {
+      expect(parseLeadDays(bad), `"${bad}" is not a whole number of days`).toBe('invalid');
+    }
+  });
+
+  it('refuses more than the database bound, and accepts exactly it', () => {
+    expect(parseLeadDays(String(MAX_RUSH_LEAD_TIME_DAYS + 1))).toBe('invalid');
+    expect(parseLeadDays(String(MAX_RUSH_LEAD_TIME_DAYS))).toBe(MAX_RUSH_LEAD_TIME_DAYS);
   });
 });
 

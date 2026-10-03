@@ -6,7 +6,9 @@ import Badge, { type BadgeVariant } from '@/components/ui/Badge';
 import EmptyState from '@/components/ui/EmptyState';
 import ProductStockTable from '@/components/admin/ProductStockTable';
 import SupplierPriceChangeForm from '@/components/admin/SupplierPriceChangeForm';
-import { getResolvedPriceBook } from '@/lib/pricing/db';
+import { getResolvedPriceBook, getRushPolicyBook } from '@/lib/pricing/db';
+import { formatRushPolicySentence, rushPolicyInForce } from '@/lib/pricing/rush-policy';
+import { shopDateOnly } from '@/lib/delivery/business-days';
 import { officeInvoiceEmail } from '@/lib/data/office';
 import LightWorkingArea from '@/components/admin/LightWorkingArea';
 import V7Settings from '@/components/admin/v7/V7Settings';
@@ -134,6 +136,19 @@ export default async function AdminSettingsPage({
   const priceBookTotal = priceBookActive.length;
   const priceBookUnpriced = priceBookActive.filter((r) => !r.isComplete).length;
 
+  // The rush policy's own state, as ONE sentence on the card below (ovn
+  // 10-rush-order). `getRushPolicyBook` never throws, so a deployment that has
+  // not had migration 039_rush_policy.sql applied says so here rather than
+  // taking the whole Settings screen down with it.
+  const rushBook = await getRushPolicyBook(supabase);
+  const rushInForce = rushPolicyInForce(rushBook.policies, shopDateOnly(new Date()));
+  const rushPolicyBlurb =
+    rushBook.unavailable !== null
+      ? 'Not set up yet — open to see what is needed.'
+      : rushInForce !== null
+        ? formatRushPolicySentence(rushInForce, null)
+        : 'Nothing set yet, so no rush surcharge is added to any quote.';
+
   // Counted through `pricing_ledger_real`, so a test run's rows can never
   // inflate the number Steve reads here.
   const { count: ledgerCountRaw } = await supabase
@@ -181,6 +196,26 @@ export default async function AdminSettingsPage({
                 {priceBookUnpriced > 0
                   ? `${priceBookUnpriced} of ${priceBookTotal} rows still need filling in.`
                   : `All ${priceBookTotal} rows are priced.`}
+              </p>
+            </div>
+            <span className="font-label text-xs text-afs-danger-on-dark shrink-0">Open →</span>
+          </Link>
+
+          {/* ovn 10-rush-order. Sits in Pricing because a rush surcharge is a
+              price: it is decided here and it lands on the formal quote. The
+              blurb reads the REAL state rather than describing the feature, so
+              "nothing has been set" is visible from Settings without opening
+              the screen. */}
+          <Link
+            href="/admin/settings/rush-policy"
+            data-testid="settings-rush-policy-link"
+            className="flex items-center justify-between gap-4 bg-afs-bg-raised border border-afs-border rounded p-5 hover:bg-afs-bg-surface transition-colors"
+          >
+            <div>
+              <p className="font-heading text-base text-afs-chrome-high">Rush policy</p>
+              <p className="font-body text-xs text-afs-chrome-mid mt-1">
+                What a rush job costs and the shortest notice you will take.{' '}
+                {rushPolicyBlurb}
               </p>
             </div>
             <span className="font-label text-xs text-afs-danger-on-dark shrink-0">Open →</span>
