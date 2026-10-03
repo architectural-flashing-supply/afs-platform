@@ -17,6 +17,18 @@ export default defineConfig({
       '@': fileURLToPath(new URL('.', import.meta.url)),
     },
   },
+  // tsconfig.json sets `"jsx": "preserve"` because Next.js does its own JSX
+  // transform downstream. Vite does not: handed a .tsx file with JSX still in
+  // it, esbuild's TS parser fails with "the content contains invalid JS syntax
+  // ... make sure to not set jsx to preserve". That made any component
+  // untestable from a unit test, which ovn 07-purchase-order needed in order to
+  // server-render components/checkout/PoNumberField.tsx and assert its exact
+  // markup in both states (lib/checkout/po-number-field.render.test.ts).
+  // 'automatic' is React 17+'s runtime transform, matching what Next emits, so
+  // a component renders here the way it renders in the app.
+  oxc: {
+    jsx: 'automatic',
+  },
   test: {
     include: ['lib/**/*.test.ts'],
   },
