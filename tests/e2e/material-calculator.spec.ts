@@ -25,6 +25,14 @@ import { test, expect } from '@playwright/test';
 const TEN_BY_TEN = { lengthFt: 10, pieces: 10 };
 
 test.describe('Auto Material Calculator — the gate is off and Step 3 is unchanged', () => {
+  // Symmetric with the gate-on block below. The flag is inlined at BUILD time, so
+  // whichever build this spec is pointed at, one of the two blocks runs and the other
+  // skips — and neither can quietly pass against the wrong build.
+  test.skip(
+    process.env.NEXT_PUBLIC_AFS_MATERIAL_CALCULATOR === '1',
+    'NEXT_PUBLIC_AFS_MATERIAL_CALCULATOR is 1 — this build has the section compiled IN.'
+  );
+
   test('Step 3 renders no calculator section while the flag is unset', async ({ page }) => {
     // ARRANGE — walk to Step 3 with quantities filled in, so the ONLY reason the
     // section could be absent is the gate.
@@ -46,11 +54,17 @@ test.describe('Auto Material Calculator — the gate is off and Step 3 is unchan
         'Step 2. Retargeting its import to @/lib/material-calculator must not have ' +
         'changed what it renders.'
     ).toBeVisible();
-    await expect(
-      page.getByText('Trim Length Optimizer', { exact: true }),
-      'TrimLengthOptimizerSection must still render in Step 2 — this item extracted ' +
-        'stockPiecesNeeded from the module it uses and must not have disturbed it.'
-    ).toBeVisible();
+    // TrimLengthOptimizerSection is deliberately NOT asserted visible here. It hides
+    // whenever the profile has no standard stock length, and `product_profiles` is
+    // RLS-gated to authenticated users (migration 001's authenticated_read_profiles:
+    // `auth.uid() IS NOT NULL AND is_active = true`). This spec runs as a guest, so
+    // getProfileStockLengths returns [] and the panel correctly renders nothing —
+    // measured live, not assumed. That it never appears for a guest at all is a
+    // pre-existing product gap reported with this item, not something to pin here.
+    //
+    // What IS pinned: this item extracted stockPiecesNeeded out of optimizeTrimLength,
+    // so that function's arithmetic must be unchanged. The API contract test below
+    // asserts the 11-piece cut list it produces, which is the same code path.
 
     // ACT — on to Step 3.
     await page.getByRole('button', { name: 'Next' }).click();
@@ -96,6 +110,160 @@ test.describe('Auto Material Calculator — the gate is off and Step 3 is unchan
       'AFS is an RFQ platform: the customer sees no dollar amount before AFS issues ' +
         'the formal quote. Not in the calculator, not anywhere on the step it sits in.'
     ).toHaveCount(0);
+  });
+});
+
+/**
+ * REGRESSION COVER FOR THE PAGE THIS ITEM EDITED.
+ *
+ * app/quote/page.tsx gained an import, a useState, a gated render and one entry in
+ * the `notes` array. tests/e2e/quote-request.spec.ts covers the submit path but
+ * SUBMITS A REAL QUOTE REQUEST, which an unattended run must not do — so this walks
+ * all four steps and reads the review screen without pressing Submit.
+ */
+test.describe('the quote wizard still works end to end, without submitting', () => {
+  test('walks all four steps and reaches the review screen', async ({ page }) => {
+    // ARRANGE / ACT
+    await page.goto('/quote');
+    await page.getByRole('button', { name: 'Coping Cap', exact: true }).click();
+    await page.locator('#material').selectOption({ index: 1 });
+    await page.locator('#gauge').selectOption({ index: 1 });
+    await page.getByRole('button', { name: 'Next' }).click();
+
+    await page.locator('#lengthFt').fill('10');
+    await page.locator('#quantity').fill('10');
+    await page.getByRole('button', { name: 'Next' }).click();
+
+    await page.locator('#projectName').fill('ovn-03 render check');
+    await page.locator('#jobsiteAddress').fill('123 Test St, Austin, TX 78701');
+    await page.getByRole('button', { name: 'Next' }).click();
+
+    // ASSERT — Step 4 renders, so none of this item's edits to the page broke the
+    // wizard's navigation or its review view. Nothing is submitted.
+    await expect(
+      page.getByRole('heading', { name: 'Review Your Request' }),
+      'Step 4 must still render. If this fails, adding MaterialCalculatorSection or the ' +
+        'calculatorAccessories state broke the wizard.'
+    ).toBeVisible();
+    await expect(
+      page.getByText(/\$[\d,]+(\.\d{2})?/),
+      'CLAUDE.md rule #1: no dollar amount on the review screen either.'
+    ).toHaveCount(0);
+  });
+});
+
+/**
+ * THE GATE-ON CHECK. Skips unless the build it is running against really has
+ * NEXT_PUBLIC_AFS_MATERIAL_CALCULATOR=1 — the flag is inlined at BUILD time, so a
+ * gate-off build cannot be made to show the section and this spec must not pretend
+ * otherwise. To run it:
+ *
+ *   NEXT_PUBLIC_AFS_MATERIAL_CALCULATOR=1 pnpm build
+ *   NEXT_PUBLIC_AFS_MATERIAL_CALCULATOR=1 PORT=3100 pnpm start
+ *   NEXT_PUBLIC_AFS_MATERIAL_CALCULATOR=1 PLAYWRIGHT_BASE_URL=http://localhost:3100 \
+ *     pnpm exec playwright test tests/e2e/material-calculator.spec.ts
+ */
+test.describe('Auto Material Calculator — the gate is on', () => {
+  test.skip(
+    process.env.NEXT_PUBLIC_AFS_MATERIAL_CALCULATOR !== '1',
+    'NEXT_PUBLIC_AFS_MATERIAL_CALCULATOR is not 1 — this build has the section compiled out.'
+  );
+
+  test('renders §3 in Step 3, expanded, with the billed quantity and no price', async ({ page }) => {
+    // ARRANGE
+    await page.goto('/quote');
+    await page.getByRole('button', { name: 'Coping Cap', exact: true }).click();
+    await page.locator('#material').selectOption({ index: 1 });
+    await page.locator('#gauge').selectOption({ index: 1 });
+    await page.getByRole('button', { name: 'Next' }).click();
+    await page.locator('#lengthFt').fill('10');
+    await page.locator('#quantity').fill('10');
+
+    // ACT
+    await page.getByRole('button', { name: 'Next' }).click();
+    const section = page.locator('#material-calculator-heading');
+
+    // ASSERT — the section exists and is expanded by default, per §3.
+    await expect(
+      section,
+      'With the gate on, Step 3 must contain exactly one MaterialCalculatorSection.'
+    ).toHaveCount(1);
+    await expect(
+      page.locator('[aria-labelledby="material-calculator-heading"] button'),
+      '§3 says "collapsible accordion, expanded by default", so the toggle must report ' +
+        'aria-expanded="true" on first render.'
+    ).toHaveAttribute('aria-expanded', 'true');
+
+    // The §2.1 breakdown, computed locally and therefore present immediately.
+    await expect(
+      page.getByText('Total ordered', { exact: true }),
+      '§3 labels the billed quantity row "Total ordered". It is computed locally by the ' +
+        'pure library, so it must be visible before any fetch resolves.'
+    ).toBeVisible();
+    await expect(
+      page.getByText('110 LF').first(),
+      '10 ft x 10 pieces is 100 LF, which bills 110 LF at the estimated 10% default — ' +
+        'the figure SPEC §2.1 prints, and 110 rather than the 111 a bare Math.ceil gives.'
+    ).toBeVisible();
+    await expect(
+      page.getByText('+ Waste factor (10%, estimated)'),
+      'The "(estimated)" qualifier is required while pricing_rules carries no real ' +
+        'per-product waste factor (SPEC §2.1 and §5).'
+    ).toBeVisible();
+
+    // The honest empty state, because product_accessories has no rows.
+    await expect(
+      page.getByText(/No accessory quantities are on file|Required with this order/),
+      'The accessory area must either list real rows or say plainly that none are on ' +
+        'file. An empty box with a heading and nothing under it is neither.'
+    ).toBeVisible();
+
+    // Still no price, with the section rendered.
+    await expect(
+      page.getByText(/\$[\d,]+(\.\d{2})?/),
+      'CLAUDE.md rule #1 holds with the calculator visible: quantities only.'
+    ).toHaveCount(0);
+
+    await page.screenshot({
+      path: 'test-results/ovn-03-material-calculator/step3-gate-on.png',
+      fullPage: true,
+    });
+  });
+
+  test('collapses and re-expands when the accordion header is pressed', async ({ page }) => {
+    // ARRANGE
+    await page.goto('/quote');
+    await page.getByRole('button', { name: 'Coping Cap', exact: true }).click();
+    await page.locator('#material').selectOption({ index: 1 });
+    await page.locator('#gauge').selectOption({ index: 1 });
+    await page.getByRole('button', { name: 'Next' }).click();
+    await page.locator('#lengthFt').fill('10');
+    await page.locator('#quantity').fill('10');
+    await page.getByRole('button', { name: 'Next' }).click();
+
+    const toggle = page.locator('[aria-labelledby="material-calculator-heading"] button');
+
+    // ACT
+    await toggle.click();
+
+    // ASSERT
+    await expect(
+      toggle,
+      'Pressing the header must collapse the accordion.'
+    ).toHaveAttribute('aria-expanded', 'false');
+    await expect(
+      page.getByText('Total ordered', { exact: true }),
+      'Collapsed means the body is gone, not merely hidden behind a class.'
+    ).toHaveCount(0);
+
+    // ACT
+    await toggle.click();
+
+    // ASSERT
+    await expect(
+      page.getByText('Total ordered', { exact: true }),
+      'Pressing it again must bring the breakdown back.'
+    ).toBeVisible();
   });
 });
 

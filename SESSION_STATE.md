@@ -9955,3 +9955,128 @@ suite load and passes consistently in isolation.
 contrast **24 screens / 253 pairs / 0 unresolved / 0 below** · style gate
 **66 pairs: 63 pass, 0 fail, 0 uncovered, 1 live-only, 2 no-data** ·
 24 screenshots in `test-results/v7-fidelity/`.
+
+---
+
+## SESSION — 2026-10-03 · ovn-03 · AUTO MATERIAL CALCULATOR
+
+Unattended overnight run. Branch `ovn/03-material-calculator` in the worktree
+`afs-website-ovn-03-material-calculator`, from `75118cb`. Nothing merged, nothing
+deployed, no migration applied, `middleware.ts` untouched, no Command Center or v7
+file touched.
+
+### HANDOFF — WHAT THE NEXT AGENT NEEDS TO KNOW WITHOUT THIS CHAT
+
+1. **`SPEC_AUTO_MATERIAL_CALCULATOR.md` is now fully built, as one library at
+   `lib/material-calculator/`.** §2.1 and §2.2 live there; §2.3 is
+   `lib/utils/trim-optimizer.ts`'s `optimizeTrimLength`, IMPORTED rather than
+   copied, because it already existed for `SPEC_TRIM_LENGTH_OPTIMIZER.md` and is
+   already wired into the wizard. A static test enforces the import, so do not
+   write a second cut-list formula.
+2. **`lib/utils/material-calc.ts` IS GONE.** Its contents are
+   `lib/material-calculator/waste.ts`. Import from `@/lib/material-calculator`.
+   A static test fails on any import of the old path, and on the file existing.
+3. **The §3 UI is behind `NEXT_PUBLIC_AFS_MATERIAL_CALCULATOR`, which is UNSET.**
+   Set it to exactly `'1'` to see the section in /quote Step 3. It is read at
+   BUILD time (Next.js inlines `NEXT_PUBLIC_*`), so changing it needs a rebuild,
+   not a restart.
+4. **No migration was written and none is needed.** `accessories` and
+   `product_accessories` have existed with RLS since migration 001. The highest
+   migration file is still `038`.
+5. **The accessory half shows nothing until `products` and `product_accessories`
+   are seeded** (data-blocker checklist #17). That is `SPEC_AUTO_MATERIAL_
+   CALCULATOR.md` §5's own prescribed behaviour, and the code needs no change when
+   the data lands — the route resolves a product from the wizard's labels and the
+   UI renders whatever comes back.
+
+### COMPLIANCE REPORT — VIOLATIONS FOUND, AND WHETHER THEY WERE RESOLVED
+
+**RESOLVED — a live customer-facing arithmetic bug.** `Math.ceil(100 * 1.1)` is
+111 because `100 * 1.1 === 110.00000000000001`. `/quote` Step 2 has been showing
+**111 LF** where `SPEC_AUTO_MATERIAL_CALCULATOR.md` §2.1's own worked example says
+110. Found by writing the spec's example down as an assertion rather than trusting
+the formula. Fixed at root in `lib/material-calculator/rounding.ts`, with the same
+class of defect fixed in two more places (a `per_piece` rate of 2.2 across 25
+pieces gave 56 instead of 55; a stored waste factor of 1.075 displayed 7% instead
+of 8%). **This changes what a live screen renders.**
+
+**RESOLVED — a denial-of-service hole in the new public route.** A security review
+of `POST /api/calculator/materials` found that `optimizeTrimLength` allocates one
+object per cut piece, so `{lengthFt: 1e9, pieces: 1e9, stockLengthFt: 0.03}` on an
+unauthenticated endpoint asked for tens of millions of objects. Two resource bounds
+added, documented in `config.ts` as resource guards and explicitly not business
+policy, with the piece count pre-computed by the very function it guards.
+
+**RESOLVED — a contrast failure avoided rather than copied.** `afs-crimson` as
+TEXT measures 1.42:1 on `afs-bg-surface`, the exact failure CLAUDE.md rule #29
+names. The two existing panels on this step do it; the new section uses
+`afs-danger-on-dark` (5.64:1) instead.
+
+**RESOLVED — three defects in the spec itself**, each recorded with its reasoning
+rather than silently patched: `per_sqft` has no case in §2.2's switch and would
+emit a fabricated quantity of 1; §2.2's prose and code disagree on `per_piece`
+rounding; and the spec divides by `calc_rate` without guarding a stored zero.
+
+**RESOLVED — the feature was unreachable, and only a gate-ON build found it.**
+`feature-flag.ts` read the flag through a parameter defaulted to `process.env`.
+Webpack's DefinePlugin substitutes the exact TEXT
+`process.env.NEXT_PUBLIC_<NAME>` and cannot follow `process.env` through a
+default, so in the browser bundle it was `{}` and the gate was permanently stuck
+off. `tsc` was clean, all 141 unit tests passed (they inject `env`), and the
+gate-off Playwright specs passed — because "nothing rendered" is what a working
+off-switch and a dead feature look like alike. Fixed to a literal member
+expression, with a static test that fails if the old form returns.
+**A feature gate tested only in its OFF position has not been tested.**
+
+**RESOLVED — a wrong assertion of my own.** The first Playwright run failed on
+"Trim Length Optimizer must still render in Step 2". The code was right and the
+test was wrong: `product_profiles` is RLS-gated to authenticated users
+(`authenticated_read_profiles`), the spec runs as a guest, so
+`getProfileStockLengths` returns `[]` and the panel correctly hides. The assertion
+was replaced with the real contract plus the explanation.
+
+**NOT RESOLVED — two pre-existing contrast defects on /quote, left deliberately.**
+`WasteFactorDisplay.tsx` and `TrimLengthOptimizerSection.tsx` use
+`text-afs-crimson` at 1.42:1 and `border-afs-chrome-dim` at 2.40:1 (against a 3:1
+boundary rule). `/quote` is outside `scripts/audit/contrast-check.mjs`'s screen
+set, which is why the build gate has never seen them. Fixing them changes two
+shipped screens and is **PENDING REID**.
+
+**NOT RESOLVED — `pnpm lint` cannot run in this repository.** There is no ESLint
+configuration at all (`.eslintrc*`, `eslint.config.*`, and a `package.json`
+`eslintConfig` key are all absent), so `next lint` drops into its interactive
+first-run setup. Pre-existing. Substituted `tsc --noEmit` under `"strict": true`
+plus a grep sweep (0 hits for TODO, FIXME, `@ts-ignore`, `@ts-expect-error`,
+`eslint-disable`, `console.log`, `: any`, `<any>`, `as any`, `XXX`).
+
+**NOT RESOLVED — numeric coverage was not measured.** `@vitest/coverage-v8` is not
+installed and installing it would mutate `package.json` and the lockfile.
+Substituted a requirement-to-test matrix in the EES. The number is declared
+un-measured, not estimated.
+
+**NOT RESOLVED, AND REPORTED RATHER THAN ABSORBED — the baseline unit suite was
+red by one test on this Windows checkout.** `lib/design/v7-css.test.ts` fails on a
+clean tree at `75118cb` with "generated css is stale". It is a LINE-ENDING
+artefact, not stale CSS: `git diff` on
+`app/styles/command-center-v7.generated.css` shows **no content change** after
+regeneration — the checked-out copy is CRLF while `buildScopedCss()` emits LF.
+Any `pnpm build` rewrites it with LF and the test passes, which is why this run's
+final figure is 625/625. Nothing was committed for it because there is nothing to
+commit; a proper fix is a `.gitattributes` entry or a normalising comparison, and
+belongs to a v7-scoped change.
+
+**OBSERVED, OUT OF SCOPE — the Trim Length Optimizer never appears for a guest.**
+`product_profiles` requires `auth.uid()`, so a guest on the public /quote page
+gets no stock lengths and `TrimLengthOptimizerSection` always renders nothing.
+Measured live, not reasoned about. Whether that is intended is a product question
+for Reid; nothing was changed.
+
+### NEXT
+
+- Reid looks at /quote Step 3 with the gate on and says whether the §3 panel is
+  right. Exact steps are in the FINAL REPORT and in this item's EES.
+- Steve confirms assumptions A-01 to A-06 (the full table is in
+  `STATE_OF_THE_BUILD.md`'s 2026-10-03 entry). A-04 — what area a `per_sqft`
+  `calc_rate` is measured against — is the only one that unlocks new behaviour.
+- `products`, `accessories` and `product_accessories` need real rows before the
+  accessory half of the calculator shows anything (checklist #17).

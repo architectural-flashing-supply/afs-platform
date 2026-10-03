@@ -17077,3 +17077,346 @@ session's own screenshots and Playwright passes are evidence to bring to the
 user, not proof. Every screen is asserted against the prototype by an automated
 gate and the side-by-side screenshots are committed, but the look is not marked
 complete until Reid has looked at it.
+
+---
+
+## 2026-10-03 — ovn-03 · AUTO MATERIAL CALCULATOR (QUANTITIES ONLY)
+
+Branch `ovn/03-material-calculator`, worktree
+`C:\Users\manag\Documents\afs-website-ovn-03-material-calculator`.
+Spec: `specs/SPEC_AUTO_MATERIAL_CALCULATOR.md`. Full execution contract:
+`EES-OVN.03-AUTO-MATERIAL-CALCULATOR.md` at the repo root.
+
+### WHAT ALREADY EXISTED — TWO OF THE SPEC'S THREE CALCULATIONS
+
+The existence check found that `SPEC_AUTO_MATERIAL_CALCULATOR.md` was already
+two-thirds built, under other names, by other items:
+
+| Spec section | Was | Wired at |
+|---|---|---|
+| §2.1 waste factor | `lib/utils/material-calc.ts` | `WasteFactorDisplay.tsx` to /quote **Step 2** |
+| §2.2 accessories | **nothing — zero code** | — |
+| §2.3 stock length | `lib/utils/trim-optimizer.ts` (built for `SPEC_TRIM_LENGTH_OPTIMIZER.md`, the same formula §2.3 specifies) | `TrimLengthOptimizerSection.tsx` to /quote **Step 2** |
+
+Neither existing module had a single unit test. `MATERIAL_CALC_SCOPE.md`'s
+blocker list is therefore **partly stale**: it called checklist #21 (stock
+lengths) blocking, and §2.3 has since shipped with a live
+`product_profiles.standard_length_ft` lookup. Checklist #17 (accessory rows) is
+still real.
+
+`accessories` and `product_accessories` already exist with RLS from migration
+001, with exactly the `calc_method IN ('per_lf','per_piece','per_sqft','fixed')`
+CHECK the spec names. **This item therefore adds NO migration and NO table.**
+The highest migration is still `038_profile_search_shortcuts.sql`.
+
+### A LIVE BUG, FOUND BY WRITING THE SPEC'S OWN EXAMPLE DOWN AS AN ASSERTION
+
+`Math.ceil(100 * 1.1)` is **111**. In IEEE 754, `100 * 1.1 === 110.00000000000001`.
+SPEC §2.1's worked example is "Your order: 100 LF + 10% waste = 110 LF total
+(billed quantity)", and the shipped `lib/utils/material-calc.ts` returned 111 for
+exactly that input — so `/quote` Step 2 has been showing **111 LF for every round
+order**: 10 ft x 10 pieces, 200 LF, 500 LF. A customer was being over-billed a
+foot of metal by a rounding artefact.
+
+Two more of the same, found by sweeping the real input domain rather than
+guessing: `Math.ceil(25 * 2.2)` is 56 where 25 pieces at a per_piece rate of 2.2
+must order 55; `Math.ceil(21 / 0.7)` is 31 where the answer is exactly 30; and
+`(1.075 - 1) * 100` is 7.499999999999996, so a stored waste factor of 1.075
+displayed as **7%** instead of 8%.
+
+`lib/material-calculator/rounding.ts` fixes all of them at root, by snapping to
+the data's real precision (six decimals — beyond `DECIMAL(5,4)` /
+`DECIMAL(8,4)`, far short of where double noise begins) before rounding.
+`rounding.test.ts` asserts the PREMISE as well as the fix, so the module cannot
+become a mystery if the arithmetic ever changes. **This changes what a live
+screen renders — from wrong to right, and to the figure the spec prints.**
+
+### WHAT WAS BUILT
+
+`lib/material-calculator/` — one pure, deterministic library, 9 source files:
+
+- `config.ts` — THE one typed config object. Every number the spec leaves
+  undefined is a named field with its provenance beside it and an assumption id
+  (A-01 to A-04). No other file in the library may hold a business number.
+- `waste.ts` — §2.1, moved from `lib/utils/material-calc.ts`, **which is
+  deleted** so there is exactly one waste formula. One behaviour change:
+  `isEstimated` is derived from whether a multiplier was SUPPLIED, not from its
+  value — because `pricing_rules.waste_factor` DEFAULTS to 1.10, so a real row
+  carrying 1.10 must not be badged "estimated" for agreeing with the placeholder.
+- `accessories.ts` — §2.2, all four `calc_method` values.
+- `validate.ts` — rejection by named field, plus two resource guards.
+- `resolve-product.ts` — pure label-to-product matcher.
+- `rounding.ts`, `types.ts`, `index.ts`, `feature-flag.ts`.
+
+Plus `lib/data/product-accessories.ts` (the only database access),
+`app/api/calculator/materials/route.ts` (§4) and
+`components/quote/MaterialCalculatorSection.tsx` (§3).
+
+### THREE SPEC DEFECTS FOUND AND RESOLVED EXPLICITLY, NOT PAPERED OVER
+
+1. **`per_sqft` has no case in §2.2's switch**, though the database CHECK permits
+   it and §2.2's own `AccessoryRequirement` interface lists it. The spec's code
+   therefore falls through to `let qty = 1` — **a fabricated business quantity in
+   front of a customer**. There is also no area anywhere in §4's request body.
+   Resolved by REFUSING it: the row comes back in `uncalculableAccessories` with a
+   plain-English reason and is listed in the UI without a quantity. A-04 /
+   UNRESOLVED-2 — what area a `per_sqft` rate is measured against is Steve's call.
+2. **§2.2's prose and its code disagree on `per_piece`** (`pieces * rate` versus
+   `Math.ceil(pieces * rate)`). The code wins: half a box of screws is not
+   orderable, and `ceil` is the only reading consistent with §2.1's "never
+   under-order". Recorded as A-03.
+3. **The spec divides by `calc_rate` unguarded.** It is `DECIMAL(8,4) NOT NULL
+   DEFAULT 1` with no CHECK, so a 0 is storable and `Math.ceil(110 / 0)` is
+   `Infinity`. Any rate that cannot yield a finite non-negative count is refused
+   with a reason — never Infinity, never NaN, never a placeholder 1. A `per_piece`
+   rate of 0 IS accepted, because there it is a real answer ("none needed").
+
+### `productId` — RESOLVED FROM LABELS, AND NEVER GUESSED
+
+§4's request takes a `productId` the quote wizard does not have:
+`form.profileType` / `material` / `gauge` are free text, not foreign keys
+(`MATERIAL_CALC_SCOPE.md` §6 identified this and concluded the route should not be
+built). It is built, and the labels are resolved server-side through `products` —
+but only when exactly one candidate matches. **Two or more returns `'ambiguous'`
+and NO product**, because two products differing only by gauge can carry
+different accessory rows, and picking one would show a customer accessories
+belonging to a product they did not choose. Material labels go through
+`lib/data/catalog.ts`'s existing `normalizeMaterialLabel`, so there is no second
+alias map.
+
+`products` is unseeded (no `INSERT INTO products` anywhere in this repo), so this
+answers `'none'` today, the accessory lists render their honest empty state, and
+the accessory half switches itself on the day the catalog is seeded with **no
+code change**.
+
+### SECURITY: RLS DECIDES, AND THE SERVICE ROLE IS BANNED BY A TEST
+
+`POST /api/calculator/materials` is **public and unauthenticated on purpose** —
+/quote supports guest submission, and the sibling `/api/recommendations/cross-sell`
+on the same step has no auth check either; a session requirement would break the
+guest RFQ flow. Every read goes through `lib/supabase/server.ts` (anon key plus
+the caller's own cookies), so Postgres decides:
+
+- a guest has no `auth.uid()`, so `authenticated_read_accessories` returns
+  nothing and they see the empty state — correct, not a bug;
+- `pricing_rules` is admin-only (`admin_only_pricing_rules`), so the internal
+  pricing layer stays internal (Pillar 4) and everyone else gets the documented
+  1.10 default marked "estimated". One code path, no branch on role.
+
+A static unit test fails if the route ever imports `lib/supabase/admin.ts` or
+names a service-role key. These are global catalog tables with no `company_id`,
+so there is no tenant boundary to scope — stated rather than assumed.
+
+**RESOURCE GUARDS, added after a security review of the public route.**
+`optimizeTrimLength` builds a cut list with one object per piece, so the piece
+count is an allocation size: `{lengthFt: 1e9, pieces: 1e9, stockLengthFt: 0.03}`
+asked the server for tens of millions of objects. Two bounds, documented in
+`config.ts` as resource guards and explicitly NOT business rules —
+1,000,000 LF total (189 miles of flashing is not an order) and 10,000 cut pieces.
+The piece count is pre-computed with `stockPiecesNeeded`, **extracted from
+`optimizeTrimLength` and imported**, so the guard and the thing it guards cannot
+disagree.
+
+### CONTRAST: `afs-crimson` AS TEXT IS 1.42:1, AND THE NEW PANEL DOES NOT DO IT
+
+Measured against this panel's own `afs-bg-surface` (#404858), `afs-crimson` as
+TEXT is **1.42:1** — precisely the failure CLAUDE.md rule #29 names, and on a
+dark surface there is no darker red that helps. `MaterialCalculatorSection` uses
+**`afs-danger-on-dark` (#FFB9B9, 5.64:1)** for the billed-quantity figure and the
+accordion chevron, and keeps crimson only as a checkbox `accent-*` fill, which is
+what rule #29 permits. Every other pair it renders: `afs-chrome-high` 9.19:1,
+`afs-chrome-mid` 4.99:1, `afs-chrome-base` 3.54:1 (border only, needs 3:1). No
+literal hex anywhere in the file.
+
+**UNRELATED PRE-EXISTING DEFECT, NOT FIXED AND NOT IN SCOPE.**
+`WasteFactorDisplay.tsx` and `TrimLengthOptimizerSection.tsx` both use
+`text-afs-crimson` for their own total and chevron, at that same 1.42:1 on
+`afs-bg-surface`, and both also use `border-afs-chrome-dim` (2.40:1 against a
+3:1 boundary rule). `/quote` is outside `scripts/audit/contrast-check.mjs`'s
+screen set — it measures Command Center screens plus the sign-in flow, derived
+from `lib/data/admin-nav.ts` — which is why the gate has never seen them.
+**PENDING REID**, because fixing them changes two shipped screens.
+
+### THE GATE IS OFF, AND OFF MEANS INVISIBLE
+
+`NEXT_PUBLIC_AFS_MATERIAL_CALCULATOR`, documented in `.env.example`, **unset**.
+Exactly the string `'1'` opens it; `'true'`, `'yes'`, `'0'`, `'1 '` and nine
+other near misses do not, each asserted. With it unset
+`MaterialCalculatorSection` renders nothing, and its contribution to the
+submitted `notes` string is `null` and is dropped by the pre-existing
+`.filter(Boolean)` — so Step 3 and the submitted quote request are
+byte-identical to `75118cb`.
+
+Accessory selections reuse the page's existing accessory-to-`notes` mechanism,
+in their **own** state: `CrossSellPanel` owns `selectedAccessories` wholesale
+through a single `onSelectionChange` callback, so a second producer sharing that
+setter would clobber its selections. **No change to the
+`POST /api/quote-requests` payload shape.**
+
+Placed in **Step 3**, above `CrossSellPanel`, because the spec's §3 heading
+("UI DISPLAY IN WIZARD STEP 3"), `COMPONENT_MAP.md` and `queue.yaml` p7-002
+("CrossSellPanel — embedded below AutoMaterialCalculator in wizard Step 3") all
+say so. `MATERIAL_CALC_SCOPE.md`'s Step 2 suggestion was NOT followed, and the
+conflict is recorded rather than quietly resolved. The existing Step 2 panels are
+untouched.
+
+### ELITE STANDARD COMPLIANCE CHECKLIST
+
+- [x] **`tsc --noEmit` clean** — exit 0, run after every unit.
+- [ ] **lint zero warnings on touched files** — **CANNOT BE MEASURED.** There is
+      no ESLint configuration anywhere in this repository (`.eslintrc*`,
+      `eslint.config.*` and a `package.json` `eslintConfig` key are all absent),
+      so `pnpm lint` drops into `next lint`'s interactive first-run setup and
+      cannot complete non-interactively. Pre-existing; creating a config is
+      outside this item. Substituted: `tsc --noEmit` under `"strict": true`, plus
+      a grep sweep over all 16 touched files returning **0** for each of TODO,
+      FIXME, `@ts-ignore`, `@ts-expect-error`, `eslint-disable`, `console.log`,
+      `: any`, `<any>`, `as any`, `XXX`.
+- [x] **No TODO/FIXME/placeholder/dead code** — 0, measured above.
+- [x] **Tests pass** — vitest, counted both ways and neither rounded up.
+      Baseline at `75118cb`: **484 passed, 1 failed, 485 total**. Now: **625
+      passed, 1 failed, 626 total** on a fresh Windows checkout — **141 new tests,
+      all passing, and the same single pre-existing failure, no new one**. After
+      any `pnpm build` (whose prebuild runs `pnpm css:v7` and rewrites the file
+      with LF) it is **626/626**; see UNRESOLVED 5 for why that one test is a
+      line-ending artefact rather than a real defect.
+      `pnpm build` exit 0 with the full prebuild chain, three times; contrast gate
+      **24 screens, 248 pairs, 0 unresolved, 0 below** each time. Playwright
+      `tests/e2e/material-calculator.spec.ts`: **13 passed / 2 skipped gate-off,
+      13 passed / 2 skipped gate-on**, against local production builds of this
+      branch on their own ports.
+- [ ] **Coverage on new code >= 80% (measured)** — **NOT MEASURED.**
+      `@vitest/coverage-v8` is not installed (`node_modules/@vitest` is absent),
+      and installing it mutates `package.json` and the lockfile, which this item
+      does not authorise. Substituted: a requirement-to-test matrix in the EES
+      covering every exported function and every branch. The number is declared
+      un-measured, **not estimated**.
+- [x] **Edge cases null/empty/boundary/error tested** — 0, negative, fractional,
+      NaN, positive and negative Infinity, numeric strings, null, undefined,
+      empty arrays, null sku, `calc_rate` of 0 / negative / NaN / Infinity, the
+      exact 1.0 and 2.0 multiplier boundaries, a stock length exactly at the
+      kerf, ambiguous and gauge-agnostic product matches, malformed JSON, and the
+      allocation-sized request.
+- [x] **Assertions exact with messages** — every one states expected versus
+      actual and why it matters. No bare truthy checks, no approximations on
+      integer results, no conditional assertions.
+- [x] **APIs authenticated / company_id scoped / RLS present / leak test** —
+      **with a stated exception.** The route is deliberately PUBLIC (see above);
+      the tables it reads have no `company_id` and are global catalog data, so
+      there is no tenant boundary. RLS is present on all four and is the only
+      access control, and a static test proves the route cannot bypass it with
+      the service role.
+- [x] **No hardcoded values** — every undefined number is a named config field
+      carrying an assumption id.
+- [x] **Migrations additive and reversible** — **none written.** `accessories`
+      and `product_accessories` already exist with RLS in migration 001.
+- [x] **Governance files updated** — this section, `SESSION_STATE.md`,
+      `queue.yaml`, and the EES at the repo root.
+- [x] **Item marked UNVERIFIED pending human browser confirmation** — though the
+      gate-on path IS now machine-verified against a real
+      `NEXT_PUBLIC_AFS_MATERIAL_CALCULATOR=1` production build, with a committed
+      screenshot at `test-results/ovn-03-material-calculator/step3-gate-on.png`
+      (gitignored; regenerate with the command in the verification steps). What
+      remains for Reid is the judgement call — does the panel look right.
+
+### A SECOND BUG, AND THE ONLY THING THAT COULD HAVE CAUGHT IT
+
+The gate-on verification was not a formality. The first
+`NEXT_PUBLIC_AFS_MATERIAL_CALCULATOR=1` build **did not render the section at
+all** — the feature was unreachable.
+
+`feature-flag.ts` had `isMaterialCalculatorEnabled(env = process.env)` and read
+`env.NEXT_PUBLIC_AFS_MATERIAL_CALCULATOR`. Next.js inlines these through webpack's
+DefinePlugin, which substitutes the **exact text**
+`process.env.NEXT_PUBLIC_<NAME>`. It cannot follow `process.env` through an
+assignment, a parameter default or a cast — so in the client bundle `process.env`
+is `{}` and the lookup is always `undefined`.
+
+**`tsc --noEmit` was clean. All 140 unit tests passed — they inject `env`. The
+gate-off Playwright specs passed, because "renders nothing" was the expected
+result either way.** Only building with the flag actually set and looking found
+it. `feature-flag.ts` now reads the literal member expression, and
+`feature-flag.test.ts` has a static test that fails if the `= process.env` form
+ever returns.
+
+The lesson generalises: **a feature gate that has only ever been tested in its
+OFF position has not been tested.** Every passing signal agreed with a broken
+feature, because "nothing rendered" is what both a working off-switch and a dead
+feature look like.
+
+### ADR — WHY THIS DESIGN, AND WHAT IT TRADES OFF
+
+**One library, not three helpers.** §2.1 was in `lib/utils/`, §2.2 did not exist,
+and §2.3 was in `lib/utils/` under a different spec's name. Consolidating §2.1
+and §2.2 into `lib/material-calculator/` while IMPORTING §2.3 keeps one formula
+per question and leaves `SPEC_TRIM_LENGTH_OPTIMIZER.md`'s own documented path
+intact. **Trade-off:** the library's §2.3 lives outside its own directory, which
+reads slightly oddly; the alternative was moving a file another scope document
+names by path, or having two cut-list formulas. A static test enforces the import.
+
+**The library is pure and the database is not in it.** Every formula is unit
+testable with no Supabase client, no fetch, no clock and no random source — and a
+static test over the directory enforces that rather than trusting it.
+**Trade-off:** the route does the orchestration, so the route is the only place
+the composition is exercised end to end, which is what the Playwright contract
+tests cover.
+
+**The route refuses rather than guesses.** An unresolvable or ambiguous product
+yields no accessories and says so; a `per_sqft` row is listed without a quantity;
+an out-of-band stored waste factor falls back to the documented default.
+**Trade-off:** with the catalog unseeded, the accessory half of the feature shows
+nothing today. That is `SPEC_AUTO_MATERIAL_CALCULATOR.md` §5's own prescribed
+behaviour ("Accessory section hidden"), and the honest alternative — seeding
+invented accessory names and rates — is forbidden.
+
+### ASSUMPTIONS FOR STEVE TO CONFIRM
+
+| # | Assumption | Shipped default |
+|---|---|---|
+| A-01 | A waste multiplier above 2.0 is a data-entry slip (110 typed for 1.10), not a real factor | `maximumWasteFactorMultiplier = 2.0`; above it is refused and the default used |
+| A-02 | Saw kerf is about 1/4 in. **Pre-existing** — already shipping in the trim optimizer | `kerfAllowanceFt = 0.0208` |
+| A-03 | A fractional `per_piece` count rounds up | `perPieceRoundingMode = 'ceil'` |
+| A-04 | A `per_sqft` accessory cannot be quantified from length times pieces, so it is listed without a quantity rather than guessed | `uncalculableCalcMethods = ['per_sqft']` |
+| A-05 | Required accessories pre-selected, optional not, and both travel to AFS inside the request's `notes` text rather than as structured line items | `notes` entry `Calculator accessories: ...` |
+| A-06 | 1,000,000 LF and 10,000 cut pieces are resource bounds, not business policy | `maxRawQuantityLf`, `maxStockPieces` |
+
+### UNRESOLVED
+
+1. **Live row counts for `products` / `accessories` / `product_accessories`
+   could not be verified.** The AFS Supabase project is not in this session's
+   Supabase account (only `benavora`, `DialStars`, `brightbox-homes-admin`), and
+   no credential may be read from `.env*`. The absence of any `INSERT INTO` for
+   those tables in `supabase/migrations/` and `scripts/`, plus
+   `MATERIAL_CALC_SCOPE.md`'s 2026-07-30 live audit, makes "empty" `[Likely]`
+   rather than `[Certain]`. Nothing depends on it for correctness.
+2. **What area a `per_sqft` `calc_rate` is measured against** — A-04.
+3. **Whether §2.3 should cut for the raw or the waste-adjusted footage.** The
+   spec says `orderedLf` for both §2.2 and §2.3 without distinguishing them.
+   Shipped: §2.2 on the BILLED footage (sealant for 110 LF of installed flashing
+   is sealant for 110 LF), §2.3 on the RAW footage, matching the already-live
+   `TrimLengthOptimizerSection`. One line in `index.ts` if Steve says otherwise.
+4. **Numeric coverage** — see the checklist above.
+5. **The baseline unit suite was RED by one test on this Windows checkout.**
+   `lib/design/v7-css.test.ts` ("generated css is stale") fails on a clean tree
+   at `75118cb`. **It is a line-ending artefact, not stale CSS**: `git diff` over
+   `app/styles/command-center-v7.generated.css` reports **no content change**
+   after regeneration — the working copy is CRLF from checkout while
+   `buildScopedCss()` emits LF, so the string comparison fails on Windows and
+   would pass on Vercel. Running `pnpm css:v7` (or any `pnpm build`) rewrites it
+   with LF and the test passes, which is why this run's final count is 625/625.
+   **Nothing was committed for it** — there is no content to commit. A v7-scoped
+   fix would be a `.gitattributes` entry for that path, or a line-ending-
+   normalising comparison inside the test.
+6. **The full Playwright suite was not run; this item's spec was.**
+   `tests/e2e/material-calculator.spec.ts` ran green against a local production
+   build of this branch — 13 passed with the gate off, 13 passed with the gate on
+   (two skip in each direction by design). The rest of the suite was deliberately
+   NOT run: `tests/e2e/quote-request.spec.ts` SUBMITS A REAL QUOTE REQUEST, which
+   an unattended run must not do. The regression risk to the page this item edited
+   is covered instead by a spec that walks all four wizard steps and reads the
+   review screen **without pressing Submit**.
+
+   Port note for whoever repeats this: `localhost:3000` was already serving a
+   DIFFERENT build (a sibling worktree). Verified by probing
+   `/api/calculator/materials` on it and getting a 404, then serving this branch on
+   its own port. Check that before trusting a local E2E result in this project.

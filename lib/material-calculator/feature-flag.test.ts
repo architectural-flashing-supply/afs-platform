@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { MATERIAL_CALCULATOR_FLAG, isMaterialCalculatorEnabled } from './feature-flag';
 
@@ -74,6 +76,37 @@ describe('isMaterialCalculatorEnabled — default OFF', () => {
       `The flag must keep its NEXT_PUBLIC_ prefix or the client component that reads it ` +
         `always sees undefined. Got "${MATERIAL_CALCULATOR_FLAG}".`
     ).toBe('NEXT_PUBLIC_AFS_MATERIAL_CALCULATOR');
+  });
+
+  /**
+   * THE REGRESSION TEST FOR A BUG THAT MADE THE WHOLE FEATURE UNREACHABLE.
+   *
+   * The first version read `env.NEXT_PUBLIC_AFS_MATERIAL_CALCULATOR` through a
+   * parameter defaulted to `process.env`. Webpack's DefinePlugin substitutes the
+   * TEXT `process.env.NEXT_PUBLIC_<NAME>` and cannot follow `process.env` through an
+   * assignment, a default or a cast — so in the browser bundle `process.env` was `{}`
+   * and the gate was stuck off even with the variable set at build time. tsc was
+   * clean, every unit test here passed (they inject `env`), and only a gate-on
+   * Playwright run against a real build found it.
+   */
+  it('reads the flag as a literal process.env member expression, so webpack can inline it', () => {
+    // ARRANGE
+    const source = readFileSync(join(process.cwd(), 'lib', 'material-calculator', 'feature-flag.ts'), 'utf8');
+    const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+    // ACT / ASSERT
+    expect(
+      code.includes('process.env.NEXT_PUBLIC_AFS_MATERIAL_CALCULATOR'),
+      'feature-flag.ts must contain the literal expression ' +
+        '`process.env.NEXT_PUBLIC_AFS_MATERIAL_CALCULATOR`. Webpack substitutes that exact ' +
+        'text; anything that reaches the value indirectly reads undefined in the browser ' +
+        'and the gate can never be opened.'
+    ).toBe(true);
+    expect(
+      /=\s*process\.env\s*[;)as]/.test(code),
+      'feature-flag.ts must NOT assign or default a variable to bare `process.env`. That is ' +
+        'precisely the form that defeated DefinePlugin and made the feature unreachable.'
+    ).toBe(false);
   });
 
   it('is off in this test process, proving the repository default is off', () => {

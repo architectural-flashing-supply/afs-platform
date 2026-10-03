@@ -885,3 +885,51 @@ prompts:
 
       Update STATE_OF_THE_BUILD.md with final status of all phases.
       Update SESSION_STATE.md with handoff notes for next session.
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # OVERNIGHT RUNS — recorded after the fact, not queued for re-execution.
+  # These ran from the FORGE overnight harness on their own worktree branches.
+  # ────────────────────────────────────────────────────────────────────────────
+
+  - id: ovn-03
+    label: "Auto Material Calculator — deterministic quantity library, accessory rules, wizard wiring"
+    status: COMPLETE_UNVERIFIED
+    branch: ovn/03-material-calculator
+    date: 2026-10-03
+    reads: [CLAUDE.md, specs/SPEC_AUTO_MATERIAL_CALCULATOR.md, MATERIAL_CALC_SCOPE.md, EES-OVN.03-AUTO-MATERIAL-CALCULATOR.md]
+    prompt: |
+      ALREADY EXECUTED — do not re-run. Recorded here so the queue reflects the
+      repository. Full contract: EES-OVN.03-AUTO-MATERIAL-CALCULATOR.md at the
+      repo root. Full evidence: STATE_OF_THE_BUILD.md's 2026-10-03 entry.
+
+      Built SPEC_AUTO_MATERIAL_CALCULATOR.md as one pure deterministic library,
+      lib/material-calculator/ — §2.1 waste factor (moved out of
+      lib/utils/material-calc.ts, which is DELETED so there is one of it), §2.2
+      accessory quantities (entirely new; there was zero code), §2.3 by importing
+      the already-shipped optimizeTrimLength rather than copying it. Every number
+      the spec leaves undefined lives in one typed config object with an
+      assumption id (A-01..A-06).
+
+      Plus lib/data/product-accessories.ts (the only DB access, through the
+      caller's RLS client — never the service role, enforced by a static test),
+      POST /api/calculator/materials (§4), and
+      components/quote/MaterialCalculatorSection.tsx (§3), rendered in /quote
+      Step 3 above CrossSellPanel.
+
+      NO MIGRATION. accessories and product_accessories have existed with RLS
+      since migration 001. Highest migration is still 038.
+
+      FEATURE-GATED OFF: NEXT_PUBLIC_AFS_MATERIAL_CALCULATOR, unset. With it unset
+      Step 3 and the submitted quote request are byte-identical to 75118cb.
+
+      FOUND AND FIXED A LIVE BUG: Math.ceil(100 * 1.1) is 111, so /quote Step 2
+      has been billing 111 LF where the spec's own example says 110.
+
+      GATES: tsc 0 · vitest 625 passed of 626 (141 new, all passing; the 1 failure is the pre-existing v7-css line-ending artefact, also red at baseline) · pnpm build exit 0 · contrast
+      24 screens / 248 pairs / 0 unresolved / 0 below · Playwright
+      tests/e2e/material-calculator.spec.ts all green against a local production
+      build on port 3100, gate off and gate on.
+
+      PENDING REID: look at Step 3 with the gate on. PENDING STEVE: confirm
+      A-01..A-06, and seed products/accessories/product_accessories (checklist
+      #17) before the accessory half shows anything.
