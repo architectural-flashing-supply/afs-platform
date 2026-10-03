@@ -18,8 +18,12 @@ import { test, expect } from '@playwright/test';
  *   4. The empty state — no piece entered yet — invites the first piece rather
  *      than showing a plan of nothing.
  *   5. Un-ticking every stock length says there is nothing to cut from.
- *   6. No price, anywhere. This screen is quantities only
+ *   6. A stock length typed by hand is really used; a duplicate and a zero are
+ *      each refused in words that say nothing was added; and removing it puts
+ *      the 12 ft piece back out of reach.
+ *   7. No price, anywhere. This screen is quantities only
  *      (specs/SPEC_TRIM_LENGTH_OPTIMIZER.md §1) and AFS is an RFQ platform.
+ *   8. A visitor with no session is redirected away from it.
  *
  * ================== NOTHING IS WRITTEN, AND NOTHING IS SENT ==================
  *
@@ -128,6 +132,50 @@ test.describe('Cut Plan', () => {
       'an unfinished form is not a refusal and must not be dressed as one'
     ).toBeVisible();
     await expect(page.getByText(/nothing to cut from/)).toBeVisible();
+  });
+
+  test('takes a stock length by hand, refuses a duplicate and an empty one, and removes it', async ({
+    page,
+  }) => {
+    await page.goto('/admin/cut-plan');
+
+    // A length the catalog does not carry. 16 ft = 192 in, and one 144 in piece
+    // comes off it with 47.75 in left (192 - 144 - 0.25).
+    await page.locator('#extra-stock-length').fill('16');
+    await page.getByRole('button', { name: 'Add', exact: true }).click();
+    await expect(page.getByText('16 ft', { exact: false }).first()).toBeVisible();
+
+    // The same length twice is refused, and says nothing was added.
+    await page.locator('#extra-stock-length').fill('16');
+    await page.getByRole('button', { name: 'Add', exact: true }).click();
+    await expect(
+      page.getByText('16 ft is already in the list. Nothing was added.'),
+      'a duplicate must be refused in words, and must say nothing happened'
+    ).toBeVisible();
+
+    // So is a length that is not a length.
+    await page.locator('#extra-stock-length').fill('0');
+    await page.getByRole('button', { name: 'Add', exact: true }).click();
+    await expect(
+      page.getByText('Enter a stock length in feet, greater than zero. Nothing was added.')
+    ).toBeVisible();
+
+    // And the hand-typed length really is used: a 12 ft piece fits a 16 ft bar
+    // and fits nothing the catalog carries at 10 ft.
+    await page.locator('#piece-1-profile').fill('Expansion Joint');
+    await page.locator('#piece-1-length').fill('144');
+    await page.locator('#piece-1-quantity').fill('1');
+    await expect(
+      page.getByText('Cut 1 piece from 192" stock: 144", 1/4" blade loss, 47 3/4" off-cut'),
+      'the hand-typed 16 ft bar is the one the plan uses'
+    ).toBeVisible();
+
+    // Removing it leaves only the catalog lengths, which cannot hold the piece.
+    await page.getByRole('button', { name: /Remove the 16 ft stock length/ }).click();
+    await expect(
+      page.getByText(/longer than the longest stock length available/),
+      'with the 16 ft bar gone, a 12 ft piece has nothing to come off'
+    ).toBeVisible();
   });
 
   test('never shows a price', async ({ page }) => {

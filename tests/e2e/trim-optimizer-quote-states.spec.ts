@@ -88,14 +88,29 @@ test.describe('Trim Length Optimizer in the quote form', () => {
     ).toBeVisible();
   });
 
-  test('renders nothing for a profile that has no standard stock length', async ({ page }) => {
-    await page.goto('/quote');
-
-    // Scupper is one of the two seeded requires_consultation rows, where
-    // standard_length_ft is NULL — correct data, not missing data. SPEC §3:
+  test('renders nothing for a profile type that has no catalog row at all', async ({ page }) => {
+    // 'Step Flashing' is one of the five PROFILE_TYPES labels with no
+    // product_profiles row behind it, so no stock length can resolve. SPEC §3:
     // the section is "only shown when product has standard stock lengths
-    // defined", so the right behaviour is silence.
-    await page.getByRole('button', { name: 'Scupper', exact: true }).click();
+    // defined", so the right behaviour is silence — not an error.
+    //
+    // THE CATALOG READ IS AWAITED FIRST, AND THAT IS THE WHOLE POINT. An earlier
+    // version of this test asserted toHaveCount(0) straight away and passed for
+    // the wrong reason: zero is also true while the read is still in flight, so
+    // it was really asserting "the section has not rendered YET". It only failed
+    // when the read happened to land before the assertion. Waiting for the
+    // response makes the absence mean something.
+    //
+    // It also used a scupper, which the seed file says has a NULL standard
+    // length — but the LIVE row has 10 ft (see lib/data/product-profiles.test.ts
+    // for the measured divergence), so a scupper really does get a cut list
+    // today and could never have been the no-stock-length case.
+    const catalogRead = page.waitForResponse(
+      (response) => response.url().includes('/rest/v1/product_profiles')
+    );
+
+    await page.goto('/quote');
+    await page.getByRole('button', { name: 'Step Flashing', exact: true }).click();
     await page.locator('#material').selectOption({ index: 1 });
     await page.locator('#gauge').selectOption({ index: 1 });
     await page.getByRole('button', { name: 'Next' }).click();
@@ -103,15 +118,22 @@ test.describe('Trim Length Optimizer in the quote form', () => {
     await page.locator('#lengthFt').fill('47');
     await page.locator('#quantity').fill('1');
 
+    await catalogRead;
+
     // The waste-factor line above it still renders, which is what makes this a
     // test of the optimizer's own condition rather than of the step as a whole.
+    await expect(page.getByText('TOTAL BILLED QUANTITY')).toBeVisible();
     await expect(
       page.getByRole('button', { name: 'Trim Length Optimizer' }),
-      'a profile with no stock length must show no cut list at all'
+      'a profile type with no catalog row must show no cut list at all'
     ).toHaveCount(0);
     await expect(
       page.getByText(/We could not look up stock lengths/),
       'and must not claim anything went wrong, because nothing did'
+    ).toHaveCount(0);
+    await expect(
+      page.getByText('Checking stock lengths…'),
+      'and must not still be checking, because the read has already answered'
     ).toHaveCount(0);
   });
 
@@ -201,8 +223,16 @@ test.describe('Trim Length Optimizer in the quote form', () => {
   });
 
   test('shows no cut list before a length and quantity are entered', async ({ page }) => {
+    // The catalog read is awaited for the same reason as the test above: a
+    // count of zero is also true while the read is in flight, and an assertion
+    // that cannot fail is not an assertion.
+    const catalogRead = page.waitForResponse((response) =>
+      response.url().includes('/rest/v1/product_profiles')
+    );
+
     await page.goto('/quote');
     await reachStepTwo(page);
+    await catalogRead;
 
     await expect(
       page.getByRole('button', { name: 'Trim Length Optimizer' }),

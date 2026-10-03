@@ -228,6 +228,7 @@ export default function CutPlanWorkbench({ profiles, catalogFailed }: CutPlanWor
                   <button
                     type="button"
                     onClick={() => setExtraLengthsFt((current) => current.filter((v) => v !== feet))}
+                    aria-label={`Remove the ${feet} ft stock length`}
                     className="font-label text-xs uppercase tracking-wide text-afs-danger-on-dark"
                   >
                     Remove
@@ -368,7 +369,7 @@ export default function CutPlanWorkbench({ profiles, catalogFailed }: CutPlanWor
                   <button
                     type="button"
                     onClick={() => removeRow(row.key)}
-                    aria-label={`Remove piece ${index + 1}`}
+                    aria-label={`Clear piece ${index + 1}`}
                     className="w-full py-2 font-label text-xs uppercase tracking-wide text-afs-danger-on-dark"
                   >
                     Clear

@@ -208,6 +208,37 @@ describe('optimizeCutPlan: multiple stock lengths are evaluated, not guessed', (
     ).toBe('aa-first');
   });
 
+  it('uses only the long bar when the piece fits nothing shorter', () => {
+    // ARRANGE — a 12 ft piece (144 in) cannot come off a 10 ft bar at all, but
+    // two of them fit a 20 ft bar with room to spare for nothing else:
+    // 288 + 0.25 overruns 240, so one per bar. The 10 ft candidate must be
+    // discarded as impossible rather than mixed in or treated as a refusal.
+    const plan = expectPlan(
+      optimizeCutPlan({
+        pieces: [{ id: 'long', profile: 'expansion-joint', lengthIn: 144, quantity: 2 }],
+        stockLengths: [STOCK_10FT, STOCK_20FT],
+      })
+    );
+
+    expect(plan.profiles[0].stockLengthsUsedIn, 'only the 20 ft bar can hold a 12 ft piece').toEqual(
+      [240]
+    );
+    expect(plan.totals.stockPieceCount, 'and two will not share one').toBe(2);
+    expect(plan.totals.leftoverLengthIn, '2 x (240 - 144 - 0.25)').toBe(191.5);
+  });
+
+  it('accepts a stock length in feet with no label at all', () => {
+    const plan = expectPlan(
+      optimizeCutPlan({
+        pieces: [{ id: 'a', profile: 'coping-cap', lengthIn: 96, quantity: 1 }],
+        stockLengths: [stockLengthFromFeet(10)],
+      })
+    );
+
+    expect(firstBar(plan).stockLengthIn, '10 ft is still 120 in').toBe(120);
+    expect(firstBar(plan).stockLabel, 'and an unlabelled bar reports no label').toBe(null);
+  });
+
   it('accepts stock lengths given in feet through the helper', () => {
     const plan = expectPlan(
       optimizeCutPlan({
