@@ -95,6 +95,11 @@ const ALLOWED_PREFIXES = [
   'app/api/admin/tax-nexus/',
   'app/admin/settings/tax-nexus/',
   'components/admin/TaxNexusEditor.tsx',
+  // The admin Settings INDEX, which shows the nexus count and the provider
+  // status on its Sales tax card. Admin-only, displays no customer figure, and
+  // decides nothing about money. It was added here only after the catch-all
+  // assertion below caught it — which is the guard working, not a nuisance.
+  'app/admin/settings/page.tsx',
 ];
 
 function walk(dir: string, out: string[] = []): string[] {

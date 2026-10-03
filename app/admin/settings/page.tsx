@@ -11,6 +11,9 @@ import { officeInvoiceEmail } from '@/lib/data/office';
 import LightWorkingArea from '@/components/admin/LightWorkingArea';
 import V7Settings from '@/components/admin/v7/V7Settings';
 import { isFixtureMode, type SearchParamValue } from '@/lib/fixtures/mode';
+import { resolveTaxProvider } from '@/lib/tax/config';
+import { shopDateOnly } from '@/lib/delivery/business-days';
+import { getNexusStates } from '@/lib/tax/db';
 
 interface IntegrationStatus {
   name: string;
@@ -32,7 +35,13 @@ function buildIntegrationStatuses(): IntegrationStatus[] {
   const stripeMode = stripeKey?.startsWith('sk_live_') ? 'Live key' : stripeKey?.startsWith('sk_test_') ? 'Test key' : null;
   const hasResend = Boolean(process.env.RESEND_API_KEY);
   const hasTwilio = Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN);
-  const hasTaxJar = Boolean(process.env.TAXJAR_API_KEY);
+  // Tax is "configured" only when a PROVIDER is selected, not merely when a key
+  // is present: TAX_PROVIDER defaults to off, so a key on its own calculates
+  // nothing. resolveTaxProvider is the single place that decides this
+  // (lib/tax/config.ts) — reading the env directly here would be a second,
+  // driftable copy of the rule.
+  const taxProvider = resolveTaxProvider(process.env);
+  const hasTaxProvider = taxProvider.provider !== 'none';
   const hasGoogleMaps = Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY);
   const hasMetalsApi = Boolean(process.env.METALS_API_KEY);
 
@@ -59,7 +68,13 @@ function buildIntegrationStatuses(): IntegrationStatus[] {
     },
     {
       name: 'TaxJar',
-      ...statusFromEnv(hasTaxJar, 'Tax calculation enabled', 'Blocked on tax nexus states (checklist #31)'),
+      ...statusFromEnv(
+        hasTaxProvider,
+        taxProvider.provider === 'mock'
+          ? 'Development mock — figures are not a real tax'
+          : 'Tax calculation enabled',
+        'No tax is calculated — see Sales tax nexus below'
+      ),
     },
     {
       name: 'Google Maps',
@@ -141,6 +156,19 @@ export default async function AdminSettingsPage({
     .select('id', { count: 'exact', head: true });
   const ledgerCount = ledgerCountRaw ?? 0;
 
+  // Sales tax nexus. Read through the SAME helper the Tax nexus screen uses, so
+  // the count on this card and the list on that screen cannot disagree. Zero rows
+  // is the state this ships in (checklist #31) and the card says what that means.
+  const taxNexusStates = await getNexusStates(supabase);
+  const taxToday = shopDateOnly(new Date());
+  const taxNexusCount = taxNexusStates.length;
+  const taxCollectingCount = taxNexusStates.filter(
+    (row) =>
+      row.collecting &&
+      row.effectiveFrom <= taxToday &&
+      (row.effectiveTo === null || row.effectiveTo >= taxToday)
+  ).length;
+
   const cronJobs: CronJobStatus[] = [
     {
       name: 'commodity-prices',
@@ -194,6 +222,33 @@ export default async function AdminSettingsPage({
               <p className="font-heading text-base text-afs-chrome-high">Price rules</p>
               <p className="font-body text-xs text-afs-chrome-mid mt-1">
                 The older per-product rules. The price book above is what quotes are built from.
+              </p>
+            </div>
+            <span className="font-label text-xs text-afs-danger-on-dark shrink-0">Open →</span>
+          </Link>
+        </div>
+      </section>
+
+      {/* ---- Sales tax --------------------------------------------------
+          Markup and tokens copied verbatim from the Pricing cards above, so the
+          contrast build gate (CLAUDE.md rule #28) measures colours it already
+          passes on this page. This is the LIVE Settings screen; the v7 pixel gate
+          renders the fixture-mode branch at the top of this file instead, so
+          nothing here can move a baseline. */}
+      <section className="mb-8">
+        <h2 className="font-heading text-lg text-afs-chrome-high mb-4">Sales tax</h2>
+        <div className="flex flex-col gap-4">
+          <Link
+            href="/admin/settings/tax-nexus"
+            className="flex items-center justify-between gap-4 bg-afs-bg-raised border border-afs-border rounded p-5 hover:bg-afs-bg-surface transition-colors"
+          >
+            <div>
+              <p className="font-heading text-base text-afs-chrome-high">Sales tax nexus</p>
+              <p className="font-body text-xs text-afs-chrome-mid mt-1">
+                The states where AFS has to collect sales tax, and why.{' '}
+                {taxNexusCount === 0
+                  ? 'None are on file yet, so no tax is calculated and none is collected — that is not the same as owing none.'
+                  : `${taxNexusCount} on file. ${taxCollectingCount} collecting today.`}
               </p>
             </div>
             <span className="font-label text-xs text-afs-danger-on-dark shrink-0">Open →</span>

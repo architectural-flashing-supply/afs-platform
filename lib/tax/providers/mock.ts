@@ -105,8 +105,11 @@ export class MockTaxProvider implements TaxProvider {
    * signature because it is part of the `TaxProvider` contract the real client
    * genuinely needs.
    */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- part of the TaxProvider contract; see the comment above.
-  async calculate(request: TaxCalculationRequest, origin: TaxOrigin): Promise<ProviderResult> {
+  // `origin` is prefixed with `_` to mark it as intentionally unused rather than
+  // forgotten. An eslint-disable comment was tried here first and removed: this
+  // repository has NO ESLint configuration at all (`next lint` offers to create
+  // one), so the directive suppressed nothing and named a rule that never runs.
+  async calculate(request: TaxCalculationRequest, _origin: TaxOrigin): Promise<ProviderResult> {
     const state = request.toState.trim().toUpperCase();
     const rate = MOCK_STATE_BASE_RATES[state];
 
