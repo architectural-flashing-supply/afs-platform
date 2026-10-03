@@ -39,6 +39,25 @@ export function toEffectiveDate(value: Date | string): string {
 }
 
 /**
+ * The shape `versionInForce` needs, and nothing more: a start date and when the
+ * row was written.
+ *
+ * It is a STRUCTURAL type rather than `PriceBookVersion` because CLAUDE.md
+ * rule #19 says the version resolution lives in one place and nowhere else, and
+ * the rush policy (`lib/pricing/rush-policy.ts`, migration 039) is
+ * effective-dated on exactly the same terms. Widening the one function was the
+ * alternative to copying nine lines, and `PriceBookVersion` satisfies this
+ * interface unchanged, so every existing call site still resolves to
+ * `PriceBookVersion | null`.
+ */
+export interface EffectiveDated {
+  /** YYYY-MM-DD. Compared as a string, which sorts correctly in this format. */
+  effectiveFrom: string;
+  /** ISO instant. Only ever used to break a same-day tie. */
+  createdAt: string;
+}
+
+/**
  * The version in force for one item on `asOf`: the latest `effective_from` that
  * is not in the future relative to it.
  *
@@ -46,11 +65,11 @@ export function toEffectiveDate(value: Date | string): string {
  * new price to start on the first of next month" a real, safe thing for Steve
  * to do: the quote he sends this afternoon still uses today's price.
  */
-export function versionInForce(
-  versions: readonly PriceBookVersion[],
+export function versionInForce<T extends EffectiveDated>(
+  versions: readonly T[],
   asOf: string
-): PriceBookVersion | null {
-  let best: PriceBookVersion | null = null;
+): T | null {
+  let best: T | null = null;
   for (const v of versions) {
     if (v.effectiveFrom > asOf) continue;
     if (best === null || v.effectiveFrom > best.effectiveFrom) best = v;

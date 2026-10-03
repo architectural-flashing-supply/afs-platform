@@ -140,3 +140,90 @@ export function formatDayHeading(date: DateOnly): string {
     day: 'numeric',
   });
 }
+
+/**
+ * HOW MANY CALENDAR DAYS FROM `from` TO `to`. Signed: a `to` before `from` is
+ * negative.
+ *
+ * `Date.UTC` on both sides, so this is pure calendar arithmetic with no zone in
+ * it — the strings already ARE the shop's dates, and re-interpreting either of
+ * them in any other zone is how an off-by-one gets in (the same reason
+ * `dayOfWeek` is built this way).
+ */
+export function calendarDaysBetween(from: DateOnly, to: DateOnly): number {
+  if (!isDateOnly(from)) throw new Error(`not a date: ${from}`);
+  if (!isDateOnly(to)) throw new Error(`not a date: ${to}`);
+  const [fy, fm, fd] = from.split('-').map(Number);
+  const [ty, tm, td] = to.split('-').map(Number);
+  const MS_PER_DAY = 24 * 60 * 60 * 1000;
+  return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / MS_PER_DAY);
+}
+
+/**
+ * BUSINESS DAYS BETWEEN TWO DATES — the half-open interval `(from, to]`.
+ *
+ * "How much notice did the customer actually give us" is this question, and it
+ * has to be measured in business days for the same reason `nextBusinessDay`
+ * skips the weekend: the shop does not fabricate on a Saturday, so two
+ * calendar days over a weekend is nought working days of notice.
+ *
+ * The interval EXCLUDES `from` and INCLUDES `to`, so:
+ *   Monday   -> Tuesday          1   (one working day of notice)
+ *   Friday   -> Monday           1   (the weekend is not notice)
+ *   Friday   -> Saturday         0
+ *   Monday   -> the same Monday  0
+ *   Monday   -> the next Monday  5
+ * A `to` earlier than `from` is the negation, so a date already in the past
+ * reads as negative notice rather than as a large positive number.
+ *
+ * WHY IT IS NOT A LOOP OVER EVERY DAY. A customer can type any date into a
+ * `<input type="date">`, including the year 9999, and a day-by-day walk would
+ * then run about three million iterations inside a page render. Whole weeks
+ * contribute exactly five business days each, so only the remainder — at most
+ * six days — is ever checked one at a time.
+ */
+export function businessDaysBetween(from: DateOnly, to: DateOnly): number {
+  const totalDays = calendarDaysBetween(from, to);
+  if (totalDays === 0) return 0;
+  if (totalDays < 0) return -businessDaysBetween(to, from);
+
+  const fullWeeks = Math.floor(totalDays / 7);
+  let count = fullWeeks * 5;
+  const remainder = totalDays % 7;
+  for (let i = 1; i <= remainder; i++) {
+    if (isBusinessDay(addDays(from, fullWeeks * 7 + i))) count++;
+  }
+  return count;
+}
+
+/**
+ * The upper bound on `addBusinessDays`. Ten years of working days is far past
+ * anything a lead time could legitimately be (`rush_policies` caps a minimum
+ * lead time at 365 days in the database), and it is here so a corrupt or
+ * hostile number cannot turn one date calculation into an unbounded loop.
+ */
+const MAX_BUSINESS_DAYS_TO_ADD = 3650;
+
+/**
+ * `n` BUSINESS DAYS STRICTLY AFTER `from`.
+ *
+ * `addBusinessDays(d, 0)` is `d` itself, unchanged even when `d` is a Saturday:
+ * zero business days later than a date is that date, and quietly rolling it
+ * forward would be a different question's answer.
+ *
+ * This is the inverse of `businessDaysBetween` on its own interval — so
+ * `businessDaysBetween(d, addBusinessDays(d, n)) === n` for every `n >= 0`,
+ * which is asserted rather than assumed.
+ */
+export function addBusinessDays(from: DateOnly, n: number): DateOnly {
+  if (!isDateOnly(from)) throw new Error(`not a date: ${from}`);
+  if (!Number.isInteger(n) || n < 0) {
+    throw new Error(`a number of business days must be a whole number, zero or more, not ${n}`);
+  }
+  if (n > MAX_BUSINESS_DAYS_TO_ADD) {
+    throw new Error(`${n} business days is past the ${MAX_BUSINESS_DAYS_TO_ADD}-day bound this function will walk`);
+  }
+  let day = from;
+  for (let i = 0; i < n; i++) day = nextBusinessDay(day);
+  return day;
+}
