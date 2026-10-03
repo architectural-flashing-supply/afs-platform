@@ -7,6 +7,7 @@ import EmptyState from '@/components/ui/EmptyState';
 import ProductStockTable from '@/components/admin/ProductStockTable';
 import SupplierPriceChangeForm from '@/components/admin/SupplierPriceChangeForm';
 import { getResolvedPriceBook } from '@/lib/pricing/db';
+import { getFreightRateTable } from '@/lib/freight/db';
 import { officeInvoiceEmail } from '@/lib/data/office';
 import LightWorkingArea from '@/components/admin/LightWorkingArea';
 import V7Settings from '@/components/admin/v7/V7Settings';
@@ -134,6 +135,30 @@ export default async function AdminSettingsPage({
   const priceBookTotal = priceBookActive.length;
   const priceBookUnpriced = priceBookActive.filter((r) => !r.isComplete).length;
 
+  // The freight rate table's own readiness, worded the same way. Three states,
+  // because they need three different sentences: migration 039 is not applied
+  // yet, or it is and nothing has been entered, or zones exist and some of
+  // their bands still have no rate. `getFreightRateTable` already distinguishes
+  // "not installed" from "empty" and only throws on a real failure, so this
+  // read is safe on a deployment where 039 has not run.
+  const freightResult = await getFreightRateTable(supabase);
+  const freightSummary = ((): string => {
+    if (!freightResult.installed) {
+      return 'Not set up on this deployment yet. Freight is typed in by hand on each quote.';
+    }
+    const liveZones = freightResult.table.zones.filter((zone) => zone.retiredAt === null);
+    if (liveZones.length === 0) {
+      return 'No zones yet — freight is typed in by hand on each quote until you add them.';
+    }
+    const liveBands = liveZones
+      .flatMap((zone) => freightResult.table.bandsByZone[zone.id] ?? [])
+      .filter((entry) => entry.band.retiredAt === null);
+    const unpriced = liveBands.filter((entry) => !entry.isPriced).length;
+    return unpriced > 0
+      ? `${liveZones.length} ${liveZones.length === 1 ? 'zone' : 'zones'}, and ${unpriced} of ${liveBands.length} weight bands still need a rate.`
+      : `${liveZones.length} ${liveZones.length === 1 ? 'zone' : 'zones'}, all ${liveBands.length} weight bands priced.`;
+  })();
+
   // Counted through `pricing_ledger_real`, so a test run's rows can never
   // inflate the number Steve reads here.
   const { count: ledgerCountRaw } = await supabase
@@ -181,6 +206,21 @@ export default async function AdminSettingsPage({
                 {priceBookUnpriced > 0
                   ? `${priceBookUnpriced} of ${priceBookTotal} rows still need filling in.`
                   : `All ${priceBookTotal} rows are priced.`}
+              </p>
+            </div>
+            <span className="font-label text-xs text-afs-danger-on-dark shrink-0">Open →</span>
+          </Link>
+
+          <Link
+            href="/admin/settings/freight"
+            data-testid="settings-freight-link"
+            className="flex items-center justify-between gap-4 bg-afs-bg-raised border border-afs-border rounded p-5 hover:bg-afs-bg-surface transition-colors"
+          >
+            <div>
+              <p className="font-heading text-base text-afs-chrome-high">Freight rates</p>
+              <p className="font-body text-xs text-afs-chrome-mid mt-1">
+                Zones, weight bands, the residential and liftgate surcharges and the free freight
+                threshold. {freightSummary}
               </p>
             </div>
             <span className="font-label text-xs text-afs-danger-on-dark shrink-0">Open →</span>
