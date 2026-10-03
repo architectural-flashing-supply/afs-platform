@@ -17077,3 +17077,325 @@ session's own screenshots and Playwright passes are evidence to bring to the
 user, not proof. Every screen is asserted against the prototype by an automated
 gate and the side-by-side screenshots are committed, but the look is not marked
 complete until Reid has looked at it.
+---
+
+# 2026-10-03 — ovn/05-freight-estimator — THE FREIGHT ESTIMATOR, MANUAL-ENTRY-FIRST
+
+**Item:** `05-freight-estimator` (FORGE overnight run, unattended)
+**Branch:** `ovn/05-freight-estimator` (worktree of `afs-website`), base `75118cb`
+**Spec:** `specs/SPEC_FREIGHT_ESTIMATOR.md` + `PRICING_ENGINE.md` §7
+**EES:** `EES-OVN.05-FREIGHT-ESTIMATOR.md` (project root)
+**STATUS: UNVERIFIED pending human browser confirmation, and pending migration 039 being applied.**
+
+---
+
+## WHAT EXISTED BEFORE THIS RUN, READ FROM SOURCE
+
+The existence check found this feature **half built, and the built half was
+correct** — so it was not rebuilt:
+
+| Thing | State at baseline | Evidence |
+|---|---|---|
+| `getFreightClass(longestPieceFt)` | **EXISTED**, matching SPEC §4 exactly | `lib/admin/pricing.ts` |
+| `estimateShipmentWeight(items, reference)` | **EXISTED**, best-effort match against seeded `gauges.weight_lbs_sqft` | `lib/admin/pricing.ts` |
+| Manual "Freight Amount ($)" input | **EXISTED** | `components/admin/QuoteEstimatorForm.tsx` |
+| Freight class + weight shown read-only | **EXISTED** | same file |
+| Freight written to `quotes.freight` | **EXISTED** | `app/api/admin/quote-requests/[id]/send/route.ts` |
+| `lib/freight/` | did not exist | — |
+| Any freight rate table | did not exist in any migration | grep over `supabase/migrations/` |
+| Residential / liftgate toggles | did not exist anywhere | grep for `liftgate` hit only `lib/data/faq.ts` prose |
+| `/api/admin/pricing/freight` | did not exist | — |
+
+**Both existing helpers were REUSED, not reimplemented.** `lib/freight/index.ts`
+re-exports them so `lib/freight` is the discoverable entry point while there is
+still exactly one implementation of each — the NMFC class table having two homes
+would be worse than the magic number having one.
+
+## THE ONE REAL CONFLICT, AND HOW IT WAS RESOLVED
+
+`FREIGHT_ESTIMATOR_SCOPE.md` (root, dated 2026-07-30) is a prior audit of this
+same feature whose §4 **"Do not build"** list forbids most of this item: *"Any
+dollar output… no residential/liftgate dollar adders, no free-freight-threshold
+check"* and *"Residential-delivery and liftgate toggles, even as informational
+flags."*
+
+Its stated reason was **fabrication**: *"Building a 'Calculate Freight' button…
+would mean fabricating a number that looks authoritative but isn't backed by any
+real rate data."*
+
+**The queue item removes that objection at the root by making every rate
+admin-entered and shipping the table empty.** No rate in this work originates
+anywhere but a human's keyboard. The forbidden thing was an invented number; a
+blank table that refuses to produce a number is the opposite of one. The item's
+instruction therefore supersedes that list, and this is recorded rather than
+silently assumed (Canonical LAW 8 / S27).
+
+**Two of that document's prohibitions are upheld VERBATIM**, because their
+reasoning is about fragility rather than fabrication and the item does not
+overrule them:
+
+- **No ZIP parsed out of free text.** `quote_requests.jobsite_address` stays the
+  read-only display string it already is; the estimator PICKS a zone.
+- **No carrier API.** No EasyPost, no rate shopping, no outbound HTTP of any
+  kind. There is no network call anywhere in `lib/freight/`.
+
+`FREIGHT_ESTIMATOR_SCOPE.md` was **not edited** — it is a dated audit, and
+rewriting history is not this item's job.
+
+## WHAT WAS BUILT
+
+**Migration FILE only — `supabase/migrations/039_freight_rate_table_and_estimates.sql`,
+NOT APPLIED.** Five tables, admin-only RLS, append-only triggers, idempotent
+throughout, **zero `INSERT` statements**. Full column-by-column detail is in
+SCHEMA.md's new FREIGHT section. The headline: every money column is NULLABLE
+with **no `DEFAULT`**, because a zero is a price and a made-up one, and a
+made-up freight price lands on a customer's formal quote.
+
+**`lib/freight/` — the typed library, pure except for one file.**
+
+- `types.ts` — money is integer cents, `null` is not zero, and each `null` in
+  the surcharge row means a different specific thing.
+- `bands.ts` — a band is `[min, max)`; `validateBandCoverage` finds the faults
+  that span rows; `rateVersionInForce` resolves what was in force on a date.
+- `estimate.ts` — the estimator, with **twelve enumerated refusals** and the
+  24 ft rule.
+- `override.ts` — the `freight_estimates` record, `basis`, and the one
+  cents→dollars boundary.
+- `db.ts` — the only file touching Supabase; returns a discriminated
+  installed/not-installed result.
+- `index.ts` — the public surface, re-exporting the two pre-existing helpers.
+- `fixtures.ts` — test-only fixtures, imported by no shipped module.
+
+**The API.** `POST /api/admin/freight-rates` with six actions (`add-zone`,
+`retire-zone`, `add-band`, `retire-band`, `set-rate`, `set-surcharges`), shaped
+like `app/api/admin/price-book/route.ts` down to the auth check and the
+un-retire-instead-of-duplicate behaviour.
+
+**The UI.** `app/admin/settings/freight/page.tsx` +
+`components/admin/FreightRateEditor.tsx` (light working area), and
+`components/admin/FreightEstimatePanel.tsx` inside the existing quote screen
+(gunmetal). One link added to Settings → Pricing.
+
+## THE DECISIONS THAT MATTER, AND WHY
+
+**1. A FLAT CHARGE PER (ZONE × WEIGHT BAND), NOT PER HUNDREDWEIGHT.** Checklist
+#80 — own truck or third-party — is unresolved, so whether AFS will bill LTL
+per-cwt with a minimum, a flat price per zone, or its own truck's cost is
+genuinely unknown. Flat-per-band can express **all three** given enough bands;
+per-cwt-with-minimum cannot express flat zone pricing without inventing
+structure. The shape that cannot mis-state the others was chosen. If the real
+tariff is per-cwt, that is one additive nullable column later, not a redesign.
+**UNRESOLVED-01.**
+
+**2. A BLANK ADDER WITH ITS TOGGLE ON IS A REFUSAL, NOT A ZERO.** This is the
+single most consequential line in the feature. Charging 0 for an unset
+residential surcharge would silently under-quote every residential delivery AFS
+ever makes, forever, and nobody would ever see it happen. The estimate refuses
+and names the thing to fill in.
+
+**3. A REFUSAL OUTRANKS FREE FREIGHT.** An order that qualifies for free freight
+but has an unpriced adder, or a 30 ft piece, gets the refusal — not "free".
+"Free" is a figure, and a figure the code could not compute must never be dressed
+up as one, least of all as the most attractive answer available. Whether a
+free-freight promise is meant to cover the adders is **UNRESOLVED-03**, and this
+code refuses rather than guesses.
+
+**4. A BLANK THRESHOLD MEANS THE RULE IS NOT APPLIED**, and the estimate says so
+in words. Not applying a discount can only over-quote, and the estimator reviews
+and can override every figure before it is sent; applying an unconfigured
+discount would silently under-quote. The non-application is visible rather than
+assumed.
+
+**5. THE SERVER RE-COMPUTES ON SEND, AND NEVER BELIEVES THE CLIENT.** The panel
+computes for display; `POST /api/admin/quote-requests/[id]/send` re-reads the
+rate table and does its own arithmetic, so `computed_cents` in the audit row is
+always the server's. `merchandiseSubtotalCents` is taken from the line items the
+route just priced and **never from the body** — a client that could set it could
+waive its own freight. A client-supplied total accepted as "what the table said"
+would write a rate the table never contained into an append-only table a future
+pricing engine is meant to learn from.
+
+**6. FREIGHT IS NEVER THE REASON A QUOTE CANNOT BE SENT.** Table not installed,
+table unable to price the job, or the box empty — the quote still goes out, with
+the typed figure or with no freight line, exactly as before any of this existed.
+The audit write is wrapped so it cannot block either; the figure is already safe
+on `quotes.freight`, so a failed audit row loses only the explanation, and that
+failure is logged.
+
+**7. AN OVERRIDE OF `0` IS A REAL OVERRIDE.** Freight waived by hand is a
+decision somebody made. Every amount in `override.ts` is compared against `null`
+and never tested for falsiness; one `if (overrideCents)` would reclassify every
+waived-freight job as "calculated from the table".
+
+**8. A DEDICATED `freight_estimates` TABLE, NOT `pricing_ledger`.** Reusing the
+ledger would need either an extension of its `event_type` CHECK — which rule #20
+governs — or an overload of its `estimate` event. Left untouched.
+
+**9. "NOT INSTALLED" IS A FIRST-CLASS STATE.** Migration 039 is deliberately
+unapplied, so it is the real state of every environment. Treating a missing
+table as an empty one would make a configuration problem indistinguishable from
+an unfilled rate book, and somebody would spend an afternoon typing rates into a
+screen that cannot save them. Any **other** error propagates — "empty" and
+"broken" are different facts.
+
+## ONE DELIBERATE DEVIATION FROM THE EES, RECORDED RATHER THAN APPLIED SILENTLY
+
+R-14's first definition of `rate-table-empty` was "no zones at all, **or no zone
+has a single priced band**". Writing the test for the three-refusals-at-once case
+exposed it as wrong: a zone whose bands exist but whose *rates* are blank would
+have been reported as an empty table, sending the estimator to build bands that
+are already there and swallowing the `band-rate-blank` refusal that names the
+exact row to fill in. `rate-table-empty` now means **structural** emptiness only
+— no live zone, or no live zone with a live band. The EES was updated and a new
+test **E-23b** asserts the kinds are *exactly* `['band-rate-blank']`, so the old
+behaviour cannot return. Strictly more useful; no requirement weakened.
+
+## A PRE-EXISTING BUG FOUND, MEASURED, AND PARTLY FIXED
+
+`app/admin/quote-requests/[id]/page.tsx` was returning **404 for every quote
+request** — the estimator screen, i.e. the screen this item's component mounts
+on, was unreachable.
+
+**Cause.** `quote_requests` now has **three** foreign keys to `profiles` —
+`user_id` (001), `approved_by` (032), `rush_set_by` (034). Its bare
+`profiles(...)` PostgREST embed is therefore ambiguous; PostgREST answers
+**HTTP 300 `PGRST201`**, supabase-js returns `data: null`, the page read that as
+"no such request" and called `notFound()`.
+
+Measured against the live database:
+
+```
+quote_requests        profiles(full_name, company)                        -> 300 PGRST201
+quote_requests        profiles!quote_requests_user_id_fkey(full_name, …)  -> 200
+orders                profiles(full_name, company)                        -> 300 PGRST201
+quotes                profiles(full_name)                                 -> 300 PGRST201
+credit_applications   profiles(full_name, company)                        -> 300 PGRST201
+order_status_history  profiles(full_name)                                 -> 200  (single FK)
+admin_audit_log       profiles(full_name)                                 -> 200  (single FK)
+```
+
+**FIXED: one file**, because it is the screen this item has to be reachable on,
+and FIX AT ROOT CAUSE applies to what blocks the item's own deliverable. The
+embed now names the relationship it means, and it means the **CUSTOMER**;
+embedding `approved_by` or `rush_set_by` would put an AFS employee's name in the
+Customer panel.
+
+**NOT SWEPT, AND RECORDED INSTEAD — PENDING, a deliberate follow-up item:**
+`lib/data/admin.ts` (two call sites, both quote-request queues),
+`lib/data/orders.ts` (four), `lib/data/credit.ts`, `lib/data/customers.ts`,
+`lib/data/command-center-dashboard.ts`. Each needs the FK named **and** a
+decision about which relationship it means — a judgement per call site, not a
+find-and-replace, and well outside this item's scope.
+
+## DATA BLOCKERS — UNCHANGED, AND THAT IS THE POINT
+
+Not one of these was guessed at. The feature ships with the shape and none of
+the content:
+
+| Checklist | What is missing | What this run did about it |
+|---|---|---|
+| #27–28 | Carrier name and rate structures | Built the rate table. Seeded nothing. |
+| #80 | Own truck vs third-party | Chose the band shape that can express either. UNRESOLVED-01. |
+| #29 | Residential surcharge | Nullable column. Toggle on + blank = refusal. |
+| #88 | Liftgate upcharge | Same. |
+| #30 | Free freight threshold | Nullable. Blank = rule not applied, stated in words. |
+| #5 | AFS origin | Not needed — nothing here computes distance. UNRESOLVED-04. |
+
+## VERIFICATION — REAL OUTPUT
+
+```
+pnpm tsc --noEmit        exit 0, no output.  CLEAN.
+pnpm test:unit           Test Files  1 failed | 35 passed (36)
+                         Tests       1 failed | 629 passed (630)
+                         The ONE failure is lib/design/v7-css.test.ts
+                         ("generated CSS is stale") — PRE-EXISTING. Baseline
+                         before this run was 484 passed / 1 failed, the same
+                         file. +145 tests, no new failures.
+coverage (lib/freight)   Lines 97.60% (204/209) · Statements 97.08% (233/240)
+                         Functions 100% (42/42) · Branches 88.59% (202/228)
+                         Measured with @vitest/coverage-v8, which was installed
+                         for the measurement and then REMOVED — package.json
+                         and pnpm-lock.yaml are byte-identical to before,
+                         verified by git diff. The repo has no coverage tooling
+                         of its own and this run did not add any.
+contrast gate            PASS — 25 screens · 261 colour pairs · 0 unresolved ·
+                         0 below threshold. (Baseline: 24 screens · 248 pairs.)
+                         /admin/settings/freight was discovered automatically
+                         per rule #28: 13 pairs, worst 3.11:1 against the 3:1
+                         form-boundary rule.
+playwright (new spec)    tests/e2e/freight-estimator.spec.ts — 4 passed, 0 failed
+                         (setup + 3 tests), against a local dev server on this
+                         branch.
+playwright (regression)  quote-request.spec.ts — 2 passed.
+                         contrast-live.spec.ts — 3 passed, including
+                         /admin/settings at 98 text nodes / worst 5.70:1, which
+                         is the screen the new link was added to.
+pnpm lint                NOT RUNNABLE IN THIS REPO. `next lint` drops into an
+                         interactive ESLint setup prompt: there is no ESLint
+                         config in any commit and no eslint dependency in
+                         package.json. PRE-EXISTING; configuring ESLint would be
+                         a package and tooling change this item has no mandate
+                         for. The type gate that does exist (tsc strict, zero
+                         `any`) is clean, and `any` was grepped for explicitly
+                         across every file added or changed: none.
+```
+
+**NO REAL DATA WAS CHANGED.** The E2E drives its own `E2E-TEST-FREIGHT` fixture
+and deletes it, asserting zero rows left. Verified after the run: 0 fixture
+rows, 0 orphan audit rows, and `quote_requests` still **exactly 9 `submitted` /
+2 `reviewing`**, identical to the pre-run reading. That mattered: opening a
+`submitted` request moves it to `reviewing` as a side effect, and rule #14's
+single-door guard requires `status='submitted'` — so a first draft of the spec
+that walked the real list looking for a quotable request would have flipped up
+to 9 real requests just by looking at them.
+
+**NOTHING REACHED THE MACHINE.** No file in this change imports
+`lib/integrations/pathfinder-edge.ts`; the single-door static test passes as part
+of the 629.
+
+## ELITE STANDARD COMPLIANCE CHECKLIST
+
+| | Item | Evidence |
+|---|---|---|
+| **YES** | `tsc --noEmit` clean | exit 0, no output |
+| **N/A** | lint zero warnings on touched files | ESLint is not configured in this repo and never has been — see above. Not fixable within this item's mandate. |
+| **YES** | no TODO/FIXME/placeholder/dead code | grepped across every added/changed file: none |
+| **YES** | tests pass (counts) | 629 passed / 1 pre-existing failure; 145 of those are new |
+| **YES** | coverage on new code ≥80% | **97.60% lines**, measured, not estimated |
+| **YES** | edge cases null/empty/boundary/error tested | 0 lb, −5 lb, NaN, Infinity, 499.4/499.5 lb, exactly 24 ft vs 24.01 ft, override of 0, override of −1, 12.5 cents, blank rate, blank adder, blank threshold, missing surcharge row, empty table, retired zone, retired band, overlapping bands, gapped bands, duplicated floor, two open-ended bands |
+| **YES** | assertions exact with messages | every `expect` carries a message stating what breaks if it regresses |
+| **YES** | APIs authenticated | both routes check `auth.getUser()` then `profiles.role === 'admin'`; 401 / 403 |
+| **YES** | RLS present | all five tables `ENABLE ROW LEVEL SECURITY`, `is_admin()` only |
+| **YES** | no cross-company leak | stronger than scoping: **no customer-readable policy exists on any of the five tables**, so there is no row a customer of any company can read. `company_id` is deliberately absent — see SCHEMA.md for why that is correct rather than lazy. |
+| **YES** | no hardcoded business values | the only constants are SPEC-given: the NMFC class table (pre-existing) and `OVERSIZE_MANUAL_ENTRY_FT = 24`, both cited to `SPEC_FREIGHT_ESTIMATOR.md` §4. **Zero money defaults anywhere.** |
+| **YES** | migrations additive and reversible | 039 is `CREATE`-only and idempotent; down SQL printed in the final report |
+| **YES** | governance files updated | SCHEMA.md, STATE_OF_THE_BUILD.md, SESSION_STATE.md, queue.yaml — all **appended**, nothing rewritten |
+| **YES** | item marked UNVERIFIED pending human browser confirmation | stated at the top of this entry |
+
+## PENDING / UNRESOLVED
+
+1. **UNRESOLVED-01** — the real rate structure (flat per band vs per-cwt with a
+   minimum) is unknown until #27–28/#80 arrive. One additive column if per-cwt.
+2. **UNRESOLVED-02** — zone definitions. No carrier means no zone map. None seeded.
+3. **UNRESOLVED-03** — whether a free-freight promise covers the residential and
+   liftgate adders. The code refuses rather than guesses.
+4. **UNRESOLVED-04** — AFS origin (#5). Nothing here needs it.
+5. **UNRESOLVED-05** — `quotes.freight` is `DECIMAL(10,2)` dollars while all five
+   new tables are cents. Converted at one boundary; the legacy column was not
+   migrated, because five other modules read it.
+6. **UNRESOLVED-06** — **migration 039 is not applied**, so nothing here is live.
+7. **PENDING REID** — the ambiguous `profiles` embeds in five other modules
+   (listed above), each needing a per-call-site judgement.
+8. **PENDING** — `lib/design/v7-css.test.ts` has been failing since before this
+   run (`pnpm css:v7` output is stale). Untouched: rule #33 governs that file and
+   regenerating it is outside this item.
+
+## HOW A HUMAN VERIFIES THIS IN A BROWSER
+
+Exact steps are in the final report. In short: with 039 **unapplied**, open
+`/admin/settings/freight` and confirm it names the migration and says freight can
+still be entered by hand; open any quote request and confirm the **"Freight
+Amount ($)"** box still works. Then apply 039, add a zone and two bands, leave
+one rate blank, and confirm the blank renders **"Not set"** on amber and that the
+estimate refuses by name rather than charging zero.
+

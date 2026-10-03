@@ -9955,3 +9955,137 @@ suite load and passes consistently in isolation.
 contrast **24 screens / 253 pairs / 0 unresolved / 0 below** · style gate
 **66 pairs: 63 pass, 0 fail, 0 uncovered, 1 live-only, 2 no-data** ·
 24 screenshots in `test-results/v7-fidelity/`.
+
+
+---
+
+# SESSION — 2026-10-03 — ovn/05-freight-estimator (FORGE overnight, unattended)
+
+**Item:** `05-freight-estimator` · **Branch:** `ovn/05-freight-estimator`
+(worktree) · **Base:** `75118cb` · **Spec:** `specs/SPEC_FREIGHT_ESTIMATOR.md`
+**Outcome: BUILT AND VERIFIED AS FAR AS AN UNATTENDED RUN CAN. Marked UNVERIFIED
+pending a human in a browser, and pending migration 039 being applied.**
+
+Full engineering detail is in STATE_OF_THE_BUILD.md's 2026-10-03 entry; the
+schema is in SCHEMA.md's new FREIGHT section; the specification is
+`EES-OVN.05-FREIGHT-ESTIMATOR.md` at the project root. This entry is the
+session's own record and its compliance report.
+
+## COLD START — BASELINE MEASURED BEFORE ANY CHANGE
+
+```
+git status        clean
+pnpm tsc --noEmit exit 0, no output
+pnpm test:unit    Test Files  1 failed | 30 passed (31)
+                  Tests       1 failed | 484 passed (485)
+                  FAILING: lib/design/v7-css.test.ts — generated CSS stale.
+                  PRE-EXISTING, recorded, and NOT fixed by this item (rule #33
+                  governs that file).
+contrast gate     PASS — 24 screens · 248 pairs · 0 unresolved · 0 below
+pnpm lint         NOT RUNNABLE — `next lint` prompts to configure ESLint; there
+                  is no ESLint config in any commit and no eslint dependency.
+                  PRE-EXISTING.
+```
+
+## WHAT THE EXISTENCE CHECK FOUND, AND WHY IT CHANGED THE PLAN
+
+The item said *"Repo search found zero matching files, so verify first, then
+build per spec."* Verifying first was the right instruction: the search was
+wrong. `getFreightClass` and `estimateShipmentWeight` both already existed in
+`lib/admin/pricing.ts`, correct and in use, and the manual freight input and its
+write path to `quotes.freight` had been there since Phase 6. **Nothing that
+existed was rebuilt.** The two helpers are re-exported from `lib/freight/index.ts`
+rather than copied, so there is still exactly one implementation of each.
+
+## THE CONFLICT THIS SESSION HAD TO RESOLVE
+
+`FREIGHT_ESTIMATOR_SCOPE.md` §4 forbids dollar output, the adders and the
+threshold check. The queue item requires all three. They reconcile on the
+document's own stated reason — fabrication — which the item removes by making
+every rate admin-entered and shipping the table empty. Recorded in the EES §3.4
+and in STATE_OF_THE_BUILD.md rather than quietly picked. **Two of that
+document's prohibitions are upheld verbatim:** no ZIP parsed from
+`jobsite_address`, and no carrier API.
+
+## COMPLIANCE REPORT — VIOLATIONS FOUND, AND WHAT HAPPENED TO THEM
+
+**Found in this session's own work during self-audit, and fixed before shipping
+(all eight are listed in the EES §18):**
+
+1. A toggle switched on with a blank adder contributed `0`. Direct violation of
+   CLAUDE.md rule #19. → made a refusal.
+2. The free-freight threshold short-circuited before the oversize and
+   blank-adder checks, so an unpriceable job could be reported as "free". → a
+   refusal now outranks the threshold.
+3. A missing table was treated as an empty table, making an unapplied migration
+   indistinguishable from an unfilled rate book. → discriminated
+   installed/not-installed result, surfaced in the UI.
+4. The send route accepted the client's computed estimate. → mandatory
+   server-side re-computation; `merchandiseSubtotalCents` taken from the line
+   items the route just priced, never from the body.
+5. Band lookup was first-match-wins, which on an overlapping table returns a
+   confidently wrong rate. → explicit coverage validation and refusal.
+6. The override shape used a falsy test, making an override of `0`
+   indistinguishable from no override. → strict `null` comparisons throughout,
+   with tests.
+7. A proposal to extend `pricing_ledger`'s `event_type` CHECK — a change to an
+   existing constraint rule #20 governs. → dedicated `freight_estimates` table.
+8. The `FREIGHT_ESTIMATOR_SCOPE.md` conflict was unstated. → EES §3.4.
+
+**Found in the existing codebase, and reported rather than swept:** the
+ambiguous `profiles` PostgREST embeds. One was fixed because it blocked this
+item's own deliverable (the estimator screen was returning 404 for every quote
+request); five other modules are listed, measured, and left for a deliberate
+follow-up. Detail and the measured HTTP codes are in STATE_OF_THE_BUILD.md and
+SCHEMA.md.
+
+**Deviations from the EES: one**, recorded in EES §18 rather than applied
+silently — `rate-table-empty` now means structural emptiness only, with a new
+test E-23b pinning it.
+
+**Validation circumvention: none.** No test skipped, weakened, deleted or
+loosened. No `any`, no `@ts-ignore`, no suppressed error, no lint disable. The
+one failing unit test is the pre-existing `v7-css` one and it is reported, not
+absorbed. Two Playwright skips were investigated rather than accepted: the first
+turned out to be the E2E running against **another worktree's dev server on port
+3000** (this branch's server had taken 3001, so the suite was testing code that
+did not contain the change), and the second was a genuine fixture question that
+led to the 404 discovery.
+
+## THINGS THIS SESSION GOT WRONG ALONG THE WAY, FOR THE NEXT ONE
+
+- **Started the dev server as `pnpm dev | head -40`.** `head` exited after 40
+  lines, the pipe closed, and the server died mid-run with `net::ERR_ABORTED` on
+  the next navigation. Use a log file.
+- **Assumed port 3000 was ours.** `curl` answered `200` on the first try — too
+  fast for a cold Next boot, and that was the tell. Port 3000 belonged to the
+  **main checkout's** pre-existing dev server; ours was on 3001. Two tests
+  "failed" against code that never had the change in it. Check
+  `Get-NetTCPConnection` / the server's own log line, and do not kill a server
+  another session may be using.
+- **Next dev compiles on demand**, and the shared `auth.setup.ts` has a 5 s
+  expect. Warm `/login` and each route under test with `curl` first rather than
+  editing shared setup infrastructure.
+
+## FINAL GATES
+
+```
+tsc 0 · vitest 629/630 (1 pre-existing) · coverage lib/freight 97.60% lines
+contrast 25 screens / 261 pairs / 0 unresolved / 0 below
+playwright freight-estimator.spec.ts 4/4 · quote-request.spec.ts 2/2
+           contrast-live.spec.ts 3/3
+migration 039 WRITTEN, NOT APPLIED · real data unchanged (9 submitted /
+2 reviewing, identical to baseline) · 0 test artifacts left behind
+```
+
+## WHAT THE NEXT AGENT NEEDS, FROM THE FILES ALONE
+
+1. **Apply migration 039** when Steve is ready to enter rates. Nothing in this
+   feature is live until then, and every screen says so.
+2. **Fill the rate table in** — `/admin/settings/freight`. It is empty on
+   purpose and no default is coming.
+3. **Decide UNRESOLVED-01** (flat per band vs per-cwt) when #27–28/#80 arrive;
+   it is one additive column either way.
+4. **Take the ambiguous-`profiles`-embed follow-up** as its own item, with the
+   measured evidence in SCHEMA.md.
+

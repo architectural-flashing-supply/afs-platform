@@ -2932,5 +2932,328 @@ rule #16 says it means: created, unconfirmed, do not retry.
 
 ---
 
+## FREIGHT — RATE TABLE AND ESTIMATE AUDIT (migration 039, ovn/05-freight-estimator, 2026-10-03)
+
+**MIGRATION 039 IS WRITTEN AND NOT APPLIED.** `supabase/migrations/039_freight_rate_table_and_estimates.sql`
+exists as a file; the overnight run's hard rule is migration FILES only. Every
+one of the five tables below therefore does NOT EXIST in any deployed database
+as of this entry, which is verified rather than assumed — a live probe against
+`/rest/v1/freight_zones` returns **HTTP 404 `PGRST205` "Could not find the table
+'public.freight_zones' in the schema cache"**. `lib/freight/db.ts` detects
+exactly that and reports a NOT-INSTALLED state in words; see the end of this
+section.
+
+**NOTHING IS SEEDED. There is no `INSERT` in the file at all** — not a zone, not
+a band, not a rate, not an adder, not a carrier name. AFS's carrier and its rate
+structures are checklist #27-28, the residential surcharge #29, the free-freight
+threshold #30, the liftgate upcharge #88, and own-truck-vs-third-party #80.
+Every one is still an open DATA BLOCKER, so the migration creates the SHAPE a
+human fills in and fills in none of it. Compare migration 035 §9, which seeds 24
+price-book rows but not one price: same principle, one step further — here not
+even the identities are known, because a zone map is carrier-specific.
+
+**MONEY IS INTEGER CENTS IN ALL FIVE TABLES**, as in `price_book_versions`,
+`pricing_ledger` and `invoices`. The legacy `quotes.freight` column is
+`DECIMAL(10,2)` DOLLARS and is **left exactly as it is**; the application
+converts at one boundary (`finalCentsToQuoteDollars` in
+`lib/freight/override.ts`). Migrating that column is recorded as UNRESOLVED-05 —
+five other modules read it.
+
+### TABLE — freight_zones
+
+Identity of a destination AFS bills freight by. **Zero rows seeded.**
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `uuid` PK | `gen_random_uuid()` |
+| `name` | `text NOT NULL` | `UNIQUE (name)` — `freight_zones_name_key` |
+| `note` | `text` | |
+| `display_order` | `integer NOT NULL DEFAULT 0` | |
+| `retired_at` | `timestamptz` | Retiring never deletes — `freight_estimates` keeps an FK to it forever |
+| `retired_by` | `uuid` → `profiles(id)` | |
+| `created_by` | `uuid` → `profiles(id)` | |
+| `created_at` | `timestamptz NOT NULL DEFAULT now()` | |
+
+Index: `idx_freight_zones_order (display_order, name)`.
+
+**NOT A ZIP CODE, DELIBERATELY.** `SPEC_FREIGHT_ESTIMATOR.md` §2 asks for a
+destination ZIP, but `quote_requests.jobsite_address` is a single opaque
+free-text string. Regex-extracting a ZIP from it to drive a lane lookup would be
+a guess wearing a lookup's clothes, so the estimator PICKS a zone and nothing is
+inferred from an address. `FREIGHT_ESTIMATOR_SCOPE.md` §4 reached the same
+conclusion and that half of it is upheld verbatim.
+
+### TABLE — freight_rate_bands
+
+Identity of a weight band inside one zone. **Zero rows seeded.**
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `uuid` PK | |
+| `zone_id` | `uuid NOT NULL` → `freight_zones(id)` `ON DELETE RESTRICT` | |
+| `min_weight_lbs` | `integer NOT NULL` | INCLUSIVE floor |
+| `max_weight_lbs` | `integer` | **EXCLUSIVE ceiling. NULL = the open-ended top band** |
+| `display_order` | `integer NOT NULL DEFAULT 0` | |
+| `retired_at` / `retired_by` / `created_by` / `created_at` | | as above |
+
+Constraints: `UNIQUE (zone_id, min_weight_lbs)`;
+`freight_rate_bands_min_non_negative CHECK (min_weight_lbs >= 0)`;
+`freight_rate_bands_max_above_min CHECK (max_weight_lbs IS NULL OR max_weight_lbs > min_weight_lbs)`.
+Index: `idx_freight_rate_bands_zone (zone_id, min_weight_lbs)`.
+
+**A BAND IS `[min, max)` — INCLUSIVE FLOOR, EXCLUSIVE CEILING, AND THAT IS
+LOAD-BEARING.** Carriers publish bands as "0–499 lb, 500–999 lb", which reads
+closed, and implementing it closed is the bug this convention prevents: `[0,500]`
+and `[500,1000]` BOTH contain 500 and the rate charged would depend on sort
+order. Half-open, `[0,500)` and `[500,1000)` are exactly contiguous and a 500 lb
+shipment belongs to exactly one band, every time. `lib/freight/bands.ts` is the
+only place that decides it and `bands.test.ts` asserts it at the exact pound in
+both directions.
+
+**THE CROSS-ROW RULES ARE NOT CHECK CONSTRAINTS, ON PURPOSE.** An overlap, a
+gap, a second open-ended band and a duplicated floor all need to see the other
+rows. `validateBandCoverage` finds them and `estimateFreight` **REFUSES** with
+the offending bands named, rather than falling back to first-match-wins — a
+wrong freight charge that looks right is worse than no charge, because only one
+of the two gets noticed. A CLOSED top band and a lowest floor above zero are
+deliberately NOT faults; they produce a `no-band-for-weight` refusal naming the
+weight.
+
+### TABLE — freight_rate_versions (APPEND-ONLY)
+
+What a band costs, from when. **Zero rows seeded.**
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `uuid` PK | |
+| `band_id` | `uuid NOT NULL` → `freight_rate_bands(id)` `ON DELETE RESTRICT` | |
+| `rate_cents` | `integer` | **NULLABLE, NO DEFAULT. NULL = not filled in, never 0** |
+| `effective_from` | `date NOT NULL` | |
+| `note` | `text` | |
+| `created_by` | `uuid` → `profiles(id)` | |
+| `created_at` | `timestamptz NOT NULL DEFAULT now()` | |
+
+Constraints: `UNIQUE (band_id, effective_from)` —
+`freight_rate_versions_band_effective_key`;
+`freight_rate_versions_non_negative CHECK (rate_cents IS NULL OR rate_cents >= 0)`.
+Index: `idx_freight_rate_versions_band_effective (band_id, effective_from DESC)`.
+Trigger: `freight_rate_versions_append_only BEFORE UPDATE OR DELETE` →
+`afs_append_only()` (migration 035's, reused unchanged).
+
+An edit INSERTS a version; it never updates one, and the trigger refuses the
+update regardless. A quote already sent keeps the freight it was built on — the
+same promise `price_book_versions` makes about material, enforced the same way.
+A version dated tomorrow is not in force today, which is what makes "the
+carrier's announced increase starts on the first" safe to enter in advance; two
+versions on the same day means the later-entered one wins, because that is the
+correction.
+
+### TABLE — freight_surcharge_versions (APPEND-ONLY)
+
+The adders and the threshold, versioned together because the estimator reads
+them together. **Zero rows seeded.**
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `uuid` PK | |
+| `residential_cents` | `integer` | **NULLABLE, NO DEFAULT** — checklist #29 |
+| `liftgate_cents` | `integer` | **NULLABLE, NO DEFAULT** — checklist #88 |
+| `free_freight_threshold_cents` | `bigint` | **NULLABLE, NO DEFAULT** — checklist #30 |
+| `effective_from` | `date NOT NULL` | `UNIQUE (effective_from)` |
+| `note` | `text` | |
+| `created_by` / `created_at` | | as above |
+
+Constraint: `freight_surcharge_versions_non_negative` — each money column
+`IS NULL OR >= 0`. Index:
+`idx_freight_surcharge_versions_effective (effective_from DESC)`. Trigger:
+`freight_surcharge_versions_append_only` → `afs_append_only()`.
+
+**EACH NULL MEANS SOMETHING DIFFERENT AND SPECIFIC, AND NONE OF THEM MEANS
+ZERO:**
+
+- `residential_cents IS NULL` — the surcharge is unknown, so an estimate with
+  the residential toggle ON is **REFUSED**, not charged 0. Charging 0 would
+  silently under-quote every residential delivery AFS ever makes, forever, and
+  nobody would see it happen.
+- `liftgate_cents IS NULL` — the same, for a liftgate.
+- `free_freight_threshold_cents IS NULL` — the rule is **NOT APPLIED**, and the
+  estimate says so in words. Not applying a discount can only over-quote, and
+  the estimator reviews and can override every figure before it is sent;
+  applying an unconfigured discount would under-quote.
+
+A **missing row entirely** (`surchargesInForce` returns `null`) is a THIRD
+distinct state: nothing has ever been set. That is not the same fact as "set to
+zero", and `lib/freight/` keeps them apart.
+
+### TABLE — freight_estimates (APPEND-ONLY) — THE AUDIT TRAIL
+
+One row per freight figure that reached a quote.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `uuid` PK | |
+| `quote_id` | `uuid` → `quotes(id)` | |
+| `quote_request_id` | `uuid` → `quote_requests(id)` | |
+| `zone_id` | `uuid` → `freight_zones(id)` | |
+| `zone_name` | `text` | Kept so the row still reads after a rename |
+| `weight_lbs` | `numeric` | |
+| `weight_lbs_matched` | `integer` | From `estimateShipmentWeight`'s caveat |
+| `weight_lbs_total_items` | `integer` | 2 of 5 matched is a different fact from 5 of 5 |
+| `longest_piece_ft` | `numeric` | |
+| `freight_class` | `text` | SPEC §4's NMFC-style class. Derived, needs no rate data |
+| `is_residential` | `boolean NOT NULL` | |
+| `requires_liftgate` | `boolean NOT NULL` | |
+| `merchandise_subtotal_cents` | `bigint` | For the threshold only. Freight is never a % of it |
+| `basis` | `text NOT NULL` | `estimate`, `override` or `manual` |
+| `computed_cents` | `bigint` | NULL exactly when the table produced no figure |
+| `override_cents` | `bigint` | NULL exactly when nobody typed one. **`0` is a real override** |
+| `final_cents` | `bigint NOT NULL` | What went on the quote |
+| `band_id` | `uuid` → `freight_rate_bands(id)` | |
+| `rate_version_ids` | `uuid[]` | An array: a future per-cwt rate could resolve through more than one |
+| `surcharge_version_id` | `uuid` → `freight_surcharge_versions(id)` | |
+| `breakdown` | `jsonb` | Every number that produced the figure |
+| `refusals` | `jsonb` | Why there was nothing to compare against, when there wasn't |
+| `notes` | `text` | |
+| `override_reason` | `text` | |
+| `actor_id` | `uuid` → `profiles(id)` | |
+| `actor_email` | `text` | |
+| `created_at` | `timestamptz NOT NULL DEFAULT now()` | |
+
+Indexes: `idx_freight_estimates_quote (quote_id)`,
+`idx_freight_estimates_request (quote_request_id)`,
+`idx_freight_estimates_created (created_at DESC)`. Trigger:
+`freight_estimates_append_only` → `afs_append_only()`.
+
+**THE THREE BASIS CHECKS ARE LOAD-BEARING**, because without them `basis` could
+disagree with the amounts beside it:
+
+```
+freight_estimates_basis_estimate  basis <> 'estimate' OR (computed_cents IS NOT NULL
+                                    AND override_cents IS NULL
+                                    AND final_cents = computed_cents)
+
+freight_estimates_basis_override  basis <> 'override' OR (computed_cents IS NOT NULL
+                                    AND override_cents IS NOT NULL
+                                    AND final_cents = override_cents)
+
+freight_estimates_basis_manual    basis <> 'manual'   OR (computed_cents IS NULL
+                                    AND override_cents IS NOT NULL
+                                    AND final_cents = override_cents)
+
+freight_estimates_final_non_negative
+                                  final_cents >= 0
+                                    AND (computed_cents IS NULL OR computed_cents >= 0)
+                                    AND (override_cents IS NULL OR override_cents >= 0)
+```
+
+`lib/freight/override.test.ts` re-implements all three in TypeScript and asserts
+the record builder's output against them in every valid combination — so the
+builder cannot emit a row Postgres would reject, which would otherwise be
+discovered the first time somebody overrode a freight figure in production, by
+the quote failing to send.
+
+**AN OVERRIDE OF `0` IS A REAL OVERRIDE** — freight waived by hand. Every amount
+in `lib/freight/override.ts` is therefore compared against `NULL` and never
+tested for falsiness: one `if (overrideCents)` would silently reclassify every
+waived-freight job as "calculated from the table".
+
+**NOT `pricing_ledger`, and that is a decision.** Recording freight there would
+need either an extension of its `event_type` CHECK — which CLAUDE.md rule #20
+governs — or an overload of its `estimate` event with a second meaning. A
+dedicated table leaves the ledger's vocabulary untouched and makes "every
+freight decision we ever made" one query. The cost is that freight history is
+not in the ledger's CSV export.
+
+### RLS — ADMIN ONLY, AND NO CUSTOMER POLICY ON ANY OF THE FIVE
+
+```
+freight_zones               FOR ALL USING (is_admin())
+freight_rate_bands          FOR ALL USING (is_admin())
+freight_rate_versions       FOR ALL USING (is_admin())
+freight_surcharge_versions  FOR ALL USING (is_admin())
+freight_estimates           FOR SELECT USING (is_admin())
+                            FOR INSERT WITH CHECK (is_admin())   -- and NOTHING else
+```
+
+`freight_estimates` has **no UPDATE policy and no DELETE policy at all**, so the
+append-only trigger and the policy set are two independent refusals rather than
+one — the construction migration 035 established for `pricing_ledger`. Do not
+add one.
+
+A customer sees the resulting figure on their formal quote (`quotes.freight`,
+which has its own long-standing policy) and **nothing else**: not the zone, not
+the band, not the weight, not the class, not the estimate, not the override, not
+the fact that an override happened. Hence no customer-readable policy here, not
+even a read-your-own one.
+
+**NOT `company_id`-SCOPED, and that is correct rather than lazy.** `company_id`
+in this schema scopes CUSTOMER data — `projects`, `templates`,
+`profile_passport`, `credit_applications`. These five tables are AFS's own cost
+of shipping, in the same category as `price_book_items` and `pricing_ledger`,
+which migration 035 scopes with `is_admin()` and no `company_id`. Scoping AFS's
+carrier rates by customer company would be wrong, not merely unnecessary.
+
+### IDEMPOTENT
+
+Every object `IF NOT EXISTS`; every constraint added inside a
+`DO $$ … pg_constraint … $$` guard; every policy `DROP POLICY IF EXISTS` first;
+every trigger `DROP TRIGGER IF EXISTS` first. Safe to re-run. Depends on, and
+does not redefine, `is_admin()` (001) and `afs_append_only()` (035).
+
+### THE NOT-INSTALLED STATE IS PART OF THE CONTRACT
+
+Because 039 is unapplied, `lib/freight/db.ts`'s `getFreightRateTable` returns a
+**discriminated** result and the UI handles both arms:
+
+- `{ installed: false, reason }` on PostgreSQL `42P01` or PostgREST `PGRST205`.
+  Both are recognised, because which one surfaces depends on whether PostgREST's
+  schema cache has reloaded.
+- `{ installed: true, table }` otherwise.
+- **Any other error PROPAGATES.** A permissions failure or a dropped connection
+  reported as an empty table would remove every rate from every estimate and
+  look exactly like somebody having deleted them. "Empty" and "broken" are
+  different facts.
+
+### AN AMBIGUOUS `profiles` EMBED — FOUND, MEASURED, PARTLY FIXED
+
+Not a schema change, but a schema-shaped consequence of earlier ones, and it
+belongs here so the next run does not rediscover it the hard way.
+
+`quote_requests` now has **three** foreign keys to `profiles` — `user_id` (001),
+`approved_by` (032) and `rush_set_by` (034). A bare `profiles(...)` PostgREST
+embed off such a table is **ambiguous**: PostgREST answers **HTTP 300
+`PGRST201`** listing the candidate relationships, supabase-js returns
+`data: null`, and a caller that reads null as "not found" renders a 404.
+`app/admin/quote-requests/[id]/page.tsx` was doing exactly that and returning
+**404 for every quote request** — which is how this was found, by an E2E test
+walking into it.
+
+Measured against the live database, not reasoned about:
+
+```
+quote_requests        profiles(full_name, company)                        -> 300 PGRST201
+quote_requests        profiles!quote_requests_user_id_fkey(full_name, …)  -> 200
+orders                profiles(full_name, company)                        -> 300 PGRST201
+quotes                profiles(full_name)                                 -> 300 PGRST201
+credit_applications   profiles(full_name, company)                        -> 300 PGRST201
+order_status_history  profiles(full_name)                                 -> 200  (single FK)
+admin_audit_log       profiles(full_name)                                 -> 200  (single FK)
+```
+
+**FIXED HERE (one file, because it is the screen this item's component mounts
+on):** `app/admin/quote-requests/[id]/page.tsx` now embeds
+`profiles!quote_requests_user_id_fkey(...)`. The relationship it names is the
+CUSTOMER; embedding `approved_by` or `rush_set_by` instead would put an AFS
+employee's name in the Customer panel.
+
+**NOT FIXED, recorded for a deliberate follow-up** — separate screens, outside
+this item's scope: `lib/data/admin.ts` (two call sites, the quote-request
+queues), `lib/data/orders.ts` (four), `lib/data/credit.ts`,
+`lib/data/customers.ts`, `lib/data/command-center-dashboard.ts`. Each needs the
+FK named, and each needs a decision about WHICH relationship it means — that is
+a judgement per call site, not a find-and-replace.
+
+---
+
 *SCHEMA.md | AFS | Reid Whitesides | June 2026*
 *Run 001_initial_schema.sql in Supabase before any feature build begins.*

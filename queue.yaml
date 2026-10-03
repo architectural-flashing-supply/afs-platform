@@ -885,3 +885,42 @@ prompts:
 
       Update STATE_OF_THE_BUILD.md with final status of all phases.
       Update SESSION_STATE.md with handoff notes for next session.
+
+# ─────────────────────────────────────────────
+# APPENDED 2026-10-03 — ovn/05-freight-estimator
+# Not a prompt. A note, so p6-002 above is not read as still outstanding.
+# ─────────────────────────────────────────────
+#
+# p6-002 asks for a `FreightCalculatorPanel` with "Destination (from
+# submission), weight estimate, longest piece, Manual freight dollar input (no
+# carrier API yet)". ALL OF THAT IS BUILT, and the manual dollar input has been
+# there since Phase 6. The overnight item `05-freight-estimator` extended it,
+# and the component is named:
+#
+#   components/admin/FreightEstimatePanel.tsx   (the quote screen's panel)
+#   components/admin/FreightRateEditor.tsx      (Settings -> Freight rates)
+#   app/admin/settings/freight/page.tsx         (the new admin screen)
+#   lib/freight/**                              (the typed library)
+#   app/api/admin/freight-rates/route.ts        (the rate-table writer)
+#
+# NOT `FreightCalculatorPanel`, deliberately: the panel does not calculate
+# anything on its own and must not read as though it does. The rate table it
+# reads from is ADMIN-ENTERED and SHIPS EMPTY, so with no rates filled in the
+# panel produces no figure at all and the manual dollar input is the whole of
+# the feature -- which is SPEC_FREIGHT_ESTIMATOR.md section 3's own documented
+# interim behaviour, not a shortfall against it.
+#
+# Also NOT built, and p6-002 does not ask for them either: no
+# /api/admin/pricing/freight endpoint, no carrier API call, and no ZIP parsed
+# out of quote_requests.jobsite_address (it is one opaque free-text string).
+#
+# SCHEMA: supabase/migrations/039_freight_rate_table_and_estimates.sql adds
+# five tables and is WRITTEN BUT NOT APPLIED. Full detail in SCHEMA.md's
+# FREIGHT section. It seeds nothing -- the carrier and its rates are checklist
+# #27-28, the residential surcharge #29, the free-freight threshold #30, the
+# liftgate upcharge #88, and own-truck-vs-third-party #80, and every one of
+# those is still an open DATA BLOCKER. Every money column is NULLABLE with no
+# DEFAULT, because a zero is a price and a made-up one.
+#
+# See STATE_OF_THE_BUILD.md and SESSION_STATE.md, both dated 2026-10-03, and
+# EES-OVN.05-FREIGHT-ESTIMATOR.md at the project root.
