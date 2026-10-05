@@ -38,6 +38,8 @@ export interface ProductPreviewShape {
   confidence: TraceConfidence;
   /** Cross-section polyline, nominal inches, y-down. */
   points: ProfilePoint[];
+  /** Segment indices (0 = first leg) that are perforated in the rendering. */
+  perforatedSegments?: number[];
   /** What the rendering showed and what was left out. */
   note: string;
 }
@@ -348,6 +350,7 @@ export const PRODUCT_PREVIEW_SHAPES: Readonly<Record<string, ProductPreviewShape
     schematic: true,
     confidence: 'medium',
     note: "Isolated part on black background, small in frame; near (lower-right) end read. Verticals vertical; section-horizontal slope -0.33 (top-flange end edge -0.335, bottom-flange end edge -0.315); |u|/|v|~0.905 from axis angles (same camera as j-channel). Units = source px. Shape: wide top flange (~180, perforated with staggered rows of elongated slots - perforations are along the length, not part of the section) -> 90-degree bend -> vertical web (~98) -> 90-degree bend -> short bottom flange (~63) pointing the opposite way = Z. Both free edges plain, no hems or returns visible. Small part: bend positions +/-2px.",
+    perforatedSegments: [0],
     points: [
       { x: 0.0, y: 0.0 },
       { x: 4.449, y: -0.02 },

@@ -128,6 +128,7 @@ export default function ProductProfilePreview3D({
         minHeightPx={minHeightPx}
         hideDimensions={isSchematic}
         defaultDimensionsOn={false}
+        perforatedSegments={schematic?.perforatedSegments}
         // Reduced motion: no rotation at all, just the static shape.
         autoRotateSpeed={prefersReducedMotion ? 0 : AUTO_ROTATE_SPEED}
         autoRotateDurationMs={prefersReducedMotion ? 0 : AUTO_ROTATE_DURATION_MS}

@@ -85,6 +85,19 @@ export interface ProfileViewer3DProps {
    * mounted today is a dark surface. A light-surface caller passes 'light'.
    */
   fallbackTone?: 'light' | 'dark';
+  /**
+   * Segments of the cross-section that are PERFORATED (staggered rows of
+   * elongated slots running along the length), as indices into the profile's
+   * segments: 0 is the leg before the first bend. Drawn as see-through cutouts
+   * by discarding fragments in a shader, so the profile solid, dimension labels
+   * and every other code path are untouched.
+   */
+  perforatedSegments?: number[];
+}
+
+export interface PerforationRegion {
+  a: { x: number; y: number };
+  b: { x: number; y: number };
 }
 
 interface Point2D {
@@ -533,6 +546,65 @@ function filletPolyline(points: Point2D[], radiiMm: number[], segmentsPerArc = 8
   return result;
 }
 
+const PERF_ROWS = 6; // slot rows across the width of a perforated leg
+const PERF_PITCH_MM = 32; // slot centre spacing along the length
+const PERF_SLOT_HALF_LENGTH_MM = 7; // slot is 14 mm long
+const PERF_SLOT_HALF_WIDTH_FRAC = 0.2; // of one row's pitch
+const PERF_END_MARGIN_MM = 14; // no slots within this of the cut ends
+
+/**
+ * Cuts staggered slotted perforations through the given legs of a material.
+ * Fragments inside a slot are discarded, so the leg is genuinely see-through
+ * from both faces. `regions` are in the SAME coordinates as the geometry
+ * (profile coords + centerShift). The sheet's thin edge walls inside a slot
+ * are not drawn: at sheet thickness that is not visible.
+ */
+function applyPerforations(mat: THREE.MeshStandardMaterial, regions: PerforationRegion[], thicknessMm: number) {
+  const regionVecs = regions.map((r) => [new THREE.Vector2(r.a.x, r.a.y), new THREE.Vector2(r.b.x, r.b.y)]);
+  mat.customProgramCacheKey = () => 'afs-perforated-' + regions.length;
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uPerfA = { value: regionVecs.map((r) => r[0]) };
+    shader.uniforms.uPerfB = { value: regionVecs.map((r) => r[1]) };
+    shader.uniforms.uPerfBand = { value: Math.max(thicknessMm, 0.5) * 1.6 };
+    shader.uniforms.uPerfDepth = { value: EXTRUDE_DEPTH_MM };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vPerfPos;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPerfPos = position;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+varying vec3 vPerfPos;
+uniform vec2 uPerfA[${regions.length}];
+uniform vec2 uPerfB[${regions.length}];
+uniform float uPerfBand;
+uniform float uPerfDepth;`
+      )
+      .replace(
+        '#include <clipping_planes_fragment>',
+        `#include <clipping_planes_fragment>
+for (int i = 0; i < ${regions.length}; i++) {
+  vec2 ab = uPerfB[i] - uPerfA[i];
+  float L = length(ab);
+  vec2 dir = ab / L;
+  vec2 ap = vPerfPos.xy - uPerfA[i];
+  float t = dot(ap, dir);
+  float n = dot(ap, vec2(-dir.y, dir.x));
+  float margin = 0.1 * L;
+  float z = vPerfPos.z + uPerfDepth * 0.5;
+  if (abs(n) < uPerfBand && t > margin && t < L - margin && z > ${PERF_END_MARGIN_MM.toFixed(1)} && z < uPerfDepth - ${PERF_END_MARGIN_MM.toFixed(1)}) {
+    float u = (t - margin) / (L - 2.0 * margin) * ${PERF_ROWS.toFixed(1)};
+    float row = floor(u);
+    float v = u - row;
+    float zc = mod(z + mod(row, 2.0) * ${(PERF_PITCH_MM / 2).toFixed(1)}, ${PERF_PITCH_MM.toFixed(1)}) - ${(PERF_PITCH_MM / 2).toFixed(1)};
+    if (abs(v - 0.5) < ${PERF_SLOT_HALF_WIDTH_FRAC.toFixed(2)} && abs(zc) < ${PERF_SLOT_HALF_LENGTH_MM.toFixed(1)}) discard;
+  }
+}`
+      );
+  };
+  mat.needsUpdate = true;
+}
+
 export default function ProfileViewer3D({
   bends,
   blankWidth,
@@ -552,6 +624,7 @@ export default function ProfileViewer3D({
   minHeightPx = 500,
   hideDimensions = false,
   defaultDimensionsOn = false,
+  perforatedSegments,
 }: ProfileViewer3DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -957,6 +1030,15 @@ export default function ProfileViewer3D({
           metalness: appearance.metalness,
           roughness: appearance.roughness,
         });
+        if (perforatedSegments && perforatedSegments.length > 0) {
+          const regions = perforatedSegments
+            .filter((i) => i >= 0 && i < points.length - 1)
+            .map((i) => ({
+              a: { x: points[i].x + centerShift.x, y: points[i].y + centerShift.y },
+              b: { x: points[i + 1].x + centerShift.x, y: points[i + 1].y + centerShift.y },
+            }));
+          if (regions.length > 0) applyPerforations(bareMaterial, regions, effectiveThicknessMm);
+        }
         const mesh = new THREE.Mesh(geometry, bareMaterial);
         mesh.castShadow = true;
         mesh.receiveShadow = true;
@@ -1079,7 +1161,7 @@ export default function ProfileViewer3D({
         }
       }
     }
-  }, [bends, blankWidth, material, thicknessMm, dimensionsOn, hideDimensions, paintFace, paintColor, bareColor, hemStart, hemEnd]);
+  }, [bends, blankWidth, material, thicknessMm, dimensionsOn, hideDimensions, paintFace, paintColor, bareColor, hemStart, hemEnd, perforatedSegments]);
 
   // F-06: WebGL refused a context. Render the same profile flat rather than an
   // empty grey box. The two effects above both bail on their own null refs, so
