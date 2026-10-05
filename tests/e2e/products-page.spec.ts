@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import manifest from '../../lib/data/product-renders.manifest.json';
+import { previewShapeFor } from '@/lib/data/product-preview-shapes';
 
 /**
  * The public Products page, rebuilt 2026-10-01 from the reviewed render
@@ -25,8 +26,9 @@ interface ManifestEntry {
 
 const entries = manifest as ManifestEntry[];
 const publishable = entries.filter((e) => e.type === 'product' && !e.needsReview);
-const withGeometry = publishable.find((e) => e.geometryMatch);
-const withoutGeometry = publishable.find((e) => !e.geometryMatch);
+// A traced rendering withdraws the generic template, so it is never designable.
+const withGeometry = publishable.find((e) => e.geometryMatch && !previewShapeFor(e.id));
+const withoutGeometry = publishable.find((e) => !e.geometryMatch || previewShapeFor(e.id));
 
 /** Tiles are buttons whose accessible name is the product name. */
 function tileByName(page: Page, name: string) {

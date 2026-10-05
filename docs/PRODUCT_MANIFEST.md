@@ -192,3 +192,9 @@ such rendering in the set (the edge-metal group) already carries real
 
 **Counts after this pass:** 35 shown · 17 designable (unchanged, and asserted by
 a test) · 9 schematic preview · 9 image-only.
+
+## 2026-10-05 - traced product cross-sections
+- lib/data/product-preview-shapes.ts is now GENERATED from 34 traces read off the end-face of each Drexel rendering (axonometric projection solved, then verified by projecting the polyline back onto the rendering). Proportions only; scale is nominal (longest side 6 in) and never displayed.
+- 17 products previously borrowed generic ProfileType templates (wrong shapes). Traced shape now wins; for those products the template is withdrawn, so they offer Request a Quote only (no Select & Design) - a traced shape is unmeasured and must not reach FlashDraft.
+- Untraceable (no preview): snap-lock-wclip (assembled-seam close-up). Low confidence: snap-coping-max (back leg hidden by cleat), valley-sample-02 (fold angle unverified). Seam close-ups (dmc-*, fwq100, fastener-flange) trace only the visible panel sheet, not clips/adjoining panels.
+- Rollback: git revert the merge; templates return.
