@@ -61,7 +61,7 @@ export default function PreShipPhotoSection({ orderId, photos }: PreShipPhotoSec
           />
           Notify customer
         </label>
-        {error && <p className="font-body text-xs text-afs-crimson">{error}</p>}
+        {error && <p className="font-body text-xs text-afs-danger-on-dark">{error}</p>}
         <button
           type="button"
           onClick={handleUpload}
@@ -88,7 +88,7 @@ export default function PreShipPhotoSection({ orderId, photos }: PreShipPhotoSec
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={photo.signedUrl} alt={photo.filename} className="w-full h-full object-cover" />
               ) : (
-                <div className="w-full h-full flex items-center justify-center font-body text-xs text-afs-chrome-dim px-2 text-center">
+                <div className="w-full h-full flex items-center justify-center font-body text-xs text-afs-chrome-silver px-2 text-center">
                   {photo.filename}
                 </div>
               )}

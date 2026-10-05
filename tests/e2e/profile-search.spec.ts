@@ -136,7 +136,7 @@ test.describe('Profile search', () => {
   // ------------------------------------------------------------------ helpers
 
   async function openSearch(page: Page, q?: string): Promise<void> {
-    await page.goto(q ? `/admin/search?q=${encodeURIComponent(q)}` : '/admin/search');
+    await page.goto(q ? `/admin/search/profiles?q=${encodeURIComponent(q)}` : '/admin/search/profiles');
     await expect(page.getByTestId('profile-search-panel')).toBeVisible();
   }
 
@@ -200,11 +200,46 @@ test.describe('Profile search', () => {
     expect((await railNames(page))[0]).toContain('Grimsby Counter');
   });
 
-  test('filters by material on its own, with no search term', async ({ page }) => {
+  test('the material filter narrows the results on its own', async ({ page }) => {
     await openSearch(page);
+
+    // WHY THIS NO LONGER TESTS "WITH NO SEARCH TERM".
+    //
+    // It used to select Copper with an empty query and assert
+    // `toHaveCount(1)` — that the whole database held exactly one Copper
+    // profile, this spec's fixture. That was true when it was written. It is
+    // not any more: AFS has really drawn copper since (the live shop queue
+    // carries a "16 oz, Copper" job), so the count is whatever the shop has
+    // made, and the test failed on real work rather than on a defect.
+    //
+    // Removing the count is not enough. With no search term the rail is a
+    // RANKED, LIMITED listing of everything, and this spec's fixtures do not
+    // appear in it at all — so any assertion about them passes vacuously, which
+    // is worse than failing. Measured, not assumed: with the filter cleared,
+    // zero of this spec's rows come back.
+    //
+    // So the search term stays, scoping the rail to this spec's own fixtures,
+    // and what is asserted is the thing the filter is actually for: it NARROWS
+    // a result set, and narrows it to the right row. That is true regardless of
+    // how much real copper exists or where it ranks.
+    // `railNames` only waits for the count to stop saying "Searching", which it
+    // has not started doing yet in the instant after `fill`. Waiting on a
+    // retrying locator first is what every other test here does.
+    await searchIn(page, 'Everything', PREFIX);
+    await expect(page.getByTestId('rail-item').first()).toBeVisible();
+    const unfiltered = (await railNames(page)).filter((n) => n.includes(PREFIX));
+    expect(unfiltered.length).toBeGreaterThan(1);
+
     await page.getByLabel('Material').selectOption('Copper');
     await expect(page.getByTestId('rail-item')).toHaveCount(1);
-    expect((await railNames(page))[0]).toContain('Marlow Coping');
+    const copperOnly = (await railNames(page)).filter((n) => n.includes(PREFIX));
+
+    expect(copperOnly.length).toBeGreaterThan(0);
+    expect(copperOnly.length).toBeLessThan(unfiltered.length);
+    expect(
+      copperOnly.every((n) => n.includes('Marlow Coping')),
+      `Copper filter kept a non-Copper fixture: ${copperOnly.join(' | ')}`
+    ).toBe(true);
   });
 
   test('counts a repeated shape', async ({ page }) => {
@@ -464,7 +499,7 @@ test.describe('Profile search', () => {
     test.use({ hasTouch: true });
 
     test('a tap opens the preview, and a second tap Selects', async ({ page }) => {
-      await page.goto('/admin/search');
+      await page.goto('/admin/search/profiles');
       await expect(page.getByTestId('profile-search-panel')).toBeVisible();
       await page.locator('#profile-search-q').fill('Zorbix');
 

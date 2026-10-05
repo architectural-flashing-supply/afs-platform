@@ -21,14 +21,26 @@ function routeExists(href: string): boolean {
 
 describe('Command Center navigation is ONE level', () => {
   it('has exactly the V2 top-level items, in order', () => {
-    expect(TOP_LEVEL_NAV.map((i) => i.label)).toEqual(['Workbench', 'Shop View', 'Deliveries']);
+    // v7 header(), line 1199 — left to right, exactly these seven.
+    expect(TOP_LEVEL_NAV.map((i) => i.label)).toEqual([
+      'Workbench',
+      'Quotes',
+      'Orders',
+      'Shop View',
+      'Deliveries',
+      'Customers',
+      'Pricing',
+    ]);
   });
 
   it('has exactly the V2 More items, in order', () => {
     expect(MORE_NAV.map((i) => i.label)).toEqual([
-      'Customers',
       'Credit Applications',
       'Bid Monitor',
+      // v7 Stage D: /admin/search is now the quotes-and-orders Search screen
+      // (`pageSearch()`), reached from the header's own search box, and the
+      // profile rail moved to /admin/search/profiles under its real name.
+      'Find a past profile',
       'Settings',
     ]);
   });

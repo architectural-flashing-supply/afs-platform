@@ -212,6 +212,39 @@ Product catalog with filters. Product detail pages (no pricing). Auth system
 (register, login, magic link, password reset, team invitations). Checkout
 flow that collects payment after AFS delivers a formal quote.
 
+**Catalog source data, as of 2026-10-01 (branch `products-manifest`, not yet
+merged):** `lib/data/product-renders.manifest.json` holds 64 reviewed entries
+built from the 75 Drexel Metals renderings, with the images themselves in
+`public/images/products/`. 27 entries carry a real `ProfileType` and can offer
+Select & Design plus the 3D rotation; 37 get Request a Quote only.
+
+**`/products` is BUILT against that data (branch `products-page`, cut from
+`products-manifest`, 2026-10-01 — not merged, not deployed).** It shows 35
+entries in 8 categories: the publishable set, `type === "product"` and not
+`needsReview`. 17 of them offer **Select & Design** (which opens FlashDraft on
+that profile through its existing `?loadCanonical=1` handoff) plus one slow 18-
+second 3D rotation that never loops; 18 offer **Request a Quote** only. The data
+layer is `lib/data/products-page.ts` — one filter, one name derivation, one
+display-only category mapping that renames nothing in
+`lib/data/profile-categories.ts`. Roofing is pinned last; `Standing Seam` folds
+into `Roofing Panels`. No prices, no cart, no Configurator, no RUSH badge, and
+an e2e that fails if any of those reappear. Full detail:
+`docs/PRODUCT_PAGE_NOTES.md`.
+
+**The catalog's remaining hard blocker is PRODUCT COPY, and it is unchanged.**
+Every one of the 75 renderings is wordless — the descriptions are not printed in
+the images, contrary to what was assumed. `description` is empty on all 64
+entries and `nameSource` is `"filename"` on all 64, so **every name on the live
+page is a filename derivation that nobody has verified**. Corrections go in
+`lib/data/product-name-overrides.ts` (ships empty) — not in a component.
+
+**Also still deferred:** material and gauge filters (the manifest has no
+material data at all, and a filter matching nothing is worse than none); the
+per-product detail pages at `/products/[category]/[slug]`, which still run on
+the older `lib/data/catalog.ts` content; and the 26 flagged entries plus the two
+category-vocabulary questions, both PENDING REID in `docs/PRODUCT_MANIFEST.md`.
+
+
 ### Phase 4 — Customer Portal
 Dashboard. Order detail with production timeline. Quote approval and order flow.
 Delivery scheduler. Invoice portal. Multi-project management. Team accounts.

@@ -21,7 +21,15 @@ import { formatInches } from '@/lib/utils/format-inches';
 import ProfileViewer3D, { type ProfileBend } from '@/components/studio/ProfileViewer3D';
 import { computeProfilePoints, signedInteriorAngleDeg } from '@/lib/flashdraft/geometry';
 import { drawHemGlyph, HEM_GLYPH_R } from '@/lib/flashdraft/hem-glyph';
+import { nextRevisionNumber } from '@/lib/flashdraft/revision';
 import { ADMIN_JOB_HANDOFF_KEY, type AdminJobHandoffPayload } from '@/lib/flashdraft/admin-job-handoff';
+import {
+  JOB_HANDOFF_ITEM_PARAM,
+  JOB_HANDOFF_PARAM,
+  jobHandoffApiPath,
+  type JobHandoffPayload,
+  type JobHandoffReference,
+} from '@/lib/flashdraft/job-handoff';
 import {
   drawProfileScene,
   renderShopSnapshotDataUri,
@@ -281,6 +289,17 @@ const NEW_SEGMENT_MISS_GUARD_PX = 24;
 // render at submit time, so this page no longer needs them directly.
 
 const VERTEX_DRAG_THRESHOLD_PX = 3; // movement before a vertex click becomes a drag
+
+/**
+ * How strongly the traced reference photo shows through behind the canvas.
+ *
+ * 0.45 is enough to read a pencil line on paper and still leave the black
+ * profile stroke and its dimension labels plainly the darkest thing on screen —
+ * the estimator is checking their drawing AGAINST the photo, so the drawing has
+ * to win. Adjustable on screen, because a bright phone photo in sunlight and a
+ * dim one in a truck cab are not the same picture.
+ */
+const UNDERLAY_DEFAULT_OPACITY = 0.45;
 
 // Hard guard rail on vertex-drag and leg-reshape (they share the same
 // translation math — see clampDragAngle below): neither gesture may drag a
@@ -1206,6 +1225,37 @@ export default function FlashDraftPage() {
   // renders; only adminContext sessions see the button.
   const [showProfileSearch, setShowProfileSearch] = useState(false);
   /**
+   * THE JOB THIS FLASHDRAFT SESSION WAS OPENED ON (?loadRequest=<id>).
+   *
+   * Non-null means the Command Center sent the estimator here from a specific
+   * quote request, and a successful save writes the corrected profile back
+   * onto that request's line item. Null means an ordinary FlashDraft session
+   * and nothing is ever written to anybody's order — the write-back is
+   * strictly opt-in via the URL, never a thing that happens to a drawing
+   * because an admin was signed in. See lib/flashdraft/job-handoff.ts.
+   */
+  const [jobHandoff, setJobHandoff] = useState<JobHandoffPayload | null>(null);
+  /** What the write-back actually did, reported where the estimator is looking. */
+  const [jobWriteback, setJobWriteback] = useState<{ tone: 'ok' | 'bad'; message: string } | null>(null);
+  /**
+   * The customer's photo/drawing, shown BEHIND the canvas to trace.
+   *
+   * Only ever set from a handoff whose kind is 'reference' — i.e. the order
+   * carries an image and no geometry. It is a tracing aid and nothing more: a
+   * photograph of a piece of paper has no scale, so it is never measured
+   * against and never written into the saved profile.
+   */
+  const [underlay, setUnderlay] = useState<JobHandoffReference | null>(null);
+  const [underlayVisible, setUnderlayVisible] = useState(true);
+  const [underlayOpacity, setUnderlayOpacity] = useState(UNDERLAY_DEFAULT_OPACITY);
+  /**
+   * Both halves of the decision, in one place: the canvas stops painting its
+   * own background and the <img> behind it becomes visible together, or neither
+   * does. Split across two call sites they could disagree, and the failure mode
+   * is a canvas that is simply transparent over the page.
+   */
+  const showUnderlay = underlay !== null && underlayVisible && viewMode === '2d';
+  /**
    * The canvas as it last reached storage, per lib/flashdraft/unsaved-work.ts.
    *
    * Selecting a profile from Search REPLACES what is on the canvas, so the
@@ -1673,6 +1723,10 @@ export default function FlashDraftPage() {
       signedAngleBetween,
       colors: CANVAS_COLORS,
       labelStyle: LIVE_CANVAS_LABEL_STYLE,
+      // The traced reference photo is an <img> BEHIND this canvas, so the
+      // canvas must stop painting over it. See drawBackground's own comment in
+      // draw-profile-scene.ts for why the photo is not composited in here.
+      drawBackground: !showUnderlay,
       interaction: {
         selectedSegment,
         hoveredSegment,
@@ -1707,6 +1761,7 @@ export default function FlashDraftPage() {
     paintFaceSelectable,
     paintFace,
     resolvedPaintColor,
+    showUnderlay,
   ]);
 
   // --- Debounced 3D-confirmation-modal sync (mirrors the profile-match bend shape, in mm) ---
@@ -2655,6 +2710,80 @@ export default function FlashDraftPage() {
     setShowProfileDetails(true);
   };
 
+  /**
+   * SENDS THE CORRECTED PROFILE BACK ONTO THE ORDER IT CAME FROM.
+   *
+   * Called only from performSave's success path, and only when this session was
+   * opened on a job (?loadRequest=). The route it posts to merges the geometry
+   * onto that one line item and stamps it corrected-by and corrected-at; see
+   * app/api/admin/command-center/job-handoff/[id]/route.ts.
+   *
+   * IT NEVER THROWS AND NEVER REPORTS A FALSE SUCCESS. The profile is already
+   * safely saved by the time this runs, so the only thing at stake here is
+   * whether the ORDER knows about it — and the estimator is told which of those
+   * two happened, in those terms. Silence after a failed write-back would leave
+   * someone believing the order carries a drawing it does not.
+   */
+  const writeCorrectionBackToJob = async (
+    handoff: JobHandoffPayload,
+    savedId: string | null,
+    savedName: string
+  ): Promise<void> => {
+    try {
+      const res = await fetch(jobHandoffApiPath(handoff.quoteRequestId), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          itemIndex: handoff.itemIndex,
+          savedProfileId: savedId,
+          profileName: savedName,
+          material: material || null,
+          gauge: gauge || null,
+          points,
+          hemStart,
+          hemEnd,
+          // Indexed exactly as FlashDraft builds it — one per interior bend —
+          // so the order's line item and the canvas agree about which radius
+          // belongs to which corner. Same contract the quote-request submit
+          // path already writes (CLAUDE.md rule #12's neighbour).
+          bendRadiiIn: points.slice(1, -1).map((_, i) => getEffectiveRadius(i + 1)),
+        }),
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        message?: string;
+        error?: string;
+        correctedAt?: string;
+        correctedByName?: string | null;
+      };
+      if (res.ok && body.ok) {
+        setJobWriteback({ tone: 'ok', message: body.message ?? 'Saved back onto the job.' });
+        setJobHandoff({
+          ...handoff,
+          correction: {
+            correctedAt: body.correctedAt ?? new Date().toISOString(),
+            correctedByName: body.correctedByName ?? null,
+            savedProfileId: savedId,
+          },
+        });
+      } else {
+        setJobWriteback({
+          tone: 'bad',
+          message:
+            (body.error ?? 'The correction could not be saved onto the job.') +
+            ` Your drawing IS saved as "${savedName}" — only ${handoff.requestNumber} was not updated.`,
+        });
+      }
+    } catch {
+      setJobWriteback({
+        tone: 'bad',
+        message:
+          `The connection dropped before ${handoff.requestNumber} could be updated. ` +
+          `Your drawing IS saved as "${savedName}" — save again to retry the correction.`,
+      });
+    }
+  };
+
   // Part 5 — reuses the pre-existing saved_configurations table (confirmed
   // live in the real database, not just the migration file) rather than a
   // new one: FlashDraft doesn't use that table's catalog-linked FK columns
@@ -2704,7 +2833,14 @@ export default function FlashDraftPage() {
       // route added in this phase.
       const { data: ownProfile } = await supabase.from('profiles').select('company_id').eq('id', user.id).single();
       const companyId = (ownProfile?.company_id as string | null) ?? null;
-      const nextRevision = asDuplicate || !savedProfileId ? 1 : revision + 1;
+      // THE REVISION NUMBER — one rule, in lib/flashdraft/revision.ts, with a
+      // test. It lived here as `asDuplicate || !savedProfileId ? 1 :
+      // revision + 1` and was wrong for every modified draft: `!savedProfileId`
+      // meant "brand-new profile" until Part 1 made a modified draft INSERT on
+      // purpose, after which the banner said "rev 5" over a row that said 1.
+      // Extracted because an inline ternary in a file this size is a rule
+      // nothing can assert.
+      const nextRevision = nextRevisionNumber({ revision, savedProfileId, sourceProfileId, asDuplicate });
       const isLockedNow = lock || isLocked;
       // Real canvas screenshot (025_profile_passport_thumbnail.sql), replacing
       // Profile Passport's generic vector-shape thumbnail with what the user
@@ -2793,13 +2929,18 @@ export default function FlashDraftPage() {
         profile_type: profileType,
         geometry_fingerprint: geometryFingerprint({ points, hemStart, hemEnd }),
       };
+      // Tracked locally as well as in state because the write-back below needs
+      // it in THIS tick — setSavedProfileId has not applied yet, and on the
+      // insert branch there is no prior value to fall back on.
+      let writtenProfileId: string | null = savedProfileId;
       if (savedProfileId && !asDuplicate) {
         const { error } = await supabase.from('saved_configurations').update(payload).eq('id', savedProfileId);
         if (error) throw error;
       } else {
         const { data, error } = await supabase.from('saved_configurations').insert(payload).select('id').single();
         if (error) throw error;
-        setSavedProfileId((data as { id: string }).id);
+        writtenProfileId = (data as { id: string }).id;
+        setSavedProfileId(writtenProfileId);
       }
       setProfileName(values.name);
       setProfileCategoryId(values.categoryId);
@@ -2820,6 +2961,18 @@ export default function FlashDraftPage() {
         setToast('Profile Saved & Locked');
       } else {
         setToast('Profile saved to your account');
+      }
+
+      // THE WRITE-BACK, and it happens only for a session opened on a job.
+      //
+      // Ordered AFTER the profile write on purpose: the estimator's drawing is
+      // in the Passport before anything is said about the order, so a failed
+      // write-back costs a correction stamp and never the work. It is reported
+      // in its own line rather than thrown, for the same reason — the save
+      // genuinely succeeded, and returning false here would tell the caller
+      // (including Search's auto-save, rule #27) that it had not.
+      if (jobHandoff) {
+        await writeCorrectionBackToJob(jobHandoff, writtenProfileId, values.name);
       }
       return true;
     } catch {
@@ -3159,6 +3312,94 @@ export default function FlashDraftPage() {
   }, []);
 
   /**
+   * ?loadRequest=<quote_request id> — THE COMMAND CENTER JOB HANDOFF.
+   *
+   * Opened from a Job screen's "Design in FlashDraft". Fetches the handoff from
+   * the admin-gated route (which is where the role is actually checked — the
+   * `admin=1` in the URL is a UI hint and grants nothing) and applies whichever
+   * of its three honest outcomes came back.
+   *
+   * THE GEOMETRY CASE IS THE ONLY ONE THAT TOUCHES `points`. A 'reference'
+   * handoff sets the metadata and hangs the customer's photo behind the canvas;
+   * it leaves the canvas exactly as blank as it found it, because a photograph
+   * is not a profile and the estimator is the one who decides what shape is in
+   * it. CLAUDE.md's "do not invent geometry" is the whole design here, not a
+   * caveat on it.
+   *
+   * `savedProfileId` is deliberately left NULL in every case, exactly as
+   * loadForModify does: the first save is an INSERT, so correcting an order's
+   * drawing can never overwrite somebody's saved profile.
+   */
+  const loadFromJobHandoff = useCallback(async (quoteRequestId: string, itemIndex: number) => {
+    let payload: JobHandoffPayload;
+    try {
+      const res = await fetch(`${jobHandoffApiPath(quoteRequestId)}?item=${itemIndex}`, {
+        cache: 'no-store',
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        setToast(body.error ?? 'Could not open that job in FlashDraft. Nothing was changed.');
+        return;
+      }
+      payload = (await res.json()) as JobHandoffPayload;
+    } catch {
+      setToast('Could not reach the server to open that job. Nothing was changed.');
+      return;
+    }
+
+    setJobHandoff(payload);
+
+    if (payload.geometry) {
+      const loadedPoints = payload.geometry.points as Point[];
+      const loadedHemStart = (payload.geometry.hemStart as Hem | null) ?? null;
+      const loadedHemEnd = (payload.geometry.hemEnd as Hem | null) ?? null;
+      setPast((p) => [...p, { points, hemStart, hemEnd }]);
+      setFuture([]);
+      setPoints(loadedPoints);
+      setHemStart(loadedHemStart);
+      setHemEnd(loadedHemEnd);
+      setSelectedSegment(null);
+      // Computed from the LOADED values, not from state, because the setters
+      // above have not applied yet in this tick — the same trap loadForModify
+      // documents. What just arrived is already recorded on the order, so an
+      // untouched copy of it is not unsaved work and Search's auto-save
+      // (rule #27) must not write a duplicate of it into the Passport.
+      setLastSavedSignature(
+        canvasSignature({ points: loadedPoints, hemStart: loadedHemStart, hemEnd: loadedHemEnd })
+      );
+    } else if (payload.reference) {
+      setUnderlay(payload.reference);
+      setUnderlayVisible(true);
+    }
+
+    setSavedProfileId(null);
+    setIsLocked(false);
+    setProfileName(payload.profileName);
+    if (payload.material) setMaterial(payload.material);
+    if (payload.gauge) setGauge(payload.gauge);
+    if (payload.quantity !== null) setQuantity(String(payload.quantity));
+    if (payload.lengthFt !== null && payload.lengthFt > 0) {
+      setLengthFeet(String(Math.floor(payload.lengthFt)));
+      setLengthInches(String(Math.round((payload.lengthFt - Math.floor(payload.lengthFt)) * 12)));
+    }
+    const ji = payload.jobInfo;
+    if (ji.clientBusinessName) setClientBusinessName(ji.clientBusinessName);
+    if (ji.clientName) setClientName(ji.clientName);
+    if (ji.poNumber) setPoNumber(ji.poNumber);
+    if (ji.jobName) setJobName(ji.jobName);
+    if (ji.requestedDeliveryDate) setRequestedDeliveryDate(ji.requestedDeliveryDate);
+
+    setToast(
+      payload.geometry
+        ? `${payload.requestNumber} loaded — edit it and save to send the correction back.`
+        : payload.reference
+          ? `${payload.requestNumber} — nothing was drawn for this order. Trace the photo behind the canvas.`
+          : `${payload.requestNumber} — nothing was drawn for this order and no drawing was attached.`
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /**
    * Part 1 (2026-09-30) — "Modify in FlashDraft".
    *
    * Loads a saved profile into this canvas as a NEW, UNLOCKED, editable
@@ -3340,6 +3581,15 @@ export default function FlashDraftPage() {
     if (modifyId) loadForModify(modifyId);
     if (params.get('admin')) setAdminContext(true);
     if (params.get('loadJob')) loadFromAdminJobHandoff();
+    // The Command Center Job screen's "Design in FlashDraft"
+    // (lib/flashdraft/job-handoff.ts). Dispatched here with every other
+    // explicit load so it wins over a restored autosave draft exactly as
+    // ?modifyProfile= does.
+    const requestId = params.get(JOB_HANDOFF_PARAM);
+    if (requestId) {
+      const rawItem = Number(params.get(JOB_HANDOFF_ITEM_PARAM) ?? '0');
+      void loadFromJobHandoff(requestId, Number.isInteger(rawItem) && rawItem > 0 ? rawItem : 0);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -3709,6 +3959,87 @@ export default function FlashDraftPage() {
             New editable draft &mdash; modified from{' '}
             <span className="text-afs-accent-purple">{modifiedFromName ?? 'a saved profile'}</span>
             {' '}(rev {revision}). Saving creates a new profile; the original is unchanged.
+          </p>
+        </div>
+      )}
+
+      {/* THE JOB THIS SESSION WAS OPENED ON (?loadRequest=).
+          States, in order: which order is loaded and what saving will do to
+          it; what the customer actually sent, when that is a photo rather
+          than a drawing; and what the last write-back really did. Colours are
+          the light-on-dark `*-on-dark` tokens, because this shell is gunmetal
+          and a fill colour used as text on it measures 1.4-2.3:1
+          (CLAUDE.md rule #29). */}
+      {jobHandoff && (
+        <div
+          className="px-6 py-2 bg-afs-bg-raised border-b border-afs-chrome-base shrink-0"
+          data-testid="flashdraft-job-banner"
+        >
+          <p className="font-label text-xs font-semibold text-afs-chrome-high">
+            Correcting{' '}
+            <span className="text-afs-info-on-dark">{jobHandoff.requestNumber}</span>
+            {jobHandoff.jobInfo.clientBusinessName ? ` for ${jobHandoff.jobInfo.clientBusinessName}` : ''}
+            {jobHandoff.itemCount > 1 ? ` · line ${jobHandoff.itemIndex + 1} of ${jobHandoff.itemCount}` : ''}
+            . Saving writes the corrected profile back onto this job.
+          </p>
+          {jobHandoff.correction && (
+            <p className="font-body text-xs text-afs-chrome-silver mt-0.5">
+              Already corrected by {jobHandoff.correction.correctedByName ?? 'an admin'} on{' '}
+              {new Date(jobHandoff.correction.correctedAt).toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+              })}
+              .
+            </p>
+          )}
+          {jobWriteback && (
+            <p
+              data-testid="flashdraft-job-writeback"
+              className={
+                jobWriteback.tone === 'ok'
+                  ? 'font-body text-xs text-afs-success-on-dark mt-0.5'
+                  : 'font-body text-xs text-afs-danger-on-dark mt-0.5'
+              }
+            >
+              {jobWriteback.message}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* THE TRACING CONTROLS, only when there is something to trace.
+          A photograph of a piece of paper HAS NO SCALE — it is lined up by
+          eye and is a reference, not a measurement. Saying so here is the
+          difference between an estimator checking each length against the
+          photo and one assuming the canvas already agrees with it. */}
+      {underlay && viewMode === '2d' && (
+        <div className="px-6 py-2 bg-afs-bg-base border-b border-afs-chrome-base shrink-0 flex items-center gap-4 flex-wrap">
+          <label className="flex items-center gap-2 font-label text-xs font-semibold text-afs-chrome-high">
+            <input
+              type="checkbox"
+              checked={underlayVisible}
+              onChange={(e) => setUnderlayVisible(e.target.checked)}
+              data-testid="flashdraft-underlay-toggle"
+            />
+            Show what the customer sent
+          </label>
+          <label className="flex items-center gap-2 font-body text-xs text-afs-chrome-silver">
+            Fade
+            <input
+              type="range"
+              min={0.1}
+              max={1}
+              step={0.05}
+              value={underlayOpacity}
+              disabled={!underlayVisible}
+              onChange={(e) => setUnderlayOpacity(Number(e.target.value))}
+              aria-label="Reference image opacity"
+            />
+          </label>
+          <p className="font-body text-xs text-afs-chrome-silver">
+            {underlay.caption} It is lined up by eye and is not to scale &mdash; check every length.
           </p>
         </div>
       )}
@@ -4200,6 +4531,39 @@ export default function FlashDraftPage() {
 
               {viewMode === '2d' && (
                 <>
+              {/* THE TRACED REFERENCE PHOTO, BEHIND THE CANVAS.
+                  Earlier in the DOM than the <canvas> and in the same stacking
+                  context, so the canvas paints over it — which is exactly what
+                  is wanted once drawBackground is off: grid, profile and labels
+                  on top, the customer's photograph showing through underneath.
+                  `object-contain` because a photo of a sketch has no scale and
+                  cropping it would hide part of the thing being traced.
+                  pointer-events none so it never intercepts a draw gesture. */}
+              {showUnderlay && underlay && (
+                /* TWO ELEMENTS, AND THE SPLIT IS THE POINT. CSS `opacity`
+                   applies to an element's own background as well as its
+                   content, so putting both the drawing-surface colour and the
+                   fade on the <img> made the CANVAS GROUND itself translucent
+                   and the dark page shell showed through — the whole drawing
+                   area came out muddy and several shades off #C4C4C4. The
+                   wrapper paints the ground at full strength; only the
+                   photograph fades. */
+                <div
+                  className="absolute inset-0 pointer-events-none"
+                  style={{ background: CANVAS_COLORS.background }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element -- a
+                      short-lived Supabase signed URL cannot be optimised by
+                      next/image, which needs a stable configured host. */}
+                  <img
+                    src={underlay.url}
+                    alt={underlay.caption}
+                    data-testid="flashdraft-reference-underlay"
+                    className="w-full h-full object-contain select-none"
+                    style={{ opacity: underlayOpacity }}
+                  />
+                </div>
+              )}
               <canvas
                 ref={canvasRef}
                 width={canvasSize.width}
@@ -4221,7 +4585,11 @@ export default function FlashDraftPage() {
                 style={{
                   touchAction: 'none',
                   cursor: isLocked ? 'not-allowed' : 'crosshair',
-                  background: CANVAS_COLORS.background,
+                  // Transparent while tracing, so the reference photo behind
+                  // this element shows through. The bitmap itself stops being
+                  // painted by the same flag (drawBackground, above) — the CSS
+                  // background alone would still be covered by the fill.
+                  background: showUnderlay ? 'transparent' : CANVAS_COLORS.background,
                   pointerEvents: isLocked ? 'none' : 'auto',
                 }}
               />

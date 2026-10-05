@@ -61,7 +61,7 @@ export default async function AdminOrderDetailPage({ params }: { params: { id: s
     <div>
       <div className="flex items-start justify-between gap-6 mb-8 flex-wrap">
         <div>
-          <Link href="/admin/orders" className="font-label text-xs text-afs-chrome-mid hover:text-afs-crimson">
+          <Link href="/admin/orders" className="font-label text-xs text-afs-chrome-mid hover:text-afs-danger-on-dark">
             ← Back to Production Queue
           </Link>
           <h1 className="font-data text-3xl text-afs-chrome-high mt-2">{order.orderNumber}</h1>
@@ -160,7 +160,7 @@ export default async function AdminOrderDetailPage({ params }: { params: { id: s
                   <td colSpan={4} className="font-heading text-sm text-afs-chrome-high text-right px-4 py-3">
                     Total
                   </td>
-                  <td className="font-data text-lg text-afs-crimson text-right px-4 py-3">{currency.format(order.total)}</td>
+                  <td className="font-data text-lg text-afs-danger-on-dark text-right px-4 py-3">{currency.format(order.total)}</td>
                 </tr>
               </tfoot>
             </table>
@@ -172,7 +172,7 @@ export default async function AdminOrderDetailPage({ params }: { params: { id: s
               {order.quoteNumber ? (
                 <>
                   Converted from{' '}
-                  <Link href={`/admin/quote-requests`} className="text-afs-crimson hover:text-afs-crimson-hover font-data">
+                  <Link href={`/admin/quote-requests`} className="text-afs-danger-on-dark hover:text-afs-chrome-high font-data">
                     {order.quoteNumber}
                   </Link>
                 </>
@@ -273,11 +273,11 @@ export default async function AdminOrderDetailPage({ params }: { params: { id: s
               <li key={att.id} className="flex items-center justify-between gap-4 border-b border-afs-border last:border-b-0 pb-2 last:pb-0">
                 <span className="font-body text-sm text-afs-chrome-high">{att.filename}</span>
                 {att.signedUrl ? (
-                  <a href={att.signedUrl} target="_blank" rel="noreferrer" className="font-label text-xs text-afs-crimson hover:text-afs-crimson-hover">
+                  <a href={att.signedUrl} target="_blank" rel="noreferrer" className="font-label text-xs text-afs-danger-on-dark hover:text-afs-chrome-high">
                     View
                   </a>
                 ) : (
-                  <span className="font-label text-xs text-afs-chrome-dim">Unavailable</span>
+                  <span className="font-label text-xs text-afs-chrome-silver">Unavailable</span>
                 )}
               </li>
             ))}
@@ -300,7 +300,7 @@ export default async function AdminOrderDetailPage({ params }: { params: { id: s
                   </p>
                   {entry.note && <p className="font-body text-xs text-afs-chrome-mid mt-1">{entry.note}</p>}
                 </div>
-                <span className="font-data text-xs text-afs-chrome-dim shrink-0">{formatDateTime(entry.createdAt)}</span>
+                <span className="font-data text-xs text-afs-chrome-silver shrink-0">{formatDateTime(entry.createdAt)}</span>
               </li>
             ))}
           </ul>

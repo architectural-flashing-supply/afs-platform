@@ -32,18 +32,75 @@ export const LIGHT_WORKING_AREA_SCREENS: { screen: string; route: string }[] = [
   { screen: 'Shop View', route: '/admin/shop-view' },
   { screen: 'Deliveries', route: '/admin/deliveries' },
   // v2-05 replaced the interim results table with the approved thumbnail rail.
+  // v7 Stage D: /admin/search became the quotes-and-orders Search and the
+  // profile rail moved to /admin/search/profiles. Both are light.
   { screen: 'Search', route: '/admin/search' },
+  { screen: 'Find a past profile', route: '/admin/search/profiles' },
+  // v7 Phase 2: both office lists are light working areas under the dark header.
+  { screen: 'Quotes', route: '/admin/quotes' },
+  { screen: 'Orders', route: '/admin/orders' },
+  // v7 Stage G: Customers and Pricing are top-level in v7's nav, and the two
+  // "More" screens take the same shell and look.
+  { screen: 'Customers', route: '/admin/customers' },
+  { screen: 'Pricing', route: '/admin/pricing' },
+  { screen: 'Credit Applications', route: '/admin/credit-applications' },
+  { screen: 'Bid Monitor', route: '/admin/bid-monitor' },
 ];
 
 /**
- * The full-bleed wrapper. AdminShell's <main> supplies `pt-16 px-6 lg:px-8
- * pb-16` for the gunmetal pages, so a light screen has to cancel that padding
- * with negative margins, paint, and then re-apply it — otherwise the light
- * panel would float inside a gunmetal frame instead of being the working area.
+ * The full-bleed wrapper. AdminShell's `<main>` has its own padding, so a light
+ * screen has to cancel it with negative margins, paint, and then re-apply it —
+ * otherwise the light panel would float inside a gunmetal frame instead of
+ * being the working area.
  *
- * Kept as one exported string so the unit test can assert the light background
- * token and the full-bleed cancellation are both present, and so the two pages
- * using it cannot drift apart.
+ * THE NUMBERS COME FROM v7's `.wrap`, NOT FROM TAILWIND'S SCALE. The shell used
+ * to supply `pt-16 px-6 lg:px-8 pb-16` (64px / 24px / 32px), and this string
+ * cancelled exactly those. The Command Center is now a port of prototype v7, so
+ * `<main>` is v7's own `.wrap` — `padding: 20px 20px 60px` with a 1900px
+ * measure (see docs/design/command-center-v7/v7.css). The cancellation has to
+ * match THAT, which is why these are 20px and 60px and why the responsive
+ * `lg:` step is gone: v7's padding does not change with the viewport.
+ *
+ * Getting this wrong is silent. Too little negative margin leaves a gunmetal
+ * gutter down both sides of a light screen; too much pulls the content under
+ * the sticky header. Both look like a styling accident rather than a mismatch
+ * with the shell, which is why the numbers are pinned to v7's value in a
+ * comment and asserted in lib/data/workbench.test.ts.
+ *
+ * THE PAINT IS v7's OWN GROUND. `afs-v7-bg` / `afs-v7-ink` are the exact
+ * values prototype v7 resolves for `--bg` and `--ink` (#F4F5F7 / #0F1318), not
+ * the near-identical `afs-bg-band` / `afs-ink-900` this used to paint — those
+ * two are also the public marketing site's light palette, which must stay
+ * unchanged, so they could not simply be retuned. CLAUDE.md rule #33: the style
+ * gate compares the live working area against the prototype, so the surface has
+ * to BE v7's surface, to the hex.
+ *
+ * Kept as ONE exported string, written as a single literal: the contrast gate
+ * resolves class constants across modules, and CLAUDE.md rule #28 records that
+ * a concatenated one reads as `unresolved` — which it treats as the gate going
+ * blind.
+ */
+/**
+ * `min-h-full`, NOT `min-h-screen`, AND THE REASON IS MEASURED.
+ *
+ * This used to end `min-h-screen`. That is 100vh applied to an element sitting
+ * BELOW a 65px header, so on any screen whose content is shorter than the
+ * viewport the document came out 965px tall against the prototype's 900 — a
+ * 65px band at the bottom of every short page, on every one of them. The
+ * whole-screen pixel gate put the Quotes list at 8.23% on that alone.
+ *
+ * `min-h-full grow` is 100% of `<main>`, and AdminShell makes `<main>` itself a
+ * growing flex column inside a `min-h-screen` one — so the working area fills
+ * exactly the space under the header and no more, which is what v7's `body`
+ * background does.
+ *
+ * ALL THREE PIECES HAVE TO CHANGE TOGETHER, and each was found by the gate
+ * rather than reasoned about: `min-h-full` alone resolves to `auto` against an
+ * auto-height parent and does nothing (the pale ground stopped where the
+ * content did and the rest of a short viewport stayed gunmetal); `grow` alone
+ * needs its parent to be a flex column; and the parent being a flex column
+ * needs `w-full` on `<main>`, because v7's `margin: 0 auto` becomes a
+ * cross-axis auto margin there and cancels the stretch. See AdminShell.
  */
 export const LIGHT_WORKING_AREA_CLASS =
-  '-mt-16 -mb-16 -mx-6 lg:-mx-8 pt-16 pb-16 px-6 lg:px-8 min-h-screen bg-afs-bg-band text-afs-ink-900';
+  '-mt-5 -mb-[60px] -mx-5 pt-5 pb-[60px] px-5 min-h-full grow bg-afs-v7-bg text-afs-v7-ink';

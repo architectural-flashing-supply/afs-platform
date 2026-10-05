@@ -38,7 +38,7 @@ export interface SendBidAlertResult {
  * is ever set to the same address.
  */
 function getAlertRecipients(): string[] {
-  const primary = process.env.BID_MONITOR_ALERT_EMAIL || 'tricia@architecturalflashingsupply.com';
+  const primary = process.env.BID_MONITOR_ALERT_EMAIL || 'trica@architecturalflashingsupply.com';
   return Array.from(new Set([primary, 'steve@architecturalflashingsupply.com']));
 }
 

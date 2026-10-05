@@ -1,0 +1,63 @@
+/*
+ * v7-deviations.css — the ONLY sanctioned departures from v7's literal colours.
+ *
+ * v7.css is a verbatim artefact and is never edited. Where one of its colours
+ * fails the WCAG AA build gate (scripts/audit/contrast-check.mjs, run as
+ * prebuild), the nearest passing shade in the same hue family is applied HERE,
+ * after it, and documented with its measured ratios in
+ * docs/design/V7_COLOR_DEVIATIONS.md.
+ *
+ * Keeping the two files apart is what lets tests/visual/v7-style-gate.spec.ts
+ * stay strict: it compares the live app against the PROTOTYPE, and allows a
+ * colour mismatch only when that exact pair appears in the deviations document.
+ * A deviation smuggled into v7.css would read as agreement and hide a drift.
+ *
+ * Adding to this file is a last resort, never a shortcut. Never relax a gate
+ * threshold instead.
+ *
+ * Selectors here are written WITHOUT the scope prefix, exactly as in v7.css —
+ * scope-v7-css.mjs prefixes this file through the same transform, so the two
+ * cannot drift in how they are scoped.
+ */
+
+/* ------------------------------------------------------------------ 1 of 1
+ * #1E8E52 -> #1D874E. v7's green carries white text in .chk i (13px/700),
+ * .apv (12.5px/700) and .srow.now .pos (18px/700 — bold-large begins at
+ * 18.66px, so all three are small text). White on #1E8E52 is 4.16:1 against a
+ * 4.5:1 requirement; #1D874E is 4.54:1. Channels are scaled uniformly (x0.954)
+ * so the hue is held to within 2%.
+ *
+ * Applied to the COLOUR, not to those three selectors: #1E8E52 is a single
+ * colour in v7 (fills, borders, dots and the --green token alike) and two
+ * greens 4.6% apart would be indistinguishable and a trap. --green-h #17794A
+ * already clears AA at 5.43:1 and is untouched.
+ */
+:root {
+  --green: #1D874E;
+}
+.chk i,
+.invbanner .ic,
+.srow.now .pos,
+.sw.on,
+.beacon,
+.conn i,
+.live i {
+  background: #1D874E;
+}
+.pill.g::before {
+  background: #1D874E;
+}
+.card.appr,
+.srow.now,
+.big-note,
+.connb,
+.fdone,
+.invbanner,
+.rp .rl.m.approval,
+.stbl tr.now td:first-child,
+.pstrip.green {
+  border-left-color: #1D874E;
+}
+.step.done {
+  border-color: #1D874E;
+}

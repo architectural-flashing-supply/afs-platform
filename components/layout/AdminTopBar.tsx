@@ -2,53 +2,51 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
+import V7Drawing from '@/components/admin/v7/V7Drawing';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { TOP_LEVEL_NAV, MORE_NAV, ADMIN_SEARCH_HREF } from '@/lib/data/admin-nav';
+import { TOP_LEVEL_NAV, MORE_NAV, ADMIN_SEARCH_HREF, NEW_QUOTE_HREF } from '@/lib/data/admin-nav';
+import { TYPEAHEAD_MIN_CHARS } from '@/lib/data/header-typeahead';
+import { fixtureTypeahead } from '@/lib/data/v7-view/from-fixture';
 
 /**
- * THE Command Center navigation. ONE level, and this is the only level.
+ * THE Command Center header — a port of prototype v7's `header()` (line 1195).
  *
- * Command Center V2 prompt v2-01 removed the second level outright. Before
- * this there were two-and-a-half nav surfaces: a 7-tab top bar, a gear
- * popover holding QuickBooks/Pricing/Settings (the second level), and an
- * AdminShell sidebar that duplicated the top bar's tabs under different
- * labels. A non-technical user had to learn which of three places a tool
- * lived in.
+ * This file is a PORT, not a design. Its markup and class names come from
+ * docs/design/command-center-v7/AFS_Command_Center_Prototype_v7.html and its
+ * appearance comes entirely from that prototype's own CSS, scoped to `.cc-v7`
+ * (see scripts/design/scope-v7-css.mjs). Nothing here carries a Tailwind
+ * colour, size or spacing utility, and nothing should: a utility added to one
+ * of these elements overrides v7 and the style gate
+ * (tests/visual/v7-style-gate.spec.ts) will fail on the difference.
  *
- * Top level is exactly: Workbench, Shop View, Deliveries, Search, More.
- * More is a single flat menu, not a submenu tree — it holds destinations,
- * never further menus.
+ * WHAT CHANGED AND WHY IT MATTERS. The previous version of this component had
+ * v7's LABELS — "+ New quote", the seven-item nav, the type-ahead — on the old
+ * gunmetal Tailwind styling (`bg-afs-bg-raised`, `text-afs-chrome-mid`). That
+ * is the specific failure this rebuild exists to correct: the labels were right
+ * and the look was the old app's. The behaviour below (debounced type-ahead
+ * with request abandonment, outside-click and Escape handling, hard-redirect
+ * sign-out) is carried over unchanged, because it was correct — only the
+ * presentation is replaced.
  *
- * Where the old tools went:
- *   Dashboard            -> Workbench (same route, /admin/command-center)
- *   Orders (orders-crm)  -> absorbed into Customers
- *   Pricing              -> absorbed into Settings
- *   QuickBooks           -> a "coming soon" card inside Settings
- *   Building Codes       -> MOVED OFF the Command Center, to the public
- *                           site's Resources menu (/resources/building-codes)
- *   Google Business pics  -> removed from the Command Center. The CODE IS
- *                           KEPT for the future driver mobile app — see
- *                           app/admin/gbp-photos, app/employee/photos,
- *                           components/employee/EmployeePhotoUploader.tsx,
- *                           components/field/DeliveryPhotoCapture.tsx and
- *                           the gbp_photo_queue table. Unlinked, not deleted.
- *   Geometry Test        -> developer-only: deliberately unlinked from every
- *                           nav surface, reachable only by typing the URL,
- *                           on top of the /admin admin-role gate.
- *   Quote Requests /
- *   Production Queue     -> direct-URL-only for now. The Workbench's New and
- *                           "In the shop" lanes replace them in v2-02; they
- *                           are listed under Settings' "Other tools" so they
- *                           are not lost in the meantime.
+ * v7's own structure, which this mirrors element for element:
  *
- * CONTRAST: every pair here clears WCAG AA against the gunmetal header
- * (#363C4A). afs-chrome-mid is 5.8:1, white is 10.8:1, and the search field
- * sits on afs-bg-dim so even its PLACEHOLDER (afs-chrome-mid) is 8.9:1.
- * afs-chrome-dim is deliberately NOT used for text or borders here: it is
- * only 2.8:1 on this background and fails both the 4.5:1 text rule and the
- * 3:1 UI-component rule.
+ *   header.hdr > .hdr-in >
+ *     a.brand          (logo + "Command <em>Center</em>")
+ *     button.nqb       ("+ New quote", the one red)
+ *     nav.nav          (seven pills; .on marks the current page; .cnt badge)
+ *     .hdr-r >
+ *       .hs            (search input + .hsd type-ahead panel)
+ *       .more          (.mbtn + .mm menu)
+ *       .who           (signed-in admin)
+ *       a.lo           ("Log out")
+ *
+ * The one deliberate departure: v7 renders `.who` as the literal sample name
+ * "Steve Harycki". This renders the real signed-in admin's name, because a
+ * hardcoded person in a shipped header is sample data, and the rule is that no
+ * mock data survives the port. The element, its class and its position are
+ * unchanged, so it is the same component to the style gate.
  */
 
 /** Exact-segment match — plain startsWith would also true-match /admin/orders-crm for href="/admin/orders". */
@@ -56,16 +54,68 @@ function isActivePath(pathname: string | null, href: string): boolean {
   return pathname === href || (pathname?.startsWith(`${href}/`) ?? false);
 }
 
+/** What /api/admin/command-center/typeahead returns. */
+interface Suggest {
+  companies: { name: string; person: string }[];
+  rows: {
+    id: string;
+    customer: string;
+    item: string;
+    spec: string;
+    quantity: number;
+    totalCents: number | null;
+    requestNumber: string;
+    /** Fixture mode only — the API supplies neither. */
+    href?: string;
+    drawing?: { kind: string; d: number[] };
+  }[];
+  totalRows: number;
+  emptyMessage: string | null;
+}
+
+/**
+ * v7's own badge number for the fixture render: its two approved jobs plus its
+ * five unread emails (`header()`'s `ap + nin`). A constant rather than a read,
+ * because in fixture mode there is no query behind it — the fixture IS the data.
+ */
+const FIXTURE_BADGE_COUNT = 7;
+
+/** v7 `cents()` (line 1067) — grouped dollars, two decimals, no currency code. */
+function cents(value: number): string {
+  return `$${(value / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+}
+
 export default function AdminTopBar({
   adminName,
   pendingCount = 0,
+  fixtureAllowed = false,
 }: {
   adminName: string;
   pendingCount?: number;
+  /** See AdminShell: the environment half of the fixture gate. */
+  fixtureAllowed?: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  /**
+   * FIXTURE MODE'S THIRD LOCK. `fixtureAllowed` carries the two the server
+   * checked (CC_FIXTURE=1, not a production build); this is the URL one. All
+   * three have to be open, so appending `?fixture=v7` to a production URL does
+   * nothing — `fixtureAllowed` is false there and this whole branch is dead.
+   *
+   * It exists for ONE value: the nav badge. v7 counts approvals plus unread
+   * email, and the pixel gate renders the prototype's sample data, so without
+   * this the badge differs on EVERY screen (the nav is on all of them) and the
+   * structure report fills with the same two lines thirty times over.
+   */
+  const fixture = fixtureAllowed && searchParams?.get('fixture') === 'v7';
+  const badgeCount = fixture ? FIXTURE_BADGE_COUNT : pendingCount;
   const [search, setSearch] = useState('');
+  const [suggest, setSuggest] = useState<Suggest | null>(null);
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const searchRef = useRef<HTMLDivElement | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
 
@@ -101,84 +151,250 @@ export default function AdminTopBar({
 
   const moreActive = MORE_NAV.some((i) => isActivePath(pathname, i.href));
 
+  // TYPE-AHEAD (v7 hqShow, line 1680). Opens at two characters; companies
+  // first, then job rows. Debounced so a fast typist makes one request, not one
+  // per keystroke, and the in-flight request is abandoned when a newer one
+  // starts so an older, slower response can never overwrite a newer one.
+  useEffect(() => {
+    const q = search.trim();
+    if (q.length < TYPEAHEAD_MIN_CHARS) {
+      setSuggest(null);
+      return;
+    }
+    // FIXTURE MODE builds the dropdown from v7's own rows IN THE BROWSER and
+    // makes no request. /api/admin/command-center/typeahead is real API
+    // behaviour and this run changes none of it — adding a fixture branch
+    // inside the route would be exactly that. The live header still fetches it.
+    if (fixture) {
+      const v = fixtureTypeahead(q);
+      setSuggest({
+        companies: v.companies.map((c) => ({ name: c.name, person: c.person })),
+        rows: v.rows.map((r) => ({
+          id: r.key,
+          customer: r.title,
+          item: '',
+          spec: r.detail,
+          quantity: 0,
+          totalCents: null,
+          requestNumber: '',
+          href: r.href,
+          drawing: r.drawing,
+        })),
+        totalRows: v.total,
+        emptyMessage: v.emptyMessage,
+      } as Suggest);
+      return;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      fetch(`/api/admin/command-center/typeahead?q=${encodeURIComponent(q)}`, {
+        signal: controller.signal,
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((json) => {
+          if (json) setSuggest(json as Suggest);
+        })
+        .catch(() => {
+          /* aborted or offline — leave the last result on screen */
+        });
+    }, 160);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [search]);
+
+  // Close the dropdown on an outside click, same as the More menu.
+  useEffect(() => {
+    if (!suggestOpen) return;
+    function onDown(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setSuggestOpen(false);
+    }
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [suggestOpen]);
+
+  const showSuggest = suggestOpen && suggest !== null && search.trim().length >= TYPEAHEAD_MIN_CHARS;
+
   return (
-    <header className="fixed top-0 left-0 right-0 z-40 bg-afs-bg-raised border-b border-afs-border">
-      <div className="h-16 flex items-center gap-2 px-4 lg:px-6">
-        <Link href="/admin/command-center" className="flex items-center gap-2 shrink-0 mr-2">
-          <Image src="/afs-logo.png" alt="AFS" width={28} height={20} className="h-6 w-auto object-contain" />
-          <span className="hidden sm:inline font-label text-sm font-semibold text-afs-chrome-high whitespace-nowrap">
-            Command Center
+    <header className="hdr">
+      <div className="hdr-in">
+        <Link href="/admin/command-center" className="brand">
+          {/* THE COMMAND CENTER'S OWN LOGO FILE, AND IT IS NOT THE SITE'S.
+              v7 embeds its logo as base64: 342x134, aspect 2.552. The shared
+              `/afs-logo.png` is 1536x1024, aspect 1.500 — a different crop of
+              the same mark with far more space around it. v7's CSS sizes the
+              image by HEIGHT, so at 34px tall the two come out 86.8px and
+              51.2px wide, and every header element to the right of the brand
+              sat 35px off on every single screen. The whole-screen diff showed
+              it as a doubled header band; no pair comparison could, because
+              both images are "the logo" at the same height.
+              CLAUDE.md rule #33 — v7 wins conflicts about appearance — so the
+              header uses v7's own file, extracted verbatim from the prototype.
+              Nothing else does: /afs-logo.png is untouched on the marketing
+              site, the sign-in shell, the tracking page and the bid PDF. */}
+          <Image
+            src="/afs-logo-command-center.png"
+            alt="Architectural Flashing Supply"
+            width={342}
+            height={134}
+          />
+          <span className="bt">
+            <b>
+              Command <em>Center</em>
+            </b>
           </span>
         </Link>
 
-        <nav className="flex items-center gap-1 min-w-0 overflow-x-auto" aria-label="Main">
+        {/* v7 puts "+ New quote" immediately after the brand, in the one red. */}
+        <Link href={NEW_QUOTE_HREF} data-testid="new-quote-button" className="nqb">
+          + New quote
+        </Link>
+
+        <nav className="nav" aria-label="Main">
           {TOP_LEVEL_NAV.map((item) => {
             const active = isActivePath(pathname, item.href);
             return (
               <Link
                 key={item.href}
                 href={item.href}
+                className={active ? 'on' : undefined}
                 aria-current={active ? 'page' : undefined}
-                className={`font-label text-sm px-3 py-2.5 rounded transition-colors whitespace-nowrap flex items-center gap-2 ${
-                  active
-                    ? 'text-afs-chrome-high bg-afs-bg-surface font-semibold'
-                    : 'text-afs-chrome-mid hover:text-afs-chrome-high hover:bg-afs-bg-surface'
-                }`}
               >
                 {item.label}
-                {item.badge && pendingCount > 0 && (
-                  <span className="bg-afs-crimson text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
-                    {pendingCount}
-                  </span>
-                )}
+                {item.badge && badgeCount > 0 && <span className="cnt">{badgeCount}</span>}
               </Link>
             );
           })}
         </nav>
 
-        <div className="flex items-center gap-3 ml-auto shrink-0">
-          {/* Search sits on afs-bg-dim so the placeholder itself clears AA. */}
-          <form onSubmit={handleSearchSubmit} className="hidden sm:block" role="search">
-            <label htmlFor="admin-search" className="sr-only">
-              Search
-            </label>
-            <input
-              id="admin-search"
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Customer, profile, or job"
-              className="w-48 lg:w-64 h-10 bg-afs-bg-dim border border-afs-chrome-base rounded px-3 font-body text-sm text-afs-chrome-high placeholder:text-afs-chrome-mid focus:outline-none focus:border-afs-crimson transition-colors"
-            />
-          </form>
+        <div className="hdr-r">
+          <div className="hs" ref={searchRef}>
+            <form onSubmit={handleSearchSubmit} role="search">
+              <label htmlFor="hq" className="sr-only">
+                Search every customer, quote and order
+              </label>
+              <input
+                id="hq"
+                type="search"
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setSuggestOpen(true);
+                }}
+                onFocus={() => setSuggestOpen(true)}
+                autoComplete="off"
+                role="combobox"
+                aria-expanded={showSuggest}
+                aria-controls="hsd"
+                placeholder="Search: Hill Country drip edge"
+                aria-label="Search every customer, quote and order"
+              />
+            </form>
 
-          <div className="relative" ref={moreRef}>
+            {/* v7 .hsd — companies first, then job rows, then "See all". */}
+            {showSuggest && suggest && (
+              <div className="hsd" id="hsd" data-testid="admin-typeahead" role="listbox">
+                {suggest.companies.map((c) => (
+                  <div className="hsc" key={c.name} data-testid="typeahead-company">
+                    <b>{c.name}</b>
+                    <span>{c.person}</span>
+                    <Link href={fixture ? `${NEW_QUOTE_HREF}?fixture=v7` : NEW_QUOTE_HREF} className="btn red sm">
+                      New quote
+                    </Link>
+                  </div>
+                ))}
+
+                {suggest.rows.map((r) => (
+                  <Link
+                    key={r.id}
+                    href={r.href ?? `/admin/command-center/job/${r.id}`}
+                    className="hsr"
+                    data-testid="typeahead-row"
+                    role="option"
+                    aria-selected={false}
+                  >
+                    {/* v7 puts a 60px profile drawing in every dropdown row.
+                        The live type-ahead query carries no geometry (rule #26),
+                        so the slot is empty there rather than holding an
+                        invented shape — the same rule the lists and the
+                        Workbench cards follow. */}
+                    <span className="rt">
+                      {r.drawing && (
+                        <V7Drawing
+                          kind={r.drawing.kind}
+                          d={r.drawing.d}
+                          options={{ w: 60, h: 60, pad: 8, sw: 4 }}
+                        />
+                      )}
+                    </span>
+                    <span className="tx">
+                      <b>{r.item ? `${r.customer} · ${r.item}` : r.customer}</b>
+                      <span>
+                        {r.item
+                          ? [
+                              r.spec,
+                              `${r.quantity} pcs`,
+                              r.requestNumber,
+                              r.totalCents == null ? null : cents(r.totalCents),
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')
+                          : r.spec}
+                      </span>
+                    </span>
+                  </Link>
+                ))}
+
+                {suggest.totalRows > 0 && (
+                  /* A <button>, NOT a link, and that is v7's element rather than
+                     a preference. v7 styles `.hsall` with `width:100%` and
+                     `height:38px` and no `display`, which works on a <button>
+                     because it is inline-block and does nothing on an <a>,
+                     which is inline. Rendered as a link it came out as a small
+                     outlined word where v7 has a full-width dark bar — the
+                     whole-screen diff put the dropdown at 1.58% on that one
+                     row. The sibling `.hsr` rows ARE links, because v7 gives
+                     those `display:flex` and they size correctly either way. */
+                  <button
+                    type="button"
+                    className="hsall"
+                    onClick={() =>
+                      router.push(
+                        `${ADMIN_SEARCH_HREF}?q=${encodeURIComponent(search.trim())}${fixture ? '&fixture=v7' : ''}`,
+                      )
+                    }
+                  >
+                    See all {suggest.totalRows} result{suggest.totalRows === 1 ? '' : 's'}, newest
+                    first
+                  </button>
+                )}
+
+                {suggest.emptyMessage && <div className="hsn">{suggest.emptyMessage}</div>}
+              </div>
+            )}
+          </div>
+
+          <div className="more" ref={moreRef}>
             <button
               type="button"
+              className="mbtn"
               onClick={() => setMoreOpen((v) => !v)}
               aria-haspopup="menu"
               aria-expanded={moreOpen}
-              className={`h-10 px-4 font-label text-sm rounded border border-afs-chrome-base transition-colors ${
-                moreActive
-                  ? 'bg-afs-bg-surface text-afs-chrome-high font-semibold'
-                  : 'text-afs-chrome-mid hover:text-afs-chrome-high hover:bg-afs-bg-surface'
-              }`}
+              data-active={moreActive ? 'true' : undefined}
             >
               More
             </button>
 
             {moreOpen && (
-              <div
-                role="menu"
-                className="absolute right-0 top-full mt-2 min-w-[220px] bg-afs-bg-raised border border-afs-chrome-base rounded shadow-raised py-1 z-50"
-              >
+              <div className="mm" id="mm" role="menu">
                 {MORE_NAV.map((item) => (
                   <Link
                     key={item.href}
                     href={item.href}
                     role="menuitem"
                     onClick={() => setMoreOpen(false)}
-                    className="block px-4 py-3 font-body text-sm text-afs-chrome-high hover:bg-afs-bg-surface transition-colors"
                   >
                     {item.label}
                   </Link>
@@ -187,17 +403,18 @@ export default function AdminTopBar({
             )}
           </div>
 
-          <span className="hidden lg:inline font-label text-sm font-semibold text-afs-chrome-high truncate max-w-[140px]">
-            {adminName}
-          </span>
+          <span className="who">{adminName}</span>
 
-          <button
-            type="button"
-            onClick={handleSignOut}
-            className="h-10 px-3 font-label text-sm text-afs-chrome-mid hover:text-afs-chrome-high hover:bg-afs-bg-surface rounded transition-colors whitespace-nowrap"
+          <a
+            href="/login"
+            className="lo"
+            onClick={(e) => {
+              e.preventDefault();
+              void handleSignOut();
+            }}
           >
             Log out
-          </button>
+          </a>
         </div>
       </div>
     </header>

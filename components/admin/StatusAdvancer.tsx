@@ -125,7 +125,7 @@ export default function StatusAdvancer({ orderId, orderNumber, currentStatus }: 
         <select
           value={selectedStatus}
           onChange={(e) => setSelectedStatus(e.target.value)}
-          className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body"
+          className="w-full bg-afs-bg-overlay border border-afs-chrome-base rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body"
         >
           {ALL_STATUS_OPTIONS.map((key) => (
             <option key={key} value={key}>
@@ -138,7 +138,7 @@ export default function StatusAdvancer({ orderId, orderNumber, currentStatus }: 
           value={note}
           onChange={(e) => setNote(e.target.value)}
           placeholder="Reason for manual change"
-          className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body"
+          className="w-full bg-afs-bg-overlay border border-afs-chrome-base rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body"
         />
         <button
           type="button"
@@ -148,7 +148,7 @@ export default function StatusAdvancer({ orderId, orderNumber, currentStatus }: 
         >
           Apply Status Change
         </button>
-        {error && !confirmOpen && <p className="font-body text-xs text-afs-crimson">{error}</p>}
+        {error && !confirmOpen && <p className="font-body text-xs text-afs-danger-on-dark">{error}</p>}
       </div>
 
       {confirmOpen && (
@@ -164,9 +164,9 @@ export default function StatusAdvancer({ orderId, orderNumber, currentStatus }: 
               onChange={(e) => setNote(e.target.value)}
               rows={3}
               placeholder="Reason for the backward move"
-              className="w-full bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body resize-y mb-4"
+              className="w-full bg-afs-bg-overlay border border-afs-chrome-base rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body resize-y mb-4"
             />
-            {error && <p className="font-body text-xs text-afs-crimson mb-3">{error}</p>}
+            {error && <p className="font-body text-xs text-afs-danger-on-dark mb-3">{error}</p>}
             <div className="flex justify-end gap-3">
               <button
                 type="button"

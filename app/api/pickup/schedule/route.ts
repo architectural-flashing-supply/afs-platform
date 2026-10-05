@@ -132,7 +132,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     });
 
     // --- Notify AFS admin --- (never blocks the response; ARCHITECTURE.md §9)
-    const alertEmail = process.env.PICKUP_ALERT_EMAIL || 'tricia@architecturalflashingsupply.com';
+    const alertEmail = process.env.PICKUP_ALERT_EMAIL || 'trica@architecturalflashingsupply.com';
     await sendEmail({
       to: alertEmail,
       subject: `Pickup scheduled — Order ${order.order_number} — ${formattedDate} ${windowLabel}`,

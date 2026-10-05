@@ -1,0 +1,935 @@
+[
+  {
+    "id": "drip-edge-and-drip-edge-lt",
+    "type": "product",
+    "sourceName": "Drip Edge and Drip Edge LT",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Drip Edge & Gravel Stop",
+    "subcategory": "Edge Metal",
+    "imageFiles": [
+      "/images/products/edge-metal/jpg/drip-edge-and-drip-edge-lt.webp",
+      "/images/products/edge-metal/png/drip-edge-and-drip-edge-lt.webp"
+    ],
+    "geometryMatch": "drip-edge",
+    "needsReview": true,
+    "reviewNote": "One rendering shows two variants (standard + LT). May need splitting into two products; no printed text to confirm."
+  },
+  {
+    "id": "econo-coping-lt",
+    "type": "product",
+    "sourceName": "Econo Coping LT",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Coping Caps & Cleats",
+    "subcategory": "Edge Metal",
+    "imageFiles": [
+      "/images/products/edge-metal/jpg/econo-coping-lt.webp",
+      "/images/products/edge-metal/png/econo-coping-lt.webp"
+    ],
+    "geometryMatch": "coping-cap",
+    "needsReview": false
+  },
+  {
+    "id": "econo-coping",
+    "type": "product",
+    "sourceName": "Econo Coping",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Coping Caps & Cleats",
+    "subcategory": "Edge Metal",
+    "imageFiles": [
+      "/images/products/edge-metal/jpg/econo-coping.webp",
+      "/images/products/edge-metal/png/econo-coping.webp"
+    ],
+    "geometryMatch": "coping-cap",
+    "needsReview": false
+  },
+  {
+    "id": "econo-gravel-stop",
+    "type": "product",
+    "sourceName": "Econo Gravel Stop",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Drip Edge & Gravel Stop",
+    "subcategory": "Edge Metal",
+    "imageFiles": [
+      "/images/products/edge-metal/jpg/econo-gravel-stop.webp",
+      "/images/products/edge-metal/png/econo-gravel-stop.webp"
+    ],
+    "geometryMatch": "gravel-stop",
+    "needsReview": false
+  },
+  {
+    "id": "fascia-extender-w-offset",
+    "type": "product",
+    "sourceName": "Fascia Extender w/ Offset",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Fascia & Rake",
+    "subcategory": "Edge Metal",
+    "imageFiles": [
+      "/images/products/edge-metal/jpg/fascia-extender-w-offset.webp",
+      "/images/products/edge-metal/png/fascia-extender-w-offset.webp"
+    ],
+    "geometryMatch": "fascia",
+    "needsReview": false
+  },
+  {
+    "id": "fascia-extender",
+    "type": "product",
+    "sourceName": "Fascia Extender",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Fascia & Rake",
+    "subcategory": "Edge Metal",
+    "imageFiles": [
+      "/images/products/edge-metal/jpg/fascia-extender.webp",
+      "/images/products/edge-metal/png/fascia-extender.webp"
+    ],
+    "geometryMatch": "fascia",
+    "needsReview": false
+  },
+  {
+    "id": "fascia-lt-3",
+    "type": "product",
+    "sourceName": "Fascia LT 3",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Fascia & Rake",
+    "subcategory": "Edge Metal",
+    "imageFiles": [
+      "/images/products/edge-metal/jpg/fascia-lt-3.webp",
+      "/images/products/edge-metal/png/fascia-lt-3.webp"
+    ],
+    "geometryMatch": "fascia",
+    "needsReview": true,
+    "reviewNote": "Trailing \"3\" in the filename is unexplained — variant number or gauge? No printed text."
+  },
+  {
+    "id": "gravel-stop",
+    "type": "product",
+    "sourceName": "Gravel Stop",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Drip Edge & Gravel Stop",
+    "subcategory": "Edge Metal",
+    "imageFiles": [
+      "/images/products/edge-metal/jpg/gravel-stop.webp",
+      "/images/products/edge-metal/png/gravel-stop.webp"
+    ],
+    "geometryMatch": "gravel-stop",
+    "needsReview": false
+  },
+  {
+    "id": "secure-lok-fascia",
+    "type": "product",
+    "sourceName": "Secure-Lok Fascia",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Fascia & Rake",
+    "subcategory": "Edge Metal",
+    "imageFiles": [
+      "/images/products/edge-metal/jpg/secure-lok-fascia.webp",
+      "/images/products/edge-metal/png/secure-lok-fascia.webp"
+    ],
+    "geometryMatch": "fascia",
+    "needsReview": false
+  },
+  {
+    "id": "snap-coping-max-c",
+    "type": "product",
+    "sourceName": "Snap Coping Max C",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Coping Caps & Cleats",
+    "subcategory": "Edge Metal",
+    "imageFiles": [
+      "/images/products/edge-metal/jpg/snap-coping-max-c.webp",
+      "/images/products/edge-metal/png/snap-coping-max-c.webp"
+    ],
+    "geometryMatch": "coping-cap",
+    "needsReview": true,
+    "reviewNote": "Trailing \"C\" is unexplained — variant or cleat option? No printed text. Rendering differs from Snap Coping Max only in the anchor cleat."
+  },
+  {
+    "id": "snap-coping-max",
+    "type": "product",
+    "sourceName": "Snap Coping Max",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Coping Caps & Cleats",
+    "subcategory": "Edge Metal",
+    "imageFiles": [
+      "/images/products/edge-metal/jpg/snap-coping-max.webp",
+      "/images/products/edge-metal/png/snap-coping-max.webp"
+    ],
+    "geometryMatch": "coping-cap",
+    "needsReview": false
+  },
+  {
+    "id": "dmc-gutter-lt-1",
+    "type": "product",
+    "sourceName": "DMC Gutter LT",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Gutters & Scuppers",
+    "subcategory": "Gutter",
+    "imageFiles": [
+      "/images/products/gutters/dmc-gutter-lt-1.webp"
+    ],
+    "geometryMatch": "gutter",
+    "needsReview": false
+  },
+  {
+    "id": "dmc-gutter-rendering-1",
+    "type": "product",
+    "sourceName": "DMC Gutter",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Gutters & Scuppers",
+    "subcategory": "Gutter",
+    "imageFiles": [
+      "/images/products/gutters/dmc-gutter-rendering-1.webp"
+    ],
+    "geometryMatch": "gutter",
+    "needsReview": true,
+    "reviewNote": "Filename says only \"rendering-1\" — is this the base DMC Gutter, or a second view of the LT? Hanger detail differs (perforated strap vs bolted bracket)."
+  },
+  {
+    "id": "rib-mechanically-seamed-flat-panel",
+    "type": "product",
+    "sourceName": "Flat Panel (Mechanically Seamed)",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Roofing Panels",
+    "subcategory": "Rib Options — Mechanically Seamed",
+    "imageFiles": [
+      "/images/products/rib-options/mechanically-seamed/flat-panel.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": false
+  },
+  {
+    "id": "rib-mechanically-seamed-striations",
+    "type": "product",
+    "sourceName": "Striations (Mechanically Seamed)",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Roofing Panels",
+    "subcategory": "Rib Options — Mechanically Seamed",
+    "imageFiles": [
+      "/images/products/rib-options/mechanically-seamed/striations.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": false
+  },
+  {
+    "id": "rib-snap-lock-striations",
+    "type": "product",
+    "sourceName": "SL Ribs Striations (Snap-Lock)",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Roofing Panels",
+    "subcategory": "Rib Options — Snap-Lock",
+    "imageFiles": [
+      "/images/products/rib-options/snap-lock/sl-ribs-striations.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": false
+  },
+  {
+    "id": "rib-snap-lock-flat",
+    "type": "product",
+    "sourceName": "Snap-Lock Flat",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Roofing Panels",
+    "subcategory": "Rib Options — Snap-Lock",
+    "imageFiles": [
+      "/images/products/rib-options/snap-lock/snap-lock-flat.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": false
+  },
+  {
+    "id": "dmc-150ss-seamed-90",
+    "type": "product",
+    "sourceName": "DMC 150SS Seamed 90",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Roofing Panels",
+    "subcategory": "DMC 150SS",
+    "imageFiles": [
+      "/images/products/roof-profiles/dmc-150ss/dmc-150ss-seamed-90.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": false
+  },
+  {
+    "id": "dmc-150ss-mechanical-lock",
+    "type": "product",
+    "sourceName": "Mechanical Lock",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Roofing Panels",
+    "subcategory": "DMC 150SS",
+    "imageFiles": [
+      "/images/products/roof-profiles/dmc-150ss/mechanical-lock.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": true,
+    "reviewNote": "Filename gives no product prefix; folder places it under DMC 150SS. Confirm it is the 150SS mechanical-lock seam and not a shared generic render."
+  },
+  {
+    "id": "dmc-200s-seamed-180",
+    "type": "product",
+    "sourceName": "DMC 200S Seamed 180",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Roofing Panels",
+    "subcategory": "DMC 200S",
+    "imageFiles": [
+      "/images/products/roof-profiles/dmc-200s/dmc-200s-seamed-180.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": false
+  },
+  {
+    "id": "dmc-200s-seamed-90",
+    "type": "product",
+    "sourceName": "DMC 200S Seamed 90",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Roofing Panels",
+    "subcategory": "DMC 200S",
+    "imageFiles": [
+      "/images/products/roof-profiles/dmc-200s/dmc-200s-seamed-90.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": false
+  },
+  {
+    "id": "dmc-200s",
+    "type": "product",
+    "sourceName": "DMC 200S",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Roofing Panels",
+    "subcategory": "DMC 200S",
+    "imageFiles": [
+      "/images/products/roof-profiles/dmc-200s/dmc-200s.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": false
+  },
+  {
+    "id": "dmc-fwq100-reveal",
+    "type": "product",
+    "sourceName": "DMC FWQ100 Reveal",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Roofing Panels",
+    "subcategory": "DMC FWQ100",
+    "imageFiles": [
+      "/images/products/roof-profiles/dmc-fwq100/dmc-fwq100-reveal.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": false
+  },
+  {
+    "id": "dmc-fwq100-flush-mount-soffit",
+    "type": "product",
+    "sourceName": "Flush Mount Soffit",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Roofing Panels",
+    "subcategory": "DMC FWQ100",
+    "imageFiles": [
+      "/images/products/roof-profiles/dmc-fwq100/flush-mount-soffit.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": true,
+    "reviewNote": "Filename gives no product prefix; folder places it under DMC FWQ100. A soffit panel may belong in its own wall/soffit category rather than Roofing Panels."
+  },
+  {
+    "id": "fastener-flange",
+    "type": "product",
+    "sourceName": "Fastener Flange",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Roofing Panels",
+    "subcategory": "Seam & Attachment",
+    "imageFiles": [
+      "/images/products/roof-profiles/fastener-flange.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": false
+  },
+  {
+    "id": "snap-lock-wclip",
+    "type": "product",
+    "sourceName": "Snap-Lock w/ Clip",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Roofing Panels",
+    "subcategory": "Seam & Attachment",
+    "imageFiles": [
+      "/images/products/roof-profiles/snap-lock-wclip.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": false
+  },
+  {
+    "id": "compression-counter-flashing",
+    "type": "product",
+    "sourceName": "Compression Counter Flashing",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Base & Counter Flashing",
+    "subcategory": "Counter Flashing",
+    "imageFiles": [
+      "/images/products/trim/trim-complete/compression-counter-flashing.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": true,
+    "reviewNote": "No ProfileType for counter flashing. base-flashing exists but is a different part — deliberately left null rather than mismatched."
+  },
+  {
+    "id": "trim-drip-edge",
+    "type": "product",
+    "sourceName": "Drip Edge",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Drip Edge & Gravel Stop",
+    "subcategory": "Trim",
+    "imageFiles": [
+      "/images/products/trim/trim-complete/drip-edge.webp"
+    ],
+    "geometryMatch": "drip-edge",
+    "needsReview": false
+  },
+  {
+    "id": "j-channel",
+    "type": "product",
+    "sourceName": "J-Channel",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Trim & Closures",
+    "subcategory": "Channel",
+    "imageFiles": [
+      "/images/products/trim/trim-complete/j-channel.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": false
+  },
+  {
+    "id": "perforated-z-closure",
+    "type": "product",
+    "sourceName": "Perforated Z Closure",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Trim & Closures",
+    "subcategory": "Closure",
+    "imageFiles": [
+      "/images/products/trim/trim-complete/perforated-z-closure.webp"
+    ],
+    "geometryMatch": "z-closure",
+    "needsReview": false
+  },
+  {
+    "id": "pitch-base",
+    "type": "product",
+    "sourceName": "Pitch Base",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Base & Counter Flashing",
+    "subcategory": "Base Flashing",
+    "imageFiles": [
+      "/images/products/trim/trim-complete/pitch-base.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": true,
+    "reviewNote": "Rendering is a plain two-leg L. Could be base-flashing or pitch-change; the name supports neither clearly, so no geometry was assigned."
+  },
+  {
+    "id": "ridge-cap",
+    "type": "product",
+    "sourceName": "Ridge Cap",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Trim & Closures",
+    "subcategory": "Ridge & Hip",
+    "imageFiles": [
+      "/images/products/trim/trim-complete/ridge-cap.webp"
+    ],
+    "geometryMatch": "ridge",
+    "needsReview": false
+  },
+  {
+    "id": "ridge-trim",
+    "type": "product",
+    "sourceName": "Ridge Trim",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Trim & Closures",
+    "subcategory": "Ridge & Hip",
+    "imageFiles": [
+      "/images/products/trim/trim-complete/ridge-trim.webp"
+    ],
+    "geometryMatch": "ridge",
+    "needsReview": false
+  },
+  {
+    "id": "t-style-drip-edge",
+    "type": "product",
+    "sourceName": "T-Style Drip Edge",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Drip Edge & Gravel Stop",
+    "subcategory": "Trim",
+    "imageFiles": [
+      "/images/products/trim/trim-complete/t-style-drip-edge.webp"
+    ],
+    "geometryMatch": "drip-edge",
+    "needsReview": false
+  },
+  {
+    "id": "trims-offset-cleat",
+    "type": "product",
+    "sourceName": "Offset Cleat",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Coping Caps & Cleats",
+    "subcategory": "Cleat",
+    "imageFiles": [
+      "/images/products/trim/trim-complete/trims-offset-cleat-final.webp"
+    ],
+    "geometryMatch": "cleat",
+    "needsReview": false
+  },
+  {
+    "id": "trims-reglet",
+    "type": "product",
+    "sourceName": "Reglet",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Base & Counter Flashing",
+    "subcategory": "Reglet",
+    "imageFiles": [
+      "/images/products/trim/trim-complete/trims-reglet-final-01.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": false
+  },
+  {
+    "id": "trims-zee",
+    "type": "product",
+    "sourceName": "Zee",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Trim & Closures",
+    "subcategory": "Closure",
+    "imageFiles": [
+      "/images/products/trim/trim-complete/trims-zee-final-01.webp"
+    ],
+    "geometryMatch": "z-closure",
+    "needsReview": false
+  },
+  {
+    "id": "w-valley",
+    "type": "product",
+    "sourceName": "W Valley",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Valley Flashing",
+    "subcategory": "Valley",
+    "imageFiles": [
+      "/images/products/trim/trim-complete/w-valley.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": true,
+    "reviewNote": "Rendering reads as a simple V, not the W its name implies. No ProfileType for valley; none assigned."
+  },
+  {
+    "id": "cfr-sample-02",
+    "type": "product",
+    "sourceName": "CFR Sample 02",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Trim & Closures",
+    "subcategory": "Trim Sample",
+    "imageFiles": [
+      "/images/products/trim/trim-complete/trim-jpegs/cfr-sample-02.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": true,
+    "reviewNote": "\"CFR\" is an unexplained acronym and nothing is printed in the image. Needs a real product name before it can be published."
+  },
+  {
+    "id": "counter-flashing-sample-02",
+    "type": "product",
+    "sourceName": "Counter Flashing Sample 02",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Base & Counter Flashing",
+    "subcategory": "Counter Flashing",
+    "imageFiles": [
+      "/images/products/trim/trim-complete/trim-jpegs/counter-flashing-sample-02.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": true,
+    "reviewNote": "Appears to be a second render (grey backdrop) of the same part as compression-counter-flashing. Confirm whether these are one product or two."
+  },
+  {
+    "id": "eave-trim-sample-02",
+    "type": "product",
+    "sourceName": "Eave Trim Sample 02",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Drip Edge & Gravel Stop",
+    "subcategory": "Eave Trim",
+    "imageFiles": [
+      "/images/products/trim/trim-complete/trim-jpegs/eave-trim-sample-02.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": false
+  },
+  {
+    "id": "gable-sample-02",
+    "type": "product",
+    "sourceName": "Gable Sample 02",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Fascia & Rake",
+    "subcategory": "Gable / Rake",
+    "imageFiles": [
+      "/images/products/trim/trim-complete/trim-jpegs/gable-sample-02.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": false
+  },
+  {
+    "id": "headwall-sample-02",
+    "type": "product",
+    "sourceName": "Headwall Sample 02",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Base & Counter Flashing",
+    "subcategory": "Headwall",
+    "imageFiles": [
+      "/images/products/trim/trim-complete/trim-jpegs/headwall-sample-02.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": true,
+    "reviewNote": "Plain two-leg L, visually identical to pitch-base and rakewall-sample-02. Three names, one shape — confirm they are genuinely different parts."
+  },
+  {
+    "id": "offset-cleat-sample-02",
+    "type": "product",
+    "sourceName": "Offset Cleat Sample 02",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Coping Caps & Cleats",
+    "subcategory": "Cleat",
+    "imageFiles": [
+      "/images/products/trim/trim-complete/trim-jpegs/offset-cleat-sample-02.webp"
+    ],
+    "geometryMatch": "cleat",
+    "needsReview": true,
+    "reviewNote": "Second render of the same part as trims-offset-cleat. Confirm one product or two."
+  },
+  {
+    "id": "peak-sample-02",
+    "type": "product",
+    "sourceName": "Peak Sample 02",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Trim & Closures",
+    "subcategory": "Ridge & Hip",
+    "imageFiles": [
+      "/images/products/trim/trim-complete/trim-jpegs/peak-sample-02.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": false
+  },
+  {
+    "id": "rakewall-sample-02",
+    "type": "product",
+    "sourceName": "Rakewall Sample 02",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Base & Counter Flashing",
+    "subcategory": "Rakewall",
+    "imageFiles": [
+      "/images/products/trim/trim-complete/trim-jpegs/rakewall-sample-02.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": true,
+    "reviewNote": "Plain two-leg L, visually identical to headwall-sample-02 and pitch-base. See that note."
+  },
+  {
+    "id": "rbm-25-38-machine-photo",
+    "type": "non-product",
+    "sourceName": "RBM 25 38",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Not a product",
+    "subcategory": "Equipment photo",
+    "imageFiles": [
+      "/images/products/trim/trim-complete/trim-jpegs/rbm-25-38-main-400x250.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": true,
+    "reviewNote": "NOT A RENDERING. A 400x250 web photo of a shop bending machine on casters. Not a product, montage or swatch, so none of the three allowed types applies. Recommend dropping it from the Products page entirely."
+  },
+  {
+    "id": "reglet-sample-02",
+    "type": "product",
+    "sourceName": "Reglet Sample 02",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Base & Counter Flashing",
+    "subcategory": "Reglet",
+    "imageFiles": [
+      "/images/products/trim/trim-complete/trim-jpegs/reglet-sample-02.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": true,
+    "reviewNote": "Second render of the same part as trims-reglet. Confirm one product or two."
+  },
+  {
+    "id": "ridge-and-hip-sample-02",
+    "type": "product",
+    "sourceName": "Ridge and Hip Sample 02",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Trim & Closures",
+    "subcategory": "Ridge & Hip",
+    "imageFiles": [
+      "/images/products/trim/trim-complete/trim-jpegs/ridge-and-hip-sample-02.webp"
+    ],
+    "geometryMatch": "ridge",
+    "needsReview": true,
+    "reviewNote": "Visually identical to ridge-sample-01 and ridge-trim. Three names, one shape — confirm before publishing all three."
+  },
+  {
+    "id": "ridge-sample-01",
+    "type": "product",
+    "sourceName": "Ridge Sample 01",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Trim & Closures",
+    "subcategory": "Ridge & Hip",
+    "imageFiles": [
+      "/images/products/trim/trim-complete/trim-jpegs/ridge-sample-01.webp"
+    ],
+    "geometryMatch": "ridge",
+    "needsReview": true,
+    "reviewNote": "See ridge-and-hip-sample-02 — same shape, different name."
+  },
+  {
+    "id": "soffit-j-sample-02",
+    "type": "product",
+    "sourceName": "Soffit J Sample 02",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Trim & Closures",
+    "subcategory": "Channel",
+    "imageFiles": [
+      "/images/products/trim/trim-complete/trim-jpegs/soffit-j-sample-02.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": false
+  },
+  {
+    "id": "transition-sample-02",
+    "type": "product",
+    "sourceName": "Transition Sample 02",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Trim & Closures",
+    "subcategory": "Transition",
+    "imageFiles": [
+      "/images/products/trim/trim-complete/trim-jpegs/transition-sample-02.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": true,
+    "reviewNote": "Shallow two-plane bend. pitch-change may fit but the name does not say so — left null rather than guessed."
+  },
+  {
+    "id": "trim-generic-sample-01",
+    "type": "product",
+    "sourceName": "Trim Generic Sample 01",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Trim & Closures",
+    "subcategory": "Trim Sample",
+    "imageFiles": [
+      "/images/products/trim/trim-complete/trim-jpegs/trim-generic-sample-01.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": true,
+    "reviewNote": "Name says \"generic sample\" — likely a placeholder/stock image rather than a real SKU. Recommend excluding from the Products page."
+  },
+  {
+    "id": "valley-sample-02",
+    "type": "product",
+    "sourceName": "Valley Sample 02",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Valley Flashing",
+    "subcategory": "Valley",
+    "imageFiles": [
+      "/images/products/trim/trim-complete/trim-jpegs/valley-sample-02.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": false
+  },
+  {
+    "id": "vented-ridge-sample-02",
+    "type": "product",
+    "sourceName": "Vented Ridge Sample 02",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Trim & Closures",
+    "subcategory": "Ridge & Hip",
+    "imageFiles": [
+      "/images/products/trim/trim-complete/trim-jpegs/vented-ridge-sample-02.webp"
+    ],
+    "geometryMatch": "ridge",
+    "needsReview": false
+  },
+  {
+    "id": "vented-zee-sample-02",
+    "type": "product",
+    "sourceName": "Vented Zee Sample 02",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Trim & Closures",
+    "subcategory": "Closure",
+    "imageFiles": [
+      "/images/products/trim/trim-complete/trim-jpegs/vented-zee-sample-02.webp"
+    ],
+    "geometryMatch": "z-closure",
+    "needsReview": true,
+    "reviewNote": "Named \"vented\" but no perforations are visible in the rendering, unlike perforated-z-closure which clearly shows them. Confirm the right render is attached to the right name."
+  },
+  {
+    "id": "zee-sample-01",
+    "type": "product",
+    "sourceName": "Zee Sample 01",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Trim & Closures",
+    "subcategory": "Closure",
+    "imageFiles": [
+      "/images/products/trim/trim-complete/trim-jpegs/zee-sample-01.webp"
+    ],
+    "geometryMatch": "z-closure",
+    "needsReview": true,
+    "reviewNote": "zee-sample-01 and zee-sample-02 are near-identical renders of the same zee. Likely one product with two frames."
+  },
+  {
+    "id": "zee-sample-02",
+    "type": "product",
+    "sourceName": "Zee Sample 02",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Trim & Closures",
+    "subcategory": "Closure",
+    "imageFiles": [
+      "/images/products/trim/trim-complete/trim-jpegs/zee-sample-02.webp"
+    ],
+    "geometryMatch": "z-closure",
+    "needsReview": true,
+    "reviewNote": "See zee-sample-01 — same part."
+  },
+  {
+    "id": "drexel-roof-trims-final-01",
+    "type": "montage",
+    "sourceName": "Drexel Roof Trims Final 01",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Not a product",
+    "subcategory": "House scene",
+    "imageFiles": [
+      "/images/products/trim/trim-house/drexel-roof-trims-final-01.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": false
+  },
+  {
+    "id": "drexel-trims-montage-485c",
+    "type": "montage",
+    "sourceName": "Drexel Trims Montage 485C",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Not a product",
+    "subcategory": "House scene — colour variant",
+    "imageFiles": [
+      "/images/products/trim/trim-house/drexel-trims-montage-485c.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": true,
+    "reviewNote": "Same house scene as the other four montages, recoloured. \"485C\" reads as a Pantone code but nothing is printed in the image to confirm it — do not publish it as a colour name without confirmation."
+  },
+  {
+    "id": "drexel-trims-montage-503c",
+    "type": "montage",
+    "sourceName": "Drexel Trims Montage 503C",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Not a product",
+    "subcategory": "House scene — colour variant",
+    "imageFiles": [
+      "/images/products/trim/trim-house/drexel-trims-montage-503c.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": true,
+    "reviewNote": "See 485C — same scene, different colour, unconfirmed Pantone-style code."
+  },
+  {
+    "id": "drexel-trims-montage-7479c",
+    "type": "montage",
+    "sourceName": "Drexel Trims Montage 7479C",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Not a product",
+    "subcategory": "House scene — colour variant",
+    "imageFiles": [
+      "/images/products/trim/trim-house/drexel-trims-montage-7479c.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": true,
+    "reviewNote": "See 485C — same scene, different colour, unconfirmed Pantone-style code."
+  },
+  {
+    "id": "drexel-trims-montage-blue",
+    "type": "montage",
+    "sourceName": "Drexel Trims Montage Blue",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Not a product",
+    "subcategory": "House scene — colour variant",
+    "imageFiles": [
+      "/images/products/trim/trim-house/drexel-trims-montage-blue.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": false
+  },
+  {
+    "id": "drexel-trims-montage",
+    "type": "montage",
+    "sourceName": "Drexel Trims Montage",
+    "nameSource": "filename",
+    "description": "",
+    "category": "Not a product",
+    "subcategory": "House scene",
+    "imageFiles": [
+      "/images/products/trim/trim-house/drexel-trims-montage.webp"
+    ],
+    "geometryMatch": null,
+    "needsReview": false
+  }
+]

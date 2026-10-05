@@ -54,18 +54,18 @@ function SourceCard({
   action: React.ReactNode;
 }) {
   return (
-    <div className="bg-afs-bg-raised border border-afs-border rounded p-5 flex flex-col gap-3">
+    <div className="bg-afs-bg-card border border-afs-border-light rounded p-5 flex flex-col gap-3">
       <div className="flex items-start justify-between gap-3">
-        <p className="font-heading text-base text-afs-chrome-high">{name}</p>
+        <p className="font-heading text-base text-afs-v7-ink">{name}</p>
         <span className={`font-label text-[10px] uppercase tracking-wide border rounded px-2 py-0.5 whitespace-nowrap ${statusClass}`}>
           {statusLabel}
         </span>
       </div>
-      {notes && <p className="font-body text-xs text-afs-chrome-mid">{notes}</p>}
-      <p className="font-data text-[11px] text-afs-chrome-silver">Last checked: {formatDateTime(lastCheckedAt)}</p>
+      {notes && <p className="font-body text-xs text-afs-ink-700">{notes}</p>}
+      <p className="font-data text-[11px] text-afs-ink-700">Last checked: {formatDateTime(lastCheckedAt)}</p>
       <div className="flex items-center gap-3 mt-1">
         {action}
-        <a href={url} target="_blank" rel="noopener noreferrer" className="font-label text-xs text-afs-chrome-mid hover:text-afs-chrome-high transition-colors">
+        <a href={url} target="_blank" rel="noopener noreferrer" className="font-label text-xs text-afs-ink-700 hover:text-afs-v7-ink transition-colors">
           Visit site →
         </a>
       </div>
@@ -80,16 +80,16 @@ function MiniPortalCard({ label, url, lastCheckedAt }: { label: string; url: str
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className={`flex flex-col gap-1 bg-afs-bg-raised border rounded p-3 hover:bg-afs-bg-surface transition-colors ${
-        recent ? 'border-afs-success' : 'border-afs-border'
+      className={`flex flex-col gap-1 bg-afs-bg-card border rounded p-3 hover:bg-afs-bg-light-raised transition-colors ${
+        recent ? 'border-afs-success' : 'border-afs-border-light'
       }`}
     >
       <div className="flex items-center justify-between gap-2">
-        <p className="font-label text-sm text-afs-chrome-high">{label}</p>
+        <p className="font-label text-sm text-afs-v7-ink">{label}</p>
         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${recent ? 'bg-afs-success' : 'bg-afs-chrome-dim'}`} aria-hidden />
       </div>
-      <p className="font-data text-[10px] text-afs-chrome-silver">{formatDateTime(lastCheckedAt)}</p>
-      <span className="font-label text-xs text-afs-danger-on-dark mt-1">Open Portal →</span>
+      <p className="font-data text-[10px] text-afs-ink-700">{formatDateTime(lastCheckedAt)}</p>
+      <span className="font-label text-xs text-afs-crimson mt-1">Open Portal →</span>
     </a>
   );
 }
@@ -160,14 +160,14 @@ export default function BidMonitorSourceDirectory({
 
   return (
     <div>
-      <div className="flex items-center gap-1 border-b border-afs-border mb-5 overflow-x-auto">
+      <div className="flex items-center gap-1 border-b border-afs-border-light mb-5 overflow-x-auto">
         {TABS.map((t) => (
           <button
             key={t}
             type="button"
             onClick={() => setTab(t)}
             className={`font-label text-sm px-4 py-2.5 border-b-2 transition-colors whitespace-nowrap ${
-              tab === t ? 'border-afs-crimson text-afs-chrome-high' : 'border-transparent text-afs-chrome-mid hover:text-afs-chrome-high'
+              tab === t ? 'border-afs-crimson text-afs-v7-ink' : 'border-transparent text-afs-ink-700 hover:text-afs-v7-ink'
             }`}
           >
             {TAB_LABEL[t]}
@@ -182,10 +182,10 @@ export default function BidMonitorSourceDirectory({
             url={samGov?.url ?? 'https://sam.gov/opportunities'}
             lastCheckedAt={samGov?.lastCheckedAt ?? null}
             statusLabel={samGovConfigured ? 'Configured' : 'Needs API Key'}
-            statusClass={samGovConfigured ? 'border-afs-success text-afs-success-on-dark' : 'border-afs-amber text-afs-warning-on-dark'}
+            statusClass={samGovConfigured ? 'border-afs-success text-afs-green-ink' : 'border-afs-amber text-afs-amber-ink'}
             notes={samGov?.notes ?? null}
             action={
-              <Link href="/admin/settings" className="font-label text-xs text-afs-chrome-high hover:text-afs-danger-on-dark transition-colors">
+              <Link href="/admin/settings" className="font-label text-xs text-afs-v7-ink hover:text-afs-crimson transition-colors">
                 Configure
               </Link>
             }
@@ -195,20 +195,20 @@ export default function BidMonitorSourceDirectory({
             url={usaSpending?.url ?? 'https://usaspending.gov'}
             lastCheckedAt={usaSpending?.lastCheckedAt ?? null}
             statusLabel="Active"
-            statusClass="border-afs-success text-afs-success-on-dark"
+            statusClass="border-afs-success text-afs-green-ink"
             notes={usaSpending?.notes ?? null}
             action={
               <button
                 type="button"
                 onClick={handleFetchNow}
                 disabled={fetchBusy}
-                className="font-label text-xs text-afs-chrome-high hover:text-afs-danger-on-dark transition-colors disabled:opacity-50"
+                className="font-label text-xs text-afs-v7-ink hover:text-afs-crimson transition-colors disabled:opacity-50"
               >
                 {fetchBusy ? 'Fetching…' : 'Fetch Now'}
               </button>
             }
           />
-          {fetchMessage && <p className="sm:col-span-2 font-body text-xs text-afs-chrome-mid">{fetchMessage}</p>}
+          {fetchMessage && <p className="sm:col-span-2 font-body text-xs text-afs-ink-700">{fetchMessage}</p>}
         </div>
       )}
 
@@ -220,23 +220,23 @@ export default function BidMonitorSourceDirectory({
               url={texasEsbd?.url ?? 'https://www.txsmartbuy.gov/esbd'}
               lastCheckedAt={texasEsbd?.lastCheckedAt ?? null}
               statusLabel="Active"
-              statusClass="border-afs-success text-afs-success-on-dark"
+              statusClass="border-afs-success text-afs-green-ink"
               notes={texasEsbd?.notes ?? null}
-              action={<span className="font-label text-xs text-afs-chrome-silver">Texas Electronic State Business Daily</span>}
+              action={<span className="font-label text-xs text-afs-ink-700">Texas Electronic State Business Daily</span>}
             />
             <SourceCard
               name="TxDOT Letting Calendar"
               url={txDot?.url ?? 'https://www.txdot.gov/business/contractors/highway-letting.html'}
               lastCheckedAt={txDot?.lastCheckedAt ?? null}
               statusLabel="Active"
-              statusClass="border-afs-success text-afs-success-on-dark"
+              statusClass="border-afs-success text-afs-green-ink"
               notes={txDot?.notes ?? null}
-              action={<span className="font-label text-xs text-afs-chrome-silver">Highway construction lettings</span>}
+              action={<span className="font-label text-xs text-afs-ink-700">Highway construction lettings</span>}
             />
           </div>
 
           <div>
-            <p className="font-label text-xs uppercase tracking-widest text-afs-chrome-silver mb-3">
+            <p className="font-label text-xs uppercase tracking-widest text-afs-ink-700 mb-3">
               Texas Cities &amp; Counties ({texasCityCounty.length})
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -254,18 +254,18 @@ export default function BidMonitorSourceDirectory({
             <button
               type="button"
               onClick={() => openUrls(allTxSources.map((s) => s.url))}
-              className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label text-xs px-3 py-1.5 rounded transition-colors"
+              className="border border-afs-border-light bg-afs-bg-light-raised text-afs-v7-ink hover:bg-afs-bg-light-raised font-label text-xs px-3 py-1.5 rounded transition-colors"
             >
               Open All Texas ({allTxSources.length})
             </button>
             <button
               type="button"
               onClick={() => openUrls(southwestStateSources.map((s) => s.url))}
-              className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label text-xs px-3 py-1.5 rounded transition-colors"
+              className="border border-afs-border-light bg-afs-bg-light-raised text-afs-v7-ink hover:bg-afs-bg-light-raised font-label text-xs px-3 py-1.5 rounded transition-colors"
             >
               Open All Southwest ({southwestStateSources.length})
             </button>
-            <p className="font-body text-xs text-afs-chrome-silver">Browsers may block more than a few tabs opening at once.</p>
+            <p className="font-body text-xs text-afs-ink-700">Browsers may block more than a few tabs opening at once.</p>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             {allStates.map((s) => (
@@ -290,14 +290,14 @@ export default function BidMonitorSourceDirectory({
             url={planHub?.url ?? 'https://www.planhub.com'}
             lastCheckedAt={planHub?.lastCheckedAt ?? null}
             statusLabel="Registration Required"
-            statusClass="border-afs-amber text-afs-warning-on-dark"
+            statusClass="border-afs-amber text-afs-amber-ink"
             notes="Registration required — free at planhub.com"
             action={
               <button
                 type="button"
                 disabled
                 title="No PlanHub account integration is built yet — PLANHUB_API_KEY is wired but unused, matching the PathfinderEdge stub precedent."
-                className="font-label text-xs text-afs-chrome-silver cursor-not-allowed"
+                className="font-label text-xs text-afs-ink-700 cursor-not-allowed"
               >
                 Connect Account
               </button>
@@ -308,10 +308,10 @@ export default function BidMonitorSourceDirectory({
             url={bidPlanroom?.url ?? 'https://www.bidplanroom.com'}
             lastCheckedAt={bidPlanroom?.lastCheckedAt ?? null}
             statusLabel="Free Listings"
-            statusClass="border-afs-success text-afs-success-on-dark"
+            statusClass="border-afs-success text-afs-green-ink"
             notes={bidPlanroom?.notes ?? null}
             action={
-              <a href={bidPlanroom?.url ?? 'https://www.bidplanroom.com'} target="_blank" rel="noopener noreferrer" className="font-label text-xs text-afs-chrome-high hover:text-afs-danger-on-dark transition-colors">
+              <a href={bidPlanroom?.url ?? 'https://www.bidplanroom.com'} target="_blank" rel="noopener noreferrer" className="font-label text-xs text-afs-v7-ink hover:text-afs-crimson transition-colors">
                 View Public Listings →
               </a>
             }
@@ -321,10 +321,10 @@ export default function BidMonitorSourceDirectory({
             url={constructConnect?.url ?? 'https://www.constructconnect.com'}
             lastCheckedAt={constructConnect?.lastCheckedAt ?? null}
             statusLabel="Free Tier"
-            statusClass="border-afs-success text-afs-success-on-dark"
+            statusClass="border-afs-success text-afs-green-ink"
             notes={constructConnect?.notes ?? null}
             action={
-              <a href={constructConnect?.url ?? 'https://www.constructconnect.com'} target="_blank" rel="noopener noreferrer" className="font-label text-xs text-afs-chrome-high hover:text-afs-danger-on-dark transition-colors">
+              <a href={constructConnect?.url ?? 'https://www.constructconnect.com'} target="_blank" rel="noopener noreferrer" className="font-label text-xs text-afs-v7-ink hover:text-afs-crimson transition-colors">
                 View Free Tier →
               </a>
             }
@@ -334,10 +334,10 @@ export default function BidMonitorSourceDirectory({
             url={subHub?.url ?? 'https://constructionbids.ai/sub-hub'}
             lastCheckedAt={subHub?.lastCheckedAt ?? null}
             statusLabel="Aggregator"
-            statusClass="border-afs-chrome-base text-afs-chrome-base"
+            statusClass="border-afs-line-strong text-afs-chrome-base"
             notes={subHub?.notes ?? 'Free construction-bid aggregator — not yet tracked in bid_sources.'}
             action={
-              <a href={subHub?.url ?? 'https://constructionbids.ai/sub-hub'} target="_blank" rel="noopener noreferrer" className="font-label text-xs text-afs-chrome-high hover:text-afs-danger-on-dark transition-colors">
+              <a href={subHub?.url ?? 'https://constructionbids.ai/sub-hub'} target="_blank" rel="noopener noreferrer" className="font-label text-xs text-afs-v7-ink hover:text-afs-crimson transition-colors">
                 View Aggregator →
               </a>
             }

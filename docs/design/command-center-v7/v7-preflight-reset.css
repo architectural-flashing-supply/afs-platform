@@ -1,0 +1,43 @@
+/*
+ * v7-preflight-reset.css — undo the parts of Tailwind's Preflight that v7 does
+ * not have, so the port renders what the prototype renders.
+ *
+ * v7 is a standalone page with its own small reset: `*{box-sizing:border-box}`,
+ * `html,body{margin:0}`, `h1,h2,h3,p{margin:0}` and
+ * `button,input,select,textarea{font:inherit;color:inherit}`. This app also
+ * loads Tailwind's Preflight, which is a much larger reset. Where the two
+ * disagree, the live page differs from the prototype through no decision of
+ * anyone's — and the style gate correctly reports it as a difference.
+ *
+ * This file is NOT a place to adjust v7's design. It only cancels Preflight
+ * rules that have no counterpart in v7's own reset. Every entry must name the
+ * Preflight rule it cancels and the gate failure that found it, so the next
+ * person can tell a real porting fix from a quiet restyle.
+ *
+ * Scoped to `.cc-v7` through the same transform as everything else
+ * (scripts/design/scope-v7-css.mjs), so it cannot reach the marketing site —
+ * which DOES want Preflight's behaviour.
+ */
+
+/* ------------------------------------------------------------------ 1 of 1
+ * Preflight (Tailwind 3.4+) sets `letter-spacing: inherit` on form controls:
+ *
+ *     button, input, optgroup, select, textarea { ... letter-spacing: inherit; }
+ *
+ * v7's reset sets only `font: inherit`, and the `font` shorthand does not carry
+ * letter-spacing — so in the prototype a control keeps the UA default,
+ * `normal`. Live, it inherited instead.
+ *
+ * It showed up on the Quotes/Orders filter bar, where `.fld` is a <label> with
+ * `letter-spacing:.03em`: the gate measured `letterSpacing 0.375px != v7
+ * normal` on both the select and the search input (0.03em x the label's 12.5px).
+ * Nothing had been styled wrongly — Preflight simply made the control inherit
+ * something the prototype's control does not.
+ */
+button,
+input,
+optgroup,
+select,
+textarea {
+  letter-spacing: normal;
+}

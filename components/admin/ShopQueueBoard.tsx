@@ -36,6 +36,17 @@ import ShopJobDrawing from '@/components/admin/ShopJobDrawing';
 
 const POLL_INTERVAL_MS = 30_000;
 
+/**
+ * v7's `.pstrip` notice, per tone. A map to the WHOLE className rather than a
+ * template, because the contrast gate expands class maps but counts a runtime
+ * template as `unresolved` — see CLAUDE.md rule #28.
+ */
+const RESULT_CLASS: Record<'ok' | 'info' | 'error', string> = {
+  ok: 'pstrip green',
+  info: 'pstrip amber',
+  error: 'pstrip red',
+};
+
 type Busy = { id: string; label: string } | null;
 type Result = { tone: 'ok' | 'info' | 'error'; message: string } | null;
 
@@ -113,76 +124,112 @@ export default function ShopQueueBoard({ initial }: { initial: ShopQueue }) {
     }
   }
 
+  const next = queue.active[0] ?? null;
+
   return (
-    <div className="flex flex-col gap-4">
-      {result && (
-        <p
-          role="status"
-          data-testid="shop-result"
-          className={`font-body text-[19px] rounded-lg p-4 ${
-            result.tone === 'error'
-              ? 'bg-afs-bg-card text-afs-crimson border border-afs-line-strong'
-              : result.tone === 'info'
-                ? 'bg-afs-amber-bg text-afs-amber-ink'
-                : 'bg-afs-green-soft text-afs-green-ink'
-          }`}
-        >
-          {result.message}
-        </p>
-      )}
+    <div className="shopg">
+      <section className="panel">
+        <h2>
+          Queue
+          <span className="tag">
+            {queue.active.length} job{queue.active.length === 1 ? '' : 's'}
+          </span>
+        </h2>
 
-      {queue.active.length === 0 ? (
-        <div
-          data-testid="shop-empty"
-          className="bg-afs-bg-card border border-afs-border-light rounded-xl p-10 text-center"
-        >
-          <p className="font-body text-2xl text-afs-ink-900">The machine queue is empty.</p>
-          <p className="font-body text-[17px] text-afs-ink-700 mt-2">
-            Jobs appear here as soon as an approved one is sent to the machine.
-          </p>
-        </div>
-      ) : (
-        <ul className="flex flex-col gap-4 list-none m-0 p-0" data-testid="shop-queue">
-          {queue.active.map((card) => (
-            <li key={card.id}>
-              <ShopCard card={card} busy={busy} onAdvance={advance} />
-            </li>
-          ))}
-        </ul>
-      )}
+        {result && (
+          <div
+            role="status"
+            data-testid="shop-result"
+            className={RESULT_CLASS[result.tone]}
+          >
+            <div>{result.message}</div>
+          </div>
+        )}
 
-      {queue.finishedToday.length > 0 && (
-        <section className="mt-2">
-          <h2 className="font-heading text-2xl text-afs-ink-900 mb-2">Finished today</h2>
-          <ul className="flex flex-col gap-2 list-none m-0 p-0" data-testid="shop-finished-today">
-            {queue.finishedToday.map((card) => (
-              <li
-                key={card.id}
-                className="bg-afs-bg-card border border-afs-border-light rounded-lg p-4 flex flex-wrap items-baseline gap-x-4 gap-y-1"
-              >
-                <span className="font-label text-[19px] font-bold text-afs-green-ink">✓ Finished</span>
-                <span className="font-body text-[19px] text-afs-ink-900">
-                  {card.item}
-                  {card.quantity ? ` × ${card.quantity}` : ''}
-                </span>
-                <span className="font-body text-[17px] text-afs-ink-700">{card.customer}</span>
-                <span className="font-body text-[17px] text-afs-ink-700">
-                  {card.deliveryDate
-                    ? `Going out ${formatDayHeading(card.deliveryDate)}, ${deliveryWindowLabel(
-                        card.deliveryWindow ?? ''
-                      )}`
-                    : 'No delivery day yet — set one in Deliveries.'}
-                </span>
-              </li>
-            ))}
-          </ul>
+        {queue.active.length === 0 ? (
+          <div className="empty" data-testid="shop-empty">
+            Nothing waiting. Jobs appear here when you press Send to machine on the Workbench.
+          </div>
+        ) : (
+          <div className="tw">
+            <table className="stbl" data-testid="shop-queue">
+              <thead>
+                <tr>
+                  <th />
+                  <th />
+                  <th>Job</th>
+                  <th>Material</th>
+                  <th>Status</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {queue.active.map((card) => (
+                  <ShopRow key={card.id} card={card} busy={busy} onAdvance={advance} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <div className="sidecol">
+        <section className="panel">
+          <h2>Finished today</h2>
+          {queue.finishedToday.length === 0 ? (
+            <div className="hint">Nothing finished yet today.</div>
+          ) : (
+            <div data-testid="shop-finished-today">
+              {queue.finishedToday.map((card) => (
+                <div className="mini" key={card.id}>
+                  <div>
+                    <div className="nm">
+                      {card.item}
+                      {card.quantity ? ` × ${card.quantity}` : ''}
+                    </div>
+                    <div className="sb">
+                      {card.customer}
+                      {' · '}
+                      {card.deliveryDate
+                        ? `Going out ${formatDayHeading(card.deliveryDate)}, ${deliveryWindowLabel(
+                            card.deliveryWindow ?? '',
+                          )}`
+                        : 'No delivery day yet — set one in Deliveries.'}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
-      )}
+
+        {next && (
+          <section className="panel">
+            <h2>Next up</h2>
+            <div className="plate">
+              <ShopJobDrawing id={next.id} hasDrawing={next.hasDrawing} size={240} />
+            </div>
+            <p className="cap">
+              {next.item}
+              {next.quantity ? ` × ${next.quantity}` : ''}
+              {' · '}
+              {next.customer}
+            </p>
+          </section>
+        )}
+      </div>
     </div>
   );
 }
 
-function ShopCard({
+/**
+ * One queue row — v7 `pageShop()`'s `.stbl` row (prototype line 1478).
+ *
+ * v7's six cells: position, drawing, job (item + customer + machine profile
+ * number), material (spec + shop instructions), status, actions. `tr.now` is
+ * the job being bent right now, which v7 marks with a green left edge.
+ */
+function ShopRow({
   card,
   busy,
   onAdvance,
@@ -193,72 +240,66 @@ function ShopCard({
 }) {
   const working = busy?.id === card.id;
   const anyBusy = busy !== null;
+  const bending = card.state === 'bending';
+  const instructions = [
+    card.paintedEdge ? 'Painted side up' : null,
+    card.hemInstructions,
+    card.specialInstructions,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
-    <article
+    <tr
+      className={bending ? 'now' : undefined}
       data-testid="shop-card"
       data-shop-job-id={card.id}
       data-state={card.state}
       data-rush={card.isRush ? 'true' : 'false'}
-      className="bg-afs-bg-card border border-afs-border-light rounded-xl p-5 flex flex-wrap lg:flex-nowrap items-center gap-5"
     >
-      <div
-        aria-label={`Queue position ${card.position}`}
-        className="shrink-0 w-16 h-16 rounded-full bg-afs-bg-lane border border-afs-line-strong flex items-center justify-center font-data text-[40px] leading-none text-afs-ink-900"
-      >
-        {card.position}
-      </div>
-
-      <ShopJobDrawing id={card.id} hasDrawing={card.hasDrawing} size={112} />
-
-      <div className="flex-1 min-w-[260px] flex flex-col gap-1">
-        <h2 className="font-heading text-[30px] leading-tight text-afs-ink-900 m-0">
+      <td>
+        <div className="pos" aria-label={`Queue position ${card.position}`}>
+          {card.position}
+        </div>
+      </td>
+      <td>
+        <ShopJobDrawing id={card.id} hasDrawing={card.hasDrawing} size={56} />
+      </td>
+      <td>
+        <div className="it1">
           {card.item}
           {card.quantity ? ` × ${card.quantity}` : ''}
-          {card.isRush && (
-            <span className="ml-3 align-middle font-label text-[15px] font-bold uppercase tracking-wide bg-afs-amber-bg text-afs-amber-ink rounded px-2 py-1">
-              Rush
-            </span>
-          )}
-        </h2>
-        <p className="font-body text-[19px] text-afs-ink-900 m-0">{card.spec}</p>
-        <p className="font-body text-[17px] text-afs-ink-700 m-0">
+          {card.isRush && <span className="pill r">Rush</span>}
+        </div>
+        <div className="it2">
           {card.customer}
-          {card.machineProfileId ? ` · Machine profile #${card.machineProfileId}` : ' · No machine profile number'}
-          {` · ${card.stateLabel}`}
-        </p>
-        {(card.hemInstructions || card.paintedEdge || card.specialInstructions) && (
-          <p className="font-body text-[17px] text-afs-ink-900 bg-afs-bg-light-raised rounded-lg px-3 py-2 m-0">
-            {[
-              card.paintedEdge ? 'Painted side up' : null,
-              card.hemInstructions,
-              card.specialInstructions,
-            ]
-              .filter(Boolean)
-              .join(' · ')}
-          </p>
+          {card.machineProfileId
+            ? ` · profile #${card.machineProfileId}`
+            : ' · no machine profile number'}
+        </div>
+      </td>
+      <td>
+        <div>{card.spec}</div>
+        {instructions && <div className="it2">{instructions}</div>}
+      </td>
+      <td>
+        <span className={bending ? 'stat b' : 'stat q'}>{card.stateLabel}</span>
+      </td>
+      <td>
+        {card.action ? (
+          <button
+            type="button"
+            data-testid={card.action.kind === 'start' ? 'start-bending' : 'mark-finished'}
+            disabled={anyBusy}
+            onClick={() => onAdvance(card)}
+            className="btn green sm"
+          >
+            {working ? 'Working…' : card.action.label}
+          </button>
+        ) : (
+          <span className="stat f">Finished</span>
         )}
-      </div>
-
-      {card.action ? (
-        <button
-          type="button"
-          data-testid={card.action.kind === 'start' ? 'start-bending' : 'mark-finished'}
-          disabled={anyBusy}
-          onClick={() => onAdvance(card)}
-          className={`shrink-0 w-full lg:w-auto min-h-[72px] px-8 rounded-lg font-label text-[20px] font-bold disabled:opacity-60 disabled:cursor-not-allowed ${
-            card.action.kind === 'start'
-              ? 'bg-afs-crimson text-afs-chrome-high hover:brightness-95'
-              : 'bg-afs-green-deep text-afs-chrome-high hover:brightness-95'
-          }`}
-        >
-          {working ? 'Working…' : card.action.label}
-        </button>
-      ) : (
-        <span className="shrink-0 font-label text-[20px] font-bold text-afs-green-ink px-4">
-          ✓ Finished
-        </span>
-      )}
-    </article>
+      </td>
+    </tr>
   );
 }

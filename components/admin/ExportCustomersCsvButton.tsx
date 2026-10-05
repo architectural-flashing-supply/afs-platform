@@ -42,7 +42,13 @@ export default function ExportCustomersCsvButton({ rows }: ExportCustomersCsvBut
       type="button"
       onClick={handleExport}
       disabled={rows.length === 0}
-      className="border border-afs-border bg-afs-bg-overlay text-afs-chrome-high hover:bg-afs-bg-surface font-label font-semibold px-5 py-2.5 rounded text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      // v7's own secondary button. This was a gunmetal control
+      // (bg-afs-bg-overlay + afs-chrome-high) and stayed one when Customers
+      // moved into the light working area, leaving near-black inherited text on
+      // a dark fill at 2.51:1 — caught by tests/e2e/contrast-live.spec.ts,
+      // which measures real computed styles and is the half of rule #28 the
+      // static gate cannot replace.
+      className="btn slate"
     >
       Export CSV
     </button>

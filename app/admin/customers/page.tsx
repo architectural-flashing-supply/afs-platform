@@ -1,44 +1,54 @@
-import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { requireAdminUser } from '@/lib/admin/auth';
 import { getCustomersList, type CustomerListFilters } from '@/lib/data/customers';
-import Badge, { type BadgeVariant } from '@/components/ui/Badge';
-import EmptyState from '@/components/ui/EmptyState';
 import ExportCustomersCsvButton from '@/components/admin/ExportCustomersCsvButton';
+import LightWorkingArea from '@/components/admin/LightWorkingArea';
+import V7Customers from '@/components/admin/v7/V7Customers';
+import { isFixtureMode, type SearchParamValue } from '@/lib/fixtures/mode';
+import { fixtureCustomers, liveCustomers } from '@/lib/data/v7-view/customers';
 
 const ROLE_OPTIONS = ['all', 'admin', 'contractor', 'architect', 'customer'];
 const TIER_OPTIONS = ['all', 'standard', 'contractor', 'preferred', 'wholesale'];
-
-const ROLE_VARIANT: Record<string, BadgeVariant> = {
-  admin: 'error',
-  architect: 'info',
-  contractor: 'chrome',
-  customer: 'chrome',
-};
-
-const TIER_VARIANT: Record<string, BadgeVariant> = {
-  wholesale: 'success',
-  preferred: 'info',
-  contractor: 'chrome',
-  standard: 'chrome',
-};
-
-function formatDate(iso: string | null): string {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
 
 function isValidOption(options: string[], value: string | undefined): value is string {
   return typeof value === 'string' && options.includes(value);
 }
 
+/**
+ * CUSTOMERS — v7 `pageCustomers()` (prototype line 1519).
+ *
+ * THIS REPLACED A FLAT ACCOUNT DIRECTORY, and the whole-screen pixel gate is
+ * what forced the question: the directory scored 22% against v7 with twenty
+ * landmarks missing and fifteen extra, which is not a styling difference, it is
+ * a different screen. v7's is a master-detail — every company down the left,
+ * that company's contact, jobs and saved profiles on the right.
+ *
+ * THE DIRECTORY'S REAL FEATURES ARE KEPT, in v7's own elements: role and
+ * pricing-tier filtering sit in v7's `.bar`, CSV export is a page action, and
+ * the full per-account record is still one click away at /admin/customers/[id].
+ * CLAUDE.md rule #33's split — v7 wins the layout, existing code wins where it
+ * supplies behaviour v7 has no equivalent for. The reasoning, and what the live
+ * detail pane honestly cannot show, is in lib/data/v7-view/customers.ts.
+ */
 export default async function AdminCustomersPage({
   searchParams,
 }: {
-  searchParams: { q?: string; role?: string; tier?: string };
+  searchParams: { q?: string; role?: string; tier?: string; c?: string; edit?: string } & Record<
+    string,
+    SearchParamValue
+  >;
 }) {
   const supabase = await createClient();
   await requireAdminUser(supabase);
+
+  if (isFixtureMode(searchParams)) {
+    const picked = Array.isArray(searchParams.c) ? searchParams.c[0] : searchParams.c;
+    return (
+      <LightWorkingArea>
+        <V7Customers view={fixtureCustomers(picked, searchParams.edit === '1')} />
+      </LightWorkingArea>
+    );
+  }
 
   const filters: CustomerListFilters = {
     search: searchParams.q ?? '',
@@ -47,125 +57,14 @@ export default async function AdminCustomersPage({
   };
 
   const rows = await getCustomersList(supabase, filters);
+  const picked = Array.isArray(searchParams.c) ? searchParams.c[0] : searchParams.c;
 
   return (
-    <div>
-      <div className="flex items-start justify-between gap-4 mb-6 flex-wrap">
-        <div>
-          <h1 className="font-heading text-3xl text-afs-chrome-high">Customers</h1>
-          <p className="font-body text-sm text-afs-chrome-mid mt-1">
-            Every registered account — contractors, architects, and customers.
-          </p>
-        </div>
-        <ExportCustomersCsvButton rows={rows} />
-      </div>
-
-      {/* Command Center V2 (prompt v2-01, step 5): Customers ABSORBS the
-          orders CRM. The one-level nav has no separate "Orders" slot, and
-          the CRM view (customer record, dispatch, invoicing) is a customer
-          view, so this is where it belongs. The page itself is unchanged. */}
-      <Link
-        href="/admin/orders-crm"
-        className="flex items-center justify-between gap-4 bg-afs-bg-raised border border-afs-border rounded p-4 mb-6 hover:bg-afs-bg-surface transition-colors"
-      >
-        <div>
-          <p className="font-heading text-base text-afs-chrome-high">Orders &amp; invoicing</p>
-          <p className="font-body text-xs text-afs-chrome-mid mt-1">
-            Order records, dispatch and invoicing, by customer.
-          </p>
-        </div>
-        <span className="font-label text-xs text-afs-danger-on-dark shrink-0">Open &rarr;</span>
-      </Link>
-
-      <form method="GET" className="flex items-center gap-3 mb-6 flex-wrap">
-        <input
-          type="text"
-          name="q"
-          defaultValue={filters.search}
-          placeholder="Search name, company, or email…"
-          className="flex-1 min-w-[240px] bg-afs-bg-dim border border-afs-chrome-base rounded px-3 py-2.5 text-sm text-afs-chrome-high placeholder:text-afs-chrome-mid focus:border-afs-crimson outline-none font-body"
-        />
-        <select
-          name="role"
-          defaultValue={filters.role}
-          className="bg-afs-bg-overlay border border-afs-chrome-base rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body"
-        >
-          {ROLE_OPTIONS.map((r) => (
-            <option key={r} value={r}>
-              {r === 'all' ? 'All Roles' : r.charAt(0).toUpperCase() + r.slice(1)}
-            </option>
-          ))}
-        </select>
-        <select
-          name="tier"
-          defaultValue={filters.tier}
-          className="bg-afs-bg-overlay border border-afs-border rounded px-3 py-2.5 text-sm text-afs-chrome-high focus:border-afs-crimson outline-none font-body"
-        >
-          {TIER_OPTIONS.map((t) => (
-            <option key={t} value={t}>
-              {t === 'all' ? 'All Tiers' : t.charAt(0).toUpperCase() + t.slice(1)}
-            </option>
-          ))}
-        </select>
-        <button
-          type="submit"
-          className="bg-afs-crimson hover:bg-afs-crimson-hover text-white font-label font-semibold px-5 py-2.5 rounded text-sm transition-colors"
-        >
-          Filter
-        </button>
-        {(filters.search || filters.role !== 'all' || filters.tier !== 'all') && (
-          <Link href="/admin/customers" className="font-label text-xs text-afs-chrome-mid hover:text-afs-danger-on-dark">
-            Clear all
-          </Link>
-        )}
-      </form>
-
-      {rows.length === 0 ? (
-        <EmptyState title="No customers match this filter" description="Try a different search term or clear the filters." />
-      ) : (
-        <div className="bg-afs-bg-raised border border-afs-border rounded overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-afs-bg-surface border-b border-afs-border">
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">Name</th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
-                  Company
-                </th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">Email</th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">Role</th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">Tier</th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-right px-4 py-3">
-                  Orders
-                </th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
-                  Last Order
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id} className="border-b border-afs-border last:border-b-0 hover:bg-afs-bg-surface transition-colors">
-                  <td className="px-4 py-3">
-                    <Link href={`/admin/customers/${row.id}`} className="font-body text-sm text-afs-chrome-high hover:text-afs-danger-on-dark">
-                      {row.fullName}
-                    </Link>
-                  </td>
-                  <td className="font-body text-sm text-afs-chrome-mid px-4 py-3">{row.company ?? '—'}</td>
-                  <td className="font-data text-xs text-afs-chrome-mid px-4 py-3">{row.email}</td>
-                  <td className="px-4 py-3">
-                    <Badge variant={ROLE_VARIANT[row.role] ?? 'chrome'}>{row.role}</Badge>
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge variant={TIER_VARIANT[row.pricingTier] ?? 'chrome'}>{row.pricingTier}</Badge>
-                  </td>
-                  <td className="font-data text-sm text-afs-chrome-high text-right px-4 py-3">{row.totalOrders}</td>
-                  <td className="font-data text-xs text-afs-chrome-silver px-4 py-3">{formatDate(row.lastOrderAt)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
+    <LightWorkingArea>
+      <V7Customers
+        view={liveCustomers(rows, filters, picked)}
+        exportButton={<ExportCustomersCsvButton rows={rows} />}
+      />
+    </LightWorkingArea>
   );
 }

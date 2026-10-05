@@ -24,7 +24,11 @@ if (fs.existsSync(envLocalPath)) {
 }
 
 export default defineConfig({
-  testDir: './tests/e2e',
+  // './tests', not './tests/e2e': the v7 style gate lives in tests/visual/
+  // because it is not an end-to-end flow — it compares computed styles against
+  // the committed prototype. Both directories are discovered from here so one
+  // `playwright test` runs the behaviour specs and the appearance gate.
+  testDir: './tests',
   timeout: 30000,
   retries: 1,
   workers: 1,

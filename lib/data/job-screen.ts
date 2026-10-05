@@ -35,6 +35,15 @@ import { sourceArrivalLabel, sourceIconKey, type SourceIconKey } from '@/lib/dat
 import { shopSubStateFromJobStatuses, shopSubStateLabel, type ShopSubState } from '@/lib/data/workbench';
 import { waitingPhrase } from '@/lib/utils/waiting-time';
 import { geometryFingerprint } from '@/lib/flashdraft/geometry-fingerprint';
+import {
+  flashDraftButtonHint,
+  flashDraftButtonLabel,
+  flashDraftJobHref,
+  handoffCorrectionFromItem,
+  isTraceableImageType,
+  type JobHandoffCorrection,
+  type JobHandoffKind,
+} from '@/lib/flashdraft/job-handoff';
 import { getResolvedPriceBook } from '@/lib/pricing/db';
 import { quoteFromPriceBook } from '@/lib/pricing/quote-math';
 import { toQuoteItemInputs, type JobLineItemGeometry } from '@/lib/pricing/quote-inputs';
@@ -65,24 +74,41 @@ export interface PastProfile {
 }
 
 /**
- * Where "Open in FlashDraft" goes.
+ * WHERE "DESIGN IN FLASHDRAFT" GOES — and it now always goes somewhere.
  *
- * The existing route contract is `?modifyProfile=<saved_configurations.id>`
- * (Part 1, `716b3fb`; already used by /admin/search and the Profile Passport
- * modal) — it opens that saved profile as a NEW unlocked draft. A quote request
- * has no stored link to a saved profile, so the link is resolved through the
- * one real identity the two share: `geometry_fingerprint`, the
- * orientation-independent shape hash from migration 028. Same shape, same
- * customer, same fingerprint.
+ * THIS USED TO BE A DEAD END MOST OF THE TIME. The link was
+ * `?modifyProfile=<saved_configurations.id>`, resolved by matching the job's
+ * `geometry_fingerprint` against the customer's saved profiles. That only
+ * exists when the customer ALSO saved their drawing as a profile, so a job
+ * carrying perfectly good geometry on its own line item got a `needbox` reading
+ * "Open in FlashDraft is not available here" — and a field-app job, which
+ * carries a photograph and no geometry at all, got the same dead end with no
+ * way forward but drawing it from memory on a blank canvas somewhere else.
  *
- * When there is no match the button says so instead of linking somewhere
- * plausible. Sending an admin into an empty canvas that LOOKS like it holds the
- * customer's drawing is worse than telling them the drawing was never saved as
- * a profile.
+ * The link is now keyed on the QUOTE REQUEST, which every job has
+ * (lib/flashdraft/job-handoff.ts), and the three `kind`s say honestly what the
+ * estimator will find when they arrive:
+ *
+ *   'geometry'  — the order's drawing, loaded and editable.
+ *   'reference' — a blank canvas with the customer's photo behind it to trace.
+ *   'metadata'  — a blank canvas with the order's specification filled in.
+ *
+ * NOTHING IS INVENTED to promote a job up that list. `matchedProfileName` is
+ * still resolved by fingerprint and still shown, because "this is the same
+ * shape as a profile you already have" is worth knowing — but it is now
+ * information beside the button rather than the thing that decides whether
+ * there is one.
  */
-export type FlashDraftLink =
-  | { kind: 'modify'; href: string; matchedProfileName: string }
-  | { kind: 'unavailable'; reason: string };
+export interface FlashDraftLink {
+  href: string;
+  label: string;
+  hint: string;
+  kind: JobHandoffKind;
+  /** The saved profile this job's drawing matches, if any. Informational. */
+  matchedProfileName: string | null;
+  /** Who last corrected this line in FlashDraft, and when. Never invented. */
+  correction: JobHandoffCorrection | null;
+}
 
 export interface JobScreenData {
   id: string;
@@ -118,6 +144,20 @@ export interface JobScreenData {
     anyUnsure: boolean;
     overallConfidence: TakeoffConfidence | null;
     processingNotes: string | null;
+    /**
+     * TRUE ONLY WHEN A PARSER ITEM REALLY IS A LINE OF THIS ORDER.
+     *
+     * `takeoff_uploads.result_items` and `quote_requests.line_items` are two
+     * different arrays: the first is what the AI read out of the upload, the
+     * second is what the request carries. They correspond one-to-one in the
+     * ordinary case and NOT AT ALL for a field-app job, which arrives with
+     * `line_items = []` however many items the parser found.
+     *
+     * A per-line "Fix in FlashDraft" is therefore only offered when the counts
+     * match. Otherwise every per-line link would resolve to the same line and
+     * silently claim to be fixing a different one.
+     */
+    perItemAddressable: boolean;
   } | null;
 
   /** The uploaded drawing/photo this job arrived with, if any. Lazy-rendered. */
@@ -290,6 +330,7 @@ export async function getJobScreen(
           anyUnsure: hasUnsureRows(rows),
           overallConfidence: isTakeoffConfidence(u.overall_confidence) ? u.overall_confidence : null,
           processingNotes: u.processing_notes,
+          perItemAddressable: resultItems.length > 0 && resultItems.length === items.length,
         };
       }
       // Service role: the point is cross-customer admin access, which RLS
@@ -320,20 +361,32 @@ export async function getJobScreen(
     }));
   }
 
-  // "Open in FlashDraft" — resolved through geometry_fingerprint, never guessed.
-  let flashDraftLink: FlashDraftLink = {
-    kind: 'unavailable',
-    reason: 'This job has no drawn geometry, so there is nothing to open in FlashDraft.',
-  };
-  const drawnItem = items.find((i) => i.points !== null);
+  // "Design in FlashDraft" — see FlashDraftLink's own comment above.
+  //
+  // The ITEM INDEX is the first line that carries drawn geometry, or 0. An
+  // order with one drawn line and three described ones should open the drawn
+  // one; an order with none opens the first line, which is the one the
+  // estimator is about to draw.
+  const drawnIndex = items.findIndex((i) => i.points !== null);
+  const handoffIndex = drawnIndex >= 0 ? drawnIndex : 0;
+  const drawnItem = drawnIndex >= 0 ? items[drawnIndex] : undefined;
+
+  // An image the customer sent is something to trace; a PDF or a HEIC is not.
+  // ONE predicate, shared with the API route that actually serves the image, so
+  // the label here cannot promise a photo the canvas will not show.
+  const hasTraceableImage = !!attachment?.url && isTraceableImageType(attachment.fileType);
+  const handoffKind: JobHandoffKind = drawnItem?.points
+    ? 'geometry'
+    : hasTraceableImage
+      ? 'reference'
+      : 'metadata';
+
+  // Still resolved through geometry_fingerprint, still never guessed — but now
+  // it decorates the button instead of gating it.
+  let matchedProfileName: string | null = null;
   if (drawnItem?.points) {
     const fingerprint = geometryFingerprint({ points: drawnItem.points });
-    if (!fingerprint) {
-      flashDraftLink = {
-        kind: 'unavailable',
-        reason: 'This drawing could not be matched to a saved profile.',
-      };
-    } else {
+    if (fingerprint) {
       let q = supabase
         .from('saved_configurations')
         .select('id, name')
@@ -343,21 +396,18 @@ export async function getJobScreen(
       if (row.user_id) q = q.eq('user_id', row.user_id);
       const { data: match } = await q;
       const hit = ((match ?? []) as { id: string; name: string | null }[])[0];
-      flashDraftLink = hit
-        ? {
-            kind: 'modify',
-            // ?admin=1 matches what /admin/search already sends.
-            href: `/studio/draft?admin=1&modifyProfile=${hit.id}`,
-            matchedProfileName: (hit.name ?? '').trim() || 'Untitled profile',
-          }
-        : {
-            kind: 'unavailable',
-            reason:
-              'The customer drew this but never saved it as a profile, so there is no saved ' +
-              'drawing to open. Their past profiles are below.',
-          };
+      if (hit) matchedProfileName = (hit.name ?? '').trim() || 'Untitled profile';
     }
   }
+
+  const flashDraftLink: FlashDraftLink = {
+    href: flashDraftJobHref(row.id, handoffIndex),
+    label: flashDraftButtonLabel(handoffKind, row.source_tool),
+    hint: flashDraftButtonHint(handoffKind, row.source_tool),
+    kind: handoffKind,
+    matchedProfileName,
+    correction: handoffCorrectionFromItem((row.line_items ?? [])[handoffIndex] ?? null),
+  };
 
   // Shop sub-state from the real machine_jobs rows.
   const { data: jobs } = await supabase.from('machine_jobs').select('status').eq('quote_request_id', row.id);

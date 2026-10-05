@@ -1,8 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { requireAdminUser } from '@/lib/admin/auth';
 import { getCreditApplications } from '@/lib/data/credit';
-import Badge, { type BadgeVariant } from '@/components/ui/Badge';
-import EmptyState from '@/components/ui/EmptyState';
+import LightWorkingArea from '@/components/admin/LightWorkingArea';
 import CreditApplicationRowActions from '@/components/admin/CreditApplicationRowActions';
 
 const STATUS_LABEL: Record<string, string> = {
@@ -12,11 +11,16 @@ const STATUS_LABEL: Record<string, string> = {
   denied: 'Denied',
 };
 
-const STATUS_VARIANT: Record<string, BadgeVariant> = {
-  submitted: 'warning',
-  under_review: 'info',
-  approved: 'success',
-  denied: 'error',
+/**
+ * v7's own pill modifiers, as a map to the WHOLE className — the contrast gate
+ * expands class maps but counts a runtime template as `unresolved`
+ * (CLAUDE.md rule #28).
+ */
+const STATUS_PILL: Record<string, string> = {
+  submitted: 'pill a',
+  under_review: 'pill b',
+  approved: 'pill g',
+  denied: 'pill r',
 };
 
 function formatDate(iso: string): string {
@@ -30,57 +34,58 @@ export default async function AdminCreditApplicationsPage() {
   const rows = await getCreditApplications(supabase);
 
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="font-heading text-3xl text-afs-chrome-high">Credit Applications</h1>
-        <p className="font-body text-sm text-afs-chrome-mid mt-1">Net-terms applications submitted by customers.</p>
+    // STAGE G — Credit Applications lives under "More" and takes the same v7
+    // shell and look as the top-level screens: `.greet`, a `.panel`, and the
+    // bare <table> v7 styles itself. v7 has no equivalent screen, so there is
+    // nothing to port markup from — what it inherits is the shell and the
+    // component vocabulary, which is what "the same look" means here.
+    <LightWorkingArea>
+      <div className="greet">
+        <div>
+          <h1 className="t">Credit Applications</h1>
+          <p className="sub">Net-terms applications submitted by customers.</p>
+        </div>
       </div>
 
       {rows.length === 0 ? (
-        <EmptyState title="No applications yet" description="Submitted credit applications will appear here." />
+        <div className="none">No applications yet. Submitted credit applications will appear here.</div>
       ) : (
-        <div className="bg-afs-bg-raised border border-afs-border rounded overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-afs-bg-surface border-b border-afs-border">
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
-                  Company
-                </th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-right px-4 py-3">
-                  Requested
-                </th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
-                  Status
-                </th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
-                  Submitted
-                </th>
-                <th className="font-heading text-xs uppercase tracking-wide text-afs-chrome-mid text-left px-4 py-3">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id} className="border-b border-afs-border last:border-b-0 hover:bg-afs-bg-surface transition-colors">
-                  <td className="font-body text-sm text-afs-chrome-high px-4 py-3">{row.companyName}</td>
-                  <td className="font-data text-sm text-afs-chrome-high text-right px-4 py-3">
-                    {row.requestedLimit != null ? `$${row.requestedLimit.toLocaleString()}` : '—'}
-                    {row.requestedTerms != null ? ` @ Net ${row.requestedTerms}` : ''}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge variant={STATUS_VARIANT[row.status] ?? 'chrome'}>{STATUS_LABEL[row.status] ?? row.status}</Badge>
-                  </td>
-                  <td className="font-data text-xs text-afs-chrome-silver px-4 py-3">{formatDate(row.submittedAt)}</td>
-                  <td className="px-4 py-3">
-                    <CreditApplicationRowActions application={row} />
-                  </td>
+        <section className="panel">
+          <div className="tw">
+            <table>
+              <thead>
+                <tr>
+                  <th>Company</th>
+                  <th className="n">Requested</th>
+                  <th>Status</th>
+                  <th>Submitted</th>
+                  <th>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.id}>
+                    <td>{row.companyName}</td>
+                    <td className="n">
+                      {row.requestedLimit != null ? `$${row.requestedLimit.toLocaleString()}` : '—'}
+                      {row.requestedTerms != null ? ` @ Net ${row.requestedTerms}` : ''}
+                    </td>
+                    <td>
+                      <span className={STATUS_PILL[row.status] ?? 'pill'}>
+                        {STATUS_LABEL[row.status] ?? row.status}
+                      </span>
+                    </td>
+                    <td>{formatDate(row.submittedAt)}</td>
+                    <td>
+                      <CreditApplicationRowActions application={row} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
       )}
-    </div>
+    </LightWorkingArea>
   );
 }

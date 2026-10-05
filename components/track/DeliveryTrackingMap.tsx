@@ -171,12 +171,17 @@ function ServiceAreaInfoPanel() {
         <a href="tel:+15123724900" className="font-body text-xs text-afs-crimson hover:underline">
           (512) 372-4900
         </a>
-        <span className="text-gray-400 text-xs">|</span>
+        {/* afs-ink-700, not Tailwind's gray-400: rule #4 allows no default Tailwind
+            colours, and gray-400 measured 2.54:1 on white once the admin
+            Deliveries panel started rendering this component on a light card. */}
+        <span className="text-afs-ink-700 text-xs" aria-hidden="true">
+          |
+        </span>
         <a
-          href="mailto:tricia@architecturalflashingsupply.com"
+          href="mailto:trica@architecturalflashingsupply.com"
           className="font-body text-xs text-afs-crimson hover:underline"
         >
-          tricia@architecturalflashingsupply.com
+          trica@architecturalflashingsupply.com
         </a>
       </span>
     </div>

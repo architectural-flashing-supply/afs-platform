@@ -226,32 +226,38 @@ describe('the morning summary above the lanes', () => {
     ).toBe('Good morning, Steve.');
   });
 
-  it('prints the chips the page really renders, plural', () => {
+  it("prints the chips in v7's words and v7's order", () => {
+    // Wording and order are prototype v7's (`pageWorkbench()`, line 1283): the
+    // thing to act on comes first and is phrased as the shop says it — "2 ready
+    // for the machine", not "2 approvals ready for the machine".
     const chips = summaryChips(buildSummary({ quotesToWrite: 3, approvalsReady: 2, inTheShop: 4 }, 'Steve', NOW));
     expect(chips.map((c) => c.text)).toEqual([
-      '3 quotes to write',
-      '2 approvals ready for the machine',
+      '2 ready for the machine',
+      '3 to quote',
       '4 jobs in the shop',
     ]);
-    expect(chips.map((c) => c.tone)).toEqual(['plain', 'go', 'plain']);
+    expect(chips.map((c) => c.tone)).toEqual(['go', 'plain', 'plain']);
   });
 
-  it('prints the chips singular at one', () => {
+  it('does not pluralise the two counting chips, because v7 does not', () => {
     const chips = summaryChips(buildSummary({ quotesToWrite: 1, approvalsReady: 1, inTheShop: 1 }, 'Steve', NOW));
     expect(chips.map((c) => c.text)).toEqual([
-      '1 quote to write',
-      '1 approval ready for the machine',
+      '1 ready for the machine',
+      '1 to quote',
       '1 job in the shop',
     ]);
   });
 
-  it('omits the green chip entirely when nothing is ready for the machine', () => {
-    // The old `line` field asserted "0 approvals ready for the machine" — text
-    // the UI never shows. The chip is absent, not zeroed.
+  it('keeps the approvals chip at zero, but turns it grey and reworded', () => {
+    // v7 shows this chip EITHER WAY — green with a beacon when there is
+    // something to send, plain "No approvals waiting" when there is not. An
+    // earlier version dropped it entirely at zero so the green chip kept its
+    // meaning; v7 solves that by changing the chip instead, which also stops
+    // the row reflowing as work arrives.
     const chips = summaryChips(buildSummary({ quotesToWrite: 2, approvalsReady: 0, inTheShop: 0 }, 'Steve', NOW));
-    expect(chips.map((c) => c.text)).toEqual(['2 quotes to write', '0 jobs in the shop']);
+    expect(chips.map((c) => c.text)).toEqual(['No approvals waiting', '2 to quote', '0 jobs in the shop']);
     expect(chips.some((c) => c.tone === 'go')).toBe(false);
-    expect(chips.some((c) => c.text.includes('approval'))).toBe(false);
+    expect(chips.some((c) => c.text.startsWith('0 ready'))).toBe(false);
   });
 });
 
@@ -265,7 +271,7 @@ describe(`Done auto-archives after ${DONE_ARCHIVE_DAYS} days`, () => {
 });
 
 describe('the light working area', () => {
-  it('names exactly the five screens converted so far (v2-02 + v2-04 + v2-05)', () => {
+  it('names exactly the screens converted so far (v2-02 + v2-04 + v2-05 + v7 Phase 2 + v7 Stage G)', () => {
     expect(LIGHT_WORKING_AREA_SCREENS.map((s) => s.screen)).toEqual([
       'Workbench',
       'Job screen',
@@ -274,13 +280,47 @@ describe('the light working area', () => {
       'Deliveries',
       // v2-05 — the thumbnail rail replaced the interim results table.
       'Search',
+      'Find a past profile',
+      // v7 Phase 2 - the two office lists.
+      'Quotes',
+      'Orders',
+      // v7 Stage G - Customers and Pricing (top-level in v7's nav) and the two
+      // screens under More, which take the same shell and look.
+      'Customers',
+      'Pricing',
+      'Credit Applications',
+      'Bid Monitor',
     ]);
   });
   it('paints light AND cancels the shell gunmetal padding, or it would float in a dark frame', () => {
-    expect(LIGHT_WORKING_AREA_CLASS).toContain('bg-afs-bg-band');
-    expect(LIGHT_WORKING_AREA_CLASS).toContain('text-afs-ink-900');
-    expect(LIGHT_WORKING_AREA_CLASS).toContain('-mt-16');
-    expect(LIGHT_WORKING_AREA_CLASS).toContain('-mx-6');
-    expect(LIGHT_WORKING_AREA_CLASS).toContain('min-h-screen');
+    expect(LIGHT_WORKING_AREA_CLASS).toContain('bg-afs-v7-bg');
+    expect(LIGHT_WORKING_AREA_CLASS).toContain('text-afs-v7-ink');
+    // `min-h-full grow`, NOT `min-h-screen`. The viewport height was applied to
+    // an element sitting BELOW a 65px header, so every short page came out 65px
+    // taller than the prototype's — the whole-screen pixel gate put the Quotes
+    // list at 8.23% on that alone. It fills `<main>` now, which AdminShell
+    // makes a growing flex column; all three pieces are needed and AdminShell's
+    // comment says why. Asserted as a pair so a half-revert fails here.
+    expect(LIGHT_WORKING_AREA_CLASS).toContain('min-h-full');
+    expect(LIGHT_WORKING_AREA_CLASS).toContain('grow');
+    expect(LIGHT_WORKING_AREA_CLASS).not.toContain('min-h-screen');
+  });
+
+  it("cancels exactly v7's .wrap padding — 20px sides and top, 60px bottom", () => {
+    // The shell's <main> is now v7's own `.wrap` (padding: 20px 20px 60px), not
+    // the old `pt-16 px-6 lg:px-8 pb-16`. A cancellation that does not match
+    // leaves a gunmetal gutter beside every light screen, or pulls content
+    // under the sticky header — both look like styling accidents rather than a
+    // mismatch with the shell, so the numbers are asserted here.
+    for (const cls of ['-mt-5', 'pt-5', '-mx-5', 'px-5', '-mb-[60px]', 'pb-[60px]']) {
+      expect(LIGHT_WORKING_AREA_CLASS).toContain(cls);
+    }
+    // The old values must be gone, or the two paddings fight.
+    for (const stale of ['-mt-16', 'pt-16', '-mx-6', 'lg:-mx-8', 'pb-16']) {
+      expect(
+        LIGHT_WORKING_AREA_CLASS,
+        `${stale} cancels the pre-v7 shell padding, which no longer exists.`,
+      ).not.toContain(stale);
+    }
   });
 });

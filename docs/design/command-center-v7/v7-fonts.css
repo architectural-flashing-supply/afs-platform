@@ -1,0 +1,29 @@
+/*
+ * v7-fonts.css — bind v7's two font tokens to the SELF-HOSTED families.
+ *
+ * This is not a design change. v7 loads Barlow and Barlow Semi Condensed with a
+ * render-blocking <link> to fonts.googleapis.com. This app loads the identical
+ * two families through next/font/google in app/layout.tsx, which subsets them,
+ * self-hosts the files and emits a hashed family name behind a CSS variable.
+ *
+ * So the only thing that changes is WHERE the bytes come from. The families,
+ * the weights and v7's own fallback stacks are preserved exactly:
+ *
+ *   --display  "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif
+ *   --body     Barlow, "Helvetica Neue", Arial, sans-serif
+ *
+ * next/font's variable resolves to something like `__Barlow_Semi_Condensed_a1b2c3`,
+ * so a computed font-family here will not be the literal string the prototype
+ * reports. tests/visual/v7-style-gate.spec.ts normalises next/font's hashed
+ * names back to the real family before comparing — see `normaliseFontFamily`
+ * there — so the gate still asserts the typeface rather than excusing it.
+ *
+ * The literal family names are kept as the next fallback after each variable:
+ * if next/font is ever removed, the stack degrades to v7's own behaviour (a
+ * locally installed Barlow) instead of to Arial.
+ */
+:root {
+  --display: var(--font-barlow-semi-condensed), 'Barlow Semi Condensed', 'Arial Narrow', Arial,
+    sans-serif;
+  --body: var(--font-barlow), Barlow, 'Helvetica Neue', Arial, sans-serif;
+}

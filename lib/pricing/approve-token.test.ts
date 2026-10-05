@@ -185,8 +185,43 @@ describe('TAMPERED — rejected', () => {
 
   it('rejects a single flipped character in the signature', () => {
     const { token } = signApproveToken(QUOTE_ID, { secret: SECRET, now: NOW });
-    const flipped = token.slice(0, -1) + (token.endsWith('A') ? 'B' : 'A');
-    const verdict = verifyApproveToken(flipped, { secret: SECRET, now: NOW });
+    const dot = token.lastIndexOf('.');
+    const payload = token.slice(0, dot);
+    const signature = token.slice(dot + 1);
+
+    // FLIP A CHARACTER IN THE MIDDLE, NOT THE LAST ONE — and this is the whole
+    // point of the test rather than a detail.
+    //
+    // This used to flip the token's FINAL character ('A' <-> 'B') and failed
+    // intermittently. It was never flaky: it was deterministically wrong
+    // whenever the signature ended in a character whose flip the decoder throws
+    // away. base64url packs 6 bits per character, but the signature is a
+    // 32-byte HMAC — 256 bits — and 43 characters carry 258. The final
+    // character therefore has TWO bits that decode to nothing, and 'A'
+    // (000000) and 'B' (000001) differ only in the lowest of them. The bytes
+    // come out identical, the signature still verifies, and the test fails
+    // having tampered with nothing. The nonce is random, so the final character
+    // differs run to run — which is what made a deterministic bug look
+    // intermittent.
+    //
+    // A character in the middle has all six bits inside the decoded bytes, so
+    // flipping one always changes them.
+    const i = Math.floor(signature.length / 2);
+    const flippedSignature =
+      signature.slice(0, i) + (signature[i] === 'A' ? 'B' : 'A') + signature.slice(i + 1);
+
+    // PROVE IT. The test asserts that the edit really changed the signature's
+    // bytes before asserting that verification rejects it — so it can never
+    // again pass or fail on a character the decoder ignores.
+    const decode = (b64: string): Buffer =>
+      Buffer.from(b64.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+    expect(flippedSignature).not.toBe(signature);
+    expect(decode(flippedSignature).equals(decode(signature))).toBe(false);
+
+    const verdict = verifyApproveToken(`${payload}.${flippedSignature}`, {
+      secret: SECRET,
+      now: NOW,
+    });
     expect(verdict.ok).toBe(false);
     if (verdict.ok) return;
     expect(verdict.reason).toBe('tampered');

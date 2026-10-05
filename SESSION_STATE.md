@@ -24,7 +24,196 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
-## COMMAND CENTER V2 — PROMPT v2-06 (2026-09-30) — CURRENT HANDOFF
+## JOB -> FLASHDRAFT HANDOFF (2026-10-03, branch `cc-flashdraft-handoff`) — CURRENT HANDOFF
+
+**The FlashDraft button on a Command Center job now opens the real editor with
+that order's profile in it. Before this run it was, depending on the screen,
+missing, inert, or a link to a blank canvas.**
+
+### THE ONE THING TO CHECK FIRST
+
+Open `http://localhost:3000/admin/command-center`, click any job, and press the
+red **Design in FlashDraft** at the top right. It should open `/studio/draft` with
+the order's material, gauge, length, quantity and job info filled in — and, if the
+customer drew it, the actual profile on the canvas, editable. Save it and the
+correction is written back onto the job, which then says who corrected it and when.
+
+**This is IMPLEMENTED, UNCONFIRMED by this document's own standard.** Gates and
+screenshots are in STATE_OF_THE_BUILD.md's 2026-10-03 entry; Reid has not pressed
+the button himself.
+
+### THE ANSWER TO "THE MARTINEZ BUILDERS ORDER SHOWS A STATIC IMAGE"
+
+**That screen is the FIXTURE demo, not live data.** "Martinez Builders" exists only
+in `lib/fixtures/command-center-v7.ts` (job 413) and in the v7 prototype; the live
+database has **zero** `field_photo_quote` rows. It is reachable only at
+`?fixture=v7` with `CC_FIXTURE=1` set — which it is, in `.env.local`.
+
+**The fixture screens were deliberately left alone.** The v7 pixel gate measures
+them against the prototype (rule #34), and a fixture job is not a real quote
+request, so its button has no handoff to build. **Looking at `?fixture=v7` again
+will show no change. The live Job screen behind it is where the fix is.**
+
+### THREE THINGS LEFT OPEN — PENDING REID
+
+1. **The field app saves no geometry, by design.** `app/api/field/quote-request`
+   inserts `line_items: []`; `app/field/contractor/page.tsx` is "strictly photo +
+   optional job-identity fields — no FlashDraft, no drawing tool." The handoff
+   therefore opens BLANK with the photo behind the canvas to trace, and invents
+   nothing. Closing the gap means either a drawing step in the field app or an AI
+   takeoff pass over the photo writing `takeoff_uploads.result_items`. **Not decided
+   here.**
+2. **v7's side-by-side "original email beside this reading" still has no live
+   route.** `source-sketch`/`source-photo` are `liveRoute: null` in
+   `SCREEN_MANIFEST.json`. Reid chose on 2026-10-03 to put the button where the
+   parser takeoff actually lives instead of building that screen. **The fixture Job
+   screen still links to `/admin/command-center/job/412/source`, which does not
+   exist — a dangling link, unfixed.**
+3. **The live Workbench still has no FlashDraft button on its cards.** v7 puts one
+   on every `new`-lane card (prototype line 1250). `liveCardButtons` emits five
+   action kinds and none is v7's `fd`. Out of scope for this run; the Job screen one
+   click away now does the job.
+
+### A SECURITY DEFECT THIS RUN FOUND AND FIXED — WORTH REMEMBERING
+
+The new admin GET route was being **served from Next's route cache to an
+unauthenticated caller**: 200, with another customer's job on it. The admin check
+ran once for the first authorised caller and every later request was answered from
+the cached body. `export const dynamic = 'force-dynamic'` fixes it, and every
+comparable admin read here already declared it.
+
+**CLAUDE.md rule #22 is about the same hazard one layer down** (the service-role
+Supabase client and `cache: 'no-store'`). It should be read as covering the route
+layer too. **Any new admin API route that returns per-session data needs
+`force-dynamic`, and a signed-out probe in its spec is what proves it** — note that
+`browser.newContext()` inherits `test.use({ storageState })`, so such a probe needs
+`storageState: undefined` explicitly or it is signed in and guards nothing.
+
+### THE RED PLAYWRIGHT TESTS: WAS 5, NOW 4 — ALL PROVEN PRE-EXISTING
+
+Every one was **proven** pre-existing by re-running it with this run's changes
+stashed at HEAD, not assumed from its file name. Four remain and are untouched
+here: `homepage.spec.ts` x2 (hero CTAs, header logo) and `production-queue.spec.ts`
+x2 (quick advance, rush ordering).
+
+**The fifth was a real bug and is now FIXED** (Reid's call, same day — see
+STATE_OF_THE_BUILD.md's 2026-10-03 entry). `performSave`'s `!savedProfileId` was
+doing double duty: it meant "brand-new profile with no history" until Part 1 made a
+modified draft INSERT on purpose, after which every modified draft was saved as
+revision 1 under a banner reading "rev 5". **Revision is lineage depth** — migration
+027, `loadForModify`'s comment, the banner and the info panel all already said so;
+the row was the outlier.
+
+**The rule now lives in `lib/flashdraft/revision.ts` with a test**, because an
+inline ternary in a 4,800-line component is a rule nothing can assert — which is
+exactly how it stayed wrong. Its own test then caught a flaw in the new guard
+(`Math.max(1, Math.floor(NaN))` is `NaN`, not 1). `asDuplicate` was deliberately
+left alone.
+
+### FILES THAT MATTER
+
+```
+lib/flashdraft/job-handoff.ts                              NEW  the one contract
+lib/flashdraft/job-handoff.test.ts                         NEW  28 unit tests
+app/api/admin/command-center/job-handoff/[id]/route.ts     NEW  GET + POST
+tests/e2e/flashdraft-job-handoff.spec.ts                   NEW  7 e2e, self-cleaning
+app/studio/draft/page.tsx                                  ?loadRequest=, write-back, underlay
+lib/data/job-screen.ts                                     flashDraftLink always resolves now
+app/admin/command-center/job/[id]/page.tsx                 the red button x3 + per-line
+lib/ai/takeoff-confidence.ts                               AiReadRow.itemIndex / .firstOfItem
+lib/flashdraft/draw-profile-scene.ts                       drawBackground?: boolean
+lib/flashdraft/revision.ts                                 NEW  the revision rule, extracted
+lib/flashdraft/revision.test.ts                            NEW  8 unit tests
+```
+
+**No migration was needed and none was written.** The correction stamp lives in the
+existing `quote_requests.line_items` JSONB, because it is per-line and a column
+would be per-request.
+
+---
+
+## v7 PIXEL GATE (2026-10-02, branch `cc-v7-pixel`) — PREVIOUS HANDOFF
+
+**The acceptance gate was wrong, not the complaint. It has been replaced.**
+
+Reid's report was "nothing matches" while `tests/visual/v7-style-gate.spec.ts`
+passed 66 of 66. Both were true: that gate compares hand-picked element pairs on
+hand-picked properties, and every property it was pointed at really did match.
+It cannot see a missing drawing, an absent pill, a two-panel rail where v7 has
+three, a logo at the wrong aspect ratio, or a screen that is a different screen.
+
+The authority is now a **whole-screen pixel diff** against the untouched
+prototype — `tests/visual/v7-pixel-gate.spec.ts`, CLAUDE.md **rule #34** — over
+a manifest of **all 54 distinct v7 states**. Pass is 1.5% of pixels.
+
+### THE NUMBERS
+
+| | BEFORE | AFTER |
+|---|---|---|
+| MATCHING | **0 of 35** | **35 of 35** |
+| Range | 8.26% – 96.04% | 0.14% – 1.37% |
+| Unmeasurable | 8 (Job screens 404'd) | 0 |
+
+The threshold was never loosened, no mask was ever used, and no baseline was
+ever edited. The before column was measured by checking the whole UI back out at
+the commit where the harness landed, with the final harness, so the improvement
+is the port and not the gate.
+
+### WHAT REID SHOULD LOOK AT
+
+1. **Open the two side by side.** `pnpm dev`, then
+   `http://localhost:3000/admin/command-center?fixture=v7` beside
+   `docs/design/command-center-v7/AFS_Command_Center_Prototype_v7.html`. Both
+   show the SAME sample data, so anything that differs is the port. Click
+   through every nav item and a job card. Drop `?fixture=v7` for real data in the
+   same layout.
+2. **The header logo changed on the Command Center only.** v7's is a tighter,
+   wider crop (342x134 vs 1536x1024). That one file was why every header element
+   right of the brand sat 35px off on every screen. `/afs-logo.png` is untouched
+   everywhere else — marketing site, sign-in, tracking page, bid PDF.
+3. **Customers is now a master-detail**, not a filtered table. Its role filter,
+   tier filter and CSV export all survived, inside v7's own elements. This is the
+   biggest change to a screen's shape and the one most worth a second opinion.
+4. **Four screens deliberately keep live behaviour over v7's look**, and each is
+   argued in `docs/design/V7_PIXEL_REPORT.md` §4 so you can overrule any of them:
+   the Job screen's action pane, the Deliveries map, Pricing and Settings. The
+   short version: v7's versions of those fake things this app really does, and
+   one of them reaches a bending machine.
+
+### DECISIONS MADE WITHOUT ASKING, AS INSTRUCTED
+
+Every one is recorded in `docs/design/V7_PIXEL_REPORT.md`:
+
+- **v7's own logo file** was extracted to `public/afs-logo-command-center.png`
+  and used in the Command Center header. Rule #33 says v7 wins appearance
+  conflicts, and the existing PNG is recorded as a fallback in DATA BLOCKERS.
+- **Customers became v7's master-detail**, keeping the directory's real features
+  inside it rather than dropping either.
+- **v7's six Settings toggles were NOT built.** Each needs a settings table and
+  a writer; a switch that flips and is forgotten on reload is worse than none on
+  a screen whose settings decide whether a customer gets an email.
+- **v7's `.foot` sample-data sentence is fixture-only** — it would be a false
+  statement over real customer names.
+- The pixel baselines are **gitignored**: the gate re-renders them from the
+  committed prototype every run, and there is deliberately no update mode.
+
+### WHAT IS NOT DONE
+
+- **Sixteen v7 states have no live route** and the gate names each: the operator
+  screen (4), the email-source split (2), the document modals (2), the FlashDraft
+  modals (2, a deliberate architectural difference), the Outlook modals (2, no
+  Graph code), change orders and addenda (2, gap-audit items 8 and 9), and the
+  schedule/follow-up modals (2, inline in the live app). All pre-existing.
+- **Gap-audit items 6-9** (Tricia's money trail, change orders, addenda) are
+  untouched — this run was UI layer only.
+- **NEXT SCREEN, if this is picked up again:** there is none in the manifest.
+  Every screen with a live route measures under 1.5%. The next work is either
+  Reid's confirmation, or building one of the sixteen missing states — the
+  operator screen is the largest and the most used by the shop.
+
+---
+
+## COMMAND CENTER V2 — PROMPT v2-06 (2026-09-30) — EARLIER HANDOFF
 
 Hardening and the consolidation. Nothing new to click; four audit findings
 closed, a contrast check that fails the build, and the governance stack brought
@@ -9297,3 +9486,483 @@ This closes the "Still open for Reid" item from the previous entry — the
 
 **Resume at v2-02.** v2-01 is complete and verified; re-running it would re-run
 a destructive clean slate against an already-clean database.
+
+---
+
+## 2026-10-01 — Command Center v7 gap audit (FORGE 2.0, branch `command-center-v7`)
+
+Read-only run from `main` at `256eca1`. Deliverable:
+`docs/COMMAND_CENTER_V7_GAP_AUDIT.md`. No application code touched; the only
+other edits are this file and STATE_OF_THE_BUILD.md.
+
+**Two things in the brief did not match reality, and both were corrected rather
+than worked around.**
+
+1. **The prototype was not at the given path.** It lives under a
+   `Claude outputs\` subfolder the brief omitted. Found by searching rather than
+   guessing: 2,225 lines, 303 KB, modified today at 18:06.
+2. **The brief repeated the `trica@` misspelling of Tricia's address — and so
+   does v7 itself, at line 850.** The live code is correct (`lib/data/office.ts`)
+   and the V2 spec records Reid settling it on 2026-09-30; that fix landed in the
+   *v2* prototype and never carried into v7. v7 also prints the wrong address to
+   the user (line 1590) and onto every quote and invoice (line 1869). Nothing
+   propagated it here; it is owner question #1 and every phase of the plan reads
+   `officeInvoiceEmail()`.
+
+**The most consequential audit finding is not a missing feature but a
+divergence.** The live app creates the invoice at **customer approval**
+(`app/api/quote-approve/[token]/route.ts:210`); v7 creates it at
+**shop-finish**. Both already email something at the right moments — the office
+copy at creation, the customer invoice at shop-finish — so this reads as "built"
+until the timing is compared. It bills differently the moment a change order or
+addendum lands in between, so it is written up as a decision for Reid, not a bug
+to fix silently.
+
+**The Microsoft blocker is much smaller than assumed.** Only the Workbench's
+Outlook inbox rail needs Graph. Items 6-9 (estimate to Tricia, reconciliation,
+change orders, addenda) all run on Resend, which is already wired. None of the
+six phases should wait for the 2026-10-02 tenant separation.
+
+Change orders and addenda returned **zero** matches across `app/ lib/
+components/` — genuinely absent, not partially built. `/admin/orders` and
+`/admin/pricing` exist as pages but are **unlinked** from `lib/data/admin-nav.ts`,
+which is the kind of gap that reads as "missing" from the UI and "built" from the
+filesystem; both are recorded as Partial with the path and the reason.
+
+Phase 4 (change orders) is flagged as the highest-risk item in the plan: voiding
+an approval interacts directly with rule #14's single-door guard, and the static
+single-door test must stay green with the new route kept **off** its allow-list.
+
+**Gates:** `pnpm tsc --noEmit` exit 0 (unchanged — no code edited);
+`git diff --stat` confirms docs only. Committed to `command-center-v7` and
+pushed. Not merged, not deployed; `products-page` untouched.
+
+
+---
+
+## 2026-10-01 - v7 Phase 0 + Phase 2 (FORGE 2.0, branch `command-center-v7`)
+
+Two things in this run are worth more than the feature work.
+
+**The address reversal contradicted three governance records, and was flagged
+before anything was edited.** The spec, CLAUDE.md rule #21 and the v2-01 entry
+all said `tricia@` was correct; the instruction said the opposite and told me to
+fix the comment calling `trica` a misspelling. That is Reid's call on his own
+mailbox, so it was made - 31 occurrences across 19 files, 0 remaining - but it is
+recorded as a REVERSAL in every one of those documents rather than silently
+flipped, because a wrong auto-invoice address is a live-money error in either
+direction. The stale prose now warns the next reader not to change it back.
+
+**It also inverted two FORGE gates.** `queue.yaml` had two scanners that failed
+the build on finding `trica@`; after the reversal they would have failed on the
+correct address. Both were inverted and re-run live: TRICIA GATE PASS.
+
+**Adding Orders and Pricing to the nav pulled two screens under the contrast gate
+for the first time and turned the build red on 9 pre-existing failures** -
+crimson and success as text on gunmetal, chrome-dim as body text, and two form
+fields at 1.71:1. All nine were fixed at the colour per rules #18/#29, never by
+relaxing a threshold. The gate ends at 22 screens, 465 pairs, 0 unresolved, 0
+below - and `0 unresolved` only held after a class constant was written as a
+single literal, because a concatenated one reads as unresolved and rule #28
+treats that as the gate going blind.
+
+**Four of my own test defects were found and fixed rather than worked around:**
+the e2e had no `storageState`, so every /admin assertion was measuring the
+sign-in page while reporting Command Center names (the exact trap rule #28
+records); the header-wrap check compared `top` values of vertically-centred
+children of different heights; the fidelity spec built a Windows `file://` URL by
+hand and hung every test on a 30s navigation timeout; and it then called
+prototype functions that turn out not to be globals. The prototype is now driven
+by clicking its own `[data-go]` nav.
+
+**No schema change was needed for either list** - the quote total comes from the
+existing `quote_requests.quote_id -> quotes.total_cents`.
+
+Fidelity: 16 screenshots at 1440x900 and 1280x800 in
+`test-results/phase2-fidelity/`, with nav order, button label, titles, blurbs,
+column headers and all three dropdowns asserted character-for-character against
+the prototype. The remaining differences are v7's header chrome (gradient, red
+underline, pill nav, red brand), which cannot be matched without new colours or
+failing the contrast gate - written up for Reid rather than quietly skipped.
+
+Gates: tsc 0 - build green incl. contrast - 439/439 vitest - 15/15 nav e2e -
+14/14 fidelity. One pre-existing flaky test diagnosed and reported, not patched.
+
+
+---
+
+## 2026-10-02 - Reid had no Command Center: his profile was role `customer`
+
+Reported: signing in at http://localhost:3001 and every `/admin` URL bouncing to
+`/account`. `middleware.ts` redirects any signed-in user whose `profiles.role`
+is not exactly `admin`, so the redirect was the guard working correctly on a
+wrong row - not a routing or build fault. `middleware.ts` was not touched.
+
+**Found (service role, read-only first):** `reid@repvg.com` =
+`6fd6430f-1d56-4110-9df8-d58c508d6ace`, created 2026-09-17, last sign-in
+2026-10-02T03:22Z. A `profiles` row DID exist, with **`role: "customer"`**,
+full_name "Reid Whitesides", company "Reposition Ventures Group". Role counts
+across all 4 profiles before the change: `admin 2, customer 2`.
+
+**Changed:** exactly one row - `UPDATE profiles SET role='admin' WHERE
+id='6fd6430f-...'`. Re-read confirms `admin`. Counts after: `admin 3,
+customer 1`, still 4 profiles total, so nothing was created or removed and no
+other user was touched.
+
+**Why he was on port 3001 at all.** Port 3000 was occupied by a leftover
+`next start` (PID 60592) that THIS assistant left running at 21:01 during the
+Phase 2 build; Reid's `next dev` started at 22:21 and fell back to 3001. Both
+ran from this repo on `command-center-v7`. That leftover production server was
+also serving a build from before the latest commit, so it was a second, quieter
+hazard. It has been stopped. Reid's own dev server on 3001 was left running and
+untouched.
+
+**Verified:** `app/admin/command-center/page.tsx` exists on this branch and
+`pnpm tsc --noEmit` exits 0. With a dev server started and then stopped on port
+3000, an anonymous visit to `/admin/command-center` redirects to
+`/login?redirect=%2Fadmin%2Fcommand-center` - the guard still refuses signed-out
+visitors, and preserves the intended destination. No password was entered.
+
+Reid must **sign out and sign back in**: the role is read from his session's
+profile on each request, but his browser is holding a session minted while he
+was still `customer`.
+
+---
+
+## 2026-10-02 - v7 Stages A and B (FORGE 2.0, branch `command-center-v7`)
+
+**The brief: the owner is furious that earlier runs produced the old look with
+v7's labels on it.** That complaint is exactly right, and the proof was
+`AdminTopBar.tsx`: it had "+ New quote", the seven-item nav and the type-ahead —
+every v7 label — painted in `bg-afs-bg-raised` and `text-afs-chrome-mid`. The
+function was v7's and the appearance was the old app's.
+
+**THE CAUSE IS ALMOST CERTAINLY THE CASCADE, AND IT IS A TRAP ANYONE WOULD FALL
+INTO.** Prototype v7 has FOUR `<style>` blocks. Block 1 declares a dark theme
+and says so in a comment — "One committed dark theme", `--bg:#343D49`. Block 3
+redeclares `:root` with the LIGHT palette (`--bg:#F4F5F7`, `--hdr:#14181E`,
+`--red:#C8102E`) and WINS. Open the file, read the theme at the top, build what
+it says, and you produce a dark Command Center with v7's labels on it. The
+resolved design is a LIGHT working area, a DARK header and ONE red.
+`lib/design/v7-css.test.ts` now asserts the block order and every resolved
+token, so the cascade cannot invert silently again.
+
+**The CSS is DERIVED, not retyped.** `scripts/design/scope-v7-css.mjs` reads the
+prototype's own CSS and scopes every selector to `.cc-v7`, emitting
+`app/styles/command-center-v7.generated.css`. A hand-port drifts the first time
+somebody "improves" a value; a transform means the live styles ARE v7's. The
+prototype is committed byte-identical (sha256 verified against the source) so
+the design cannot wander away from the repo. Verified no leak: `/`, `/products`
+and `/contact` carry neither the scope class nor the stylesheet.
+
+**THE STYLE GATE IS THE ACCEPTANCE TEST, AND IT IS WHAT MAKES THIS DIFFERENT
+FROM THE PREVIOUS RUNS.** `tests/visual/v7-style-gate.spec.ts` opens the
+prototype and the live app in one browser and compares computed styles — family,
+size, weight, line-height, letter-spacing, transform, colour, background,
+border, radius, shadow, padding, gap, height — for every pair in
+`tests/visual/v7-component-map.ts`. 32 pairs mapped: 31 pass, 0 fail, 0
+uncovered, 1 live-only (v7's seed fills all five lanes so its empty-lane message
+never renders; the live element is still asserted to exist).
+
+**THREE REAL DEFECTS THE GATE FOUND THAT NOTHING ELSE WOULD HAVE.**
+
+1. **The light working area was never painting.** Tailwind's `content` globs
+   covered `app/` and `components/` but not `lib/` — and
+   `LIGHT_WORKING_AREA_CLASS` lives in `lib/data/admin-working-area.ts`, because
+   rule #18 deliberately keeps "which screens are light" as testable data. Those
+   classes were never emitted. It hid for as long as the string happened to name
+   tokens the marketing site also used; the moment it named one used only there,
+   the area stopped painting and its text fell back to the body's light-on-dark
+   colour. **The contrast gate could not see this at all** — it reads the class
+   string statically, so it had been measuring a surface that was never
+   rendered. Fixed by scanning `lib/`.
+
+2. **Painting v7's ground on the scope class broke twenty screens.** It turned
+   the contrast gate red with 46 real failures — `afs-chrome-high` and the four
+   `*-on-dark` tokens at 1.09:1 to 1.69:1 on `#F4F5F7`. That is rule #18
+   restated by measurement, so the transform now SPLITS v7's `body` rule:
+   typography onto `.cc-v7` (safe everywhere), paint onto an opt-in
+   `.cc-v7-ground`. Screens convert one at a time; the PAGE opts in.
+
+3. **One colour genuinely fails AA.** White on v7's green is 4.16:1 against a
+   4.5:1 requirement wherever it carries small text (`.chk i` 13px, `.apv`
+   12.5px, `.srow.now .pos` 18px — bold counts as large only from 18.66px).
+   `#1E8E52` → `#1D874E`, channels scaled uniformly so the hue holds to within
+   2%, applied to the COLOUR rather than to three selectors so the interface
+   keeps one green. `lib/design/v7-deviations.test.ts` recomputes it and fails
+   if the deviation ever stops being necessary.
+
+**The whole v7 light palette was measured BEFORE any CSS was written** — 23
+pairs against the gate's own thresholds. Everything else passes as authored.
+Two near-misses are correctly NOT deviations and are written up so a future
+reader does not "fix" them: `--line` `#9CA6B3` (2.47:1) and the nav's own border
+`#3A4350` (1.78:1) are decorative separators, and SC 1.4.11 — which the gate
+implements — covers FORM-FIELD boundaries only. v7's fields use `--line2`
+`#6B7686` at 4.60:1 and pass.
+
+**The contrast gate had to learn to read v7 class names.** A class map of v7
+values (`LANE_CLASS[lane.key]`) was dropped by a filter that kept only Tailwind
+colour utilities, and the reference was then reported as "computed at runtime" —
+a WRONG diagnosis, and rule #28 treats a rising `unresolved` count as the gate
+going blind. It now recognises class names the ported stylesheet defines, and
+reports them as READ, not as MEASURED. v7's own colours are guaranteed by the
+deviations test, the documented palette, and `tests/e2e/contrast-live.spec.ts`,
+which measures real computed styles in a browser — not by the static script.
+
+**Two gate-correctness rules were needed before anything could pass honestly,**
+and both must survive any rewrite or the gate reports differences nobody can see
+and ends up skip-listed into uselessness: a border's style and colour are
+compared only on an edge whose WIDTH is non-zero (Tailwind's Preflight sets
+`border-style:solid; border-color:#e5e7eb` at width 0 on EVERY element), and
+`color` is compared only on an element with its own text node (the app's
+`<body>` and v7's set different inherited colours, which containers never
+render).
+
+**Stage B converted the Workbench** — lanes, cards, chips, rail — to v7's own
+markup. Four e2e assertions were updated rather than worked around, because v7
+changed what they assert: the h1 is "Workbench" (v7's title; the greeting rides
+along as its `title` attribute), the chips read "3 to quote" and keep an
+approvals chip at zero as "No approvals waiting", and an approved card is marked
+`.appr` with the pulsing dot in its meta row. One was my own regression — I had
+moved `aria-labelledby` off the lane `<section>` — and is restored.
+
+**DELIBERATELY NOT BUILT, and this is a scope decision, not an oversight:** the
+Workbench's Outlook inbox rail and its "N new emails" chip need Microsoft Graph.
+There is none in this repo, the brief for this run excludes anything
+Microsoft/Outlook/Graph, and none was added. The "Deliveries, next two days"
+rail panel is omitted rather than rendered empty, because an empty one would
+claim nothing is scheduled — a claim that screen cannot make.
+
+**STAGES C THROUGH G WERE NOT STARTED.** Stage C moves invoice creation from
+customer approval to shop-finish — a live-money path needing a migration,
+reconciliation maths and consistency for already-approved jobs. Starting it
+without finishing it would leave the billing path half-moved, and the standing
+instruction is that the app stays usable at every commit. It is the right next
+run, together with Stage B's remaining screens (Quotes, Orders, Shop View, job
+detail and its document views and modals).
+
+**Gates, all run in this session:** `tsc --noEmit` 0 · vitest 460/460 ·
+`npm run build` exit 0 with the prebuild chain · contrast 22 screens, 353 pairs,
+**0 unresolved, 0 below** · style gate 5/5 (32 pairs: 31 pass, 0 fail, 0
+uncovered, 1 live-only) · workbench e2e 7/7 · nav e2e 15/15. No migrations were
+written, so there is no schema change to register, and this repo has no
+`SCHEMA_REGISTRY.md`.
+
+**AWAITING REID'S OWN CONFIRMATION.** Per this project's verification standard,
+a session's own screenshots and Playwright passes are evidence to bring to the
+user, not proof. The look is asserted against the prototype by an automated gate
+and the side-by-side screenshots are in `test-results/v7-fidelity/`, but the
+Command Center's appearance is not marked complete until Reid has looked at it.
+The dev server this session started on port 3100 was stopped; port 3000 was
+never touched.
+
+---
+
+## 2026-10-02 (second run) - v7 Stages B2, G, D, E (branch `command-center-v7`)
+
+The rest of the look, and the non-money functions. Stages A and B (shell, style
+gate, Workbench) were the previous run; this one finished every other Command
+Center screen. **No schema change was made anywhere in this run** — that was a
+standing constraint, and nothing needed one.
+
+**Every screen is now built from v7's own markup and class names.** Quotes,
+Orders, Shop View, the Job screen and its action panel, Customers, Pricing,
+Credit Applications, Bid Monitor, New quote, Search and Deliveries. The count
+that matters: **zero `afs-*` Tailwind tokens remain in any of them**, including
+the Job screen and `JobActionPanel`, which between them carried about eighty
+Tailwind class strings.
+
+**THREE NEW PORT LAYERS, each narrow, each with a stated bar for what may be
+added to it.** v7 is a standalone page and this app is not, so a verbatim port
+cannot be the whole story:
+
+- `v7-preflight-reset.css` — cancels Tailwind Preflight rules v7 has no
+  counterpart for. One entry so far: Preflight sets `letter-spacing: inherit` on
+  form controls, v7's reset sets only `font: inherit`, and the `font` shorthand
+  does not carry letter-spacing — so a prototype control keeps the UA default
+  `normal`. The gate found it as `letterSpacing 0.375px != v7 normal` on the
+  filter bar's select and input (.03em inherited from the `.fld` label). Nothing
+  had been styled wrongly.
+- `v7-real-data.css` — cases v7's sample data CANNOT produce. Its customers are
+  short two-word names; the live app shows guest emails used as customer names,
+  one 41-character token with nothing to wrap at, which overflowed a list cell
+  and collided with the line beneath. And "Bending now" breaks inside a
+  fixed-height pill once real material text narrows that column. Both fixes are
+  rules v7 already applies elsewhere.
+- `v7-fonts.css` (previous run) — the self-hosted font binding.
+
+**THE CONTRAST GATE CAUGHT THE HALF-CONVERSION, TWICE.** Converting a PAGE is
+only half a conversion. Moving Customers, Pricing, Credit Applications and Bid
+Monitor into the light working area left their CHILD components painting
+light-on-dark text, and the gate failed on **seven pairs at 1.09:1 to 1.69:1** —
+`afs-chrome-high`, `afs-chrome-silver` and `afs-danger-on-dark` on `#F4F5F7`.
+That is rule #29 exactly: there is no darkening that fixes those, because on a
+light surface the fix runs the other way. Then three form fields failed the 3:1
+boundary rule (`afs-line-strong` #8C939B on `#EFEFEC` is 2.70:1); they now use
+v7's own `.f`, the same field every other converted screen uses.
+
+**ONE NEW TOKEN, measured:** `afs-info-ink` `#1D4FA8` — v7's `--bluetxt`, the
+blue it uses for TEXT on a light surface. `afs-info` `#3478B0` is 3.6:1 on white:
+enough for a border, not for body text.
+
+**THE FLAKY `approve-token` TEST WAS NEVER FLAKY.** It flipped the token's FINAL
+base64url character, 'A' <-> 'B'. The signature is a 32-byte HMAC — 256 bits
+carried by 43 characters, which hold 258 — so the last character has TWO bits the
+decoder throws away, and those two values differ only in the lowest of them. The
+bytes came out identical, the signature verified, and the test failed having
+tampered with nothing. The random nonce changed the final character run to run,
+which is what made a deterministic bug look intermittent. It now flips a
+character in the middle, where all six bits are inside the decoded bytes, and
+ASSERTS the decoded signature really changed before asserting rejection. Ran five
+times in a row: 24/24 each.
+
+**A SECOND TEST WAS FIXED FOR A REAL REASON, AND THE FIRST ATTEMPT WAS WRONG.**
+`profile-search`'s material test asserted the whole database held exactly one
+Copper profile. AFS has really drawn copper since. Removing the count was not
+enough: with no search term the rail is a RANKED, LIMITED listing of everything,
+and this spec's fixtures do not appear in it at all — so an assertion about them
+passes VACUOUSLY, which is worse than failing. Measured, not assumed: with the
+filter cleared, zero of the spec's rows come back. It now scopes the rail with
+the spec's own prefix and asserts what the filter is for — it narrows the set,
+and narrows it to the right row.
+
+**DECISIONS MADE WITHOUT ASKING, all recorded in the files themselves:**
+
+1. **Customers departs from v7's master-detail layout.** v7's `pageCustomers` is
+   a customer list beside that customer's contacts, jobs and saved profiles.
+   This page is an ACCOUNT DIRECTORY — every registered account, filtered by role
+   and pricing tier, with CSV export — and v7 has no roles, no tiers and no
+   export. Rendering a directory as a master-detail would mean dropping real
+   features or inventing per-customer queries nobody asked for. The detail view
+   v7 shows already exists as its own route, `/admin/customers/[id]`.
+2. **Pricing keeps what it really has.** v7's pricing page is a live-calculator
+   mock driven by its own in-browser `eng()`. The real engine is the versioned
+   price book (migration 035) at `/admin/settings/price-book`. No calculator is
+   faked here.
+3. **`/admin/search` is now v7's quotes-and-orders Search; the profile rail
+   moved to `/admin/search/profiles`.** Rule #27 is intact — ONE profile query,
+   ONE panel, mounted at that route and in FlashDraft's drawer. Only a URL
+   changed, and the gap audit §4 already said the quote/order search must be a
+   SEPARATE query, which it is: it reuses the lists' own rows and helpers, with
+   no new SQL function.
+4. **New quote's blank new-customer form does not create the account.** That
+   needs an invited auth account — a schema change, forbidden this run. The form
+   is drawn as v7 draws it and SAYS so, rather than offering a button that
+   silently discards what was typed.
+5. **The Deliveries map is the real one.** v7's own footnote asks for this: "In
+   the real build this panel is the same Track Deliveries map customers already
+   see on the website." A stop with no order behind it has no address, says so,
+   and the map stays on its service-area view — rule #25's honesty about the
+   tracking link, applied to the map.
+6. **The Job screen is deliberately NOT in the style-gate map.** The gate seeds
+   no data and the route needs a real job id, so a pair would always report
+   UNCOVERED — which fails, correctly. Its structure is asserted by
+   `command-center-workbench.spec.ts`, which creates a job and opens it.
+
+**THE GATE ITSELF LEARNED FOUR THINGS**, each of which cost real time first: v7
+reaches New quote by a BUTTON (`data-act="newQuote"`), not a `data-go` link;
+Search sits inside the closed More menu, whose links are in the DOM from first
+render inside a `hidden` container — so matching on existence rather than
+VISIBILITY made Playwright wait 30 seconds for an element that could never be
+actionable; a class map of v7 values must be recognised or the reference is
+misreported as "computed at runtime"; and a pair whose live component is built
+but whose environment has no row needs its own NO-DATA status, printed and
+counted, never silently passed.
+
+**A LAYOUT DEFECT THE SCREENSHOTS CAUGHT AND THE GATE COULD NOT.** The delivery
+cards were given v7's `.dcard` class but kept their old flat children, so bare
+`<b>`/`<span>` siblings rendered inline and ran together, with the button
+overlapping the text. `.dcard` is a container whose CHILDREN carry the structure;
+the gate compares a component against its counterpart and cannot see that the
+children inside are wrong. This is why the side-by-side screenshots are part of
+the run and not decoration.
+
+**MICROSOFT: nothing was added, as required.** The Workbench's Outlook inbox
+rail and its "N new emails" chip are still absent, and no Graph code exists in
+this repository.
+
+**THE MONEY PATH WAS NOT TOUCHED**, as instructed: invoice creation still
+happens where it did, Tricia's estimate and invoice emails are unchanged, and
+change orders and addenda are untouched. Stage C and Stage F were not in this
+run's scope.
+
+**Gates, all run in this session:** `tsc --noEmit` 0 · vitest 460/460 ·
+`npm run build` exit 0 with the prebuild chain · contrast **24 screens, 254
+pairs, 0 unresolved, 0 below** · style gate **66 pairs: 63 pass, 0 fail, 0
+uncovered, 1 live-only, 2 no-data** · full Playwright run recorded below.
+Screenshots for every page at 1440x900 and 1280x800 in
+`test-results/v7-fidelity/` (24 files).
+
+**README:** there is no `README.md` on this branch — another worktree
+(`afs-website-readme`, branch `docs/readme`) owns it, and this run did not touch
+it. **The README refresh for everything in this run is PENDING** and should be
+done on that branch: the Command Center is now a port of
+`docs/design/command-center-v7`, `/admin/search` has changed meaning, and
+`/admin/quotes/new` and `/admin/search/profiles` are new routes.
+
+**AWAITING REID'S OWN CONFIRMATION.** This project's verification standard says a
+session's own screenshots and Playwright passes are evidence to bring to the
+user, not proof. Every screen is asserted against the prototype by an automated
+gate and the side-by-side screenshots are committed, but the look is not marked
+complete until Reid has looked at it.
+
+### Addendum — what the FULL Playwright suite found (same run)
+
+Running every spec, rather than each stage's own, changed the picture. **11
+failures first pass, 6 after fixing them, and 5 of those 6 are provably not this
+run's.**
+
+**The one that mattered was invisible to every other gate.** v7 writes its own
+form-control reset, `button,input,select,textarea{font:inherit;color:inherit}`.
+Scoped to `.cc-v7` it becomes specificity **(0,1,1)** — an element selector plus
+a class — while every Tailwind utility is **(0,1,0)**. Inside the admin shell it
+therefore OUTRANKED `text-afs-chrome-high`, `font-bold`, `text-sm` and every
+other type or colour class on any button, input, select or textarea. In the
+prototype the same rule is (0,0,1) and loses to everything.
+
+`tests/e2e/contrast-live.spec.ts` caught it — Settings' crimson "Log this price
+change" button rendering its label in the inherited `afs-chrome-mid` at
+**3.50:1**, where its own className asks for white at 6.45:1. The STATIC gate
+could not: the className it reads is correct, and only the browser knows which
+rule won. This is precisely the division of labour CLAUDE.md rule #28 describes,
+and the first time the live half has caught something the static half structurally
+could not.
+
+Dropping the rule costs nothing — Tailwind's Preflight already supplies the same
+six inherits on the same elements at (0,0,1), where they do not compete with
+utilities.
+
+Two more live defects, both from converting a page without its children: the
+Customers CSV button was still gunmetal on a light page (**2.51:1**), and
+`DeliveryTrackingMap` carried a `text-gray-400` separator — a default Tailwind
+colour, which rule #4 forbids — at **2.54:1** once the admin panel rendered it on
+a light card.
+
+**`tests/e2e/command-center-v2-nav.spec.ts` was DELETED.** It asserted the pre-v7
+navigation (three top-level items, Customers under More), which the approved
+design contradicts, so it could never pass again; two of its three tests were
+already failing before this run. Its one assertion with no counterpart — the
+header search box submits and lands on the Search page with its query — was
+PORTED into `command-center-v7-nav.spec.ts` and updated for v7.
+
+**The style gate was racing React hydration.** The More-menu pair failed in the
+full suite and passed when the spec ran alone. `gotoLivePage` waits for
+`header.hdr`, which is in the server-rendered HTML before hydration, so the click
+opening the menu could be swallowed. It now presses until the revealed element is
+attached, bounded to three attempts so a genuinely missing component still fails.
+
+**THE FIVE REMAINING FAILURES ARE PRE-EXISTING**, and that is checked rather than
+asserted: `git diff --name-only a842c59..HEAD` touches no homepage, public,
+production-queue or FlashDraft file, and those are the specs that fail — the
+hero's CTA href (`/design-studio` vs the spec's `/about/services`), the header
+logo height, two Production Queue tests, and one FlashDraft save. They are
+reported here, not absorbed. `shop-deliveries.spec.ts:237` is flaky under full
+suite load and passes consistently in isolation.
+
+**Final gates:** tsc 0 · vitest 460/460 · `npm run build` exit 0 ·
+contrast **24 screens / 253 pairs / 0 unresolved / 0 below** · style gate
+**66 pairs: 63 pass, 0 fail, 0 uncovered, 1 live-only, 2 no-data** ·
+24 screenshots in `test-results/v7-fidelity/`.
+
+## 2026-10-05 - products-page merged
+Branch products-page (never previously merged) is now integrated: Drexel renderings, 35-product reviewed manifest (17 designable), 3D hover/modal viewer, 9 schematic previews. Governance conflicts resolved by keeping the cc-flashdraft-handoff text; products-page's own notes remain in its commits (7154c14, f44b7f1, 20f1f02). DB: migration 039 (profiles privilege guard) and 040 (product_profiles public read) applied to production.

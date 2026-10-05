@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { formatInches } from '@/lib/utils/format-inches';
 import { buildCrossSectionPoints, formatBendAngleLabel } from '@/lib/flashdraft/geometry';
 import ProfileCrossSection2D from '@/components/studio/ProfileCrossSection2D';
@@ -50,6 +51,28 @@ export interface ProfileViewer3DProps {
   /** How long auto-rotation runs before stopping. Defaults preserve existing behavior. */
   autoRotateDurationMs?: number;
   /**
+   * Floor for the viewer's own height, in pixels. Defaults to 500, which is
+   * what every caller got before this prop existed.
+   *
+   * It exists because that floor is a FLOOR, not a size: a caller that gives
+   * the viewer a shorter slot (a modal panel, a card) does not shrink it — the
+   * canvas renders at 500px inside the shorter box and the overflow is clipped,
+   * which looks exactly like the camera cutting the profile off and is not.
+   * That was the 2026-10-01 Products-popup bug: a 320px slot, a 500px canvas,
+   * and the bottom 36% of every profile gone. A caller that sizes the viewer
+   * itself passes its own floor (or 0) so the two agree.
+   */
+  minHeightPx?: number;
+  /**
+   * Hides the Dimensions control AND keeps every dimension/angle label off.
+   *
+   * For the Products page's SCHEMATIC previews (lib/data/product-preview-shapes.ts),
+   * whose proportions are traced from a marketing rendering rather than
+   * measured. Labelling them would put invented numbers in front of a customer,
+   * so the toggle is not merely defaulted off — it is not offered.
+   */
+  hideDimensions?: boolean;
+  /**
    * Palette for the 2D fallback rendered when WebGL is unavailable (F-06).
    * Defaults to 'dark', because this viewer's own overlay chrome is gunmetal
    * (afs-bg-raised/90 panels, afs-chrome-mid labels) — i.e. every place it is
@@ -80,7 +103,38 @@ const DEFAULT_CAMERA_DIRECTION = INITIAL_CAMERA_POSITION.clone().normalize();
 // Multiplier applied on top of the tightest distance that exactly frames the
 // profile's bounding sphere, so the profile sits comfortably inside the
 // viewport with margin rather than touching its edges.
+/**
+ * THE 3D CANVAS BACKGROUND. One constant, used by BOTH the renderer's clear
+ * colour and the enclosing dome, and shared by every mount of this viewer —
+ * FlashDraft's draft page, the Products popup, the confirmation and matched-
+ * profile modals.
+ *
+ * Both, because they are the same visible surface and only one of them is
+ * usually seen: the dome is a BackSide sphere of radius 2000 and the camera
+ * sits a few hundred units from origin, i.e. INSIDE it. The dome is therefore
+ * what the viewer actually looks at, and the clear colour shows only where the
+ * dome does not cover. Setting one and not the other changes nothing visible —
+ * which is why they were previously two different greys (#8A8A8A and #787878)
+ * and why they are now one value.
+ *
+ * History: #3A3A3A -> #565656 (afs-fl-026) -> #787878/#8A8A8A (afs-fl-029,
+ * after Reid reported profiles blending into the background) -> this. Each
+ * step lightened it. Separation does NOT come from flat hex contrast — copper
+ * (#B87333) measures 1.10:1 against the old #8A8A8A and still reads clearly,
+ * because these are lit metallic surfaces with specular highlights, not flat
+ * swatches. The value below was chosen by RENDERING every material option on
+ * it and looking; see STATE_OF_THE_BUILD.md's 2026-10-01 entry for the
+ * evidence.
+ */
+export const VIEWER_BACKGROUND_COLOR = '#C9CDD2';
+
 const FIT_MARGIN = 1.35;
+// The overlay chrome (Reset/Top/Side/End and the Dimensions button) floats over
+// the TOP of the canvas, so a perfectly centred profile puts its upper faces and
+// labels behind those controls. Raising the camera target by this fraction of
+// the profile's bounding radius drops the profile slightly in frame, clearing
+// the toolbar without pushing the lower edge toward the bottom.
+const FIT_TOOLBAR_CLEARANCE = 0.12;
 const CAMERA_PRESETS: Record<CameraPreset, { position: THREE.Vector3; target: THREE.Vector3 }> = {
   default: { position: INITIAL_CAMERA_POSITION.clone(), target: new THREE.Vector3(0, 0, 0) },
   top: { position: new THREE.Vector3(0, 400, 0.01), target: new THREE.Vector3(0, 0, 0) },
@@ -109,8 +163,14 @@ function computeFitCamera(
   const fitDistanceV = sphere.radius / Math.sin(vFov / 2);
   const fitDistanceH = sphere.radius / Math.sin(hFov / 2);
   const distance = FIT_MARGIN * Math.max(fitDistanceV, fitDistanceH);
-  const position = sphere.center.clone().add(direction.clone().normalize().multiplyScalar(distance));
-  return { position, target: sphere.center.clone() };
+  // Raising the target lifts the view, which renders the profile slightly lower
+  // on screen — clear of the floating toolbar. Applied here rather than at the
+  // call site so "Reset View" (which replays fitCameraRef) returns to exactly
+  // this framing instead of a different, unbiased one.
+  const target = sphere.center.clone();
+  target.y += sphere.radius * FIT_TOOLBAR_CLEARANCE;
+  const position = target.clone().add(direction.clone().normalize().multiplyScalar(distance));
+  return { position, target };
 }
 
 interface MaterialAppearance {
@@ -483,6 +543,8 @@ export default function ProfileViewer3D({
   autoRotateSpeed = 4,
   autoRotateDurationMs = 3000,
   fallbackTone = 'dark',
+  minHeightPx = 500,
+  hideDimensions = false,
 }: ProfileViewer3DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -502,8 +564,14 @@ export default function ProfileViewer3D({
   // View but must not yank the camera out from under a user who has already
   // manually orbited/zoomed.
   const hasAutoFitRef = useRef(false);
+  // The last built geometry's bounding box. Kept so a container RESIZE can
+  // recompute the fit: the fit distance depends on camera.aspect, so a camera
+  // framed at one aspect is wrong at another (a modal opening, a phone
+  // rotating, a panel being dragged). Before this, resize updated the aspect
+  // and the renderer size but left the camera at its original distance.
+  const fitBoxRef = useRef<THREE.Box3 | null>(null);
 
-  const [dimensionsOn, setDimensionsOn] = useState(true);
+  const [dimensionsOn, setDimensionsOn] = useState(!hideDimensions);
   const [hintVisible, setHintVisible] = useState(true);
   /**
    * F-06 — WebGL IS NOT GUARANTEED, SO THE VIEWER DEGRADES TO 2D.
@@ -545,17 +613,16 @@ export default function ProfileViewer3D({
     const scene = new THREE.Scene();
     sceneRef.current = scene;
 
-    // Neutral gradient dome (mid-gray clear color + a slightly darker inside-
-    // facing sphere) gives contrast for both light metals (aluminum,
-    // stainless) and dark ones (painted steel, vintage) — a solid black
-    // background washed out the light metals and made the dark ones vanish.
-    // (afs-fl-026: lightened from #3A3A3A to #565656. afs-fl-029: lightened
-    // again to #787878 — Reid reported the profile still blended into the
-    // background at some angles. Still dark enough to stay below Matte
-    // Black's ~#1E2028 paint color and vintage's ~#7A6B5A bare-metal color,
-    // so both dark materials stay visually distinct from the background.)
+    // The enclosing dome. The camera sits inside this sphere, so this is the
+    // background the viewer actually sees — see VIEWER_BACKGROUND_COLOR, which
+    // the renderer's clear colour below also uses. One value for both; they
+    // used to be two near-identical greys, which meant changing the clear
+    // colour alone had no visible effect.
     const domeGeometry = new THREE.SphereGeometry(2000, 32, 16);
-    const domeMaterial = new THREE.MeshBasicMaterial({ color: '#787878', side: THREE.BackSide });
+    const domeMaterial = new THREE.MeshBasicMaterial({
+      color: VIEWER_BACKGROUND_COLOR,
+      side: THREE.BackSide,
+    });
     const dome = new THREE.Mesh(domeGeometry, domeMaterial);
     scene.add(dome);
 
@@ -594,7 +661,29 @@ export default function ProfileViewer3D({
     }
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setClearColor('#8A8A8A', 1); // afs-fl-029: lightened from #6A6A6A (afs-fl-026's value), see domeMaterial comment above
+    renderer.setClearColor(VIEWER_BACKGROUND_COLOR, 1);
+
+    // METALS NEED SOMETHING TO REFLECT. Every appearance in MATERIAL_APPEARANCE
+    // is a MeshStandardMaterial with metalness 0.7-0.95, and a metal has no
+    // diffuse response: with no environment map it renders very nearly BLACK no
+    // matter what colour or lights are set. Copper (#B87333, metalness 0.9) came
+    // out near-black brown; galvalume came out charcoal.
+    //
+    // That was always true, but the old dark-grey background camouflaged it —
+    // a dark model on a dark field reads as "metal in shadow". Lightening the
+    // background (above) exposed it, and no value of VIEWER_BACKGROUND_COLOR can
+    // fix it, because the problem is the model, not the field behind it.
+    //
+    // RoomEnvironment + PMREMGenerator ship with three itself (no new
+    // dependency). The generated cube map is what the metals now reflect, which
+    // is what gives copper its colour and the steels their sheen. Disposed with
+    // the rest of the scene below.
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const roomEnvironment = new RoomEnvironment();
+    const environmentTexture = pmrem.fromScene(roomEnvironment, 0.04).texture;
+    scene.environment = environmentTexture;
+    roomEnvironment.dispose?.();
+    pmrem.dispose();
     renderer.shadowMap.enabled = true;
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
@@ -658,6 +747,20 @@ export default function ProfileViewer3D({
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
       labelRenderer.setSize(w, h);
+
+      // Re-frame for the new aspect. The fit distance is derived from
+      // camera.aspect, so the shot computed when this viewer first mounted is
+      // wrong at any other size — which is what left a profile part-way out of
+      // frame when a modal opened at one size and settled at another.
+      // fitCameraRef is refreshed too, so Reset View returns HERE.
+      const box = fitBoxRef.current;
+      if (!box) return;
+      const refit = computeFitCamera(box, camera, DEFAULT_CAMERA_DIRECTION);
+      if (!refit) return;
+      fitCameraRef.current = refit;
+      camera.position.copy(refit.position);
+      controls.target.copy(refit.target);
+      controls.update();
     });
     resizeObserver.observe(container);
 
@@ -666,6 +769,8 @@ export default function ProfileViewer3D({
       cancelAnimationFrame(frameId);
       resizeObserver.disconnect();
       controls.dispose();
+      environmentTexture.dispose();
+      scene.environment = null;
       renderer.dispose();
       domeGeometry.dispose();
       domeMaterial.dispose();
@@ -704,6 +809,22 @@ export default function ProfileViewer3D({
       });
     }
     if (labelGroupRef.current) {
+      // A CSS2DObject is a real <div> that CSS2DRenderer appended to its own
+      // DOM element. Removing its Group from the scene graph only stops the
+      // renderer VISITING it — it does not take the div out of the DOM, so the
+      // element stays on screen at its last position forever.
+      //
+      // That was the Dimensions-toggle bug: turning dimensions off rebuilds the
+      // geometry (dimensionsOn is in this effect's dependency list) with an
+      // empty label group, but every label from the previous build stayed
+      // visible, so the button flipped to "Off" and nothing disappeared. The
+      // mesh teardown immediately above has always disposed properly; the label
+      // teardown had no DOM equivalent. Each element is detached explicitly.
+      labelGroupRef.current.traverse((obj) => {
+        const element = (obj as Partial<CSS2DObject>).element;
+        element?.remove();
+      });
+      labelGroupRef.current.clear();
       scene.remove(labelGroupRef.current);
     }
 
@@ -869,7 +990,7 @@ export default function ProfileViewer3D({
         }
       }
 
-      if (dimensionsOn) {
+      if (dimensionsOn && !hideDimensions) {
         // geometry.center() (done manually above) already recenters the mesh itself, but our 2D
         // `points` are still in original (un-centered) profile space — use
         // the same shift so labels land on the visible, centered mesh.
@@ -939,6 +1060,7 @@ export default function ProfileViewer3D({
     const camera = cameraRef.current;
     if (camera) {
       const box = new THREE.Box3().setFromObject(meshGroup);
+      fitBoxRef.current = box.clone();
       const fit = computeFitCamera(box, camera, DEFAULT_CAMERA_DIRECTION);
       if (fit) {
         fitCameraRef.current = fit;
@@ -950,7 +1072,7 @@ export default function ProfileViewer3D({
         }
       }
     }
-  }, [bends, blankWidth, material, thicknessMm, dimensionsOn, paintFace, paintColor, bareColor, hemStart, hemEnd]);
+  }, [bends, blankWidth, material, thicknessMm, dimensionsOn, hideDimensions, paintFace, paintColor, bareColor, hemStart, hemEnd]);
 
   // F-06: WebGL refused a context. Render the same profile flat rather than an
   // empty grey box. The two effects above both bail on their own null refs, so
@@ -971,7 +1093,7 @@ export default function ProfileViewer3D({
   }
 
   return (
-    <div className={`relative ${className ?? ''}`} style={{ minHeight: 500 }}>
+    <div className={`relative ${className ?? ''}`} style={{ minHeight: minHeightPx }}>
       <div ref={containerRef} className="absolute inset-0" />
 
       {/* Top-right controls */}
@@ -1006,17 +1128,19 @@ export default function ProfileViewer3D({
             End
           </button>
         </div>
-        <button
-          type="button"
-          onClick={() => setDimensionsOn((d) => !d)}
-          className={`font-label text-xs px-3 py-1.5 rounded border transition-colors ${
-            dimensionsOn
-              ? 'bg-afs-crimson text-white border-afs-crimson'
-              : 'bg-afs-bg-raised/90 text-afs-chrome-mid border-afs-chrome-dim hover:text-white'
-          }`}
-        >
-          Dimensions {dimensionsOn ? 'On' : 'Off'}
-        </button>
+        {!hideDimensions && (
+          <button
+            type="button"
+            onClick={() => setDimensionsOn((d) => !d)}
+            className={`font-label text-xs px-3 py-1.5 rounded border transition-colors ${
+              dimensionsOn
+                ? 'bg-afs-crimson text-white border-afs-crimson'
+                : 'bg-afs-bg-raised/90 text-afs-chrome-mid border-afs-chrome-dim hover:text-white'
+            }`}
+          >
+            Dimensions {dimensionsOn ? 'On' : 'Off'}
+          </button>
+        )}
       </div>
 
       {/* Bottom-left info */}

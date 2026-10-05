@@ -90,7 +90,7 @@ const EXPECTED_TOTAL_CENTS = 101100;
 /** The same shape at the raised sheet cost: $310 x 12 / 3 + 1800 + 3300. */
 const EXPECTED_RAISED_TOTAL_CENTS = 31000 * 12 / 3 + 1800 + 3300; // 129100
 
-const OFFICE_EMAIL = 'tricia@architecturalflashingsupply.com';
+const OFFICE_EMAIL = 'trica@architecturalflashingsupply.com';
 
 interface CreatedJob {
   requestId: string;

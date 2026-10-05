@@ -24,6 +24,10 @@ function stop(over: Partial<DeliveryStop>): DeliveryStop {
     autoScheduled: true,
     notifyNote: null,
     isRush: false,
+    // A stop with no order behind it — the ordinary case for a V2 Job that
+    // never became a paid order.
+    orderId: null,
+    deliveryAddress: null,
     ...over,
   };
 }

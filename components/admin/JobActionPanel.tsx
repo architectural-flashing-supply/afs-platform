@@ -28,6 +28,18 @@ import { formatCents } from '@/lib/pricing/quote-math';
 
 type Result = { tone: 'ok' | 'info' | 'error'; message: string } | null;
 
+/**
+ * v7's `.pstrip` notice, per tone. A map to the WHOLE className rather than a
+ * template: the contrast gate expands class maps but counts a runtime template
+ * as `unresolved`, and CLAUDE.md rule #28 treats a rising unresolved count as
+ * the gate going blind.
+ */
+const RESULT_CLASS: Record<'ok' | 'info' | 'error', string> = {
+  ok: 'pstrip green',
+  info: 'pstrip amber',
+  error: 'pstrip red',
+};
+
 export default function JobActionPanel({ job }: { job: JobScreenData }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
@@ -94,41 +106,41 @@ export default function JobActionPanel({ job }: { job: JobScreenData }) {
   }
 
   return (
-    <section className="bg-afs-bg-card border border-afs-border-light rounded-xl p-5 flex flex-col gap-3.5">
-      <h2 className="font-heading text-2xl text-afs-ink-900">{HEADINGS[job.stage]}</h2>
+    <section className="pane">
+      <h2>{HEADINGS[job.stage]}</h2>
 
       {/* --- The stage's own content ------------------------------------- */}
       {job.stage === 'new' && (
         <>
           {priced && (
             <>
-              <table data-testid="quote-table" className="w-full border-collapse">
+              <table data-testid="quote-table">
                 <caption className="sr-only">The priced quote for this job</caption>
                 <thead>
-                  <tr className="border-b border-afs-line-strong">
-                    <th scope="col" className="font-label text-sm font-bold text-afs-ink-900 text-left pb-2">
+                  <tr>
+                    <th scope="col">
                       Item
                     </th>
-                    <th scope="col" className="font-label text-sm font-bold text-afs-ink-900 text-right pb-2 w-20">
+                    <th scope="col" className="n">
                       Qty
                     </th>
-                    <th scope="col" className="font-label text-sm font-bold text-afs-ink-900 text-right pb-2">
+                    <th scope="col" className="n">
                       Amount
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {editedLines.map(({ line, qty, total }, i) => (
-                    <tr key={`${line.description}-${i}`} className="border-b border-afs-border-light">
-                      <td className="py-2.5 pr-2">
-                        <span className="font-body text-[15px] text-afs-ink-900">{line.description}</span>
-                        <span className="block font-body text-[13px] text-afs-ink-700">
+                    <tr key={`${line.description}-${i}`}>
+                      <td>
+                        <span>{line.description}</span>
+                        <span className="note">
                           {[line.material, line.gauge, `${line.bendCount} bends`, `${line.hemCount} hems`]
                             .filter(Boolean)
                             .join(' · ')}
                         </span>
                       </td>
-                      <td className="py-2.5 text-right">
+                      <td className="n">
                         <label className="sr-only" htmlFor={`qty-${i}`}>
                           Quantity for {line.description}
                         </label>
@@ -144,35 +156,35 @@ export default function JobActionPanel({ job }: { job: JobScreenData }) {
                             next[i] = Math.max(1, Math.round(Number(e.target.value) || 1));
                             setQuantities(next);
                           }}
-                          className="w-20 min-h-11 text-right rounded-lg border border-afs-line-strong bg-afs-bg-card text-afs-ink-900 font-data px-2"
+                          className="f"
                         />
                       </td>
                       <td
                         data-testid={`quote-line-total-${i}`}
-                        className="py-2.5 text-right font-data text-[15px] text-afs-ink-900 whitespace-nowrap"
+                        className="n"
                       >
                         {money(total)}
                       </td>
                     </tr>
                   ))}
                   <tr>
-                    <td className="pt-3 font-label text-[17px] font-bold text-afs-ink-900">Total</td>
+                    <td>Total</td>
                     <td />
                     <td
                       data-testid="quote-total"
-                      className="pt-3 text-right font-data text-[17px] font-bold text-afs-ink-900 whitespace-nowrap"
+                      className="n"
                     >
                       {money(editedTotalCents)}
                     </td>
                   </tr>
                 </tbody>
               </table>
-              <p className="font-body text-[13px] text-afs-ink-700">
+              <p className="note">
                 Priced from your price book: per bend, cut from 10 × 4 ft sheets.
               </p>
 
-              <div className="flex flex-col gap-2">
-                <label htmlFor="send-to" className="font-label text-sm font-bold text-afs-ink-900">
+              <div className="fld">
+                <label htmlFor="send-to">
                   Send the quote to
                 </label>
                 <input
@@ -182,13 +194,13 @@ export default function JobActionPanel({ job }: { job: JobScreenData }) {
                   value={sendTo}
                   onChange={(e) => setSendTo(e.target.value)}
                   placeholder="name@company.com"
-                  className="min-h-11 rounded-lg border border-afs-line-strong bg-afs-bg-card text-afs-ink-900 font-body text-[15px] px-3 placeholder:text-afs-ink-700"
+                  className="f"
                 />
               </div>
 
               <Sunk>
-                <p className="font-label font-bold text-afs-ink-900">The email they will get</p>
-                <p className="font-body text-[15px] text-afs-ink-700">
+                <p>The email they will get</p>
+                <p className="hint">
                   Hi {job.contactFirstName}, here is your quote for{' '}
                   {job.jobName ?? job.items[0]?.profileType ?? 'your job'} — {money(editedTotalCents)} in
                   total. It has a big green <strong>Approve this quote</strong> button. One click
@@ -200,18 +212,18 @@ export default function JobActionPanel({ job }: { job: JobScreenData }) {
           )}
 
           {blocked && (
-            <div data-testid="quote-blocked" className="bg-afs-amber-bg rounded-lg p-3.5 flex flex-col gap-2">
-              <p className="font-label font-bold text-afs-amber-ink">This job cannot be quoted yet</p>
-              <ul className="flex flex-col gap-1.5 list-disc pl-5">
+            <div data-testid="quote-blocked" className="needbox">
+              <p>This job cannot be quoted yet</p>
+              <ul>
                 {blocked.problems.map((problem, i) => (
-                  <li key={i} className="font-body text-[15px] text-afs-ink-900">
+                  <li key={i}>
                     {problem.message}
                   </li>
                 ))}
               </ul>
               <a
                 href="/admin/settings/price-book"
-                className="font-label text-sm font-bold text-afs-green-ink underline min-h-11 inline-flex items-center"
+                className="linkbtn"
               >
                 Open the price book
               </a>
@@ -223,22 +235,22 @@ export default function JobActionPanel({ job }: { job: JobScreenData }) {
       {job.stage === 'quoted' && (
         <>
           <Sunk>
-            <p className="font-label font-bold text-afs-ink-900">
+            <p>
               {job.issuedQuote
                 ? `Quote ${job.issuedQuote.number} emailed ${job.quotedPhrase ?? 'recently'}`
                 : `Quote sent ${job.quotedPhrase ?? 'recently'}`}
             </p>
-            <p className="font-body text-[15px] text-afs-ink-700">
+            <p className="hint">
               Waiting for {job.contactFirstName} to click Approve
               {job.issuedQuote?.sentTo ? ` — sent to ${job.issuedQuote.sentTo}` : ''}.
             </p>
             {job.issuedQuote && (
               <>
-                <p data-testid="quoted-total" className="font-data text-[15px] text-afs-ink-900">
+                <p data-testid="quoted-total" className="n">
                   {money(job.issuedQuote.totalCents)}
                   {job.issuedQuote.revision > 1 ? ` · revision ${job.issuedQuote.revision}` : ''}
                 </p>
-                <p className="font-body text-[13px] text-afs-ink-700">
+                <p className="note">
                   {job.issuedQuote.approveLink === 'live'
                     ? 'Their Approve link is still live.'
                     : job.issuedQuote.approveLink === 'used'
@@ -249,7 +261,7 @@ export default function JobActionPanel({ job }: { job: JobScreenData }) {
                 </p>
                 <a
                   href={`/api/admin/quotes/${job.issuedQuote.id}/pdf`}
-                  className="font-label text-sm font-bold text-afs-green-ink underline min-h-11 inline-flex items-center"
+                  className="linkbtn"
                 >
                   Download the quote PDF
                 </a>
@@ -264,13 +276,13 @@ export default function JobActionPanel({ job }: { job: JobScreenData }) {
                 if (typeof d.draft === 'string') setDraft(d.draft);
               })
             }
-            className="min-h-11 rounded-lg font-label font-bold bg-afs-bg-card border border-afs-line-strong text-afs-ink-900 hover:bg-afs-bg-light-raised"
+            className="btn slate"
           >
             {busy === 'draft' ? 'Writing…' : 'Write a follow-up'}
           </button>
           {draft !== '' && (
-            <div className="flex flex-col gap-2">
-              <label htmlFor="followup" className="font-label text-sm font-bold text-afs-ink-900">
+            <div className="fld">
+              <label htmlFor="followup">
                 Follow-up message
               </label>
               <textarea
@@ -279,9 +291,9 @@ export default function JobActionPanel({ job }: { job: JobScreenData }) {
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 rows={10}
-                className="font-body text-[15px] rounded-lg border border-afs-line-strong bg-afs-bg-card text-afs-ink-900 p-3"
+                className="f"
               />
-              <p data-testid="followup-not-sent-notice" className="font-body text-[13px] text-afs-ink-700">
+              <p data-testid="followup-not-sent-notice" className="note">
                 Sending from Outlook is not connected yet. Copy this into your email — the draft is
                 saved here either way.
               </p>
@@ -294,7 +306,7 @@ export default function JobActionPanel({ job }: { job: JobScreenData }) {
                     draft,
                   })
                 }
-                className="min-h-11 rounded-lg font-label font-bold bg-afs-bg-card border border-afs-line-strong text-afs-ink-900 hover:bg-afs-bg-light-raised"
+                className="btn slate"
               >
                 {busy === 'save-draft' ? 'Saving…' : 'Save my edits'}
               </button>
@@ -308,7 +320,7 @@ export default function JobActionPanel({ job }: { job: JobScreenData }) {
           {/* The prototype's green checklist. Every line is a fact read back
               out of the database, not a step this screen assumes happened —
               so an unchecked line means it really did not happen. */}
-          <div data-testid="approved-checklist" className="bg-afs-green-soft rounded-lg p-3.5 flex flex-col gap-1.5">
+          <div data-testid="approved-checklist" className="big-note">
             <Check
               done
               label={`Customer approved ${job.approvedPhrase ?? 'recently'}${
@@ -338,14 +350,14 @@ export default function JobActionPanel({ job }: { job: JobScreenData }) {
             {job.invoice && (
               <a
                 href={`/api/invoices/${job.invoice.id}/pdf`}
-                className="font-label text-sm font-bold text-afs-green-ink underline min-h-11 inline-flex items-center"
+                className="linkbtn"
               >
                 Download the invoice PDF
               </a>
             )}
           </div>
           {job.sendStatus === 'failed' && (
-            <p className="font-body text-[15px] text-afs-crimson">
+            <p className="note">
               The last send did not reach the machine. {job.sendError ?? 'No reason was recorded.'}
             </p>
           )}
@@ -356,24 +368,24 @@ export default function JobActionPanel({ job }: { job: JobScreenData }) {
         <>
           <Sunk>
             {job.pathfinderProfileIds.length > 0 ? (
-              <p className="font-label font-bold text-afs-ink-900">
+              <p>
                 ✓ Sent to the machine as{' '}
                 {job.pathfinderProfileIds.map((id) => `profile #${id}`).join(', ')}
               </p>
             ) : (
-              <p className="font-label font-bold text-afs-amber-ink">
+              <p>
                 Sent to the machine, but no profile number came back, so it is not confirmed.
               </p>
             )}
-            <p className="font-body text-[15px] text-afs-ink-700">{job.shopSubStateLabel}</p>
+            <p className="hint">{job.shopSubStateLabel}</p>
           </Sunk>
           {job.sendStatus === 'unconfirmed' && (
-            <p className="font-body text-[15px] text-afs-amber-ink bg-afs-amber-bg rounded p-2.5">
+            <p className="needbox">
               Do not send this again before checking the machine — a second send would create a
               duplicate profile. {job.sendError ?? ''}
             </p>
           )}
-          <p className="font-body text-[13px] text-afs-ink-700">
+          <p className="note">
             Delivery scheduling is still being built. Nothing here pretends a delivery is booked
             when the database has no delivery to show.
           </p>
@@ -381,8 +393,8 @@ export default function JobActionPanel({ job }: { job: JobScreenData }) {
       )}
 
       {job.stage === 'done' && (
-        <div className="bg-afs-green-soft rounded-lg p-3.5">
-          <p className="font-label font-bold text-afs-green-ink">
+        <div className="big-note">
+          <p>
             ✓ Delivered {job.deliveredPhrase ?? ''}
           </p>
         </div>
@@ -405,7 +417,7 @@ export default function JobActionPanel({ job }: { job: JobScreenData }) {
               quantities: editedLines.map((l) => l.qty),
             })
           }
-          className="min-h-14 text-[19px] w-full rounded-lg font-label font-bold bg-afs-green-deep text-afs-chrome-high hover:brightness-95 disabled:opacity-60 disabled:cursor-not-allowed"
+          className="btn red lg"
         >
           {busy === 'quote'
             ? 'Sending…'
@@ -416,7 +428,7 @@ export default function JobActionPanel({ job }: { job: JobScreenData }) {
       ) : null}
 
       {(job.stage === 'new' || job.stage === 'quoted') && priced === null && job.quotePreview !== null ? (
-        <p className="font-body text-[13px] text-afs-ink-700">
+        <p className="note">
           Send quote turns on as soon as the price book can price every line above.
         </p>
       ) : null}
@@ -426,7 +438,7 @@ export default function JobActionPanel({ job }: { job: JobScreenData }) {
           type="button"
           disabled={busy !== null}
           onClick={() => post('phone', '/api/admin/command-center/approve-by-phone', { quoteRequestId: job.id })}
-          className="min-h-14 text-[19px] w-full rounded-lg font-label font-bold bg-afs-bg-card border-2 border-afs-line-strong text-afs-ink-900 hover:bg-afs-bg-light-raised disabled:opacity-70"
+          className="btn amber lg"
         >
           {busy === 'phone' ? 'Recording…' : 'Customer approved by phone'}
         </button>
@@ -439,7 +451,7 @@ export default function JobActionPanel({ job }: { job: JobScreenData }) {
           onClick={() =>
             post('send', '/api/admin/command-center/approve-quote-request', { quoteRequestId: job.id })
           }
-          className="min-h-14 text-[19px] w-full rounded-lg font-label font-bold bg-afs-green-deep text-afs-chrome-high hover:brightness-95 disabled:opacity-70"
+          className="btn red lg"
         >
           {busy === 'send'
             ? 'Sending…'
@@ -453,21 +465,15 @@ export default function JobActionPanel({ job }: { job: JobScreenData }) {
         <p
           role="status"
           data-testid="job-action-result"
-          className={`font-body text-[15px] rounded-lg p-3 ${
-            result.tone === 'error'
-              ? 'bg-afs-bg-light-raised text-afs-crimson'
-              : result.tone === 'info'
-                ? 'bg-afs-amber-bg text-afs-amber-ink'
-                : 'bg-afs-green-soft text-afs-green-ink'
-          }`}
+          className={RESULT_CLASS[result.tone]}
         >
           {result.message}
         </p>
       )}
 
       {/* --- Rush: the ONLY admin way to set it ------------------------- */}
-      <div className="border-t border-afs-border-light pt-3.5 flex flex-col gap-2">
-        <label className="flex items-center gap-2.5 font-label font-bold text-afs-ink-900 min-h-11 cursor-pointer">
+      <div className="actions">
+        <label className="chk">
           <input
             type="checkbox"
             checked={rush}
@@ -485,7 +491,7 @@ export default function JobActionPanel({ job }: { job: JobScreenData }) {
           />
           This is a rush job
         </label>
-        <p className="font-body text-[13px] text-afs-ink-700">
+        <p className="note">
           {job.rushSource === 'customer_checkbox'
             ? 'The customer asked for rush when they submitted this.'
             : job.rushSource === 'admin_toggle'
@@ -520,19 +526,22 @@ const money = formatCents;
  * is what it means.
  */
 function Check({ done, label }: { done?: boolean; label: string }) {
+  // v7's `.chk` row (stagePane, line 1393): a round tick and the label. A done
+  // tick is the green `i`; one still outstanding is `i.w`, v7's amber dot.
   return (
-    <p
-      data-checked={done ? 'true' : 'false'}
-      className={`font-body text-[15px] ${done ? 'text-afs-green-ink font-bold' : 'text-afs-ink-700'}`}
-    >
-      <span aria-hidden="true">{done ? '✓ ' : '· '}</span>
-      <span className="sr-only">{done ? 'Done: ' : 'Not done yet: '}</span>
-      {label}
-    </p>
+    <div data-checked={done ? 'true' : 'false'} className="chk">
+      <i className={done ? undefined : 'w'} aria-hidden="true">
+        {done ? '✓' : '•'}
+      </i>
+      <div>
+        <span className="sr-only">{done ? 'Done: ' : 'Not done yet: '}</span>
+        {label}
+      </div>
+    </div>
   );
 }
 
 function Sunk({ children }: { children: React.ReactNode }) {
-  return <div className="bg-afs-bg-light-raised rounded-lg p-3.5 flex flex-col gap-1.5">{children}</div>;
+  return <div className="mailp">{children}</div>;
 }
 

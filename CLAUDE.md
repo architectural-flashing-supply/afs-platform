@@ -629,8 +629,12 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
     rejected because it would silence real customer mail the moment somebody left
     it on. `AFS_EMAIL_TEST_MODE=1` is for local development only and is not set
     in Vercel. Every approved invoice is copied automatically to
-    `officeInvoiceEmail()` — **`tricia@architecturalflashingsupply.com`**, named
-    once in `lib/data/office.ts` and nowhere else.
+    `officeInvoiceEmail()` — **`trica@architecturalflashingsupply.com`**, named
+    once in `lib/data/office.ts` and nowhere else. **The spelling is `trica@`,
+    with no `i` after the `r`.** An earlier pass (2026-09-30) ruled the opposite
+    and rewrote 31 occurrences to `tricia@`; Reid reversed that on 2026-10-01 and
+    every occurrence is back. Do not "correct" it again without his say — the
+    wrong-looking spelling is the right one.
 
 22. **THE SERVICE-ROLE SUPABASE CLIENT NEVER READS A CACHED ROW.**
     `lib/supabase/admin.ts` passes `cache: 'no-store'` on every request, and must
@@ -763,8 +767,18 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
     from a query string: it is built server-side from the caller's own shortcut
     rows (`buildIdSearchArgs`), never from `buildSearchArgs`.
     `components/admin/ProfileSearchPanel.tsx` is the ONE UI, rendered both at
-    `/admin/search` and inside FlashDraft's `?admin=1` drawer; only `onSelect`
-    differs.
+    **`/admin/search/profiles`** and inside FlashDraft's `?admin=1` drawer; only
+    `onSelect` differs.
+
+    **THE ROUTE MOVED IN v7 STAGE D, AND THE RULE IS UNCHANGED.** `/admin/search`
+    is now v7's own Search screen (`pageSearch()`), which searches QUOTES AND
+    ORDERS — a different question over different tables, built from the Quotes
+    and Orders lists' own rows and helpers (`applySearchQuery` in
+    `lib/data/quote-order-list.ts`), with NO new SQL function and no second
+    profile query. That is exactly what docs/COMMAND_CENTER_V7_GAP_AUDIT.md §4
+    said the gap was: "a SEPARATE quote/order query, not a second profile
+    function." One profile query, one profile panel, two mount points — only the
+    URL of the first changed, and the new Search page links straight to it.
 
     **The enlarged preview has NO CLOSE BUTTON, and that is why the timing is a
     tested module.** `lib/ui/hover-intent.ts`: 150 ms before it opens (a sweep
@@ -908,6 +922,217 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
     it diagnosable. A 200 with a wrong body is reported as an error, never as
     "Connected". Do not add a schema library for two documented shapes, and do
     not let a parser throw: a bad shape is a degraded read, not a 500.
+
+33. **THE COMMAND CENTER UI IS A PORT OF `docs/design/command-center-v7`.
+    NEVER BUILD OR RESTYLE A COMMAND CENTER SCREEN FROM MEMORY. RUN THE v7
+    STYLE GATE BEFORE FINISHING ANY UI WORK.**
+
+    The canonical source is
+    `docs/design/command-center-v7/AFS_Command_Center_Prototype_v7.html`
+    (sha256 `37f9c4d6…112a63`), committed so the design cannot drift away from
+    the repo. v7 WINS every conflict about appearance, layout, spacing, copy,
+    colour, font, label and interaction. Existing code wins only where it
+    supplies real data or API behaviour that v7 only fakes — keep that
+    behaviour, present it in v7's look.
+
+    **The CSS is DERIVED, not retyped.** `scripts/design/scope-v7-css.mjs`
+    (`pnpm css:v7`, chained into `prebuild`) reads the prototype's own CSS and
+    emits `app/styles/command-center-v7.generated.css` with every selector
+    scoped to `.cc-v7`, which only `AdminShell` sets. Editing the generated file
+    or hand-porting a rule is how the look drifts; change the prototype or the
+    deviations file and regenerate. `lib/design/v7-css.test.ts` regenerates and
+    compares, so a stale output fails the suite rather than shipping.
+
+    **v7 IS LIGHT, AND THAT DEPENDS ON BLOCK ORDER.** The prototype has FOUR
+    `<style>` blocks. Block 1 declares a DARK theme and says so ("One committed
+    dark theme", `--bg:#343D49`). Block 3 REDECLARES `:root` with the light
+    palette (`--bg:#F4F5F7`, `--hdr:#14181E`, `--red:#C8102E`) and wins. Reading
+    only block 1 yields a dark Command Center and is exactly the mistake that
+    produced earlier wrong-looking builds — v7's labels on the old app's look.
+    The result is a LIGHT working area, a DARK header, and ONE red action
+    colour. `lib/design/v7-css.test.ts` asserts the order and the resolved
+    tokens, so the cascade cannot silently invert.
+
+    **The ground is opt-in, per rule #18.** The transform splits v7's `body`
+    rule: typography goes on `.cc-v7` (safe everywhere), paint goes on
+    `.cc-v7-ground`. Painting the ground for the whole admin tree at once turned
+    the contrast gate red with 46 real failures — `afs-chrome-high` and the four
+    `*-on-dark` tokens at 1.09:1–1.69:1 on `#F4F5F7` — because twenty screens
+    still set light-on-dark text. Screens convert one at a time and the PAGE
+    opts in.
+
+    **THE STYLE GATE IS NO LONGER THE ACCEPTANCE TEST — SEE RULE #34.** It
+    passed 66 of 66 while the owner's report was "nothing matches", because it
+    compares hand-picked pairs on hand-picked properties and every one of them
+    really did match. The authority is now the WHOLE-SCREEN pixel diff,
+    `tests/visual/v7-pixel-gate.spec.ts`. Everything below still applies and the
+    style gate still runs — it remains the better tool for saying *why* two
+    screens differ once the diff says they do, and the stage-coverage rule is
+    still how a screen is stopped from passing by omission.
+
+    `tests/visual/v7-style-gate.spec.ts` opens the prototype and the live app in
+    one browser and compares the COMPUTED styles of every pair in
+    `tests/visual/v7-component-map.ts` — family, size, weight, line-height,
+    letter-spacing, transform, colour, background, border, radius, shadow,
+    padding, gap, height. Lengths match within 1px; everything else exactly,
+    unless the pair is a documented deviation. **Every v7 component a stage
+    builds must be added to that map in the same commit** — `EXPECTED_STAGE_COVERAGE`
+    fails the run if a stage ships components it never mapped, so a screen
+    cannot pass by omission. An unmeasurable pair is reported UNCOVERED and
+    fails, on the same principle as rule #28's `0 unresolved`.
+
+    Two comparison rules are deliberate and must survive any rewrite, because
+    without them the gate reports differences that cannot be seen and would end
+    up skip-listed into uselessness: a border's style and colour are compared
+    only on an edge whose WIDTH is non-zero (Tailwind's Preflight sets
+    `border-style:solid;border-color:#e5e7eb` at width 0 on every element), and
+    `color` is compared only on an element with a direct text node (the app's
+    `<body>` and v7's set different inherited colours, which containers never
+    render).
+
+    **THREE PORT LAYERS SIT ON TOP OF THE VERBATIM CSS, and each has a stated
+    bar.** v7 is a standalone page and this app is not, so a verbatim port alone
+    renders differently for reasons that are nobody's design decision:
+    `v7-fonts.css` binds v7's two families to the self-hosted next/font copies;
+    `v7-preflight-reset.css` cancels Tailwind Preflight rules v7 has no
+    counterpart for (it sets `letter-spacing: inherit` on form controls; v7's
+    reset sets only `font: inherit`, and that shorthand does not carry
+    letter-spacing); and `v7-real-data.css` handles cases v7's SAMPLE DATA
+    cannot produce — a guest email used as a customer name is one 41-character
+    token that overflows a list cell, and "Bending now" breaks inside a
+    fixed-height pill once real material text narrows its column. The bar for
+    `v7-real-data.css` is explicit in the file: v7's data must be INCAPABLE of
+    showing the problem, and the fix must be a rule v7 already applies
+    somewhere else. Anything else is a restyle, not a port.
+
+    **CONVERTING A PAGE IS HALF A CONVERSION.** Moving a screen into the light
+    working area leaves its CHILD components painting light-on-dark text, and
+    the contrast gate fails on them at around 1.1-1.7:1 — rule #29, which has no
+    darkening fix because on a light surface the fix runs the other way. Convert
+    the children in the same commit, and point form fields at v7's own `.f`
+    rather than a Tailwind border: `afs-line-strong` on `afs-bg-light-raised` is
+    2.70:1 against a 3:1 boundary rule.
+
+    **THE STYLE GATE REPORTS FOUR OUTCOMES, AND ONLY ONE OF THEM PASSES.**
+    `pass`; `fail`; `uncovered` (a mapped pair that could not be measured —
+    fails, because a gate must not pass by failing to look); `live-only` (the
+    component has no counterpart in v7's rendered state, e.g. its seed fills
+    every lane so its empty-lane message never renders — the LIVE element is
+    still asserted to exist); and `no-data` (the component is built but this
+    environment has no row to render it, e.g. an empty delivery week — the
+    PROTOTYPE side must still match, so it cannot wave through something that
+    was never built). The last two are printed and counted, never silent.
+
+    **WHAT THE GATE CANNOT SEE, so look at the screenshots.** It compares a
+    component against its counterpart, not that component's children. Giving an
+    element v7's class while leaving its old flat children underneath renders
+    inline text running together with buttons overlapping it, and every compared
+    property still matches. That is a real defect this gate passed and a
+    screenshot caught, which is why `test-results/v7-fidelity/` is part of the
+    run and not decoration.
+
+    **COLOUR DEVIATIONS ARE THE ONE LOOPHOLE AND THEY ARE MEASURED.** Where a v7
+    colour fails the WCAG build gate (rule #28), change ONLY that colour, to the
+    nearest passing shade in the same hue family, apply it in
+    `v7-deviations.css` (never by editing the verbatim `v7.css`), and record it
+    in `docs/design/V7_COLOR_DEVIATIONS.md`. **Never relax a gate threshold.**
+    `lib/design/v7-deviations.test.ts` recomputes every ratio from the real CSS
+    and asserts each deviation is still NECESSARY (v7's value really fails),
+    SUFFICIENT (the replacement really passes) and IN HUE (channel ratios within
+    5%) — so a deviation cannot be added to silence the gate, and one that stops
+    being needed fails rather than lingering as a permanent excuse. There is
+    exactly ONE today: `#1E8E52` → `#1D874E`, because white text on v7's green
+    measures 4.16:1 against a 4.5:1 requirement.
+
+34. **THE WHOLE-SCREEN PIXEL GATE IS THE FIDELITY AUTHORITY. THE STYLE GATE IS
+    SECONDARY. NEVER CALL A SCREEN MATCHING WITHOUT A MEASURED PASS.**
+
+    `tests/visual/v7-pixel-gate.spec.ts` renders the untouched prototype and the
+    live app at 1440x900, full page, clock and random source frozen, animations
+    off, fonts loaded, and diffs them WHOLE. Pass is at most **1.5% of pixels**
+    per screen. The screens are every entry in
+    `docs/design/command-center-v7/SCREEN_MANIFEST.json` — all 54 distinct v7
+    states, read out of the prototype's own `render()` dispatcher, every page
+    function and every `modalHTML()` branch.
+
+    **WHY IT REPLACED THE 66-PAIR STYLE GATE AS THE AUTHORITY.** The owner's
+    report was "nothing matches" while that gate passed 66 of 66. Both were
+    true. A gate that compares hand-picked element pairs on hand-picked
+    properties cannot see a missing profile drawing, an absent pill, a rail with
+    two panels where v7 has three, a header logo at the wrong aspect ratio, or a
+    screen that is simply a different screen — because every property it was
+    pointed at really did match. **A gate that only looks where it is pointed
+    cannot find what nobody pointed it at.** Keep the style gate running: it is
+    still the better tool for saying *why* two screens differ once the diff says
+    they do. It is no longer what decides whether they do.
+
+    **SIX THINGS IN THE HARNESS ARE LOAD-BEARING AND MUST SURVIVE ANY REWRITE**,
+    each because without it the gate could pass while the screen does not match:
+
+    (a) **A SIZE MISMATCH COUNTS AS DIFFERENCE.** Both captures are composited
+    onto a canvas of the UNION size over a sentinel magenta. Cropping to the
+    intersection would let a page that renders half of v7's content score well,
+    because the missing half would be outside the compared area.
+
+    (b) **FIVE OUTCOMES, AND ONLY ONE PASSES** — `pass`, `fail`, `missing` (a v7
+    state with NO live route: named in the report, never waved through),
+    `live-only`, and `error` (a side that could not be reached — fails, on the
+    same principle as rule #28's `0 unresolved`).
+
+    (c) **THE MANIFEST AND THE DRIVERS ARE FORCED TO AGREE**, in both
+    directions, by `assertDriversMatchManifest`. A state added to one and not
+    the other fails the run rather than being silently skipped.
+
+    (d) **THE BASELINE COMES ONLY FROM THE UNTOUCHED PROTOTYPE**, re-rendered
+    every run. There is no "update baselines" mode and must never be one: a
+    baseline here is not an expectation that can drift, it is a render of a
+    committed file.
+
+    (e) **ONLY v7's OWN REVIEW BANNER IS REMOVED FROM A BASELINE** — `.proto`,
+    `#gpeek`, `#toast`, identified by their own class and ids. `.proto` is a
+    static block that offsets the whole document, which would put every screen
+    past any possible budget; removing it can only make the prototype side MORE
+    like a shipped page, so it cannot hide a difference in the port.
+
+    (f) **MASKS ARE FOR GENUINELY DYNAMIC TEXT ONLY**, each with a written
+    justification, 2% of the screen in total, and all of them printed in the
+    report. `SCREEN_MASKS` is EMPTY today and that is the target state. "This
+    bit does not match yet" is not a justification, it is the finding.
+
+    **DO NOT LOOSEN THE THRESHOLD, WIDEN A MASK, OR EDIT A BASELINE TO MAKE A
+    SCREEN PASS.** Fix the screen. The 1.5% budget was never raised during the
+    run that built this and every one of the 35 reachable screens came in under
+    0.8% but one.
+
+    **FIXTURE MODE IS WHAT MAKES THE NUMBER MEAN ANYTHING.** `lib/fixtures/mode.ts`
+    requires THREE locks — `CC_FIXTURE=1`, a non-production build, AND
+    `?fixture=v7` on the URL — and `lib/fixtures/mode.test.ts` asserts each
+    independently, including the one combination that could happen by accident.
+    It substitutes DATA ONLY and never touches authentication. Without it the
+    diff would be measuring the database against a demo, every screen would
+    differ for reasons that are nobody's design decision, and the only way to
+    make it pass would be to raise the threshold until it asserted nothing —
+    which is exactly how the previous gate ended up green on screens the owner
+    says do not match.
+
+    **THE SECOND GATE SAYS WHAT IS WRONG IN WORDS.** Alongside the diff, the
+    harness compares the ordered sequence of visible landmarks and reports what
+    is missing, extra or out of order. It matches v7's clickable widgets BY
+    CLASS (`.dtab`, `.ci`, `.si`, `.opt`, `.tab`, `.hsr`, `.hsall`, `.nqb`,
+    `.linkcell`) rather than by element, because v7 is one self-rendering page
+    where every widget is a `<button>` and the port is a routed app where the
+    same widget is often an `<a>`. Measuring the widget on BOTH sides is the
+    honest fix; dropping it from the selector would have been the dishonest one.
+
+    **AND LOOK AT THE SIDE-BY-SIDE.** `test-results/v7-pixel/<id>-side-by-side.png`
+    is part of the run, not decoration. Three of the seven defects this gate
+    found were found by LOOKING at it, not by reading the number — including a
+    header logo at the wrong aspect ratio that had every element right of the
+    brand 35px off on every screen in the app.
+
+    Full detail, including every deliberate divergence and every honest empty
+    state: `docs/design/V7_PIXEL_REPORT.md`. The behaviour mapping, v7 function
+    to React handler: `docs/design/command-center-v7/BEHAVIOR_MAP.md`.
 
 ---
 

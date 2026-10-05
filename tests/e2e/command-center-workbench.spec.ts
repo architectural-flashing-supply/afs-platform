@@ -153,11 +153,32 @@ test.describe('Command Center V2 — Workbench and Job screen', () => {
       await expect(page.getByText(sub, { exact: true })).toBeVisible();
     }
 
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-      /^Good (morning|afternoon|evening), .+\.$/
-    );
-    await expect(page.getByText(/\d+ quotes? to write/)).toBeVisible();
-    await expect(page.getByText(/\d+ jobs? in the shop/)).toBeVisible();
+    // v7 TITLES THIS SCREEN "Workbench" (`pageWorkbench()`, line 1283), not with
+    // a greeting. The greeting is still computed — it rides along as the
+    // heading's title attribute — but the visible h1 is the nav item's own
+    // label, so the page says what you clicked.
+    const h1 = page.getByRole('heading', { level: 1 });
+    await expect(h1).toHaveText('Workbench');
+    await expect(h1).toHaveAttribute('title', /^Good (morning|afternoon|evening), .+\.$/);
+
+    // v7's FOUR chips, in v7's order (`pageWorkbench()`, line 1283): approvals,
+    // to-quote, email, deliveries today.
+    //
+    // THE "N jobs in the shop" CHIP IS GONE, and that is the design rather than
+    // a loss. v7 does not have one; it has an EMAIL chip in that position. The
+    // previous build's chip set was its own, and the whole-screen pixel gate is
+    // what surfaced the difference. The email chip reads "Email not connected"
+    // in live mode rather than a 0, because there is no Microsoft Graph behind
+    // it and a zero would read as "no new mail" when the truth is "nothing is
+    // being read".
+    await expect(page.getByText(/^\d+ to quote$/)).toBeVisible();
+    await expect(
+      page.getByText(/^(\d+ ready for the machine|No approvals waiting)$/)
+    ).toBeVisible();
+    await expect(page.getByText(/^(\d+ new emails?|Email not connected)$/)).toBeVisible();
+    await expect(
+      page.getByText(/^(\d+ deliver(y|ies)|No deliveries) today$/)
+    ).toBeVisible();
   });
 
   test('a FlashDraft submission arrives as a New card, opens, is approved with NO PathfinderEdge write, and lands in Approved', async ({
@@ -222,8 +243,15 @@ test.describe('Command Center V2 — Workbench and Job screen', () => {
     await expect(approved).toHaveAttribute('data-stage', 'approved');
     await expect(approved).toContainText('Customer approved');
     await expect(approved.getByRole('button', { name: 'Send to machine' })).toBeVisible();
-    // The green pulse the prototype specifies for this lane.
-    await expect(approved).toHaveClass(/afs-beacon/);
+    // The green pulse v7 specifies for this lane. v7 marks the CARD `.appr`
+    // and puts the pulsing dot in its meta row as a `.beacon` span, rather
+    // than animating the card itself (which was the pre-port `afs-beacon`
+    // class). Both halves are asserted: the card is marked, and the dot that
+    // actually pulses is really there.
+    // toHaveClass(RegExp) matches the WHOLE class attribute, not a substring,
+    // so this is anchored rather than written as a word-boundary search.
+    await expect(approved).toHaveClass(/^card appr$/);
+    await expect(approved.locator('.meta .beacon')).toBeVisible();
 
     // "Send to machine" is NOT CLICKED. It is the one door to catalog 20115 and
     // this spec never opens it.
