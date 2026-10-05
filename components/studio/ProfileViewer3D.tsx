@@ -73,9 +73,8 @@ export interface ProfileViewer3DProps {
    */
   hideDimensions?: boolean;
   /**
-   * Initial state of the Dimensions toggle. Defaults to true (unchanged for
-   * FlashDraft and every existing caller); the Products page passes false so
-   * the profile opens clean and the customer turns dimensions on if they want.
+   * Initial state of the Dimensions toggle. Defaults to false: every 3D profile opens clean (FlashDraft,
+   * Products, confirmation modals) and the customer turns dimensions on if they want.
    * Ignored when hideDimensions is true.
    */
   defaultDimensionsOn?: boolean;
@@ -552,7 +551,7 @@ export default function ProfileViewer3D({
   fallbackTone = 'dark',
   minHeightPx = 500,
   hideDimensions = false,
-  defaultDimensionsOn = true,
+  defaultDimensionsOn = false,
 }: ProfileViewer3DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
