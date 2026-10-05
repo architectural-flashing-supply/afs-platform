@@ -73,6 +73,13 @@ export interface ProfileViewer3DProps {
    */
   hideDimensions?: boolean;
   /**
+   * Initial state of the Dimensions toggle. Defaults to true (unchanged for
+   * FlashDraft and every existing caller); the Products page passes false so
+   * the profile opens clean and the customer turns dimensions on if they want.
+   * Ignored when hideDimensions is true.
+   */
+  defaultDimensionsOn?: boolean;
+  /**
    * Palette for the 2D fallback rendered when WebGL is unavailable (F-06).
    * Defaults to 'dark', because this viewer's own overlay chrome is gunmetal
    * (afs-bg-raised/90 panels, afs-chrome-mid labels) — i.e. every place it is
@@ -545,6 +552,7 @@ export default function ProfileViewer3D({
   fallbackTone = 'dark',
   minHeightPx = 500,
   hideDimensions = false,
+  defaultDimensionsOn = true,
 }: ProfileViewer3DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -571,7 +579,7 @@ export default function ProfileViewer3D({
   // and the renderer size but left the camera at its original distance.
   const fitBoxRef = useRef<THREE.Box3 | null>(null);
 
-  const [dimensionsOn, setDimensionsOn] = useState(!hideDimensions);
+  const [dimensionsOn, setDimensionsOn] = useState(!hideDimensions && defaultDimensionsOn);
   const [hintVisible, setHintVisible] = useState(true);
   /**
    * F-06 — WebGL IS NOT GUARANTEED, SO THE VIEWER DEGRADES TO 2D.

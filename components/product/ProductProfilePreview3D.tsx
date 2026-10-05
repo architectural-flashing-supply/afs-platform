@@ -127,6 +127,7 @@ export default function ProductProfilePreview3D({
         fallbackTone="light"
         minHeightPx={minHeightPx}
         hideDimensions={isSchematic}
+        defaultDimensionsOn={false}
         // Reduced motion: no rotation at all, just the static shape.
         autoRotateSpeed={prefersReducedMotion ? 0 : AUTO_ROTATE_SPEED}
         autoRotateDurationMs={prefersReducedMotion ? 0 : AUTO_ROTATE_DURATION_MS}
