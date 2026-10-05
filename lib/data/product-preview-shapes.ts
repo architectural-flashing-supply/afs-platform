@@ -241,88 +241,6 @@ export const PRODUCT_PREVIEW_SHAPES: Readonly<Record<string, ProductPreviewShape
       { x: 5.802, y: -0.161 },
     ],
   },
-  'dmc-150ss-seamed-90': {
-    schematic: true,
-    confidence: 'medium',
-    note: "Units: 1 unit = 100 px along the leg (v); u length from axonometric (Gauss) solve with extrusion axis slope -0.574, so x/y aspect is approximate (rendering may have mild perspective). Frontmost cut end-face = the panel's own sheet: pt0 free end of short 90deg seam flange (flange ~1.0 unit, points toward pan side), pt1 top of standing leg (90deg bend), pt2 leg-to-pan 90deg bend (radiused corner), pt3 pan continues off the image edge (pan width truncated, NOT the panel edge). No stiffener ribs visible in pan. The seam stack is shown in a stepped cutaway set back along the extrusion axis: a tan concealed clip wraps the flange (rounded U loop), and the adjacent panel's female leg (blue rounded loop) wraps over clip+flange; neither is part of this sheet's end face so they are not in the polyline. The adjacent panel's pan and the clip base are visible at left/bottom but their legs are hidden.",
-    points: [
-      { x: 0.0, y: 0.0 },
-      { x: -1.11, y: 0.006 },
-      { x: -1.12, y: 5.307 },
-      { x: 4.88, y: 5.335 },
-    ],
-  },
-  'dmc-200s-seamed-180': {
-    schematic: true,
-    confidence: 'medium',
-    note: "Units: 1 unit = 100 px along the leg (v); u length from axonometric orthogonality solve, x/y aspect approximate, mild perspective (pan slope steepens toward image bottom). Frontmost cut end-face of this panel's sheet: pt0 free end of a 180deg return hem hanging down on the pan side of the leg (hem ~2.3 units long, open slot ~0.1 unit between hem and leg), pt1-pt2 the tight 180deg fold at the seam top (rounded; two vertices = fold width ~0.27 unit centreline-to-centreline), pt2-pt3 standing leg, pt3 radiused 90deg leg-to-pan bend, pt4 pan runs off the image (pan width truncated). Set back along the extrusion axis (stepped cutaway): a tan concealed clip folded as a tall rounded U over the hemmed leg top, and the adjacent panel's female leg as a tall rounded U over clip+hem (180deg seamed condition). Separate parts, not in this polyline.",
-    points: [
-      { x: 0.0, y: 0.0 },
-      { x: 0.048, y: -1.995 },
-      { x: -0.22, y: -1.958 },
-      { x: -0.222, y: 3.88 },
-      { x: 4.643, y: 4.005 },
-    ],
-  },
-  'dmc-200s-seamed-90': {
-    schematic: true,
-    confidence: 'medium',
-    note: "Units: 1 unit = 100 px along the leg (v); u length from an axonometric orthogonality solve, so x/y aspect approximate (possible mild perspective). Frontmost cut end-face of this panel's sheet: pt0 free end of the 90deg seam flange (~2.0 units, pointing toward the pan side), pt1 90deg bend at top of standing leg, pt2 radiused 90deg leg-to-pan bend, pt3 pan runs off the image (pan width truncated, not a panel edge). No pan ribs visible. Set back along the extrusion axis (stepped cutaway) are: a tan concealed clip folded as a flat rounded U over the flange, and the adjacent panel's female leg as a flat rounded U over clip+flange (90deg seamed). Those are separate parts, not in this polyline. Same geometry family as dmc-150ss-seamed-90 but flange ~2x longer relative to leg.",
-    points: [
-      { x: 0.0, y: 0.0 },
-      { x: -1.866, y: 0.048 },
-      { x: -1.863, y: 5.867 },
-      { x: 2.903, y: 6.0 },
-    ],
-  },
-  'dmc-200s': {
-    schematic: true,
-    confidence: 'medium',
-    note: "Rendering is mirrored vs the seamed variants (leg at right, pan to the left); profile +x is taken toward the pan side so the section reads the same way as dmc-200s-seamed-90. Units: 1 unit = 100 px along the leg; u length from axonometric orthogonality solve, x/y aspect approximate, mild perspective. Frontmost cut end-face of this panel's sheet: pt0 free end of the 90deg seam flange (~2.2 units, pointing toward the pan side), pt1 90deg bend at top of standing leg, pt2 radiused 90deg leg-to-pan bend, pt3 pan runs off the image (pan width truncated). No pan ribs visible. Unseamed condition: set back along the extrusion axis are a tan clip formed as an inverted square U over the flange (its inner leg turns down beside the flange) and the adjacent panel's female leg as a larger square inverted U over the clip, left open (not crimped). Separate parts, not in this polyline.",
-    points: [
-      { x: 0.0, y: 0.0 },
-      { x: -1.873, y: 0.035 },
-      { x: -1.879, y: 5.856 },
-      { x: 2.673, y: 6.0 },
-    ],
-  },
-  'dmc-fwq100-reveal': {
-    schematic: true,
-    confidence: 'medium',
-    note: "Rendering shows a JOINT between two identical flush-wall reveal panels, cut square at the front. Units: 1 unit = 100 px along the legs; u from axonometric orthogonality solve. The image has visible perspective (same-direction edges steepen lower in the frame: slope -0.26 at top right to -0.34 at bottom), so with this affine map long horizontal runs come out tilted a few degrees and aspect is approximate. 'points' = LEFT panel sheet (female/receiver edge): pt0 face runs off image at left (face width truncated), pt1 90deg bend face-to-return leg (leg = panel depth ~2.7 units), pt2 bend at leg bottom into an inclined limb that runs back under the panel, pt3-pt7 a 180deg open U hook (pt5 = apex; U opening narrows toward the apex), pt7-pt8 lower limb returning toward the reveal, pt8-pt10 a small raised offset/kink (bend up, short flat with slight dip), pt10-pt11 fastening/attachment flange running under the reveal to its square-cut free end pt11. 'points_b' = RIGHT panel sheet (male/hook edge, same product's opposite edge): face runs off image at right, 90deg bend, return leg (~2.85 units), 90deg bend into the reveal floor that runs back under the left panel, then a 180deg U hook nested INSIDE the left panel's U, ending at a square free end. Hook radii and the kink are small and read at ~5 px precision; layer thickness ~10 px. Single-sheet trace of one full panel is not shown: left panel's left edge and right panel's right edge are off-image, so the two edges are given separately.",
-    points: [
-      { x: 0.0, y: 0.0 },
-      { x: 4.209, y: -0.022 },
-      { x: 4.209, y: 1.259 },
-      { x: 3.454, y: 1.299 },
-      { x: 3.332, y: 1.339 },
-      { x: 3.263, y: 1.46 },
-      { x: 3.335, y: 1.604 },
-      { x: 3.466, y: 1.658 },
-      { x: 4.095, y: 1.69 },
-      { x: 4.24, y: 1.656 },
-      { x: 4.416, y: 1.717 },
-      { x: 6.0, y: 1.662 },
-    ],
-  },
-  'fastener-flange': {
-    schematic: true,
-    confidence: 'medium',
-    note: "Rendering shows a snap/standing-seam joint of two panels cut at the front. Units: 1 unit = 100 px vertical; u from axonometric orthogonality solve (extrusion axis slope ~+0.34), aspect approximate; visible perspective (left pan edge slope -0.36 vs right-side flanges -0.27) so long runs tilt a few degrees. 'points' = the fully visible sheet (male panel with the fastener flange): pt0 left pan runs off image (pan width truncated), pt1-pt2 small stiffening step/offset in the pan, pt3 bend from pan into the male rib's lower left wall, pt4-pt5 snap-lock detent: wall kicks back left forming a ledge/notch, pt5-pt7 upper left wall (tapered, rib narrows to the top), pt7-pt8 rounded rib top, pt8-pt9 right wall (tapered), pt9 bend at rib base into the fastener (nailing) flange, pt10 square-cut free end of the fastener flange. 'points_b' = VISIBLE PART ONLY of the adjacent panel's female cap: pt0 free end of the hook return (inside), pt0-pt3 tight U hook at the bottom of the cap's left leg (pt2 = U bottom), pt3-pt4 left leg, pt4-pt5 cap top, pt6 where the cap's right leg disappears behind the male rib (rest of the cap, its right leg and the adjacent panel's pan connection near (1103,843) img px, are hidden/ambiguous and NOT traced). The cap end-face appears set back along the extrusion axis, so its hook does not visibly engage the male detent in the image; their relative position in points_b vs points is image-plane only. The right panel's pan (upper strip at right with a step near img (1415,770)) is visible but its connection to the cap is hidden, so not traced.",
-    points: [
-      { x: 0.0, y: 0.0 },
-      { x: 0.698, y: -0.05 },
-      { x: 0.894, y: -0.219 },
-      { x: 3.514, y: -0.318 },
-      { x: 3.702, y: -1.004 },
-      { x: 3.295, y: -1.275 },
-      { x: 3.365, y: -1.551 },
-      { x: 3.623, y: -1.97 },
-      { x: 4.078, y: -1.874 },
-      { x: 4.329, y: -0.274 },
-      { x: 6.0, y: -0.238 },
-    ],
-  },
   'trim-drip-edge': {
     schematic: true,
     confidence: 'medium',
@@ -518,6 +436,12 @@ export const PRODUCT_PREVIEW_SHAPES: Readonly<Record<string, ProductPreviewShape
 
 /** Products whose rendering could not be traced, with the reason. They get no 3D preview. */
 export const UNTRACED_PRODUCTS: Readonly<Record<string, string>> = {
+  'dmc-150ss-seamed-90': "Not rendered in 3D by decision: roofing panel / seam close-up.",
+  'dmc-200s-seamed-180': "Not rendered in 3D by decision: roofing panel / seam close-up.",
+  'dmc-200s-seamed-90': "Not rendered in 3D by decision: roofing panel / seam close-up.",
+  'dmc-200s': "Not rendered in 3D by decision: roofing panel / seam close-up.",
+  'dmc-fwq100-reveal': "Not rendered in 3D by decision: roofing panel / seam close-up.",
+  'fastener-flange': "Not rendered in 3D by decision: partial seam close-up, same class as the DMC panels.",
   'snap-lock-wclip': "Rendering is a close-up cutaway of an ASSEMBLED seam, not a single panel: (a) a blue female rib (tall rounded-top rib, left wall ending in an inward hook at bottom ~(920-967,680-753)px), (b) a blue male leg with a 180-degree hemmed top loop (~1075-1110,385-570px) and a lower vertical wall with an in",
 };
 

@@ -117,28 +117,56 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
           `minHeightPx` is handed the same floor so the viewer fills the slot
           instead of overflowing it.
         */}
-        <div
-          className="relative mt-4 w-full overflow-hidden rounded"
-          style={{ height: MODAL_CANVAS_HEIGHT }}
-        >
-          {product.geometryMatch || product.hasSchematicPreview ? (
-            <ProductProfilePreview3D
-              profileType={product.geometryMatch}
-              schematicProductId={product.hasSchematicPreview ? product.id : null}
-              productName={product.name}
-              minHeightPx={0}
-              className="h-full w-full"
-            />
-          ) : (
-            <Image
-              src={product.image}
-              alt={product.name}
-              fill
-              sizes="(max-width: 640px) 90vw, 520px"
-              className="object-contain p-3"
-            />
-          )}
-        </div>
+        {/*
+          The rendering is ALWAYS shown (left); the 3D view sits beside it (right)
+          only where a faithful 3D shape exists. Stacks on a phone. Products with
+          no 3D show the rendering alone, full width.
+        */}
+        {(() => {
+          const has3D = Boolean(product.geometryMatch || product.hasSchematicPreview);
+          return (
+            <div className={`mt-4 grid gap-3 ${has3D ? 'sm:grid-cols-2' : 'grid-cols-1'}`}>
+              <figure className="m-0">
+                <div
+                  className="relative w-full overflow-hidden rounded bg-afs-bg-light"
+                  style={{ height: MODAL_CANVAS_HEIGHT }}
+                >
+                  <Image
+                    src={product.image}
+                    alt={product.name}
+                    fill
+                    sizes="(max-width: 640px) 90vw, 460px"
+                    className="object-contain p-3"
+                  />
+                </div>
+                {has3D ? (
+                  <figcaption className="mt-1 font-data text-xs uppercase tracking-wide text-afs-ink-700">
+                    Rendering
+                  </figcaption>
+                ) : null}
+              </figure>
+              {has3D ? (
+                <figure className="m-0">
+                  <div
+                    className="relative w-full overflow-hidden rounded"
+                    style={{ height: MODAL_CANVAS_HEIGHT }}
+                  >
+                    <ProductProfilePreview3D
+                      profileType={product.geometryMatch}
+                      schematicProductId={product.hasSchematicPreview ? product.id : null}
+                      productName={product.name}
+                      minHeightPx={0}
+                      className="h-full w-full"
+                    />
+                  </div>
+                  <figcaption className="mt-1 font-data text-xs uppercase tracking-wide text-afs-ink-700">
+                    3D profile
+                  </figcaption>
+                </figure>
+              ) : null}
+            </div>
+          );
+        })()}
 
         <p className="mt-3 font-data text-xs uppercase tracking-wide text-afs-ink-700">
           {product.category}

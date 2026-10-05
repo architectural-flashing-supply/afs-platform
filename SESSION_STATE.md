@@ -9974,3 +9974,5 @@ Branch products-page (never previously merged) is now integrated: Drexel renderi
 - Rollback: git revert the merge; templates return.
 
 - 2026-10-05: Perforated Z Closure 3D view shows staggered slotted perforations on the wide flange (shader cutout, ProfileViewer3D perforatedSegments prop; set in trace/gen_ts.py PERFORATED).
+
+- 2026-10-05: Products hover popover + modal now show the Drexel rendering (left) beside the 3D profile (right). DMC roofing panels and Fastener Flange have NO 3D (decision: cannot be rendered faithfully); rendering shown alone. Controlled by NO_3D in trace/gen_ts.py -> UNTRACED_PRODUCTS.
