@@ -82,28 +82,29 @@ for (const viewport of [
 test.describe('Dimensions toggle', () => {
   test.use({ viewport: { width: 1440, height: 900 } });
 
-  test('Off removes every label; On restores them', async ({ page }) => {
+  test('opens with dimensions OFF; On shows labels; Off removes them again', async ({ page }) => {
     await openProductModal(page, 'Ridge Cap');
     const dialog = page.getByRole('dialog');
 
     // CSS2DObject labels are divs the CSS2DRenderer appends next to the canvas.
     const labels = dialog.locator('div[style*="translate"]').filter({ hasText: /["°]/ });
 
-    const onCount = await labels.count();
-    expect(onCount, 'no dimension labels visible before toggling').toBeGreaterThan(0);
-
-    await dialog.getByRole('button', { name: /Dimensions/ }).click();
-    await page.waitForTimeout(600);
+    // Default state: OFF. The customer opts in to dimensions.
     await expect(dialog.getByRole('button', { name: /Dimensions Off/ })).toBeVisible();
-    expect(await labels.count(), 'labels survived being switched off').toBe(0);
+    expect(await labels.count(), 'dimension labels showing by default').toBe(0);
 
     await page.screenshot({ path: `${SHOT_DIR}/dimensions-off.png` });
 
     await dialog.getByRole('button', { name: /Dimensions/ }).click();
     await page.waitForTimeout(600);
-    expect(await labels.count(), 'labels did not come back').toBeGreaterThan(0);
+    await expect(dialog.getByRole('button', { name: /Dimensions On/ })).toBeVisible();
+    expect(await labels.count(), 'labels did not appear when switched on').toBeGreaterThan(0);
 
     await page.screenshot({ path: `${SHOT_DIR}/dimensions-on.png` });
+
+    await dialog.getByRole('button', { name: /Dimensions/ }).click();
+    await page.waitForTimeout(600);
+    expect(await labels.count(), 'labels survived being switched off').toBe(0);
   });
 });
 
