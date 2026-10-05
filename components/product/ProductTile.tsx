@@ -39,7 +39,7 @@ export default function ProductTile({ product, onOpen }: ProductTileProps) {
     if (el) {
       const r = el.getBoundingClientRect();
       const cx = r.left + r.width / 2;
-      const half = 160 + 8;
+      const half = 310 + 8;
       const vw = document.documentElement.clientWidth;
       setShiftX(Math.max(half - cx, 0) - Math.max(cx + half - vw, 0));
     }
@@ -102,27 +102,35 @@ export default function ProductTile({ product, onOpen }: ProductTileProps) {
           id={popoverId}
           role="tooltip"
           style={{ transform: `translate(calc(-50% + ${shiftX}px), -50%)` }}
-          className="pointer-events-none absolute left-1/2 top-1/2 z-30 hidden w-[320px] rounded border border-afs-border-catalog bg-afs-bg-catalog-pop p-4 shadow-xl [@media(hover:hover)]:block"
+          className="pointer-events-none absolute left-1/2 top-1/2 z-30 hidden w-[620px] rounded border border-afs-border-catalog bg-afs-bg-catalog-pop p-4 shadow-xl [@media(hover:hover)]:block"
         >
-          <div className="relative h-[200px] w-full overflow-hidden rounded">
-            {product.geometryMatch || product.hasSchematicPreview ? (
-              <ProductProfilePreview3D
-                profileType={product.geometryMatch}
-                schematicProductId={product.hasSchematicPreview ? product.id : null}
-                productName={product.name}
-                minHeightPx={0}
-                className="h-full w-full"
-              />
-            ) : (
-              <Image
-                src={product.image}
-                alt={product.name}
-                fill
-                sizes="320px"
-                className="object-contain p-2"
-              />
-            )}
-          </div>
+          {(() => {
+            const has3D = Boolean(product.geometryMatch || product.hasSchematicPreview);
+            return (
+              <div className={`grid gap-2 ${has3D ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                <div className="relative h-[280px] w-full overflow-hidden rounded bg-afs-bg-light">
+                  <Image
+                    src={product.image}
+                    alt={product.name}
+                    fill
+                    sizes="300px"
+                    className="object-contain p-2"
+                  />
+                </div>
+                {has3D ? (
+                  <div className="relative h-[280px] w-full overflow-hidden rounded">
+                    <ProductProfilePreview3D
+                      profileType={product.geometryMatch}
+                      schematicProductId={product.hasSchematicPreview ? product.id : null}
+                      productName={product.name}
+                      minHeightPx={0}
+                      className="h-full w-full"
+                    />
+                  </div>
+                ) : null}
+              </div>
+            );
+          })()}
 
           <p className="mt-3 font-body text-base font-semibold text-afs-ink-900">{product.name}</p>
 
