@@ -30,6 +30,21 @@ export default function ProductTile({ product, onOpen }: ProductTileProps) {
   const [active, setActive] = useState(false);
   const popoverId = useId();
   const tileRef = useRef<HTMLDivElement | null>(null);
+  const [shiftX, setShiftX] = useState(0);
+
+  // The 320px popover is centred on a 192px tile, so tiles near either viewport
+  // edge would push it off-screen. Measure on activation and nudge it back in.
+  const activate = useCallback(() => {
+    const el = tileRef.current;
+    if (el) {
+      const r = el.getBoundingClientRect();
+      const cx = r.left + r.width / 2;
+      const half = 160 + 8;
+      const vw = document.documentElement.clientWidth;
+      setShiftX(Math.max(half - cx, 0) - Math.max(cx + half - vw, 0));
+    }
+    setActive(true);
+  }, []);
 
   const open = useCallback(() => onOpen(product), [onOpen, product]);
 
@@ -48,14 +63,14 @@ export default function ProductTile({ product, onOpen }: ProductTileProps) {
       ref={tileRef}
       className="relative"
       style={{ width: TILE_SIZE_PX }}
-      onMouseEnter={() => setActive(true)}
+      onMouseEnter={activate}
       onMouseLeave={() => setActive(false)}
     >
       <button
         type="button"
         onClick={open}
         onKeyDown={onKeyDown}
-        onFocus={() => setActive(true)}
+        onFocus={activate}
         onBlur={() => setActive(false)}
         aria-describedby={active ? popoverId : undefined}
         className="group block w-full cursor-pointer rounded border border-afs-border-catalog bg-afs-bg-lane p-2 text-left transition-colors hover:bg-afs-bg-catalog-pop focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-afs-crimson focus-visible:ring-offset-2 focus-visible:ring-offset-afs-bg-light-raised"
@@ -86,7 +101,8 @@ export default function ProductTile({ product, onOpen }: ProductTileProps) {
         <div
           id={popoverId}
           role="tooltip"
-          className="pointer-events-none absolute left-1/2 top-1/2 z-30 hidden w-[320px] -translate-x-1/2 -translate-y-1/2 rounded border border-afs-border-catalog bg-afs-bg-catalog-pop p-4 shadow-xl [@media(hover:hover)]:block"
+          style={{ transform: `translate(calc(-50% + ${shiftX}px), -50%)` }}
+          className="pointer-events-none absolute left-1/2 top-1/2 z-30 hidden w-[320px] rounded border border-afs-border-catalog bg-afs-bg-catalog-pop p-4 shadow-xl [@media(hover:hover)]:block"
         >
           <div className="relative h-[200px] w-full overflow-hidden rounded">
             {product.geometryMatch || product.hasSchematicPreview ? (
