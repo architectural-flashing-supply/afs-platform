@@ -9972,3 +9972,5 @@ Branch products-page (never previously merged) is now integrated: Drexel renderi
 - 17 products previously borrowed generic ProfileType templates (wrong shapes). Traced shape now wins; for those products the template is withdrawn, so they offer Request a Quote only (no Select & Design) - a traced shape is unmeasured and must not reach FlashDraft.
 - Untraceable (no preview): snap-lock-wclip (assembled-seam close-up). Low confidence: snap-coping-max (back leg hidden by cleat), valley-sample-02 (fold angle unverified). Seam close-ups (dmc-*, fwq100, fastener-flange) trace only the visible panel sheet, not clips/adjoining panels.
 - Rollback: git revert the merge; templates return.
+
+- 2026-10-05: Perforated Z Closure 3D view shows staggered slotted perforations on the wide flange (shader cutout, ProfileViewer3D perforatedSegments prop; set in trace/gen_ts.py PERFORATED).
