@@ -1,10 +1,27 @@
 import Link from 'next/link';
-import type { CatalogCategory } from '@/lib/data/catalog';
+import { PRODUCTS, type CatalogCategory } from '@/lib/data/catalog';
+import type { ProfileType } from '@/lib/utils/profile-svg';
+import ProfileThumb, { resolveProfileType } from './ProfileThumb';
 
 export default function CategoryCard({ category }: { category: CatalogCategory }) {
+  // Category art = the category's own profile, else the first product in it
+  // that has a real drawing. Categories with no drawable product stay as-is.
+  const artType =
+    category.profileType ??
+    PRODUCTS.filter((p) => p.categorySlug === category.slug)
+      .map((p) => resolveProfileType(p.slug, p.profileType))
+      .find((t): t is ProfileType => t !== null);
   return (
     <div className="group bg-afs-bg-raised border border-afs-chrome-dim rounded metal-edge overflow-hidden hover:border-afs-chrome-base transition-colors flex flex-col">
       <Link href={`/products/${category.slug}`} className={`block h-40 relative bg-gradient-to-br ${category.gradientClass} bg-afs-bg-raised`}>
+        {artType && (
+          <ProfileThumb
+            slug={category.slug}
+            profileType={artType}
+            fallbackLabel={category.name}
+            className="absolute inset-x-6 top-4 bottom-14 bg-transparent"
+          />
+        )}
         <span className="absolute inset-0 flex items-end p-5">
           <span className="font-display text-3xl text-afs-chrome-high tracking-wide leading-none">
             {category.name.toUpperCase()}

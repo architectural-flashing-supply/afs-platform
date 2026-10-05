@@ -33,6 +33,12 @@ export interface ProfileSVGParams {
    * read clearly on the shop floor — roughly 1.5-2x larger and bold.
    */
   labelScale?: number;
+  /**
+   * Opt-in: omit every dimension line and label, leaving only the outline and
+   * caption. Used by catalog browse tiles; omitted (default) renders exactly
+   * as before.
+   */
+  hideDimensions?: boolean;
 }
 
 interface Point {
@@ -530,7 +536,7 @@ export function generateProfileSVG(params: ProfileSVGParams): string {
 
   const labelStyle = resolveLabelStyle(params.labelScale);
   const sideCounts: Partial<Record<DimSide, number>> = {};
-  const dimSVGs = dims
+  const dimSVGs = params.hideDimensions ? '' : dims
     .map(d => {
       const idx = sideCounts[d.side] ?? 0;
       sideCounts[d.side] = idx + 1;
@@ -540,15 +546,26 @@ export function generateProfileSVG(params: ProfileSVGParams): string {
 
   const caption = PROFILE_LABELS[params.profileType].toUpperCase();
 
-  return `<svg viewBox="0 0 ${CANVAS} ${CANVAS}" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" role="img" aria-label="${PROFILE_LABELS[params.profileType]} profile diagram">
+  // hideDimensions renders a tight, caption-free crop of the outline so catalog
+  // tiles can scale the shape up instead of leaving the dimension margin empty.
+  const tight = params.hideDimensions === true;
+  const viewBox = tight
+    ? `${PAD - 18} ${PAD - 18} ${Math.round(bboxW * scale + 36)} ${Math.round(bboxH * scale + 36)}`
+    : `0 0 ${CANVAS} ${CANVAS}`;
+  const strokeWidth = tight ? 7 : 4;
+  const captionSVG = tight
+    ? ''
+    : `<text x="${CANVAS / 2}" y="${CANVAS - 20}" text-anchor="middle" font-family="${LABEL_FONT}" font-size="11" letter-spacing="2" fill="#7A8299">${caption}</text>`;
+
+  return `<svg viewBox="${viewBox}" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" role="img" aria-label="${PROFILE_LABELS[params.profileType]} profile diagram">
     <defs>
       <marker id="afsDimArrow" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
         <path d="M0 0 L8 4 L0 8 Z" fill="${DIM_COLOR}" />
       </marker>
     </defs>
-    <path d="${outline}" fill="none" stroke="${METAL_COLOR}" stroke-width="4" stroke-linejoin="round" stroke-linecap="round" />
+    <path d="${outline}" fill="none" stroke="${METAL_COLOR}" stroke-width="${strokeWidth}" stroke-linejoin="round" stroke-linecap="round" />
     ${dimSVGs}
-    <text x="${CANVAS / 2}" y="${CANVAS - 20}" text-anchor="middle" font-family="${LABEL_FONT}" font-size="11" letter-spacing="2" fill="#7A8299">${caption}</text>
+    ${captionSVG}
   </svg>`;
 }
 

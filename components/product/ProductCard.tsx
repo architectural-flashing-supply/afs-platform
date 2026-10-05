@@ -1,10 +1,23 @@
 import Link from 'next/link';
 import type { CatalogProduct } from '@/lib/data/catalog';
 import StockBadge from './StockBadge';
+import ProfileThumb from './ProfileThumb';
 
 export default function ProductCard({ product }: { product: CatalogProduct }) {
   return (
     <div className="group bg-afs-bg-raised border border-afs-chrome-dim rounded metal-edge overflow-hidden hover:border-afs-chrome-base transition-colors flex flex-col">
+      <Link
+        href={`/products/${product.categorySlug}/${product.slug}`}
+        className="block aspect-[4/3] w-full"
+        aria-label={`${product.name} details`}
+      >
+        <ProfileThumb
+          slug={product.slug}
+          profileType={product.profileType}
+          fallbackLabel={product.categorySlug.replace(/-/g, ' ')}
+          className="h-full w-full p-2"
+        />
+      </Link>
       <div className="p-5 flex flex-col flex-1">
         <div className="flex items-center justify-between mb-2">
           <span className="font-label text-xs uppercase tracking-wide text-afs-chrome-dim">
