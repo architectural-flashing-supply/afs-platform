@@ -9963,3 +9963,6 @@ suite load and passes consistently in isolation.
 contrast **24 screens / 253 pairs / 0 unresolved / 0 below** · style gate
 **66 pairs: 63 pass, 0 fail, 0 uncovered, 1 live-only, 2 no-data** ·
 24 screenshots in `test-results/v7-fidelity/`.
+
+## 2026-10-05 - products-page merged
+Branch products-page (never previously merged) is now integrated: Drexel renderings, 35-product reviewed manifest (17 designable), 3D hover/modal viewer, 9 schematic previews. Governance conflicts resolved by keeping the cc-flashdraft-handoff text; products-page's own notes remain in its commits (7154c14, f44b7f1, 20f1f02). DB: migration 039 (profiles privilege guard) and 040 (product_profiles public read) applied to production.

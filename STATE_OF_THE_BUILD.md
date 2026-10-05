@@ -17104,3 +17104,6 @@ session's own screenshots and Playwright passes are evidence to bring to the
 user, not proof. Every screen is asserted against the prototype by an automated
 gate and the side-by-side screenshots are committed, but the look is not marked
 complete until Reid has looked at it.
+
+## 2026-10-05 - products-page merged
+Branch products-page (never previously merged) is now integrated: Drexel renderings, 35-product reviewed manifest (17 designable), 3D hover/modal viewer, 9 schematic previews. Governance conflicts resolved by keeping the cc-flashdraft-handoff text; products-page's own notes remain in its commits (7154c14, f44b7f1, 20f1f02). DB: migration 039 (profiles privilege guard) and 040 (product_profiles public read) applied to production.

@@ -143,6 +143,39 @@ module.exports = {
           // makes afs-chrome-silver the one placeholder colour (rule #18).
           // They are for TEXT ON DARK only — on the light working area they are
           // 1.3-1.6:1 and rule #23 applies, exactly as it does to chrome-silver.
+          // PUBLIC PRODUCTS CATALOG (2026-10-01). Reid's layering rule for this
+          // page is that every level sits DARKER than the one beneath it, and
+          // that there are never white cards on a pale background. Three of the
+          // four levels already existed and are reused rather than duplicated:
+          //
+          //   page            afs-bg-light         #F7F7F5
+          //   category band   afs-bg-light-raised  #EFEFEC
+          //   product card    afs-bg-lane          #E1E5E9
+          //   enlarged card   afs-bg-catalog-pop   #D9DDE2   <- new
+          //
+          // Only the fourth needed a value: the hover popover and the modal sit
+          // ON TOP of a card, so they have to go darker again, and nothing in
+          // the light palette was darker than bg-lane while still reading as a
+          // light surface.
+          //
+          // Measured (WCAG 2.1 1.4.3 / 1.4.11), not assumed:
+          //   ink-900 on catalog-pop  13.8:1     ink-700 on catalog-pop  7.6:1
+          //   crimson on catalog-pop   4.7:1     (AA body text — this is why
+          //     the surface is #D9DDE2 and not darker; at #CDD3DA the red
+          //     accent measures 4.28:1 and misses)
+          //   white on crimson         6.5:1     (the primary button)
+          //
+          // border-catalog replaces afs-border-light for CONTROL boundaries on
+          // this page. border-light (#D8D8D4) is a hairline between two pale
+          // panels and measures under 1.5:1 on every one of these four
+          // surfaces; afs-line-strong (#8C939B) is the Command Center's control
+          // border and still only reaches 2.45:1 on bg-lane and 2.28:1 on
+          // catalog-pop, both short of the 3:1 rule for a form-field or button
+          // boundary. #6F7781 clears it on all four:
+          //   on bg-light 4.23:1   bg-light-raised 3.94:1
+          //   on bg-lane  3.58:1   catalog-pop     3.32:1
+          'bg-catalog-pop':  '#D9DDE2',
+          'border-catalog':  '#6F7781',
           'danger-on-dark':  '#FFB9B9',
           'success-on-dark': '#73E19B',
           'warning-on-dark': '#FFC120',
