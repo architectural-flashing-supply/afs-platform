@@ -9,6 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   PRODUCT_PREVIEW_SHAPES,
+  UNTRACED_PRODUCTS,
   previewShapeFor,
 } from '@/lib/data/product-preview-shapes';
 import { bendsFromPoints } from '@/lib/data/product-geometry';
@@ -167,7 +168,7 @@ describe('product shape', () => {
 
   it('only carries geometry values that are real ProfileType members', () => {
     const withGeometry = getCatalogProducts().filter((p) => p.geometryMatch);
-    expect(withGeometry.length).toBeGreaterThan(0);
+    // May be empty: a traced rendering withdraws its generic template.
     // Mirrors the manifest's own entries — no new geometry is minted here.
     for (const p of withGeometry) {
       const source = PRODUCT_MANIFEST.find((e) => e.id === p.id);
@@ -204,8 +205,36 @@ describe('schematic preview shapes', () => {
     }
   });
 
-  it('keeps the designable count at 17 — a trace must not become fabricable', () => {
-    expect(products.filter((p) => p.geometryMatch).length).toBe(17);
+  it('a traced product is never designable - a trace must not become fabricable', () => {
+    for (const p of products) {
+      if (p.hasSchematicPreview) expect(p.geometryMatch, p.id).toBeNull();
+    }
+    // Every designable product still comes straight from the manifest.
+    const designable = products.filter((p) => p.geometryMatch);
+    for (const p of designable) {
+      expect(PRODUCT_MANIFEST.find((e) => e.id === p.id)!.geometryMatch).toBe(p.geometryMatch);
+      expect(previewShapeFor(p.id)).toBeNull();
+    }
+  });
+
+  it('traces every publishable product except the documented untraceable ones', () => {
+    const untraced = products.filter((p) => !p.hasSchematicPreview).map((p) => p.id);
+    for (const id of untraced) {
+      expect(Object.keys(UNTRACED_PRODUCTS), id).toContain(id);
+    }
+  });
+
+  it('every trace carries a confidence and finite, non-degenerate points', () => {
+    for (const [id, shape] of Object.entries(PRODUCT_PREVIEW_SHAPES)) {
+      expect(['high', 'medium', 'low'], id).toContain(shape.confidence);
+      for (const pt of shape.points) {
+        expect(Number.isFinite(pt.x) && Number.isFinite(pt.y), id).toBe(true);
+      }
+      for (let i = 1; i < shape.points.length; i++) {
+        const d = Math.hypot(shape.points[i].x - shape.points[i - 1].x, shape.points[i].y - shape.points[i - 1].y);
+        expect(d, `${id} segment ${i} has zero length`).toBeGreaterThan(0);
+      }
+    }
   });
 
   it('produces signed bends through the shared geometry path', () => {

@@ -175,16 +175,21 @@ export function isPublishable(entry: ProductRenderEntry): boolean {
 }
 
 function toCatalogProduct(entry: ProductRenderEntry): CatalogProduct {
-  const geometryMatch = (entry.geometryMatch as ProfileType | null) ?? null;
+  // A traced cross-section (read off the product's own rendering) always wins
+  // over a generic ProfileType template. A template is a stand-in shape at
+  // made-up sizes; where the real section is known, the template is withdrawn
+  // for this product, which also withdraws Select & Design (a traced shape is
+  // proportion-faithful but unmeasured, so it is never handed to FlashDraft).
+  const traced = previewShapeFor(entry.id) !== null;
+  const matched = (entry.geometryMatch as ProfileType | null) ?? null;
   return {
     id: entry.id,
     name: PRODUCT_NAME_OVERRIDES[entry.id] ?? deriveDisplayName(entry.sourceName),
     category: mapDisplayCategory(entry.category),
     subcategory: entry.subcategory,
     image: entry.imageFiles[0],
-    geometryMatch,
-    // Real geometry always wins; a schematic trace only fills a gap.
-    hasSchematicPreview: geometryMatch === null && previewShapeFor(entry.id) !== null,
+    geometryMatch: traced ? null : matched,
+    hasSchematicPreview: traced,
   };
 }
 

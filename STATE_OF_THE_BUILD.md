@@ -17107,3 +17107,9 @@ complete until Reid has looked at it.
 
 ## 2026-10-05 - products-page merged
 Branch products-page (never previously merged) is now integrated: Drexel renderings, 35-product reviewed manifest (17 designable), 3D hover/modal viewer, 9 schematic previews. Governance conflicts resolved by keeping the cc-flashdraft-handoff text; products-page's own notes remain in its commits (7154c14, f44b7f1, 20f1f02). DB: migration 039 (profiles privilege guard) and 040 (product_profiles public read) applied to production.
+
+## 2026-10-05 - traced product cross-sections
+- lib/data/product-preview-shapes.ts is now GENERATED from 34 traces read off the end-face of each Drexel rendering (axonometric projection solved, then verified by projecting the polyline back onto the rendering). Proportions only; scale is nominal (longest side 6 in) and never displayed.
+- 17 products previously borrowed generic ProfileType templates (wrong shapes). Traced shape now wins; for those products the template is withdrawn, so they offer Request a Quote only (no Select & Design) - a traced shape is unmeasured and must not reach FlashDraft.
+- Untraceable (no preview): snap-lock-wclip (assembled-seam close-up). Low confidence: snap-coping-max (back leg hidden by cleat), valley-sample-02 (fold angle unverified). Seam close-ups (dmc-*, fwq100, fastener-flange) trace only the visible panel sheet, not clips/adjoining panels.
+- Rollback: git revert the merge; templates return.
