@@ -24,7 +24,121 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
-## JOB -> FLASHDRAFT HANDOFF (2026-10-03, branch `cc-flashdraft-handoff`) — CURRENT HANDOFF
+## SHOP CALLOUTS (2026-10-06, branch `feat/shop-callouts`) — CURRENT HANDOFF
+
+**Steve double-right-clicks a leg in FlashDraft, types a note, and the shop
+floor reads it in red with the arrow on the drawing. Built end to end. One step
+stands between it and working: the migration.**
+
+### THE ONE THING TO DO FIRST
+
+**Apply `supabase/migrations/051_shop_callouts.sql`** — Supabase Dashboard ->
+SQL Editor -> New query -> paste -> Run. It is additive: one new table, no
+existing table, column, constraint, policy or function altered.
+
+This session did NOT apply it, deliberately. The brief said local/preview only,
+and there is no preview database — `lxfiziwsqezjjybeguqq` is the only AFS
+Supabase project and it is what alpha serves. It was applied to a local
+PostgreSQL 18.3 cluster instead and every constraint and every RLS policy was
+proved there against a non-superuser role. The transcript is
+`docs/verification/shop-callouts-051-local-verify.txt`.
+
+Until it is applied, every surface says *"Shop notes could not be read, so none
+are shown..."* rather than pretending there are none — which is a real
+behaviour of the feature, not a placeholder, and is worth seeing once.
+
+### THEN CHECK IT YOURSELF — six steps
+
+1. `pnpm dev`, open `/admin/command-center`, click a job with a drawing, press
+   the red **Design in FlashDraft**.
+2. **Double-right-click on the profile.** Arrow + pop-up. Type a note. Save.
+3. Double-right-click out in empty space — must say **"Click closer to the
+   profile"** and create nothing.
+4. `/admin/shop-view` — red banner, note pill on the row, click it: the arrow on
+   the profile and the note in red, numbered, labelled SHOP NOTE.
+5. Back in FlashDraft, drag that leg far away and save. The note must still be
+   there saying **"Anchor changed — re-place"**. It must never disappear.
+6. Open `/studio/draft` signed out, in a private window. There must be no
+   callout anything.
+
+### WHAT I VERIFIED MYSELF, AND WHAT I COULD NOT
+
+Verified in a real browser on localhost as admin, on the real job
+AFS-QR-2026-00003: the 400 ms / 8 px rule (150 ms opens the pop-up, 999 ms does
+not), the "click closer" refusal, the armed **Add Shop Note** fallback, the
+character counter, and — importantly — **neither gesture changes the drawing**
+(5 points before, 5 after, measured). A failed save keeps the pop-up open, shows
+the error, and **does not lose the typed text**. All three routes answer 401 to
+a signed-out caller on every verb. The customer page contains zero callout
+markers with and without `?admin=1`.
+
+**Not verified: the round trip.** Authoring a note and reading it back on the
+shop floor needs the table. Six of the eight e2e tests SKIP with exactly that
+reason and will run unchanged once the migration lands.
+
+**This is IMPLEMENTED, UNCONFIRMED by this document's own standard.** You have
+not pressed the button.
+
+### TWO DEFECTS I FOUND BY ACTUALLY LOOKING, AND FIXED
+
+1. **A failed read rendered as "No shop notes on this job."** — a confident,
+   wrong sentence in front of the person about to bend the part. There is now an
+   explicit `unreadable` state and every surface says which it is. No unit test
+   could have caught this: every unit test had data.
+2. **A PostgREST internal was being shown to an estimator** ("Could not find the
+   table ... in the schema cache"). It now says what did not happen, in English.
+
+Both have static tests so they cannot come back quietly.
+
+### FILES THAT MATTER
+
+```
+supabase/migrations/051_shop_callouts.sql       NEW  the table, PENDING REID
+lib/shop-callouts/geometry.ts                   NEW  the anchor rule (+ 34 tests)
+lib/shop-callouts/gesture.ts                    NEW  the 400ms/8px rule (+ 9 tests)
+lib/shop-callouts/types.ts                      NEW  one shape, both surfaces
+lib/shop-callouts/validate.ts                   NEW  280 chars, no body-supplied author
+lib/shop-callouts/isolation.test.ts             NEW  16 static tests — the customer proof
+lib/data/shop-callouts.ts                       NEW  the only module that touches the table
+components/studio/ShopCalloutLayer.tsx          NEW  authoring: gesture, arrows, pop-up
+components/admin/ShopCalloutsPanel.tsx          NEW  the shop's red notes
+components/admin/ShopCalloutDrawing.tsx         NEW  profile + numbered arrows, read-only
+app/api/admin/shop-callouts/route.ts            NEW  list + create (admin) — also the GATE
+app/api/admin/shop-callouts/[id]/route.ts       NEW  edit + soft delete (admin)
+app/api/shop-callouts/[shopJobId]/route.ts      NEW  the shop read (admin OR operator)
+tests/e2e/shop-callouts.spec.ts                 NEW  8 e2e; 6 skip until the table exists
+SPEC_SHOP_CALLOUTS.md                           NEW  the full contract
+app/studio/draft/page.tsx                       dynamic import + the server-verified gate
+components/admin/v7/V7ShopBoard.tsx             banner, note pill, expandable panel
+lib/data/shop-queue.ts                          callout counts + calloutsUnreadable
+lib/data/v7-view/{shop,types}.ts                the count reaches v7's own note pill
+```
+
+### THREE THINGS LEFT OPEN — PENDING REID
+
+1. **An `operator`-role account cannot reach Shop View.** `middleware.ts` gates
+   `/admin/**` on `role === 'admin'`, and the brief forbade touching it. The RLS
+   policy and the read route are already correct for the day an operator exists.
+   Today's shop staff sign in with admin accounts.
+2. **There is no printed job traveler to put the notes on.** The brief asked for
+   them to appear on one; the codebase has no traveler, job sheet or print route.
+   Nothing was invented. Say the word and it becomes its own piece of work.
+3. **"Acknowledge notes" was not built.** It is the single highest-value
+   follow-up — it turns "the note was displayed" into "the note was read" — and
+   it is more than an hour: its own table, its own RLS, and a writer the operator
+   role is allowed to use, which it is not today.
+
+### PRE-EXISTING, NOT MINE, BUT WORTH KNOWING
+
+`auth.setup.ts` fails its first attempt and passes on retry, so Playwright
+reports it "flaky" and the suite does run. The credentials are VALID — a direct
+password grant against Supabase Auth returns 200 with a token — so the fault is
+in the app's login form, not the credentials. The v7-css CRLF unit test is still
+the one red test in `pnpm vitest run`, red at HEAD before this branch.
+
+---
+
+## JOB -> FLASHDRAFT HANDOFF (2026-10-03, branch `cc-flashdraft-handoff`) — PREVIOUS HANDOFF
 
 **The FlashDraft button on a Command Center job now opens the real editor with
 that order's profile in it. Before this run it was, depending on the screen,
@@ -132,7 +246,7 @@ would be per-request.
 
 ---
 
-## v7 PIXEL GATE (2026-10-02, branch `cc-v7-pixel`) — PREVIOUS HANDOFF
+## v7 PIXEL GATE (2026-10-02, branch `cc-v7-pixel`) — EARLIER HANDOFF
 
 **The acceptance gate was wrong, not the complaint. It has been replaced.**
 

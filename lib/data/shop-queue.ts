@@ -45,6 +45,7 @@ import {
   compareShopProfileLibraryQueueOrder,
   type QueueOrderFields,
 } from '@/lib/data/shop-library';
+import { getCalloutCountsForShopRows } from '@/lib/data/shop-callouts';
 
 /** The prototype's three shop states, in the operator's words. */
 export type ShopCardState = 'queued' | 'bending' | 'finished';
@@ -98,6 +99,16 @@ export interface ShopQueueCard extends QueueOrderFields {
   specialInstructions: string | null;
   /** True when a base64 drawing exists to lazy-load. Never the image itself. */
   hasDrawing: boolean;
+  /**
+   * How many of Steve's shop callouts are on this job (migration 051).
+   *
+   * A COUNT AND NEVER THE TEXT. This module's egress note applies to notes as
+   * well as drawings: twenty rows of 280-character strings, re-fetched every
+   * thirty seconds, for text an operator reads on one job at a time. The card
+   * shows the count; the notes are fetched from
+   * app/api/shop-callouts/[shopJobId] when the operator opens them.
+   */
+  calloutCount: number;
   /** Set once a delivery row exists, so the card can say so. */
   deliveryDate: string | null;
   deliveryWindow: string | null;
@@ -175,6 +186,15 @@ export interface ShopQueue {
   active: ShopQueueCard[];
   /** Finished today, newest first — the operator's own "did I do that" check. */
   finishedToday: ShopQueueCard[];
+  /**
+   * TRUE WHEN THE SHOP NOTES COULD NOT BE COUNTED.
+   *
+   * Every `calloutCount` is then 0, which is indistinguishable from "no notes"
+   * unless somebody says so — and on this screen that silence would hide an
+   * instruction from the person about to bend the part. The board renders a
+   * warning instead of its usual nothing. See ShopCalloutSet.unreadable.
+   */
+  calloutsUnreadable: boolean;
 }
 
 /**
@@ -188,10 +208,10 @@ export async function getShopQueue(supabase: SupabaseClient, now: Date = new Dat
     .select(QUEUE_COLUMNS)
     .is('deleted_at', null)
     .order('created_at', { ascending: false });
-  if (error || !data) return { active: [], finishedToday: [] };
+  if (error || !data) return { active: [], finishedToday: [], calloutsUnreadable: false };
 
   const rows = data as unknown as QueueSourceRow[];
-  if (rows.length === 0) return { active: [], finishedToday: [] };
+  if (rows.length === 0) return { active: [], finishedToday: [], calloutsUnreadable: false };
 
   const ids = rows.map((r) => r.id);
   const jobIds = Array.from(
@@ -221,6 +241,13 @@ export async function getShopQueue(supabase: SupabaseClient, now: Date = new Dat
       deliveryByShopJob.set(d.shop_job_id, { date: d.scheduled_date, window: d.time_window });
     }
   }
+
+  // How many of Steve's shop notes are on each row (migration 051). Counts
+  // only — see ShopQueueCard.calloutCount. One batched query for the board.
+  const { counts: calloutCounts, unreadable: calloutsUnreadable } = await getCalloutCountsForShopRows(
+    supabase,
+    rows.map((r) => ({ id: r.id, quoteRequestId: r.quote_request_id, createdAt: r.created_at }))
+  );
 
   // Does a drawing exist? `geometry_svg` holds a base64 PNG, so this asks for
   // its LENGTH through a view-free trick: select the id of every row whose
@@ -263,6 +290,7 @@ export async function getShopQueue(supabase: SupabaseClient, now: Date = new Dat
       paintedEdge: r.painted_edge ?? false,
       specialInstructions: r.special_instructions,
       hasDrawing: withDrawing.has(r.id),
+      calloutCount: calloutCounts.get(r.id) ?? 0,
       deliveryDate: delivery?.date ?? null,
       deliveryWindow: delivery?.window ?? null,
       // QueueOrderFields
@@ -282,5 +310,5 @@ export async function getShopQueue(supabase: SupabaseClient, now: Date = new Dat
     .filter((c) => c.state === 'finished' && c.completedAt && new Date(c.completedAt).toDateString() === todayKey)
     .sort((a, b) => new Date(b.completedAt ?? 0).getTime() - new Date(a.completedAt ?? 0).getTime());
 
-  return { active, finishedToday };
+  return { active, finishedToday, calloutsUnreadable };
 }

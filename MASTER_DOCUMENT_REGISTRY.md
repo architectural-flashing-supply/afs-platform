@@ -182,6 +182,7 @@ C:\Users\manag\Documents\FORGE\projects\afs-website\
 | SPEC_CUSTOMER_MANAGEMENT.md | 6 | Customer list and detail. Role management. Append-only admin notes. |
 | SPEC_LIVE_INVENTORY.md | 6 | Stock signal system (stock/made-to-order/special-order). ERP-ready. |
 | SPEC_RUSH_ORDER.md | 6 | Rush flag on submissions. Admin rush queue priority. Surcharge. |
+| SPEC_SHOP_CALLOUTS.md | 6 | Steve’s arrow + red note on a FlashDraft profile, read in Shop View. Gating, anchoring, migration 051. **Lives in the repo ROOT, not specs/** — it documents a feature built outside the FORGE queue. |
 
 ### Freight (1)
 | File | Phase | What It Covers |

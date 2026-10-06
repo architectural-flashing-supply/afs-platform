@@ -61,6 +61,10 @@ export function fixtureShopView(): V7ShopView {
       notePill: j.notes.length
         ? { tone: 'a', text: `${j.notes.length} note${j.notes.length === 1 ? '' : 's'}` }
         : null,
+      // FIXTURE MODE SUBSTITUTES DATA ONLY (CLAUDE.md rule #34). v7's sample
+      // notes are not `shop_callouts` rows, so the real count is zero here and
+      // the pixel gate keeps measuring exactly the screen it measured before.
+      calloutCount: 0,
       isRush: false,
       buttons,
     };
@@ -89,6 +93,9 @@ export function fixtureShopView(): V7ShopView {
         }
       : null,
     emptyText: 'Nothing waiting. Jobs appear here when you press Send to machine on the Workbench.',
+    // v7's sample notes are not shop_callouts rows, so nothing was read and
+    // nothing failed to be read.
+    calloutsUnreadable: false,
   };
 }
 
@@ -122,10 +129,15 @@ export function liveShopView(queue: ShopQueue): V7ShopView {
     bending: card.state === 'bending',
     state: card.state,
     stateLabel: card.stateLabel,
-    // v7's note pill counts Steve's operator notes. The live queue card carries
-    // the instructions themselves rather than a count of messages, so there is
-    // nothing honest to count and the pill is omitted.
-    notePill: null,
+    // v7's note pill counts Steve's operator notes beside the status, and as of
+    // the shop-callouts feature there is now something real to count: the
+    // callouts Steve authored on this job's drawing in FlashDraft (migration
+    // 051). Before that there was nothing honest to put here and the pill was
+    // omitted; it is the same pill, finally with data behind it.
+    notePill: card.calloutCount
+      ? { tone: 'a', text: `${card.calloutCount} note${card.calloutCount === 1 ? '' : 's'}` }
+      : null,
+    calloutCount: card.calloutCount,
     isRush: card.isRush,
     buttons: card.action
       ? [
@@ -171,5 +183,6 @@ export function liveShopView(queue: ShopQueue): V7ShopView {
         }
       : null,
     emptyText: 'Nothing waiting. Jobs appear here when you press Send to machine on the Workbench.',
+    calloutsUnreadable: queue.calloutsUnreadable,
   };
 }

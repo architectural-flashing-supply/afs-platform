@@ -2932,5 +2932,88 @@ rule #16 says it means: created, unconfirmed, do not retry.
 
 ---
 
+## SHOP CALLOUTS (migration 051_shop_callouts.sql) — FILE ONLY, NOT APPLIED LIVE
+
+**Steve's arrow-and-note annotations on a FlashDraft profile, authored in the
+Command Center and read on the shop floor.** Full feature contract:
+SPEC_SHOP_CALLOUTS.md.
+
+**APPLY STATUS, MEASURED RATHER THAN CLAIMED.** This migration has been applied
+to a LOCAL PostgreSQL 18.3 cluster and exercised there — every CHECK constraint
+was proved to refuse the row it exists to refuse, and every RLS policy was
+proved against a non-superuser role for all four audiences. Transcript:
+`docs/verification/shop-callouts-051-local-verify.txt`. **It has NOT been
+applied to the live Supabase project. PENDING REID.** Until it is, every read
+degrades to "the notes could not be read" (see below) and every write fails with
+a plain-English refusal.
+
+Numbering: `050_email_intake.sql` was the highest on disk, so this is 051. The
+known collision point at 039 is long past.
+
+### TABLE — shop_callouts
+
+| column | type | notes |
+|---|---|---|
+| `id` | uuid pk | |
+| `company_id` | uuid -> companies(id) | **set server-side from the session**, never from a body |
+| `quote_request_id` | uuid -> quote_requests ON DELETE CASCADE | the authoring key |
+| `line_item_index` | int NOT NULL DEFAULT 0, CHECK >= 0 | which drawing on that job |
+| `shop_job_id` | uuid -> shop_profile_library ON DELETE CASCADE | the display key |
+| `drawing_id` / `drawing_revision` | uuid / int | provenance when the drawing came from a saved profile; revision is lineage depth (migration 027) |
+| `segment_index` | int NOT NULL CHECK >= 0 | |
+| `segment_count` | int NOT NULL CHECK > 0 | |
+| `t` | numeric NOT NULL CHECK (t >= 0 AND t <= 1) | position along the segment |
+| `seg_ax`/`seg_ay`/`seg_bx`/`seg_by` | numeric NOT NULL | the authored segment's own endpoints |
+| `anchor_x`/`anchor_y` | numeric NOT NULL | the authored arrow tip |
+| `tail_dx`/`tail_dy` | numeric NOT NULL | the tail, as an offset from the tip |
+| `note` | text NOT NULL | CHECK `char_length(btrim(note)) BETWEEN 1 AND 280` |
+| `orphaned` | boolean NOT NULL DEFAULT false | |
+| `created_by` | uuid NOT NULL -> profiles(id) | **set server-side from the session** |
+| `created_at` / `updated_at` / `deleted_at` | timestamptz | soft delete |
+
+`CONSTRAINT shop_callouts_needs_a_subject CHECK (quote_request_id IS NOT NULL OR
+shop_job_id IS NOT NULL)` — a callout with no job has nothing to be read on.
+Indexes: `shop_job_id`, `(quote_request_id, line_item_index)`, `created_at`.
+
+**EVERY DISTANCE IN THIS TABLE IS IN INCHES, NEVER SCREEN PIXELS**, which is what
+makes an arrow immune to zoom, pan, resize and fit-to-view.
+
+**THERE IS NO `segment_id` AND THERE MUST NOT BE ONE.** A FlashDraft profile is
+an array of points; segment `i` is `points[i]` -> `points[i+1]`; segments have
+no identity and are never persisted individually. CLAUDE.md rule #13 is explicit
+that a prepend renumbers every index-keyed piece of state, so an anchor trusting
+`segment_index` alone would, after a prepend, confidently point at a leg it was
+never drawn on. The four stored forms above are resolved in order by
+`lib/shop-callouts/geometry.ts`: exact -> re-snapped within 0.5 in -> orphaned.
+**An orphan KEEPS ITS NOTE.** A callout is never deleted because the drawing
+changed.
+
+**The callout NUMBER is derived, not stored** — `numberCallouts()` over
+`created_at` then `id`. A stored number goes stale the first time callout 2 is
+deleted and leaves the shop reading 1, 3, 4 while the arrows say 1, 2, 3.
+
+### RLS — three audiences, three answers, and the customer's is NOTHING
+
+```
+admin      FOR ALL     role = 'admin'
+operator   FOR SELECT  role IN ('operator','admin')
+everyone   (no policy — therefore no rows)
+```
+
+The operator-inclusive SELECT is the pattern `013_bid_documents.sql` established
+for shop-side reads. There is deliberately **no "own company" customer policy**:
+a shop callout is an internal instruction to the machine operator, not part of
+the customer's record of their order. Proved locally: operator SELECT returns
+rows, operator INSERT is refused by RLS, operator UPDATE and DELETE change zero
+rows, customer and anonymous each see zero.
+
+**A FAILED READ IS NOT AN EMPTY LIST.** `lib/data/shop-callouts.ts` reports
+`unreadable` separately from "no rows", and every surface says so rather than
+rendering "No shop notes on this job." — which is what it did, in a browser, on
+2026-10-06, before this was fixed. On a screen next to a bending machine the
+difference between "there are none" and "nobody could tell" is the whole point.
+
+---
+
 *SCHEMA.md | AFS | Reid Whitesides | June 2026*
 *Run 001_initial_schema.sql in Supabase before any feature build begins.*

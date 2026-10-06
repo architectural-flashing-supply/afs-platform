@@ -1,12 +1,25 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { ALL_MATERIALS, GAUGES_BY_MATERIAL, MATERIAL_SHORTHAND, normalizeMaterialLabel, gaugesForMaterial } from '@/lib/data/catalog';
 import { geometryFingerprint } from '@/lib/flashdraft/geometry-fingerprint';
 import { canvasSignature, hasUnsavedCanvasWork } from '@/lib/flashdraft/unsaved-work';
 import ProfileSearchPanel from '@/components/admin/ProfileSearchPanel';
+/**
+ * SHOP CALLOUTS — ADMIN AUTHORING, LOADED ONLY FOR AN ADMIN.
+ *
+ * `next/dynamic` with `ssr: false`, so the callout code lives in its OWN
+ * CHUNK that is fetched only when this component is actually mounted. This page
+ * serves both the public customer drawing tool and the admin session Command
+ * Center opens with ?admin=1, so the chunk boundary is what keeps callout code
+ * out of a customer's page entirely — see `calloutsEnabled` below for the gate
+ * that decides whether it mounts, and lib/shop-callouts/isolation.test.ts for
+ * the static proof that nothing here reaches it any other way.
+ */
+const ShopCalloutLayer = dynamic(() => import('@/components/studio/ShopCalloutLayer'), { ssr: false });
 import {
   colorPaletteForMaterial,
   requiresFinishChoice,
@@ -1220,6 +1233,24 @@ export default function FlashDraftPage() {
   // customer-visible FlashDraft just because the signed-in user has the
   // admin role.
   const [adminContext, setAdminContext] = useState(false);
+  /**
+   * SHOP CALLOUTS — AUTHORING IS ON ONLY WHEN THE SERVER SAYS SO.
+   *
+   * Not `adminContext`, and not `isAdmin`: both are client-side state, and
+   * `?admin=1` is a URL flag a customer can type. This is set only by a 200
+   * from GET /api/admin/shop-callouts, which answers 403 to anything but a real
+   * `role = 'admin'` profile. A customer's request fails, this stays false, the
+   * layer never mounts and its chunk is never fetched.
+   *
+   * It also requires a JOB: a callout exists so the SHOP can read it, and a
+   * drawing with no order behind it has no shop floor to be read on.
+   */
+  const [calloutsEnabled, setCalloutsEnabled] = useState(false);
+  /**
+   * One re-render after the <canvas> element exists, so the callout layer is
+   * handed the real element rather than the null a ref holds on first paint.
+   */
+  const [canvasMounted, setCanvasMounted] = useState(false);
   // v2-05 — "Find a past profile", the Command Center's Search inside
   // FlashDraft. Opens the same ProfileSearchPanel the /admin/search page
   // renders; only adminContext sessions see the button.
@@ -3593,6 +3624,40 @@ export default function FlashDraftPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (canvasRef.current) setCanvasMounted(true);
+  }, [viewMode]);
+
+  /**
+   * ASK THE SERVER WHETHER THIS SESSION MAY AUTHOR SHOP NOTES.
+   *
+   * One GET to the admin-guarded route. 200 means a verified admin profile and
+   * a real quote request; anything else — 401, 403, 404, a network failure —
+   * leaves authoring off. The answer is never inferred from the URL or from
+   * client-side role state.
+   */
+  useEffect(() => {
+    const quoteRequestId = jobHandoff?.quoteRequestId;
+    if (!quoteRequestId) {
+      setCalloutsEnabled(false);
+      return;
+    }
+    let cancelled = false;
+    const itemIndex = jobHandoff?.itemIndex ?? 0;
+    fetch(`/api/admin/shop-callouts?quoteRequestId=${encodeURIComponent(quoteRequestId)}&item=${itemIndex}`, {
+      cache: 'no-store',
+    })
+      .then((res) => {
+        if (!cancelled) setCalloutsEnabled(res.ok);
+      })
+      .catch(() => {
+        if (!cancelled) setCalloutsEnabled(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [jobHandoff?.quoteRequestId, jobHandoff?.itemIndex]);
+
   const saveDraft = () => {
     try {
       window.localStorage.setItem(
@@ -4593,6 +4658,31 @@ export default function FlashDraftPage() {
                   pointerEvents: isLocked ? 'none' : 'auto',
                 }}
               />
+
+              {/* SHOP CALLOUTS — Steve's arrows and notes, OVER the canvas.
+                  Mounted only when the admin-guarded API has already said yes
+                  (calloutsEnabled) AND this session was opened on a real job.
+                  It draws into its own absolutely-positioned SVG and never
+                  touches drawProfileScene, the hem glyphs or the geometry. */}
+              {calloutsEnabled && jobHandoff && canvasMounted && (
+                <ShopCalloutLayer
+                  canvas={canvasRef.current}
+                  quoteRequestId={jobHandoff.quoteRequestId}
+                  lineItemIndex={jobHandoff.itemIndex}
+                  points={points}
+                  toScreen={(wp) => {
+                    const canvas = canvasRef.current;
+                    return canvas ? worldToScreen(wp, canvas) : null;
+                  }}
+                  toWorld={(sx, sy) => {
+                    const canvas = canvasRef.current;
+                    return canvas ? screenToWorld(sx, sy, canvas) : null;
+                  }}
+                  zoom={zoom}
+                  pan={pan}
+                  disabled={isLocked}
+                />
+              )}
 
               {/* PART 2 — PROFILE INFO PANEL (afs-jf-006: renamed placeholder,
                   dismissible via its own X, Job Info moved to a right-side

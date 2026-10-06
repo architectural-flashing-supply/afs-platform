@@ -1,0 +1,106 @@
+=== migration 051 applied to a LOCAL PostgreSQL 18.3 scratch cluster (NOT production) ===
+stub dependencies created
+CREATE TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+ALTER TABLE
+CREATE POLICY
+CREATE POLICY
+
+==== SEED ====
+INSERT 0 1
+INSERT 0 3
+INSERT 0 1
+INSERT 0 1
+==== 1. a good row inserts ====
+INSERT 0 1
+==== 2. blank note REFUSED (spaces only) ====
+psql:C:/Users/manag/AppData/Local/Temp/claude/C--Users-manag-Documents-afs-website/c92cb4c9-a0d8-4209-a935-2d867bfb25f9/scratchpad/verify.sql:18: ERROR:  new row for relation "shop_callouts" violates check constraint "shop_callouts_note_length"
+DETAIL:  Failing row contains (83d27044-4414-4426-8fd2-17e3041a2243, null, bbbbbbbb-0000-0000-0000-000000000001, 0, null, null, null, 0, 2, 0.5, 0, 0, 4, 0, 2, 0, 0, -1.75,       , f, aaaaaaaa-0000-0000-0000-000000000001, 2026-10-06 17:20:47.628682-05, 2026-10-06 17:20:47.628682-05, null).
+==== 3. 281 characters REFUSED, 280 accepted ====
+psql:C:/Users/manag/AppData/Local/Temp/claude/C--Users-manag-Documents-afs-website/c92cb4c9-a0d8-4209-a935-2d867bfb25f9/scratchpad/verify.sql:22: ERROR:  new row for relation "shop_callouts" violates check constraint "shop_callouts_note_length"
+DETAIL:  Failing row contains (c67d995d-6947-4a9f-8617-28c458d355c8, null, bbbbbbbb-0000-0000-0000-000000000001, 0, null, null, null, 0, 2, 0.5, 0, 0, 4, 0, 2, 0, 0, -1.75, xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx..., f, aaaaaaaa-0000-0000-0000-000000000001, 2026-10-06 17:20:47.629202-05, 2026-10-06 17:20:47.629202-05, null).
+INSERT 0 1
+==== 4. t outside 0..1 REFUSED ====
+psql:C:/Users/manag/AppData/Local/Temp/claude/C--Users-manag-Documents-afs-website/c92cb4c9-a0d8-4209-a935-2d867bfb25f9/scratchpad/verify.sql:28: ERROR:  new row for relation "shop_callouts" violates check constraint "shop_callouts_t_check"
+DETAIL:  Failing row contains (2fa26b20-9624-4a0b-b8d4-23a5f16911f8, null, bbbbbbbb-0000-0000-0000-000000000001, 0, null, null, null, 0, 2, 1.5, 0, 0, 4, 0, 2, 0, 0, -1.75, t is out of range, f, aaaaaaaa-0000-0000-0000-000000000001, 2026-10-06 17:20:47.629823-05, 2026-10-06 17:20:47.629823-05, null).
+==== 5. no subject at all REFUSED ====
+psql:C:/Users/manag/AppData/Local/Temp/claude/C--Users-manag-Documents-afs-website/c92cb4c9-a0d8-4209-a935-2d867bfb25f9/scratchpad/verify.sql:32: ERROR:  new row for relation "shop_callouts" violates check constraint "shop_callouts_needs_a_subject"
+DETAIL:  Failing row contains (782ba48c-ac1c-44cd-b0df-d9fc6e842236, null, null, 0, null, null, null, 0, 2, 0.5, 0, 0, 4, 0, 2, 0, 0, -1.75, orphan with no job, f, aaaaaaaa-0000-0000-0000-000000000001, 2026-10-06 17:20:47.630066-05, 2026-10-06 17:20:47.630066-05, null).
+==== 6. shop_job_id alone is a valid subject ====
+INSERT 0 1
+==== 7. segment_count 0 REFUSED ====
+psql:C:/Users/manag/AppData/Local/Temp/claude/C--Users-manag-Documents-afs-website/c92cb4c9-a0d8-4209-a935-2d867bfb25f9/scratchpad/verify.sql:40: ERROR:  new row for relation "shop_callouts" violates check constraint "shop_callouts_segment_count_check"
+DETAIL:  Failing row contains (1305b3f1-a449-49eb-b3d4-f90d903647cc, null, bbbbbbbb-0000-0000-0000-000000000001, 0, null, null, null, 0, 0, 0.5, 0, 0, 4, 0, 2, 0, 0, -1.75, no segments, f, aaaaaaaa-0000-0000-0000-000000000001, 2026-10-06 17:20:47.630604-05, 2026-10-06 17:20:47.630604-05, null).
+==== ROW COUNT (expect 3: good, 280-char, shop_job_id-only) ====
+ rows_inserted 
+---------------
+             3
+(1 row)
+
+==== 8. RLS: a NON-SUPERUSER role is needed to test policies ====
+psql:C:/Users/manag/AppData/Local/Temp/claude/C--Users-manag-Documents-afs-website/c92cb4c9-a0d8-4209-a935-2d867bfb25f9/scratchpad/verify.sql:46: ERROR:  role "rls_test" already exists
+GRANT
+GRANT
+GRANT
+GRANT
+---- as ADMIN: select, insert, update, delete all allowed ----
+DELETE 0
+INSERT 0 1
+SET
+    who     | count 
+------------+-------
+ admin sees |     3
+(1 row)
+
+INSERT 0 1
+UPDATE 1
+     what      | count 
+---------------+-------
+ admin updated |     1
+(1 row)
+
+RESET
+---- as OPERATOR: select allowed, insert/update/delete REFUSED ----
+DELETE 1
+INSERT 0 1
+SET
+      who      | count 
+---------------+-------
+ operator sees |     4
+(1 row)
+
+psql:C:/Users/manag/AppData/Local/Temp/claude/C--Users-manag-Documents-afs-website/c92cb4c9-a0d8-4209-a935-2d867bfb25f9/scratchpad/verify.sql:69: ERROR:  new row violates row-level security policy for table "shop_callouts"
+UPDATE 0
+             what             | count 
+------------------------------+-------
+ operator update changed rows |     0
+(1 row)
+
+DELETE 0
+             what              | count 
+-------------------------------+-------
+ after operator delete attempt |     1
+(1 row)
+
+RESET
+---- as CUSTOMER: sees NOTHING ----
+DELETE 1
+INSERT 0 1
+SET
+      who      | count 
+---------------+-------
+ customer sees |     0
+(1 row)
+
+RESET
+---- as ANONYMOUS (no auth.uid): sees NOTHING ----
+DELETE 1
+SET
+      who       | count 
+----------------+-------
+ anonymous sees |     0
+(1 row)
+
+RESET

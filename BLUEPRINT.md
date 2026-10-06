@@ -733,4 +733,29 @@ The final action of every FORGE prompt:
 
 ---
 
+## 13. SHOP CALLOUTS (2026-10-06, branch `feat/shop-callouts`)
+
+**Steve's arrow and red note on a FlashDraft profile, read by the operator in
+Shop View.** Spec: `SPEC_SHOP_CALLOUTS.md`. Schema: SCHEMA.md's SHOP CALLOUTS
+section. Migration: `051_shop_callouts.sql`.
+
+Against §10's six laws, stated honestly rather than ticked:
+
+| | |
+|---|---|
+| 1. SCHEMA | **PARTIAL.** Table, constraints and RLS written and PROVED against a local PostgreSQL 18.3 cluster. **Not applied to the live database — PENDING REID.** |
+| 2. API | DONE. Three routes, each checking `profiles.role` server-side; `company_id` and `created_by` come from the session and are not parseable from a body. |
+| 3. UI | DONE. Authoring layer, pop-up, Shop View banner, note pill, panel and arrows. Empty state is "no banner at zero"; the FAILED state is its own message and never the empty one. |
+| 4. DATA | DONE. No mock data on any path. Fixture mode supplies v7's sample notes only, and carries a real count of zero. |
+| 5. WIRING | DONE for admin. **A known gap: `middleware.ts` gates `/admin/**` on `role === 'admin'`, so an `operator` account cannot reach Shop View. Out of scope; not touched.** |
+| 6. VERIFICATION | **UNVERIFIED.** 2 of 8 e2e tests pass; 6 SKIP because the table does not exist live. Reid has not used the feature himself. |
+
+**The one rule this feature adds that is worth carrying forward:** a failed read
+is not an empty list. `lib/data/shop-callouts.ts` reports `unreadable`
+separately, and every surface says so, because on a screen beside a bending
+machine "there are no notes" and "nobody could tell whether there are notes" are
+different sentences and only one of them is safe to act on.
+
+---
+
 *BLUEPRINT.md | AFS | Reid Whitesides | Visual AI Method | June 2026*

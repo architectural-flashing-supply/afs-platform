@@ -34,6 +34,131 @@ summary, not a replacement for it.
 
 ---
 
+## 2026-10-06 — SHOP CALLOUTS (branch `feat/shop-callouts`)
+
+**Steve can point at a leg and say something about it, and the shop floor reads
+it in red before it runs the job. IMPLEMENTED, UNVERIFIED — and one half of it
+cannot be verified yet, for a reason this entry states rather than works around.**
+
+Full contract: `SPEC_SHOP_CALLOUTS.md`. Schema: SCHEMA.md's SHOP CALLOUTS
+section. Migration: `051_shop_callouts.sql`.
+
+### THE ONE THING THAT BLOCKS CONFIRMATION
+
+**Migration 051 is NOT applied to the live Supabase project, and this session
+did not apply it** — the brief said local/preview only, and there is no preview
+database: `lxfiziwsqezjjybeguqq` is the single AFS Supabase project and it is
+what alpha serves. It was applied instead to a LOCAL PostgreSQL 18.3 cluster and
+exercised there in full (transcript:
+`docs/verification/shop-callouts-051-local-verify.txt`):
+
+- blank note REFUSED, 281 characters REFUSED, 280 accepted
+- `t = 1.5` REFUSED, `segment_count = 0` REFUSED
+- a callout with neither a quote request nor a shop job REFUSED; `shop_job_id`
+  alone accepted
+- **admin** select/insert/update all succeed
+- **operator** SELECT returns rows; INSERT refused by RLS; UPDATE and DELETE
+  change **0 rows**
+- **customer** sees 0 rows; **anonymous** sees 0 rows
+
+Applying it is the project's own documented Option A: Supabase Dashboard -> SQL
+Editor -> paste `supabase/migrations/051_shop_callouts.sql` -> Run. It is
+additive — one new table, no existing object altered.
+
+### WHAT WAS PROVED IN A REAL BROWSER, WITHOUT THE TABLE
+
+Against `pnpm dev` on localhost, signed in as admin, on the real job
+`AFS-QR-2026-00003` (`46e91f86...`), which carries five real points:
+
+| | observed |
+|---|---|
+| Two right-clicks **150 ms** apart on the profile | pop-up opens |
+| Two right-clicks **999 ms** apart | nothing — correctly refused |
+| Double-right-click **out in empty space** | toast "Click closer to the profile", no pop-up, **geometry unchanged: 5 points before, 5 after** |
+| **"Add Shop Note"** + one click on the profile | arrow placed, pop-up opens, **5 points before, 5 after** |
+| 48-character note typed | counter reads "232 left" |
+| Save, with no table behind it | pop-up stays open, error shown inline, **the typed text is still there**, no badge left behind |
+| Signed-out GET/POST/PATCH/DELETE on all three routes | **401** on every one |
+| `/studio/draft` and `/studio/draft?admin=1` signed out | **zero** callout markers in the HTML |
+
+### TWO DEFECTS THIS RUN FOUND BY LOOKING, AND FIXED
+
+**1. A FAILED READ WAS RENDERING AS "NO NOTES".** With the table absent, the read
+returned an empty list and Shop View said *"No shop notes on this job."* — a
+confident, wrong, actionable sentence in front of the person about to bend the
+part. `ShopCalloutSet.unreadable` now distinguishes "nobody wrote one" from
+"nobody could tell", every surface says which, and a static test asserts the
+empty state is guarded by it. **This is the defect worth remembering: no unit
+test could have caught it, because every unit test had data.**
+
+**2. A POSTGREST INTERNAL WAS SHOWN TO AN ESTIMATOR.** A failed save put *"Could
+not find the table 'public.shop_callouts' in the schema cache"* in the pop-up.
+It now reads *"The note was not saved. Nothing on this job was changed — your
+text is still here."* (CLAUDE.md rule #30), with the real error logged
+server-side. A static test fails if `error.message` is ever returned to a caller
+from the data module again.
+
+### THE GATING, WHICH IS THE PART THAT MATTERS
+
+`app/studio/draft/page.tsx` is ONE component serving the public customer tool and
+the admin session. Three layers, and only the inner two are security:
+
+1. `next/dynamic` — the authoring code is a separate chunk a customer never fetches.
+2. **The layer mounts only after `GET /api/admin/shop-callouts` answered 200**,
+   which requires `profiles.role = 'admin'` checked server-side. `?admin=1` is a
+   URL flag that grants nothing.
+3. Migration 051's RLS: admin all, operator SELECT, **no policy at all** for
+   contractor / architect / customer / anonymous.
+
+`lib/shop-callouts/isolation.test.ts` asserts every claim statically, including
+that no customer-facing route, email, invoice, PDF or quote builder mentions a
+callout, and that no query uses `select('*')`.
+
+### GATES, RUN IN THIS SESSION
+
+```
+pnpm tsc --noEmit            0 errors
+pnpm vitest run              643 tests — 638 pass, 4 skip, 1 FAIL
+                             stable across three consecutive runs. The 1 failure
+                             is the pre-existing v7-css CRLF test, red at HEAD
+                             before this branch. Baseline measured on this
+                             machine before any change: 553 tests, 548 pass,
+                             the same 1 failure. This branch adds 90 tests.
+pnpm check:contrast          24 screens, 256 pairs, 0 unresolved, 0 below AA
+                             (248 pairs at baseline; the 8 new ones are this
+                             feature's, worst 5.69:1 — afs-crimson on the
+                             highlighted note)
+v7 pixel gate                PASS. `shop` screen 0.59% against a 1.5% budget.
+v7 style gate                PASS. 66 pairs, 63 pass, 0 fail, 0 uncovered.
+Playwright, affected suites  24 passed, 1 flaky (an ECONNRESET to the Supabase
+                             Management API during cleanup; passed on retry)
+Playwright, shop-callouts    2 passed, 6 SKIPPED — the 6 need the table
+```
+
+`auth.setup.ts` is still flaky: it fails its first attempt and passes on retry.
+That is pre-existing and reproduces at HEAD. The credentials themselves are
+VALID — a direct password grant against Supabase Auth returns 200 with a token —
+so the failure is in the app's login form, not in the credentials. **Not
+diagnosed further here; it is not this feature's bug and fixing it was out of
+scope.**
+
+### KNOWN GAPS, NAMED
+
+- **Migration not applied live.** Everything above the database is finished and
+  waiting on it.
+- **An `operator` account cannot reach Shop View.** `middleware.ts` gates
+  `/admin/**` on `role === 'admin'`; the brief forbade touching it. The RLS and
+  the read route are already correct for the day one exists.
+- **No printed job traveler exists.** The brief asked for the notes to appear on
+  one; a search of the codebase found no traveler, job sheet or print route to
+  add them to. The panel is ordinary HTML and prints with the page.
+- **"Acknowledge notes" was not built.** It is the top follow-up in
+  SPEC_SHOP_CALLOUTS.md section 11 — it needs its own table, its own RLS and a
+  writer the operator role is allowed to use, which it is not today.
+- **v7's operator screen (`pageOp`) is still unbuilt**, as it was before this run.
+
+---
+
 ## 2026-10-03 — THE JOB -> FLASHDRAFT HANDOFF (branch `cc-flashdraft-handoff`)
 
 **"Draw it in FlashDraft" was a dead end or a blank canvas. It now opens the

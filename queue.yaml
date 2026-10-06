@@ -7,6 +7,9 @@ description: >
 
 rules:
   - Read CLAUDE.md before executing any prompt
+  - Shop callouts are ONLY what Steve typed — never inferred, generated or summarised
+  - Authoring a shop callout requires a 200 from the admin-guarded API, never ?admin=1
+  - A failed callout read is reported as unreadable, never rendered as "no notes"
   - Read the referenced spec docs before building any feature
   - pnpm only — never npm or yarn
   - pnpm tsc --noEmit must pass with 0 errors before marking any prompt complete

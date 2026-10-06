@@ -240,6 +240,14 @@ export interface V7ShopRow {
   stateLabel: string;
   /** v7 shows "1 note" / "3 notes" beside the status when there are any. */
   notePill: V7Pill | null;
+  /**
+   * How many LIVE shop callouts this job carries (migration 051). Zero on the
+   * fixture side, where v7's own sample notes fill `notePill` instead — see
+   * lib/data/v7-view/shop.ts. The count and not the notes: the queue endpoint
+   * polls every thirty seconds and the note text is fetched when an operator
+   * opens it, the same lazy shape CLAUDE.md rule #26 requires of the drawings.
+   */
+  calloutCount: number;
   isRush: boolean;
   buttons: V7Button[];
 }
@@ -253,6 +261,12 @@ export interface V7ShopFinishedRow {
 }
 
 export interface V7ShopView {
+  /**
+   * TRUE WHEN THE SHOP NOTES COULD NOT BE READ. The board says so rather than
+   * rendering its usual silence — see ShopCalloutSet.unreadable for how a
+   * silent failure here was found, and why it is the dangerous direction.
+   */
+  calloutsUnreadable: boolean;
   rows: V7ShopRow[];
   finishedToday: V7ShopFinishedRow[];
   /** v7's "Next up" panel — the first job in the queue, drawn large. */

@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import ShopJobDrawing from '@/components/admin/ShopJobDrawing';
+import ShopCalloutsPanel from '@/components/admin/ShopCalloutsPanel';
+import { CALLOUTS_UNREADABLE_MESSAGE, shopCalloutBanner } from '@/lib/shop-callouts/types';
 import V7Drawing from '@/components/admin/v7/V7Drawing';
 import { V7Btn, V7PillEl, V7Spec } from '@/components/admin/v7/V7Primitives';
 import { liveShopView } from '@/lib/data/v7-view/shop';
@@ -55,6 +57,30 @@ const RESULT_CLASS: Record<'ok' | 'info' | 'error', string> = {
 
 type Result = { tone: 'ok' | 'info' | 'error'; message: string } | null;
 
+/**
+ * SHOP CALLOUTS ON THIS BOARD — THE BANNER, THE PILL AND THE PANEL.
+ *
+ * v7 already designs all three. Its `pageShop()` row carries
+ * `<span class="pill a">N notes</span>` beside the status (prototype line
+ * 1482) and its operator screen carries `notesBox(j, 'Notes from Steve')`
+ * (line 1513). The live board had the pill slot wired to `null` because there
+ * was nothing real to count. There is now: `shop_callouts` (migration 051).
+ *
+ * TWO DELIBERATE DIVERGENCES FROM v7, BOTH ON REID'S EXPLICIT INSTRUCTION in
+ * the shop-callouts brief, and both recorded in SPEC_SHOP_CALLOUTS.md:
+ *
+ *   1. THE NOTE TEXT IS RED AND BOLD. v7's `.nt` is ordinary ink. Reid asked
+ *      for red, large enough to read at arm's length; `afs-crimson` is the
+ *      token that satisfies it and clears WCAG AA on both Shop View surfaces.
+ *   2. THE ARROWS. v7's notes are text only. An arrow pointing at the part of
+ *      the profile a note is about does not exist in the prototype.
+ *
+ * Neither affects the pixel gate (CLAUDE.md rule #34): the gate renders
+ * `?fixture=v7`, fixture mode substitutes DATA ONLY, and v7's sample notes are
+ * not `shop_callouts` rows — so `calloutCount` is 0 on that path, the banner
+ * is absent at zero by design, and the panel is closed. The measured screen is
+ * byte-for-byte the screen the gate measured before.
+ */
 export default function V7ShopBoard({
   initial,
   view: fixtureView,
@@ -81,6 +107,16 @@ export default function V7ShopBoard({
    * `data-hydrated` is what the test waits for. It is not a test-only hook —
    * it is the honest statement of a state the screen really has.
    */
+  /**
+   * WHICH JOB'S SHOP NOTES ARE OPEN. One at a time: an operator is running one
+   * job, and a board of expanded note panels is a board nobody reads.
+   *
+   * Opened by default for nothing — but see the pill, which says how many are
+   * waiting on every row that has any, so opening is a decision and not a
+   * discovery.
+   */
+  const [openNotesFor, setOpenNotesFor] = useState<string | null>(null);
+
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => {
     setHydrated(true);
@@ -167,10 +203,42 @@ export default function V7ShopBoard({
   const view = fixtureView ?? (queue ? liveShopView(queue) : null);
   if (!view) return null;
 
+  // EVERY SHOP NOTE WAITING ON THIS BOARD, counted across the queue. The
+  // banner is absent at zero (shopCalloutBanner returns null), which is what
+  // keeps this invisible on a board with no notes and in fixture mode.
+  const totalCallouts = view.rows.reduce((sum, r) => sum + r.calloutCount, 0);
+  const boardBanner = shopCalloutBanner(totalCallouts);
+
   const onAction = live ? (action: string, id?: string) => { if (id) void advance(id); } : undefined;
 
   return (
     <div className="shopg" data-hydrated={hydrated ? 'true' : 'false'}>
+      {/* THE NOTES COULD NOT BE READ. Said out loud, because the alternative
+          is a board that looks exactly like a board with no notes on it. */}
+      {view.calloutsUnreadable && (
+        <div
+          role="alert"
+          data-testid="shop-board-callouts-unreadable"
+          className="rounded border-2 border-afs-crimson bg-afs-bg-card px-3 py-2"
+          style={{ gridColumn: '1 / -1' }}
+        >
+          <strong className="font-body text-base font-bold text-afs-crimson">
+            {CALLOUTS_UNREADABLE_MESSAGE}
+          </strong>
+        </div>
+      )}
+
+      {boardBanner && (
+        <div
+          role="alert"
+          data-testid="shop-board-callout-banner"
+          className="rounded border-2 border-afs-crimson bg-afs-bg-card px-3 py-2"
+          style={{ gridColumn: '1 / -1' }}
+        >
+          <strong className="font-body text-base font-bold text-afs-crimson">{boardBanner}</strong>
+        </div>
+      )}
+
       <section className="panel">
         {/* The `{' '}` is not noise: v7 emits `Queue <span class="tag">`, and JSX
             drops whitespace that contains a newline, so without it the tag butts
@@ -207,7 +275,21 @@ export default function V7ShopBoard({
               </thead>
               <tbody>
                 {view.rows.map((row) => (
-                  <Row key={row.key} row={row} busy={busyId === row.key} onAction={onAction} />
+                  <Row
+                    key={row.key}
+                    row={row}
+                    busy={busyId === row.key}
+                    onAction={onAction}
+                    notesOpen={openNotesFor === row.key}
+                    onToggleNotes={
+                      // Only the LIVE board can open a panel: the fixture's
+                      // counts are zero by construction, and the endpoint it
+                      // would fetch from does not serve fixture data.
+                      live && row.calloutCount > 0
+                        ? () => setOpenNotesFor((current) => (current === row.key ? null : row.key))
+                        : undefined
+                    }
+                  />
                 ))}
               </tbody>
             </table>
@@ -262,12 +344,18 @@ function Row({
   row,
   busy,
   onAction,
+  notesOpen,
+  onToggleNotes,
 }: {
   row: V7ShopRow;
   busy: boolean;
   onAction?: (action: string, id?: string) => void;
+  notesOpen: boolean;
+  /** Absent when this row has no notes, or on the fixture board. */
+  onToggleNotes?: () => void;
 }) {
   return (
+    <>
     <tr
       className={row.bending ? 'now' : undefined}
       data-testid="shop-card"
@@ -310,7 +398,25 @@ function Row({
       </td>
       <td>
         <span className={row.bending ? 'stat b' : 'stat q'}>{row.stateLabel}</span>
-        {row.notePill && <V7PillEl pill={row.notePill} />}
+        {/* v7's own note pill. On the live board it is a BUTTON, because the
+            notes it counts can be opened; on the fixture board it is v7's
+            plain span, which is what the pixel gate measures. */}
+        {row.notePill &&
+          (onToggleNotes ? (
+            <button
+              type="button"
+              data-testid="shop-notes-toggle"
+              aria-expanded={notesOpen}
+              onClick={onToggleNotes}
+              className="pill a"
+              title="Notes from Steve"
+              style={{ cursor: 'pointer' }}
+            >
+              {row.notePill.text}
+            </button>
+          ) : (
+            <V7PillEl pill={row.notePill} />
+          ))}
       </td>
       <td>
         {row.buttons.length === 0 ? (
@@ -326,6 +432,18 @@ function Row({
         )}
       </td>
     </tr>
+    {/* STEVE'S NOTES, UNDER THE JOB THEY ARE ABOUT — the arrows on the profile
+        and the text in red, read-only. A second <tr> rather than a modal: an
+        operator standing at the machine should be able to see the note and the
+        job's own row at the same time. */}
+    {notesOpen && (
+      <tr data-testid="shop-notes-row">
+        <td colSpan={6} style={{ padding: '12px 10px' }}>
+          <ShopCalloutsPanel shopJobId={row.key} expectedCount={row.calloutCount} />
+        </td>
+      </tr>
+    )}
+    </>
   );
 }
 
