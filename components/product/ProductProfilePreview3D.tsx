@@ -11,7 +11,8 @@ import {
   PREVIEW_GAUGE,
   PREVIEW_THICKNESS_MM,
 } from '@/lib/data/product-geometry';
-import { previewShapeFor } from '@/lib/data/product-preview-shapes';
+import { previewShapeFor, type PreviewHem } from '@/lib/data/product-preview-shapes';
+import type { Hem } from '@/lib/types/profile';
 import type { ProfileType } from '@/lib/utils/profile-svg';
 
 /**
@@ -22,9 +23,7 @@ import type { ProfileType } from '@/lib/utils/profile-svg';
  * autoRotateSpeed as (60 / seconds-per-revolution), which is the convention
  * ProfileViewer3D's own prop already documents.
  */
-export const PRODUCT_ROTATION_SECONDS = 18;
-const AUTO_ROTATE_SPEED = 60 / PRODUCT_ROTATION_SECONDS;
-const AUTO_ROTATE_DURATION_MS = PRODUCT_ROTATION_SECONDS * 1000;
+export const PRODUCT_ROTATION_SECONDS = 30;
 
 /**
  * The 3D viewer is loaded only when a card is actually enlarged — it pulls in
@@ -89,6 +88,23 @@ export interface ProductProfilePreview3DProps {
   minHeightPx?: number;
 }
 
+/**
+ * A traced hem -> the viewer's own Hem. `foldSide` is read looking along the
+ * polyline TOWARD the free end (y-down, as traced); the viewer's `kick` is
+ * 'outside' = the +normal of the leg's own direction. HEM_LEFT_IS_OUTSIDE is the
+ * single place that handedness is decided - it was set by checking a hemmed
+ * product against its rendering, not assumed.
+ */
+const HEM_LEFT_IS_OUTSIDE = true;
+function toViewerHem(h: PreviewHem | undefined, which: 'start' | 'end'): Hem | null {
+  if (!h) return null;
+  // At the START the viewer measures the normal along the leg heading AWAY from the end,
+  // which is the reverse of "toward the free end", so left/right swap.
+  const leftWins = which === 'end' ? HEM_LEFT_IS_OUTSIDE : !HEM_LEFT_IS_OUTSIDE;
+  const outside = h.foldSide === 'left' ? leftWins : !leftWins;
+  return { type: h.type, kick: outside ? 'outside' : 'inside', lengthIn: h.lengthIn, gapIn: h.gapIn };
+}
+
 export default function ProductProfilePreview3D({
   profileType,
   schematicProductId,
@@ -129,9 +145,13 @@ export default function ProductProfilePreview3D({
         hideDimensions={isSchematic}
         defaultDimensionsOn={false}
         perforatedSegments={schematic?.perforatedSegments}
+        hemStart={isSchematic ? toViewerHem(schematic?.hemStart, 'start') : null}
+        hemEnd={isSchematic ? toViewerHem(schematic?.hemEnd, 'end') : null}
         // Reduced motion: no rotation at all, just the static shape.
-        autoRotateSpeed={prefersReducedMotion ? 0 : AUTO_ROTATE_SPEED}
-        autoRotateDurationMs={prefersReducedMotion ? 0 : AUTO_ROTATE_DURATION_MS}
+        autoRotateSpeed={0}
+        autoRotateDurationMs={0}
+        singleTurnMs={prefersReducedMotion ? 0 : PRODUCT_ROTATION_SECONDS * 1000}
+        cameraDirection={[0.42, 0.3, 1]}
         className="h-full w-full"
       />
     </div>

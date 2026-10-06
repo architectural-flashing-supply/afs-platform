@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import ProductCatalog from '@/components/product/ProductCatalog';
+import ProductsHeaderBackdropLoader from '@/components/product/ProductsHeaderBackdropLoader';
 import { getCatalogSections } from '@/lib/data/products-page';
 
 export const metadata: Metadata = {
@@ -27,10 +28,9 @@ export default function ProductsPage() {
   return (
     /* Layer 1, the lightest: a warm off-white page under the gunmetal header. */
     <main className="min-h-screen bg-afs-bg-light">
-      <div className="mx-auto max-w-[1400px] px-4 pb-6 pt-12 sm:px-6">
-        <p className="mb-3 font-label text-sm uppercase tracking-widest text-afs-crimson">
-          Product Catalog
-        </p>
+      <div className="relative overflow-hidden">
+        <ProductsHeaderBackdropLoader />
+        <div className="relative mx-auto max-w-[1400px] px-4 pb-6 pt-12 sm:px-6">
         <h1 className="mb-4 font-display text-5xl font-bold leading-none text-afs-ink-900 sm:text-6xl">
           PRODUCTS
         </h1>
@@ -42,6 +42,7 @@ export default function ProductsPage() {
         <p className="mt-3 font-data text-xs uppercase tracking-wide text-afs-ink-700">
           {productCount} products across {sections.length} categories
         </p>
+        </div>
       </div>
 
       <ProductCatalog sections={sections} />

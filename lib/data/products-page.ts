@@ -14,6 +14,7 @@
 import manifest from '@/lib/data/product-renders.manifest.json';
 import { PRODUCT_NAME_OVERRIDES } from '@/lib/data/product-name-overrides';
 import { previewShapeFor } from '@/lib/data/product-preview-shapes';
+import { TRIMMED_PRODUCT_IMAGES } from '@/lib/data/product-image-trim';
 import type { ProfileType } from '@/lib/utils/profile-svg';
 
 export interface ProductRenderEntry {
@@ -187,7 +188,7 @@ function toCatalogProduct(entry: ProductRenderEntry): CatalogProduct {
     name: PRODUCT_NAME_OVERRIDES[entry.id] ?? deriveDisplayName(entry.sourceName),
     category: mapDisplayCategory(entry.category),
     subcategory: entry.subcategory,
-    image: entry.imageFiles[0],
+    image: TRIMMED_PRODUCT_IMAGES[entry.id] ?? entry.imageFiles[0],
     geometryMatch: traced ? null : matched,
     hasSchematicPreview: traced,
   };

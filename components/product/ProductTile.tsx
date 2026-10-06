@@ -31,10 +31,24 @@ export default function ProductTile({ product, onOpen }: ProductTileProps) {
   const popoverId = useId();
   const tileRef = useRef<HTMLDivElement | null>(null);
   const [shiftX, setShiftX] = useState(0);
+  // After a click the popover must stay away until the pointer has actually left and
+  // come back - otherwise returning focus to the tile (or the pointer still resting on
+  // it) re-opens it and it only goes away when you click somewhere else.
+  // Holds the pointer position of the click that opened the modal (NaN for a keyboard open).
+  // A hover that arrives at that same spot is the browser re-firing mouseenter once the modal
+  // overlay is removed, not the user coming back, so it is ignored. Only a real re-entry from
+  // elsewhere (or any other key press, for keyboard users) clears it.
+  const suppressRef = useRef<{ x: number; y: number } | null>(null);
 
   // The 320px popover is centred on a 192px tile, so tiles near either viewport
   // edge would push it off-screen. Measure on activation and nudge it back in.
-  const activate = useCallback(() => {
+  const activate = useCallback((pos?: { x: number; y: number }) => {
+    const s = suppressRef.current;
+    if (s) {
+      if (!pos) return; // focus, not pointer
+      if (!Number.isNaN(s.x) && Math.hypot(pos.x - s.x, pos.y - s.y) < 6) return;
+      suppressRef.current = null;
+    }
     const el = tileRef.current;
     if (el) {
       const r = el.getBoundingClientRect();
@@ -46,13 +60,19 @@ export default function ProductTile({ product, onOpen }: ProductTileProps) {
     setActive(true);
   }, []);
 
-  const open = useCallback(() => onOpen(product), [onOpen, product]);
+  const open = useCallback((pos?: { x: number; y: number }) => {
+    suppressRef.current = pos ?? { x: Number.NaN, y: Number.NaN };
+    setActive(false);
+    onOpen(product);
+  }, [onOpen, product]);
 
   const onKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLButtonElement>) => {
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
         open();
+      } else {
+        suppressRef.current = null;
       }
     },
     [open]
@@ -63,14 +83,17 @@ export default function ProductTile({ product, onOpen }: ProductTileProps) {
       ref={tileRef}
       className="relative"
       style={{ width: TILE_SIZE_PX }}
-      onMouseEnter={activate}
+      onMouseEnter={(event) => activate({ x: event.clientX, y: event.clientY })}
       onMouseLeave={() => setActive(false)}
     >
       <button
         type="button"
-        onClick={open}
+        onClick={(event) => open({ x: event.clientX, y: event.clientY })}
         onKeyDown={onKeyDown}
-        onFocus={activate}
+        onFocus={(event) => {
+          // Keyboard focus only. Programmatic focus restored after the modal closes is not a hover.
+          if (event.currentTarget.matches(':focus-visible')) activate();
+        }}
         onBlur={() => setActive(false)}
         aria-describedby={active ? popoverId : undefined}
         className="group block w-full cursor-pointer rounded border border-afs-border-catalog bg-afs-bg-lane p-2 text-left transition-colors hover:bg-afs-bg-catalog-pop focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-afs-crimson focus-visible:ring-offset-2 focus-visible:ring-offset-afs-bg-light-raised"

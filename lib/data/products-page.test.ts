@@ -161,7 +161,7 @@ describe('deriveDisplayName', () => {
 describe('product shape', () => {
   it('points every image at a public /images/products path', () => {
     for (const p of getCatalogProducts()) {
-      expect(p.image.startsWith('/images/products/')).toBe(true);
+      expect(/^\/images\/products(-trim)?\//.test(p.image)).toBe(true);
       expect(p.image.endsWith('.webp')).toBe(true);
     }
   });
