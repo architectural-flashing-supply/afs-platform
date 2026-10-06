@@ -10000,3 +10000,25 @@ Branch products-page (never previously merged) is now integrated: Drexel renderi
 - Tooling (outside repo): afs-overnight/render/{render.html,render_profiles.cjs,colors.py,wire.py}.
 - Caveats: these are AFS illustrations built from traced proportions (hems drawn at legible size, sheet thickness 1.6mm for visibility), not Drexel originals; Perforated Z slot pattern is representative (3 rows), valley fold angle and snap-coping-max remain low confidence. Rib panels, DMC, gutter, context shots unchanged.
 - Verified: vitest products-page (27 pass), Playwright screenshots of grid + modals (logs/v4).
+
+
+---
+
+## 2026-10-06 — Email-to-AI-Quote pipeline (Phase 4 addendum) — BUILT, NOT USER-CONFIRMED
+
+Status: code + tests written by Claude; **unresolved until Reid checks it himself**.
+
+Evidence (self-reported, per verification standard):
+- 24 unit tests (lib/email-intake/pipeline.test.ts) pass; tsc clean.
+- Live AI accuracy test (RUN_LIVE_AI=1, 4 fixtures) passed 4/4: CAD read correctly (coping 12", drip edge), roof-plan PDF returns null width/qty + flags (no invention), irrelevant image -> needs_manual_takeoff, typed body order located with spans.
+- Full suite: only known v7-css CRLF failure remains.
+- NOT done: browser check of View Source UI; Playwright e2e (auth.setup.ts login failure blocks e2e).
+
+What exists: lib/email-intake/*, lib/ai/takeoff-run.ts + takeoff-prompt.ts (shared takeoff engine, no second engine), routes /api/email-intake/ingest, /api/outlook/webhook, /api/admin/email-intake/{retry,attachment}, /api/admin/quote-requests/[id]/corrections, pages /admin/email-intake and /admin/quote-requests/[id]/source.
+Guard note: rush is never set by email intake (rush-explicit-only test enforces).
+
+BLOCKERS / NEXT:
+1. Migration supabase/migrations/050_email_intake.sql NOT APPLIED. The connected Supabase account lists no AFS project (benavora, DialStars, brightbox-homes-admin only) so it was not applied. Apply to AFS production first, then /admin/email-intake works.
+2. Outlook off until env set: OUTLOOK_TENANT_ID, OUTLOOK_CLIENT_ID, OUTLOOK_CLIENT_SECRET, OUTLOOK_MAILBOX, OUTLOOK_WEBHOOK_CLIENT_STATE, EMAIL_INTAKE_SECRET (>=24 chars); then create Graph subscription. Until then use .eml upload on /admin/email-intake.
+3. Improvement queue: docs/AUDIT_QUOTE_SYSTEMS_2026-10.md.
+Known risks: null lengthFt/quantity render as 0 in QuoteEstimatorForm (send blocked <=0, banner warns); PDF region shown as text note only; cross-provider dedupe (eml vs graph) not handled; webhook processes inline.

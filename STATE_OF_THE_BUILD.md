@@ -17141,3 +17141,10 @@ Branch products-page (never previously merged) is now integrated: Drexel renderi
 - Tooling (outside repo): afs-overnight/render/{render.html,render_profiles.cjs,colors.py,wire.py}.
 - Caveats: these are AFS illustrations built from traced proportions (hems drawn at legible size, sheet thickness 1.6mm for visibility), not Drexel originals; Perforated Z slot pattern is representative (3 rows), valley fold angle and snap-coping-max remain low confidence. Rib panels, DMC, gutter, context shots unchanged.
 - Verified: vitest products-page (27 pass), Playwright screenshots of grid + modals (logs/v4).
+
+
+---
+
+## 2026-10-06 — Email-to-AI-Quote (Phase 4 addendum): code complete, migration pending
+
+Inbound email -> idempotent store -> classify -> existing takeoff engine -> draft estimate (draft_from_email, never auto-sent) with per-line source_ref/confidence, View Source side-by-side, append-only corrections. Provider-agnostic: .eml upload live now; Microsoft Graph source implemented behind env vars. Tests: 24 unit + 4 gated live-AI pass. Migration 050 not yet applied; Outlook env not set. Self-reported, not user-confirmed.

@@ -47,6 +47,9 @@ interface QuoteRequestDetailRow {
   // field_photo_quote jobsite photo (afs-fl-008). Null for requests
   // submitted without an attachment.
   upload_id: string | null;
+  // Set when the request was drafted by AI from an inbound email (migration 050).
+  source_email_id: string | null;
+  intake_status: 'draft_from_email' | 'needs_manual_takeoff' | null;
   profiles: { full_name: string; company: string | null; phone: string | null; email: string } | null;
 }
 
@@ -70,7 +73,7 @@ export default async function AdminQuoteRequestDetailPage({ params }: { params: 
   const { data: requestRaw } = await supabase
     .from('quote_requests')
     .select(
-      'id, request_number, status, submitted_at, line_items, jobsite_address, po_number, is_rush, notes, color, finish, client_business_name, client_name, requested_by, user_id, guest_email, quote_id, source_tool, upload_id, profiles(full_name, company, phone, email)'
+      'id, request_number, status, submitted_at, line_items, jobsite_address, po_number, is_rush, notes, color, finish, client_business_name, client_name, requested_by, user_id, guest_email, quote_id, source_tool, upload_id, source_email_id, intake_status, profiles(full_name, company, phone, email)'
     )
     .eq('id', params.id)
     .maybeSingle();
@@ -151,6 +154,8 @@ export default async function AdminQuoteRequestDetailPage({ params }: { params: 
     }));
 
   const weightEstimate = estimateShipmentWeight(items, weightReference);
+  // AI-drafted items whose length or piece count could not be read stay blank (never guessed); count them for the banner.
+  const needsInput = (request.line_items ?? []).filter((i) => !(Number(i.lengthFt) > 0) || !(Number(i.quantity) > 0)).length;
 
   return (
     <div>
@@ -177,6 +182,19 @@ export default async function AdminQuoteRequestDetailPage({ params }: { params: 
           </Badge>
         </div>
       </div>
+
+      {request.source_email_id && (
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded border border-afs-border bg-afs-bg-raised p-4" data-testid="email-draft-banner">
+          <p className="font-body text-sm text-afs-chrome-high">
+            {request.intake_status === 'needs_manual_takeoff'
+              ? 'This job came from an email the AI could not read. Nothing was dropped - open the source and enter the items by hand.'
+              : `Drafted by AI from an email. ${needsInput} item${needsInput === 1 ? '' : 's'} still need a length or piece count before this can be priced. Nothing has been sent to the customer.`}
+          </p>
+          <Link href={`/admin/quote-requests/${request.id}/source`} className="rounded bg-afs-crimson px-4 py-2 font-label text-sm text-white">
+            View Source
+          </Link>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <div className="bg-afs-bg-raised border border-afs-border rounded p-6">

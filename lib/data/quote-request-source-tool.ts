@@ -12,7 +12,7 @@
 // than renamed to fit, since source_tool has no DB CHECK constraint (free
 // TEXT) and nothing downstream parses the prefix. See SESSION_STATE.md's
 // afs-fl-002 entry.
-export type SourceTool = 'afs-flashdraft' | 'afs-configurator' | 'afs-quote-builder' | 'afs-takeoff' | 'field_photo_quote';
+export type SourceTool = 'afs-flashdraft' | 'afs-configurator' | 'afs-quote-builder' | 'afs-takeoff' | 'field_photo_quote' | 'email_inbound';
 
 export const SOURCE_TOOL_LABEL: Record<SourceTool, string> = {
   'afs-flashdraft': 'FlashDraft',
@@ -20,6 +20,7 @@ export const SOURCE_TOOL_LABEL: Record<SourceTool, string> = {
   'afs-quote-builder': 'Quote Builder',
   'afs-takeoff': 'Blueprint Takeoff AI',
   'field_photo_quote': 'Field Photo',
+  'email_inbound': 'Email (AI draft)',
 };
 
 const SOURCE_TOOLS = Object.keys(SOURCE_TOOL_LABEL) as SourceTool[];
@@ -56,6 +57,7 @@ export type SourceIconKey = 'email' | 'flashdraft' | 'photo';
 const SOURCE_ARRIVAL: Record<SourceTool, { label: string; icon: SourceIconKey }> = {
   'afs-flashdraft': { label: 'From FlashDraft', icon: 'flashdraft' },
   'field_photo_quote': { label: 'From the field app', icon: 'photo' },
+  'email_inbound': { label: 'From email', icon: 'email' },
   'afs-quote-builder': { label: 'From the quote builder', icon: 'flashdraft' },
   'afs-takeoff': { label: 'From a drawing upload', icon: 'flashdraft' },
   'afs-configurator': { label: 'From the configurator', icon: 'flashdraft' },
