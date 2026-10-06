@@ -93,6 +93,16 @@ export interface ProfileViewer3DProps {
    * and every other code path are untouched.
    */
   perforatedSegments?: number[];
+  /**
+   * When > 0: ONE full 360-degree turn of exactly this many milliseconds, then
+   * stop - measured against the clock, so it is the same speed on a 60 Hz and a
+   * 144 Hz monitor (OrbitControls' own autoRotate advances per frame and runs
+   * 2.4x too fast on a 144 Hz display). Overrides autoRotateSpeed/Duration.
+   * Grabbing the model cancels the turn.
+   */
+  singleTurnMs?: number;
+  /** Initial viewing direction (any length). Defaults to the studio's oblique angle; the catalogue passes a more end-on one so the section and its hems read. */
+  cameraDirection?: [number, number, number];
 }
 
 export interface PerforationRegion {
@@ -250,7 +260,7 @@ function buildProfilePoints(bends: ProfileBend[]): Point2D[] {
   return buildCrossSectionPoints(bends);
 }
 
-function segNormal(a: Point2D, b: Point2D): Point2D {
+export function segNormal(a: Point2D, b: Point2D): Point2D {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   const len = Math.hypot(dx, dy) || 1;
@@ -432,15 +442,13 @@ function buildTeardropFoldCenterline(lengthMm: number, curlRadiusMm: number): Po
  * technique this file already uses to loft a 2D profile-plane boundary into
  * 3D BufferGeometry for the paint decal.
  */
-function buildHemGeometries(
+export function hemWorldCenterline(
   hem: Hem,
   p: Point2D,
   neighbor: Point2D,
   normal: Point2D,
-  thicknessMm: number,
-  depth: number,
-  centerShift: THREE.Vector3
-): THREE.BufferGeometry[] {
+  thicknessMm: number
+): Point2D[] {
   const dx = p.x - neighbor.x;
   const dy = p.y - neighbor.y;
   const len = Math.hypot(dx, dy) || 1;
@@ -453,10 +461,22 @@ function buildHemGeometries(
 
   const local = hem.type === 'teardrop' ? buildTeardropFoldCenterline(lengthMm, curlRadiusMm) : buildHookFoldCenterline(lengthMm, gapMm);
 
-  const worldCenterline: Point2D[] = local.map((pt) => ({
+  return local.map((pt) => ({
     x: p.x + pt.x * u.x + pt.y * kickSign * normal.x,
     y: p.y + pt.x * u.y + pt.y * kickSign * normal.y,
   }));
+}
+
+function buildHemGeometries(
+  hem: Hem,
+  p: Point2D,
+  neighbor: Point2D,
+  normal: Point2D,
+  thicknessMm: number,
+  depth: number,
+  centerShift: THREE.Vector3
+): THREE.BufferGeometry[] {
+  const worldCenterline = hemWorldCenterline(hem, p, neighbor, normal, thicknessMm);
 
   const half = thicknessMm / 2;
   const outerRail = offsetPolyline(worldCenterline, half);
@@ -625,6 +645,8 @@ export default function ProfileViewer3D({
   hideDimensions = false,
   defaultDimensionsOn = false,
   perforatedSegments,
+  singleTurnMs = 0,
+  cameraDirection,
 }: ProfileViewer3DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -634,11 +656,14 @@ export default function ProfileViewer3D({
   const controlsRef = useRef<OrbitControls | null>(null);
   const meshGroupRef = useRef<THREE.Group | null>(null);
   const labelGroupRef = useRef<THREE.Group | null>(null);
+  const turnRef = useRef<{ remaining: number; last: number; periodMs: number } | null>(null);
   const cameraAnimRef = useRef<{ from: THREE.Vector3; to: THREE.Vector3; fromTarget: THREE.Vector3; toTarget: THREE.Vector3; start: number } | null>(null);
   // Latest real frame-to-fit camera position/target for this profile
   // (afs-fl-026) — kept current on every geometry rebuild so "Reset View"
   // always returns to a correctly-framed shot, not the generic fallback.
   const fitCameraRef = useRef<{ position: THREE.Vector3; target: THREE.Vector3 } | null>(null);
+  const cameraDirRef = useRef<THREE.Vector3>(DEFAULT_CAMERA_DIRECTION);
+  cameraDirRef.current = cameraDirection ? new THREE.Vector3(...cameraDirection).normalize() : DEFAULT_CAMERA_DIRECTION;
   // Auto-fit only drives the camera on the FIRST geometry build after mount —
   // later rebuilds (e.g. flipping paintFace) update fitCameraRef for Reset
   // View but must not yank the camera out from under a user who has already
@@ -670,6 +695,8 @@ export default function ProfileViewer3D({
   const [webglFailure, setWebglFailure] = useState<string | null>(null);
 
   const animateCameraTo = useCallback((preset: CameraPreset) => {
+    // Choosing a view takes over the camera: any in-progress single turn is cancelled.
+    if (turnRef.current) turnRef.current.remaining = 0;
     const camera = cameraRef.current;
     const controls = controlsRef.current;
     if (!camera || !controls) return;
@@ -804,6 +831,21 @@ export default function ProfileViewer3D({
     const animate = () => {
       frameId = requestAnimationFrame(animate);
 
+      const turn = turnRef.current;
+      if (turn && turn.remaining > 0) {
+        const now = performance.now();
+        const dt = Math.min(now - turn.last, 100);
+        turn.last = now;
+        const step = Math.min(turn.remaining, (2 * Math.PI * dt) / turn.periodMs);
+        const ox = camera.position.x - controls.target.x;
+        const oz = camera.position.z - controls.target.z;
+        const c = Math.cos(step);
+        const sn = Math.sin(step);
+        camera.position.x = controls.target.x + ox * c + oz * sn;
+        camera.position.z = controls.target.z - ox * sn + oz * c;
+        turn.remaining -= step;
+      }
+
       const anim = cameraAnimRef.current;
       if (anim) {
         const elapsed = performance.now() - anim.start;
@@ -835,7 +877,7 @@ export default function ProfileViewer3D({
       // fitCameraRef is refreshed too, so Reset View returns HERE.
       const box = fitBoxRef.current;
       if (!box) return;
-      const refit = computeFitCamera(box, camera, DEFAULT_CAMERA_DIRECTION);
+      const refit = computeFitCamera(box, camera, cameraDirRef.current);
       if (!refit) return;
       fitCameraRef.current = refit;
       camera.position.copy(refit.position);
@@ -865,13 +907,22 @@ export default function ProfileViewer3D({
   useEffect(() => {
     const controls = controlsRef.current;
     if (!controls) return;
+    if (singleTurnMs > 0) {
+      controls.autoRotate = false;
+      turnRef.current = { remaining: 2 * Math.PI, last: performance.now(), periodMs: singleTurnMs };
+      const cancel = () => {
+        if (turnRef.current) turnRef.current.remaining = 0;
+      };
+      controls.addEventListener('start', cancel);
+      return () => controls.removeEventListener('start', cancel);
+    }
     controls.autoRotate = true;
     controls.autoRotateSpeed = autoRotateSpeed;
     const timer = setTimeout(() => {
       controls.autoRotate = false;
     }, autoRotateDurationMs);
     return () => clearTimeout(timer);
-  }, [autoRotateSpeed, autoRotateDurationMs, paintFace]);
+  }, [autoRotateSpeed, autoRotateDurationMs, paintFace, singleTurnMs]);
 
   // --- Rebuild geometry + annotations whenever the profile changes ---
   useEffect(() => {
@@ -1150,7 +1201,7 @@ export default function ProfileViewer3D({
     if (camera) {
       const box = new THREE.Box3().setFromObject(meshGroup);
       fitBoxRef.current = box.clone();
-      const fit = computeFitCamera(box, camera, DEFAULT_CAMERA_DIRECTION);
+      const fit = computeFitCamera(box, camera, cameraDirRef.current);
       if (fit) {
         fitCameraRef.current = fit;
         if (!hasAutoFitRef.current) {

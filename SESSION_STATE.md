@@ -9976,3 +9976,12 @@ Branch products-page (never previously merged) is now integrated: Drexel renderi
 - 2026-10-05: Perforated Z Closure 3D view shows staggered slotted perforations on the wide flange (shader cutout, ProfileViewer3D perforatedSegments prop; set in trace/gen_ts.py PERFORATED).
 
 - 2026-10-05: Products hover popover + modal now show the Drexel rendering (left) beside the 3D profile (right). DMC roofing panels and Fastener Flange have NO 3D (decision: cannot be rendered faithfully); rendering shown alone. Controlled by NO_3D in trace/gen_ts.py -> UNTRACED_PRODUCTS.
+
+## 2026-10-05 - products: hems, single turn, sizing (branch fix/products-hems-sizing)
+- Real hems: gen_ts.py now reads the audited hem data (trace/result2) and emits hemStart/hemEnd (open fold-back, length + gap) per product; ProductProfilePreview3D maps them to the viewer's Hem (HEM_LEFT_IS_OUTSIDE). VERIFIED by overlaying the viewer's own hem centrelines on all 27 hemmed ends of the Drexel renderings (afs-overnight/logs/hem2): every fold-back lands on the correct side. Hem return length is the audited value; econo-gravel-stop is the smallest visible.
+- 3D rotation is ONE clock-based 360 turn (30 s, singleTurnMs); cancelled by any user drag or view preset. Catalogue camera starts more end-on (cameraDirection prop) so the section reads.
+- Tile popover no longer re-opens after the modal closes (suppress until a real re-entry, ProductTile.tsx).
+- Rendering images auto-trimmed (public/images/products-trim, lib/data/product-image-trim.ts, generator afs-overnight/trace/trim_images.py). Not trimmed: brick-wall shots, fascia/rake, gutter, DMC close-ups.
+- Perforated Z Closure: perforation is now on the vertical WEB in 3D (perforatedSegments [1] is the web in the traced order - re-checked visually). The rendering image was RETOUCHED (flange slots filled, web slots drawn) - it is not a Drexel original; script afs-overnight/pz3.py, original at trace/perforated-z-closure.orig-trim.webp. trim_images.py would regenerate the OLD file name; the retouched file is perforated-z-closure-web.webp.
+- Products header: faint rotating Zee backdrop (ProductsHeaderBackdrop); "Product Catalog" eyebrow removed.
+- Open: header copy still mentions taking products into FlashDraft although no traced product is designable.
