@@ -10022,3 +10022,6 @@ BLOCKERS / NEXT:
 2. Outlook off until env set: OUTLOOK_TENANT_ID, OUTLOOK_CLIENT_ID, OUTLOOK_CLIENT_SECRET, OUTLOOK_MAILBOX, OUTLOOK_WEBHOOK_CLIENT_STATE, EMAIL_INTAKE_SECRET (>=24 chars); then create Graph subscription. Until then use .eml upload on /admin/email-intake.
 3. Improvement queue: docs/AUDIT_QUOTE_SYSTEMS_2026-10.md.
 Known risks: null lengthFt/quantity render as 0 in QuoteEstimatorForm (send blocked <=0, banner warns); PDF region shown as text note only; cross-provider dedupe (eml vs graph) not handled; webhook processes inline.
+
+
+## 2026-10-06 - Migration 050 APPLIED to AFS production (project ref lxfiziwsqezjjybeguqq) via Supabase Management API using the repo's SUPABASE_ACCESS_TOKEN. Post-check: email_messages, email_attachments, takeoff_corrections exist; RLS on; email-attachments bucket exists. Not recorded in supabase_migrations history (same as 032-040 which also show blank in the Remote column). The Claude connector's Supabase login is a different org (upwvnvezkhsktmrzqlpd) and cannot see AFS (org aipvnblxxbhimvrjxzhu).
