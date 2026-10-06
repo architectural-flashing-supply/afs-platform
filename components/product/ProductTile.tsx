@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useCallback, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import ProductActions from '@/components/product/ProductActions';
 import ProductProfilePreview3D from '@/components/product/ProductProfilePreview3D';
 import type { CatalogProduct } from '@/lib/data/products-page';
@@ -39,10 +39,14 @@ export default function ProductTile({ product, onOpen }: ProductTileProps) {
   // overlay is removed, not the user coming back, so it is ignored. Only a real re-entry from
   // elsewhere (or any other key press, for keyboard users) clears it.
   const suppressRef = useRef<{ x: number; y: number } | null>(null);
+  // Set when the page scrolls. The tile under a stationary pointer changes while scrolling, so a
+  // hover popover must not open (or stay open) until the pointer really moves again.
+  const scrollHoldRef = useRef(false);
 
   // The 320px popover is centred on a 192px tile, so tiles near either viewport
   // edge would push it off-screen. Measure on activation and nudge it back in.
   const activate = useCallback((pos?: { x: number; y: number }) => {
+    if (pos && scrollHoldRef.current) return;
     const s = suppressRef.current;
     if (s) {
       if (!pos) return; // focus, not pointer
@@ -59,6 +63,24 @@ export default function ProductTile({ product, onOpen }: ProductTileProps) {
     }
     setActive(true);
   }, []);
+
+  useEffect(() => {
+    if (!active) return;
+    const dismiss = () => {
+      scrollHoldRef.current = true;
+      setActive(false);
+    };
+    window.addEventListener('scroll', dismiss, { capture: true, passive: true });
+    window.addEventListener('wheel', dismiss, { passive: true });
+    window.addEventListener('touchmove', dismiss, { passive: true });
+    window.addEventListener('resize', dismiss);
+    return () => {
+      window.removeEventListener('scroll', dismiss, true);
+      window.removeEventListener('wheel', dismiss);
+      window.removeEventListener('touchmove', dismiss);
+      window.removeEventListener('resize', dismiss);
+    };
+  }, [active]);
 
   const open = useCallback((pos?: { x: number; y: number }) => {
     suppressRef.current = pos ?? { x: Number.NaN, y: Number.NaN };
@@ -84,7 +106,16 @@ export default function ProductTile({ product, onOpen }: ProductTileProps) {
       className="relative"
       style={{ width: TILE_SIZE_PX }}
       onMouseEnter={(event) => activate({ x: event.clientX, y: event.clientY })}
-      onMouseLeave={() => setActive(false)}
+      onMouseMove={(event) => {
+        if (scrollHoldRef.current && Math.abs(event.movementX) + Math.abs(event.movementY) > 0) {
+          scrollHoldRef.current = false;
+          activate({ x: event.clientX, y: event.clientY });
+        }
+      }}
+      onMouseLeave={() => {
+        scrollHoldRef.current = false;
+        setActive(false);
+      }}
     >
       <button
         type="button"
@@ -98,14 +129,14 @@ export default function ProductTile({ product, onOpen }: ProductTileProps) {
         aria-describedby={active ? popoverId : undefined}
         className="group block w-full cursor-pointer rounded border border-afs-border-catalog bg-afs-bg-lane p-2 text-left transition-colors hover:bg-afs-bg-catalog-pop focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-afs-crimson focus-visible:ring-offset-2 focus-visible:ring-offset-afs-bg-light-raised"
       >
-        <span className="relative block overflow-hidden rounded" style={{ height: TILE_SIZE_PX - 48 }}>
+        <span className="relative block overflow-hidden rounded" style={{ height: TILE_SIZE_PX - 48, background: product.imageBg }}>
           <Image
             src={product.image}
             alt={product.name}
             fill
             loading="lazy"
             sizes="192px"
-            className="object-contain p-1"
+            className="object-contain"
           />
         </span>
         <span className="mt-2 block truncate font-body text-sm font-semibold text-afs-ink-900">
@@ -131,13 +162,13 @@ export default function ProductTile({ product, onOpen }: ProductTileProps) {
             const has3D = Boolean(product.geometryMatch || product.hasSchematicPreview);
             return (
               <div className={`grid gap-2 ${has3D ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                <div className="relative h-[280px] w-full overflow-hidden rounded bg-afs-bg-light">
+                <div className="relative h-[280px] w-full overflow-hidden rounded" style={{ background: product.imageBg }}>
                   <Image
                     src={product.image}
                     alt={product.name}
                     fill
                     sizes="300px"
-                    className="object-contain p-2"
+                    className="object-contain p-1"
                   />
                 </div>
                 {has3D ? (

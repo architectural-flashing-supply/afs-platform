@@ -103,6 +103,8 @@ export interface ProfileViewer3DProps {
   singleTurnMs?: number;
   /** Initial viewing direction (any length). Defaults to the studio's oblique angle; the catalogue passes a more end-on one so the section and its hems read. */
   cameraDirection?: [number, number, number];
+  /** Rotates the whole profile about its centre (Z, radians). The viewer always lays the first leg along +X; the catalogue passes the traced first-leg angle so the profile sits the same way up as its rendering. */
+  orientationRad?: number;
 }
 
 export interface PerforationRegion {
@@ -647,6 +649,7 @@ export default function ProfileViewer3D({
   perforatedSegments,
   singleTurnMs = 0,
   cameraDirection,
+  orientationRad = 0,
 }: ProfileViewer3DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -663,6 +666,8 @@ export default function ProfileViewer3D({
   // always returns to a correctly-framed shot, not the generic fallback.
   const fitCameraRef = useRef<{ position: THREE.Vector3; target: THREE.Vector3 } | null>(null);
   const cameraDirRef = useRef<THREE.Vector3>(DEFAULT_CAMERA_DIRECTION);
+  const orientationRadRef = useRef(0);
+  orientationRadRef.current = orientationRad;
   cameraDirRef.current = cameraDirection ? new THREE.Vector3(...cameraDirection).normalize() : DEFAULT_CAMERA_DIRECTION;
   // Auto-fit only drives the camera on the FIRST geometry build after mount —
   // later rebuilds (e.g. flipping paintFace) update fitCameraRef for Reset
@@ -702,7 +707,26 @@ export default function ProfileViewer3D({
     if (!camera || !controls) return;
     // 'default' (Reset View) prefers the real computed frame-to-fit shot for
     // THIS profile over the generic CAMERA_PRESETS fallback, once one exists.
-    const target = (preset === 'default' && fitCameraRef.current) || CAMERA_PRESETS[preset];
+    let target = (preset === 'default' && fitCameraRef.current) || CAMERA_PRESETS[preset];
+    // Top / Side / End are framed at the SAME fit distance as the default shot, along their own axis.
+    // The fixed 400-unit presets sat too close to a 6 in profile and clipped it.
+    if (preset !== 'default' && fitCameraRef.current) {
+      const fit = fitCameraRef.current;
+      const dist = fit.position.distanceTo(fit.target);
+      const dir = preset === 'top' ? new THREE.Vector3(0, 1, 0.01) : preset === 'side' ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1);
+      target = { position: fit.target.clone().add(dir.normalize().multiplyScalar(dist)), target: fit.target.clone() };
+      // End view: frame the CROSS-SECTION itself (not the 12 in extrusion), so hems read at catalogue size.
+      const box = fitBoxRef.current;
+      if (preset === 'end' && box && !box.isEmpty()) {
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+        const vFov = (camera.fov * Math.PI) / 180;
+        const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
+        const need = 1.18 * Math.max(size.y / 2 / Math.tan(vFov / 2), size.x / 2 / Math.tan(hFov / 2));
+        const tgt = new THREE.Vector3(center.x, center.y + size.y * 0.06, box.max.z);
+        target = { position: new THREE.Vector3(tgt.x, tgt.y, box.max.z + need), target: tgt };
+      }
+    }
     cameraAnimRef.current = {
       from: camera.position.clone(),
       to: target.position.clone(),
@@ -1187,6 +1211,7 @@ export default function ProfileViewer3D({
       }
     }
 
+    meshGroup.rotation.z = orientationRadRef.current;
     scene.add(meshGroup);
     scene.add(labelGroup);
     meshGroupRef.current = meshGroup;

@@ -131,6 +131,13 @@ export default function ProductProfilePreview3D({
 
   if (bends.length === 0) return null;
 
+  // The viewer lays the first leg along +X. Rotate back to the traced direction so the profile sits the
+  // same way up as its Drexel rendering (traced points are y-down, the viewer is y-up).
+  const orientationRad =
+    isSchematic && schematic && schematic.points.length > 1
+      ? Math.atan2(-(schematic.points[1].y - schematic.points[0].y), schematic.points[1].x - schematic.points[0].x)
+      : 0;
+
   return (
     <div className={className}>
       <ProfileViewer3D
@@ -152,6 +159,7 @@ export default function ProductProfilePreview3D({
         autoRotateDurationMs={0}
         singleTurnMs={prefersReducedMotion ? 0 : PRODUCT_ROTATION_SECONDS * 1000}
         cameraDirection={[0.42, 0.3, 1]}
+        orientationRad={orientationRad}
         className="h-full w-full"
       />
     </div>

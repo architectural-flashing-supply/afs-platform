@@ -15,6 +15,7 @@ import manifest from '@/lib/data/product-renders.manifest.json';
 import { PRODUCT_NAME_OVERRIDES } from '@/lib/data/product-name-overrides';
 import { previewShapeFor } from '@/lib/data/product-preview-shapes';
 import { TRIMMED_PRODUCT_IMAGES } from '@/lib/data/product-image-trim';
+import { PRODUCT_IMAGE_BG } from '@/lib/data/product-image-bg';
 import type { ProfileType } from '@/lib/utils/profile-svg';
 
 export interface ProductRenderEntry {
@@ -40,6 +41,8 @@ export interface CatalogProduct {
   subcategory: string;
   /** Public path under /images/products, ready for next/image. */
   image: string;
+  /** The rendering's own edge colour - fills the image box so there is no two-tone frame. */
+  imageBg: string;
   /** Non-null means this product can offer Select & Design and the 3D view. */
   geometryMatch: ProfileType | null;
   /**
@@ -189,6 +192,7 @@ function toCatalogProduct(entry: ProductRenderEntry): CatalogProduct {
     category: mapDisplayCategory(entry.category),
     subcategory: entry.subcategory,
     image: TRIMMED_PRODUCT_IMAGES[entry.id] ?? entry.imageFiles[0],
+    imageBg: PRODUCT_IMAGE_BG[entry.id] ?? '#ffffff',
     geometryMatch: traced ? null : matched,
     hasSchematicPreview: traced,
   };

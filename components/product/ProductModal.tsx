@@ -128,15 +128,15 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
             <div className={`mt-4 grid gap-3 ${has3D ? 'sm:grid-cols-2' : 'grid-cols-1'}`}>
               <figure className="m-0">
                 <div
-                  className="relative w-full overflow-hidden rounded bg-afs-bg-light"
-                  style={{ height: MODAL_CANVAS_HEIGHT }}
+                  className="relative w-full overflow-hidden rounded"
+                  style={{ height: MODAL_CANVAS_HEIGHT, background: product.imageBg }}
                 >
                   <Image
                     src={product.image}
                     alt={product.name}
                     fill
                     sizes="(max-width: 640px) 90vw, 460px"
-                    className="object-contain p-3"
+                    className="object-contain p-1"
                   />
                 </div>
                 {has3D ? (
