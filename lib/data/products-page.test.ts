@@ -1,4 +1,4 @@
-/**
+﻿/**
  * The Products page's data layer, asserted against the REAL manifest.
  *
  * Three things this has to protect, because all three are silent when wrong:
@@ -161,7 +161,7 @@ describe('deriveDisplayName', () => {
 describe('product shape', () => {
   it('points every image at a public /images/products path', () => {
     for (const p of getCatalogProducts()) {
-      expect(/^\/images\/products(-trim)?\//.test(p.image)).toBe(true);
+      expect(/^\/images\/products(-trim|-render)?\//.test(p.image)).toBe(true);
       expect(p.image.endsWith('.webp')).toBe(true);
     }
   });
@@ -169,7 +169,7 @@ describe('product shape', () => {
   it('only carries geometry values that are real ProfileType members', () => {
     const withGeometry = getCatalogProducts().filter((p) => p.geometryMatch);
     // May be empty: a traced rendering withdraws its generic template.
-    // Mirrors the manifest's own entries — no new geometry is minted here.
+    // Mirrors the manifest's own entries â€” no new geometry is minted here.
     for (const p of withGeometry) {
       const source = PRODUCT_MANIFEST.find((e) => e.id === p.id);
       expect(p.geometryMatch).toBe(source!.geometryMatch);
@@ -259,7 +259,7 @@ describe('schematic preview shapes', () => {
     expect(anyMixed).toBe(true);
   });
 
-  it('every previewed product has coordinates only — no dimension text anywhere', () => {
+  it('every previewed product has coordinates only â€” no dimension text anywhere', () => {
     for (const shape of Object.values(PRODUCT_PREVIEW_SHAPES)) {
       for (const pt of shape.points) {
         expect(Number.isFinite(pt.x)).toBe(true);
