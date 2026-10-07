@@ -17151,3 +17151,9 @@ Inbound email -> idempotent store -> classify -> existing takeoff engine -> draf
 
 
 ## 2026-10-07 - HOME HERO premium redesign on branch feat/hero-premium (UNVERIFIED until Reid checks it). Deep navy hero only (Reid's explicit decision, overrides the earlier light-blueprint hero decision for the hero ONLY); logo/carousel locked rules kept (carousel gets a navy-to-white dissolve). Video fades into navy via 180-320px gradient; blueprint at 13% opacity masked; one SVG detail traces itself on a 10s loop (static under prefers-reduced-motion); desktop split at lg (1024), stacked below. New tokens afs-navy-950/900/800/700. tsc 0, pnpm run build exit 0, 7 widths 1440-360: no horizontal overflow, 0 console errors. Not merged to main.
+
+
+## 2026-10-07 - Hero drawing redesigned as FlashDraft-style dimensioned profile (feat/hero-premium)
+- Replaced generic self-tracing lines (.hero-trace) with a FlashDraft-canvas panel: grey canvas + grid, crimson cap profile with open-hook hem, ink dimension lines with inch labels (8 1/2", 4 1/2", 3 3/4"), 90 degree arc, FLASHDRAFT tag. 12s loop (draw, dimension, hold, fade); static when prefers-reduced-motion.
+- Colours mirror CANVAS_COLORS as CSS vars in app/globals.css (canvas-only literal exception). Placed bottom, beside the CTA column (lg+ only); no overlap with CTAs or help widget.
+- Verified: tsc 0, pnpm run build 0, screenshots 1440/1024. NOT yet merged to main; mobile hidden (unchanged). Dimension values are illustrative, not a real order.

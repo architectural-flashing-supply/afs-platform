@@ -97,23 +97,49 @@ export default function HeroSection() {
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_30%_50%,transparent_40%,theme(colors.afs.navy-950/60%)_100%)]"
       />
 
-      {/* One architectural detail tracing itself, nearly subconscious. */}
+      {/* A FlashDraft-style drawing that draws itself: crimson profile, ink dimensions. */}
       <svg
         aria-hidden="true"
         focusable="false"
-        viewBox="0 0 320 200"
-        className="hero-trace pointer-events-none absolute bottom-8 right-8 hidden w-[min(320px,26vw)] text-afs-chrome-mid lg:block"
+        viewBox="12 0 316 230"
+        className="hero-trace pointer-events-none absolute bottom-8 left-[40%] hidden w-[min(280px,21vw)] lg:block"
         fill="none"
-        stroke="currentColor"
-        strokeWidth="1.25"
         strokeLinecap="round"
         strokeLinejoin="round"
       >
-        <path pathLength="1" d="M20 150 H150 L190 60 H300" />
-        <path pathLength="1" d="M150 150 L150 170 M190 60 L190 40" />
-        <path pathLength="1" d="M20 175 H150 M20 170 V180 M150 170 V180" />
-        <path pathLength="1" d="M205 40 H300 M205 35 V45 M300 35 V45" />
-        <path pathLength="1" d="M20 150 L20 130 L36 130" />
+        <g className="ht-fade ht-panel">
+          <rect x="12" y="0" width="316" height="230" rx="4" fill="var(--ht-bg)" fillOpacity="0.88" />
+          <path
+            d="M0 23H360M0 46H360M0 69H360M0 92H360M0 115H360M0 138H360M0 161H360M0 184H360M0 207H360M30 0V230M60 0V230M90 0V230M120 0V230M150 0V230M180 0V230M210 0V230M240 0V230M270 0V230M300 0V230M330 0V230"
+            stroke="var(--ht-grid)"
+            strokeWidth="1"
+          />
+        </g>
+        <g stroke="var(--ht-red)" strokeWidth="2.25">
+          <path className="ht-stroke ht-s1" pathLength="1" d="M70 168V86" />
+          <path className="ht-stroke ht-s2" pathLength="1" d="M70 86H250" />
+          <path className="ht-stroke ht-s3" pathLength="1" d="M250 86V168" />
+          <path className="ht-stroke ht-hem" pathLength="1" d="M250 168C250 184 270 184 270 170" />
+        </g>
+        <g fill="var(--ht-red)" className="ht-fade ht-j">
+          <circle cx="70" cy="168" r="3.5" />
+          <circle cx="70" cy="86" r="3.5" />
+          <circle cx="250" cy="86" r="3.5" />
+          <circle cx="250" cy="168" r="3.5" />
+        </g>
+        <g stroke="var(--ht-ink)" strokeWidth="1">
+          <path className="ht-stroke ht-d1" pathLength="1" d="M70 62H250M70 56V68M250 56V68" />
+          <path className="ht-stroke ht-d2" pathLength="1" d="M42 86V168M36 86H48M36 168H48" />
+          <path className="ht-stroke ht-d3" pathLength="1" d="M286 86V168M280 86H292M280 168H292" />
+        </g>
+        <path className="ht-stroke ht-arc" pathLength="1" stroke="var(--ht-red)" strokeWidth="1.25" d="M250 112A26 26 0 0 0 224 86" />
+        <text className="ht-fade ht-t1 ht-lbl" x="160" y="52" textAnchor="middle">{'8 1/2"'}</text>
+        <text className="ht-fade ht-t2 ht-lbl" x="28" y="131" textAnchor="middle" transform="rotate(-90 28 131)">{'4 1/2"'}</text>
+        <text className="ht-fade ht-t3 ht-lbl" x="304" y="131" textAnchor="middle" transform="rotate(90 304 131)">{'3 3/4"'}</text>
+        <text className="ht-fade ht-arct ht-lbl" x="211" y="116" textAnchor="middle">{'90\u00B0'}</text>
+        <text className="ht-fade ht-tag ht-lbl" x="18" y="214" style={{ fontSize: 9, letterSpacing: '0.08em' }}>
+          {'FLASHDRAFT  \u00B7  1/2" HEM  \u00B7  .032 ALUM'}
+        </text>
       </svg>
 
       {/* ----------------------------------------------------------- COPY */}
