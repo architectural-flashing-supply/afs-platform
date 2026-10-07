@@ -2,84 +2,94 @@
 
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { previewShapeFor } from '@/lib/data/product-preview-shapes';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
 /**
- * A long length of flashing, rendered as a ghost behind the Products header.
+ * A short length of polished stainless flashing, turning slowly in its own
+ * contained box at the right of the Products header.
  *
- * Quiet by design: a darker gunmetal grey (~34% opacity), set toward the right so it never turns behind the headline text, no interaction, no text, hidden
- * from assistive tech, and still under prefers-reduced-motion (one fixed pose).
- * The section is the Zee, drawn from its own traced rendering, so the backdrop
- * is a real AFS profile and not decoration that looks like a different product.
- *
- * It renders into a transparent canvas, so the page background shows through,
- * and is torn down completely on unmount (no leaked GL context).
+ * The cross-section replicates a real fabricated piece: a small return lip at
+ * the top, a tall angled face, a stepped floor with two bends, and a short
+ * return flange. It is built from thin boxes along the profile path and lit
+ * with an image-based environment (RoomEnvironment) so the stainless reads as
+ * mirror-polished. The box is its own element, so it never turns behind the
+ * category buttons or the search field. Decoration only: hidden from assistive
+ * tech, no interaction, one fixed pose under prefers-reduced-motion, and torn
+ * down completely on unmount.
  */
-const PROFILE_ID = 'trims-zee';
-const LENGTH = 26; // world units; the section is ~3 across, so this reads as "long"
-const SECTION_SCALE = 1.1;
-const TURN_SECONDS = 70;
+// Profile path in inches (x right, y up).
+const PROFILE: ReadonlyArray<readonly [number, number]> = [
+  [0.75, 4.6],
+  [0, 4.6],
+  [1.6, 0.6],
+  [3.4, 0.6],
+  [4.0, 1.25],
+  [5.6, 1.25],
+  [5.9, 2.1],
+];
+const THICKNESS = 0.09;
+const LENGTH = 5; // shorter than the real piece: roughly one profile-width
+const TURN_SECONDS = 24;
 
 export default function ProductsHeaderBackdrop() {
   const hostRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const host = hostRef.current;
-    const shape = previewShapeFor(PROFILE_ID);
-    if (!host || !shape) return;
+    if (!host) return;
 
     let renderer: THREE.WebGLRenderer;
     try {
       renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
     } catch {
-      return; // no WebGL: the header simply has no backdrop
+      return; // no WebGL: the box simply stays empty
     }
     renderer.setClearColor(0x000000, 0);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
     host.appendChild(renderer.domElement);
     renderer.domElement.style.width = '100%';
     renderer.domElement.style.height = '100%';
     renderer.domElement.style.display = 'block';
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 200);
-    camera.position.set(0, 0, 30);
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    scene.environment = envTex;
 
-    const pts = shape.points;
-    const cx = (Math.min(...pts.map((p) => p.x)) + Math.max(...pts.map((p) => p.x))) / 2;
-    const cy = (Math.min(...pts.map((p) => p.y)) + Math.max(...pts.map((p) => p.y))) / 2;
-    const faceMat = new THREE.MeshBasicMaterial({
-      color: 0x4a525c,
-      transparent: true,
-      opacity: 0.34,
-      side: THREE.DoubleSide,
-      depthWrite: false,
+    const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
+    camera.position.set(0, 1.5, 17);
+    camera.lookAt(0, 0, 0);
+
+    const xs = PROFILE.map((p) => p[0]);
+    const ys = PROFILE.map((p) => p[1]);
+    const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+    const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0xd7dce2,
+      metalness: 1,
+      roughness: 0.16,
+      envMapIntensity: 1.25,
     });
-    const lineMat = new THREE.LineBasicMaterial({ color: 0x2f353d, transparent: true, opacity: 0.55 });
 
     const group = new THREE.Group();
     const geoms: THREE.BufferGeometry[] = [];
-    for (let i = 0; i < pts.length - 1; i++) {
-      const a = pts[i];
-      const b = pts[i + 1];
-      const ax = (a.x - cx) * SECTION_SCALE;
-      const ay = -(a.y - cy) * SECTION_SCALE;
-      const bx = (b.x - cx) * SECTION_SCALE;
-      const by = -(b.y - cy) * SECTION_SCALE;
-      const g = new THREE.BufferGeometry();
-      const z0 = -LENGTH / 2;
-      const z1 = LENGTH / 2;
-      g.setAttribute(
-        'position',
-        new THREE.Float32BufferAttribute([ax, ay, z0, bx, by, z0, bx, by, z1, ax, ay, z0, bx, by, z1, ax, ay, z1], 3)
-      );
+    for (let i = 0; i < PROFILE.length - 1; i++) {
+      const [ax, ay] = PROFILE[i];
+      const [bx, by] = PROFILE[i + 1];
+      const dx = bx - ax;
+      const dy = by - ay;
+      const len = Math.hypot(dx, dy);
+      // Slight overshoot closes the corner at each bend.
+      const g = new THREE.BoxGeometry(len + THICKNESS, THICKNESS, LENGTH);
       geoms.push(g);
-      group.add(new THREE.Mesh(g, faceMat));
-      const e = new THREE.EdgesGeometry(g);
-      geoms.push(e);
-      group.add(new THREE.LineSegments(e, lineMat));
+      const m = new THREE.Mesh(g, mat);
+      m.position.set((ax + bx) / 2 - cx, (ay + by) / 2 - cy, 0);
+      m.rotation.z = Math.atan2(dy, dx);
+      group.add(m);
     }
-    group.rotation.x = 0.35;
+    group.rotation.x = 0.28;
     scene.add(group);
 
     const resize = () => {
@@ -96,7 +106,7 @@ export default function ProductsHeaderBackdrop() {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     let frame = 0;
     let last = performance.now();
-    let angle = 0.9;
+    let angle = -0.7;
     const tick = (now: number) => {
       frame = requestAnimationFrame(tick);
       const dt = Math.min(now - last, 100);
@@ -111,8 +121,9 @@ export default function ProductsHeaderBackdrop() {
       cancelAnimationFrame(frame);
       ro.disconnect();
       geoms.forEach((g) => g.dispose());
-      faceMat.dispose();
-      lineMat.dispose();
+      mat.dispose();
+      envTex.dispose();
+      pmrem.dispose();
       renderer.dispose();
       renderer.domElement.remove();
     };
@@ -122,7 +133,7 @@ export default function ProductsHeaderBackdrop() {
     <div
       ref={hostRef}
       aria-hidden="true"
-      className="pointer-events-none absolute inset-y-0 -right-[6%] w-full sm:w-[52%]"
+      className="pointer-events-none absolute right-4 top-8 hidden h-44 w-64 overflow-hidden rounded-lg border border-afs-chrome-mid bg-afs-navy-950 sm:block lg:right-6"
     />
   );
 }

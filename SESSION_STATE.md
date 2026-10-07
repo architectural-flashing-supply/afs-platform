@@ -10068,3 +10068,7 @@ Known risks: null lengthFt/quantity render as 0 in QuoteEstimatorForm (send bloc
 - Reid: the previous positions were fine. Reverted the drawing raise, the caption raise and the copy-block/button raise to the v3 positions.
 - Kept: tagline 'Precision Made. Project Ready.'
 - Verified: tsc 0, pnpm run build 0. Not merged to main.
+
+## 2026-10-07 - Products header: real polished-metal piece
+- Replaced ghost Zee backdrop with a short polished-stainless 3D flashing piece (lip, angled face, stepped floor, return flange) rotating in its own box at the header's right; no longer behind buttons/search. WebGL look UNVERIFIED headless; check on preview.
+- Intro text cut to one line; removed 'N products across N categories'.
