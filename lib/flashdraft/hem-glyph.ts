@@ -32,6 +32,34 @@ export const HEM_GLYPH_R = 6;
 
 const HEM_LINE_WIDTH = 2; // px, matches the leg stroke weight in page.tsx
 
+// The three proportions that decide how far past its own tip a drawn glyph
+// actually REACHES along its axis. They were literals inside the two
+// constructions below; they are named and exported now because the glyph is
+// not only drawn, it is also HIT-TESTED — pressing on the visible hem is the
+// "extend the profile from this end" handle (CLAUDE.md rule #13), and the
+// area that responds has to be derived from the same numbers the shape is
+// drawn from rather than guessed at. Changing a proportion here moves the
+// drawing and the hit area together, which is the whole point.
+export const HEM_HOOK_LENGTH_FACTOR = 1.8;
+export const HEM_TEARDROP_BULB_R_FACTOR = 0.6;
+export const HEM_TEARDROP_CENTER_DIST_FACTOR = 1.5;
+
+/**
+ * How far past the fold tip, in screen px, the glyph of `type` extends along
+ * its own local +x axis at radius `R` — i.e. where the VISIBLE far end of the
+ * drawn hem is. Open and Smashed share the hook construction and end at its
+ * flat/outward run; Teardrop ends at the far side of its bulb circle.
+ *
+ * Perpendicular spread (the hook's gap, the bulb's width) is deliberately not
+ * modelled: it is a few px either side of this axis, well inside the caller's
+ * own hit radius.
+ */
+export function hemGlyphOutwardExtentPx(type: HemType, R: number): number {
+  return type === 'teardrop'
+    ? R * (HEM_TEARDROP_CENTER_DIST_FACTOR + HEM_TEARDROP_BULB_R_FACTOR)
+    : R * HEM_HOOK_LENGTH_FACTOR;
+}
+
 // Local coordinate convention, which EVERY call site must normalize to
 // before calling this function: origin (0,0) = the true hem location (tip
 // point for endpoint hems, drag-back point for leg-mid hems). +x = outward
@@ -56,7 +84,7 @@ const HEM_LINE_WIDTH = 2; // px, matches the leg stroke weight in page.tsx
 //     photos of a real formed teardrop hem. See git history for that
 //     construction if photographic accuracy is ever wanted here again.
 function drawHookGlyph(ctx: CanvasRenderingContext2D, R: number, gapPx: number): void {
-  const Lh = R * 1.8; // flat/outward length — long enough to read as "a long piece", not a stub
+  const Lh = R * HEM_HOOK_LENGTH_FACTOR; // flat/outward length — long enough to read as "a long piece", not a stub
   const gap = gapPx; // absolute screen px, driven by the real Hem.gapIn — independent of R
   const r = gap / 2; // cap arc radius
   ctx.lineWidth = HEM_LINE_WIDTH;
@@ -132,8 +160,8 @@ export function drawHemGlyph(
     // tangent with no kink: a straight run from the tip to each of the
     // bulb circle's two tangent points, then the long way around the
     // circle's far side between them, closing back at the tip.
-    const bulbR = R * 0.6; // rounded end's radius, as a fraction of R
-    const centerDist = R * 1.5; // tip-to-bulb-center distance, as a fraction of R (> bulbR so the tip sits outside the circle)
+    const bulbR = R * HEM_TEARDROP_BULB_R_FACTOR; // rounded end's radius, as a fraction of R
+    const centerDist = R * HEM_TEARDROP_CENTER_DIST_FACTOR; // tip-to-bulb-center distance, as a fraction of R (> bulbR so the tip sits outside the circle)
     const TEARDROP_LINE_WIDTH_FACTOR = 0.11;
 
     const cosBeta = bulbR / centerDist;

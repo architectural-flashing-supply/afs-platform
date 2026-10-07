@@ -10028,3 +10028,44 @@ Known risks: null lengthFt/quantity render as 0 in QuoteEstimatorForm (send bloc
 
 
 ## 2026-10-06 - MAIN BUILD FIX (68e21cc). Production deploys of main failed after 06be107 (email-intake): 'ESM packages (htmlparser2) need to be imported' from lib/email-intake/sanitize.ts. Cause: sanitize-html imported in a server page. Fix: experimental.serverComponentsExternalPackages = sanitize-html, htmlparser2, mailparser in next.config.js. Reproduced locally; pnpm run build exit 0; Vercel production deploy after the push shows Ready. Lesson: tsc and vitest do not catch bundler errors - run pnpm run build before any push to main.
+
+---
+
+## 2026-10-07 — fix/flashdraft-extend-from-hem-tip
+
+**Task:** make a hem's visible body and tip act as the "extend from this end"
+handle in FlashDraft.
+
+**Reproduced first, no code changed:** a press-drag from the START hem's tip did
+NOT do nothing — it fell through `handlePointerDown` to the "clicked empty
+space" branch and appended a leg from the profile's LAST point (3 → 4 points,
+Bend Count 1 → 2, new point `(-10.78, 3.23)` hanging off `(1.5, -8.95)`). The
+END hem appeared to work only because that branch's anchor happens to be the
+last point. Single click: nothing. Double-click on the glyph tip (105px out): no
+popup; on the fold tip (37.5px out): popup opens.
+
+**Fixed by** deriving the hit area from the drawing: new
+`computeHemScreenGeometry` (draw-profile-scene.ts) is the one description of a
+hem's screen position and `renderHemAt` now draws from it; new
+`hemGlyphOutwardExtentPx` (hem-glyph.ts) reports the glyph's own outward reach
+from that file's construction constants, now named exports. Each end's claim on
+a press is the nearer of its endpoint and its drawn hem; a hem press arms the
+same `continueLineCandidateRef` anchored at the METAL ENDPOINT and then returns
+rather than falling through. `commitPrepend` and the append path untouched;
+hover gives the hem the endpoint's `grab` cursor.
+
+**Files:** `app/studio/draft/page.tsx`, `lib/flashdraft/draw-profile-scene.ts`,
+`lib/flashdraft/hem-glyph.ts`, plus new
+`tests/e2e/flashdraft-hem-extend.spec.ts` (7) and
+`lib/flashdraft/hem-screen-geometry.test.ts` (9). CLAUDE.md rule #13 extended.
+
+**Gates:** tsc 0 · vitest 557 passed (1 pre-existing v7-css CRLF failure,
+confirmed on clean origin/main) · `npm run build` exit 0 with contrast 24
+screens / 248 pairs / 0 unresolved / 0 below · Playwright hem-extend 7/7,
+flashdraft-regression 12/12, flashdraft 4/4, job-handoff 6/6,
+modify-in-flashdraft 3/3.
+
+**UNVERIFIED:** not yet confirmed by Reid in a browser. The double-click hem
+popup was deliberately left on its existing `HEM_HIT_RADIUS_EXISTING_PX` path,
+so the far glyph tip can be dragged to extend but not double-clicked to edit —
+asymmetry is PENDING REID. Touch input untested.

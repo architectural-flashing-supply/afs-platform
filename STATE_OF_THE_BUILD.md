@@ -17148,3 +17148,126 @@ Branch products-page (never previously merged) is now integrated: Drexel renderi
 ## 2026-10-06 — Email-to-AI-Quote (Phase 4 addendum): code complete, migration pending
 
 Inbound email -> idempotent store -> classify -> existing takeoff engine -> draft estimate (draft_from_email, never auto-sent) with per-line source_ref/confidence, View Source side-by-side, append-only corrections. Provider-agnostic: .eml upload live now; Microsoft Graph source implemented behind env vars. Tests: 24 unit + 4 gated live-AI pass. Migration 050 not yet applied; Outlook env not set. Self-reported, not user-confirmed.
+
+---
+
+## 2026-10-07 — FlashDraft: the HEM is now part of its end's extend handle (branch `fix/flashdraft-extend-from-hem-tip`)
+
+**The report.** A user who has put a hem on an endpoint cannot continue the
+profile by pressing on the visible end of that hem and dragging. Pressing the
+bare metal endpoint already works (lr-02 / rule #13) and the hem rides to the
+new free end; the hem itself was not a handle.
+
+### STEP 1 — REPRODUCED FIRST, BEFORE ANY CODE CHANGED
+
+Driven in a real browser (Playwright, dev server on :3200) on a 3-point
+profile with an Open hem — length 1.875", gap 0.375" — on `points[0]`, and
+separately on the last point. **What it actually did is NOT what the report
+assumed, and is worse:**
+
+| Gesture | Observed, pre-fix |
+|---|---|
+| Press-drag from the START hem's visible tip | **A leg was added — at the TAIL.** Points went `[(0,0),(6.85,-2.05),(1.5,-8.95)]` → `[…, (-10.78, 3.23)]`, Bend Count 1 → 2. The new leg grew from the profile's LAST point all the way back down past the start hem. A wrong leg off the wrong end, not a no-op. |
+| Press-drag from the END hem's visible tip | A leg was appended at the tail. Looks right, but only by coincidence — same code path, and that path's anchor happens to be the last point. |
+| Single click on the hem | Nothing; no popup, point count unchanged. |
+| Double-click on the hem's GLYPH tip (105px out) | **No popup.** |
+| Double-click on the hem's FOLD tip (37.5px out) | Popup opens. |
+
+**Cause.** A press on the hem missed `hitTestVertex`, missed the endpoint
+check (`HIT_RADIUS_PX` around `points[0]`/`points[last]`), missed
+`hitTestSegmentAt` and missed the `NEW_SEGMENT_MISS_GUARD_PX` near-miss guard
+— the hem stands clear of every leg — so it fell through to
+`handlePointerDown`'s final "clicked empty space to draw" branch, which
+anchors at `points[points.length - 1]`.
+
+**Measured, not assumed:** at the default zoom (PIXELS_PER_INCH 20, zoom 1) an
+Open 1 7/8" hem draws a 37.5px connecting line and then a 67.5px hook glyph —
+**the glyph is the longer half** — so the visible hem reaches ~105px from the
+endpoint, against an 8px endpoint ring and a 10px hit radius.
+
+### STEP 2 — THE FIX
+
+**The hit area is derived from the drawing, never guessed at.**
+`computeHemScreenGeometry` (new, `lib/flashdraft/draw-profile-scene.ts`) is now
+the ONE description of where a hem sits on screen — endpoint, fold tip, glyph
+end, glyph radius, direction — and `renderHemAt` draws from it. Its outward
+reach comes from `hemGlyphOutwardExtentPx` (new,
+`lib/flashdraft/hem-glyph.ts`), which is built from that file's own
+construction constants, promoted from literals to named exports
+(`HEM_HOOK_LENGTH_FACTOR` 1.8, `HEM_TEARDROP_CENTER_DIST_FACTOR` 1.5,
+`HEM_TEARDROP_BULB_R_FACTOR` 0.6). Change a proportion and the drawing and the
+hit area move together — which is the whole point.
+
+`renderHemAt`'s three near-identical branches (open / teardrop / smashed)
+collapsed to one: they differed only in the glyph radius, which
+`computeHemScreenGeometry` resolves, and in the label text. **Rendering is
+unchanged** — verified by screenshot against the pre-fix capture.
+
+**The gesture.** Each end's claim on a press is now
+`min(distance to its endpoint, distance to its drawn hem)`, where the hem is
+measured as the straight run endpoint → glyph end. A hem press arms the
+identical `continueLineCandidateRef`, **anchored at the metal endpoint, not at
+the fold tip** — so the new leg starts at the real corner — and `commitPrepend`
+and the append path are untouched, so the hem travels to the new free end by
+the positional anchoring rule #13 already relies on.
+
+**A hem-claimed press RETURNS from `handlePointerDown`** instead of falling
+through. The fall-through exists so a plain click ON AN ENDPOINT still selects
+the leg that endpoint sits on; out on the hem it was the bug. Returning also
+leaves the current selection alone.
+
+**Hover** gives the hem the same `grab` cursor the bare endpoint has, so the
+affordance matches the gesture that really fires.
+
+### FILES CHANGED (4, nothing else)
+
+```
+app/studio/draft/page.tsx              hemHitDistance(); hit-test + hover wiring
+lib/flashdraft/draw-profile-scene.ts   computeHemScreenGeometry(); renderHemAt de-duplicated
+lib/flashdraft/hem-glyph.ts            named construction factors + hemGlyphOutwardExtentPx()
+tests/e2e/flashdraft-hem-extend.spec.ts        NEW — 7 tests
+lib/flashdraft/hem-screen-geometry.test.ts     NEW — 9 unit tests
+```
+
+Canvas size, layout, fit/zoom, popup placement, shop callouts, Design Studio
+gating and middleware were not touched.
+
+### GATES
+
+- `npx tsc --noEmit` — **0 errors**
+- `npx vitest run` — **557 passed**, 1 failed, 4 skipped. The one failure is
+  `lib/design/v7-css.test.ts` (the known CRLF line-ending mismatch), **confirmed
+  pre-existing by stashing this branch's changes and re-running on clean
+  `origin/main`, where it fails identically**. `lib/pricing/ledger-append-only`
+  flaked once on `ECONNRESET` reaching the Supabase Management API and passed on
+  re-run; it is a network test, not code.
+- `npm run build` — **exit 0**, including the `prebuild` chain (v7 CSS scope +
+  contrast gate: 24 screens, 248 pairs, **0 unresolved, 0 below**).
+- Playwright, against the dev server: `flashdraft-hem-extend.spec.ts` **7/7**,
+  `flashdraft-regression.spec.ts` **12/12**, `flashdraft.spec.ts` **4/4**,
+  `flashdraft-job-handoff.spec.ts` **6/6**, `modify-in-flashdraft.spec.ts`
+  **3/3**. Note `flashdraft.spec.ts`'s save test, listed as a pre-existing
+  failure in the 2026-10-02 entry, passed here.
+- Screenshots: `test-results/hem-extend-start-tip.png` (the profile visibly
+  grown from the head with the hem on the NEW head),
+  `hem-extend-end-tip.png`, `hem-extend-dblclick-still-opens-popup.png`.
+
+### UNVERIFIED / OPEN
+
+1. **NOT CONFIRMED BY REID IN A BROWSER.** Per this project's verification
+   standard, this session's Playwright passes and screenshots are evidence to
+   bring to him, not proof.
+2. **The double-click hem popup was deliberately NOT widened**, per the brief's
+   "must STILL open ... (HEM_HIT_RADIUS_EXISTING_PX path)". Measured: it opens
+   from the endpoint out to about 48px — covering the connecting line — but NOT
+   from the glyph's far tip at ~105px. So the hem tip can now be press-dragged
+   to extend but cannot be double-clicked to edit. **That asymmetry is real and
+   is PENDING REID**; widening the dblclick radius to the same derived hem run
+   is a one-line change if he wants it.
+3. **Touch input is untested.** Everything here was driven with a mouse.
+4. A press that starts on the hem and drifts past the 3px drag threshold
+   commits a leg at least as long as the hem (~5" at default zoom), because the
+   leg is measured from the endpoint to the cursor. Same rule the endpoint
+   gesture already has; just more visible out there. Not changed.
+5. **No schema change, no migration, no API change.** Nothing touches
+   PathfinderEdge, approvals, pricing or email.

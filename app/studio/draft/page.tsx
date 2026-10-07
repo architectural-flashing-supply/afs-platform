@@ -33,6 +33,7 @@ import {
 import {
   drawProfileScene,
   renderShopSnapshotDataUri,
+  computeHemScreenGeometry,
   LIVE_CANVAS_LABEL_STYLE,
 } from '@/lib/flashdraft/draw-profile-scene';
 import SubmitConfirmation3DModal, { type PaintFace } from '@/components/studio/SubmitConfirmation3DModal';
@@ -1861,6 +1862,42 @@ export default function FlashDraftPage() {
     [points, worldToScreen]
   );
 
+  /**
+   * Screen distance from `screenPos` to the VISIBLE hem on one end of the
+   * profile — its connecting line, its fold glyph and its outermost tip, as
+   * one straight run — or Infinity when that end carries no hem.
+   *
+   * The hem is part of the "extend the profile from this end" handle
+   * (CLAUDE.md rule #13): a user who has just hemmed an end sees the hem, not
+   * the bare endpoint under it, and presses on what they can see. The geometry
+   * comes from computeHemScreenGeometry — the same function the draw loop
+   * renders the hem from — so the area that responds cannot drift from the
+   * shape on the canvas. The glyph's perpendicular spread (the hook's gap) is
+   * a few px either side of this run and is covered by the caller's own
+   * HIT_RADIUS_PX.
+   */
+  const hemHitDistance = useCallback(
+    (screenPos: Point, end: HemEndpoint, canvas: HTMLCanvasElement): number => {
+      if (points.length < 2) return Infinity;
+      const hem = end === 'start' ? hemStart : hemEnd;
+      if (!hem) return Infinity;
+      const endpointIdx = end === 'start' ? 0 : points.length - 1;
+      const neighborIdx = end === 'start' ? 1 : points.length - 2;
+      const g = computeHemScreenGeometry({
+        hem,
+        endpoint: points[endpointIdx],
+        neighbor: points[neighborIdx],
+        worldToScreen: (pt) => worldToScreen(pt, canvas),
+        pixelsPerInch: PIXELS_PER_INCH,
+        zoom,
+        gauge,
+        thicknessIn,
+      });
+      return distanceToSegment(screenPos, g.endpoint, g.glyphEnd);
+    },
+    [points, hemStart, hemEnd, worldToScreen, zoom, gauge, thicknessIn]
+  );
+
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     // Locked profile: the canvas itself also gets pointerEvents: 'none'
     // (see the <canvas> style below) so this normally never even fires --
@@ -1951,14 +1988,27 @@ export default function FlashDraftPage() {
     // true for a profile with a real leg to prepend to, since a 1-point
     // profile's two "ends" are the same point and appending is the sane
     // reading of a drag away from it.
+    //
+    // The HEM on an end is part of that end's handle. Once an end is hemmed
+    // the hem is most of what is visible there — at a typical zoom it reaches
+    // several times further than the endpoint ring — and a user continuing
+    // their profile presses on what they can see. So each end's claim on this
+    // press is the NEARER of its own endpoint and its drawn hem, and a hem
+    // press arms the identical candidate: anchored at the metal endpoint, so
+    // the new leg grows from the real corner and not from the fold's tip. The
+    // hem itself then travels to the new free end exactly as it already does
+    // for an endpoint press, because hemStart/hemEnd are anchored positionally
+    // (see commitPrepend's audit) — nothing about that is changed here.
     const firstScreen = worldToScreen(points[0], canvas);
     const lastScreen = worldToScreen(points[points.length - 1], canvas);
     const distToFirst = Math.hypot(screenPos.x - firstScreen.x, screenPos.y - firstScreen.y);
     const distToLast = Math.hypot(screenPos.x - lastScreen.x, screenPos.y - lastScreen.y);
-    const nearFirst = points.length >= 2 && distToFirst <= HIT_RADIUS_PX;
-    const nearLast = distToLast <= HIT_RADIUS_PX;
+    const startClaimDist = Math.min(distToFirst, hemHitDistance(screenPos, 'start', canvas));
+    const endClaimDist = Math.min(distToLast, hemHitDistance(screenPos, 'end', canvas));
+    const nearFirst = points.length >= 2 && startClaimDist <= HIT_RADIUS_PX;
+    const nearLast = endClaimDist <= HIT_RADIUS_PX;
     if (nearFirst || nearLast) {
-      const prepend = nearFirst && (!nearLast || distToFirst < distToLast);
+      const prepend = nearFirst && (!nearLast || startClaimDist < endClaimDist);
       // Armed unconditionally. A hem on this end no longer refuses the
       // gesture — it rides along to the new free end (see the note on
       // positional hem anchoring above). Still exactly these two ends and
@@ -1968,6 +2018,18 @@ export default function FlashDraftPage() {
         downScreenPos: screenPos,
         prepend,
       };
+
+      // A press claimed by a HEM rather than by the endpoint under it stops
+      // here instead of falling through. The fall-through below exists so a
+      // plain click ON AN ENDPOINT still selects the leg that endpoint sits
+      // on; a hem stands clear of every leg, so out here the fall-through
+      // would reach the final "clicked empty space" branch and start a
+      // drag-draw anchored at the profile's LAST point — which is what
+      // pressing a START hem did before this change: it grew a leg off the
+      // wrong end of the profile entirely. Returning leaves the current
+      // selection alone and lets the double-click handler open the hem
+      // popup exactly as it always has.
+      if (distToFirst > HIT_RADIUS_PX && distToLast > HIT_RADIUS_PX) return;
     }
 
     const segmentHit = hitTestSegmentAt(screenPos, canvas);
@@ -2241,15 +2303,21 @@ export default function FlashDraftPage() {
     // Gives both ends the same `grab` affordance an interior vertex gets
     // (the visible ring handle itself is drawn by drawProfileScene). There is
     // no longer a tooltip to show here: a hemmed end extends like any other.
+    //
+    // The hem counts as part of its end here for the same reason it does in
+    // handlePointerDown — it IS the handle a hemmed end shows — so hovering
+    // the drawn hem offers the same grab cursor the bare endpoint does, and
+    // the affordance matches the gesture that really fires.
     if (points.length > 0) {
       const firstScreen = worldToScreen(points[0], canvas);
       const lastScreen = worldToScreen(points[points.length - 1], canvas);
       const distToFirst = Math.hypot(screenPos.x - firstScreen.x, screenPos.y - firstScreen.y);
       const distToLast = Math.hypot(screenPos.x - lastScreen.x, screenPos.y - lastScreen.y);
-      const nearFirst = points.length >= 2 && distToFirst <= HIT_RADIUS_PX;
-      const nearLast = distToLast <= HIT_RADIUS_PX;
+      const startClaimDist = Math.min(distToFirst, hemHitDistance(screenPos, 'start', canvas));
+      const endClaimDist = Math.min(distToLast, hemHitDistance(screenPos, 'end', canvas));
+      const nearFirst = points.length >= 2 && startClaimDist <= HIT_RADIUS_PX;
+      const nearLast = endClaimDist <= HIT_RADIUS_PX;
       if (nearFirst || nearLast) {
-        const atStart = nearFirst && (!nearLast || distToFirst < distToLast);
         canvas.style.cursor = 'grab';
         canvas.title = '';
         setHoveredVertex(null);

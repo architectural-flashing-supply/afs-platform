@@ -386,6 +386,38 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
     fires. Regression coverage:
     `tests/e2e/flashdraft-regression.spec.ts`.
 
+    **THE HEM IS PART OF ITS END'S HANDLE (2026-10-07).** Once an end is
+    hemmed, the hem is most of what is visible there — at the default zoom an
+    Open 1 7/8" hem reaches about 105px out while the endpoint ring is 8px —
+    so the thing a user presses to continue the profile was not the thing that
+    responded. Each end's claim on a press is now the NEARER of its own
+    endpoint and its DRAWN hem, and a hem press arms the identical
+    `continueLineCandidateRef`: **anchored at the metal endpoint, never at the
+    fold tip**, so the new leg grows from the real corner and the hem then
+    travels to the new free end by the positional anchoring above. Nothing in
+    `commitPrepend` or the append path changed.
+
+    **The hit area is DERIVED from the drawing, not guessed at.**
+    `computeHemScreenGeometry` in `lib/flashdraft/draw-profile-scene.ts` is the
+    one description of where a hem sits on screen, and `renderHemAt` now draws
+    from it — so the area that responds cannot drift from the shape on the
+    canvas. It reaches to the glyph's own outermost point via
+    `hemGlyphOutwardExtentPx` in `lib/flashdraft/hem-glyph.ts`, because the
+    GLYPH is the longer half: stopping at the fold tip would miss most of the
+    visible hem. Do not reintroduce a second copy of either.
+
+    **A plain click and a double-click are untouched.** Only a press-and-drag
+    past `VERTEX_DRAG_THRESHOLD_PX` extends, and a hem-claimed press RETURNS
+    from `handlePointerDown` instead of falling through — which is what stops
+    it reaching the "clicked empty space" branch. That fall-through was the
+    real defect, measured rather than reasoned about: pressing a START hem used
+    to anchor a drag-draw at the profile's LAST point and grow a leg off the
+    wrong end entirely. The double-click hem popup still uses its own unchanged
+    `HEM_HIT_RADIUS_EXISTING_PX` path, which covers the endpoint and the
+    connecting line but NOT the far glyph tip — a known asymmetry, PENDING
+    REID. Coverage: `tests/e2e/flashdraft-hem-extend.spec.ts` and
+    `lib/flashdraft/hem-screen-geometry.test.ts`.
+
 14. **ONE DOOR TO THE MACHINE. A verified Command Center approval is the
     only way anything reaches PathfinderEdge catalog 20115.** That catalog is
     polled by the physical Thalmann DS2801, so a profile landing there is

@@ -24,7 +24,7 @@
  * exports it via toDataURL() — replacing the previous plain snapshot of the
  * visible canvas as the geometryImage value.
  */
-import { drawHemGlyph } from './hem-glyph';
+import { drawHemGlyph, hemGlyphOutwardExtentPx } from './hem-glyph';
 import { formatInches } from '@/lib/utils/format-inches';
 import type { Hem, HemType } from '@/lib/types/profile';
 
@@ -34,7 +34,7 @@ export interface ScenePoint {
   radius?: number;
 }
 
-interface ScreenPoint {
+export interface ScreenPoint {
   x: number;
   y: number;
 }
@@ -174,6 +174,72 @@ const MIN_READABLE_R = 10; // px floor
 // Teardrop's curl is supposed to look tight, not like Open's hook.
 const TEARDROP_THICKNESS_TO_R = 1 / 0.22;
 const MIN_TEARDROP_R = 14; // px, empirically the smallest size the tangent-circle construction reads as a closed loop rather than a dot
+
+/**
+ * Where a hem really sits on screen — the one description of that shared by
+ * the draw loop and by the "press the hem to extend from this end" hit-test
+ * in app/studio/draft/page.tsx (CLAUDE.md rule #13).
+ *
+ * A hem is drawn as a straight connecting line from the metal endpoint out to
+ * the fold tip (hem.lengthIn of real material), and then the fold glyph
+ * itself, which reaches further out still — at a typical zoom the glyph is the
+ * LONGER half, so a hit area stopping at the fold tip would miss most of what
+ * the user can see. Both halves come out of this one function so the area that
+ * responds to a press can never drift from the shape on the canvas.
+ */
+export interface HemScreenGeometry {
+  /** The metal endpoint the hem hangs off. This is the anchor any extension grows from. */
+  endpoint: ScreenPoint;
+  /** End of the connecting line, where the fold glyph is drawn. */
+  foldTip: ScreenPoint;
+  /** The glyph's outermost point — the VISIBLE far end of the whole hem. */
+  glyphEnd: ScreenPoint;
+  /** Glyph radius, in screen px (length-driven, or thickness-driven for teardrop). */
+  radiusPx: number;
+  /** Direction the hem runs, away from the endpoint's neighbour. */
+  angleRad: number;
+}
+
+export interface HemScreenGeometryParams {
+  hem: Hem;
+  /** The endpoint the hem belongs to — points[0] or the last point. */
+  endpoint: ScenePoint;
+  /** That endpoint's one neighbour — points[1] or the second-to-last point. */
+  neighbor: ScenePoint;
+  worldToScreen: (p: ScenePoint) => ScreenPoint;
+  pixelsPerInch: number;
+  zoom: number;
+  gauge: string;
+  thicknessIn: number;
+}
+
+export function computeHemScreenGeometry(params: HemScreenGeometryParams): HemScreenGeometry {
+  const { hem, endpoint: p, neighbor: q, worldToScreen, pixelsPerInch, zoom, gauge, thicknessIn } = params;
+  const dx = p.x - q.x;
+  const dy = p.y - q.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const u = { x: dx / len, y: dy / len };
+  // World-space angle, used directly as the glyph's screen rotation —
+  // worldToScreen is a uniform positive scale plus a translation, with no
+  // axis flip, so the two are the same number. (This is what renderHemAt has
+  // always passed to drawHemGlyph.)
+  const angleRad = Math.atan2(u.y, u.x);
+
+  const radiusPx =
+    hem.type === 'teardrop'
+      ? Math.max(MIN_TEARDROP_R, (gauge ? thicknessIn : 0.0625) * pixelsPerInch * zoom * TEARDROP_THICKNESS_TO_R)
+      : Math.max(MIN_READABLE_R, hem.lengthIn * pixelsPerInch * zoom * HEM_GLYPH_LENGTH_SCALE);
+
+  const foldTip = worldToScreen({ x: p.x + u.x * hem.lengthIn, y: p.y + u.y * hem.lengthIn });
+  const outward = hemGlyphOutwardExtentPx(hem.type, radiusPx);
+  return {
+    endpoint: worldToScreen(p),
+    foldTip,
+    glyphEnd: { x: foldTip.x + Math.cos(angleRad) * outward, y: foldTip.y + Math.sin(angleRad) * outward },
+    radiusPx,
+    angleRad,
+  };
+}
 
 export interface DrawProfileSceneParams {
   ctx: CanvasRenderingContext2D;
@@ -467,73 +533,43 @@ export function drawProfileScene(params: DrawProfileSceneParams): void {
     gapPx: number
   ) => drawHemGlyph(ctx, tip, angleRad, type, R, mirror, gapPx);
 
-  // Hem folds.
+  // Hem folds. The three hem types differ only in the glyph's radius (which
+  // computeHemScreenGeometry resolves) and in the text of the label — the
+  // connecting line, the glyph call and the label placement are identical, so
+  // they are written once. Rendering is unchanged.
   const renderHemAt = (hem: Hem, endpointIdx: number, neighborIdx: number) => {
-    const p = points[endpointIdx];
-    const q = points[neighborIdx];
-    const dx = p.x - q.x;
-    const dy = p.y - q.y;
-    const len = Math.hypot(dx, dy) || 1;
-    const u = { x: dx / len, y: dy / len };
-    const angleU = Math.atan2(u.y, u.x);
+    const g = computeHemScreenGeometry({
+      hem,
+      endpoint: points[endpointIdx],
+      neighbor: points[neighborIdx],
+      worldToScreen,
+      pixelsPerInch,
+      zoom,
+      gauge,
+      thicknessIn,
+    });
 
     const mirrorGlyph = hem.kick === 'outside';
     const gapPx = hem.gapIn * pixelsPerInch * zoom;
 
     ctx.strokeStyle = colors.hemLine;
     ctx.fillStyle = colors.hemLine;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(g.endpoint.x, g.endpoint.y);
+    ctx.lineTo(g.foldTip.x, g.foldTip.y);
+    ctx.stroke();
+
+    drawHemGlyphHere(g.foldTip, g.angleRad, hem.type, g.radiusPx, mirrorGlyph, gapPx);
+
+    const label =
+      hem.type === 'open'
+        ? `OPEN ${formatInches(hem.gapIn)} gap`
+        : hem.type === 'teardrop'
+          ? 'TEARDROP'
+          : 'SMASHED';
     ctx.font = labelFont(labelStyle.hemFontPx, labelStyle.bold, fontFamily);
-
-    if (hem.type === 'open') {
-      const foldTip = { x: p.x + u.x * hem.lengthIn, y: p.y + u.y * hem.lengthIn };
-      const sP = worldToScreen(p);
-      const sFoldTip = worldToScreen(foldTip);
-      const R = Math.max(MIN_READABLE_R, hem.lengthIn * pixelsPerInch * zoom * HEM_GLYPH_LENGTH_SCALE);
-
-      ctx.strokeStyle = colors.hemLine;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(sP.x, sP.y);
-      ctx.lineTo(sFoldTip.x, sFoldTip.y);
-      ctx.stroke();
-
-      drawHemGlyphHere(sFoldTip, angleU, 'open', R, mirrorGlyph, gapPx);
-      ctx.font = labelFont(labelStyle.hemFontPx, labelStyle.bold, fontFamily);
-      ctx.fillText(`OPEN ${formatInches(hem.gapIn)} gap`, sFoldTip.x + R * 2 + 6, sFoldTip.y - 6);
-    } else if (hem.type === 'teardrop') {
-      const foldTip = { x: p.x + u.x * hem.lengthIn, y: p.y + u.y * hem.lengthIn };
-      const sP = worldToScreen(p);
-      const sFoldTip = worldToScreen(foldTip);
-      const effectiveThicknessIn = gauge ? thicknessIn : 0.0625;
-      const R = Math.max(MIN_TEARDROP_R, effectiveThicknessIn * pixelsPerInch * zoom * TEARDROP_THICKNESS_TO_R);
-
-      ctx.strokeStyle = colors.hemLine;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(sP.x, sP.y);
-      ctx.lineTo(sFoldTip.x, sFoldTip.y);
-      ctx.stroke();
-
-      drawHemGlyphHere(sFoldTip, angleU, 'teardrop', R, mirrorGlyph, gapPx);
-      ctx.font = labelFont(labelStyle.hemFontPx, labelStyle.bold, fontFamily);
-      ctx.fillText('TEARDROP', sFoldTip.x + R * 2 + 6, sFoldTip.y - 6);
-    } else {
-      const foldTip = { x: p.x + u.x * hem.lengthIn, y: p.y + u.y * hem.lengthIn };
-      const sP = worldToScreen(p);
-      const sFoldTip = worldToScreen(foldTip);
-      const R = Math.max(MIN_READABLE_R, hem.lengthIn * pixelsPerInch * zoom * HEM_GLYPH_LENGTH_SCALE);
-
-      ctx.strokeStyle = colors.hemLine;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(sP.x, sP.y);
-      ctx.lineTo(sFoldTip.x, sFoldTip.y);
-      ctx.stroke();
-
-      drawHemGlyphHere(sFoldTip, angleU, 'smashed', R, mirrorGlyph, gapPx);
-      ctx.font = labelFont(labelStyle.hemFontPx, labelStyle.bold, fontFamily);
-      ctx.fillText('SMASHED', sFoldTip.x + R * 2 + 6, sFoldTip.y - 6);
-    }
+    ctx.fillText(label, g.foldTip.x + g.radiusPx * 2 + 6, g.foldTip.y - 6);
   };
 
   if (points.length >= 2) {
