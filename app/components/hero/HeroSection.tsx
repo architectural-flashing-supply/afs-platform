@@ -37,7 +37,7 @@ export default function HeroSection() {
 
   return (
     <section
-      aria-label="AFS — custom architectural metal, from concept to delivery"
+      aria-label="AFS — custom architectural metal, where architecture becomes metal"
       className="relative isolate w-full overflow-hidden bg-afs-navy-950"
     >
       {/* ---------------------------------------------------------- VIDEO */}
@@ -87,47 +87,41 @@ export default function HeroSection() {
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_30%_50%,transparent_40%,theme(colors.afs.navy-950/60%)_100%)]"
       />
 
-      {/* The AFS profile (two open-hem legs, 14 3/4" base) drawing itself on its side, with FlashDraft-style dimensions. */}
+      {/* The AFS profile (115 degree bends, open hems turned inward, 14 3/4" base) drawing itself on its side with FlashDraft-style dimensions. */}
       <svg
         aria-hidden="true"
         focusable="false"
         viewBox="0 0 170 235"
-        className="hero-trace pointer-events-none absolute right-4 top-1/2 hidden w-[min(232px,16vw)] -translate-y-1/2 text-afs-chrome-mid min-[1400px]:block"
+        className="hero-trace pointer-events-none absolute right-3 top-1/2 hidden w-[min(210px,14.5vw)] -translate-y-1/2 text-afs-chrome-mid min-[1400px]:block"
         fill="none"
         strokeLinecap="round"
         strokeLinejoin="round"
       >
         <g stroke="var(--afs-crimson)" strokeWidth="2.25">
-          <path className="ht-stroke ht-s1" pathLength="1" d="M49.0 16.8L40.7 13.3L39.3 16.5L130.0 55.0" />
+          <path className="ht-stroke ht-s1" pathLength="1" d="M47.0 20.1L38.8 16.3A1.75 1.75 0 0 1 40.3 13.2L130.0 55.0" />
           <path className="ht-stroke ht-s2" pathLength="1" d="M130.0 55.0L130.0 173.0" />
-          <path className="ht-stroke ht-s3" pathLength="1" d="M130.0 173.0L40.3 214.8L41.8 218.0L49.9 214.2" />
+          <path className="ht-stroke ht-s3" pathLength="1" d="M130.0 173.0L40.3 214.8A1.75 1.75 0 0 1 38.8 211.7L47.0 207.9" />
         </g>
-        <g stroke="var(--afs-crimson)" strokeWidth="1.5" className="ht-fade ht-j">
-          <circle cx="50.4" cy="21.2" r="4" />
-          <circle cx="51.2" cy="209.8" r="4" />
-        </g>
-        <g fill="var(--afs-crimson)" className="ht-fade ht-j">
-          <circle cx="130.0" cy="55.0" r="3" />
-          <circle cx="130.0" cy="173.0" r="3" />
-        </g>
-        <path className="ht-stroke ht-arc1" pathLength="1" stroke="var(--afs-crimson)" strokeWidth="1.25" d="M130.0 71.0A16 16 0 0 1 115.3 48.7" />
+        <circle className="ht-fade ht-j1" cx="130.0" cy="55.0" r="3" fill="var(--afs-crimson)" />
+        <circle className="ht-fade ht-j2" cx="130.0" cy="173.0" r="3" fill="var(--afs-crimson)" />
+        <path className="ht-stroke ht-arc1" pathLength="1" stroke="var(--afs-crimson)" strokeWidth="1.25" d="M130.0 71.0A16 16 0 0 1 115.5 48.2" />
         <path className="ht-stroke ht-arc2" pathLength="1" stroke="var(--afs-crimson)" strokeWidth="1.25" d="M130.0 157.0A16 16 0 0 0 115.5 179.8" />
-        <text className="ht-fade ht-t1 ht-lbl" x="122.0" y="118.0" textAnchor="end">{'14 3/4"'}</text>
-        <text className="ht-fade ht-t2 ht-lbl" x="104.2" y="26.1" textAnchor="middle">{'10 13/16"'}</text>
-        <text className="ht-fade ht-t2 ht-lbl" x="104.6" y="213.4" textAnchor="middle">{'10 7/8"'}</text>
-        <text className="ht-fade ht-at1 ht-lbl" x="106.0" y="77.0" textAnchor="end" style={{ fontSize: 11 }}>{'113\u00B0'}</text>
-        <text className="ht-fade ht-at2 ht-lbl" x="106.0" y="161.0" textAnchor="end" style={{ fontSize: 11 }}>{'115\u00B0'}</text>
-        <text className="ht-fade ht-hk ht-lbl" x="168" y="9" textAnchor="end" style={{ fontSize: 9 }}>{'OPEN 7/16" GAP'}</text>
-        <text className="ht-fade ht-hk ht-lbl" x="168" y="231" textAnchor="end" style={{ fontSize: 9 }}>{'OPEN 7/16" GAP'}</text>
+        <text className="ht-fade ht-t2a ht-lbl" x="104.6" y="24.6" textAnchor="middle">{'10 7/8"'}</text>
+        <text className="ht-fade ht-t1 ht-lbl" x="122.0" y="117.0" textAnchor="end">{'14 3/4"'}</text>
+        <text className="ht-fade ht-t2b ht-lbl" x="104.6" y="213.4" textAnchor="middle">{'10 7/8"'}</text>
+        <text className="ht-fade ht-at1 ht-lbl ht-sm" x="106.0" y="77.0" textAnchor="end">{'115\u00B0'}</text>
+        <text className="ht-fade ht-at2 ht-lbl ht-sm" x="106.0" y="161.0" textAnchor="end">{'115\u00B0'}</text>
+        <text className="ht-fade ht-hka ht-lbl ht-xs" x="45.0" y="8.3" textAnchor="middle">{'OPEN 7/16" GAP'}</text>
+        <text className="ht-fade ht-hkb ht-lbl ht-xs" x="45.0" y="225.7" textAnchor="middle">{'OPEN 7/16" GAP'}</text>
       </svg>
 
       {/* ----------------------------------------------------------- COPY */}
       <div className="relative z-10 flex flex-col justify-center px-6 pb-14 pt-4 lg:ml-auto lg:min-h-[clamp(560px,82vh,860px)] lg:w-[42%] lg:px-12 lg:py-20 lg:px-16">
         <RevealOnScroll durationMs={600} staggerMs={120} className="max-w-lg">
-          <h1 className="font-display uppercase leading-[0.95] text-afs-chrome-high text-[clamp(2.6rem,5.6vw,4.75rem)]">
-            <span className="block">From Concept</span>
-            <span className="block">To Delivery.</span>
-            <span className="block">Fast.</span>
+          <h1 className="font-display uppercase leading-[0.95] text-afs-chrome-high text-[clamp(2.4rem,4.5vw,4rem)]">
+            <span className="block">Where</span>
+            <span className="block">Architecture</span>
+            <span className="block">Becomes Metal.</span>
           </h1>
 
           <div className="mt-6 h-px w-16 bg-afs-crimson" aria-hidden="true" />
@@ -146,7 +140,7 @@ export default function HeroSection() {
             </Link>
             <Link
               href="/products"
-              className="min-h-[48px] w-full rounded-sm bg-afs-chrome-silver sm:w-auto lg:w-full lg:max-w-[19rem] px-8 py-3.5 text-center font-label text-sm font-semibold uppercase tracking-[0.14em] text-afs-navy-950 shadow-lg transition-colors duration-200 hover:bg-afs-chrome-high focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+              className="min-h-[48px] w-full rounded-sm bg-afs-accent-blue sm:w-auto lg:w-full lg:max-w-[19rem] px-8 py-3.5 text-center font-label text-sm font-semibold uppercase tracking-[0.14em] text-white shadow-lg transition-colors duration-200 hover:bg-afs-info-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
             >
               View Our Work
             </Link>

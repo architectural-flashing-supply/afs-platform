@@ -10049,3 +10049,10 @@ Known risks: null lengthFt/quantity render as 0 in QuoteEstimatorForm (send bloc
 - Products: header ghost profile is darker gunmetal and shifted right so it does not rotate behind the headline (WebGL not visible in headless screenshots - UNVERIFIED in a real browser; shiny-metal version waits on Reid's example image); category buttons even 4+4 (columns = ceil(n/2)); search is crimson with a magnifier button, autofill dropdown (prefix matches first, keyboard + ARIA combobox), and a side card 'Don't see your profile? Design it in FlashDraft' (links /design-studio) when 2+ characters typed. New: components/product/ProductSearchBox.tsx.
 - HailView and Track Delivery: new components/ui/BackButton.tsx (history back, falls back to /). Track's button sits under the Google map-type control.
 - Verified: tsc 0, pnpm run build 0, 1440px screenshots. Not merged to main.
+
+
+## 2026-10-07 (hero v3) - Headline, symmetric profile drawing, blue button (feat/hero-premium, preview only)
+- Headline is now 'Where Architecture Becomes Metal.' (3 lines; size clamp reduced so it clears the drawing). aria-label updated.
+- Hero drawing: both bends 115 degrees and both legs 10 7/8" (symmetric), open hems now fold INWARD with a rounded end, hollow hem-end circles removed, numbers smaller and each appears as the line reaches it, 'OPEN 7/16" GAP' sits directly above/below its hem.
+- View Our Work is now blue (afs-accent-blue, white text, links to /products).
+- Verified: tsc 0, pnpm run build 0, 1440px screenshots. Not merged to main.
