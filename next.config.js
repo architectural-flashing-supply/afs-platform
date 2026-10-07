@@ -1,5 +1,11 @@
-/** @type {import('next').NextConfig} */
+﻿/** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Email intake: sanitize-html pulls in ESM-only htmlparser2, which webpack cannot
+  // bundle for the server layer (build fails with 'ESM packages need to be imported').
+  // Load these with Node at runtime instead of bundling them.
+  experimental: {
+    serverComponentsExternalPackages: ['sanitize-html', 'htmlparser2', 'mailparser'],
+  },
   images: {
     remotePatterns: [
       {
@@ -11,7 +17,7 @@ const nextConfig = {
   },
   async redirects() {
     // The Custom Flashing Configurator (app/configure/page.tsx) was
-    // eliminated (hpd-002) — redundant with FlashDraft. These cover any
+    // eliminated (hpd-002) â€” redundant with FlashDraft. These cover any
     // indexed or bookmarked link so nothing 404s.
     return [
       { source: '/configure', destination: '/studio/draft', permanent: true },
@@ -23,3 +29,4 @@ const nextConfig = {
 };
 
 module.exports = nextConfig;
+
