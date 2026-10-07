@@ -10056,3 +10056,9 @@ Known risks: null lengthFt/quantity render as 0 in QuoteEstimatorForm (send bloc
 - Hero drawing: both bends 115 degrees and both legs 10 7/8" (symmetric), open hems now fold INWARD with a rounded end, hollow hem-end circles removed, numbers smaller and each appears as the line reaches it, 'OPEN 7/16" GAP' sits directly above/below its hem.
 - View Our Work is now blue (afs-accent-blue, white text, links to /products).
 - Verified: tsc 0, pnpm run build 0, 1440px screenshots. Not merged to main.
+
+
+## 2026-10-07 (hero v4) - Tagline and spacing (feat/hero-premium, preview only)
+- Tagline under the headline is now 'Precision Made. Project Ready.' (old two-sentence copy removed).
+- Profile drawing raised ~1in (top-[calc(50%-96px)]) to clear the help icon; left caption raised ~0.5in (lg:pb-28); copy column + blue button raised (bottom padding increased) for clearance from the page bottom.
+- Verified: tsc 0, pnpm run build 0, 1440px screenshot. Not merged to main.
