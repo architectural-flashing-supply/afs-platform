@@ -10062,3 +10062,9 @@ Known risks: null lengthFt/quantity render as 0 in QuoteEstimatorForm (send bloc
 - Tagline under the headline is now 'Precision Made. Project Ready.' (old two-sentence copy removed).
 - Profile drawing raised ~1in (top-[calc(50%-96px)]) to clear the help icon; left caption raised ~0.5in (lg:pb-28); copy column + blue button raised (bottom padding increased) for clearance from the page bottom.
 - Verified: tsc 0, pnpm run build 0, 1440px screenshot. Not merged to main.
+
+
+## 2026-10-07 (hero v5) - Spacing reverted, tagline kept (feat/hero-premium, preview only)
+- Reid: the previous positions were fine. Reverted the drawing raise, the caption raise and the copy-block/button raise to the v3 positions.
+- Kept: tagline 'Precision Made. Project Ready.'
+- Verified: tsc 0, pnpm run build 0. Not merged to main.

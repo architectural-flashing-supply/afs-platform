@@ -70,7 +70,7 @@ export default function HeroSection() {
         {/* Mobile: dissolve the bottom of the video into the content block. */}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-b from-transparent to-afs-navy-950 lg:hidden" />
 
-        <div className="absolute bottom-0 left-0 z-10 px-6 pb-16 lg:px-12 lg:pb-28">
+        <div className="absolute bottom-0 left-0 z-10 px-6 pb-10 lg:px-12 lg:pb-16">
           <p className="font-label text-xs font-semibold uppercase tracking-[0.28em] text-afs-chrome-mid">
             Architectural &bull; Commercial &bull; Custom
           </p>
@@ -92,7 +92,7 @@ export default function HeroSection() {
         aria-hidden="true"
         focusable="false"
         viewBox="0 0 170 235"
-        className="hero-trace pointer-events-none absolute right-3 top-[calc(50%-96px)] hidden w-[min(210px,14.5vw)] -translate-y-1/2 text-afs-chrome-mid min-[1400px]:block"
+        className="hero-trace pointer-events-none absolute right-3 top-1/2 hidden w-[min(210px,14.5vw)] -translate-y-1/2 text-afs-chrome-mid min-[1400px]:block"
         fill="none"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -116,7 +116,7 @@ export default function HeroSection() {
       </svg>
 
       {/* ----------------------------------------------------------- COPY */}
-      <div className="relative z-10 flex flex-col justify-center px-6 pb-14 pt-4 lg:ml-auto lg:min-h-[clamp(560px,82vh,860px)] lg:w-[42%] lg:px-12 lg:pt-20 lg:pb-[calc(5rem+96px)] lg:px-16">
+      <div className="relative z-10 flex flex-col justify-center px-6 pb-14 pt-4 lg:ml-auto lg:min-h-[clamp(560px,82vh,860px)] lg:w-[42%] lg:px-12 lg:py-20 lg:px-16">
         <RevealOnScroll durationMs={600} staggerMs={120} className="max-w-lg">
           <h1 className="font-display uppercase leading-[0.95] text-afs-chrome-high text-[clamp(2.4rem,4.5vw,4rem)]">
             <span className="block">Where</span>
