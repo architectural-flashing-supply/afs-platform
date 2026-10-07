@@ -10028,3 +10028,6 @@ Known risks: null lengthFt/quantity render as 0 in QuoteEstimatorForm (send bloc
 
 
 ## 2026-10-06 - MAIN BUILD FIX (68e21cc). Production deploys of main failed after 06be107 (email-intake): 'ESM packages (htmlparser2) need to be imported' from lib/email-intake/sanitize.ts. Cause: sanitize-html imported in a server page. Fix: experimental.serverComponentsExternalPackages = sanitize-html, htmlparser2, mailparser in next.config.js. Reproduced locally; pnpm run build exit 0; Vercel production deploy after the push shows Ready. Lesson: tsc and vitest do not catch bundler errors - run pnpm run build before any push to main.
+
+
+## 2026-10-07 - HOME HERO premium redesign on branch feat/hero-premium (UNVERIFIED until Reid checks it). Deep navy hero only (Reid's explicit decision, overrides the earlier light-blueprint hero decision for the hero ONLY); logo/carousel locked rules kept (carousel gets a navy-to-white dissolve). Video fades into navy via 180-320px gradient; blueprint at 13% opacity masked; one SVG detail traces itself on a 10s loop (static under prefers-reduced-motion); desktop split at lg (1024), stacked below. New tokens afs-navy-950/900/800/700. tsc 0, pnpm run build exit 0, 7 widths 1440-360: no horizontal overflow, 0 console errors. Not merged to main.

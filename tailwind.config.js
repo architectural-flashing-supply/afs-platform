@@ -28,7 +28,11 @@ module.exports = {
     extend: {
       colors: {
         afs: {
-          'bg-dim':     '#1C1F26',
+          'navy-950':   '#081523',
+      'navy-900':   '#0B1C2C',
+      'navy-800':   '#10263A',
+      'navy-700':   '#132B40',
+      'bg-dim':     '#1C1F26',
           'bg-base':    '#2A2D35',
           'bg-raised':  '#363C4A',
           'bg-surface': '#404858',

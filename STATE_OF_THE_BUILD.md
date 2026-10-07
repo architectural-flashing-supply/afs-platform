@@ -17148,3 +17148,6 @@ Branch products-page (never previously merged) is now integrated: Drexel renderi
 ## 2026-10-06 — Email-to-AI-Quote (Phase 4 addendum): code complete, migration pending
 
 Inbound email -> idempotent store -> classify -> existing takeoff engine -> draft estimate (draft_from_email, never auto-sent) with per-line source_ref/confidence, View Source side-by-side, append-only corrections. Provider-agnostic: .eml upload live now; Microsoft Graph source implemented behind env vars. Tests: 24 unit + 4 gated live-AI pass. Migration 050 not yet applied; Outlook env not set. Self-reported, not user-confirmed.
+
+
+## 2026-10-07 - HOME HERO premium redesign on branch feat/hero-premium (UNVERIFIED until Reid checks it). Deep navy hero only (Reid's explicit decision, overrides the earlier light-blueprint hero decision for the hero ONLY); logo/carousel locked rules kept (carousel gets a navy-to-white dissolve). Video fades into navy via 180-320px gradient; blueprint at 13% opacity masked; one SVG detail traces itself on a 10s loop (static under prefers-reduced-motion); desktop split at lg (1024), stacked below. New tokens afs-navy-950/900/800/700. tsc 0, pnpm run build exit 0, 7 widths 1440-360: no horizontal overflow, 0 console errors. Not merged to main.
