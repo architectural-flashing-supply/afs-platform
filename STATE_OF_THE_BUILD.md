@@ -17157,3 +17157,8 @@ Inbound email -> idempotent store -> classify -> existing takeoff engine -> draf
 - Replaced generic self-tracing lines (.hero-trace) with a FlashDraft-canvas panel: grey canvas + grid, crimson cap profile with open-hook hem, ink dimension lines with inch labels (8 1/2", 4 1/2", 3 3/4"), 90 degree arc, FLASHDRAFT tag. 12s loop (draw, dimension, hold, fade); static when prefers-reduced-motion.
 - Colours mirror CANVAS_COLORS as CSS vars in app/globals.css (canvas-only literal exception). Placed bottom, beside the CTA column (lg+ only); no overlap with CTAs or help widget.
 - Verified: tsc 0, pnpm run build 0, screenshots 1440/1024. NOT yet merged to main; mobile hidden (unchanged). Dimension values are illustrative, not a real order.
+
+
+## 2026-10-07 (update) - Hero drawing revised again per Reid (feat/hero-premium)
+- Removed the grey canvas panel (Reid rejected it). Hero now draws, line-only in crimson on the navy, Reid's own U-profile (14 3/4" base, 10 13/16" and 10 7/8" legs, 113/115 degree bends, open hems with OPEN 7/16" GAP) turned on its side along the far right edge, with FlashDraft-style dimension labels. 12s loop; static for reduced motion; shown >=1400px only.
+- Verified: tsc 0, pnpm run build 0, 1440px screenshots. Not merged to main. Values are illustrative (from Reid's FlashDraft screenshot).

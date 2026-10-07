@@ -299,16 +299,9 @@ body {
   }
 }
 
-/* HOME HERO - a FlashDraft-style drawing that draws itself (12s loop):
-   grey canvas, crimson profile, ink dimension lines + inch labels, 90 degree arc.
-   Colours mirror CANVAS_COLORS in app/studio/draft/page.tsx (canvas-only literal
-   exception, DESIGN_TOKENS.md A10). Static, fully drawn, for reduced motion. */
-.hero-trace {
-  --ht-bg: #C4C4C4;
-  --ht-grid: rgba(17, 17, 17, 0.09);
-  --ht-red: #C0001A;
-  --ht-ink: #111111;
-}
+/* HOME HERO - the AFS drip-edge profile (hook top leg, 90 degree drop, kicked smashed hem)
+   drawing itself with FlashDraft-style dimensions (12s loop). Lines only, no canvas.
+   Static, fully drawn, when the visitor prefers reduced motion. */
 .hero-trace .ht-stroke {
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
@@ -319,102 +312,96 @@ body {
   font-family: var(--font-jetbrains), ui-monospace, monospace;
   font-size: 12px;
   font-weight: 600;
-  fill: var(--ht-ink);
+  fill: currentColor;
 }
+.hero-trace .ht-ref { animation: ht-ref-k 12s linear infinite; }
 .hero-trace .ht-s1 { animation: ht-s1-k 12s linear infinite; }
 .hero-trace .ht-s2 { animation: ht-s2-k 12s linear infinite; }
 .hero-trace .ht-s3 { animation: ht-s3-k 12s linear infinite; }
-.hero-trace .ht-hem { animation: ht-hem-k 12s linear infinite; }
 .hero-trace .ht-d1 { animation: ht-d1-k 12s linear infinite; }
 .hero-trace .ht-d2 { animation: ht-d2-k 12s linear infinite; }
-.hero-trace .ht-d3 { animation: ht-d3-k 12s linear infinite; }
-.hero-trace .ht-arc { animation: ht-arc-k 12s linear infinite; }
-.hero-trace .ht-panel { animation: ht-panel-k 12s linear infinite; }
+.hero-trace .ht-arc1 { animation: ht-arc1-k 12s linear infinite; }
+.hero-trace .ht-arc2 { animation: ht-arc2-k 12s linear infinite; }
 .hero-trace .ht-j { animation: ht-j-k 12s linear infinite; }
 .hero-trace .ht-t1 { animation: ht-t1-k 12s linear infinite; }
 .hero-trace .ht-t2 { animation: ht-t2-k 12s linear infinite; }
-.hero-trace .ht-t3 { animation: ht-t3-k 12s linear infinite; }
-.hero-trace .ht-arct { animation: ht-arct-k 12s linear infinite; }
-.hero-trace .ht-tag { animation: ht-tag-k 12s linear infinite; }
+.hero-trace .ht-at1 { animation: ht-at1-k 12s linear infinite; }
+.hero-trace .ht-at2 { animation: ht-at2-k 12s linear infinite; }
+.hero-trace .ht-hk { animation: ht-hk-k 12s linear infinite; }
+@keyframes ht-ref-k {
+  0%, 2% { stroke-dashoffset: 1; opacity: 0; }
+  2.01% { stroke-dashoffset: 1; opacity: 1; }
+  8%, 90% { stroke-dashoffset: 0; opacity: 1; }
+  97%, 100% { stroke-dashoffset: 0; opacity: 0; }
+}
 @keyframes ht-s1-k {
-  0%, 6% { stroke-dashoffset: 1; opacity: 0; }
-  6.01% { stroke-dashoffset: 1; opacity: 1; }
-  14%, 90% { stroke-dashoffset: 0; opacity: 1; }
+  0%, 8% { stroke-dashoffset: 1; opacity: 0; }
+  8.01% { stroke-dashoffset: 1; opacity: 1; }
+  18%, 90% { stroke-dashoffset: 0; opacity: 1; }
   97%, 100% { stroke-dashoffset: 0; opacity: 0; }
 }
 @keyframes ht-s2-k {
-  0%, 14% { stroke-dashoffset: 1; opacity: 0; }
-  14.01% { stroke-dashoffset: 1; opacity: 1; }
-  25%, 90% { stroke-dashoffset: 0; opacity: 1; }
+  0%, 18% { stroke-dashoffset: 1; opacity: 0; }
+  18.01% { stroke-dashoffset: 1; opacity: 1; }
+  32%, 90% { stroke-dashoffset: 0; opacity: 1; }
   97%, 100% { stroke-dashoffset: 0; opacity: 0; }
 }
 @keyframes ht-s3-k {
-  0%, 25% { stroke-dashoffset: 1; opacity: 0; }
-  25.01% { stroke-dashoffset: 1; opacity: 1; }
-  33%, 90% { stroke-dashoffset: 0; opacity: 1; }
-  97%, 100% { stroke-dashoffset: 0; opacity: 0; }
-}
-@keyframes ht-hem-k {
-  0%, 33% { stroke-dashoffset: 1; opacity: 0; }
-  33.01% { stroke-dashoffset: 1; opacity: 1; }
-  38%, 90% { stroke-dashoffset: 0; opacity: 1; }
+  0%, 32% { stroke-dashoffset: 1; opacity: 0; }
+  32.01% { stroke-dashoffset: 1; opacity: 1; }
+  42%, 90% { stroke-dashoffset: 0; opacity: 1; }
   97%, 100% { stroke-dashoffset: 0; opacity: 0; }
 }
 @keyframes ht-d1-k {
-  0%, 40% { stroke-dashoffset: 1; opacity: 0; }
-  40.01% { stroke-dashoffset: 1; opacity: 1; }
-  46%, 90% { stroke-dashoffset: 0; opacity: 1; }
-  97%, 100% { stroke-dashoffset: 0; opacity: 0; }
-}
-@keyframes ht-d2-k {
   0%, 44% { stroke-dashoffset: 1; opacity: 0; }
   44.01% { stroke-dashoffset: 1; opacity: 1; }
   50%, 90% { stroke-dashoffset: 0; opacity: 1; }
   97%, 100% { stroke-dashoffset: 0; opacity: 0; }
 }
-@keyframes ht-d3-k {
+@keyframes ht-d2-k {
   0%, 48% { stroke-dashoffset: 1; opacity: 0; }
   48.01% { stroke-dashoffset: 1; opacity: 1; }
   54%, 90% { stroke-dashoffset: 0; opacity: 1; }
   97%, 100% { stroke-dashoffset: 0; opacity: 0; }
 }
-@keyframes ht-arc-k {
+@keyframes ht-arc1-k {
+  0%, 54% { stroke-dashoffset: 1; opacity: 0; }
+  54.01% { stroke-dashoffset: 1; opacity: 1; }
+  58%, 90% { stroke-dashoffset: 0; opacity: 1; }
+  97%, 100% { stroke-dashoffset: 0; opacity: 0; }
+}
+@keyframes ht-arc2-k {
   0%, 56% { stroke-dashoffset: 1; opacity: 0; }
   56.01% { stroke-dashoffset: 1; opacity: 1; }
   60%, 90% { stroke-dashoffset: 0; opacity: 1; }
   97%, 100% { stroke-dashoffset: 0; opacity: 0; }
 }
-@keyframes ht-panel-k {
-  0%, 0% { opacity: 0; }
-  4%, 90% { opacity: 1; }
-  97%, 100% { opacity: 0; }
-}
 @keyframes ht-j-k {
-  0%, 30% { opacity: 0; }
-  40%, 90% { opacity: 1; }
+  0%, 40% { opacity: 0; }
+  46%, 90% { opacity: 1; }
   97%, 100% { opacity: 0; }
 }
 @keyframes ht-t1-k {
-  0%, 46% { opacity: 0; }
-  52%, 90% { opacity: 1; }
-  97%, 100% { opacity: 0; }
-}
-@keyframes ht-t2-k {
   0%, 50% { opacity: 0; }
   56%, 90% { opacity: 1; }
   97%, 100% { opacity: 0; }
 }
-@keyframes ht-t3-k {
+@keyframes ht-t2-k {
   0%, 54% { opacity: 0; }
   60%, 90% { opacity: 1; }
   97%, 100% { opacity: 0; }
 }
-@keyframes ht-arct-k {
+@keyframes ht-at1-k {
+  0%, 58% { opacity: 0; }
+  62%, 90% { opacity: 1; }
+  97%, 100% { opacity: 0; }
+}
+@keyframes ht-at2-k {
   0%, 60% { opacity: 0; }
   64%, 90% { opacity: 1; }
   97%, 100% { opacity: 0; }
 }
-@keyframes ht-tag-k {
+@keyframes ht-hk-k {
   0%, 62% { opacity: 0; }
   68%, 90% { opacity: 1; }
   97%, 100% { opacity: 0; }
