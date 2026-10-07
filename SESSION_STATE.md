@@ -10072,3 +10072,7 @@ Known risks: null lengthFt/quantity render as 0 in QuoteEstimatorForm (send bloc
 ## 2026-10-07 - Products header: real polished-metal piece
 - Replaced ghost Zee backdrop with a short polished-stainless 3D flashing piece (lip, angled face, stepped floor, return flange) rotating in its own box at the header's right; no longer behind buttons/search. WebGL look UNVERIFIED headless; check on preview.
 - Intro text cut to one line; removed 'N products across N categories'.
+
+## 2026-10-07 - Products: photo-traced hero piece + wallpaper
+- Rebuilt rotating piece from Reid's photo (rolled-bead wall, wide floor with jog, flanged right edge); no box, larger. Inch dimensions are estimates (photo has no scale). WebGL look UNVERIFIED headless.
+- Added static faint profile line-art wallpaper (ProductsWallpaper) behind the products page.

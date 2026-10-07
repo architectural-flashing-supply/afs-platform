@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import ProductCatalog from '@/components/product/ProductCatalog';
+import ProductsWallpaper from '@/components/product/ProductsWallpaper';
 import ProductsHeaderBackdropLoader from '@/components/product/ProductsHeaderBackdropLoader';
 import { getCatalogSections } from '@/lib/data/products-page';
 
@@ -26,14 +27,15 @@ export default function ProductsPage() {
 
   return (
     /* Layer 1, the lightest: a warm off-white page under the gunmetal header. */
-    <main className="min-h-screen bg-afs-bg-light">
-      <div className="relative overflow-hidden sm:min-h-[15rem]">
+    <main className="relative isolate min-h-screen bg-afs-bg-light">
+      <ProductsWallpaper />
+      <div className="relative overflow-x-clip md:min-h-[19rem]">
         <ProductsHeaderBackdropLoader />
         <div className="relative mx-auto max-w-[1400px] px-4 pb-6 pt-12 sm:px-6">
         <h1 className="mb-4 font-display text-5xl font-bold leading-none text-afs-ink-900 sm:text-6xl">
           PRODUCTS
         </h1>
-        <p className="max-w-xl font-body text-base text-afs-ink-900">Browse the profiles. Open one to quote it or design from it.</p>
+        <p className="max-w-md font-body text-base text-afs-ink-900">Browse the profiles. Open one to quote it or design from it.</p>
         </div>
       </div>
 

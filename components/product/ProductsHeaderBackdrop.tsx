@@ -5,31 +5,98 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
 /**
- * A short length of polished stainless flashing, turning slowly in its own
- * contained box at the right of the Products header.
+ * A short length of polished stainless flashing, turning slowly on the page
+ * (no box) at the right of the Products header.
  *
- * The cross-section replicates a real fabricated piece: a small return lip at
- * the top, a tall angled face, a stepped floor with two bends, and a short
- * return flange. It is built from thin boxes along the profile path and lit
- * with an image-based environment (RoomEnvironment) so the stainless reads as
- * mirror-polished. The box is its own element, so it never turns behind the
- * category buttons or the search field. Decoration only: hidden from assistive
- * tech, no interaction, one fixed pose under prefers-reduced-motion, and torn
- * down completely on unmount.
+ * Cross-section traced from Reid's photo of the real piece (inches, x right,
+ * y up). Read from the photo, in order from the left:
+ *   1. a rolled (closed) bead hem on the top edge of a tall back wall,
+ *   2. the wall, leaning outward to the left,
+ *   3. a sharp bend into a wide flat floor,
+ *   4. a stiffening jog: the floor steps DOWN about a quarter inch,
+ *   5. a short lower floor plane, and
+ *   6. a short upturned flange on the right edge finished with a small bead.
+ * The photo has no scale, so the absolute inch values are estimates taken from
+ * proportions; the topology and relative proportions follow the photo.
+ *
+ * The strip is a closed ribbon with real sheet thickness and mitred bends,
+ * lit by an image-based environment so stainless reads as mirror polish.
+ * Decoration only: hidden from assistive tech, no interaction, one fixed pose
+ * under prefers-reduced-motion, fully disposed on unmount.
  */
-// Profile path in inches (x right, y up).
+function arc(cx: number, cy: number, r: number, a0: number, a1: number, n: number): Array<[number, number]> {
+  const out: Array<[number, number]> = [];
+  for (let i = 0; i <= n; i++) {
+    const a = a0 + ((a1 - a0) * i) / n;
+    out.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]);
+  }
+  return out;
+}
+
+const WALL_TOP: [number, number] = [-1.5, 6.5];
 const PROFILE: ReadonlyArray<readonly [number, number]> = [
-  [0.75, 4.6],
-  [0, 4.6],
-  [1.6, 0.6],
-  [3.4, 0.6],
-  [4.0, 1.25],
-  [5.6, 1.25],
-  [5.9, 2.1],
+  // rolled bead hem at the top of the wall (curls outward, then down)
+  ...arc(WALL_TOP[0] - 0.22, WALL_TOP[1], 0.22, Math.PI * 1.15, 0, 9),
+  [0, 0], // bend into the floor
+  [2.65, 0], // end of the upper floor plane
+  [3.15, -0.25], // jog down
+  [4.95, -0.25], // lower floor plane
+  // short upturned flange with a small bead (curls inward)
+  [4.98, 0.3],
+  ...arc(4.88, 0.3, 0.1, 0, Math.PI, 5),
 ];
-const THICKNESS = 0.09;
-const LENGTH = 5; // shorter than the real piece: roughly one profile-width
-const TURN_SECONDS = 24;
+const THICKNESS = 0.07;
+const LENGTH = 5;
+const TURN_SECONDS = 26;
+
+/** Closed ribbon (sheet metal with thickness) swept along z, mitred at bends. */
+function ribbonGeometry(pts: ReadonlyArray<readonly [number, number]>, t: number, len: number) {
+  const n = pts.length;
+  const dirs: Array<[number, number]> = [];
+  for (let i = 0; i < n - 1; i++) {
+    const dx = pts[i + 1][0] - pts[i][0];
+    const dy = pts[i + 1][1] - pts[i][1];
+    const l = Math.hypot(dx, dy) || 1;
+    dirs.push([dx / l, dy / l]);
+  }
+  const A: Array<[number, number]> = [];
+  const B: Array<[number, number]> = [];
+  for (let i = 0; i < n; i++) {
+    const n0 = i > 0 ? [-dirs[i - 1][1], dirs[i - 1][0]] : [-dirs[0][1], dirs[0][0]];
+    const n1 = i < n - 1 ? [-dirs[i][1], dirs[i][0]] : n0;
+    let mx = n0[0] + n1[0];
+    let my = n0[1] + n1[1];
+    const ml = Math.hypot(mx, my) || 1;
+    mx /= ml;
+    my /= ml;
+    const k = Math.min(1 / Math.max(mx * n1[0] + my * n1[1], 0.35), 2.5);
+    const off = (t / 2) * k;
+    A.push([pts[i][0] + mx * off, pts[i][1] + my * off]);
+    B.push([pts[i][0] - mx * off, pts[i][1] - my * off]);
+  }
+  const pos: number[] = [];
+  const z0 = -len / 2;
+  const z1 = len / 2;
+  const quad = (p: number[], q: number[], r: number[], s: number[]) => {
+    pos.push(...p, ...q, ...r, ...p, ...r, ...s);
+  };
+  for (let i = 0; i < n - 1; i++) {
+    quad([A[i][0], A[i][1], z0], [A[i + 1][0], A[i + 1][1], z0], [A[i + 1][0], A[i + 1][1], z1], [A[i][0], A[i][1], z1]);
+    quad([B[i][0], B[i][1], z0], [B[i + 1][0], B[i + 1][1], z0], [B[i + 1][0], B[i + 1][1], z1], [B[i][0], B[i][1], z1]);
+    // end caps
+    for (const z of [z0, z1]) {
+      quad([A[i][0], A[i][1], z], [A[i + 1][0], A[i + 1][1], z], [B[i + 1][0], B[i + 1][1], z], [B[i][0], B[i][1], z]);
+    }
+  }
+  // tip faces (the two raw ends of the strip)
+  for (const i of [0, n - 1]) {
+    quad([A[i][0], A[i][1], z0], [B[i][0], B[i][1], z0], [B[i][0], B[i][1], z1], [A[i][0], A[i][1], z1]);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.computeVertexNormals();
+  return g;
+}
 
 export default function ProductsHeaderBackdrop() {
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -42,11 +109,12 @@ export default function ProductsHeaderBackdrop() {
     try {
       renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
     } catch {
-      return; // no WebGL: the box simply stays empty
+      return; // no WebGL: nothing is drawn
     }
     renderer.setClearColor(0x000000, 0);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
     host.appendChild(renderer.domElement);
     renderer.domElement.style.width = '100%';
     renderer.domElement.style.height = '100%';
@@ -57,8 +125,8 @@ export default function ProductsHeaderBackdrop() {
     const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     scene.environment = envTex;
 
-    const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
-    camera.position.set(0, 1.5, 17);
+    const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+    camera.position.set(0, 2.2, 21);
     camera.lookAt(0, 0, 0);
 
     const xs = PROFILE.map((p) => p[0]);
@@ -67,29 +135,18 @@ export default function ProductsHeaderBackdrop() {
     const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
 
     const mat = new THREE.MeshStandardMaterial({
-      color: 0xd7dce2,
+      color: 0xdfe4ea,
       metalness: 1,
-      roughness: 0.16,
-      envMapIntensity: 1.25,
+      roughness: 0.18,
+      envMapIntensity: 1.3,
+      side: THREE.DoubleSide,
     });
-
+    const geom = ribbonGeometry(PROFILE, THICKNESS, LENGTH);
+    const mesh = new THREE.Mesh(geom, mat);
+    mesh.position.set(-cx, -cy, 0);
     const group = new THREE.Group();
-    const geoms: THREE.BufferGeometry[] = [];
-    for (let i = 0; i < PROFILE.length - 1; i++) {
-      const [ax, ay] = PROFILE[i];
-      const [bx, by] = PROFILE[i + 1];
-      const dx = bx - ax;
-      const dy = by - ay;
-      const len = Math.hypot(dx, dy);
-      // Slight overshoot closes the corner at each bend.
-      const g = new THREE.BoxGeometry(len + THICKNESS, THICKNESS, LENGTH);
-      geoms.push(g);
-      const m = new THREE.Mesh(g, mat);
-      m.position.set((ax + bx) / 2 - cx, (ay + by) / 2 - cy, 0);
-      m.rotation.z = Math.atan2(dy, dx);
-      group.add(m);
-    }
-    group.rotation.x = 0.28;
+    group.add(mesh);
+    group.rotation.x = 0.3;
     scene.add(group);
 
     const resize = () => {
@@ -106,7 +163,7 @@ export default function ProductsHeaderBackdrop() {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     let frame = 0;
     let last = performance.now();
-    let angle = -0.7;
+    let angle = -0.75;
     const tick = (now: number) => {
       frame = requestAnimationFrame(tick);
       const dt = Math.min(now - last, 100);
@@ -120,7 +177,7 @@ export default function ProductsHeaderBackdrop() {
     return () => {
       cancelAnimationFrame(frame);
       ro.disconnect();
-      geoms.forEach((g) => g.dispose());
+      geom.dispose();
       mat.dispose();
       envTex.dispose();
       pmrem.dispose();
@@ -133,7 +190,7 @@ export default function ProductsHeaderBackdrop() {
     <div
       ref={hostRef}
       aria-hidden="true"
-      className="pointer-events-none absolute right-4 top-8 hidden h-44 w-64 overflow-hidden rounded-lg border border-afs-chrome-mid bg-afs-navy-950 sm:block lg:right-6"
+      className="pointer-events-none absolute right-0 top-0 hidden h-[19rem] w-[22rem] md:block lg:right-6 lg:w-[30rem] xl:w-[34rem]"
     />
   );
 }
