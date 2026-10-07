@@ -10025,3 +10025,6 @@ Known risks: null lengthFt/quantity render as 0 in QuoteEstimatorForm (send bloc
 
 
 ## 2026-10-06 - Migration 050 APPLIED to AFS production (project ref lxfiziwsqezjjybeguqq) via Supabase Management API using the repo's SUPABASE_ACCESS_TOKEN. Post-check: email_messages, email_attachments, takeoff_corrections exist; RLS on; email-attachments bucket exists. Not recorded in supabase_migrations history (same as 032-040 which also show blank in the Remote column). The Claude connector's Supabase login is a different org (upwvnvezkhsktmrzqlpd) and cannot see AFS (org aipvnblxxbhimvrjxzhu).
+
+
+## 2026-10-06 - MAIN BUILD FIX (68e21cc). Production deploys of main failed after 06be107 (email-intake): 'ESM packages (htmlparser2) need to be imported' from lib/email-intake/sanitize.ts. Cause: sanitize-html imported in a server page. Fix: experimental.serverComponentsExternalPackages = sanitize-html, htmlparser2, mailparser in next.config.js. Reproduced locally; pnpm run build exit 0; Vercel production deploy after the push shows Ready. Lesson: tsc and vitest do not catch bundler errors - run pnpm run build before any push to main.
