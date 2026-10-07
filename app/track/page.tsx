@@ -1,4 +1,5 @@
 import DeliveryTrackingMap from '@/components/track/DeliveryTrackingMap';
+import BackButton from '@/components/ui/BackButton';
 
 // Root /track landing page — public, no auth, no order token.
 //
@@ -10,6 +11,7 @@ import DeliveryTrackingMap from '@/components/track/DeliveryTrackingMap';
 export default function TrackDeliveryLandingPage() {
   return (
     <main className="fixed inset-0">
+      <BackButton className="fixed left-4 top-[4.25rem] z-[2000]" />
       <DeliveryTrackingMap
         orderId="DEMO-001"
         isOutForDelivery={true}

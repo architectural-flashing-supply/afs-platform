@@ -17162,3 +17162,10 @@ Inbound email -> idempotent store -> classify -> existing takeoff engine -> draf
 ## 2026-10-07 (update) - Hero drawing revised again per Reid (feat/hero-premium)
 - Removed the grey canvas panel (Reid rejected it). Hero now draws, line-only in crimson on the navy, Reid's own U-profile (14 3/4" base, 10 13/16" and 10 7/8" legs, 113/115 degree bends, open hems with OPEN 7/16" GAP) turned on its side along the far right edge, with FlashDraft-style dimension labels. 12s loop; static for reduced motion; shown >=1400px only.
 - Verified: tsc 0, pnpm run build 0, 1440px screenshots. Not merged to main. Values are illustrative (from Reid's FlashDraft screenshot).
+
+
+## 2026-10-07 (batch) - Hero, Products, HailView, Track Delivery refinements (feat/hero-premium, preview only)
+- Hero: removed the faint blueprint texture (grid + wording on the far right); View Our Work is now a solid chrome-silver button and links to /products (was /design-studio).
+- Products: header ghost profile is darker gunmetal and shifted right so it does not rotate behind the headline (WebGL not visible in headless screenshots - UNVERIFIED in a real browser; shiny-metal version waits on Reid's example image); category buttons even 4+4 (columns = ceil(n/2)); search is crimson with a magnifier button, autofill dropdown (prefix matches first, keyboard + ARIA combobox), and a side card 'Don't see your profile? Design it in FlashDraft' (links /design-studio) when 2+ characters typed. New: components/product/ProductSearchBox.tsx.
+- HailView and Track Delivery: new components/ui/BackButton.tsx (history back, falls back to /). Track's button sits under the Google map-type control.
+- Verified: tsc 0, pnpm run build 0, 1440px screenshots. Not merged to main.

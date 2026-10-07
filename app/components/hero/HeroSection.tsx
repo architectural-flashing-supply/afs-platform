@@ -81,16 +81,6 @@ export default function HeroSection() {
         </div>
       </div>
 
-      {/* ------------------------------------------------ BLUEPRINT (mood) */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 bottom-0 top-[46vh] bg-cover bg-center opacity-[0.13] lg:inset-y-0 lg:left-auto lg:right-0 lg:top-0 lg:w-[50%]"
-        style={{
-          backgroundImage: "url('/images/blueprint.webp')",
-          WebkitMaskImage: 'radial-gradient(ellipse 85% 75% at 100% 100%, black 0%, transparent 72%)',
-          maskImage: 'radial-gradient(ellipse 85% 75% at 100% 100%, black 0%, transparent 72%)',
-        }}
-      />
       {/* Faint depth: slight vignette so the type field feels lit from the video side. */}
       <div
         aria-hidden="true"
@@ -155,8 +145,8 @@ export default function HeroSection() {
               Start Your Project
             </Link>
             <Link
-              href="/design-studio"
-              className="min-h-[48px] w-full rounded-sm border border-white/40 sm:w-auto lg:w-full lg:max-w-[19rem] bg-white/[0.04] px-8 py-3.5 text-center font-label text-sm font-semibold uppercase tracking-[0.14em] text-afs-chrome-high transition-colors duration-200 hover:border-white/70 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+              href="/products"
+              className="min-h-[48px] w-full rounded-sm bg-afs-chrome-silver sm:w-auto lg:w-full lg:max-w-[19rem] px-8 py-3.5 text-center font-label text-sm font-semibold uppercase tracking-[0.14em] text-afs-navy-950 shadow-lg transition-colors duration-200 hover:bg-afs-chrome-high focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
             >
               View Our Work
             </Link>

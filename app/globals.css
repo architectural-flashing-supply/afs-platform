@@ -411,3 +411,14 @@ body {
   .hero-trace .ht-stroke { stroke-dashoffset: 0; opacity: 1; }
   .hero-trace .ht-fade { opacity: 1; }
 }
+
+
+/* PRODUCTS - the "Don't see your profile?" side card slides in from the right. */
+.afs-slide-in-right { animation: afs-slide-in-right 320ms ease-out both; }
+@keyframes afs-slide-in-right {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .afs-slide-in-right { animation: none; }
+}

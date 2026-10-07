@@ -7,7 +7,7 @@ import { previewShapeFor } from '@/lib/data/product-preview-shapes';
 /**
  * A long length of flashing, rendered as a ghost behind the Products header.
  *
- * Barely perceptible by design: ~9% opacity, no interaction, no text, hidden
+ * Quiet by design: a darker gunmetal grey (~34% opacity), set toward the right so it never turns behind the headline text, no interaction, no text, hidden
  * from assistive tech, and still under prefers-reduced-motion (one fixed pose).
  * The section is the Zee, drawn from its own traced rendering, so the backdrop
  * is a real AFS profile and not decoration that looks like a different product.
@@ -49,13 +49,13 @@ export default function ProductsHeaderBackdrop() {
     const cx = (Math.min(...pts.map((p) => p.x)) + Math.max(...pts.map((p) => p.x))) / 2;
     const cy = (Math.min(...pts.map((p) => p.y)) + Math.max(...pts.map((p) => p.y))) / 2;
     const faceMat = new THREE.MeshBasicMaterial({
-      color: 0x8b95a1,
+      color: 0x4a525c,
       transparent: true,
-      opacity: 0.1,
+      opacity: 0.34,
       side: THREE.DoubleSide,
       depthWrite: false,
     });
-    const lineMat = new THREE.LineBasicMaterial({ color: 0x6b7480, transparent: true, opacity: 0.16 });
+    const lineMat = new THREE.LineBasicMaterial({ color: 0x2f353d, transparent: true, opacity: 0.55 });
 
     const group = new THREE.Group();
     const geoms: THREE.BufferGeometry[] = [];
@@ -122,7 +122,7 @@ export default function ProductsHeaderBackdrop() {
     <div
       ref={hostRef}
       aria-hidden="true"
-      className="pointer-events-none absolute inset-y-0 right-0 w-full sm:w-3/4"
+      className="pointer-events-none absolute inset-y-0 -right-[6%] w-full sm:w-[52%]"
     />
   );
 }
