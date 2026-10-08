@@ -1134,6 +1134,88 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
     state: `docs/design/V7_PIXEL_REPORT.md`. The behaviour mapping, v7 function
     to React handler: `docs/design/command-center-v7/BEHAVIOR_MAP.md`.
 
+35. **THE HAILVIEW NUMBER IS P(INSURER PAYS FOR A FULL ROOF REPLACEMENT), IT IS
+    DETERMINISTIC, AND `lib/hailview/v2/**` IS THE ONLY PLACE THAT DECIDES IT.**
+    SPEC_HAILVIEW_V2.md is the authority on scoring; SPEC_HAILVIEW.md §5 is
+    SUPERSEDED and `lib/hailview/replacement-score.ts` is DELETED. §1/§6's
+    determinism contract and §2's exclusions still bind.
+
+    V1 scored a 16-year-old shingle roof 60 and a 24 ga standing seam roof 81 at
+    one Burnet address — backwards — and the six root causes are the six things
+    this rule exists to stop coming back.
+
+    **ONE PHYSICAL SCALE: impact energy ∝ d⁴.** All five materials sit on it
+    (`damage.ts`). Never reintroduce a per-material point table — V1 had five
+    that were never on a common scale, which is what made a metal roof
+    outscore a shingle roof meaningless rather than wrong.
+
+    **AGE ALONE IS NEVER AN INSURANCE EVENT.** No qualifying hail ⇒ probability
+    0, asserted for every material at every age 0–60. V1 paid ~25 points of
+    additive age before any hail was considered. **Metal's age embrittlement is
+    deliberately ZERO** — a 20-year-old panel dents at the same hail size a new
+    one does — and `guard.ts` asserts metal is FLAT in age, not increasing.
+    Giving metal an age term re-creates this bug one level down.
+
+    **COSMETIC AND FUNCTIONAL ARE DIFFERENT CURVES, AND COSMETIC IS AN INSURANCE
+    QUESTION.** Functional damage is a subset of cosmetic, clamped so rather
+    than assumed. Cosmetic contributes ONLY when `cosmeticExclusion` is false,
+    **default TRUE for metal and membrane**. Reid's own confirmed flat 1.5 in
+    metal figure lives on as the COSMETIC 50% point, not a replacement
+    threshold — that re-anchoring, and gauge becoming a real scoring input,
+    **NEED HIS SIGN-OFF** (every metal constant is `expert`; no published metal
+    threshold exists). Published anchors: IIBEC/Smith 2013 (1.0 in 3-tab,
+    1.25 in laminated; granule loss alone is NOT functional damage) and Haag's
+    graduated wood-shake rates.
+
+    **A SIZE AT THE ADDRESS IS AN ESTIMATE, NEVER "CONFIRMED".** `swath.ts`
+    triangulates it from nearby reports; only a report measured at a point is a
+    measurement, and `qualifier` U is treated as estimated, never promoted. UI
+    copy says "estimated at your address", and a test asserts the whole
+    response never contains "confirmed".
+
+    **UNCERTAINTY CANNOT EXCEED THE PRIOR.** The posterior is a
+    precision-weighted (conjugate) update, so precision only ever ADDS.
+    An earlier revision added distance noise without bound, made the posterior
+    vaguer than its prior, and scored a single 3 in report 10 miles away at
+    P(≥1 in) = 0.43. Never go back to adding sigma.
+
+    **ONE CONVECTIVE DAY IS ONE OCCURRENCE.** 12Z–12Z, and the engine passes
+    `CLAIM_OCCURRENCE_LINK_DISTANCE_MI` explicitly because a policy pays per
+    DATE OF LOSS. A 6-mile spatial link split 8 of 12 days at the Burnet fixture
+    into 22 events, so one storm date would enter the claim layer as up to four
+    independent hazards. Distance is already handled, better, by the 3-mile
+    kernel. **Events outside the 12-month claim window are LISTED, not dropped**
+    — they contribute zero and say why.
+
+    **THE EVIDENCE GRADE DESCRIBES ONE EVENT — the highest-contributing
+    in-window one — AND NAMES IT.** Pooling the best property of every event
+    produced a grade-A reason asserting the address "sits between reports on
+    opposing sides" while the storm the number rested on was `extrapolated`:
+    two true facts about two different storms combined into one false claim.
+    Found live by the advisory agent, not by a test. Three regression tests now
+    pin it.
+
+    **NO MODEL CALL, NO CLOCK READ AND NO RANDOMNESS INSIDE SCORING.** The
+    caller passes `nowUtc`; `evidence.ts` is the only module in `v2/` that does
+    I/O. `guard.ts` re-checks the invariants and **can only ANNOTATE** —
+    `guardFlags` plus one log line, never an edited number. The agent
+    (`explanation.ts`) runs strictly after, returns narrative plus advisory
+    `auditFlags` whose type is three strings with **no numeric field**, drops
+    unrecognised kinds rather than coercing them, and **fails open**.
+
+    **IT IS UNCALIBRATED AND SAYS SO.** `modelVersion 'v2.0-uncalibrated'`, and
+    both the page and the emailed report disclose it. No real claim-outcome
+    dataset exists; `scripts/hailview-calibrate.ts` MEASURES and fits nothing,
+    and **no claim data may be committed** — a plausible fabricated CSV would
+    start looking like evidence. Do not bump the version off `-uncalibrated`
+    without real data and Reid's decision.
+
+    **NO SCHEMA CHANGE, and Phase 2 is gated.** The engine is stateless. MRMS
+    MESH is the big Phase 2 win but is **intentionally biased high and
+    overestimates 1–2 in hail — exactly the onset range** — so it needs an
+    LSR-validated bias correction, and GRIB2 on Vercel is unproven: queue
+    hv2-02's feasibility spike first. Open-Meteo wind stays CONTEXT ONLY.
+
 ---
 
 ## MACHINE INTEGRATION — THALMANN DS2801 / AFS MACHINE BRIDGE

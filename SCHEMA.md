@@ -2932,5 +2932,39 @@ rule #16 says it means: created, unconfirmed, do not retry.
 
 ---
 
+## HAILVIEW LOGIC ENGINE V2 — NO SCHEMA CHANGE (hv2-01, 2026-10-08)
+
+**HailView V2 added no table, no column, no constraint, no RLS policy and no
+migration.** Recorded here explicitly so a future reader does not go looking
+for one.
+
+The whole engine is stateless: `lib/hailview/v2/**` takes an address, a
+material, a few roof details and the storm reports fetched live from the Iowa
+Environmental Mesonet, and returns a probability. Nothing is persisted. There
+is no lookup cache, no stored result and no claim-outcome table — a HailView
+lookup leaves no trace in this database. The only HailView write path that has
+ever existed is the consent-based "email me my own result" form, which goes
+through Resend and writes nothing here either.
+
+Two deliberate consequences, both of which would otherwise look like missing
+tables:
+
+1. **The recorded test fixture is a FILE, not a row.**
+   `lib/hailview/__fixtures__/burnet-tx-lsr.json` holds a real IEM response
+   with its coordinates rounded to 2 decimals, so the golden test can run the
+   whole pipeline offline and deterministically.
+2. **The calibration dataset is a CSV the harness READS, not a table it
+   writes.** `scripts/hailview-calibrate.ts` takes a path to a file of past
+   claim outcomes (schema frozen in SPEC_HAILVIEW_V2.md section 8.1) and prints
+   a Brier score. Claim outcomes are customer insurance data; storing them
+   would be a real schema and policy decision, and it has not been made. **No
+   such data exists or is committed.** If it is ever stored, that is a new
+   migration and a new section in this document, not an extension of anything
+   above.
+
+Full detail: SPEC_HAILVIEW_V2.md, and STATE_OF_THE_BUILD.md's 2026-10-08 entry.
+
+---
+
 *SCHEMA.md | AFS | Reid Whitesides | June 2026*
 *Run 001_initial_schema.sql in Supabase before any feature build begins.*

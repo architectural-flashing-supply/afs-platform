@@ -1,0 +1,1757 @@
+{
+  "_comment": "RECORDED LIVE from the IEM Local Storm Report feed. Hail reports only. Do not hand-edit: re-record with scripts (see SPEC_HAILVIEW_V2.md) if this ever needs refreshing.",
+  "recordedAtUtc": "2026-10-08T18:22:22.419Z",
+  "query": {
+    "lat": 30.76,
+    "lon": -98.22,
+    "radiusMi": 12,
+    "lookbackYears": 5,
+    "nowUtc": "2026-10-08T12:00:00.000Z",
+    "url": "https://mesonet.agron.iastate.edu/geojson/lsr.py?sts=2021-10-08T12%3A00%3A00.000Z&ets=2026-10-08T12%3A00%3A00.000Z&north=30.933913&south=30.586087&east=-98.017615&west=-98.422385"
+  },
+  "featureCount": 67,
+  "features": [
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 0.25,
+        "magnitude": "0.25",
+        "unit": "inch",
+        "valid": "2024-03-08T11:37:00Z",
+        "city": "3 ENE Granite Shoals",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": null,
+        "qualifier": "M",
+        "source": "Public",
+        "lat": 30.61,
+        "lon": -98.34
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.34,
+          30.61
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 0.5,
+        "magnitude": "0.5",
+        "unit": "Inch",
+        "valid": "2025-05-17T01:00:00Z",
+        "city": "1 N Burnet",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": "Pea size to near half inch hail estimated by EM near US 281 and Green Mile.",
+        "qualifier": "E",
+        "source": "Public",
+        "lat": 30.78,
+        "lon": -98.23
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.23,
+          30.78
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 0.7,
+        "magnitude": "0.7",
+        "unit": "Inch",
+        "valid": "2025-05-17T00:00:00Z",
+        "city": "3 NNE Burnet",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": "5 minute duration.",
+        "qualifier": "M",
+        "source": "Cocorahs",
+        "lat": 30.8,
+        "lon": -98.21
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.21,
+          30.8
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 0.7,
+        "magnitude": "0.7",
+        "unit": "INCH",
+        "valid": "2023-04-20T23:41:00Z",
+        "city": "4 SSE LONGHORN CAVERN S",
+        "county": "BURNET",
+        "state": "TX",
+        "st": "TX",
+        "remark": "REPORT FROM MPING DIME (0.7 IN.).",
+        "qualifier": "U",
+        "source": "PUBLIC",
+        "lat": 30.63,
+        "lon": -98.32
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.32,
+          30.63
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 0.75,
+        "magnitude": "0.75",
+        "unit": "inch",
+        "valid": "2023-06-16T00:28:00Z",
+        "city": "1 N Burnet",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": "Emergency management reports penny sized hail at the intersection of the The Green Mile and US 281 in Burnet.",
+        "qualifier": "E",
+        "source": "Emergency Mngr",
+        "lat": 30.78,
+        "lon": -98.23
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.23,
+          30.78
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 0.75,
+        "magnitude": "0.75",
+        "unit": "Inch",
+        "valid": "2025-05-29T01:40:00Z",
+        "city": "2 E Granite Shoals",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": "Report from mPING.",
+        "qualifier": "E",
+        "source": "Public",
+        "lat": 30.59,
+        "lon": -98.36
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.36,
+          30.59
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 0.75,
+        "magnitude": "0.75",
+        "unit": "INCH",
+        "valid": "2022-03-21T21:40:00Z",
+        "city": "GRANITE SHOALS",
+        "county": "BURNET",
+        "state": "TX",
+        "st": "TX",
+        "remark": "PENNY SIZE HAIL NEAR GRANITE SHOALS REPORTED BY TRAINED SPOTTER.",
+        "qualifier": "M",
+        "source": "TRAINED SPOTTER",
+        "lat": 30.59,
+        "lon": -98.38
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.38,
+          30.59
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 0.75,
+        "magnitude": "0.75",
+        "unit": "INCH",
+        "valid": "2023-04-28T20:25:00Z",
+        "city": "6 NNE INKS LAKE STATE P",
+        "county": "BURNET",
+        "state": "TX",
+        "st": "TX",
+        "remark": "PUBLIC REPORTED HAIL UP TO PENNY SIZE AT THUNDERBIRD LODGE ON THE EAST SIDE OF LAKE BUCHANAN.",
+        "qualifier": "M",
+        "source": "PUBLIC",
+        "lat": 30.83,
+        "lon": -98.34
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.34,
+          30.83
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1,
+        "magnitude": "1",
+        "unit": "inch",
+        "valid": "2023-06-17T01:25:00Z",
+        "city": "1 W Burnet",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": "Media reports hail around a quarter via Twitter video.",
+        "qualifier": "E",
+        "source": "Broadcast Media",
+        "lat": 30.76,
+        "lon": -98.25
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.25,
+          30.76
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1,
+        "magnitude": "1",
+        "unit": "inch",
+        "valid": "2023-06-17T01:25:00Z",
+        "city": "1 W Burnet",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": "Media reports hail around a quarter via Twitter video.",
+        "qualifier": "E",
+        "source": "Broadcast Media",
+        "lat": 30.76,
+        "lon": -98.25
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.25,
+          30.76
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1,
+        "magnitude": "1",
+        "unit": "Inch",
+        "valid": "2025-05-17T01:24:00Z",
+        "city": "6 WSW Bertram",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": "Person called in report. Estimated at 1 inch.",
+        "qualifier": "E",
+        "source": "Public",
+        "lat": 30.7,
+        "lon": -98.14
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.14,
+          30.7
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1,
+        "magnitude": "1",
+        "unit": "inch",
+        "valid": "2023-06-16T00:29:00Z",
+        "city": "Burnet",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": "Quarter size hail in Burnet.",
+        "qualifier": "E",
+        "source": "Trained Spotter",
+        "lat": 30.76,
+        "lon": -98.23
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.23,
+          30.76
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1,
+        "magnitude": "1",
+        "unit": "inch",
+        "valid": "2023-06-16T00:17:00Z",
+        "city": "5 NE Buchanan Dam",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": "Quarter size hail near Lake Buchanan.",
+        "qualifier": "E",
+        "source": "Public",
+        "lat": 30.81,
+        "lon": -98.37
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.37,
+          30.81
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1,
+        "magnitude": "1",
+        "unit": "Inch",
+        "valid": "2025-05-02T01:09:00Z",
+        "city": "7 N Burnet",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": "Report from mPING.",
+        "qualifier": "E",
+        "source": "Public",
+        "lat": 30.86,
+        "lon": -98.24
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.24,
+          30.86
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1,
+        "magnitude": "1",
+        "unit": "Inch",
+        "valid": "2025-05-17T01:15:00Z",
+        "city": "Burnet",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": "Report from mPING.",
+        "qualifier": "E",
+        "source": "Public",
+        "lat": 30.76,
+        "lon": -98.24
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.24,
+          30.76
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1,
+        "magnitude": "1",
+        "unit": "Inch",
+        "valid": "2024-04-10T00:33:00Z",
+        "city": "4 SE Longhorn Cavern St",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": "Report from mPING Quarter (1.00 in.).",
+        "qualifier": "E",
+        "source": "Public",
+        "lat": 30.63,
+        "lon": -98.32
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.32,
+          30.63
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1,
+        "magnitude": "1",
+        "unit": "Inch",
+        "valid": "2026-05-11T01:56:00Z",
+        "city": "Burnet",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": "Report of 1 inch hail in Burnet via Trained Spotter.",
+        "qualifier": "M",
+        "source": "Trained Spotter",
+        "lat": 30.76,
+        "lon": -98.22
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.22,
+          30.76
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1,
+        "magnitude": "1",
+        "unit": "Inch",
+        "valid": "2025-05-17T01:48:00Z",
+        "city": "Bertram",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": "Storm Spotter reported quarter size hail beneath water tower.",
+        "qualifier": "E",
+        "source": "Public",
+        "lat": 30.74,
+        "lon": -98.05
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.05,
+          30.74
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1,
+        "magnitude": "1",
+        "unit": "inch",
+        "valid": "2023-06-16T00:30:00Z",
+        "city": "Burnet",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": "Trained spotter reports quarter size hail in downtown Burnet. Time estimated from radar.",
+        "qualifier": "E",
+        "source": "Trained Spotter",
+        "lat": 30.76,
+        "lon": -98.23
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.23,
+          30.76
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1,
+        "magnitude": "1",
+        "unit": "inch",
+        "valid": "2023-06-16T00:24:00Z",
+        "city": "4 NE Inks Lake State Pa",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": "Twitter pic of quarter size hail four miles west of Burnet.",
+        "qualifier": "E",
+        "source": "Public",
+        "lat": 30.77,
+        "lon": -98.32
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.32,
+          30.77
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1,
+        "magnitude": "1",
+        "unit": "Inch",
+        "valid": "2026-05-06T14:48:00Z",
+        "city": "2 W Burnet",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": null,
+        "qualifier": "E",
+        "source": "Public",
+        "lat": 30.76,
+        "lon": -98.26
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.26,
+          30.76
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1,
+        "magnitude": "1",
+        "unit": "INCH",
+        "valid": "2023-05-06T00:10:00Z",
+        "city": "4 NNE BUCHANAN DAM",
+        "county": "BURNET",
+        "state": "TX",
+        "st": "TX",
+        "remark": "INTERSECTION OF FM 690 AND PENINSULA DRIVE. TIME ESTIMATED.",
+        "qualifier": "E",
+        "source": "PUBLIC",
+        "lat": 30.8,
+        "lon": -98.38
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.38,
+          30.8
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1,
+        "magnitude": "1",
+        "unit": "INCH",
+        "valid": "2023-05-06T02:25:00Z",
+        "city": "MARBLE FALLS",
+        "county": "BURNET",
+        "state": "TX",
+        "st": "TX",
+        "remark": "MOSTLY DIME AND NICKEL SIZE WITH QUARTER SIZE MIXED IN.",
+        "qualifier": "E",
+        "source": "TRAINED SPOTTER",
+        "lat": 30.59,
+        "lon": -98.27
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.27,
+          30.59
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1,
+        "magnitude": "1",
+        "unit": "INCH",
+        "valid": "2023-04-20T23:19:00Z",
+        "city": "BURNET",
+        "county": "BURNET",
+        "state": "TX",
+        "st": "TX",
+        "remark": "QUARTER SIZE HAIL IN BURNET.",
+        "qualifier": "E",
+        "source": "TRAINED SPOTTER",
+        "lat": 30.76,
+        "lon": -98.23
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.23,
+          30.76
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1,
+        "magnitude": "1",
+        "unit": "INCH",
+        "valid": "2023-04-28T20:45:00Z",
+        "city": "BURNET",
+        "county": "BURNET",
+        "state": "TX",
+        "st": "TX",
+        "remark": "QUARTER SIZE HAIL REPORTED VIA PHONE.",
+        "qualifier": "M",
+        "source": "PUBLIC",
+        "lat": 30.76,
+        "lon": -98.22
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.22,
+          30.76
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1,
+        "magnitude": "1",
+        "unit": "INCH",
+        "valid": "2023-05-05T23:50:00Z",
+        "city": "3 ESE BURNET",
+        "county": "BURNET",
+        "state": "TX",
+        "st": "TX",
+        "remark": "REPORT FROM MPING QUARTER (1.00 IN).",
+        "qualifier": "M",
+        "source": "PUBLIC",
+        "lat": 30.75,
+        "lon": -98.18
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.18,
+          30.75
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1,
+        "magnitude": "1",
+        "unit": "INCH",
+        "valid": "2023-04-28T20:50:00Z",
+        "city": "3 ESE BURNET",
+        "county": "BURNET",
+        "state": "TX",
+        "st": "TX",
+        "remark": "REPORT FROM MPING QUARTER (1.00 IN.).",
+        "qualifier": "U",
+        "source": "PUBLIC",
+        "lat": 30.75,
+        "lon": -98.18
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.18,
+          30.75
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1,
+        "magnitude": "1",
+        "unit": "INCH",
+        "valid": "2023-04-20T23:43:00Z",
+        "city": "4 SSE LONGHORN CAVERN S",
+        "county": "BURNET",
+        "state": "TX",
+        "st": "TX",
+        "remark": "REPORT FROM MPING QUARTER (1.00 IN.).",
+        "qualifier": "U",
+        "source": "PUBLIC",
+        "lat": 30.63,
+        "lon": -98.32
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.32,
+          30.63
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1,
+        "magnitude": "1",
+        "unit": "INCH",
+        "valid": "2023-04-20T23:19:00Z",
+        "city": "BURNET",
+        "county": "BURNET",
+        "state": "TX",
+        "st": "TX",
+        "remark": "REPORT FROM MPING QUARTER (1.00 IN.).",
+        "qualifier": "U",
+        "source": "PUBLIC",
+        "lat": 30.76,
+        "lon": -98.24
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.24,
+          30.76
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1,
+        "magnitude": "1",
+        "unit": "INCH",
+        "valid": "2023-04-28T21:05:00Z",
+        "city": "1 NNE GRANITE SHOALS",
+        "county": "BURNET",
+        "state": "TX",
+        "st": "TX",
+        "remark": "TIME ESTIMATED. VIA FACEBOOK USER PHOTO.",
+        "qualifier": "M",
+        "source": "PUBLIC",
+        "lat": 30.6,
+        "lon": -98.38
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.38,
+          30.6
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1,
+        "magnitude": "1",
+        "unit": "INCH",
+        "valid": "2023-05-06T02:02:00Z",
+        "city": "2 W BERTRAM",
+        "county": "BURNET",
+        "state": "TX",
+        "st": "TX",
+        "remark": null,
+        "qualifier": "M",
+        "source": "PUBLIC",
+        "lat": 30.75,
+        "lon": -98.1
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.1,
+          30.75
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1,
+        "magnitude": "1",
+        "unit": "INCH",
+        "valid": "2023-05-05T23:19:00Z",
+        "city": "5 NNE INKS LAKE STATE P",
+        "county": "BURNET",
+        "state": "TX",
+        "st": "TX",
+        "remark": null,
+        "qualifier": "E",
+        "source": "TRAINED SPOTTER",
+        "lat": 30.8,
+        "lon": -98.35
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.35,
+          30.8
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1,
+        "magnitude": "1",
+        "unit": "Inch",
+        "valid": "2026-05-11T01:37:00Z",
+        "city": "Buchanan Dam",
+        "county": "Llano",
+        "state": "TX",
+        "st": "TX",
+        "remark": "Social media picture of quarter size hail in Buchanan Dam. Time estimated via radar.",
+        "qualifier": "M",
+        "source": "Public",
+        "lat": 30.75,
+        "lon": -98.42
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.42,
+          30.75
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1,
+        "magnitude": "1",
+        "unit": "INCH",
+        "valid": "2023-04-28T20:55:00Z",
+        "city": "1 WSW SUNRISE BEACH VIL",
+        "county": "LLANO",
+        "state": "TX",
+        "st": "TX",
+        "remark": "PUBLIC REPORTED QUARTER SIZE HAIL IN SUNRISE BEACH.",
+        "qualifier": "E",
+        "source": "PUBLIC",
+        "lat": 30.6,
+        "lon": -98.42
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.42,
+          30.6
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1.25,
+        "magnitude": "1.25",
+        "unit": "Inch",
+        "valid": "2025-05-28T22:30:00Z",
+        "city": "Bertram",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": "County Emergency Manager relayed a report of quarter to half dollar size hail in Bertram.",
+        "qualifier": "E",
+        "source": "Law Enforcement",
+        "lat": 30.74,
+        "lon": -98.06
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.06,
+          30.74
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1.25,
+        "magnitude": "1.25",
+        "unit": "Inch",
+        "valid": "2026-05-06T14:44:00Z",
+        "city": "2 SW Inks Lake State Pa",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": "Report from mPING.",
+        "qualifier": "E",
+        "source": "Public",
+        "lat": 30.71,
+        "lon": -98.39
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.39,
+          30.71
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1.25,
+        "magnitude": "1.25",
+        "unit": "Inch",
+        "valid": "2025-05-02T01:09:00Z",
+        "city": "4 N Burnet",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": "Report from mPING.",
+        "qualifier": "M",
+        "source": "Public",
+        "lat": 30.82,
+        "lon": -98.24
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.24,
+          30.82
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1.25,
+        "magnitude": "1.25",
+        "unit": "inch",
+        "valid": "2023-06-16T00:31:00Z",
+        "city": "Burnet",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": "Report from mPING Half Dollar.",
+        "qualifier": "E",
+        "source": "Public",
+        "lat": 30.76,
+        "lon": -98.22
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.22,
+          30.76
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1.25,
+        "magnitude": "1.25",
+        "unit": "Inch",
+        "valid": "2024-04-10T00:25:00Z",
+        "city": "2 E Granite Shoals",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": "Report from mPING Half Dollar (1.25 in.).",
+        "qualifier": "E",
+        "source": "Public",
+        "lat": 30.59,
+        "lon": -98.36
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.36,
+          30.59
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1.25,
+        "magnitude": "1.25",
+        "unit": "INCH",
+        "valid": "2023-05-09T01:06:00Z",
+        "city": "9 NNW BERTRAM",
+        "county": "BURNET",
+        "state": "TX",
+        "st": "TX",
+        "remark": "HAIL CURRENTLY FALLING, MOST IS PEA SIZE, BUT THE BIGGEST IS A LITTLE BIGGER THAN QUARTER SIZE.",
+        "qualifier": "E",
+        "source": "TRAINED SPOTTER",
+        "lat": 30.87,
+        "lon": -98.12
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.12,
+          30.87
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1.25,
+        "magnitude": "1.25",
+        "unit": "INCH",
+        "valid": "2023-05-06T02:11:00Z",
+        "city": "4 SSE LONGHORN CAVERN S",
+        "county": "BURNET",
+        "state": "TX",
+        "st": "TX",
+        "remark": "REPORT FROM MPING HALF DOLLAR.",
+        "qualifier": "E",
+        "source": "PUBLIC",
+        "lat": 30.63,
+        "lon": -98.32
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.32,
+          30.63
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1.25,
+        "magnitude": "1.25",
+        "unit": "INCH",
+        "valid": "2023-04-28T20:44:00Z",
+        "city": "1 ESE BURNET",
+        "county": "BURNET",
+        "state": "TX",
+        "st": "TX",
+        "remark": "REPORT FROM MPING HALF DOLLAR (1.25 IN.).",
+        "qualifier": "E",
+        "source": "PUBLIC",
+        "lat": 30.76,
+        "lon": -98.22
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.22,
+          30.76
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1.5,
+        "magnitude": "1.5",
+        "unit": "Inch",
+        "valid": "2024-04-10T00:34:00Z",
+        "city": "2 N Marble Falls",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": "Report from mPING Ping Pong Ball (1.50 in.).",
+        "qualifier": "E",
+        "source": "Public",
+        "lat": 30.61,
+        "lon": -98.27
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.27,
+          30.61
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1.5,
+        "magnitude": "1.5",
+        "unit": "Inch",
+        "valid": "2026-05-06T14:40:00Z",
+        "city": "Inks Lake State Park",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": null,
+        "qualifier": "M",
+        "source": "Park/Forest Srvc",
+        "lat": 30.74,
+        "lon": -98.37
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.37,
+          30.74
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1.5,
+        "magnitude": "1.5",
+        "unit": "INCH",
+        "valid": "2023-05-05T23:56:00Z",
+        "city": "2 SSW BURNET",
+        "county": "BURNET",
+        "state": "TX",
+        "st": "TX",
+        "remark": "REPORT FROM MPING PING PONG BALL (1.50 IN).",
+        "qualifier": "U",
+        "source": "PUBLIC",
+        "lat": 30.73,
+        "lon": -98.24
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.24,
+          30.73
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1.5,
+        "magnitude": "1.5",
+        "unit": "INCH",
+        "valid": "2023-05-05T23:32:00Z",
+        "city": "3 W BURNET",
+        "county": "BURNET",
+        "state": "TX",
+        "st": "TX",
+        "remark": "VIDEO OF PING PONG SIZE HAIL NEAR THE INTERSECTION OF HWY 29 AND RR 2341. TIME ESTIMATED VIA RADAR.",
+        "qualifier": "E",
+        "source": "PUBLIC",
+        "lat": 30.76,
+        "lon": -98.28
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.28,
+          30.76
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1.75,
+        "magnitude": "1.75",
+        "unit": "Inch",
+        "valid": "2025-05-17T01:11:00Z",
+        "city": "10 N Burnet",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": "Between Burnet and Marble Falls on highway 281. Time estimated via radar.",
+        "qualifier": "E",
+        "source": "Emergency Mngr",
+        "lat": 30.9,
+        "lon": -98.24
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.24,
+          30.9
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1.75,
+        "magnitude": "1.75",
+        "unit": "Inch",
+        "valid": "2025-05-17T01:11:00Z",
+        "city": "5 SSW Burnet",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": "Corrects location of previous hail report from 10 N Burnet. Between Burnet and Marble Falls on highway 281. Time estimated via radar.",
+        "qualifier": "E",
+        "source": "Emergency Mngr",
+        "lat": 30.69,
+        "lon": -98.26
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.26,
+          30.69
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1.75,
+        "magnitude": "1.75",
+        "unit": "Inch",
+        "valid": "2025-05-01T22:55:00Z",
+        "city": "1 N Inks Lake State Par",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": "Observed near SH29 and Park Road 4.",
+        "qualifier": "M",
+        "source": "Emergency Mngr",
+        "lat": 30.76,
+        "lon": -98.37
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.37,
+          30.76
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1.75,
+        "magnitude": "1.75",
+        "unit": "INCH",
+        "valid": "2023-05-09T00:21:00Z",
+        "city": "6 WNW BRIGGS",
+        "county": "BURNET",
+        "state": "TX",
+        "st": "TX",
+        "remark": "A LOT OF SMALL HAIL, BUT BIGGEST HAIL WAS UP TO GOLF BALL SIZE.",
+        "qualifier": "E",
+        "source": "CO-OP OBSERVER",
+        "lat": 30.93,
+        "lon": -98.02
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.02,
+          30.93
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1.75,
+        "magnitude": "1.75",
+        "unit": "INCH",
+        "valid": "2023-05-05T23:44:00Z",
+        "city": "BURNET",
+        "county": "BURNET",
+        "state": "TX",
+        "st": "TX",
+        "remark": null,
+        "qualifier": "E",
+        "source": "TRAINED SPOTTER",
+        "lat": 30.76,
+        "lon": -98.23
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.23,
+          30.76
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 1.75,
+        "magnitude": "1.75",
+        "unit": "Inch",
+        "valid": "2026-05-06T14:40:00Z",
+        "city": "1 ESE Buchanan Dam",
+        "county": "Llano",
+        "state": "TX",
+        "st": "TX",
+        "remark": "Golfball size hail reported on west side of SH 29 bridge.",
+        "qualifier": "E",
+        "source": "Public",
+        "lat": 30.75,
+        "lon": -98.41
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.41,
+          30.75
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 2,
+        "magnitude": "2",
+        "unit": "Inch",
+        "valid": "2024-04-09T23:43:00Z",
+        "city": "10 NNE Burnet",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": "Amateur radio report of 2 inch diameter hail in Lake Victor.",
+        "qualifier": "E",
+        "source": "Amateur Radio",
+        "lat": 30.91,
+        "lon": -98.19
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.19,
+          30.91
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 2,
+        "magnitude": "2",
+        "unit": "Inch",
+        "valid": "2025-05-28T22:35:00Z",
+        "city": "3 S Bertram",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": "Media relayed a picture from the public of 2 inch hail. Time estimated from radar.",
+        "qualifier": "M",
+        "source": "Public",
+        "lat": 30.7,
+        "lon": -98.06
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.06,
+          30.7
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 2,
+        "magnitude": "2",
+        "unit": "INCH",
+        "valid": "2023-05-05T23:58:00Z",
+        "city": "4 ESE BURNET",
+        "county": "BURNET",
+        "state": "TX",
+        "st": "TX",
+        "remark": "EGG SIZE HAIL REPORTED ON HWY 29 NEAR THE BRANDENBURG PLUMBING BUSINESS TO THE EAST OF BURNET.",
+        "qualifier": "M",
+        "source": "PUBLIC",
+        "lat": 30.75,
+        "lon": -98.17
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.17,
+          30.75
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 2,
+        "magnitude": "2",
+        "unit": "INCH",
+        "valid": "2023-05-05T23:56:00Z",
+        "city": "3 ESE BURNET",
+        "county": "BURNET",
+        "state": "TX",
+        "st": "TX",
+        "remark": null,
+        "qualifier": "M",
+        "source": "TRAINED SPOTTER",
+        "lat": 30.75,
+        "lon": -98.17
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.17,
+          30.75
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 2,
+        "magnitude": "2",
+        "unit": "Inch",
+        "valid": "2026-05-06T14:35:00Z",
+        "city": "Buchanan Dam",
+        "county": "Llano",
+        "state": "TX",
+        "st": "TX",
+        "remark": "Hen egg size hail reported at Buchanan Dam.",
+        "qualifier": "E",
+        "source": "Public",
+        "lat": 30.75,
+        "lon": -98.42
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.42,
+          30.75
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 2.25,
+        "magnitude": "2.25",
+        "unit": "Inch",
+        "valid": "2025-05-02T00:08:00Z",
+        "city": "2 NE Inks Lake State Pa",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": "Report from mPING.",
+        "qualifier": "M",
+        "source": "Public",
+        "lat": 30.76,
+        "lon": -98.35
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.35,
+          30.76
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 2.5,
+        "magnitude": "2.5",
+        "unit": "Inch",
+        "valid": "2025-05-02T00:10:00Z",
+        "city": "2 NNE Inks Lake State P",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": "Reported on Hwy 29 east of Buchanan Dam.",
+        "qualifier": "M",
+        "source": "Public",
+        "lat": 30.77,
+        "lon": -98.35
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.35,
+          30.77
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 2.5,
+        "magnitude": "2.5",
+        "unit": "Inch",
+        "valid": "2025-05-01T23:00:00Z",
+        "city": "3 NNE Buchanan Dam",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": null,
+        "qualifier": "M",
+        "source": "Public",
+        "lat": 30.78,
+        "lon": -98.39
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.39,
+          30.78
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 2.5,
+        "magnitude": "2.5",
+        "unit": "INCH",
+        "valid": "2023-05-05T23:35:00Z",
+        "city": "4 NE INKS LAKE STATE PA",
+        "county": "BURNET",
+        "state": "TX",
+        "st": "TX",
+        "remark": "CRACKED WINDSHIELD ON VEHICLE.",
+        "qualifier": "E",
+        "source": "TRAINED SPOTTER",
+        "lat": 30.77,
+        "lon": -98.32
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.32,
+          30.77
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 2.5,
+        "magnitude": "2.5",
+        "unit": "INCH",
+        "valid": "2023-05-06T00:05:00Z",
+        "city": "1 S BURNET",
+        "county": "BURNET",
+        "state": "TX",
+        "st": "TX",
+        "remark": "SOCIAL MEDIA PICTURE OF HAIL MEASURED UP TO NEAR TENNIS BALL SIZE NEAR THE BURNET MUNICIPAL AIRPORT WITH ROUGH TIME ESTIMATE OF 7:05 PM.",
+        "qualifier": "M",
+        "source": "PUBLIC",
+        "lat": 30.74,
+        "lon": -98.23
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.23,
+          30.74
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 2.75,
+        "magnitude": "2.75",
+        "unit": "Inch",
+        "valid": "2025-05-02T00:19:00Z",
+        "city": "5 NE Buchanan Dam",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": "Reported at 690 and CR 114.",
+        "qualifier": "M",
+        "source": "Law Enforcement",
+        "lat": 30.81,
+        "lon": -98.37
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.37,
+          30.81
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 2.75,
+        "magnitude": "2.75",
+        "unit": "INCH",
+        "valid": "2023-05-06T00:02:00Z",
+        "city": "BURNET",
+        "county": "BURNET",
+        "state": "TX",
+        "st": "TX",
+        "remark": "DELAYED REPORT WITH PICTURE OF BASEBALL SIZE HAIL IN BURNET. TIME ESTIMATED VIA RADAR.",
+        "qualifier": "E",
+        "source": "BROADCAST MEDIA",
+        "lat": 30.76,
+        "lon": -98.23
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.23,
+          30.76
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 3.25,
+        "magnitude": "3.25",
+        "unit": "INCH",
+        "valid": "2023-05-06T00:02:00Z",
+        "city": "BURNET",
+        "county": "BURNET",
+        "state": "TX",
+        "st": "TX",
+        "remark": "DELAYED REPORT WITH PICTURE ON SOCIAL MEDIA OF HAIL STONE MEASURING 3.25 INCHES IN DIAMETER IN BURNET.",
+        "qualifier": "M",
+        "source": "PUBLIC",
+        "lat": 30.76,
+        "lon": -98.23
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.23,
+          30.76
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 4,
+        "magnitude": "4",
+        "unit": "Inch",
+        "valid": "2024-04-09T23:35:00Z",
+        "city": "9 N Burnet",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": "Broadcast media relayed a photo from the public showing a measured hailstone with a diameter of 4 inches. Time estimated by radar.",
+        "qualifier": "M",
+        "source": "Public",
+        "lat": 30.89,
+        "lon": -98.23
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.23,
+          30.89
+        ]
+      }
+    },
+    {
+      "properties": {
+        "type": "H",
+        "typetext": "HAIL",
+        "magf": 4,
+        "magnitude": "4",
+        "unit": "Inch",
+        "valid": "2024-04-09T23:38:00Z",
+        "city": "12 N Burnet",
+        "county": "Burnet",
+        "state": "TX",
+        "st": "TX",
+        "remark": "Picture of softball size hail a quarter mile east of highway 281 in Burnet county. Time estimated via radar.",
+        "qualifier": "M",
+        "source": "Public",
+        "lat": 30.93,
+        "lon": -98.23
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -98.23,
+          30.93
+        ]
+      }
+    }
+  ]
+}

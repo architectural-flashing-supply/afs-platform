@@ -506,6 +506,64 @@ needed once real footage lands. Verified via temp preview
 route/Playwright specs (deleted before commit); full detail in
 STATE_OF_THE_BUILD.md's 2026-09-17 session entry.
 
+### Phase 9 addendum — HailView Logic Engine V2, Phase 1 (hv2-01, 2026-10-08)
+
+The HailView SCORING ENGINE was rebuilt. `lib/hailview/replacement-score.ts`
+(SPEC_HAILVIEW.md section 5's four per-material point tables) is **DELETED**; the
+engine is now `lib/hailview/v2/**` and the authority is **SPEC_HAILVIEW_V2.md**.
+SPEC_HAILVIEW.md carries a header note marking section 5 superseded; its
+sections 1/6 determinism contract and section 2 exclusions are unchanged and
+still binding. **No schema change, no new env var, no new dependency.**
+
+Why: a real test at one Burnet, TX address scored a 16-year-old asphalt shingle
+roof 60 and a 24 ga standing seam metal roof 81 — backwards — from six distinct
+root causes (point tables never on a common scale; ~25 points of additive age
+with zero hail; no cosmetic/functional split and no claims logic; `metalGauge`
+collected and unused; reports treated as point facts with no spatial reasoning,
+event grouping, uncertainty or claim window; no cross-material tests).
+
+**The headline number now means one thing and says so: the probability that an
+insurer pays for a FULL ROOF REPLACEMENT.** The legacy `score` (0-100) and
+`tier` fields survive on the unchanged V1 cut points, as
+`round(probability * 100)`.
+
+Eight modules, each with its own unit tests: `geo`, `evidence` (normalized
+`HailObservation` plus an `EvidenceSource` interface so Phase 2's sources plug
+in — only the IEM LSR adapter is implemented), `cluster` (convective day
+12Z-12Z; **one convective day is one claim occurrence**), `swath` (the
+triangulation engine — distance-decay kernel, area-neutral anisotropic
+along-track kernel, bracketing by angular span, precision-weighted posterior
+that can never be vaguer than its prior), `damage` (**ONE** d^4 impact-energy
+scale for all five materials, cosmetic and functional curves each pinned by two
+real anchor points, integrated over the size distribution), `claims` (cosmetic
+damage contributes only where the policy does not exclude it, default TRUE for
+metal and membrane; a 12-month claim window; out-of-window storms LISTED, not
+dropped), `engine`, and `guard` (a deterministic, LLM-free invariant re-check
+that annotates and **never** edits the number).
+
+The agentic layer (`lib/hailview/explanation.ts`) now also returns advisory
+`auditFlags` — `{kind, severity, message}`, three strings with no numeric field,
+so section 6's separation is structural rather than conventional. It fails open.
+
+UI and route: the engine's evidence radius is **12 miles** (V1's 1 mile was
+discarding nearly all the evidence triangulation needs), with the 1-mile list
+kept for the raw display timeline; `metalGauge`, `shingleType` and a new
+`cosmeticExclusion` toggle are passed through; the page shows the probability
+with its range, an evidence-grade badge, a per-storm table worded "estimated at
+your address", claim-window labels, the sensitivity note and an uncalibrated
+disclosure. The emailed report carries the same context.
+
+`scripts/hailview-calibrate.ts` measures the engine against a CSV of past claim
+outcomes (Brier score, base-rate comparison, reliability table) and **fits
+nothing**. **No calibration data exists** — that, and Reid's sign-off on the
+metal constants (all `expert`; his own confirmed 1.5" figure has been
+re-anchored as the cosmetic 50% point), are the two open blockers. **Phase 2 is
+queued behind an MRMS feasibility spike** — MESH is intentionally biased high
+and overestimates 1-2" hail, exactly the onset range, and GRIB2 decoding inside
+Vercel's limits is unproven.
+
+Full detail: STATE_OF_THE_BUILD.md and SESSION_STATE.md's 2026-10-08 entries.
+
 ### Phase 9 addendum — 2026-09-19 revision pass (12 items)
 The HailView DATA BLOCKER above is resolved — real portrait (490×940)
 video/webm/poster wired in, section rewritten with new copy and a single

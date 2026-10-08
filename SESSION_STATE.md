@@ -10028,3 +10028,91 @@ Known risks: null lengthFt/quantity render as 0 in QuoteEstimatorForm (send bloc
 
 
 ## 2026-10-06 - MAIN BUILD FIX (68e21cc). Production deploys of main failed after 06be107 (email-intake): 'ESM packages (htmlparser2) need to be imported' from lib/email-intake/sanitize.ts. Cause: sanitize-html imported in a server page. Fix: experimental.serverComponentsExternalPackages = sanitize-html, htmlparser2, mailparser in next.config.js. Reproduced locally; pnpm run build exit 0; Vercel production deploy after the push shows Ready. Lesson: tsc and vitest do not catch bundler errors - run pnpm run build before any push to main.
+
+---
+
+## 2026-10-08 — feat/hailview-engine-v2 (hv2-01)
+
+**Task:** HailView Logic Engine V2, Phase 1 — rebuild the scoring engine so the
+headline number means "probability an insurer pays for a FULL ROOF
+REPLACEMENT". Existing IEM Local Storm Report data only.
+
+**The bug:** one Burnet, TX address scored a 16-year-old shingle roof 60 and a
+24 ga standing seam roof 81. Six root causes, all read out of
+`lib/hailview/replacement-score.ts`, not guessed: point tables never on a
+common scale; ~25 points of additive age with ZERO hail; no cosmetic/functional
+split and no claims logic; `metalGauge` collected and never passed to the
+scorer; reports treated as point facts with no spatial reasoning, event
+grouping, uncertainty or claim window; no cross-material tests.
+
+**Built** `lib/hailview/v2/`: `geo` · `evidence` (normalized `HailObservation`,
+`EvidenceSource` interface for Phase 2, IEM LSR adapter reading the `qualifier`
+and `source` fields V1 ignored) · `cluster` (convective day 12Z-12Z, falsifiable
+storm-motion fit) · `swath` (distance-decay kernel, area-neutral anisotropic
+along-track kernel, bracketing by angular span, precision-weighted posterior) ·
+`damage` (ONE d^4 impact-energy scale, cosmetic/functional logistics pinned by
+two real anchors each, 5-point quadrature, independent hazards) · `claims`
+(cosmetic contributes only when not excluded, default TRUE for metal;
+`CLAIM_WINDOW_MONTHS = 12`; out-of-window events listed, not dropped) ·
+`engine` · `guard` (deterministic, no LLM, annotates and never edits).
+Plus `scripts/hailview-calibrate.ts` (measures only, fits nothing) and
+SPEC_HAILVIEW_V2.md + .docx.
+
+**Three defects found by measuring, not reasoning — all fixed in-session:**
+1. The uncertainty math added distance noise WITHOUT BOUND, making a posterior
+   vaguer than its prior; a single 3" report 10 mi away scored P(>=1") = 0.43.
+   Replaced with a conjugate update where precision only adds. Now 0.19.
+2. Spatial clustering split 8 of 12 convective days into 22 events, so one
+   storm DATE entered the claim layer as up to four independent hazards.
+   Fixed on the insurance principle that a policy pays per date of loss:
+   `CLAIM_OCCURRENCE_LINK_DISTANCE_MI`, passed explicitly by the engine.
+3. **The advisory agent caught a real defect in my own code.** `gradeEvidence`
+   pooled the best property of every event, so a grade-A reason asserted the
+   address "sits between reports on opposing sides" while the storm the number
+   rested on said `extrapolated`. Now graded from ONE event — the
+   highest-contributing in-window one — and the reason names it. 3 regression
+   tests, one asserting the reason can never claim a geometry its named storm
+   does not have.
+
+**Live verification** (real route, real feed, no mocks). "209 Surecast Drive,
+Burnet, TX" **does not geocode** — Nominatim has no such street, in any variant
+tried; `Burnet, TX 78611` resolved to the city centroid 30.7608552, -98.2239954
+and that is what ran. 12 storm occurrences built; the two in-window are
+2026-05-10 (est. 0.97" at the address, 2 measured reports, nearest 0.2 mi) and
+2026-05-06 (est. 0.77", nearest 2.1 mi). The big storms — 2023-05-05 at an
+estimated 2.56" from 14 reports, and 2024-04-09 with 4.00" reported 8.9 mi away
+— are OUTSIDE the claim window and listed as contributing zero.
+
+| run | probability | range | grade |
+|---|---|---|---|
+| (a) architectural shingle, 16 yr | 18.5% | 5.2–36.3% | B |
+| (b) 24 ga standing seam, cosmeticExclusion=true | 0.0% | 0.0–0.1% | C |
+| (c) same metal, cosmeticExclusion=false | 0.1% | 0.0–1.8% | C |
+
+**(a) >= (b) holds.** No guard flags. The headline is low because the damaging
+hail is outside the claim window — the correct answer, not a defect.
+
+**Deleted** `lib/hailview/replacement-score.ts` + test (nothing imported them
+after the rewire). SPEC_HAILVIEW.md section 5 marked SUPERSEDED in a header note;
+sections 1/6 determinism and 2 exclusions still binding.
+
+**Gates:** tsc 0 · vitest 624 passed / 4 failed / 4 skipped · build exit 0 with
+contrast 24 screens / 248 pairs / 0 unresolved / 0 below. The 4 failures are
+PRE-EXISTING `lib/pricing/ledger-append-only.test.ts` Supabase
+`database_read` permission errors — proven by reproducing them identically on a
+clean `origin/main` worktree with the same `.env.local`. HailView tests: 101
+(was 17). **No schema change, no new env var, no new dependency.**
+
+**Mistake made and repaired in-session:** to prove those failures pre-existing I
+symlinked `node_modules` into a temp worktree, and `git worktree remove --force`
+followed the symlink and deleted the real `node_modules`. Restored with
+`rm -rf node_modules && pnpm install`; all gates re-run green afterwards. Do not
+symlink `node_modules` into a worktree.
+
+**UNVERIFIED:** not confirmed by Reid in a browser. **PENDING REID:** the metal
+constants are all `expert` (no published threshold exists) and his own confirmed
+flat 1.5" figure has been RE-ANCHORED as the cosmetic 50% point with gauge now a
+real scoring input — that needs his sign-off. Calibration data does not exist.
+Phase 2 is queued behind an MRMS feasibility spike (MESH is biased high and
+overestimates 1-2" hail — exactly the onset range — and GRIB2 on Vercel is
+unproven).

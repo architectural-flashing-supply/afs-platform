@@ -1,8 +1,84 @@
 # SPEC_HAILVIEW.md
 ## AFS — HailView: Multi-Material Hail/Wind Replacement-Probability Tool
 **Owner:** Reid Whitesides | Visual AI Method
-**Status:** Draft for review — build not yet started
+**Status:** BUILT. **Section 5 SUPERSEDED — see SPEC_HAILVIEW_V2.md.**
 **Location:** New section within the existing `afs-website` Next.js codebase
+
+---
+
+> ## ⚠ SECTION 5 IS SUPERSEDED BY SPEC_HAILVIEW_V2.md (2026-10-08)
+>
+> **`SPEC_HAILVIEW_V2.md` is the authority on all scoring.** Section 5 below —
+> the four per-material `HAIL_TIERS` point tables and their age curves — is kept
+> for provenance and must NOT be implemented. `lib/hailview/replacement-score.ts`,
+> which implemented it, has been deleted. The engine is now `lib/hailview/v2/**`.
+>
+> **WHY.** A real test at one Burnet, TX address scored a 16-year-old asphalt
+> shingle roof **60** and a 24 ga standing seam metal roof **81** on identical
+> hail. That is backwards, and it had six distinct causes, all in Section 5's
+> design: the four point tables were never on a common scale; an additive age
+> term contributed ~25 points with **zero** hail; there was no cosmetic-versus-
+> functional distinction and no claims logic at all; `metalGauge` was collected
+> and never used; reports were treated as point facts with no spatial reasoning,
+> event grouping, uncertainty or claim window; and nothing tested cross-material
+> rationality. Full analysis: SPEC_HAILVIEW_V2.md §0.
+>
+> ### What REMAINS BINDING from this document
+>
+> - **§1 and §6 — the determinism contract.** Unchanged and still the one
+>   non-negotiable rule. V2 is built to protect it: the number comes from pure,
+>   auditable code with no model call and no clock read inside scoring, and the
+>   agent receives an already-final result. V2 adds `guard.ts`, a deterministic
+>   invariant re-check that can only ever ANNOTATE a result, never alter it.
+> - **§2 — the excluded scope.** No Facebook/social data source, no geographic
+>   triangulation of social mentions, no inferred-address campaigns. Untouched.
+>   (V2's "triangulation" is of NWS storm reports around one address the user
+>   typed in themselves — a different thing entirely from §2's exclusion.)
+> - **§4 — the data sources**, with one change: §4.2's ~1-mile radius is now the
+>   **display** radius for the raw report timeline. The engine queries **12
+>   miles**, because V2 estimates the hail size AT the address and that needs
+>   reports on more than one side of it. Measured live 2026-10-08 at Burnet: 12
+>   hail reports within 1 mile over 5 years against 102 within 15 miles — the
+>   narrow radius was discarding nearly all the evidence. §4.2's never-cap-hail
+>   fix is preserved. §4.3's unresolved Open-Meteo commercial-licensing question
+>   is still unresolved, and wind is still context only, never a scoring input.
+> - **§7 and §8 — the UI and the consent-based email capture.** Both still apply;
+>   both were extended in V2 (probability with range, evidence-grade badge,
+>   per-storm table, claim-window labels, sensitivity note, uncalibrated
+>   disclosure, and a `cosmeticExclusion` control).
+>
+> ### ⚠ §5.2's "flat 1.5 in metal onset, confirmed by Reid" — REPLACED, NEEDS SIGN-OFF
+>
+> §5.2 recorded a **flat 1.5 in cosmetic-damage onset for metal, confirmed
+> directly by Reid from field experience**, and stated that gauge is display-only
+> and never modulates severity. V1 then scored that 1.5 in figure as though it
+> were a **replacement** threshold, which is the single most direct cause of the
+> reversal above: a dent in a watertight metal panel counted as replacement-worthy.
+>
+> V2 replaces it with a **cosmetic/functional split**:
+>
+> - Reid's 1.5 in is **kept**, re-anchored as the **50 % point of the COSMETIC
+>   (denting) curve** — "the size at which a metal roof visibly dents" reads as a
+>   half-damage figure, not a first-possible-damage figure.
+> - **FUNCTIONAL** failure of a metal panel (fracture, puncture, seam or fastener
+>   failure that breaches water-shedding) is modelled separately and much higher:
+>   expert onsets of 1.75 in (R-panel) and 2.00 in (standing seam) at 26 ga.
+> - Cosmetic damage contributes to the claim probability **only when the policy
+>   does not exclude it**, and the default for metal is that it **does** —
+>   cosmetic-exclusion endorsements are near-standard on metal roofs.
+> - **Gauge now IS a scoring input**, contrary to §5.2, via a monotonic
+>   threshold factor (29ga 0.92 → 22ga 1.12).
+>
+> **NO PUBLISHED METAL HAIL-DAMAGE THRESHOLD WAS FOUND, so every metal constant
+> in V2 is tagged `expert` and NEEDS REID'S FIELD VALIDATION.** The re-anchoring
+> of his own confirmed 1.5 in figure is an interpretive change to a number he
+> personally supplied, and it **needs his explicit sign-off** before the metal
+> results are relied on. SPEC_HAILVIEW_V2.md §7.2 and §12.
+>
+> Published anchors that V2 does rest on: **IIBEC / Smith (2013)** — smallest
+> hail capable of functional damage is 1.0 in for 3-tab and 1.25 in for laminated
+> asphalt, and granule loss alone is **not** functional damage; and **Haag
+> Engineering**'s graduated wood-shake damage rates, which §5.4 already cited.
 
 ---
 

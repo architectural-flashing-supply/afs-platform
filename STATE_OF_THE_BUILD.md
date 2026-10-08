@@ -34,6 +34,277 @@ summary, not a replacement for it.
 
 ---
 
+## HAILVIEW LOGIC ENGINE V2, PHASE 1: IMPLEMENTED, UNCONFIRMED — THE SHINGLE/METAL REVERSAL IS FIXED AND MEASURED; NO SCHEMA CHANGE (2026-10-08, hv2-01)
+
+**Branch `feat/hailview-engine-v2`. NOT merged, NOT deployed.** Gates run in
+this session: `pnpm tsc --noEmit` 0 errors; `pnpm vitest run` 624 passed /
+4 failed / 4 skipped; `pnpm run build` exit 0 with the contrast gate at
+24 screens / 248 pairs / 0 unresolved / 0 below threshold.
+
+**The 4 vitest failures are PRE-EXISTING and unrelated.** All four are in
+`lib/pricing/ledger-append-only.test.ts` and fail with
+`Missing required permission(s): database_read` from the Supabase access
+token. Proven pre-existing rather than assumed: a `git worktree` at clean
+`origin/main` with the same `.env.local` copied in produced the identical
+4 failures (without the env file they SKIP, which is why a bare worktree run
+looks green — a skip there is not a pass, as that file's own header says).
+Nothing in HailView touches `lib/pricing`.
+
+### THE BUG, AND THAT IT IS REALLY GONE
+
+Reid tested one Burnet, TX address: a 16-year-old asphalt shingle roof scored
+**60**, and the same address with a 24 ga standing seam metal roof scored
+**81** "insurance replacement probability". Backwards.
+
+Every line of `lib/hailview/replacement-score.ts` was read. Six distinct root
+causes, not one bug — the full analysis is SPEC_HAILVIEW_V2.md section 0.
+Measured V1 against V2 on identical bracketed evidence at age 16:
+
+| hail | V1 shingle | V1 metal 24ga | V2 shingle | V2 metal (excl.) | V2 metal (covered) |
+|---|---|---|---|---|---|
+| 1.50" | 62 | **86** | 38 | 0 | 6 |
+| 1.75" | 75 | **86** | 55 | 0 | 17 |
+| 2.00" | 97 | 86 | 68 | 1 | 24 |
+| none, 16 yr | **25** | 11 | **0** | **0** | **0** |
+
+The no-hail row is root cause #2: V1 paid ~25 points of additive age subscore
+before any hail was considered, so hail barely moved the number.
+
+### LIVE VERIFICATION AGAINST THE REAL ROUTE AND THE REAL FEED
+
+Local dev server, real `POST /api/hailview/storm-history`, real IEM feed, no
+mocks. **Geocoding: "209 Surecast Drive, Burnet, TX" returns NO MATCH from
+Nominatim**, as do "209 Surecast Dr, Burnet, TX 78611" and "Surecast Drive,
+Burnet, TX" — OpenStreetMap does not know that street. `Burnet, TX 78611`
+resolved, to the city centroid 30.7608552, -98.2239954, and that is what the
+three runs below used. A centroid is a legitimate result for a town-scale
+lookup but it is NOT the roof, and at grade A/B the difference matters.
+
+Evidence found: 12 raw hail reports within 1 mile over 5 years (the display
+radius), and **12 storm occurrences** built by the engine from the 12-mile
+evidence radius. The two inside the 12-month claim window are 2026-05-10
+(estimated 0.97" at the address, 0.82-1.13", 2 reports both measured, nearest
+0.2 mi) and 2026-05-06 (estimated 0.77", 0.33-1.22", 5 reports, nearest
+2.1 mi). The largest storms in the record are OUTSIDE the window and are
+listed as such, contributing zero: 2023-05-05 (estimated **2.56"** at the
+address from 14 reports, largest reported 3.25") and 2024-04-09 (largest
+reported 4.00", but nearest report 8.9 mi so the estimate at the address is
+0.68").
+
+| run | probability | range | evidence grade |
+|---|---|---|---|
+| (a) architectural shingle, 16 yr | **18.5%** | 5.2% – 36.3% | B |
+| (b) 24 ga standing seam, 16 yr, cosmeticExclusion = true | **0.0%** | 0.0% – 0.1% | C |
+| (c) same metal, cosmeticExclusion = false | **0.1%** | 0.0% – 1.8% | C |
+
+**(a) >= (b) holds.** (c) >= (b) also holds — covering cosmetic damage can
+only add. No `guardFlags` on any run. The headline is low because the
+genuinely damaging hail at this address fell in 2023 and 2024, outside any
+12-month claim window — which is the correct answer and the point of the
+claim-window rule, not a defect.
+
+### A DEFECT THE ADVISORY AGENT FOUND IN MY OWN CODE, AND THE FIX
+
+The first live run graded (a) as **A** with the reason "the address sits
+between reports on opposing sides... interpolated rather than extrapolated",
+while the storm the number rested on said `extrapolated` in its own row. The
+agentic audit layer raised it as a `source_conflict`, correctly.
+
+It was real. `gradeEvidence` pooled the BEST property of EVERY event:
+`min(nearestReportMi)` from one storm, "any bracketed" from another, the
+report count of a third. The bracketing came from a 2023 storm that
+contributes nothing to the number. Two true facts about two different storms,
+combined into one false claim about the address.
+
+Fixed: the grade is computed from ONE event — the highest-contributing
+in-window event, because that is what the probability is made of — and the
+reason names that storm by date. With no in-window event the best-evidenced
+event is graded and the reason says the window is empty. (a) is now grade **B**
+with "This result rests on the 2026-05-10 storm: 2 reports within about 0.2
+miles of this address, and every nearby report is on one side of the address,
+so the size at your address is extrapolated rather than interpolated."
+Three regression tests pin it, including one that asserts the reason can never
+claim a geometry the storm it names does not have.
+
+The agent's other first-run flags were false positives about the convective-day
+convention (a report timestamped 2026-05-11T01:56Z belonging to the 2026-05-10
+storm). The convention is correct; the prompt had not been told about it, and
+now is. All five flags on the final run are genuine observations.
+
+### A SECOND DEFECT FOUND BY MEASUREMENT, NOT BY REASONING
+
+The spatial clustering was splitting **8 of 12 convective days** at the Burnet
+fixture, turning them into **22 events** — so one storm DATE entered the claim
+layer as up to four independent hazards and inflated the probability. That is
+root cause #5's over-counting reintroduced one level down.
+
+Fixed on the insurance-correct principle: a policy pays per OCCURRENCE,
+identified by a date of loss, so **one convective day at one address is one
+event**. `cluster.ts` keeps its spatial parameter for the Phase 2 wide-area
+sources, and the engine passes `CLAIM_OCCURRENCE_LINK_DISTANCE_MI = Infinity`
+explicitly. Nothing is lost by merging because distance is already handled,
+and handled better, by the 3-mile kernel in `swath.ts`. Both numbers (22 vs 12)
+are pinned in `golden.test.ts`.
+
+### A THIRD DEFECT, IN THE UNCERTAINTY MATH
+
+The first version of `swath.ts` added distance noise WITHOUT BOUND, which made
+a far-away report produce a posterior **vaguer than the prior** — incoherent,
+since observing something cannot leave you less certain than you began. It
+inflated the upper tail so badly that a single 3" report 10 miles away scored
+P(>=1 in) = **0.43**. Replaced with a proper precision-weighted (Gaussian
+conjugate) update, where precision only ever ADDS, so `PRIOR_SIGMA_IN` is a
+ceiling on reported uncertainty. The same report now scores 0.19 with the
+interval at the prior's width. A unit test asserts both the probability and
+the sigma ceiling.
+
+### WHAT WAS BUILT
+
+New, all under `lib/hailview/v2/`:
+- `geo.ts` — one copy of haversine, the local-miles projection, bearings and
+  the largest-angular-gap test.
+- `evidence.ts` — normalized `HailObservation`, the `EvidenceSource` interface
+  for Phase 2, and the ONLY Phase 1 source: the IEM LSR adapter. It reads two
+  fields V1 never read — `qualifier` (NWS M/E/U measured-vs-estimated) and
+  `source` (reporter class) — both always present in the live feed.
+  **U is treated as ESTIMATED, never promoted to a measurement.**
+- `cluster.ts` — convective day (12Z-12Z) plus the occurrence rule above, and
+  a falsifiable storm-motion fit (>=3 distinct timestamps, >=10 min span,
+  5-80 mph, else isotropic).
+- `swath.ts` — the triangulation engine. Distance-decay kernel, measured
+  reports weighted above estimated, anisotropic along-track kernel whose two
+  factors are RECIPROCAL so it is area-neutral, bracketing by angular span,
+  and the conjugate update above. Outputs P(>=1 in), p10/p25/p50/p75/p90,
+  bracketed flag, nearest distance, report count and measured/estimated mix.
+- `damage.ts` — ONE physical scale for all five materials: impact energy
+  proportional to d^4. Smooth monotonic logistics in log-energy, each pinned
+  by TWO real anchor points rather than a chosen steepness. Cosmetic and
+  functional curves split. Integrated over each event's size distribution by
+  5-point quantile quadrature summing to exactly 1. Events combine as
+  independent hazards, so the result can never exceed 1 (V1's additive tables
+  could, and saturated at an arbitrary 60-point cap).
+- `claims.ts` — damage to P(insurer pays FULL REPLACEMENT). Cosmetic damage
+  contributes ONLY when `cosmeticExclusion` is false, default TRUE for metal
+  and membrane. `CLAIM_WINDOW_MONTHS = 12`, provenance
+  `expert-verify-per-policy`. Out-of-window events are LISTED, not dropped.
+- `engine.ts` — orchestration, range from the +/-0.25 in sensitivity, evidence
+  grade A-D with a plain-English reason, per-event audit, sensitivity note,
+  provenance summary, `modelVersion 'v2.0-uncalibrated'`, and the LEGACY
+  `score`/`tier` fields on the unchanged V1 cut points so nothing downstream
+  broke.
+- `guard.ts` — deterministic runtime reviewer, NO LLM. Re-runs the engine on
+  perturbed inputs and checks bounds, `low <= p <= high`, score/probability
+  agreement, per-event sanity, monotonicity in hail size and roof age, and the
+  cosmetic toggle direction. **It never alters the number** — a violation comes
+  back as a visible `guardFlags` entry plus one server log line.
+
+Changed:
+- `lib/hailview/storm-history.ts` — extracted `fetchLsrFeatures`, so V1 and V2
+  share ONE description of how the feed is queried. V1's resulting request is
+  byte-identical to before.
+- `lib/hailview/explanation.ts` — rewritten for V2. Now returns
+  `{ narrative, auditFlags }`, where each flag is `{kind, severity, message}`:
+  **three strings, no numeric field**, satisfying SPEC_HAILVIEW.md section 6's
+  requirement structurally. Unrecognised kinds/severities are DROPPED, never
+  coerced. **Fails open** on any throw. Parsed by hand, not with `zod` — that
+  is not a dependency of this repo and CLAUDE.md rule #32 already settled this
+  case ("do not add a schema library for two documented shapes").
+- `app/api/hailview/storm-history/route.ts` — wired to `evaluateWithGuard`.
+  Evidence radius **12 miles** for the engine (V1's 1 mile was discarding
+  almost all the evidence triangulation needs: 12 reports within 1 mile
+  against 102 within 15, measured live), with the 1-mile list kept for the raw
+  display timeline. Now passes `metalGauge` (root cause #4 — V1 did not),
+  `shingleType` and `cosmeticExclusion`. ONE `nowUtc` pinned per request.
+- `app/hailview/page.tsx` — headline is the probability with its range and a
+  label that states what it means; evidence-grade badge and reason; per-storm
+  table saying "estimated at your address"; claim-window labels; sensitivity
+  note; guard flags; advisory audit flags; and an uncalibrated disclosure that
+  reads the real `modelVersion` so it cannot drift. New controls: a SHINGLE
+  TYPE selector (a real scoring input — published onsets are 1.00" for 3-tab
+  against 1.25" for architectural, and the page never collected it before) and
+  the `cosmeticExclusion` toggle, shown for metal AND membrane because the
+  engine defaults it true for both and a hidden control with a
+  number-changing default is a trap. afs-* tokens only, no literal hex in JSX,
+  `-on-dark` variants per rule #29 for new status text on gunmetal.
+- `app/api/hailview/email-report/route.ts` — carries the same V2 context, so a
+  forwarded copy cannot read as a bare score. Every V2 field is OPTIONAL (a
+  stale client must still be able to mail itself a report) but a wrong TYPE is
+  still a 400. Its inline hex is now a single documented `EMAIL_COLORS`
+  constant per rule #4's CANVAS_COLORS exception.
+
+**DELETED: `lib/hailview/replacement-score.ts` and its test.** Nothing imported
+them after the route was rewired. SPEC_HAILVIEW.md section 5 is marked
+SUPERSEDED in a header note on that file.
+
+New docs: **SPEC_HAILVIEW_V2.md** plus a `.docx` copy via the repo's existing
+`scripts/md-to-docx.mjs`. Full math derivations, the constants table with
+per-constant provenance, the invariants, the CSV schema and the Phase 2
+roadmap.
+
+New: `scripts/hailview-calibrate.ts` — reads a CSV of past outcomes, re-runs
+the engine from the evidence stored alongside each row **at that row's own
+`asof_utc`** (not today's clock), and prints a Brier score, the base-rate Brier
+and a reliability table. **IT FITS NOTHING.** `partial` counts as a MISS,
+because the engine predicts a FULL replacement. `--self-test` runs three
+synthetic cases; **no claim data is committed**, because a plausible-looking
+fabricated CSV would start looking like evidence.
+
+### TESTS: 101 HailView unit tests (was 17)
+
+`cluster.test.ts`, `swath.test.ts`, `engine.test.ts`, `golden.test.ts`,
+`calibrate.test.ts`, `explanation.test.ts`. Including every check the brief
+required: determinism, **cross-material rationality** (24 ga standing seam <=
+16-yr architectural shingle for all hail <= 2.5", 29 ga R-panel <= shingle for
+all hail <= 2.0"), monotonicity in hail size / roof age / metal gauge /
+membrane mil, the cosmetic toggle in both directions, no-hail P <= 0.03 for
+every material at every age 0-60, the claim window, and the swath properties.
+
+**The golden test runs the whole pipeline against a RECORDED LIVE response**,
+`lib/hailview/__fixtures__/burnet-tx-lsr.json` — coordinates rounded to 2
+decimals, which is all the feed itself resolves to and which keeps a specific
+house out of a committed file. 67 recorded features narrow to 59 inside the
+true 12-mile circle, then to 58 after removing **one byte-identical duplicate
+row the feed really served** (without the dedup that report would carry double
+kernel weight). The fixture carries its own frozen `nowUtc` so the
+claim-window logic is stable forever.
+
+### NO SCHEMA CHANGE
+
+No migration, no table, no column, no RLS policy. No new environment variable,
+no new paid service, and **no new dependency** — the normal CDF is the
+Abramowitz & Stegun 7.1.26 approximation written out, and the agent response
+is parsed by hand rather than with `zod`. `middleware.ts` untouched.
+
+### OPEN BLOCKERS — PENDING REID
+
+1. **The metal constants need Reid's field validation.** No published metal
+   hail-damage threshold was found, so EVERY metal damage threshold is tagged
+   `expert`. Specifically, **his own confirmed flat 1.5 in figure has been
+   RE-ANCHORED as the COSMETIC 50% point** rather than a replacement
+   threshold, and gauge now IS a scoring input contrary to SPEC_HAILVIEW.md
+   section 5.2. That is an interpretive change to a number he personally
+   supplied and **it needs his explicit sign-off.**
+2. **Calibration data does not exist.** No real claim-outcome dataset has been
+   supplied, so every probability is an uncalibrated model output and the UI
+   and the email both say so. The harness is built and waiting.
+3. **`CLAIM_WINDOW_MONTHS = 12` is a policy term**, provenance
+   `expert-verify-per-policy`. Must be verified per carrier and state.
+4. **Phase 2 is queued behind an MRMS feasibility spike.** MESH is
+   intentionally biased high and notably overestimates 1-2 in hail — exactly
+   the range every material's functional onset sits in — so it needs a
+   documented, LSR-validated bias correction before it may touch scoring. And
+   GRIB2 decoding inside Vercel's limits is unproven. Spike first; do not build
+   on the strength of the spec.
+5. **Geocoding gap:** Nominatim does not know "209 Surecast Drive, Burnet, TX".
+   The verification ran against the Burnet city centroid.
+6. **UNVERIFIED BY REID IN A BROWSER.** The three probabilities above came from
+   the real route via a script, not from Reid clicking through the page. Per
+   this file's own verification standard, that is evidence to bring to him, not
+   a substitute for his confirmation.
+
+---
+
+
 ## 2026-10-03 — THE JOB -> FLASHDRAFT HANDOFF (branch `cc-flashdraft-handoff`)
 
 **"Draw it in FlashDraft" was a dead end or a blank canvas. It now opens the

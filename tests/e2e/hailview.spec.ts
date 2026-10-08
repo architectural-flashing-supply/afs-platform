@@ -3,7 +3,7 @@ import { test, expect, type Page } from '@playwright/test';
 // HailView (app/hailview/page.tsx, afs-hv-004) is a public tool with no
 // Supabase auth gate, calling the real Phase 1/2/3 pipeline end-to-end
 // (Nominatim geocoding, IEM Local Storm Reports, the deterministic scoring
-// engine in lib/hailview/replacement-score.ts, and the agentic explanation
+// engine in lib/hailview/v2/** (hv2-01; was replacement-score.ts), and the agentic explanation
 // layer in lib/hailview/explanation.ts) against a real address. The
 // explanation panel renders `result.narrative` (real agent text) when the
 // agent call succeeds, or the deterministic fallback template when it

@@ -47,7 +47,7 @@ interface OpenMeteoArchiveResponse {
  * largest hail event found, i.e. the storm day most relevant to the
  * material-damage narrative) from Open-Meteo's commercial Historical
  * Weather API. This is context for the agent-generated explanation only —
- * it never feeds the deterministic score in replacement-score.ts.
+ * it never feeds the deterministic score in lib/hailview/v2/engine.ts.
  */
 export async function fetchWindContextForDate(
   lat: number,

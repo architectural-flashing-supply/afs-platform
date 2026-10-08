@@ -11,7 +11,12 @@ const MILES_PER_DEGREE_LAT = 69.0;
 // reports are capped. Preserves the fix this port is based on.
 const NON_HAIL_CAP = 150;
 
-interface LsrFeatureProperties {
+// Exported for the V2 evidence adapter (lib/hailview/v2/evidence.ts), which
+// reads two fields V1 does not: `qualifier` (the NWS M/E/U measured-vs-
+// estimated convention) and `source` (the reporter class). Both have always
+// been present in the live feed — verified 2026-10-08 against a Burnet, TX
+// window — V1 simply never read them.
+export interface LsrFeatureProperties {
   type: string;
   typetext: string;
   magf: number | null;
@@ -23,11 +28,15 @@ interface LsrFeatureProperties {
   state: string | null;
   st: string | null;
   remark: string | null;
+  /** NWS LSR size basis: 'M' measured, 'E' estimated, 'U' unknown. */
+  qualifier: string | null;
+  /** Reporter class, e.g. 'Trained Spotter', 'Public', 'Cocorahs'. */
+  source: string | null;
   lat: number;
   lon: number;
 }
 
-interface LsrFeature {
+export interface LsrFeature {
   properties: LsrFeatureProperties;
   geometry: { type: 'Point'; coordinates: [number, number] };
 }
@@ -35,6 +44,55 @@ interface LsrFeature {
 interface LsrFeatureCollection {
   type: 'FeatureCollection';
   features: LsrFeature[];
+}
+
+export interface LsrFetchOptions {
+  lat: number;
+  lon: number;
+  radiusMi: number;
+  lookbackYears: number;
+  /**
+   * ISO 8601 "now". V2 passes this explicitly so an engine run is
+   * reproducible from a recorded response; V1's own call site keeps using
+   * the wall clock, exactly as before.
+   */
+  nowUtc?: string;
+}
+
+/**
+ * The one place this feed is queried. Builds the latitude-corrected
+ * bounding box and returns the raw features, unfiltered by report type —
+ * `fetchStormHistory` below applies V1's hail/non-hail handling, and
+ * lib/hailview/v2/evidence.ts applies V2's normalization. Extracted in
+ * hv2-01 so V1 and V2 cannot drift apart on how the box is built; V1's
+ * resulting request is byte-identical to what it was before.
+ */
+export async function fetchLsrFeatures(options: LsrFetchOptions): Promise<LsrFeature[]> {
+  const { lat, lon, radiusMi, lookbackYears } = options;
+  const now = options.nowUtc ? new Date(options.nowUtc) : new Date();
+  const start = new Date(now);
+  start.setFullYear(start.getFullYear() - lookbackYears);
+
+  const latRad = (lat * Math.PI) / 180;
+  const latDelta = radiusMi / MILES_PER_DEGREE_LAT;
+  const lonDelta = radiusMi / (MILES_PER_DEGREE_LAT * Math.cos(latRad));
+
+  const params = new URLSearchParams({
+    sts: start.toISOString(),
+    ets: now.toISOString(),
+    north: (lat + latDelta).toFixed(6),
+    south: (lat - latDelta).toFixed(6),
+    east: (lon + lonDelta).toFixed(6),
+    west: (lon - lonDelta).toFixed(6),
+  });
+
+  const res = await fetch(`${IEM_LSR_URL}?${params.toString()}`);
+  if (!res.ok) {
+    throw new Error(`IEM LSR feed responded with HTTP ${res.status}`);
+  }
+
+  const geojson = (await res.json()) as LsrFeatureCollection;
+  return geojson.features ?? [];
 }
 
 function haversineMiles(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -85,30 +143,14 @@ function toStormEvent(feature: LsrFeature, originLat: number, originLon: number)
  * addresses) would crowd real hail history out of the result set.
  */
 export async function fetchStormHistory(lat: number, lon: number): Promise<StormEvent[]> {
-  const now = new Date();
-  const start = new Date(now);
-  start.setFullYear(start.getFullYear() - LOOKBACK_YEARS);
-
-  const latRad = (lat * Math.PI) / 180;
-  const latDelta = RADIUS_MI / MILES_PER_DEGREE_LAT;
-  const lonDelta = RADIUS_MI / (MILES_PER_DEGREE_LAT * Math.cos(latRad));
-
-  const params = new URLSearchParams({
-    sts: start.toISOString(),
-    ets: now.toISOString(),
-    north: (lat + latDelta).toFixed(6),
-    south: (lat - latDelta).toFixed(6),
-    east: (lon + lonDelta).toFixed(6),
-    west: (lon - lonDelta).toFixed(6),
+  const features = await fetchLsrFeatures({
+    lat,
+    lon,
+    radiusMi: RADIUS_MI,
+    lookbackYears: LOOKBACK_YEARS,
   });
 
-  const res = await fetch(`${IEM_LSR_URL}?${params.toString()}`);
-  if (!res.ok) {
-    throw new Error(`IEM LSR feed responded with HTTP ${res.status}`);
-  }
-
-  const geojson = (await res.json()) as LsrFeatureCollection;
-  const allEvents = (geojson.features ?? [])
+  const allEvents = features
     .map((f) => toStormEvent(f, lat, lon))
     .filter((e) => e.distanceMi <= RADIUS_MI);
 

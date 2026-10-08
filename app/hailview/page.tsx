@@ -1,8 +1,18 @@
 'use client';
 
-// HailView Phase 4 (afs-hv-004) — real UI wired to the real, already-committed
-// Phase 1 (afs-hv-001) data pipeline, Phase 2 (afs-hv-002) scoring engine, and
-// Phase 3 (afs-hv-003) results page.
+// HailView — real UI wired to the real data pipeline and the V2 engine.
+//
+// hv2-01: the headline number is now a PROBABILITY with a stated meaning —
+// the chance an insurer pays for a FULL ROOF REPLACEMENT — produced by the
+// deterministic engine in lib/hailview/v2/**. The legacy 0-100 `score` and
+// `tier` fields are still returned and still rendered, but they are now
+// round(probability * 100) rather than a points total.
+//
+// WORDING RULE, enforced throughout this file: a hail size at the address is
+// ESTIMATED by triangulating nearby reports. It is never described as
+// "confirmed", "recorded at" or "measured at" the property. Only a report
+// that was itself measured is a measurement, and the per-event panel says
+// how many of each a storm rests on.
 //
 // This calls app/api/hailview/storm-history/route.ts directly. There is no
 // separate app/api/hailview/test-pipeline/route.ts — SPEC_HAILVIEW.md Section
@@ -21,9 +31,9 @@
 // used ONLY when `result.narrative` comes back empty (the route's own
 // try/catch sets it to '' if the agent call fails for any reason) — so the
 // tool never renders a blank explanation panel. It builds a plain
-// deterministic string from the same score/tier/factors data that is already
-// rendered elsewhere on this page — nothing about the fallback can affect the
-// score either.
+// deterministic string from the same V2 probability/evidence/per-event data
+// already rendered elsewhere on this page — nothing about the fallback can
+// affect the number either.
 
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
@@ -32,7 +42,7 @@ import Input from '@/components/ui/Input';
 import Badge, { type BadgeVariant } from '@/components/ui/Badge';
 import { LOGO_HEIGHT } from '@/components/layout/NavBar';
 import type { HailViewLookupResponse } from '@/app/api/hailview/storm-history/route';
-import type { MaterialCategory, MembraneMilThickness, MetalGauge, ReplacementTier } from '@/lib/hailview/types';
+import type { MaterialCategory, MembraneMilThickness, MetalGauge, ReplacementTier, ShingleType } from '@/lib/hailview/types';
 
 // afs-hv-006 — Leaflet touches window/document at import time, so the map
 // is loaded client-only via next/dynamic({ ssr: false }); Next's SSR pass
@@ -66,6 +76,26 @@ const R_PANEL_GAUGES: MetalGauge[] = ['29ga', '26ga', '24ga'];
 const STANDING_SEAM_GAUGES: MetalGauge[] = ['26ga', '24ga', '22ga'];
 const MEMBRANE_THICKNESSES: MembraneMilThickness[] = [45, 60, 80];
 
+// Added in hv2-01. The two shingle types have DIFFERENT PUBLISHED damage
+// onsets — 1.00 in for 3-tab, 1.25 in for laminated/architectural (IIBEC /
+// Smith 2013) — so this is a real scoring input, not a display detail. The
+// pre-V2 page never collected it and never sent it, which meant every
+// asphalt lookup silently used one curve.
+const SHINGLE_TYPE_OPTIONS: { value: ShingleType; label: string }[] = [
+  { value: 'architectural', label: 'Architectural / Laminated' },
+  { value: '3-tab', label: '3-Tab' },
+];
+
+/** Materials whose policies usually carry a cosmetic-damage exclusion. */
+const COSMETIC_EXCLUSION_MATERIALS: TopLevelMaterial[] = ['metal', 'tpo_pvc_membrane'];
+
+const EVIDENCE_GRADE_BADGE: Record<'A' | 'B' | 'C' | 'D', BadgeVariant> = {
+  A: 'success',
+  B: 'success',
+  C: 'warning',
+  D: 'error',
+};
+
 const MATERIAL_DISPLAY_LABELS: Record<MaterialCategory, string> = {
   asphalt_shingle: 'Asphalt Shingle Roofing',
   metal_r_panel: 'Metal Roofing — R-Panel',
@@ -89,38 +119,37 @@ const labelClass = 'font-label text-xs uppercase tracking-wide text-afs-chrome-m
 
 // Fallback-only explanation — rendered when `result.narrative` is empty
 // (the agent call failed server-side; see file header). A plain deterministic
-// template string built from the same score/tier/factors data already shown
-// elsewhere on this page, so the tool degrades gracefully instead of ever
-// showing a blank explanation panel.
+// template built from the same V2 fields already rendered elsewhere on this
+// page, so the tool degrades gracefully instead of ever showing a blank
+// explanation panel. Nothing here can affect the number.
 function buildFallbackExplanation(result: HailViewLookupResponse): string {
-  const { score, tier, factors, hailEvents, nonHailEventCount } = result;
-  const qualifying = factors.qualifyingEventCount;
-  const eventWord = qualifying === 1 ? 'event' : 'events';
-
+  const pct = (p: number) => `${Math.round(p * 100)}%`;
   const sentences: string[] = [
-    `Your roof scored ${score} (${tier}), based on ${qualifying} qualifying hail ${eventWord} over the last 5 years within 1 mile of this address.`,
+    `Based on the storm history near this address, the estimated chance an insurer would pay for a full roof replacement is ${pct(result.probability)} (range ${pct(result.low)} to ${pct(result.high)}).`,
+    `Evidence grade ${result.evidenceGrade}: ${result.evidenceGradeReason}`,
   ];
 
-  if (factors.largestQualifyingEvent) {
-    const e = factors.largestQualifyingEvent;
-    sentences.push(`The largest qualifying event was ${e.sizeIn}" hail recorded on ${e.validAt.slice(0, 10)}.`);
+  const inWindow = result.perEvent.filter((e) => e.windowStatus === 'in_window');
+  const outside = result.perEvent.filter((e) => e.windowStatus === 'outside_window');
+
+  if (inWindow.length === 0) {
+    sentences.push(
+      `No storm inside the typical ${result.claimWindowMonths}-month claim window produced hail likely to have functionally damaged this roof.`
+    );
   } else {
-    sentences.push('No hail events at or above this material’s damage-onset size were found for this address.');
+    const driver = inWindow.reduce((a, b) => (b.claimContribution > a.claimContribution ? b : a));
+    sentences.push(
+      `The storm carrying the most weight is ${driver.convectiveDayUtc}, with hail estimated at ${driver.estimatedSizeIn.toFixed(2)} inches at your address (${driver.estimatedSizeLowIn.toFixed(2)}–${driver.estimatedSizeHighIn.toFixed(2)} inches), ${driver.interpolation} from ${driver.reportCount} nearby report(s).`
+    );
   }
 
-  const breakdown: string[] = [
-    `hail severity ${factors.hailSeveritySubscore.toFixed(1)} pts`,
-    `frequency ${factors.frequencySubscore.toFixed(1)} pts`,
-  ];
-  if (factors.ageSubscore > 0) breakdown.push(`age ${factors.ageSubscore.toFixed(1)} pts`);
-  if (factors.metalAgeSubscore > 0) breakdown.push(`age-related wear ${factors.metalAgeSubscore.toFixed(1)} pts`);
-  if (factors.materialBonus > 0) breakdown.push(`${factors.materialBonusLabel ?? 'material bonus'} +${factors.materialBonus} pts`);
-  sentences.push(`Score breakdown: ${breakdown.join(', ')}.`);
+  if (outside.length > 0) {
+    sentences.push(
+      `${outside.length} earlier storm(s) were found but fall outside the typical claim window, so they add nothing to this result even where the hail was larger.`
+    );
+  }
 
-  sentences.push(
-    `${hailEvents.length} hail report(s) and ${nonHailEventCount} other storm report(s) were found in this radius over the same period.`
-  );
-
+  sentences.push(result.sensitivity.note);
   return sentences.join(' ');
 }
 
@@ -128,8 +157,15 @@ interface HailViewRequestBody {
   address: string;
   material: MaterialCategory;
   roofAgeYears?: number;
+  shingleType?: ShingleType;
   metalGauge?: MetalGauge;
   membraneMilThickness?: MembraneMilThickness;
+  /**
+   * Whether the policy excludes cosmetic damage. Sent explicitly rather than
+   * left to the engine's per-material default, so the number always matches
+   * the control the user can actually see.
+   */
+  cosmeticExclusion?: boolean;
 }
 
 // SPEC_HAILVIEW.md Section 8 — consent-based "email me my own result" capture.
@@ -158,6 +194,10 @@ export default function HailViewPage() {
   const [metalSubtype, setMetalSubtype] = useState<MetalSubtype>('metal_r_panel');
   const [metalGauge, setMetalGauge] = useState<MetalGauge | ''>('');
   const [membraneMilThickness, setMembraneMilThickness] = useState<MembraneMilThickness | ''>('');
+  const [shingleType, setShingleType] = useState<ShingleType>('architectural');
+  // Defaults ON, matching DEFAULT_COSMETIC_EXCLUSION in lib/hailview/v2/claims.ts:
+  // cosmetic-damage exclusion endorsements are near-standard on metal roofs.
+  const [cosmeticExclusion, setCosmeticExclusion] = useState(true);
   const [roofAgeYears, setRoofAgeYears] = useState('');
 
   const [loading, setLoading] = useState(false);
@@ -170,11 +210,17 @@ export default function HailViewPage() {
   const [emailReportMessage, setEmailReportMessage] = useState<string | null>(null);
 
   const gaugeOptions = metalSubtype === 'metal_standing_seam' ? STANDING_SEAM_GAUGES : R_PANEL_GAUGES;
+  const showsCosmeticToggle =
+    materialType !== '' && COSMETIC_EXCLUSION_MATERIALS.includes(materialType);
 
   function selectMaterialType(value: TopLevelMaterial) {
     setMaterialType(value);
     setMetalGauge('');
     setMembraneMilThickness('');
+    // Re-assert the per-material default whenever the material changes, so
+    // a toggle left on from a previous selection cannot carry over into a
+    // material it does not apply to.
+    setCosmeticExclusion(COSMETIC_EXCLUSION_MATERIALS.includes(value));
   }
 
   function selectMetalSubtype(value: MetalSubtype) {
@@ -206,9 +252,11 @@ export default function HailViewPage() {
       address: address.trim(),
       material,
       roofAgeYears: parsedAge,
+      shingleType: materialType === 'asphalt_shingle' ? shingleType : undefined,
       metalGauge: materialType === 'metal' && metalGauge ? metalGauge : undefined,
       membraneMilThickness:
         materialType === 'tpo_pvc_membrane' && membraneMilThickness !== '' ? membraneMilThickness : undefined,
+      cosmeticExclusion: showsCosmeticToggle ? cosmeticExclusion : undefined,
     };
 
     setLoading(true);
@@ -264,6 +312,18 @@ export default function HailViewPage() {
           score: result.score,
           tier: result.tier,
           narrative: result.narrative || buildFallbackExplanation(result),
+          // hv2-01 — the emailed report carries the same V2 context the page
+          // shows, so a forwarded copy cannot read as a bare score again.
+          probability: result.probability,
+          low: result.low,
+          high: result.high,
+          evidenceGrade: result.evidenceGrade,
+          evidenceGradeReason: result.evidenceGradeReason,
+          modelVersion: result.modelVersion,
+          claimWindowMonths: result.claimWindowMonths,
+          cosmeticExclusion: result.cosmeticExclusion,
+          sensitivityNote: result.sensitivity.note,
+          perEvent: result.perEvent,
         }),
       });
       const data = (await res.json().catch(() => null)) as EmailReportResponse | null;
@@ -361,6 +421,31 @@ export default function HailViewPage() {
               </select>
             </div>
 
+            {materialType === 'asphalt_shingle' && (
+              <div>
+                <label className={labelClass} htmlFor="hailview-shingle-type">
+                  Shingle Type
+                </label>
+                <select
+                  id="hailview-shingle-type"
+                  className={selectClass}
+                  value={shingleType}
+                  onChange={(e) => setShingleType(e.target.value as ShingleType)}
+                  data-testid="hailview-shingle-type-select"
+                >
+                  {SHINGLE_TYPE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value} className={optionClass}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="font-body text-xs text-afs-chrome-silver mt-2">
+                  3-tab shingles are damaged by smaller hail than architectural
+                  (laminated) shingles &mdash; 1.00&Prime; against 1.25&Prime;.
+                </p>
+              </div>
+            )}
+
             {materialType === 'metal' && (
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -429,6 +514,30 @@ export default function HailViewPage() {
               </div>
             )}
 
+            {showsCosmeticToggle && (
+              <div className="border border-afs-border rounded p-4 bg-afs-bg-overlay">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={cosmeticExclusion}
+                    onChange={(e) => setCosmeticExclusion(e.target.checked)}
+                    className="mt-1 h-4 w-4 accent-afs-crimson"
+                    data-testid="hailview-cosmetic-exclusion-toggle"
+                  />
+                  <span>
+                    <span className="font-label text-xs uppercase tracking-wide text-afs-chrome-high block mb-1">
+                      Policy excludes cosmetic damage
+                    </span>
+                    <span className="font-body text-xs text-afs-chrome-silver">
+                      Most metal-roof policies carry a cosmetic-damage exclusion: dents that do not
+                      let water in are not paid. Leave this on unless you have checked your policy
+                      and know otherwise. With it on, denting alone adds nothing to the result.
+                    </span>
+                  </span>
+                </label>
+              </div>
+            )}
+
             {materialType && (
               <Input
                 id="hailview-roof-age"
@@ -453,21 +562,192 @@ export default function HailViewPage() {
 
         {result && (
           <div className="space-y-6">
+            {/* HEADLINE. The number has ONE stated meaning and the label
+                says it: the chance an insurer pays for a FULL ROOF
+                REPLACEMENT. Pre-V2 this read "Replacement Probability" over
+                a points total that was not a probability of anything. */}
             <div className="bg-afs-bg-raised border border-afs-border rounded metal-edge-red p-6">
-              <p className="font-body text-sm text-afs-chrome-dim mb-4">{result.address}</p>
+              <p className="font-body text-sm text-afs-chrome-silver mb-4">{result.address}</p>
               <p className="font-label text-xs uppercase tracking-wide text-afs-chrome-mid mb-1">
                 {MATERIAL_DISPLAY_LABELS[result.material]}
               </p>
-              <div className="flex items-end gap-4 mb-2">
+              <div className="flex items-end gap-3 mb-1">
                 <span className="font-display text-8xl leading-none text-afs-chrome-high" data-testid="hailview-score">
                   {result.score}
                 </span>
-                <span className="font-body text-sm text-afs-chrome-dim mb-2">/ 100</span>
+                <span className="font-body text-2xl text-afs-chrome-mid mb-2">%</span>
               </div>
-              <Badge variant={TIER_BADGE_VARIANT[result.tier]} size="md">
-                <span data-testid="hailview-tier">{result.tier} Replacement Probability</span>
-              </Badge>
+              <p className="font-body text-sm text-afs-chrome-high mb-1">
+                estimated chance an insurer pays for a <strong>full roof replacement</strong>
+              </p>
+              <p className="font-data text-xs text-afs-chrome-silver mb-4" data-testid="hailview-range">
+                Range {Math.round(result.low * 100)}%&ndash;{Math.round(result.high * 100)}%
+              </p>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant={TIER_BADGE_VARIANT[result.tier]} size="md">
+                  <span data-testid="hailview-tier">{result.tier}</span>
+                </Badge>
+                <Badge variant={EVIDENCE_GRADE_BADGE[result.evidenceGrade]} size="md">
+                  <span data-testid="hailview-evidence-grade">Evidence {result.evidenceGrade}</span>
+                </Badge>
+              </div>
+              <p className="font-body text-xs text-afs-chrome-silver mt-3" data-testid="hailview-evidence-reason">
+                {result.evidenceGradeReason}
+              </p>
+
+              {/* UNCALIBRATED DISCLOSURE. Reads the real modelVersion rather
+                  than a hardcoded label, so it cannot drift from the engine. */}
+              <p
+                className="font-label text-xs uppercase tracking-wide text-afs-warning-on-dark mt-4"
+                data-testid="hailview-uncalibrated-disclosure"
+              >
+                Uncalibrated model &mdash; {result.modelVersion}
+              </p>
+              <p className="font-body text-xs text-afs-chrome-silver mt-1">
+                This model has not yet been fitted against real claim outcomes. Treat it as a
+                data-backed indication, not a prediction of what your carrier will decide.
+              </p>
             </div>
+
+            {/* GUARD FLAGS. The deterministic reviewer never edits the
+                number — a failed invariant is shown, not hidden. */}
+            {result.guardFlags.length > 0 && (
+              <div
+                className="bg-afs-bg-raised border border-afs-crimson rounded p-6"
+                data-testid="hailview-guard-flags"
+              >
+                <h2 className="font-heading text-lg font-semibold text-afs-danger-on-dark mb-2">
+                  Internal consistency check failed
+                </h2>
+                <p className="font-body text-xs text-afs-chrome-silver mb-3">
+                  The number above was produced as shown and has not been altered. These checks did
+                  not hold, so treat the result with caution and report it.
+                </p>
+                <ul className="space-y-2">
+                  {result.guardFlags.map((flag) => (
+                    <li key={flag} className="font-body text-sm text-afs-chrome-high">
+                      {flag}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* PER-STORM TABLE. Every size here is ESTIMATED AT THE ADDRESS
+                by triangulation from nearby reports — never described as
+                confirmed or measured at the property. */}
+            <div className="bg-afs-bg-raised border border-afs-border rounded metal-edge p-6">
+              <h2 className="font-heading text-2xl font-semibold text-afs-chrome-high mb-1">Storms Considered</h2>
+              <p className="font-body text-xs text-afs-chrome-silver mb-4">
+                One row per storm, not per report. Hail sizes are{' '}
+                <strong>estimated at your address</strong> by triangulating nearby storm-spotter
+                reports &mdash; they are not measurements taken at your property.
+              </p>
+
+              {result.perEvent.length === 0 ? (
+                <p className="font-body text-sm text-afs-chrome-silver" data-testid="hailview-no-events">
+                  No hail-producing storms were found near this address in the search window. Small
+                  towns generate fewer reports than cities, so this is weak evidence of no hail
+                  rather than proof of it.
+                </p>
+              ) : (
+                <ul className="space-y-4" data-testid="hailview-per-event">
+                  {result.perEvent.map((event) => (
+                    <li key={event.eventId} className="border-b border-afs-border pb-4 last:border-b-0 last:pb-0">
+                      <div className="flex items-start justify-between gap-3 mb-1">
+                        <p className="font-body text-sm text-afs-chrome-high">{event.convectiveDayUtc}</p>
+                        <span className="font-data text-sm text-afs-chrome-high whitespace-nowrap">
+                          ~{event.estimatedSizeIn.toFixed(2)}&Prime; estimated
+                        </span>
+                      </div>
+                      <p className="font-data text-xs text-afs-chrome-silver mb-2">
+                        {event.estimatedSizeLowIn.toFixed(2)}&Prime;&ndash;
+                        {event.estimatedSizeHighIn.toFixed(2)}&Prime; at your address &middot;{' '}
+                        {event.interpolation === 'interpolated'
+                          ? 'between reports on opposing sides'
+                          : 'extrapolated from one side'}{' '}
+                        &middot; largest reported anywhere in this storm {event.maxReportedSizeIn}&Prime;
+                      </p>
+                      <p className="font-body text-xs text-afs-chrome-silver mb-2">
+                        {event.reportCount} report{event.reportCount === 1 ? '' : 's'} (
+                        {event.measuredCount} measured, {event.estimatedCount} spotter-estimated)
+                        {Number.isFinite(event.nearestReportMi)
+                          ? `, nearest ${event.nearestReportMi.toFixed(1)} mi away`
+                          : ''}{' '}
+                        &middot; functional damage {Math.round(event.pFunctional * 100)}%, cosmetic{' '}
+                        {Math.round(event.pCosmetic * 100)}%
+                      </p>
+                      <p
+                        className={
+                          event.windowStatus === 'in_window'
+                            ? 'font-label text-xs uppercase tracking-wide text-afs-success-on-dark'
+                            : 'font-label text-xs uppercase tracking-wide text-afs-warning-on-dark'
+                        }
+                      >
+                        {event.windowLabel}
+                      </p>
+                      {event.cosmeticSuppressed && (
+                        <p className="font-body text-xs text-afs-chrome-silver mt-1">
+                          Cosmetic damage from this storm adds nothing, because the policy setting
+                          above excludes it.
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {result.bestDateOfLoss && (
+                <p className="font-body text-sm text-afs-chrome-high mt-4" data-testid="hailview-best-date-of-loss">
+                  Most likely date of loss to cite: <strong>{result.bestDateOfLoss.convectiveDayUtc}</strong>
+                </p>
+              )}
+            </div>
+
+            {/* SENSITIVITY — deterministic, from re-running the engine. */}
+            <div className="bg-afs-bg-raised border border-afs-border rounded metal-edge p-6">
+              <h2 className="font-heading text-lg font-semibold text-afs-chrome-high mb-2">
+                What Moves This Number
+              </h2>
+              <p className="font-body text-sm text-afs-chrome-high" data-testid="hailview-sensitivity">
+                {result.sensitivity.note}
+              </p>
+              <p className="font-body text-xs text-afs-chrome-silver mt-3">
+                {result.constantsProvenanceSummary.summary}
+              </p>
+            </div>
+
+            {/* ADVISORY AUDIT FLAGS. Written by the agentic layer; they
+                comment on the DATA and can never change the number. */}
+            {result.auditFlags.length > 0 && (
+              <div
+                className="bg-afs-bg-raised border border-afs-border rounded metal-edge p-6"
+                data-testid="hailview-audit-flags"
+              >
+                <h2 className="font-heading text-lg font-semibold text-afs-chrome-high mb-1">Data Notes</h2>
+                <p className="font-body text-xs text-afs-chrome-silver mb-3">
+                  Observations about the underlying storm data. Advisory only &mdash; these do not
+                  change the result above.
+                </p>
+                <ul className="space-y-2">
+                  {result.auditFlags.map((flag, i) => (
+                    <li key={`${flag.kind}-${i}`} className="font-body text-sm text-afs-chrome-high">
+                      <span
+                        className={
+                          flag.severity === 'caution'
+                            ? 'font-label text-xs uppercase tracking-wide text-afs-warning-on-dark mr-2'
+                            : 'font-label text-xs uppercase tracking-wide text-afs-info-on-dark mr-2'
+                        }
+                      >
+                        {flag.kind.replace(/_/g, ' ')}
+                      </span>
+                      {flag.message}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <div className="bg-afs-bg-raised border border-afs-border rounded metal-edge p-6">
               <h2 className="font-heading text-2xl font-semibold text-afs-chrome-high mb-4">Storm History Timeline</h2>
