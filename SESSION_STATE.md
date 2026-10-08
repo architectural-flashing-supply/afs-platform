@@ -10076,3 +10076,6 @@ Known risks: null lengthFt/quantity render as 0 in QuoteEstimatorForm (send bloc
 ## 2026-10-07 - Products: photo-traced hero piece + wallpaper
 - Rebuilt rotating piece from Reid's photo (rolled-bead wall, wide floor with jog, flanged right edge); no box, larger. Inch dimensions are estimates (photo has no scale). WebGL look UNVERIFIED headless.
 - Added static faint profile line-art wallpaper (ProductsWallpaper) behind the products page.
+
+## 2026-10-07 - Products header piece: same rotation as product 3D preview
+- One 30s turn then stop (matches PRODUCT_ROTATION_SECONDS), drag-to-rotate afterwards, reduced-motion static. UNVERIFIED visually.

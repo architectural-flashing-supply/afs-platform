@@ -47,7 +47,7 @@ const PROFILE: ReadonlyArray<readonly [number, number]> = [
 ];
 const THICKNESS = 0.07;
 const LENGTH = 5;
-const TURN_SECONDS = 26;
+const TURN_SECONDS = 30; // matches PRODUCT_ROTATION_SECONDS in ProductProfilePreview3D
 
 /** Closed ribbon (sheet metal with thickness) swept along z, mitred at bends. */
 function ribbonGeometry(pts: ReadonlyArray<readonly [number, number]>, t: number, len: number) {
@@ -164,17 +164,49 @@ export default function ProductsHeaderBackdrop() {
     let frame = 0;
     let last = performance.now();
     let angle = -0.75;
+    // Same behaviour as the product 3D preview: ONE slow turn, then stop.
+    // The viewer can then drag it to turn it by hand.
+    let remaining = reduced ? 0 : 2 * Math.PI;
+    let dragging = false;
+    let lastX = 0;
+    const onDown = (e: PointerEvent) => {
+      dragging = true;
+      lastX = e.clientX;
+      remaining = 0; // taking over by hand ends the automatic turn
+      host.setPointerCapture(e.pointerId);
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!dragging) return;
+      angle += (e.clientX - lastX) * 0.01;
+      lastX = e.clientX;
+    };
+    const onUp = (e: PointerEvent) => {
+      dragging = false;
+      if (host.hasPointerCapture(e.pointerId)) host.releasePointerCapture(e.pointerId);
+    };
+    host.addEventListener('pointerdown', onDown);
+    host.addEventListener('pointermove', onMove);
+    host.addEventListener('pointerup', onUp);
+    host.addEventListener('pointercancel', onUp);
     const tick = (now: number) => {
       frame = requestAnimationFrame(tick);
       const dt = Math.min(now - last, 100);
       last = now;
-      if (!reduced) angle += (2 * Math.PI * dt) / (TURN_SECONDS * 1000);
+      if (remaining > 0) {
+        const step = Math.min(remaining, (2 * Math.PI * dt) / (TURN_SECONDS * 1000));
+        angle += step;
+        remaining -= step;
+      }
       group.rotation.y = angle;
       renderer.render(scene, camera);
     };
     frame = requestAnimationFrame(tick);
 
     return () => {
+      host.removeEventListener('pointerdown', onDown);
+      host.removeEventListener('pointermove', onMove);
+      host.removeEventListener('pointerup', onUp);
+      host.removeEventListener('pointercancel', onUp);
       cancelAnimationFrame(frame);
       ro.disconnect();
       geom.dispose();
@@ -190,7 +222,7 @@ export default function ProductsHeaderBackdrop() {
     <div
       ref={hostRef}
       aria-hidden="true"
-      className="pointer-events-none absolute right-0 top-0 hidden h-[19rem] w-[22rem] md:block lg:right-6 lg:w-[30rem] xl:w-[34rem]"
+      className="absolute right-0 top-0 hidden cursor-grab touch-pan-y active:cursor-grabbing h-[19rem] w-[22rem] md:block lg:right-6 lg:w-[30rem] xl:w-[34rem]"
     />
   );
 }
