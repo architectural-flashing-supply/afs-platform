@@ -17199,3 +17199,6 @@ Inbound email -> idempotent store -> classify -> existing takeoff engine -> draf
 
 ## 2026-10-07 - Products header piece: same rotation as product 3D preview
 - One 30s turn then stop (matches PRODUCT_ROTATION_SECONDS), drag-to-rotate afterwards, reduced-motion static. UNVERIFIED visually.
+
+## 2026-10-07 - Products header: real T Style Drip Edge viewer; wallpaper removed
+- Header now renders the real product (t-style-drip-edge) via ProductProfilePreview3D (same viewer and one-turn rotation as the popup). Deleted ProductsWallpaper and the hand-traced ProductsHeaderBackdrop(+Loader). UNVERIFIED visually (WebGL).
