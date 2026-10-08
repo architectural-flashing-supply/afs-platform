@@ -5,6 +5,7 @@ import { fetchWindContextForDate } from '@/lib/hailview/wind';
 import { collectHailEvidence } from '@/lib/hailview/v2/evidence';
 import { evaluateWithGuard } from '@/lib/hailview/v2/guard';
 import { generateHailViewExplanation, type AuditFlag } from '@/lib/hailview/explanation';
+import { signHailViewReport } from '@/lib/hailview/report-signature';
 import type { MaterialCategory, MembraneMilThickness, MetalGauge, ReplacementTier, ShingleType, StormEvent } from '@/lib/hailview/types';
 import type { EngineResult } from '@/lib/hailview/v2/engine';
 import type { WindContext } from '@/lib/hailview/wind';
@@ -98,6 +99,19 @@ export interface HailViewLookupResponse {
   narrative: string;
   /** Advisory only — never affects the number. */
   auditFlags: AuditFlag[];
+
+  /**
+   * HMAC over every field the emailed report renders. The email endpoint
+   * REFUSES to send a report it cannot verify, which is what stops that
+   * public endpoint being an open relay for attacker-authored content —
+   * see lib/hailview/report-signature.ts.
+   *
+   * `null` when no signing secret is available (neither
+   * HAILVIEW_REPORT_SECRET nor SUPABASE_SERVICE_ROLE_KEY). The lookup still
+   * works and still renders; only the "email me this" button cannot be
+   * honoured, which the UI reports honestly rather than failing the lookup.
+   */
+  reportSignature: string | null;
 }
 
 function isValidBody(body: unknown): body is HailViewLookupRequestBody {
@@ -268,7 +282,34 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       windUnavailableReason,
       narrative: explanation.narrative,
       auditFlags: explanation.auditFlags,
+      reportSignature: null,
     };
+
+    // Signed LAST, over the response that was actually built, so the MAC can
+    // never cover a different value from the one the customer is shown.
+    try {
+      response.reportSignature = signHailViewReport({
+        address: response.address,
+        material: response.material,
+        score: response.score,
+        tier: response.tier,
+        narrative: response.narrative,
+        probability: response.probability,
+        low: response.low,
+        high: response.high,
+        evidenceGrade: response.evidenceGrade,
+        evidenceGradeReason: response.evidenceGradeReason,
+        modelVersion: response.modelVersion,
+        claimWindowMonths: response.claimWindowMonths,
+        cosmeticExclusion: response.cosmeticExclusion,
+        sensitivityNote: response.sensitivity.note,
+        perEvent: response.perEvent,
+      });
+    } catch (error) {
+      // No signing secret configured. The lookup is still valid and is still
+      // returned — only emailing it is unavailable.
+      console.error('[HailView Report Signature Error]', error);
+    }
 
     return NextResponse.json(response);
   } catch (error) {

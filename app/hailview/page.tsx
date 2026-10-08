@@ -294,6 +294,15 @@ export default function HailViewPage() {
     setEmailReportError(null);
 
     if (!result) return;
+    // hv2-03 — the email endpoint refuses an unverifiable report, so without
+    // a signature there is nothing to send. Said here rather than letting the
+    // POST come back 400.
+    if (!result.reportSignature) {
+      setEmailReportError(
+        'Emailing this result is not available on this deployment. You can screenshot or print this page to save it.'
+      );
+      return;
+    }
     const trimmedEmail = reportEmail.trim();
     if (!EMAIL_PATTERN.test(trimmedEmail)) {
       setEmailReportError('Enter a valid email address.');
@@ -324,6 +333,9 @@ export default function HailViewPage() {
           cosmeticExclusion: result.cosmeticExclusion,
           sensitivityNote: result.sensitivity.note,
           perEvent: result.perEvent,
+          // hv2-03 — the email endpoint refuses any report it cannot verify.
+          // This is the MAC the lookup route produced over the fields above.
+          reportSignature: result.reportSignature,
         }),
       });
       const data = (await res.json().catch(() => null)) as EmailReportResponse | null;
@@ -797,11 +809,19 @@ export default function HailViewPage() {
 
             <div className="bg-afs-bg-raised border border-afs-border rounded metal-edge p-6">
               <h2 className="font-heading text-2xl font-semibold text-afs-chrome-high mb-2">Email Me This Result</h2>
-              <p className="font-body text-sm text-afs-chrome-dim mb-4">
+              <p className="font-body text-sm text-afs-chrome-silver mb-4">
                 Send a copy of this lookup to your own inbox. We only use this to deliver your result.
               </p>
 
-              {emailReportStatus === 'sent' ? (
+              {!result.reportSignature ? (
+                <p
+                  className="font-body text-sm text-afs-warning-on-dark"
+                  data-testid="hailview-email-report-unavailable"
+                >
+                  Emailing this result is not available on this deployment. You can screenshot or
+                  print this page to save it.
+                </p>
+              ) : emailReportStatus === 'sent' ? (
                 <p className="font-body text-sm text-afs-accent-green" data-testid="hailview-email-report-sent">
                   Sent — check {reportEmail.trim()} for your report.
                 </p>

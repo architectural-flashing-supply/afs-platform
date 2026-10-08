@@ -34,6 +34,114 @@ summary, not a replacement for it.
 
 ---
 
+## HAILVIEW EMAIL REPORT: THE OPEN-RELAY HALF IS CLOSED BY A SIGNED REPORT (hv2-03, 2026-10-08)
+
+**Branch `feat/hailview-engine-v2`. NOT merged, NOT deployed.** Gates: tsc 0;
+vitest 676 passed / 4 failed / 4 skipped (the same pre-existing pricing-ledger
+Supabase permission failures); build exit 0, contrast 24 screens / 248 pairs /
+0 unresolved / 0 below.
+
+**A second security review flagged the exact residual hv2-02 had recorded as
+PENDING REID — and the deferral was wrong.** hv2-02 said closing it meant
+recomputing the report server-side, which would add a geocode and an IEM fetch
+per send and could make the emailed number disagree with the one on the
+customer's screen, and that this was therefore a product decision. The first
+half of that was true; the conclusion was not. **There was a third option, and
+this codebase already uses it:** HMAC-sign the report.
+
+`lib/pricing/approve-token.ts` has signed the single-use quote-approve link
+since v2-03, including the derive-from-`SUPABASE_SERVICE_ROLE_KEY` construction
+that avoids requiring a new environment variable. Applying the same pattern
+here costs **nothing per send, changes no user-visible contract, cannot make the
+emailed number drift, needs no new env var and adds no dependency.** It was
+available the whole time.
+
+### WHAT IT DOES
+
+`lib/hailview/report-signature.ts`. The LOOKUP route signs the response it just
+built — last, over the object actually returned, so the MAC can never cover a
+different value from the one the customer is shown. The EMAIL route verifies
+before it sends anything and before the recipient is used for anything. The MAC
+covers EVERY field the email renders; a single altered character invalidates it.
+
+Four details are load-bearing:
+
+- **The canonical form LENGTH-PREFIXES every value.** Plain concatenation
+  would let an address ending "AB" with a narrative "CD" produce the same
+  signing input as an address "A" with a narrative "BCD" — a textbook MAC
+  canonicalization break. A test asserts both directions fail.
+- **The expiry is covered by the MAC and checked AFTER it**, so a hand-edited
+  expiry fails as a forgery rather than as an expiry. Same ordering, and same
+  reason, as the quote token.
+- **The key-derivation LABEL differs from the quote token's**
+  (`afs-hailview-report-v1`). Both derive from the same service-role key, so a
+  shared label would mean a shared key and a value signed for one purpose
+  could be presented for the other. A test asserts the two derived keys differ.
+- **An empty `perEvent` list and an absent one sign differently**, because
+  they render differently (one prints the honest "no storms found" block, the
+  other omits the section).
+
+The TTL is **2 hours**. A real user types their email seconds after seeing the
+result; nobody needs to mail last week's lookup.
+
+Also added, following `app/api/track/verify/route.ts`'s existing pattern: a
+**per-IP rate limit of 10 sends/hour**. In a serverless deployment the map is
+per instance, so it is a speed bump rather than a quota — it is commented as
+such in the route, and a durable limit is listed below as still open.
+
+### LIVE ABUSE TEST AGAINST THE REAL ROUTES — EVERY CASE REFUSED
+
+A genuine lookup, then eleven tampered sends:
+
+| payload | outcome |
+|---|---|
+| genuine report + valid signature | accepted (not sent — Resend unconfigured locally, the correct degrade) |
+| **phishing prose swapped into `narrative`** | **400 refused** |
+| `<script>` + `<a href>` injected into `narrative` | **400 refused** |
+| address rewritten | **400 refused** |
+| one digit of the score changed | **400 refused** |
+| no signature at all | **400 refused** |
+| empty signature | **400 refused** |
+| forged signature | **400 refused** |
+| expiry extended by hand | **400 refused (tampered, not expired)** |
+| unknown `material` (hv2-01's raw-fallback hole) | **400 refused** |
+| `perEvent` entry not an object | **400 refused** |
+| `perEvent` size a string (hv2-01's 500) | **400 refused** |
+| 61 `perEvent` rows | **400 refused** |
+
+Rate limit: 11 further genuine sends from one IP produced **11 of 11 429s**
+after the hour's budget was spent.
+
+**29 new unit tests** in `lib/hailview/report-signature.test.ts`, carrying the
+real tamper cases including the phishing-prose swap, the character-shifting
+canonicalization attack, the rewritten expiry and the cross-label key check.
+
+### WHAT REMAINS, AND IT IS NARROW NOW
+
+**The RECIPIENT is not signed, and cannot be.** The user types their address
+into the form after the lookup has already been computed and signed; binding
+the MAC to a recipient would mean re-signing per keystroke.
+
+So the residual is: run a real lookup for any address, then mail that GENUINE
+report to somebody who did not ask for it. That is unsolicited mail bounded by
+the 2-hour TTL and the rate limit — **and it carries no attacker-authored
+prose, which was the part that made the original hole dangerous.** Closing it
+completely means authenticating the sender, which SPEC_HAILVIEW.md section 8
+deliberately does not do (the whole point is that a homeowner can look up their
+own roof without an account).
+
+**Still open, and genuinely infrastructural rather than deferred judgement:** a
+DURABLE rate limit needs a shared store (Redis/KV), which would be a new paid
+service. The in-process limit is honest about being per-instance.
+
+**UI behaviour when there is no signing secret:** the lookup still runs and
+still renders in full; only the email panel changes, to say emailing is
+unavailable on this deployment. The lookup is never failed over a missing email
+secret. `HAILVIEW_REPORT_SECRET` is documented in `.env.example` as OPTIONAL,
+with the derived-key fallback, exactly like `QUOTE_APPROVE_SECRET`.
+
+---
+
 ## HAILVIEW EMAIL REPORT: HTML INJECTION FIXED (hv2-02, 2026-10-08) — AND THE RESIDUAL SPOOFING RISK IS PENDING REID
 
 **Branch `feat/hailview-engine-v2`, same branch as hv2-01. NOT merged, NOT

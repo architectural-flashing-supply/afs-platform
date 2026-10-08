@@ -10157,3 +10157,54 @@ Closing that means recomputing the report server-side or emailing a stored
 lookup by id — which changes SPEC_HAILVIEW.md section 8's contract and adds an
 external fetch per send. It also predates hv2-01: the pre-V2 route already took
 a free-text narrative and address for an arbitrary recipient.
+
+---
+
+## 2026-10-08 (later still) — feat/hailview-engine-v2 (hv2-03): the email endpoint now refuses any report it cannot verify
+
+**A second security review flagged the open-email-relay residual that hv2-02
+had recorded as PENDING REID. The deferral was wrong, and this corrects it.**
+
+hv2-02 reasoned that closing it meant recomputing the report server-side —
+extra geocode + IEM fetch per send, and a possible mismatch between the emailed
+number and the one on screen — and concluded it was therefore Reid's decision.
+There was a third option this codebase **already uses**:
+`lib/pricing/approve-token.ts` signs the quote-approve link with an HMAC, with
+the key derived from `SUPABASE_SERVICE_ROLE_KEY` so no new env var is needed.
+The same pattern applies here at zero cost per send, with no contract change
+and no number drift.
+
+**Built** `lib/hailview/report-signature.ts`. The lookup route signs its own
+response last, over the object actually returned; the email route verifies
+before sending and before touching the recipient. The MAC covers every rendered
+field. Load-bearing details: the canonical form length-prefixes every value (so
+characters cannot be shifted between adjacent fields to collide two reports);
+the expiry is covered by the MAC and checked after it (a hand-edited expiry
+fails as a forgery); the key-derivation label differs from the quote token's (so
+the two derived keys cannot be cross-used); and an empty `perEvent` signs
+differently from an absent one. TTL 2 hours. Plus a per-IP 10/hour rate limit,
+following `app/api/track/verify/route.ts`.
+
+**Live abuse test, real routes, 13 payloads: every tampered one refused 400** —
+phishing prose swapped into the narrative, script/anchor injection, rewritten
+address, a single changed digit, missing/empty/forged signature, hand-extended
+expiry, unknown material, malformed `perEvent` (including the input that used to
+be a 500), and an over-cap `perEvent`. The genuine one was accepted and
+correctly reported not-sent (Resend unconfigured locally). 11 further genuine
+sends from one IP: 11 of 11 429s.
+
+**Gates:** tsc 0 · vitest 676 passed / 4 failed / 4 skipped (same pre-existing
+pricing-ledger permission failures) · build exit 0, contrast 24 screens / 248
+pairs / 0 unresolved / 0 below. 29 new unit tests.
+
+**What remains is narrow and stated honestly:** the recipient cannot be signed
+(the user types it after the lookup), so a genuine report can still be mailed to
+someone who did not ask for it — unsolicited, bounded by the TTL and the rate
+limit, and carrying no attacker-authored prose. Closing that means
+authenticating the sender, which SPEC_HAILVIEW.md section 8 deliberately does
+not do. A durable rate limit needs a shared store, which would be a new paid
+service.
+
+**UNVERIFIED:** the email panel's no-signature state has not been seen by Reid
+in a browser (the signature resolves on this deployment, so that path renders
+only where no secret is set).
