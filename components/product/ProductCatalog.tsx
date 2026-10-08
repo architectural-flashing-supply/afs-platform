@@ -45,7 +45,7 @@ export default function ProductCatalog({ sections }: ProductCatalogProps) {
   return (
     <div className="mx-auto max-w-[1400px] px-4 pb-20 sm:px-6">
       {/* STICKY JUMP NAV + SEARCH */}
-      <div className="sticky top-0 z-20 -mx-4 mb-8 border-b border-afs-border-catalog bg-afs-bg-light/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
+      <div className="sticky top-0 z-20 -mx-4 mb-8 bg-afs-bg-light/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <nav aria-label="Product categories" className="min-w-0 lg:flex-1">
             <ul

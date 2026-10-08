@@ -18,10 +18,11 @@ import { previewShapeFor } from '@/lib/data/product-preview-shapes';
  * Motion: spins continuously, forever, with no controls. Reduced motion: static pose. Fully disposed on unmount.
  */
 const PRODUCT_ID = 't-style-drip-edge';
-const LENGTH_IN = 120; // a real 10 ft stick
-const THICKNESS_IN = 0.07;
+const LENGTH_IN = 30; // long enough to read as a stick, short enough to fit its frame whole
+const THICKNESS_IN = 0.05;
 const TURN_SECONDS = 30;
 const REST_ANGLE = -0.7;
+const TILT = 0.24; // gentle downward look so the top face of the deck reads
 
 type Pt = [number, number];
 
@@ -130,20 +131,57 @@ export default function ProductsHeroDripEdge() {
     const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     scene.environment = envTex;
 
-    const camera = new THREE.PerspectiveCamera(34, 1, 0.5, 400);
-    camera.position.set(0, 7, 72);
-    camera.lookAt(0, 0, 0);
+    const camera = new THREE.PerspectiveCamera(30, 1, 0.5, 400);
 
     const xs = profile.map((p) => p[0]);
     const ys = profile.map((p) => p[1]);
     const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
     const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
 
+    /**
+     * Closest camera distance at which the whole piece stays inside the frame
+     * at EVERY angle of its spin: the eight corners of its bounding box are
+     * projected through the real camera for 72 angles, and the distance is
+     * found by bisection. Neither end can ever be clipped, and the piece fills
+     * as much of the frame as the spin allows.
+     */
+    const halfX = (Math.max(...xs) - Math.min(...xs)) / 2;
+    const halfY = (Math.max(...ys) - Math.min(...ys)) / 2;
+    const corners: THREE.Vector3[] = [];
+    for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) corners.push(new THREE.Vector3(sx * halfX, sy * halfY, (sz * LENGTH_IN) / 2));
+    const fitDistance = (cam: THREE.PerspectiveCamera): number => {
+      const probe = cam.clone();
+      const rot = new THREE.Euler(TILT, 0, 0, 'XYZ');
+      const fits = (d: number): boolean => {
+        probe.position.set(0, 0, d);
+        probe.lookAt(0, 0, 0);
+        probe.updateMatrixWorld(true);
+        probe.updateProjectionMatrix();
+        const v = new THREE.Vector3();
+        for (let k = 0; k < 72; k++) {
+          rot.set(TILT, (k / 72) * Math.PI * 2, 0, 'XYZ');
+          for (const c of corners) {
+            v.copy(c).applyEuler(rot).project(probe);
+            if (v.z > 1 || Math.abs(v.x) > 0.96 || Math.abs(v.y) > 0.9) return false;
+          }
+        }
+        return true;
+      };
+      let lo = LENGTH_IN * 0.5 + 1;
+      let hi = LENGTH_IN * 10;
+      for (let i = 0; i < 30; i++) {
+        const mid = (lo + hi) / 2;
+        if (fits(mid)) hi = mid;
+        else lo = mid;
+      }
+      return hi;
+    };
+
     const mat = new THREE.MeshStandardMaterial({
-      color: 0xe3e7ec,
+      color: 0x8c95a0,
       metalness: 1,
-      roughness: 0.15,
-      envMapIntensity: 1.35,
+      roughness: 0.22,
+      envMapIntensity: 1.0,
       side: THREE.DoubleSide,
     });
     const geom = ribbonGeometry(profile, THICKNESS_IN, LENGTH_IN);
@@ -151,7 +189,7 @@ export default function ProductsHeroDripEdge() {
     mesh.position.set(-cx, -cy, 0);
     const group = new THREE.Group();
     group.add(mesh);
-    group.rotation.x = 0.28;
+    group.rotation.x = TILT;
     scene.add(group);
 
     const resize = () => {
@@ -160,6 +198,8 @@ export default function ProductsHeroDripEdge() {
       renderer.setSize(w, h, false);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
+      camera.position.set(0, 0, fitDistance(camera));
+      camera.lookAt(0, 0, 0);
     };
     resize();
     const ro = new ResizeObserver(resize);
@@ -195,7 +235,7 @@ export default function ProductsHeroDripEdge() {
     <div
       ref={hostRef}
       aria-hidden="true"
-      className="absolute inset-y-0 right-0 hidden w-full pointer-events-none md:block md:w-[72%] lg:w-[62%]"
+      className="absolute inset-y-0 right-0 hidden pointer-events-none md:block md:w-[58%] md:max-w-[46rem]"
     />
   );
 }

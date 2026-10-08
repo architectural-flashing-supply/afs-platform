@@ -17205,3 +17205,6 @@ Inbound email -> idempotent store -> classify -> existing takeoff engine -> draf
 
 ## 2026-10-07 - Products header: long drip-edge stick, perpetual spin
 - Replaced the grey-panel viewer with ProductsHeroDripEdge: real t-style-drip-edge section (previewShapeFor + open end hem), 10 ft long, transparent canvas, spins forever, no controls. UNVERIFIED visually (WebGL).
+
+## 2026-10-08 - Products header drip edge: fit to frame, verified by render
+- Analysed the real t-style-drip-edge render: 6in deck, nose open hem, leg 1.25in in from the nose, short kick with open end hem. Stick now 30in long, camera distance solved by bisection so the whole piece stays in frame at every spin angle (no clipped ends). Canvas contained in the header (overflow hidden). Removed the border-b under the profile-button bar. VERIFIED via software-rendered Playwright (swiftshader) screenshots at 3 spin angles.
