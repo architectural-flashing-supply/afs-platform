@@ -10116,3 +10116,44 @@ real scoring input — that needs his sign-off. Calibration data does not exist.
 Phase 2 is queued behind an MRMS feasibility spike (MESH is biased high and
 overestimates 1-2" hail — exactly the onset range — and GRIB2 on Vercel is
 unproven).
+
+---
+
+## 2026-10-08 (later) — feat/hailview-engine-v2 (hv2-02): security fix on hv2-01's own commit
+
+**An automated security review of hv2-01 flagged HTML injection in
+`app/api/hailview/email-report/route.ts`. It was real.** That route is an
+unauthenticated public POST that sends an AFS-branded email, from AFS's
+verified sending domain, to a recipient the caller picks — and hv2-01
+interpolated eleven caller-supplied strings into the body with no escaping.
+`material`, `tier` and `evidenceGrade` were typed as unions but never checked
+at runtime (and `material` had an explicit raw fallback), and `perEvent` was
+validated only with `Array.isArray`, so a non-number threw on `.toFixed()` and
+made a malformed request a 500.
+
+**Fixed:** new `lib/email/escape-html.ts` — ONE escaper, lifted out of
+`lib/quotes/email-template.ts`, which had been escaping correctly all along;
+the HailView route was the outlier, so it now imports instead of owning one.
+New `lib/hailview/email-report-html.ts` holds validation + rendering so both
+are unit-testable and the route is thin. Every string escaped, every enum
+checked at runtime, every free-text field length-capped, `perEvent`
+count-capped and fully validated, every number checked finite, and the subject
+collapsed to one line.
+
+**35 new tests**, carrying the actual payloads. One of my own tests was
+self-contradictory — it asserted both `not.toContain('onload=')` and
+`toContain('&quot; onload=')`, and the second contains the first. The property
+that matters is that the double quote is escaped so the attribute cannot be
+closed, not that the text disappears; corrected to `not.toContain('" onload=')`.
+
+**Gates:** tsc 0 · vitest 653 passed / 4 failed / 4 skipped (same pre-existing
+pricing-ledger permission failures) · build exit 0, contrast 24 screens / 248
+pairs / 0 unresolved / 0 below.
+
+**PENDING REID — not fixed, and deliberately not decided unilaterally:** the
+caller still supplies both the report content and the recipient, so a bounded
+plain-text AFS-branded message can still be sent to an arbitrary address.
+Closing that means recomputing the report server-side or emailing a stored
+lookup by id — which changes SPEC_HAILVIEW.md section 8's contract and adds an
+external fetch per send. It also predates hv2-01: the pre-V2 route already took
+a free-text narrative and address for an arbitrary recipient.

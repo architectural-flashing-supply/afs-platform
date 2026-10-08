@@ -19,6 +19,7 @@
 import { baseEmailTemplate } from '@/lib/resend/templates/base';
 import { formatCents } from '@/lib/pricing/quote-math';
 import type { QuoteLine } from '@/lib/pricing/types';
+import { escapeHtml } from '@/lib/email/escape-html';
 
 const COLORS = {
   green: '#1E7F45',
@@ -28,13 +29,6 @@ const COLORS = {
   white: '#FFFFFF',
 };
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
 export interface QuoteEmailInput {
   customerName: string | null;

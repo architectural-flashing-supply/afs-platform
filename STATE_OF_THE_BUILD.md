@@ -34,6 +34,80 @@ summary, not a replacement for it.
 
 ---
 
+## HAILVIEW EMAIL REPORT: HTML INJECTION FIXED (hv2-02, 2026-10-08) — AND THE RESIDUAL SPOOFING RISK IS PENDING REID
+
+**Branch `feat/hailview-engine-v2`, same branch as hv2-01. NOT merged, NOT
+deployed.** Gates: tsc 0; `pnpm vitest run` 653 passed / 4 failed / 4 skipped
+(the same 4 pre-existing `lib/pricing/ledger-append-only.test.ts` Supabase
+permission failures proven pre-existing in hv2-01's entry); `pnpm run build`
+exit 0 with contrast 24 screens / 248 pairs / 0 unresolved / 0 below.
+
+**Found by an automated security review of hv2-01's own commit, and it was
+real.** `app/api/hailview/email-report/route.ts` is an UNAUTHENTICATED PUBLIC
+POST that sends an AFS-branded email, from AFS's verified sending domain, to a
+recipient the caller chooses. hv2-01 interpolated **eleven caller-supplied
+strings** into that email body with **no escaping at all**: `address`,
+`narrative` (which additionally had its newlines turned into `<br/>`), `tier`,
+`material`, `evidenceGrade`, `evidenceGradeReason`, `modelVersion`,
+`sensitivityNote`, and three fields per `perEvent` entry.
+
+Two of those were worse than missing escaping:
+- **`material` was only `typeof === 'string'`**, never checked against the
+  enum, and the renderer fell back to `MATERIAL_LABELS[material] ?? material`
+  — so an arbitrary string reached the HTML by design. `tier` and
+  `evidenceGrade` had the same gap: a TypeScript union on a parsed JSON body
+  is an assertion, not a check.
+- **`perEvent` was validated only with `Array.isArray`.** Its numeric fields
+  were never checked, so a non-number threw on `.toFixed()` and turned a
+  malformed request into a 500.
+
+**Fixed, and the escaper is now shared.** New `lib/email/escape-html.ts` holds
+the one `escapeHtml` — lifted out of `lib/quotes/email-template.ts`, which had
+been using it correctly on every interpolated value all along. **The HailView
+route was the outlier**, which is exactly why it now imports rather than owns
+one. New `lib/hailview/email-report-html.ts` holds the validation and the
+rendering, so both are unit-testable (a Next route file should not be
+exporting helpers), and the route is thin. Four rules are enforced there:
+every interpolated string is escaped; every enum is checked AT RUNTIME; every
+free-text field is length-capped and `perEvent` is count-capped; every number
+is checked finite so a malformed request is a 400 and never a 500. The email
+SUBJECT also goes through `singleLineForSubject`, which collapses newlines and
+caps length.
+
+**35 new tests** in `lib/hailview/email-report-html.test.ts`, including the
+injection payloads themselves (`<script>`, and a `" onload="` attribute
+break), every enum rejection, the NaN/Infinity cases, and proof that the V2
+fields stay optional so an older client still works.
+
+**One test of mine was self-contradictory and is worth recording.** It asserted
+both `not.toContain('onload=')` and `toContain('&quot; onload=')` — the second
+string contains the first. The meaningful assertion is not that the text
+disappears but that **the double quote is escaped**, so the payload cannot
+close the surrounding attribute: the test now asserts `not.toContain('" onload=')`
+with a literal quote. A test that demands untrusted text vanish rather than be
+neutralised is testing the wrong property.
+
+### WHAT IS NOT FIXED, AND WHY IT IS REID'S CALL — PENDING REID
+
+**The caller still supplies the report CONTENT and the RECIPIENT.** After the
+escaping and the caps, someone can still send a bounded, plain-text,
+AFS-branded message to an arbitrary address. That is much weaker than the
+original defect — no markup, no links, bounded length — but it is not zero.
+
+Closing it properly means not trusting the client for content at all:
+recomputing the report server-side from the address and material, or storing
+the lookup and emailing it by id. Both change SPEC_HAILVIEW.md section 8's
+contract, and recomputing adds a geocode plus an IEM fetch to every send and
+can make the emailed number differ from the one on screen if the feed moved.
+That is a product decision, not a cleanup.
+
+**It also predates hv2-01.** The pre-V2 route already accepted a free-text
+`narrative` and `address` and sent them to an arbitrary `email`. hv2-01 widened
+the injection surface; it did not create the open-recipient shape. Recorded
+here so it is not quietly inherited again.
+
+---
+
 ## HAILVIEW LOGIC ENGINE V2, PHASE 1: IMPLEMENTED, UNCONFIRMED — THE SHINGLE/METAL REVERSAL IS FIXED AND MEASURED; NO SCHEMA CHANGE (2026-10-08, hv2-01)
 
 **Branch `feat/hailview-engine-v2`. NOT merged, NOT deployed.** Gates run in
