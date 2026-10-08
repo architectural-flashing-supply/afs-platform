@@ -17202,3 +17202,6 @@ Inbound email -> idempotent store -> classify -> existing takeoff engine -> draf
 
 ## 2026-10-07 - Products header: real T Style Drip Edge viewer; wallpaper removed
 - Header now renders the real product (t-style-drip-edge) via ProductProfilePreview3D (same viewer and one-turn rotation as the popup). Deleted ProductsWallpaper and the hand-traced ProductsHeaderBackdrop(+Loader). UNVERIFIED visually (WebGL).
+
+## 2026-10-07 - Products header: long drip-edge stick, perpetual spin
+- Replaced the grey-panel viewer with ProductsHeroDripEdge: real t-style-drip-edge section (previewShapeFor + open end hem), 10 ft long, transparent canvas, spins forever, no controls. UNVERIFIED visually (WebGL).
