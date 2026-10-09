@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import ProductModal from '@/components/product/ProductModal';
+import ProductSearchBox from '@/components/product/ProductSearchBox';
 import ProductTile, { TILE_SIZE_PX } from '@/components/product/ProductTile';
 import { categoryAnchorId, type CatalogProduct, type CatalogSection } from '@/lib/data/products-page';
 
@@ -44,15 +45,18 @@ export default function ProductCatalog({ sections }: ProductCatalogProps) {
   return (
     <div className="mx-auto max-w-[1400px] px-4 pb-20 sm:px-6">
       {/* STICKY JUMP NAV + SEARCH */}
-      <div className="sticky top-0 z-20 -mx-4 mb-8 border-b border-afs-border-catalog bg-afs-bg-light/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
+      <div className="sticky top-0 z-20 -mx-4 mb-8 bg-afs-bg-light/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <nav aria-label="Product categories" className="min-w-0">
-            <ul className="flex flex-wrap gap-2">
+          <nav aria-label="Product categories" className="min-w-0 lg:flex-1">
+            <ul
+              className="grid grid-cols-2 gap-2 sm:[grid-template-columns:repeat(var(--afs-cat-cols),minmax(0,1fr))]"
+              style={{ ['--afs-cat-cols' as string]: Math.ceil(sections.length / 2) }}
+            >
               {sections.map((section) => (
                 <li key={section.category}>
                   <a
                     href={`#${categoryAnchorId(section.category)}`}
-                    className="inline-flex min-h-[44px] items-center gap-1.5 rounded border border-afs-border-catalog bg-afs-bg-light-raised px-3 py-2 font-label text-xs uppercase tracking-wide text-afs-ink-900 transition-colors hover:bg-afs-bg-lane focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-afs-crimson focus-visible:ring-offset-2 focus-visible:ring-offset-afs-bg-light"
+                    className="inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded border border-afs-border-catalog bg-afs-bg-light-raised px-3 py-2 font-label text-xs uppercase tracking-wide text-afs-ink-900 transition-colors hover:bg-afs-bg-lane focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-afs-crimson focus-visible:ring-offset-2 focus-visible:ring-offset-afs-bg-light"
                   >
                     {section.category}
                     <span className="font-data text-afs-ink-700">{section.products.length}</span>
@@ -62,21 +66,7 @@ export default function ProductCatalog({ sections }: ProductCatalogProps) {
             </ul>
           </nav>
 
-          <div className="lg:w-[280px] lg:shrink-0">
-            <label htmlFor="product-search" className="sr-only">
-              Search products by name
-            </label>
-            <input
-              id="product-search"
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search products"
-              /* ink-700 placeholder on a light surface — rule #23: the dim
-                 chrome tokens are for gunmetal and measure ~1.5:1 here. */
-              className="min-h-[44px] w-full rounded border border-afs-border-catalog bg-afs-bg-light-raised px-3 py-2 font-body text-sm text-afs-ink-900 placeholder:text-afs-ink-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-afs-crimson"
-            />
-          </div>
+          <ProductSearchBox sections={sections} query={query} onQueryChange={setQuery} />
         </div>
       </div>
 

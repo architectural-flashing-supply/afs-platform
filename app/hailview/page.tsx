@@ -28,6 +28,7 @@
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import Button from '@/components/ui/Button';
+import BackButton from '@/components/ui/BackButton';
 import Input from '@/components/ui/Input';
 import Badge, { type BadgeVariant } from '@/components/ui/Badge';
 import { LOGO_HEIGHT } from '@/components/layout/NavBar';
@@ -316,6 +317,7 @@ export default function HailViewPage() {
           panel never pushes past the viewport or grows the (non-scrolling)
           page underneath it. */}
       <div className="absolute top-4 bottom-4 left-4 right-4 sm:right-auto sm:w-[420px] z-10 overflow-y-auto space-y-6">
+        <BackButton className="self-start" />
         <div className="bg-afs-bg-raised border border-afs-border rounded metal-edge p-4">
           <p className="font-label text-xs tracking-widest uppercase text-afs-crimson mb-2">HailView</p>
           <h1 className="font-heading text-2xl font-bold text-afs-chrome-high mb-2">Roof Replacement-Probability Lookup</h1>

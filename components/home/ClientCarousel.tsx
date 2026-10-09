@@ -142,8 +142,13 @@ export default function ClientCarousel() {
     <section
       aria-label="Trusted clients carousel"
       role="region"
-      className="w-full bg-white py-3"
+      className="relative w-full bg-white pb-3 pt-9"
     >
+      {/* Dissolve from the navy hero into the light strip - no hard white edge. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 h-8 bg-gradient-to-b from-afs-navy-950 to-white"
+      />
       <p className="text-center font-label text-xs font-bold uppercase tracking-widest text-afs-ink-700">
         Trusted By Industry Leaders
       </p>
