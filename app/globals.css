@@ -420,3 +420,6 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .afs-slide-in-right { animation: none; }
 }
+
+/* Hero video -> navy dissolve: long eased ramp so no visible edge; operator's hand stays visible. */
+.hero-seam{background:linear-gradient(to right,rgba(8,21,35,0) 0%,rgba(8,21,35,.06) 14%,rgba(8,21,35,.2) 28%,rgba(8,21,35,.42) 42%,rgba(8,21,35,.68) 56%,rgba(8,21,35,.88) 72%,rgba(8,21,35,.97) 88%,rgb(8,21,35) 100%)}

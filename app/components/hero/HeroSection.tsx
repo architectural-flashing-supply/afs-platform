@@ -41,7 +41,7 @@ export default function HeroSection() {
       className="relative isolate w-full overflow-hidden bg-afs-navy-950"
     >
       {/* ---------------------------------------------------------- VIDEO */}
-      <div className="relative h-[46vh] min-h-[280px] max-h-[440px] w-full overflow-hidden lg:absolute lg:inset-y-0 lg:left-0 lg:h-auto lg:max-h-none lg:w-[63%]">
+      <div className="relative h-[46vh] min-h-[280px] max-h-[440px] w-full overflow-hidden lg:absolute lg:inset-y-0 lg:left-0 lg:h-auto lg:max-h-none lg:w-[74%]">
         <video
           ref={videoRef}
           className="absolute inset-0 h-full w-full object-cover"
@@ -65,13 +65,13 @@ export default function HeroSection() {
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-afs-navy-950/75 via-afs-navy-950/10 to-transparent" />
 
         {/* THE seam-killer: wide horizontal dissolve from footage into navy (desktop). */}
-        <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[clamp(180px,26%,320px)] bg-gradient-to-r from-transparent via-afs-navy-900/55 to-afs-navy-950 lg:block" />
+        <div className="hero-seam pointer-events-none absolute inset-y-0 right-0 hidden w-[52%] lg:block" />
 
         {/* Mobile: dissolve the bottom of the video into the content block. */}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-b from-transparent to-afs-navy-950 lg:hidden" />
 
         <div className="absolute bottom-0 left-0 z-10 px-6 pb-10 lg:px-12 lg:pb-16">
-          <p className="font-label text-xs font-semibold uppercase tracking-[0.28em] text-afs-chrome-mid">
+          <p className="font-label text-sm font-bold uppercase tracking-[0.24em] text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.85)]">
             Architectural &bull; Commercial &bull; Custom
           </p>
           <p className="mt-3 font-display uppercase leading-[0.95] text-afs-chrome-high drop-shadow-lg text-[clamp(2rem,4.2vw,3.5rem)]">
@@ -92,7 +92,7 @@ export default function HeroSection() {
         aria-hidden="true"
         focusable="false"
         viewBox="0 0 170 235"
-        className="hero-trace pointer-events-none absolute right-3 top-1/2 hidden w-[min(210px,14.5vw)] -translate-y-1/2 text-afs-chrome-mid min-[1400px]:block"
+        className="hero-trace pointer-events-none absolute right-3 top-1/2 hidden w-[clamp(230px,21vw,360px)] -translate-y-1/2 text-afs-chrome-mid min-[1280px]:block"
         fill="none"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -116,9 +116,9 @@ export default function HeroSection() {
       </svg>
 
       {/* ----------------------------------------------------------- COPY */}
-      <div className="relative z-10 flex flex-col justify-center px-6 pb-14 pt-4 lg:ml-auto lg:min-h-[clamp(560px,82vh,860px)] lg:w-[42%] lg:px-12 lg:py-20 lg:px-16">
+      <div className="relative z-10 flex flex-col justify-center px-6 pb-14 pt-4 lg:ml-auto lg:min-h-[clamp(560px,82vh,860px)] lg:w-[42%] lg:py-20 lg:pl-10 lg:pr-0">
         <RevealOnScroll durationMs={600} staggerMs={120} className="max-w-lg">
-          <h1 className="font-display uppercase leading-[0.95] text-afs-chrome-high text-[clamp(2.4rem,4.5vw,4rem)]">
+          <h1 className="font-display uppercase leading-[0.95] text-afs-chrome-high text-[clamp(2.2rem,3.9vw,3.5rem)]">
             <span className="block">Where</span>
             <span className="block">Architecture</span>
             <span className="block">Becomes Metal.</span>
@@ -131,13 +131,13 @@ export default function HeroSection() {
           <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:gap-4 lg:flex-col lg:items-start">
             <Link
               href="/quote"
-              className="min-h-[48px] w-full rounded-sm bg-afs-crimson px-8 sm:w-auto lg:w-full lg:max-w-[19rem] py-3.5 text-center font-label text-sm font-semibold uppercase tracking-[0.14em] text-white metal-edge-red shadow-crimson transition-colors duration-200 hover:bg-afs-crimson-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+              className="min-h-[48px] w-full rounded-sm bg-afs-crimson px-8 sm:w-auto lg:w-full lg:max-w-[16rem] py-3.5 text-center font-label text-sm font-semibold uppercase tracking-[0.14em] text-white metal-edge-red shadow-crimson transition-colors duration-200 hover:bg-afs-crimson-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
             >
               Start Your Project
             </Link>
             <Link
               href="/products"
-              className="min-h-[48px] w-full rounded-sm bg-afs-accent-blue sm:w-auto lg:w-full lg:max-w-[19rem] px-8 py-3.5 text-center font-label text-sm font-semibold uppercase tracking-[0.14em] text-white shadow-lg transition-colors duration-200 hover:bg-afs-info-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+              className="min-h-[48px] w-full rounded-sm bg-afs-accent-blue sm:w-auto lg:w-full lg:max-w-[16rem] px-8 py-3.5 text-center font-label text-sm font-semibold uppercase tracking-[0.14em] text-white shadow-lg transition-colors duration-200 hover:bg-afs-info-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
             >
               View Our Work
             </Link>
