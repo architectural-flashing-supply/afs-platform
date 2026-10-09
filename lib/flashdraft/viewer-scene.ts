@@ -438,6 +438,30 @@ function measureHemCaptionWidthPx(
   return widest;
 }
 
+/**
+ * How much to hold the strokes up by, given how far the document is scaled.
+ *
+ * The thinnest line this scene draws is `THINNEST_DOC_STROKE_PX` document
+ * pixels. Below one device pixel a stroke is rendered as a faint grey wash
+ * rather than a line, so the target is to keep it at or just above one.
+ *
+ * NEVER BELOW 1, so the full-size view (scale 1) is bit-for-bit what it always
+ * was, and the geometry-fidelity test still compares like with like.
+ *
+ * CAPPED, because an unbounded boost on a very small box would draw a profile
+ * as a blob of overlapping fat lines — which loses the shape just as surely as
+ * a stroke too thin to see, in the opposite direction.
+ */
+const THINNEST_DOC_STROKE_PX = 1.5;
+const MAX_STROKE_BOOST = 14;
+
+export function strokeScaleFor(scale: number, dpr: number): number {
+  if (!Number.isFinite(scale) || scale <= 0) return 1;
+  const device = THINNEST_DOC_STROKE_PX * scale * Math.max(dpr, 1);
+  if (device >= 1) return 1;
+  return Math.min(MAX_STROKE_BOOST, 1 / device);
+}
+
 export interface RenderSavedProfileParams {
   ctx: CanvasRenderingContext2D;
   /** The DISPLAY box in CSS pixels. The document is scaled to fit it. */
@@ -586,6 +610,17 @@ export function renderSavedProfileScene(params: RenderSavedProfileParams): {
     labelStyle: DOC_LABEL_STYLE,
     drawGrid: VIEWER_DISPLAY[size].grid,
     drawUiIndicators: true,
+    // HOLD THE LINES AT A LEGIBLE WEIGHT WHILE EVERYTHING ELSE SHRINKS.
+    // See `strokeScale` in draw-profile-scene.ts: a uniform scale takes the
+    // 3-document-pixel profile line to 0.2 device pixels on a thumbnail, and
+    // four real jobs rendered as empty grey boxes. Labels may shrink to
+    // nothing — small print is small — but a shape that cannot be seen is a
+    // shape that has been dropped, which is what rule 4 forbids.
+    //
+    // 1 at full size, so the full-size view and the fidelity test are
+    // untouched; above that only as far as it takes to keep the thinnest
+    // stroke near one device pixel.
+    strokeScale: strokeScaleFor(scale, dpr),
     paint,
   });
 

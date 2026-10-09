@@ -729,10 +729,35 @@ compiler and plausible in a screenshot.
 
 ```
 scripts/design/scope-v7-css.mjs        derives the scoped v7 CSS (rule #33)
+scripts/design/scope-v8-css.mjs        derives the scoped v8 CSS from the FROZEN
+                                       contract, reusing the v7 transform rather
+                                       than carrying a second copy of it
 scripts/audit/contrast-check.mjs       WCAG AA on every Command Center screen (rule #28)
 scripts/audit/contract-check.mjs       the V8 design contract is unchanged (rule #36)
 scripts/audit/single-drawing-path.mjs  every admin profile drawing goes through
                                        components/admin/v8/ProfileViewer.tsx (rule #37)
+```
+
+### TWO MORE GATES THAT ARE NOT IN `prebuild`, AND MUST STILL RUN
+
+Neither can run in `prebuild` because both need a browser and a live server, but
+a phase is not finished until both pass:
+
+```
+the "nothing dropped at any size" test   lib/flashdraft/viewer-scene.test.ts —
+                                         the drawn-label set must be IDENTICAL
+                                         at thumbnail, hover, enlarged and full
+                                         size. Reid's rule 4. It exists because
+                                         a previous pass dropped the hem caption
+                                         from the enlarged view to make it fit.
+
+the photo-appears-within-seconds test    tests/e2e/field-photo-arrives.spec.ts —
+                                         submits a REAL photo through the real
+                                         field routes and watches it arrive on an
+                                         already-open Workbench. A test that
+                                         inserted the row directly would pass
+                                         while the upload path was broken, which
+                                         is most of what broke.
 ```
 
 Three standing prohibitions, all recorded in CLAUDE.md and all load-bearing:

@@ -164,15 +164,15 @@ function splitBodyBlock(body) {
 /**
  * Scope one selector from a comma-separated list.
  */
-function scopeOne(sel) {
+function scopeOne(sel, scope = SCOPE) {
   const s = sel.trim();
   if (!s) return null;
 
   // `:root`, `body`, `html` -> the wrapper itself.
-  if (PAGE_SELECTORS.has(s)) return SCOPE;
+  if (PAGE_SELECTORS.has(s)) return scope;
 
   // The universal reset has to cover the wrapper as well as its descendants.
-  if (s === '*') return `${SCOPE},${SCOPE} *`;
+  if (s === '*') return `${scope},${scope} *`;
 
   // Fixed-position overlays keep their bare id.
   for (const id of UNSCOPED_IDS) {
@@ -184,18 +184,18 @@ function scopeOne(sel) {
   // `body.foo` / `body .foo` -> fold `body` into the wrapper rather than
   // emitting `.cc-v7 body`, which could never match.
   if (s === 'body' || s.startsWith('body.') || s.startsWith('body:')) {
-    return SCOPE + s.slice('body'.length);
+    return scope + s.slice('body'.length);
   }
-  if (s.startsWith('body ')) return `${SCOPE} ${s.slice('body '.length)}`;
+  if (s.startsWith('body ')) return `${scope} ${s.slice('body '.length)}`;
 
-  return `${SCOPE} ${s}`;
+  return `${scope} ${s}`;
 }
 
 /** Scope a whole comma-separated selector list. */
-function scopeSelectorList(list) {
+function scopeSelectorList(list, scope = SCOPE) {
   const out = [];
   for (const part of splitTopLevel(list, ',')) {
-    const scoped = scopeOne(part);
+    const scoped = scopeOne(part, scope);
     if (scoped) out.push(scoped);
   }
   // De-duplicate: `html,body` both collapse to the wrapper.
@@ -240,7 +240,17 @@ function splitTopLevel(text, sep) {
  * at-rules (@media, @supports, @container) and leaves @keyframes' percentage
  * "selectors" and all declaration blocks untouched.
  */
-function transform(css) {
+/**
+ * SCOPE EVERY SELECTOR IN ONE STYLESHEET UNDER ONE CLASS.
+ *
+ * `scope` and `ground` default to v7's, so every existing caller and the
+ * generated v7 output are byte-identical. They are parameters because V8's
+ * contract (`docs/design/command-center-v8/`) needs exactly the same transform
+ * under `.cc-v8` — and a second copy of a 150-line CSS parser is a second place
+ * for the look to drift, which is the failure rule #33 exists to prevent.
+ * One transform, two scopes.
+ */
+export function transform(css, scope = SCOPE, ground = GROUND) {
   let out = '';
   let i = 0;
 
@@ -324,11 +334,11 @@ function transform(css) {
       // v7 paints the page ground on `body`. Split it: typography stays on the
       // scope class, paint moves to the opt-in ground class. See GROUND above.
       const [type, paint] = splitBodyBlock(body);
-      if (type) out += `${SCOPE}{${type}}`;
-      if (paint) out += `${GROUND}{${paint}}`;
-      if (!type && !paint) out += `${SCOPE}{${body}}`;
+      if (type) out += `${scope}{${type}}`;
+      if (paint) out += `${ground}{${paint}}`;
+      if (!type && !paint) out += `${scope}{${body}}`;
     } else {
-      out += `${scopeSelectorList(prelude)}{${body}}`;
+      out += `${scopeSelectorList(prelude, scope)}{${body}}`;
     }
     i = k;
   }

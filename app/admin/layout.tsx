@@ -9,6 +9,11 @@ import { fixtureAllowedByEnvironment } from '@/lib/fixtures/mode';
 // scripts/design/scope-v7-css.mjs. Every selector in it is scoped to `.cc-v7`,
 // which AdminShell sets, so it cannot reach the public marketing site.
 import '@/app/styles/command-center-v7.generated.css';
+// V8's stylesheet, derived from the frozen mockups by scripts/design/scope-v8-css.mjs
+// and scoped to `.cc-v8`, which only a V8 screen sets. Loading it alongside v7's
+// is safe precisely because of that scoping: no rule here can reach a v7 screen,
+// and none can reach the public site, which does not use this layout at all.
+import '@/app/styles/command-center-v8.generated.css';
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();

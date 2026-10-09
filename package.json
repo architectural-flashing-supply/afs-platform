@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prebuild": "node scripts/design/scope-v7-css.mjs && node scripts/audit/contrast-check.mjs && node scripts/audit/contract-check.mjs && node scripts/audit/single-drawing-path.mjs",
+    "prebuild": "node scripts/design/scope-v7-css.mjs && node scripts/design/scope-v8-css.mjs && node scripts/audit/contrast-check.mjs && node scripts/audit/contract-check.mjs && node scripts/audit/single-drawing-path.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -16,7 +16,8 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:unit": "vitest run",
-    "css:v7": "node scripts/design/scope-v7-css.mjs"
+    "css:v7": "node scripts/design/scope-v7-css.mjs",
+    "css:v8": "node scripts/design/scope-v8-css.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.111.0",

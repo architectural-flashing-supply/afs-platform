@@ -22,6 +22,8 @@ import BidsCrmTab from '@/components/admin/BidsCrmTab';
 import CommandCenterDashboard from '@/components/admin/CommandCenterDashboard';
 import LightWorkingArea from '@/components/admin/LightWorkingArea';
 import V7Workbench from '@/components/admin/v7/V7Workbench';
+import V8Workbench from '@/components/admin/v8/V8Workbench';
+import { buildV8Workbench } from '@/lib/data/v8-view/workbench';
 import { getWorkbench } from '@/lib/data/workbench';
 import { getDeliveriesView } from '@/lib/data/deliveries';
 import { isFixtureMode, type SearchParamValue } from '@/lib/fixtures/mode';
@@ -80,7 +82,7 @@ function isTab(value: string | undefined): value is PageTab {
 export default async function CommandCenterPage({
   searchParams,
 }: {
-  searchParams: { tab?: string } & Record<string, SearchParamValue>;
+  searchParams: { tab?: string; v8?: string } & Record<string, SearchParamValue>;
 }) {
   const supabase = await createClient();
   const adminUser = await requireAdminUser(supabase);
@@ -127,6 +129,29 @@ export default async function CommandCenterPage({
         item: s.item,
       })),
     }));
+
+    // ────────────────────────────────────────────────────────────────────
+    // V8 — MOCKUP B, BEHIND `?v8=1` UNTIL REID HAS SEEN IT.
+    // ────────────────────────────────────────────────────────────────────
+    //
+    // The v7 five-lane board stays the default on purpose. It is what the v7
+    // PIXEL GATE measures against the frozen v7 prototype (CLAUDE.md rule #34),
+    // and swapping the default before Reid has looked at the port would both
+    // break that gate and change the screen he uses every day on the strength
+    // of a session's own say-so — which is exactly what this project's
+    // verification standard forbids.
+    //
+    // `?v8=1` renders the mockup-B port with the same live data. When Reid
+    // confirms it, the flag goes and v7's Workbench entry retires from the
+    // pixel manifest in the same commit.
+    if (searchParams.v8 === '1') {
+      const deliveriesToSchedule = deliveries.unscheduled?.length ?? 0;
+      return (
+        <div className="cc-v8 cc-v8-ground">
+          <V8Workbench view={buildV8Workbench(workbench, deliveriesToSchedule)} />
+        </div>
+      );
+    }
 
     return (
       <LightWorkingArea>

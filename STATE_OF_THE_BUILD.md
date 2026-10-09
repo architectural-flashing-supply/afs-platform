@@ -34,6 +34,145 @@ summary, not a replacement for it.
 
 ---
 
+## COMMAND CENTER V8 — PHASE 1 COMPLETE: THE WORKBENCH, AND THE PHOTO REGRESSION (2026-10-09)
+
+**Branch `feat/command-center-v8`, merged up from `origin/main` (clean, no conflicts).
+NOT merged to main, NOT deployed.**
+
+### GATES, RUN IN THIS SESSION
+
+| Gate | Result |
+|---|---|
+| `pnpm tsc --noEmit` | **0 errors** |
+| `pnpm run build` | **exit 0.** contrast **24 screens / 248 pairs / 0 unresolved / 0 below**; V8 contract **3 verified / 0 problems / 0 ungoverned**; drawing path **108 files / 18 / 29 calls / baseline 29 / 0 unreadable** |
+| `pnpm test:unit` | **620 passed / 4 failed / 4 skipped** (40 files). The 4 are the pre-existing `lib/pricing/ledger-append-only.test.ts` Supabase permission failures — a file this work did not touch |
+| v8 interaction gate + baselines + viewer-live | **21 passed** |
+| **photo appears within seconds** | **PASSED — 5.5s** (6.0s and 4.6s on earlier runs) |
+
+### THE PHOTO REGRESSION — DIAGNOSED AGAINST REAL DATA, TWO CAUSES
+
+**1. Latency.** `V7Workbench.tsx` polled `router.refresh()` on `REFRESH_MS = 60_000`
+and nothing else. No Supabase realtime subscription exists for that screen, and
+`quote_requests` appears in no realtime publication in any migration. A field
+photo therefore took up to a full minute to show, averaging half of one. **It was
+not slow — "within seconds" was impossible by construction.**
+
+**2. No photo even once it landed.** The Workbench card query did not select
+`upload_id`, so the board could not know a photograph existed; `from-live.ts` set
+`drawing: null` unconditionally. The job arrived as an empty box.
+
+**Also established, and it is why nobody could reproduce it:** the live database
+holds **zero** `field_photo_quote` rows and **zero** `takeoff_uploads` rows.
+Migration 030's clean slate emptied both tables and nothing has landed since, so
+there was no live evidence to reason from until this run created some.
+
+**THE FIX.** `/api/admin/command-center/pulse` returns a cheap signature (count +
+latest arrival + latest stage move) from two indexed aggregates; the board polls
+it every 5s and calls `router.refresh()` only when it moves. Realtime was not
+available — adding `quote_requests` to the publication is a production migration,
+which this run is forbidden from applying — and short polling is the other option
+the instruction allows. Rule #26's pause-when-hidden is kept.
+
+`tests/e2e/field-photo-arrives.spec.ts` proves it end to end through the REAL
+routes: a signed upload token, real PNG bytes PUT to Storage, the real submit.
+The Workbench is opened **before** the photo is sent, so it has to watch the job
+arrive. It asserts the PHOTOGRAPH is on the card, not just the job, and deletes
+its own rows afterwards. Uses the reserved `E2E-TEST-` prefix (rule #20).
+
+### REID'S PROFILE RULES — WHAT WAS BUILT
+
+`lib/data/v8-profile-source.ts` resolves what picture an item really has, as a
+four-way union: **real FlashDraft geometry**, **the actual field photograph** on a
+signed URL, **the real saved shop PNG**, or **an explicit to-do**. Nothing is
+invented, traced, vectorised or parametrically drawn — there is no code path that
+could. A quote-builder item's `legA`/`legB` is NOT promoted to geometry.
+
+**It reads the LINE ITEM first, and that is a consequence of measurement:**
+`saved_configurations` holds **2 rows**, while `quote_requests.line_items` carries
+geometry on **5 of 18** jobs. A resolver built around saved-profile ids would have
+found almost nothing. Batched — three queries for a whole board, not three per card.
+
+**Hover** gives a larger preview on `lib/ui/hover-intent.ts`'s shared timings.
+**Single click** enlarges, **double click** goes full size, with the 230 ms cancel.
+**Send to FlashDraft** is on every item whatever its source, prominent on a photo,
+and present on an item with no image — precisely the case that needs it. Jobs with
+no image of any kind are listed as a **to-do panel** on the Workbench.
+
+### NOTHING IS DROPPED AT ANY SIZE — NOW STRUCTURAL, PLUS ONE REAL DEFECT FOUND
+
+The viewer used to compose each size with its own label styles and on/off
+switches, which made dropping a label the easy move — that is how the hem caption
+was dropped last run. It now composes **ONE canonical document** at `DOC_WIDTH`
+with every label, glyph and mark present and applies a single uniform
+`ctx.scale()`. A thumbnail is a true miniature of the full-size view. There is
+nowhere left to drop anything from. A test asserts the drawn-string set and the
+mark counts are **identical** across thumbnail, hover, enlarged and full size.
+
+**AND THEN A SCREENSHOT SHOWED FOUR REAL JOBS AS EMPTY GREY BOXES.** Uniform
+scaling shrinks the STROKES too: the profile line is 3 document pixels, which at a
+110px thumbnail is **0.2 device pixels** — a faint grey wash, not a line. Measured
+across sizes: even at 240px it is still only 0.87. Scaling type down to nothing is
+honest, small print is small; scaling a LINE below one pixel is not, because the
+shape is what a thumbnail is FOR. `drawProfileScene` gained `strokeScale`
+(default 1, so the full-size view and the fidelity test are untouched) and the
+viewer holds the thinnest stroke at about one device pixel, capped so a tiny box
+does not become a blob. Four new tests pin it.
+
+**This was found by LOOKING, not by a test** — the fourth time on this project
+that a screenshot has caught what a green suite could not.
+
+### THE WORKBENCH, PORTED FROM MOCKUP B — BEHIND `?v8=1`
+
+`/admin/command-center?v8=1` renders the stage strip over one filterable table,
+with the need row, the real thumbnails, the to-do panel and the real actions.
+
+**The v7 five-lane board is still the default, deliberately.** It is what the v7
+pixel gate measures against the frozen v7 prototype (rule #34), and swapping the
+default before Reid has looked at the port would break that gate and change the
+screen he uses daily on a session's own say-so. When he confirms it, the flag goes
+and v7's Workbench entry retires from the pixel manifest in the same commit.
+
+**The CSS is DERIVED, not retyped** — `scripts/design/scope-v8-css.mjs` reads the
+`<style>` blocks out of the frozen contract and scopes every selector to `.cc-v8`.
+It **imports the v7 transform** rather than carrying a copy: a second 150-line CSS
+parser is a second place for the look to drift. The v7 script was parameterised
+with `.cc-v7` as the default, and its output verified byte-identical.
+`lib/design/v8-css.test.ts` regenerates and compares, and re-checks the contract
+hashes.
+
+### A FIFTH DOOR TO THE MACHINE, DRAFTED AND DELETED BEFORE IT RAN
+
+The first version of the V8 table posted every row action to a new generic
+`/api/admin/command-center/workbench-action` route taking an action name and an
+id — one of whose names is "send to machine". That is a fifth door to the
+Thalmann wearing a dispatcher's costume (rule #14), and the static single-door
+test would have been right to fail it. Replaced: only "send to machine" posts, and
+it posts to `approve-quote-request`, the same sanctioned route v7's board uses.
+Every other action is a link to the screen where that work is done.
+
+### `0 unresolved` HELD, AFTER BRIEFLY BREAKING IT
+
+The new table's `` className={`pill ${tone}`} `` interpolations came back as
+**5 unresolved** on the contrast gate. Rule #28 is explicit that a rise there means
+the gate got blinder rather than the code safer, so they were rewritten as class
+MAPS — the `TONES[tone]` form the gate expands. Back to `0 unresolved`, and the
+tone vocabulary is now a closed readable set rather than whatever string a view
+model produces.
+
+### STATUS — IMPLEMENTED, UNCONFIRMED
+
+Everything above is **IMPLEMENTED, UNCONFIRMED**. Gates passed in this session;
+that is evidence to bring to Reid, not his confirmation. **He has not seen any V8
+screen in a browser.**
+
+**No live-data screenshot has been committed, and that is deliberate.** The
+Workbench renders real customer names and real email addresses; CLAUDE.md records
+that profile and customer names are not catalog content, and a PNG of them in
+`docs/` is the same disclosure as a database dump. Screenshots for Reid are
+produced on demand and kept out of the repo until a fixture-mode V8 path exists.
+
+---
+
 ## V8 PHASE 0 FOLLOW-UP — THE TWO UNVERIFIED ITEMS, CLOSED (2026-10-09)
 
 **Branch `feat/command-center-v8`. Still not merged, still not deployed.**

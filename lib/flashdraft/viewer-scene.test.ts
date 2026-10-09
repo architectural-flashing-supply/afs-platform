@@ -12,6 +12,7 @@ import {
   developedWidthIn,
   isGauge18OrThicker,
   renderSavedProfileScene,
+  strokeScaleFor,
   signedAngleBetween,
   type SavedProfileGeometry,
 } from './viewer-scene';
@@ -644,6 +645,62 @@ describe('the drawing stays inside its canvas', () => {
     expect(ringOrArc(viewerStream(p, 'hover', 420, 237).all)).toBe(atThumb);
     expect(ringOrArc(viewerStream(p, 'enlarged', 760, 428).all)).toBe(atThumb);
     expect(ringOrArc(viewerStream(p, 'fullsize', 1100, 620).all)).toBe(atThumb);
+  });
+});
+
+/**
+ * A SHAPE TOO FAINT TO SEE IS A SHAPE THAT HAS BEEN DROPPED.
+ *
+ * The uniform-scale design keeps every label at every size (rule 4), but it
+ * also shrinks the STROKES, and a line below one device pixel renders as a grey
+ * wash rather than a line. Four real jobs on the Workbench looked like empty
+ * boxes because of it — found by taking a screenshot and looking, not by a
+ * test, which is why there is now a test.
+ */
+describe('strokes stay visible when the document is scaled down', () => {
+  it('is exactly 1 at full size, so nothing about the full-size view changes', () => {
+    expect(strokeScaleFor(1, 1)).toBe(1);
+    expect(strokeScaleFor(1, 2)).toBe(1);
+    // And anywhere the stroke is already at least a device pixel.
+    expect(strokeScaleFor(0.7, 1)).toBe(1);
+  });
+
+  it('keeps the thinnest stroke at or above one device pixel at every thumbnail size', () => {
+    const THINNEST = 1.5; // document px — the thinnest line the scene draws
+    for (const px of [56, 80, 110, 140, 180, 240, 420, 760]) {
+      for (const dpr of [1, 2, 3]) {
+        const scale = px / DOC_WIDTH;
+        const boosted = THINNEST * strokeScaleFor(scale, dpr) * scale * dpr;
+        expect(
+          boosted,
+          `at ${px}px dpr${dpr} the thinnest stroke would render at ${boosted.toFixed(2)} device px`,
+        ).toBeGreaterThanOrEqual(0.99);
+      }
+    }
+  });
+
+  it('is capped, so a tiny box does not become a blob of fat overlapping lines', () => {
+    // Losing the shape to overdraw is the same failure as losing it to
+    // faintness, in the other direction.
+    expect(strokeScaleFor(0.0001, 1)).toBeLessThanOrEqual(14);
+  });
+
+  it('and the boost really reaches the renderer', () => {
+    const p = PROFILES[1]; // the Z-bar: plain strokes, no hem glyph noise
+    const widthsAt = (size: 'thumb' | 'fullsize', px: number) => {
+      const { all } = viewerStream(p, size, px, Math.round((px * 620) / DOC_WIDTH));
+      const out: number[] = [];
+      let lw = 1;
+      for (const c of all) {
+        const m = c.match(/^lineWidth=([\d.]+)$/);
+        if (m) lw = Number(m[1]);
+        else if (c === 'stroke()') out.push(lw);
+      }
+      return Math.max(...out);
+    };
+    // A thumbnail's document-space strokes are FATTER than the full-size
+    // view's, which is what cancels the scale.
+    expect(widthsAt('thumb', 110)).toBeGreaterThan(widthsAt('fullsize', DOC_WIDTH));
   });
 });
 

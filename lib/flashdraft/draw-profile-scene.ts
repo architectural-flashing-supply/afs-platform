@@ -306,6 +306,25 @@ export interface DrawProfileSceneParams {
    * which a caller already sets to 0 when it wants no text.
    */
   drawUiIndicators?: boolean;
+  /**
+   * Multiplies every stroke width. Default 1 — unchanged for every existing
+   * caller.
+   *
+   * WHY A THUMBNAIL NEEDS IT. The V8 viewer composes one canonical document and
+   * scales it uniformly, so a thumbnail is a true miniature with every label
+   * present (Reid's rule 4). But a uniform scale shrinks the STROKES too: this
+   * scene's profile line is 3 document pixels, and at a 110px thumbnail that is
+   * 0.2 device pixels — the browser renders it as a barely-there grey, and four
+   * real jobs looked like empty boxes on the Workbench. Measured, not guessed:
+   * even at 240px it is still only 0.87 device px.
+   *
+   * Scaling type down to nothing is honest — small print is small. Scaling a
+   * LINE below one pixel is not, because the shape is what a thumbnail is FOR,
+   * and an invisible shape is a dropped one. So the caller may hold the stroke
+   * at a legible weight while everything else shrinks, which is exactly what a
+   * miniature map does with its roads.
+   */
+  strokeScale?: number;
   /** Grid phase offset — the live canvas's own pan state. Defaults to {x:0,y:0} (the offscreen snapshot has no pan). */
   pan?: ScreenPoint;
 }
@@ -338,6 +357,7 @@ export function drawProfileScene(params: DrawProfileSceneParams): void {
     interaction = NO_INTERACTION,
     paint,
     drawUiIndicators = true,
+    strokeScale = 1,
     drawGrid = true,
     drawBackground = true,
     pan = { x: 0, y: 0 },
@@ -352,7 +372,7 @@ export function drawProfileScene(params: DrawProfileSceneParams): void {
   if (drawGrid) {
     const step = GRID_INCHES * pixelsPerInch * zoom;
     ctx.strokeStyle = colors.grid;
-    ctx.lineWidth = 1;
+    ctx.lineWidth = (1) * strokeScale;
     const offsetX = (pan.x + cssWidth / 2) % step;
     const offsetY = (pan.y + cssHeight / 2) % step;
     for (let x = offsetX; x < cssWidth; x += step) {
@@ -377,7 +397,7 @@ export function drawProfileScene(params: DrawProfileSceneParams): void {
     const b = worldToScreen(points[i + 1]);
     const isActive = interaction.selectedSegment === i || interaction.hoveredSegment === i;
     ctx.strokeStyle = interaction.selectedSegment === i ? colors.profileSelected : colors.profile;
-    ctx.lineWidth = isActive ? 3 : 2;
+    ctx.lineWidth = (isActive ? 3 : 2) * strokeScale;
     ctx.beginPath();
     ctx.moveTo(a.x, a.y);
     ctx.lineTo(b.x, b.y);
@@ -427,7 +447,7 @@ export function drawProfileScene(params: DrawProfileSceneParams): void {
     });
     ctx.save();
     ctx.strokeStyle = paint.resolvedPaintColor;
-    ctx.lineWidth = 4;
+    ctx.lineWidth = (4) * strokeScale;
     ctx.lineJoin = 'round';
     ctx.beginPath();
     stripePoints.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
@@ -448,7 +468,7 @@ export function drawProfileScene(params: DrawProfileSceneParams): void {
     ctx.save();
     ctx.setLineDash([6, 4]);
     ctx.strokeStyle = colors.profile;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = (2) * strokeScale;
     ctx.beginPath();
     ctx.moveTo(a.x, a.y);
     ctx.lineTo(b.x, b.y);
@@ -495,7 +515,7 @@ export function drawProfileScene(params: DrawProfileSceneParams): void {
     const freeEnds: number[] = [0, points.length - 1];
     ctx.save();
     ctx.strokeStyle = colors.point;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = (2) * strokeScale;
     for (const i of freeEnds) {
       const s = worldToScreen(points[i]);
       ctx.beginPath();
@@ -531,7 +551,7 @@ export function drawProfileScene(params: DrawProfileSceneParams): void {
     // have either.
     if (drawUiIndicators) {
       ctx.strokeStyle = arcColor;
-      ctx.lineWidth = isSelected || isHovered ? 2.5 : 1.5;
+      ctx.lineWidth = (isSelected || isHovered ? 2.5 : 1.5) * strokeScale;
       ctx.beginPath();
       ctx.arc(s.x, s.y, ANGLE_ARC_RADIUS_PX, angleToPrev, angleToNext, sweep < 0);
       ctx.stroke();
@@ -553,7 +573,7 @@ export function drawProfileScene(params: DrawProfileSceneParams): void {
 
     if (isSelected) {
       ctx.strokeStyle = colors.angleArc;
-      ctx.lineWidth = 1;
+      ctx.lineWidth = (1) * strokeScale;
       ctx.beginPath();
       ctx.arc(s.x, s.y, 4, 0, Math.PI * 2);
       ctx.stroke();
@@ -594,7 +614,7 @@ export function drawProfileScene(params: DrawProfileSceneParams): void {
       const R = Math.max(MIN_READABLE_R, hem.lengthIn * pixelsPerInch * zoom * HEM_GLYPH_LENGTH_SCALE);
 
       ctx.strokeStyle = colors.hemLine;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = (2) * strokeScale;
       ctx.beginPath();
       ctx.moveTo(sP.x, sP.y);
       ctx.lineTo(sFoldTip.x, sFoldTip.y);
@@ -611,7 +631,7 @@ export function drawProfileScene(params: DrawProfileSceneParams): void {
       const R = Math.max(MIN_TEARDROP_R, effectiveThicknessIn * pixelsPerInch * zoom * TEARDROP_THICKNESS_TO_R);
 
       ctx.strokeStyle = colors.hemLine;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = (2) * strokeScale;
       ctx.beginPath();
       ctx.moveTo(sP.x, sP.y);
       ctx.lineTo(sFoldTip.x, sFoldTip.y);
@@ -627,7 +647,7 @@ export function drawProfileScene(params: DrawProfileSceneParams): void {
       const R = Math.max(MIN_READABLE_R, hem.lengthIn * pixelsPerInch * zoom * HEM_GLYPH_LENGTH_SCALE);
 
       ctx.strokeStyle = colors.hemLine;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = (2) * strokeScale;
       ctx.beginPath();
       ctx.moveTo(sP.x, sP.y);
       ctx.lineTo(sFoldTip.x, sFoldTip.y);

@@ -24,7 +24,83 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
-## COMMAND CENTER V8 PHASE 0 (2026-10-08, branch `feat/command-center-v8`) — CURRENT HANDOFF
+## COMMAND CENTER V8 PHASE 1 (2026-10-09, branch `feat/command-center-v8`) — CURRENT HANDOFF
+
+**Phase 1 is complete and gated. Phases 2-6 are not started.**
+Merged up from `origin/main` cleanly. NOT merged to main, NOT deployed.
+
+### THE TWO THINGS TO CHECK IN THE BROWSER
+
+1. **`/admin/command-center?v8=1`** — the Workbench ported from mockup B: stage
+   strip, need row, one filterable table, real thumbnails, the "Needs a drawing"
+   to-do panel. The v7 five-lane board is still the default at
+   `/admin/command-center`; the flag exists so your daily screen does not change
+   before you have seen the replacement.
+2. **A photo from the field app.** Open the Workbench, send one from
+   `/field/contractor`, and it should appear **within about 5 seconds** with the
+   photograph on the card. Measured at 5.5s in this session.
+
+### WHAT CHANGED, IN ONE PARAGRAPH EACH
+
+**The photo regression was two bugs.** The board polled once a MINUTE and nothing
+else, so "within seconds" was impossible; and the card query never selected
+`upload_id`, so even a landed photo rendered as an empty box. Fixed with a 5s
+pulse endpoint that only triggers a refresh when something really moved, and a
+resolved profile source carrying the real photograph. The database had zero field
+photos and zero uploads — migration 030 emptied them — which is why nobody could
+reproduce it.
+
+**Profile sources are now a four-way union**: real geometry, the real photograph,
+the real saved PNG, or an explicit to-do. Nothing invented. It reads the LINE ITEM
+first because `saved_configurations` has only 2 rows while 5 of 18 jobs carry
+geometry on their line items.
+
+**Nothing is dropped at any size** — one canonical document, uniformly scaled, so
+a thumbnail is a true miniature. A screenshot then showed four real jobs as empty
+grey boxes: uniform scaling takes a 3px line to 0.2 device px. Strokes now have a
+legible floor.
+
+### DECISIONS-TO-CONFIRM
+
+1. **The fifth stage is labelled "Deliver" (contract) where the database says
+   `done` ("Delivered").** Same rung; the contract names the work outstanding
+   rather than the step finished, which reads better on a board of things to do.
+   The KEY is unchanged, so nothing in the stage ladder or the rush rules moved.
+2. **The V8 Workbench is behind `?v8=1` rather than replacing v7's board.**
+   Swapping the default would break the v7 pixel gate and change your daily
+   screen before you had seen the port. Say the word and the flag goes.
+3. **Mockup B's "✉ Inbox · 7 new" reads "✉ Inbox · not connected".** There is no
+   mail connection, so a number there would be invented.
+4. **Mockup B's "3 emails need a reply" need-button reads "0 · email not
+   connected yet"** for the same reason.
+5. **Mockup B's 56px thumbnails are rendered at 56px but with a stroke floor.**
+   A full dimensioned 1100px drawing genuinely cannot resolve below ~400px —
+   measured. Every label is still drawn (rule 4), but at 56px they are sub-pixel;
+   the SHAPE is what reads, and hover gives the legible version. If you want the
+   numbers legible in the table itself, the thumbnail has to get much bigger and
+   the table much taller — your call.
+6. **No live-data screenshots are committed.** The Workbench shows real customer
+   names and email addresses, and a PNG of those in `docs/` is the same
+   disclosure as a database dump. Screenshots are produced on demand instead.
+
+### WHAT RUNS NEXT — PHASE 2, SHOP VIEW (MOCKUP E)
+
+Read `docs/COMMAND_CENTER_V8_AUDIT.md` §4a first: **the hem label will fail the
+interaction gate** until FlashDraft's caption carries the fold length, and that
+failure is correct. Also §2 row 3 — `shop_profile_library` has no
+`saved_configurations` FK, and measured, **at most 5 of its 22 rows could ever
+reach saved geometry**, so the real decision is what to do about the other 17.
+
+### STATUS
+
+**IMPLEMENTED, UNCONFIRMED.** tsc 0; build exit 0 with every prebuild gate green;
+vitest 620 passed / 4 failed (pre-existing pricing-ledger) / 4 skipped; 21
+Playwright assertions passing; the photo test at 5.5s. None of that is Reid
+confirming anything in a browser.
+
+---
+
+## COMMAND CENTER V8 PHASE 0 (2026-10-08, branch `feat/command-center-v8`) (SUPERSEDED)
 
 **The harness and the audit. NO screen was built or restyled. Branch pushed, not merged, not deployed.**
 

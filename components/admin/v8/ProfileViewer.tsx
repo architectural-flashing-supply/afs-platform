@@ -57,8 +57,15 @@ import { formatInches } from '@/lib/utils/format-inches';
  */
 
 export interface ProfileViewerProps {
-  /** The resolved source. Server-read and passed in, or fetched by `fetchFor`. */
-  source?: ProfileSource;
+  /**
+   * The resolved source. Server-read and passed in, or fetched by `fetchFor`.
+   *
+   * `null` is accepted and means "not resolved" — a caller whose row genuinely
+   * has no source yet. It renders the loading box rather than guessing, which
+   * is different from `{ kind: 'none' }`, the resolver's explicit "there is no
+   * image, and that is work".
+   */
+  source?: ProfileSource | null;
   /**
    * Fetch the source client-side when it was not passed. `job:<uuid>` or
    * `profile:<uuid>`. Prefer passing `source` — a server read costs no
