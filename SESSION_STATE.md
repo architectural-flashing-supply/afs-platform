@@ -10203,3 +10203,63 @@ Known risks: null lengthFt/quantity render as 0 in QuoteEstimatorForm (send bloc
 
 
 ## 2026-10-06 - MAIN BUILD FIX (68e21cc). Production deploys of main failed after 06be107 (email-intake): 'ESM packages (htmlparser2) need to be imported' from lib/email-intake/sanitize.ts. Cause: sanitize-html imported in a server page. Fix: experimental.serverComponentsExternalPackages = sanitize-html, htmlparser2, mailparser in next.config.js. Reproduced locally; pnpm run build exit 0; Vercel production deploy after the push shows Ready. Lesson: tsc and vitest do not catch bundler errors - run pnpm run build before any push to main.
+
+
+## 2026-10-07 - HOME HERO premium redesign on branch feat/hero-premium (UNVERIFIED until Reid checks it). Deep navy hero only (Reid's explicit decision, overrides the earlier light-blueprint hero decision for the hero ONLY); logo/carousel locked rules kept (carousel gets a navy-to-white dissolve). Video fades into navy via 180-320px gradient; blueprint at 13% opacity masked; one SVG detail traces itself on a 10s loop (static under prefers-reduced-motion); desktop split at lg (1024), stacked below. New tokens afs-navy-950/900/800/700. tsc 0, pnpm run build exit 0, 7 widths 1440-360: no horizontal overflow, 0 console errors. Not merged to main.
+
+
+## 2026-10-07 - Hero drawing redesigned as FlashDraft-style dimensioned profile (feat/hero-premium)
+- Replaced generic self-tracing lines (.hero-trace) with a FlashDraft-canvas panel: grey canvas + grid, crimson cap profile with open-hook hem, ink dimension lines with inch labels (8 1/2", 4 1/2", 3 3/4"), 90 degree arc, FLASHDRAFT tag. 12s loop (draw, dimension, hold, fade); static when prefers-reduced-motion.
+- Colours mirror CANVAS_COLORS as CSS vars in app/globals.css (canvas-only literal exception). Placed bottom, beside the CTA column (lg+ only); no overlap with CTAs or help widget.
+- Verified: tsc 0, pnpm run build 0, screenshots 1440/1024. NOT yet merged to main; mobile hidden (unchanged). Dimension values are illustrative, not a real order.
+
+
+## 2026-10-07 (update) - Hero drawing revised again per Reid (feat/hero-premium)
+- Removed the grey canvas panel (Reid rejected it). Hero now draws, line-only in crimson on the navy, Reid's own U-profile (14 3/4" base, 10 13/16" and 10 7/8" legs, 113/115 degree bends, open hems with OPEN 7/16" GAP) turned on its side along the far right edge, with FlashDraft-style dimension labels. 12s loop; static for reduced motion; shown >=1400px only.
+- Verified: tsc 0, pnpm run build 0, 1440px screenshots. Not merged to main. Values are illustrative (from Reid's FlashDraft screenshot).
+
+
+## 2026-10-07 (batch) - Hero, Products, HailView, Track Delivery refinements (feat/hero-premium, preview only)
+- Hero: removed the faint blueprint texture (grid + wording on the far right); View Our Work is now a solid chrome-silver button and links to /products (was /design-studio).
+- Products: header ghost profile is darker gunmetal and shifted right so it does not rotate behind the headline (WebGL not visible in headless screenshots - UNVERIFIED in a real browser; shiny-metal version waits on Reid's example image); category buttons even 4+4 (columns = ceil(n/2)); search is crimson with a magnifier button, autofill dropdown (prefix matches first, keyboard + ARIA combobox), and a side card 'Don't see your profile? Design it in FlashDraft' (links /design-studio) when 2+ characters typed. New: components/product/ProductSearchBox.tsx.
+- HailView and Track Delivery: new components/ui/BackButton.tsx (history back, falls back to /). Track's button sits under the Google map-type control.
+- Verified: tsc 0, pnpm run build 0, 1440px screenshots. Not merged to main.
+
+
+## 2026-10-07 (hero v3) - Headline, symmetric profile drawing, blue button (feat/hero-premium, preview only)
+- Headline is now 'Where Architecture Becomes Metal.' (3 lines; size clamp reduced so it clears the drawing). aria-label updated.
+- Hero drawing: both bends 115 degrees and both legs 10 7/8" (symmetric), open hems now fold INWARD with a rounded end, hollow hem-end circles removed, numbers smaller and each appears as the line reaches it, 'OPEN 7/16" GAP' sits directly above/below its hem.
+- View Our Work is now blue (afs-accent-blue, white text, links to /products).
+- Verified: tsc 0, pnpm run build 0, 1440px screenshots. Not merged to main.
+
+
+## 2026-10-07 (hero v4) - Tagline and spacing (feat/hero-premium, preview only)
+- Tagline under the headline is now 'Precision Made. Project Ready.' (old two-sentence copy removed).
+- Profile drawing raised ~1in (top-[calc(50%-96px)]) to clear the help icon; left caption raised ~0.5in (lg:pb-28); copy column + blue button raised (bottom padding increased) for clearance from the page bottom.
+- Verified: tsc 0, pnpm run build 0, 1440px screenshot. Not merged to main.
+
+
+## 2026-10-07 (hero v5) - Spacing reverted, tagline kept (feat/hero-premium, preview only)
+- Reid: the previous positions were fine. Reverted the drawing raise, the caption raise and the copy-block/button raise to the v3 positions.
+- Kept: tagline 'Precision Made. Project Ready.'
+- Verified: tsc 0, pnpm run build 0. Not merged to main.
+
+## 2026-10-07 - Products header: real polished-metal piece
+- Replaced ghost Zee backdrop with a short polished-stainless 3D flashing piece (lip, angled face, stepped floor, return flange) rotating in its own box at the header's right; no longer behind buttons/search. WebGL look UNVERIFIED headless; check on preview.
+- Intro text cut to one line; removed 'N products across N categories'.
+
+## 2026-10-07 - Products: photo-traced hero piece + wallpaper
+- Rebuilt rotating piece from Reid's photo (rolled-bead wall, wide floor with jog, flanged right edge); no box, larger. Inch dimensions are estimates (photo has no scale). WebGL look UNVERIFIED headless.
+- Added static faint profile line-art wallpaper (ProductsWallpaper) behind the products page.
+
+## 2026-10-07 - Products header piece: same rotation as product 3D preview
+- One 30s turn then stop (matches PRODUCT_ROTATION_SECONDS), drag-to-rotate afterwards, reduced-motion static. UNVERIFIED visually.
+
+## 2026-10-07 - Products header: real T Style Drip Edge viewer; wallpaper removed
+- Header now renders the real product (t-style-drip-edge) via ProductProfilePreview3D (same viewer and one-turn rotation as the popup). Deleted ProductsWallpaper and the hand-traced ProductsHeaderBackdrop(+Loader). UNVERIFIED visually (WebGL).
+
+## 2026-10-07 - Products header: long drip-edge stick, perpetual spin
+- Replaced the grey-panel viewer with ProductsHeroDripEdge: real t-style-drip-edge section (previewShapeFor + open end hem), 10 ft long, transparent canvas, spins forever, no controls. UNVERIFIED visually (WebGL).
+
+## 2026-10-08 - Products header drip edge: fit to frame, verified by render
+- Analysed the real t-style-drip-edge render: 6in deck, nose open hem, leg 1.25in in from the nose, short kick with open end hem. Stick now 30in long, camera distance solved by bisection so the whole piece stays in frame at every spin angle (no clipped ends). Canvas contained in the header (overflow hidden). Removed the border-b under the profile-button bar. VERIFIED via software-rendered Playwright (swiftshader) screenshots at 3 spin angles.

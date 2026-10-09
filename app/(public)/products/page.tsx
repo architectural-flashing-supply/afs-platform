@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import ProductCatalog from '@/components/product/ProductCatalog';
-import ProductsHeaderBackdropLoader from '@/components/product/ProductsHeaderBackdropLoader';
+import ProductsHeroDripEdgeLoader from '@/components/product/ProductsHeroDripEdgeLoader';
 import { getCatalogSections } from '@/lib/data/products-page';
 
 export const metadata: Metadata = {
@@ -23,25 +23,17 @@ export const metadata: Metadata = {
  */
 export default function ProductsPage() {
   const sections = getCatalogSections();
-  const productCount = sections.reduce((sum, section) => sum + section.products.length, 0);
 
   return (
     /* Layer 1, the lightest: a warm off-white page under the gunmetal header. */
     <main className="min-h-screen bg-afs-bg-light">
-      <div className="relative overflow-hidden">
-        <ProductsHeaderBackdropLoader />
+      <div className="relative overflow-hidden md:min-h-[20rem]">
+        <ProductsHeroDripEdgeLoader />
         <div className="relative mx-auto max-w-[1400px] px-4 pb-6 pt-12 sm:px-6">
         <h1 className="mb-4 font-display text-5xl font-bold leading-none text-afs-ink-900 sm:text-6xl">
           PRODUCTS
         </h1>
-        <p className="max-w-3xl font-body text-base text-afs-ink-900">
-          Architectural sheet metal flashing and trim, fabricated to your drawings. Open any product
-          to see its profile; where we hold the geometry you can take it straight into FlashDraft and
-          design from it. Every product here leads to a formal quote request — never a checkout.
-        </p>
-        <p className="mt-3 font-data text-xs uppercase tracking-wide text-afs-ink-700">
-          {productCount} products across {sections.length} categories
-        </p>
+        <p className="max-w-md font-body text-base text-afs-ink-900">Browse the profiles. Open one to quote it or design from it.</p>
         </div>
       </div>
 
