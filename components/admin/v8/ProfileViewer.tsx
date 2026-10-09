@@ -2,129 +2,97 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ZOOM_OPEN_DELAY_MS } from '@/lib/ui/zoom-intent';
+import { HOVER_OPEN_DELAY_MS, HOVER_GRACE_DELAY_MS } from '@/lib/ui/hover-intent';
 import {
+  DOC_WIDTH,
+  VIEWER_DISPLAY,
   developedWidthIn,
   renderSavedProfileScene,
   V8_SHOP_NOTE_COLOR,
   type ViewerSize,
 } from '@/lib/flashdraft/viewer-scene';
-import type { SavedProfileResult } from '@/lib/data/v8-profile-geometry';
+import type { ProfileSource, ProfileSourceGeometry } from '@/lib/data/v8-profile-source';
 import { formatInches } from '@/lib/utils/format-inches';
 
 /**
- * THE ONE PLACE A SAVED PROFILE IS DRAWN IN THE COMMAND CENTER.
+ * THE ONE PLACE A PROFILE IS SHOWN IN THE COMMAND CENTER — four sources, four
+ * sizes, and nothing invented or dropped at any of them.
  *
- * Thumbnail, enlarged view, full-size view. Takes a saved FlashDraft profile id
- * and renders ONLY from that profile's saved geometry — the points, hems and
- * bend radii the customer or the estimator actually drew.
+ * ────────────────────────────────────────────────────────────────────────────
+ * REID'S PROFILE RULES (2026-10-09), AND HOW EACH ONE IS MET HERE.
+ * ────────────────────────────────────────────────────────────────────────────
  *
- * ──────────────────────────────────────────────────────────────────────────
- * WHY THIS COMPONENT EXISTS, STATED PLAINLY.
- * ──────────────────────────────────────────────────────────────────────────
+ * 1. EVERY THUMBNAIL SHOWS THE REAL SAVED IMAGE FROM ITS SOURCE. The four
+ *    sources are resolved by `lib/data/v8-profile-source.ts` and arrive here as
+ *    a discriminated union, so this component cannot accidentally render one as
+ *    another: `geometry` is drawn by FlashDraft's own renderer, `photo` is the
+ *    actual photograph on a signed URL, `png` is the real saved raster, and
+ *    `none` is an explicit to-do. NOTHING IS INVENTED, TRACED, VECTORISED OR
+ *    PARAMETRICALLY DRAWN — there is no code path here that could.
  *
- * Every profile drawing in the Command Center today comes from
- * `lib/design/v7-draw.ts` via `V7Drawing` / `V7Thumb`: a profile KIND out of a
- * nine-entry table, plus a handful of leg lengths. It is a picture of the
- * CATEGORY of flashing a job belongs to. It is not the customer's drawing, and
- * it cannot be — the table has no entry for a seven-bend custom, no way to say
- * which direction a hem kicks, and no concept of a bend's handedness at all
- * (CLAUDE.md rule #12, where the signed interior angle IS the meaning of a
- * bend). Shown at full size on the screen whose next button reaches the
- * Thalmann, a category picture labelled as the customer's profile is a wrong
- * instruction that looks like a right one.
+ * 2. HOVER = A LARGER PREVIEW of the real saved image, on the shared
+ *    `lib/ui/hover-intent.ts` timings (CLAUDE.md rule #27: do not inline the
+ *    timers). A sweep across a table of thumbnails must open none of them.
  *
- * So: saved geometry, or an explicit "No saved drawing". There is no third
- * branch, and a stand-in is never rendered. `lib/data/v8-profile-geometry.ts`
- * decides which of the two it is and says why in plain English.
+ * 3. SINGLE CLICK = enlarged. DOUBLE CLICK = full size. Those gestures overlap,
+ *    so the enlarge is SCHEDULED and the double-click cancels it
+ *    (`ZOOM_OPEN_DELAY_MS`). Photos and PNGs open full-size and zoomable;
+ *    geometry opens with every number on it.
  *
- * ──────────────────────────────────────────────────────────────────────────
- * IT DOES NOT CONTAIN A DRAWING ALGORITHM.
- * ──────────────────────────────────────────────────────────────────────────
+ * 4. NOTHING IS EVER DROPPED AT ANY SIZE. This is structural, not a promise:
+ *    `renderSavedProfileScene` composes ONE canonical document with every
+ *    label, glyph and mark present and applies a single uniform scale, so a
+ *    thumbnail is a true miniature of the full-size view rather than a reduced
+ *    drawing. There is no per-size switch left to turn a label off with.
+ *    A unit test asserts the drawn-string set is identical at every size.
  *
- * All three sizes call `renderSavedProfileScene`, which calls
- * `drawProfileScene` — the same function FlashDraft's live editing canvas draws
- * with and the same one the shop snapshot is rendered with. Segments, angle
- * arcs, angle labels, hem folds, hem glyphs, hem labels, the painted-side
- * stripe and every dimension string are therefore the editor's own, not a
- * second interpretation of them. `scripts/audit/single-drawing-path.mjs` fails
- * the build if an admin screen draws a saved profile any other way.
- *
- * The three sizes differ ONLY in label size, padding and whether the grid is
- * drawn — all of it data in `VIEWER_SIZES`, so "what does the full-size view
- * show that the thumbnail does not" is one table rather than three code paths.
- *
- * ──────────────────────────────────────────────────────────────────────────
- * THE GESTURE, AND THE 230 ms.
- * ──────────────────────────────────────────────────────────────────────────
- *
- * Single click enlarges; double-click goes full size. Those overlap — a
- * double-click fires `click` twice first — so the enlarge is SCHEDULED and the
- * double-click cancels it (`ZOOM_OPEN_DELAY_MS`, with the contract line quoted
- * in that module). Without the cancel, one double-click opens two overlays.
- * `tests/visual/v8-interaction-gate.spec.ts` waits the delay out AFTER a
- * double-click to prove the enlarge never lands.
- *
- * Keyboard bypasses the timer: Enter/Space IS the intent, so it enlarges at
- * once, and the thumbnail is a real `<button>` so it is reachable at all. Same
- * reasoning as `lib/ui/hover-intent.ts` (rule #27).
- *
- * ──────────────────────────────────────────────────────────────────────────
- * WHAT THE HOST SCREEN SUPPLIES, AND WHY THE VIEWER DOES NOT FETCH IT.
- * ──────────────────────────────────────────────────────────────────────────
- *
- * `shopNotes` and `paintedSide` belong to the JOB, not to the profile — the
- * same saved profile can be run twice with different paint and different
- * instructions. The viewer takes them as props and renders them; it never goes
- * looking, because a viewer that guessed which job a profile belonged to would
- * sometimes guess the wrong one.
- *
- * AND IT SAYS WHEN IT WAS NOT TOLD. With no `paintedSide`, the full-size view
- * prints "Painted side not specified for this job" rather than drawing no
- * stripe and letting the absence read as "paint neither face". An unanswered
- * question and an answer of "no" are different things on a shop floor.
+ * 5. EVERY ITEM GETS "SEND TO FLASHDRAFT", whatever its source — including a
+ *    photo and including an item with no image at all, which is precisely the
+ *    case where somebody needs to draw one. It is PROMINENT on a photo, because
+ *    a photo is the case that always needs a redraw. The handoff is a plain
+ *    link carrying the job and item, so the operator lands in the real editor;
+ *    `onSendToFlashDraft` lets a host override it. An AI-assisted redraw from
+ *    the photo is deliberately NOT built here — the button and the handoff are
+ *    shaped so it can be added behind them later.
  */
 
 export interface ProfileViewerProps {
-  /** A `saved_configurations` id — the Profile Passport row FlashDraft wrote. */
-  profileId: string;
-  /** What to call this profile in the overlays. The host's own wording. */
+  /** The resolved source. Server-read and passed in, or fetched by `fetchFor`. */
+  source?: ProfileSource;
+  /**
+   * Fetch the source client-side when it was not passed. `job:<uuid>` or
+   * `profile:<uuid>`. Prefer passing `source` — a server read costs no
+   * round-trip and no signed-URL churn.
+   */
+  fetchFor?: string;
+  /** What to call this item in the overlays and for screen readers. */
   label: string;
-  /** Thumbnail box size in CSS pixels. The contract uses 56 (small) and 110 (medium). */
+  /** Thumbnail box in CSS pixels. The contract uses 56 (small) and 110 (medium). */
   thumbSize?: number;
-  /** v7/v8 thumbnail box class, so the host controls the frame. */
   className?: string;
   /** Steve's red shop notes for THIS job. Never invented, never fetched here. */
   shopNotes?: string[];
   /** Which face is painted, when the job says. Omitted means nobody said. */
   paintedSide?: { face: 'up' | 'down'; color: string } | null;
-  /**
-   * Pre-loaded geometry, when the host already read it server-side. Omit and
-   * the viewer fetches it once by id.
-   */
-  initialData?: SavedProfileResult;
+  /** Where "Send to FlashDraft" goes. Omit to hide the button (rare — rule 5). */
+  flashDraftHref?: string | null;
 }
 
-/**
- * Module-level cache, keyed by profile id.
- *
- * SAFE ONLY BECAUSE A SAVED PROFILE'S DRAWING NEVER CHANGES IN PLACE — a
- * modification creates a new row (rule #13's lineage), which is the identical
- * argument `components/admin/LazyProfileThumb.tsx` records for its own cache.
- * If that ever stops being true, this cache is wrong before anything else is.
- */
-const CACHE = new Map<string, SavedProfileResult>();
+/** Module cache, keyed by the fetch key. A saved drawing never changes in place (rule #13). */
+const CACHE = new Map<string, ProfileSource>();
 
 type Overlay = 'none' | 'enlarged' | 'fullsize';
 
-/** One canvas rendering one saved profile at one size. */
-function ProfileCanvas({
-  data,
+/* ───────────────────────────── the canvas ──────────────────────────────── */
+
+function GeometryCanvas({
+  source,
   size,
   width,
   height,
   paintedSide,
 }: {
-  data: Extract<SavedProfileResult, { kind: 'geometry' }>;
+  source: ProfileSourceGeometry;
   size: ViewerSize;
   width: number;
   height: number;
@@ -137,87 +105,146 @@ function ProfileCanvas({
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    // DPR-aware, like FlashDraft's own canvas: without it every stroke and
-    // every label is soft on a high-density display, and a soft dimension
-    // string is the one thing a full-size view must not be.
     const dpr = typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1;
     canvas.width = Math.round(width * dpr);
     canvas.height = Math.round(height * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     renderSavedProfileScene({
       ctx,
-      cssWidth: width,
-      cssHeight: height,
-      geometry: data.geometry,
-      material: data.material,
-      gauge: data.gauge,
+      displayWidth: width,
+      displayHeight: height,
+      dpr,
+      geometry: source.geometry,
+      material: source.material,
+      gauge: source.gauge,
       size,
       fontFamily: 'JetBrains Mono, ui-monospace, monospace',
       paint: paintedSide ? { paintFace: paintedSide.face, resolvedPaintColor: paintedSide.color } : undefined,
     });
-  }, [data, size, width, height, paintedSide]);
+  }, [source, size, width, height, paintedSide]);
 
   return (
     <canvas
       ref={ref}
       style={{ width, height, display: 'block' }}
       role="img"
-      aria-label={`${data.name ?? 'Saved'} profile drawing — ${data.bendCount} bends, ${data.hemCount} hems`}
+      aria-label={`${source.name ?? 'Saved'} profile drawing — ${source.bendCount} bends, ${source.hemCount} hems`}
       data-v8-profile-canvas={size}
     />
   );
 }
 
+/** The real photograph or the real saved raster. Never redrawn, only shown. */
+function RasterImage({
+  src,
+  alt,
+  width,
+  height,
+  size,
+  contain,
+}: {
+  src: string;
+  alt: string;
+  width: number;
+  height: number;
+  size: ViewerSize;
+  contain?: boolean;
+}) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={alt}
+      width={width}
+      height={height}
+      style={{
+        width,
+        height,
+        display: 'block',
+        // `contain` at full size so nothing is cropped out of the picture;
+        // `cover` on a thumbnail so the box is filled rather than letterboxed.
+        objectFit: contain ? 'contain' : 'cover',
+        background: '#1A1D23',
+      }}
+      data-v8-profile-raster={size}
+    />
+  );
+}
+
+/* ──────────────────────────── the component ────────────────────────────── */
+
 export default function ProfileViewer({
-  profileId,
+  source: provided,
+  fetchFor,
   label,
   thumbSize = 110,
   className,
   shopNotes = [],
   paintedSide = null,
-  initialData,
+  flashDraftHref = null,
 }: ProfileViewerProps) {
-  const [data, setData] = useState<SavedProfileResult | null>(initialData ?? CACHE.get(profileId) ?? null);
+  const cacheKey = fetchFor ?? '';
+  const [source, setSource] = useState<ProfileSource | null>(
+    provided ?? (cacheKey ? CACHE.get(cacheKey) ?? null : null),
+  );
   const [overlay, setOverlay] = useState<Overlay>('none');
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [hovering, setHovering] = useState(false);
+  const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const returnFocus = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
-    if (data) return;
+    if (provided) setSource(provided);
+  }, [provided]);
+
+  useEffect(() => {
+    if (source || !fetchFor) return;
     let alive = true;
     (async () => {
+      const fail: ProfileSource = {
+        kind: 'none',
+        reason: 'The drawing could not be loaded just now.',
+        todo: true,
+      };
       try {
-        const res = await fetch(`/api/admin/v8/profile-geometry/${profileId}`, { cache: 'no-store' });
+        const res = await fetch(`/api/admin/v8/profile-source?for=${encodeURIComponent(fetchFor)}`, {
+          cache: 'no-store',
+        });
         if (!res.ok) {
-          if (alive) setData({ kind: 'none', id: profileId, reason: 'The drawing could not be loaded just now.' });
+          if (alive) setSource(fail);
           return;
         }
-        const body = (await res.json()) as SavedProfileResult;
-        CACHE.set(profileId, body);
-        if (alive) setData(body);
+        const body = (await res.json()) as ProfileSource;
+        // A photo's signed URL expires, so it is deliberately NOT cached.
+        if (body.kind !== 'photo') CACHE.set(fetchFor, body);
+        if (alive) setSource(body);
       } catch {
-        if (alive) setData({ kind: 'none', id: profileId, reason: 'The drawing could not be loaded just now.' });
+        if (alive) setSource(fail);
       }
     })();
     return () => {
       alive = false;
     };
-  }, [profileId, data]);
+  }, [fetchFor, source]);
 
-  const cancelPending = useCallback(() => {
-    if (timer.current) {
-      clearTimeout(timer.current);
-      timer.current = null;
+  const clearTimers = useCallback(() => {
+    if (clickTimer.current) {
+      clearTimeout(clickTimer.current);
+      clickTimer.current = null;
+    }
+    if (hoverTimer.current) {
+      clearTimeout(hoverTimer.current);
+      hoverTimer.current = null;
     }
   }, []);
 
-  useEffect(() => cancelPending, [cancelPending]);
+  useEffect(() => clearTimers, [clearTimers]);
 
   const close = useCallback(() => {
-    cancelPending();
+    clearTimers();
     setOverlay('none');
+    setHovering(false);
     returnFocus.current?.focus();
-  }, [cancelPending]);
+  }, [clearTimers]);
 
   useEffect(() => {
     if (overlay === 'none') return;
@@ -228,113 +255,182 @@ export default function ProfileViewer({
     return () => document.removeEventListener('keydown', onKey);
   }, [overlay, close]);
 
-  const hasDrawing = data?.kind === 'geometry';
-
-  // ── the thumbnail ───────────────────────────────────────────────────────
-  if (!data) {
-    // Loading. An empty box of the right size, so nothing reflows when the
-    // drawing arrives — and no spinner, because at these sizes a spinner is
-    // bigger than the thing it is waiting for.
+  /* ── loading ───────────────────────────────────────────────────────────── */
+  if (!source) {
     return (
       <span
         className={className}
         style={{ display: 'inline-block', width: thumbSize, height: thumbSize }}
         aria-busy="true"
-        aria-label={`Loading ${label} drawing`}
+        aria-label={`Loading ${label}`}
         data-v8-viewer="loading"
       />
     );
   }
 
-  if (!hasDrawing) {
-    /**
-     * THE EXPLICIT ABSENCE. Not a placeholder shape, not a grey square with an
-     * icon that reads as "a profile", not v7's generic empty box with nothing
-     * in it — the words, in the box, with the reason. On a screen where the
-     * next button along sends work to a bending machine, "we do not have the
-     * drawing" has to be readable from the thumbnail, not discoverable by
-     * clicking.
-     *
-     * It is NOT a `.zoom` and NOT a button: there is nothing to enlarge, and
-     * a control that opens an empty overlay teaches people the overlay is
-     * sometimes empty.
-     */
-    const absent = data as Extract<SavedProfileResult, { kind: 'none' }>;
+  /* ── no image at all: an explicit TO-DO, never a stand-in ──────────────── */
+  if (source.kind === 'none') {
     return (
       <span
         className={className}
         style={{
           display: 'inline-flex',
+          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
+          gap: 4,
           width: thumbSize,
           height: thumbSize,
           padding: 4,
           textAlign: 'center',
           lineHeight: 1.15,
           fontSize: thumbSize >= 90 ? 11 : 9,
+          border: '1px dashed #B3261E',
+          borderRadius: 6,
+          color: '#8A1C16',
+          background: '#FFF4F3',
         }}
-        title={absent.reason}
+        title={source.reason}
         data-v8-viewer="no-drawing"
-        data-v8-reason={absent.reason}
+        data-v8-todo="1"
+        data-v8-reason={source.reason}
       >
-        No saved drawing
+        No profile drawing yet
+        {flashDraftHref && thumbSize >= 90 && (
+          <a
+            href={flashDraftHref}
+            data-v8-send-to-flashdraft="1"
+            style={{ fontSize: 10, fontWeight: 700, color: '#B3261E', textDecoration: 'underline' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            Draw it
+          </a>
+        )}
       </span>
     );
   }
 
-  const geo = data as Extract<SavedProfileResult, { kind: 'geometry' }>;
-  const dev = developedWidthIn(geo.geometry, geo.gauge);
-  const metaLine = [
-    // `formatInches` is this codebase's one answer for how an inch is written
-    // (1 1/2", not 1.5) and the full-size view must agree with the labels on the
-    // drawing beside it, which come from the same function inside
-    // `drawProfileScene`. The contract's own meta line reads "Developed width 11
-    // in"; a decimal here beside sixteenths there would be two notations for one
-    // measurement on one screen.
-    dev === null ? 'Developed width unavailable' : `Developed width ${formatInches(dev)}`,
-    `${geo.bendCount} bend${geo.bendCount === 1 ? '' : 's'}`,
-    `${geo.hemCount} hem${geo.hemCount === 1 ? '' : 's'}`,
-  ].join(' · ');
+  const isGeometry = source.kind === 'geometry';
+  const geo = isGeometry ? (source as ProfileSourceGeometry) : null;
+  const rasterSrc = source.kind === 'photo' ? source.url : source.kind === 'png' ? source.dataUri : null;
+
+  const dev = geo ? developedWidthIn(geo.geometry, geo.gauge) : null;
+  const metaLine = geo
+    ? [
+        dev === null ? 'Developed width unavailable' : `Developed width ${formatInches(dev)}`,
+        `${geo.bendCount} bend${geo.bendCount === 1 ? '' : 's'}`,
+        `${geo.hemCount} hem${geo.hemCount === 1 ? '' : 's'}`,
+      ].join(' · ')
+    : source.kind === 'photo'
+      ? `${source.caption} · ${source.fileName}`
+      : source.kind === 'png'
+        ? source.caption
+        : '';
+
+  const hoverPx = VIEWER_DISPLAY.hover.px;
+  const enlargedPx = VIEWER_DISPLAY.enlarged.px;
+  const aspect = 620 / DOC_WIDTH;
+
+  const body = (size: ViewerSize, w: number, h: number, contain: boolean) =>
+    geo ? (
+      <GeometryCanvas source={geo} size={size} width={w} height={h} paintedSide={paintedSide} />
+    ) : rasterSrc ? (
+      <RasterImage src={rasterSrc} alt={label} width={w} height={h} size={size} contain={contain} />
+    ) : null;
+
+  const sendButton = (prominent: boolean) =>
+    flashDraftHref ? (
+      <a
+        href={flashDraftHref}
+        data-v8-send-to-flashdraft="1"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          display: 'inline-block',
+          padding: prominent ? '8px 14px' : '5px 10px',
+          borderRadius: 6,
+          fontWeight: 700,
+          fontSize: prominent ? 14 : 12,
+          textDecoration: 'none',
+          background: prominent ? '#C8102E' : 'transparent',
+          color: prominent ? '#fff' : '#C8102E',
+          border: prominent ? 'none' : '1px solid #C8102E',
+        }}
+      >
+        Send to FlashDraft
+      </a>
+    ) : null;
 
   return (
     <>
-      <button
-        type="button"
-        ref={returnFocus}
-        className={['zoom', className].filter(Boolean).join(' ')}
-        data-v8-viewer="drawing"
-        data-profile-id={geo.id}
-        title="Click to enlarge · double-click for full size"
-        aria-label={`${label} — click to enlarge, double-click for full size`}
-        style={{ display: 'inline-block', padding: 0, border: 0, background: 'none', cursor: 'zoom-in' }}
-        onClick={() => {
-          // SCHEDULED, not opened. See ZOOM_OPEN_DELAY_MS.
-          cancelPending();
-          timer.current = setTimeout(() => {
-            timer.current = null;
-            setOverlay('enlarged');
-          }, ZOOM_OPEN_DELAY_MS);
+      <span
+        style={{ position: 'relative', display: 'inline-block' }}
+        onMouseEnter={() => {
+          if (hoverTimer.current) clearTimeout(hoverTimer.current);
+          hoverTimer.current = setTimeout(() => setHovering(true), HOVER_OPEN_DELAY_MS);
         }}
-        onDoubleClick={() => {
-          cancelPending();
-          setOverlay('fullsize');
-        }}
-        onKeyDown={(e) => {
-          // A key press IS the intent — no delay to disambiguate.
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            cancelPending();
-            setOverlay('enlarged');
-          }
+        onMouseLeave={() => {
+          if (hoverTimer.current) clearTimeout(hoverTimer.current);
+          hoverTimer.current = setTimeout(() => setHovering(false), HOVER_GRACE_DELAY_MS);
         }}
       >
-        <ProfileCanvas data={geo} size="thumb" width={thumbSize} height={thumbSize} />
-      </button>
+        <button
+          type="button"
+          ref={returnFocus}
+          className={['zoom', className].filter(Boolean).join(' ')}
+          data-v8-viewer={source.kind}
+          title="Hover to preview · click to enlarge · double-click for full size"
+          aria-label={`${label} — hover to preview, click to enlarge, double-click for full size`}
+          style={{ display: 'inline-block', padding: 0, border: 0, background: 'none', cursor: 'zoom-in' }}
+          onClick={() => {
+            clearTimers();
+            clickTimer.current = setTimeout(() => {
+              clickTimer.current = null;
+              setHovering(false);
+              setOverlay('enlarged');
+            }, ZOOM_OPEN_DELAY_MS);
+          }}
+          onDoubleClick={() => {
+            clearTimers();
+            setHovering(false);
+            setOverlay('fullsize');
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              clearTimers();
+              setOverlay('enlarged');
+            }
+          }}
+        >
+          {body('thumb', thumbSize, thumbSize, false)}
+        </button>
+
+        {/* RULE 2 — hover gives a larger preview of the real saved image. */}
+        {hovering && overlay === 'none' && (
+          <span
+            data-v8-hover-preview="1"
+            style={{
+              position: 'absolute',
+              zIndex: 60,
+              top: '100%',
+              left: 0,
+              marginTop: 6,
+              padding: 8,
+              background: '#fff',
+              border: '1px solid #D7DBE2',
+              borderRadius: 8,
+              boxShadow: '0 12px 32px rgba(16,24,30,0.28)',
+              pointerEvents: 'none',
+            }}
+          >
+            {body('hover', hoverPx, Math.round(hoverPx * aspect), true)}
+            <span style={{ display: 'block', marginTop: 4, fontSize: 11, color: '#3A4150' }}>{metaLine}</span>
+          </span>
+        )}
+      </span>
 
       {overlay !== 'none' && (
         <div
-          id="v8-scrim"
           data-v8-overlay-scrim
           onClick={close}
           style={{ position: 'fixed', inset: 0, background: 'rgba(16,24,30,0.55)', zIndex: 80 }}
@@ -343,11 +439,14 @@ export default function ProfileViewer({
 
       {overlay === 'enlarged' && (
         <div
-          id="v8-pop"
           role="dialog"
           aria-modal="true"
           aria-label={`${label} — enlarged`}
           data-v8-overlay="enlarged"
+          onDoubleClick={() => {
+            clearTimers();
+            setOverlay('fullsize');
+          }}
           style={{
             position: 'fixed',
             top: '50%',
@@ -359,15 +458,10 @@ export default function ProfileViewer({
             padding: 14,
             boxShadow: '0 18px 48px rgba(16,24,30,0.35)',
           }}
-          // Double-clicking the enlarged drawing goes full size, exactly as the
-          // contract's `#ps.ondblclick` does.
-          onDoubleClick={() => {
-            cancelPending();
-            setOverlay('fullsize');
-          }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-            <b data-v8-overlay-title>{geo.name ?? label}</b>
+            <b data-v8-overlay-title>{geo?.name ?? label}</b>
+            <span data-v8-overlay-meta style={{ fontSize: 12, color: '#3A4150' }}>{metaLine}</span>
             <button
               type="button"
               data-v8-overlay-close
@@ -378,16 +472,19 @@ export default function ProfileViewer({
               ✕
             </button>
           </div>
-          <ProfileCanvas data={geo} size="enlarged" width={420} height={260} paintedSide={paintedSide} />
-          <div style={{ marginTop: 8, fontSize: 12 }}>
-            Saved FlashDraft profile · <b>double-click the drawing for full size</b>
+          {body('enlarged', enlargedPx, Math.round(enlargedPx * aspect), true)}
+          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 12, fontSize: 12 }}>
+            <span>
+              {geo ? 'Saved FlashDraft profile' : source.kind === 'photo' ? 'Photo from the field app' : 'Saved shop image'} ·{' '}
+              <b>double-click for full size</b>
+            </span>
+            <span style={{ marginLeft: 'auto' }}>{sendButton(source.kind === 'photo')}</span>
           </div>
         </div>
       )}
 
       {overlay === 'fullsize' && (
         <div
-          id="v8-full"
           role="dialog"
           aria-modal="true"
           aria-label={`${label} — full size`}
@@ -405,24 +502,25 @@ export default function ProfileViewer({
             boxShadow: '0 24px 64px rgba(16,24,30,0.4)',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, flexWrap: 'wrap' }}>
             <h2 data-v8-overlay-title style={{ margin: 0 }}>
-              {geo.name ?? label}
+              {geo?.name ?? label}
             </h2>
             <span data-v8-overlay-meta>{metaLine}</span>
-            <button
-              type="button"
-              data-v8-overlay-close
-              aria-label="Close"
-              onClick={close}
-              style={{ marginLeft: 'auto', border: 0, background: 'none', cursor: 'pointer', fontSize: 18 }}
-            >
-              ✕
-            </button>
+            <span style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center' }}>
+              {sendButton(source.kind === 'photo')}
+              <button
+                type="button"
+                data-v8-overlay-close
+                aria-label="Close"
+                onClick={close}
+                style={{ border: 0, background: 'none', cursor: 'pointer', fontSize: 18 }}
+              >
+                ✕
+              </button>
+            </span>
           </div>
 
-          {/* Steve's shop notes, in the contract's red, above the drawing. The
-              host supplied them; nothing here composes or edits them. */}
           {shopNotes.length > 0 && (
             <div data-v8-shop-notes style={{ marginTop: 10, display: 'grid', gap: 6 }}>
               {shopNotes.map((note) => (
@@ -446,16 +544,42 @@ export default function ProfileViewer({
           )}
 
           <div style={{ marginTop: 12, flex: 1, minHeight: 0 }}>
-            <ProfileCanvas data={geo} size="fullsize" width={1100} height={620} paintedSide={paintedSide} />
+            {body('fullsize', DOC_WIDTH, 620, true)}
           </div>
 
-          {/* The painted side is a property of the JOB. Saying so beats drawing
-              nothing and letting the absence read as an answer. */}
-          <div data-v8-painted-side style={{ marginTop: 8, fontSize: 13 }}>
-            {paintedSide
-              ? `Painted side marked on the ${paintedSide.face === 'up' ? 'upper' : 'lower'} face.`
-              : 'Painted side not specified for this job.'}
-          </div>
+          {geo ? (
+            <div data-v8-painted-side style={{ marginTop: 8, fontSize: 13 }}>
+              {paintedSide
+                ? `Painted side marked on the ${paintedSide.face === 'up' ? 'upper' : 'lower'} face.`
+                : 'Painted side not specified for this job.'}
+            </div>
+          ) : (
+            <div data-v8-raster-note style={{ marginTop: 8, fontSize: 13 }}>
+              {source.kind === 'photo'
+                ? 'This is the photograph as it was sent. It carries no dimensions — send it to FlashDraft to draw the profile.'
+                : 'This is the image saved when the job went to the shop. It cannot be enlarged beyond its saved resolution.'}
+            </div>
+          )}
+
+          {/* v7/v8's own legend, so the inks on the drawing are named. */}
+          {geo && (
+            <div
+              data-v8-legend
+              style={{ marginTop: 8, display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12 }}
+            >
+              {[
+                ['#C0001A', 'Profile'],
+                ['#C0001A', 'Hem'],
+                ['#111111', 'Dimension'],
+                ['#B3261E', "Steve's shop note"],
+              ].map(([hex, text]) => (
+                <span key={text} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <i style={{ width: 12, height: 12, borderRadius: 2, background: hex, display: 'inline-block' }} />
+                  {text}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </>

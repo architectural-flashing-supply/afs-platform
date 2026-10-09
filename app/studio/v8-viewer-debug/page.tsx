@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { requireAdminUser } from '@/lib/admin/auth';
 import ProfileViewer from '@/components/admin/v8/ProfileViewer';
-import { getSavedProfileGeometry } from '@/lib/data/v8-profile-geometry';
+import { resolveSavedProfileSource } from '@/lib/data/v8-profile-source';
 
 /**
  * Standalone debug view for the V8 ProfileViewer — reach it at
@@ -70,7 +70,7 @@ export default async function ProfileViewerDebugPage({
   // only an id and fetches it itself through
   // /api/admin/v8/profile-geometry/[id]. If those two ever disagree, they
   // disagree here, side by side, rather than on a screen somebody is using.
-  const loaded = await Promise.all(ids.map((id) => getSavedProfileGeometry(id)));
+  const loaded = await Promise.all(ids.map((id) => resolveSavedProfileSource(id)));
 
   return (
     <main style={{ padding: 24, fontFamily: 'system-ui, sans-serif', background: '#F4F5F7', minHeight: '100vh' }}>
@@ -98,7 +98,9 @@ export default async function ProfileViewerDebugPage({
             <div style={{ fontSize: 12, fontFamily: 'ui-monospace, monospace', color: '#444' }}>
               {id} · {data.kind === 'geometry'
                 ? `${data.geometry.points.length} points · ${data.bendCount} bends · ${data.hemCount} hems · ${data.material || 'no material'} ${data.gauge || ''}`
-                : `no drawing — ${data.reason}`}
+                : data.kind === 'none'
+                  ? `no drawing — ${data.reason}`
+                  : data.kind}
             </div>
 
             <div style={{ display: 'flex', gap: 40, marginTop: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
@@ -107,11 +109,11 @@ export default async function ProfileViewerDebugPage({
                   server-read, passed as <code>initialData</code> — 110px
                 </div>
                 <ProfileViewer
-                  profileId={id}
+                  source={data}
                   label={`Profile ${i + 1}`}
                   thumbSize={110}
-                  initialData={data}
                   shopNotes={['Steve: paint outside face only']}
+                  flashDraftHref="/studio/draft"
                 />
               </div>
 
@@ -119,12 +121,17 @@ export default async function ProfileViewerDebugPage({
                 <div style={{ fontSize: 11, marginBottom: 6, color: '#555' }}>
                   id only, fetched by the component — 110px
                 </div>
-                <ProfileViewer profileId={id} label={`Profile ${i + 1} (fetched)`} thumbSize={110} />
+                <ProfileViewer
+                  fetchFor={`profile:${id}`}
+                  label={`Profile ${i + 1} (fetched)`}
+                  thumbSize={110}
+                  flashDraftHref="/studio/draft"
+                />
               </div>
 
               <div>
                 <div style={{ fontSize: 11, marginBottom: 6, color: '#555' }}>56px (the contract&rsquo;s small size)</div>
-                <ProfileViewer profileId={id} label={`Profile ${i + 1} small`} thumbSize={56} initialData={data} />
+                <ProfileViewer source={data} label={`Profile ${i + 1} small`} thumbSize={56} flashDraftHref="/studio/draft" />
               </div>
             </div>
           </section>
@@ -139,9 +146,10 @@ export default async function ProfileViewerDebugPage({
         </div>
         <div style={{ marginTop: 14 }}>
           <ProfileViewer
-            profileId="00000000-0000-4000-8000-000000000000"
+            fetchFor="profile:00000000-0000-4000-8000-000000000000"
             label="Nothing saved"
             thumbSize={110}
+            flashDraftHref="/studio/draft"
           />
         </div>
       </section>

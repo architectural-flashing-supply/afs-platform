@@ -25,6 +25,8 @@
  * those, never invented data. Each one is listed in docs/design/V7_PIXEL_REPORT.md.
  */
 
+import type { ProfileSource } from '@/lib/data/v8-profile-source';
+
 /** A profile drawing, as v7 draws it: a kind and per-segment lengths. */
 export interface V7DrawingRef {
   kind: string;
@@ -77,6 +79,18 @@ export interface V7Card {
   spec: V7SpecChip | null;
   /** null when the live side has no geometry for this job — never invented. */
   drawing: V7DrawingRef | null;
+  /**
+   * V8: what picture this job REALLY has, resolved by
+   * `lib/data/v8-profile-source.ts` — real geometry, the real field
+   * photograph, the real saved shop PNG, or an explicit to-do.
+   *
+   * This supersedes `drawing` on the live side, which could only ever be the
+   * parametric kind+d stand-in and was therefore always null there. `drawing`
+   * stays for the FIXTURE side, which the v7 pixel gate measures.
+   */
+  profileSource: ProfileSource | null;
+  /** Where "Send to FlashDraft" goes for this job (Reid's profile rule 5). */
+  flashDraftHref: string | null;
   /** v7 marks a sketch-only thumbnail `.photo` and an undrawn one `.np`. */
   thumbState: '' | 'photo' | 'np';
   /** The profile-state pill, always present in v7 (`pPill()`, line 1162). */
@@ -142,6 +156,15 @@ export interface V7WorkbenchView {
   inbox: { connected: string; newCount: number; rows: V7InboxRow[] } | null;
   shopRows: V7RailRow[];
   deliveryRows: V7RailRow[];
+  /**
+   * V8, Reid's profile rule 1d: every job with NO image of any kind is listed
+   * here so it is work somebody can see, not an empty box somebody scrolls
+   * past. A mail-scraped order is the case this exists for.
+   *
+   * Empty on the fixture side — v7's sample jobs all carry a parametric
+   * drawing, so none of them is missing one.
+   */
+  needsDrawing: { key: string; title: string; sub: string; href: string; flashDraftHref: string }[];
   /** v7's `.foot`. The sample-data sentence is fixture-only; see the builders. */
   footNotes: string[];
 }

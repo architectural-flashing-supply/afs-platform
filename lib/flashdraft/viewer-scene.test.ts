@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   PIXELS_PER_INCH,
-  VIEWER_SIZES,
+  DOC_WIDTH,
+  DOC_LABEL_STYLE,
+  VIEWER_DISPLAY,
   FLASHDRAFT_CANVAS_COLORS,
   V8_CONTRACT_DRAWING_COLORS,
   computeFitView,
@@ -223,15 +225,20 @@ function flashDraftStream(
 
 function viewerStream(
   p: (typeof PROFILES)[number],
-  size: 'thumb' | 'enlarged' | 'fullsize' = 'fullsize',
+  size: 'thumb' | 'hover' | 'enlarged' | 'fullsize' = 'fullsize',
   w = W,
   h = H,
-): { calls: Call[]; cam: { zoom: number; pan: { x: number; y: number } } } {
+): {
+  calls: Call[];
+  all: Call[];
+  cam: { zoom: number; pan: { x: number; y: number } };
+  doc: { w: number; h: number };
+} {
   const { ctx, calls } = recordingContext();
   const result = renderSavedProfileScene({
     ctx,
-    cssWidth: w,
-    cssHeight: h,
+    displayWidth: w,
+    displayHeight: h,
     geometry: p.geometry,
     material: p.material,
     gauge: p.gauge,
@@ -249,7 +256,14 @@ function viewerStream(
   const start = calls.findIndex((c) => c.startsWith('clearRect('));
   return {
     calls: start >= 0 ? calls.slice(start) : calls,
+    // THE UNSLICED STREAM, for anything that needs the transform. The slice
+    // above drops the document-to-display `setTransform` along with the
+    // measurement pass, and a bounds check that loses it reads document
+    // coordinates as display ones — 754px "outside" a 56px box for a drawing
+    // that fits perfectly.
+    all: calls,
     cam: { zoom: result!.zoom, pan: result!.pan },
+    doc: { w: result!.docWidth, h: result!.docHeight },
   };
 }
 
@@ -269,7 +283,7 @@ describe('V8 ProfileViewer geometry fidelity', () => {
     // The two paths compared below can only be identical if this holds, and
     // asserting it separately makes a drift here say what it is rather than
     // showing up as hundreds of differing font= calls.
-    expect(VIEWER_SIZES.fullsize.label).toEqual(SHOP_SNAPSHOT_LABEL_STYLE);
+    expect(DOC_LABEL_STYLE).toEqual(SHOP_SNAPSHOT_LABEL_STYLE);
   });
 
   for (const p of PROFILES) {
@@ -358,8 +372,8 @@ describe('V8 ProfileViewer geometry fidelity', () => {
     for (const points of [[], [{ x: 1, y: 1 }]]) {
       const r = renderSavedProfileScene({
         ctx,
-        cssWidth: W,
-        cssHeight: H,
+        displayWidth: W,
+        displayHeight: H,
         geometry: { points, hemStart: null, hemEnd: null },
         material: 'Aluminum',
         gauge: '0.040',
@@ -373,74 +387,90 @@ describe('V8 ProfileViewer geometry fidelity', () => {
     expect(calls).toEqual([]);
   });
 
-  it('draws no labels at thumbnail size, and real labels above it', () => {
-    const p = PROFILES[0];
-    const thumb = (() => {
-      const { ctx, calls } = recordingContext();
-      renderSavedProfileScene({
-        ctx, cssWidth: 110, cssHeight: 110, geometry: p.geometry, material: p.material,
-        gauge: p.gauge, size: 'thumb', fontFamily: 'monospace',
+  /**
+   * REID'S RULE 4, AS AN ASSERTION: "no hem glyph, hem caption, dimension,
+   * angle or label may be omitted from the thumbnail, hover, enlarged or
+   * full-size view."
+   *
+   * This is THE test that rule exists for. It renders each profile at all four
+   * sizes and asserts the set of drawn strings is IDENTICAL — not similar, not
+   * a superset, identical. A previous pass dropped the hem caption from the
+   * enlarged view to make it fit, and nothing failed; this is what would have.
+   *
+   * It also counts the drawn MARKS (segments, arcs, rings, glyph strokes), so
+   * turning off a glyph rather than a label is caught by the same test.
+   */
+  it('drops NOTHING at any size — identical labels and marks, thumbnail to full', () => {
+    const SIZES: ('thumb' | 'hover' | 'enlarged' | 'fullsize')[] = ['thumb', 'hover', 'enlarged', 'fullsize'];
+    for (const p of PROFILES) {
+      const perSize = SIZES.map((size) => {
+        const box = VIEWER_DISPLAY[size].px;
+        const { all } = viewerStream(p, size, box, Math.round((box * 620) / DOC_WIDTH));
+        // Every stroked path the renderer emits, EXCEPT the drafting grid —
+        // which is background texture, is the one legitimate per-size
+        // difference, and has its own test below. Counting it here would make
+        // this test fail for the grid rather than for a dropped mark.
+        let pen = '';
+        let strokes = 0;
+        for (const c of all) {
+          if (c.startsWith('strokeStyle=')) pen = c.slice('strokeStyle='.length);
+          else if (c === 'stroke()' && pen !== FLASHDRAFT_CANVAS_COLORS.grid) strokes += 1;
+        }
+        return { size, texts: textsDrawn(all).sort(), strokes, arcs: all.filter((c) => c.startsWith('arc(')).length };
       });
-      return calls;
-    })();
-    const enlarged = (() => {
-      const { ctx, calls } = recordingContext();
-      renderSavedProfileScene({
-        ctx, cssWidth: 420, cssHeight: 260, geometry: p.geometry, material: p.material,
-        gauge: p.gauge, size: 'enlarged', fontFamily: 'monospace',
-      });
-      return calls;
-    })();
 
-    // The thumbnail still DRAWS the profile — it just carries no legible
-    // numbers (VIEWER_SIZES.thumb's 0px fonts, and the reason is recorded
-    // there). The shape is the identifier; the numbers are one click away.
-    expect(thumb.filter((c) => c.startsWith('lineTo(')).length).toBeGreaterThan(0);
-    expect(thumb.some((c) => c.startsWith('font=') && !c.includes('0px'))).toBe(false);
-    expect(enlarged.some((c) => c.startsWith('font=') && !c.includes('0px'))).toBe(true);
+      const first = perSize[0];
+      for (const other of perSize.slice(1)) {
+        expect(
+          other.texts,
+          `${p.name}: "${other.size}" draws different labels from "${first.size}" — ` +
+            `missing ${JSON.stringify(first.texts.filter((t) => !other.texts.includes(t)))}, ` +
+            `extra ${JSON.stringify(other.texts.filter((t) => !first.texts.includes(t)))}`,
+        ).toEqual(first.texts);
+        expect(other.arcs, `${p.name}: "${other.size}" draws a different number of arcs`).toBe(first.arcs);
+        expect(other.strokes, `${p.name}: "${other.size}" draws a different number of strokes`).toBe(
+          first.strokes,
+        );
+      }
+
+      // PREMISE: there is something to drop. A profile that drew no labels at
+      // all would satisfy "identical at every size" perfectly.
+      expect(first.texts.length, `${p.name}: nothing was labelled`).toBeGreaterThan(0);
+      const hems = (p.geometry.hemStart ? 1 : 0) + (p.geometry.hemEnd ? 1 : 0);
+      if (hems > 0) {
+        expect(
+          first.texts.filter((t) => /^(OPEN|TEARDROP|SMASHED)/.test(t)).length,
+          `${p.name}: the hem caption must survive at EVERY size, including the thumbnail`,
+        ).toBe(hems);
+      }
+    }
   });
 
-  it('draws the grid only at full size', () => {
+  it('paints the drafting grid only where it is readable, which omits nothing about the part', () => {
+    // The grid is background texture, not information about the profile — the
+    // one thing that may legitimately differ by size. At thumbnail scale it is
+    // a grey wash over the drawing. Dropping it omits no dimension, angle, hem
+    // or label, which is what rule 4 protects.
     const p = PROFILES[0];
-    const grid = (size: 'thumb' | 'enlarged' | 'fullsize') => {
-      const { ctx, calls } = recordingContext();
-      renderSavedProfileScene({
-        ctx, cssWidth: W, cssHeight: H, geometry: p.geometry, material: p.material,
-        gauge: p.gauge, size, fontFamily: 'monospace',
-      });
-      return calls.some((c) => c === `strokeStyle=${FLASHDRAFT_CANVAS_COLORS.grid}`);
+    const grid = (size: 'thumb' | 'hover' | 'enlarged' | 'fullsize') => {
+      const box = VIEWER_DISPLAY[size].px;
+      const { all } = viewerStream(p, size, box, Math.round((box * 620) / DOC_WIDTH));
+      return all.some((c) => c === `strokeStyle=${FLASHDRAFT_CANVAS_COLORS.grid}`);
     };
     expect(grid('thumb')).toBe(false);
-    expect(grid('enlarged')).toBe(false);
+    expect(grid('hover')).toBe(false);
+    expect(grid('enlarged')).toBe(true);
     expect(grid('fullsize')).toBe(true);
   });
+
 });
 
-/**
- * THE TEST THAT WOULD HAVE CAUGHT THE CROPPING.
- *
- * The call-stream comparison above proves the viewer draws the same things
- * FlashDraft does. It says nothing about WHERE, because both sides are given
- * the same camera. The first version of this component framed every drawing by
- * fitting the POINT BOUNDING BOX and then drew a 20px angle arc, an 8px
- * endpoint ring, a hem glyph and dimension text OUTSIDE it — so the thumbnails
- * ran off all four edges and the enlarged view clipped `3 15/16"` in half.
- * Every test passed. A screenshot found it.
- *
- * This reads the coordinates back out of the recorded stream and asserts they
- * land inside the canvas. It is deliberately about geometry, not pixels, so it
- * needs no rasteriser and runs in milliseconds.
- *
- * `fillText` is EXCLUDED from the bounds check and asserted separately, by its
- * anchor point with a measured half-width allowance — a text anchor can sit
- * legitimately close to an edge as long as the string still fits, and the
- * recording cannot know a real font's metrics.
- */
 describe('the drawing stays inside its canvas', () => {
-  const SIZES: { size: 'thumb' | 'enlarged' | 'fullsize'; w: number; h: number }[] = [
+  const SIZES: { size: 'thumb' | 'hover' | 'enlarged' | 'fullsize'; w: number; h: number }[] = [
     { size: 'thumb', w: 56, h: 56 },
     { size: 'thumb', w: 110, h: 110 },
-    { size: 'enlarged', w: 420, h: 260 },
+    { size: 'hover', w: 420, h: 237 },
+    { size: 'enlarged', w: 760, h: 428 },
     { size: 'fullsize', w: 1100, h: 620 },
   ];
 
@@ -536,8 +566,8 @@ describe('the drawing stays inside its canvas', () => {
   for (const { size, w, h } of SIZES) {
     for (const p of PROFILES) {
       it(`keeps "${p.name}" inside a ${w}x${h} ${size}`, () => {
-        const { calls } = viewerStream(p, size, w, h);
-        const pts = drawnPoints(calls, w, h);
+        const { all } = viewerStream(p, size, w, h);
+        const pts = drawnPoints(all, w, h);
         expect(pts.length, 'nothing was drawn at all').toBeGreaterThan(4);
 
         // The GRID is drawn across the whole canvas by design and is clipped by
@@ -563,7 +593,7 @@ describe('the drawing stays inside its canvas', () => {
     // reserve was computed from in this environment — so the two agree.
     for (const { size, w, h } of SIZES) {
       for (const p of PROFILES) {
-        const { calls } = viewerStream(p, size, w, h);
+        const { all: calls, doc } = viewerStream(p, size, w, h);
         // A label set to 0px draws nothing, but the `fillText` call is still
         // recorded — that is how `VIEWER_SIZES.thumb` suppresses its labels
         // without the one renderer needing a labels-off flag. Tracking the
@@ -585,26 +615,35 @@ describe('the drawing stays inside its canvas', () => {
           const isCaption = /^(OPEN|TEARDROP|SMASHED)/.test(text);
           const left = isCaption ? x : x - width / 2;
           const right = isCaption ? x + width : x + width / 2;
+          // CHECKED IN DOCUMENT SPACE. Labels are composed at document scale
+          // and the whole document is then scaled uniformly, so a label that
+          // fits the document fits every display size; checking display pixels
+          // would compare a document-space width against a scaled box.
           expect(
-            left > -8 && right < w + 8 && y > -8 && y < h + 8,
-            `${size} ${w}x${h} "${p.name}": label ${JSON.stringify(text)} at (${x.toFixed(0)}, ${y.toFixed(0)}) spans ${left.toFixed(0)}..${right.toFixed(0)} and does not fit`,
+            left > -8 && right < doc.w + 8 && y > -8 && y < doc.h + 8,
+            `${size} doc ${doc.w.toFixed(0)}x${doc.h.toFixed(0)} "${p.name}": label ${JSON.stringify(text)} spans ${left.toFixed(0)}..${right.toFixed(0)} and does not fit`,
           ).toBe(true);
         }
       }
     }
   });
 
-  it('the thumbnail draws no fixed-size UI marks, and the larger views do', () => {
-    // A 20px angle arc on a 56px canvas is bigger than the bend it annotates,
-    // and an endpoint grab ring promises a drag the viewer cannot perform.
-    // Both were overflowing the box before `drawUiIndicators` existed.
+  it('draws the fixed-size UI marks at EVERY size, including the thumbnail', () => {
+    // The reverse of what this test used to assert. Rule 4 (2026-10-09) says
+    // nothing may be omitted at any size, and the uniform-scale design makes
+    // that true by construction: the 20px arc and the 8px ring are composed at
+    // document scale and shrink with everything else, so they no longer
+    // dominate a small box the way they did when they were fixed in DISPLAY
+    // pixels.
     const p = PROFILES[2]; // 4 bends and a hem — plenty of marks to find
     const ringOrArc = (calls: Call[]) =>
       calls.filter((c) => /^arc\([-\d.]+,[-\d.]+,(8\.0000|20\.0000),/.test(c)).length;
 
-    expect(ringOrArc(viewerStream(p, 'thumb', 110, 110).calls)).toBe(0);
-    expect(ringOrArc(viewerStream(p, 'enlarged', 420, 260).calls)).toBeGreaterThan(0);
-    expect(ringOrArc(viewerStream(p, 'fullsize', 1100, 620).calls)).toBeGreaterThan(0);
+    const atThumb = ringOrArc(viewerStream(p, 'thumb', 110, 110).all);
+    expect(atThumb, 'the thumbnail must still draw the arcs and rings').toBeGreaterThan(0);
+    expect(ringOrArc(viewerStream(p, 'hover', 420, 237).all)).toBe(atThumb);
+    expect(ringOrArc(viewerStream(p, 'enlarged', 760, 428).all)).toBe(atThumb);
+    expect(ringOrArc(viewerStream(p, 'fullsize', 1100, 620).all)).toBe(atThumb);
   });
 });
 
@@ -712,7 +751,7 @@ describe('the V8 contract palette is recorded but not in force', () => {
     const p = PROFILES[0];
     const { ctx, calls } = recordingContext();
     renderSavedProfileScene({
-      ctx, cssWidth: W, cssHeight: H, geometry: p.geometry, material: p.material,
+      ctx, displayWidth: W, displayHeight: H, geometry: p.geometry, material: p.material,
       gauge: p.gauge, size: 'fullsize', fontFamily: 'monospace',
     });
     expect(calls.some((c) => c === `strokeStyle=${FLASHDRAFT_CANVAS_COLORS.profile}`)).toBe(true);

@@ -192,58 +192,80 @@ export const FLASHDRAFT_CANVAS_COLORS: ProfileSceneColors & {
  * reason that style exists: the full-size view is what gets read from a few
  * feet away at the machine.
  */
-export type ViewerSize = 'thumb' | 'enlarged' | 'fullsize';
+/**
+ * THE VIEWER DRAWS ONE CANONICAL DOCUMENT AND SCALES IT. NOTHING IS EVER
+ * DROPPED AT ANY SIZE.
+ *
+ * Reid's rule 4 (2026-10-09): "no hem glyph, hem caption, dimension, angle or
+ * label may be omitted from the thumbnail, hover, enlarged or full-size view.
+ * If a label does not fit, change the canvas, padding or size until it does."
+ * It was written because the previous pass dropped the hem caption from the
+ * enlarged view to make it fit.
+ *
+ * ────────────────────────────────────────────────────────────────────────────
+ * WHY PER-SIZE LABEL STYLES WERE THE WRONG SHAPE ENTIRELY.
+ * ────────────────────────────────────────────────────────────────────────────
+ *
+ * The old design gave each size its own font sizes and its own on/off switches,
+ * so "what is shown" differed per size and the only way to make something fit
+ * was to turn it off. That is the structure that produced the defect: it made
+ * dropping a label the easy move and the one the code was shaped for.
+ *
+ * This draws the profile ONCE, into a canonical document whose width is always
+ * `DOC_WIDTH`, with every label and every mark present — and then applies a
+ * single uniform `ctx.scale()` so the whole document lands at whatever display
+ * size the caller asked for. A thumbnail is therefore a TRUE MINIATURE of the
+ * full-size view: the same drawing, the same labels, the same glyphs, smaller.
+ * At 110px the text is tiny, which is what a miniature is for; hover and the
+ * enlarged view are one gesture away and legible.
+ *
+ * NOTHING CAN BE DROPPED BY CONSTRUCTION, because there is no longer anywhere
+ * to drop it from — one render, one set of labels, one scale factor.
+ * `lib/flashdraft/viewer-scene.test.ts`'s "nothing is dropped at any size"
+ * test asserts the drawn-string set is IDENTICAL at every size.
+ *
+ * THE BITMAP STAYS SMALL. The scale is applied to the context, not by
+ * rasterising a big canvas and shrinking it — a 110px thumbnail allocates a
+ * 110px bitmap, not a 1100px one. Twenty cards on a Workbench would otherwise
+ * cost tens of megabytes.
+ *
+ * THE DOCUMENT TAKES THE CALLER'S ASPECT so nothing is letterboxed: width is
+ * fixed and height follows the requested box. A square thumbnail gets a square
+ * document, a wide plate a wide one, and the fit runs once against that.
+ */
+export const DOC_WIDTH = 1100;
 
-interface SizeSpec {
-  label: DrawSceneLabelStyle;
-  drawGrid: boolean;
-  /**
-   * The fixed-screen-pixel UI marks — the free-endpoint grab rings and the
-   * 20px bend-angle arcs. See `drawUiIndicators` in draw-profile-scene.ts.
-   */
-  uiIndicators: boolean;
-}
-
-export const VIEWER_SIZES: Record<ViewerSize, SizeSpec> = {
-  thumb: {
-    // ZERO-PIXEL FONTS, DELIBERATELY. `drawProfileScene` always labels what it
-    // draws — there is no "labels off" flag, and adding one would mean editing
-    // the one renderer for the benefit of one caller. A 0px font draws nothing,
-    // which is the right answer here: a 110px box cannot carry five dimension
-    // labels legibly, and illegible numbers beside a profile read as numbers
-    // somebody could act on. The thumbnail identifies the shape; every number
-    // is one click away.
-    label: { segmentFontPx: 0, angleFontPx: 0, hemFontPx: 0, bold: false },
-    drawGrid: false,
-    // AND NO UI MARKS. A 20px angle arc on a 56px canvas is bigger than the
-    // bend it annotates, and an endpoint grab ring promises a drag the viewer
-    // does not implement. Both were overflowing the box.
-    uiIndicators: false,
-  },
-  enlarged: {
-    // NO HEM CAPTION AT THIS SIZE, and it is a trade-off rather than an
-    // oversight. FlashDraft's caption is `OPEN 3/16" gap` — about 98px at this
-    // font — and it is drawn LEFT-ALIGNED outward from the hem, which sits at
-    // the profile's edge by definition. Reserving room for it on a 420px canvas
-    // leaves barely a third of the width for the drawing; not reserving it
-    // clips the caption. Neither is worth it for a view whose job is "see the
-    // shape bigger": the hem is still visible as a glyph, and its type and gap
-    // are one more click away at full size, where there is room.
-    //
-    // THIS IS TIED TO THE OPEN HEM-LABEL QUESTION (docs/COMMAND_CENTER_V8_AUDIT.md
-    // section 4a). The V8 contract's own label is `0.5" hem`, which is a third
-    // shorter and would fit here. If Reid settles on a shorter caption, revisit
-    // this line first.
-    label: { segmentFontPx: 13, angleFontPx: 12, hemFontPx: 0, bold: true },
-    drawGrid: false,
-    uiIndicators: true,
-  },
-  fullsize: {
-    label: { segmentFontPx: 21, angleFontPx: 19, hemFontPx: 17.5, bold: true },
-    drawGrid: true,
-    uiIndicators: true,
-  },
+/**
+ * The one label style, at document scale. These are FlashDraft's own
+ * shop-snapshot sizes (`SHOP_SNAPSHOT_LABEL_STYLE`), which is what the
+ * full-size view has always used and what the fidelity test compares against.
+ */
+export const DOC_LABEL_STYLE: DrawSceneLabelStyle = {
+  segmentFontPx: 21,
+  angleFontPx: 19,
+  hemFontPx: 17.5,
+  bold: true,
 };
+
+/**
+ * Display tiers, kept ONLY as a name for a default pixel size and for whether
+ * the drafting grid is painted. They no longer decide what is drawn.
+ *
+ * The grid is the one thing that legitimately differs: it is a background
+ * texture rather than information about the profile, and at thumbnail scale it
+ * is a grey wash over the drawing. Dropping it omits nothing about the part.
+ */
+export type ViewerSize = 'thumb' | 'hover' | 'enlarged' | 'fullsize';
+
+export const VIEWER_DISPLAY: Record<ViewerSize, { px: number; grid: boolean }> = {
+  thumb: { px: 110, grid: false },
+  hover: { px: 420, grid: false },
+  enlarged: { px: 760, grid: true },
+  fullsize: { px: 1100, grid: true },
+};
+
+/** The smallest zoom the fit may use. One value — the document is one size. */
+const DOC_MIN_ZOOM = 0.02;
 
 /**
  * HOW MUCH SCREEN SPACE THE SCENE USES OUTSIDE THE POINT BOUNDING BOX.
@@ -278,43 +300,27 @@ export const VIEWER_SIZES: Record<ViewerSize, SizeSpec> = {
  *                         the answer is already in the caller's hand. See
  *                         `measureLabelReservePx`.
  *
- * CAPPED AT 30% OF THE SMALLER SIDE. Without the cap a small box would reserve
- * more than it has and the drawing would collapse to nothing — swapping a
- * cropped profile for an invisible one, which is not an improvement. If the cap
- * ever binds, that is the signal the indicators should be off at that size,
- * which is exactly how `thumb` is configured.
+ * CAPPED AT 30% OF THE SMALLER SIDE. Without the cap a box could reserve more
+ * than it has and the drawing would collapse to nothing — swapping a cropped
+ * profile for an invisible one, which is not an improvement. The cap cannot
+ * bind in practice any more: this is measured against the CANONICAL DOCUMENT,
+ * which is 1100px wide whatever the display size, so there is always room.
  */
 export function fitPaddingPx(
-  size: ViewerSize,
   cssWidth: number,
   cssHeight: number,
   hemExtentPx: number,
   measuredLabelHalfWidthPx = 0,
 ): number {
-  const spec = VIEWER_SIZES[size];
-
-  const indicators = spec.uiIndicators
-    ? Math.max(UI_INDICATOR_EXTENT_PX.angleArcAndLabel, UI_INDICATOR_EXTENT_PX.endHandle)
-    : 0;
+  const indicators = Math.max(
+    UI_INDICATOR_EXTENT_PX.angleArcAndLabel,
+    UI_INDICATOR_EXTENT_PX.endHandle,
+  );
 
   const wanted = Math.max(indicators, measuredLabelHalfWidthPx, hemExtentPx) + 4;
   const cap = Math.min(cssWidth, cssHeight) * 0.3;
   return Math.max(2, Math.min(wanted, cap));
 }
-
-/**
- * The smallest zoom each size may fit to.
- *
- * A thumbnail must be allowed to zoom out as far as the shape needs — see
- * `computeFitView`'s `minZoom` note. The larger views keep a floor near
- * FlashDraft's, because at 420px and 1100px anything that small is a data
- * problem rather than a framing one.
- */
-const MIN_ZOOM: Record<ViewerSize, number> = {
-  thumb: 0.02,
-  enlarged: 0.05,
-  fullsize: 0.1,
-};
 
 /**
  * The points the FIT should consider — the real ones, plus where each hem's
@@ -370,12 +376,9 @@ function hemBoundsPoints(geometry: SavedProfileGeometry): ViewerPoint[] {
 function measureLabelReservePx(
   ctx: CanvasRenderingContext2D,
   geometry: SavedProfileGeometry,
-  size: ViewerSize,
   fontFamily: string,
 ): number {
-  const spec = VIEWER_SIZES[size];
-  const { segmentFontPx, angleFontPx, hemFontPx, bold } = spec.label;
-  if (segmentFontPx <= 0 && angleFontPx <= 0 && hemFontPx <= 0) return 0;
+  const { segmentFontPx, angleFontPx, hemFontPx, bold } = DOC_LABEL_STYLE;
 
   const pts = geometry.points;
   const strings: { text: string; px: number }[] = [];
@@ -415,11 +418,9 @@ function measureLabelReservePx(
 function measureHemCaptionWidthPx(
   ctx: CanvasRenderingContext2D,
   geometry: SavedProfileGeometry,
-  size: ViewerSize,
   fontFamily: string,
 ): number {
-  const { hemFontPx, bold } = VIEWER_SIZES[size].label;
-  if (hemFontPx <= 0) return 0;
+  const { hemFontPx, bold } = DOC_LABEL_STYLE;
   ctx.save();
   ctx.font = `${bold ? 'bold ' : ''}${hemFontPx}px ${fontFamily}`;
   let widest = 0;
@@ -439,13 +440,17 @@ function measureHemCaptionWidthPx(
 
 export interface RenderSavedProfileParams {
   ctx: CanvasRenderingContext2D;
-  cssWidth: number;
-  cssHeight: number;
+  /** The DISPLAY box in CSS pixels. The document is scaled to fit it. */
+  displayWidth: number;
+  displayHeight: number;
   geometry: SavedProfileGeometry;
   material: string;
   gauge: string;
+  /** Picks the default display size and whether the drafting grid is painted. */
   size: ViewerSize;
   fontFamily: string;
+  /** Device pixel ratio. The backing store is display x dpr; the document scales on top. */
+  dpr?: number;
   /** Omit to skip the painted-side stripe. */
   paint?: DrawScenePaintState;
 }
@@ -454,8 +459,15 @@ export interface RenderSavedProfileParams {
  * Draw one saved profile onto `ctx`. The ONLY drawing entry point the V8
  * viewer has, and it draws by calling `drawProfileScene`.
  *
- * Returns the camera it used, so a caller that needs to place something in
- * screen space (an overlay label, a hit test) can ask rather than re-derive.
+ * ONE DOCUMENT, SCALED. The scene is always composed at `DOC_WIDTH` across,
+ * with every label, every glyph and every mark present, and a single uniform
+ * `ctx.scale()` lands it in the caller's display box. A thumbnail is the same
+ * drawing as the full-size view, smaller — never a reduced one. See the
+ * DOC_WIDTH block above for why per-size label styles were removed.
+ *
+ * Returns the camera in DOCUMENT coordinates plus the scale applied, so a
+ * caller that needs to place something in screen space can ask rather than
+ * re-derive.
  *
  * NOTHING IS INVENTED WHEN GEOMETRY IS THIN. Fewer than two points is not a
  * profile — there is no segment to draw and no length to label — so it draws
@@ -464,19 +476,49 @@ export interface RenderSavedProfileParams {
  * would be a drawing of something nobody drew, on a screen whose next button
  * reaches a bending machine.
  */
-export function renderSavedProfileScene(
-  params: RenderSavedProfileParams,
-): { zoom: number; pan: { x: number; y: number }; pixelsPerInch: number } | null {
-  const { ctx, cssWidth, cssHeight, geometry, material, gauge, size, fontFamily, paint } = params;
+export function renderSavedProfileScene(params: RenderSavedProfileParams): {
+  zoom: number;
+  pan: { x: number; y: number };
+  pixelsPerInch: number;
+  /** Document-to-display scale. 1 at full size. */
+  scale: number;
+  docWidth: number;
+  docHeight: number;
+} | null {
+  const {
+    ctx,
+    displayWidth,
+    displayHeight,
+    geometry,
+    material,
+    gauge,
+    size,
+    fontFamily,
+    dpr = 1,
+    paint,
+  } = params;
   if (!geometry.points || geometry.points.length < 2) return null;
+  if (displayWidth <= 0 || displayHeight <= 0) return null;
 
-  const spec = VIEWER_SIZES[size];
+  // The document takes the caller's ASPECT so nothing is letterboxed, and its
+  // width is always DOC_WIDTH so the label sizes, the arc radii and the hem
+  // glyph floors all mean the same thing at every display size.
+  const scale = displayWidth / DOC_WIDTH;
+  const docWidth = DOC_WIDTH;
+  const docHeight = displayHeight / scale;
+
+  // One uniform transform: device pixels per document unit. Everything the
+  // renderer draws in "screen" pixels is really document pixels, and shrinks
+  // together.
+  ctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
+
   const thicknessIn = gaugeToThicknessMm(gauge) / MM_PER_INCH;
   // A hem is drawn from its endpoint OUTWARD by its own fold length, in world
   // units, so it genuinely enlarges the shape — fold that into the points the
   // fit is computed over rather than trying to absorb it as screen padding.
   const fitPoints = hemBoundsPoints(geometry);
-  const labelReserve = measureLabelReservePx(ctx, geometry, size, fontFamily);
+  const labelReserve = measureLabelReservePx(ctx, geometry, fontFamily);
+  const hemCaptionWidth = measureHemCaptionWidthPx(ctx, geometry, fontFamily);
 
   // TWO PASSES, because the hem glyph's size depends on the zoom and the zoom
   // depends on how much room the glyph needs. More zoom means a bigger glyph
@@ -484,9 +526,7 @@ export function renderSavedProfileScene(
   // floor-only estimate settles it. A single pass left a teardrop outside the
   // canvas; looping to convergence would be a loop to save a few tenths of a
   // pixel on a drawing nobody measures with calipers.
-  const hemCaptionWidth = measureHemCaptionWidthPx(ctx, geometry, size, fontFamily);
   const hemExtentAt = (zoom: number) => {
-    if (!spec.uiIndicators) return 0; // no glyph and no caption at thumbnail size
     const opts = { pixelsPerInch: PIXELS_PER_INCH, zoom, thicknessIn, gauge };
     const reach = (hem: typeof geometry.hemStart) =>
       hem
@@ -502,17 +542,17 @@ export function renderSavedProfileScene(
 
   const first = computeFitView(
     fitPoints,
-    cssWidth,
-    cssHeight,
-    fitPaddingPx(size, cssWidth, cssHeight, hemExtentAt(0), labelReserve),
-    MIN_ZOOM[size],
+    docWidth,
+    docHeight,
+    fitPaddingPx(docWidth, docHeight, hemExtentAt(0), labelReserve),
+    DOC_MIN_ZOOM,
   );
   const { zoom, pan } = computeFitView(
     fitPoints,
-    cssWidth,
-    cssHeight,
-    fitPaddingPx(size, cssWidth, cssHeight, hemExtentAt(first.zoom), labelReserve),
-    MIN_ZOOM[size],
+    docWidth,
+    docHeight,
+    fitPaddingPx(docWidth, docHeight, hemExtentAt(first.zoom), labelReserve),
+    DOC_MIN_ZOOM,
   );
   const radii = geometry.bendRadiiIn ?? null;
 
@@ -520,36 +560,36 @@ export function renderSavedProfileScene(
 
   drawProfileScene({
     ctx,
-    cssWidth,
-    cssHeight,
+    cssWidth: docWidth,
+    cssHeight: docHeight,
     points,
     hemStart: geometry.hemStart,
     hemEnd: geometry.hemEnd,
     worldToScreen: (p) => ({
-      x: p.x * PIXELS_PER_INCH * zoom + pan.x + cssWidth / 2,
-      y: p.y * PIXELS_PER_INCH * zoom + pan.y + cssHeight / 2,
+      x: p.x * PIXELS_PER_INCH * zoom + pan.x + docWidth / 2,
+      y: p.y * PIXELS_PER_INCH * zoom + pan.y + docHeight / 2,
     }),
     fontFamily,
     pixelsPerInch: PIXELS_PER_INCH,
     zoom,
     gauge,
     thicknessIn,
-    // A saved point's own radius wins; then the saved per-bend list
-    // FlashDraft wrote at submit time; then the material default. Same
-    // precedence FlashDraft's own `getEffectiveRadius` applies, extended by
-    // the stored list, which the editor reads from component state instead.
+    // A saved point's own radius wins; then the saved per-bend list FlashDraft
+    // wrote at submit time; then the material default. Same precedence
+    // FlashDraft's own `getEffectiveRadius` applies, extended by the stored
+    // list, which the editor reads from component state instead.
     getEffectiveRadius: (i: number) =>
       points[i]?.radius ?? radii?.[i - 1] ?? defaultBendRadiusIn(material),
     isGauge18OrThicker,
     signedAngleBetween,
     colors: FLASHDRAFT_CANVAS_COLORS,
-    labelStyle: spec.label,
-    drawGrid: spec.drawGrid,
-    drawUiIndicators: spec.uiIndicators,
+    labelStyle: DOC_LABEL_STYLE,
+    drawGrid: VIEWER_DISPLAY[size].grid,
+    drawUiIndicators: true,
     paint,
   });
 
-  return { zoom, pan, pixelsPerInch: PIXELS_PER_INCH };
+  return { zoom, pan, pixelsPerInch: PIXELS_PER_INCH, scale, docWidth, docHeight };
 }
 
 /**

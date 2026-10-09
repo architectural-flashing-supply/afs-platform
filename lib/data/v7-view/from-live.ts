@@ -35,6 +35,7 @@
  * Every one of these is listed in docs/design/V7_PIXEL_REPORT.md.
  */
 import { V7_COLORS } from '@/lib/fixtures/command-center-v7';
+import { JOB_HANDOFF_PARAM } from '@/lib/flashdraft/job-handoff';
 import type {
   V7Button,
   V7Card,
@@ -58,6 +59,22 @@ import type { MetaTone, Workbench, WorkbenchCard } from '@/lib/data/workbench';
  * plausible-looking one — a wrong swatch on a shop screen is worse than a
  * neutral one.
  */
+/**
+ * Where "Send to FlashDraft" goes for one job — Reid's profile rule 5: EVERY
+ * item gets one, whatever its source, including an item with no image at all,
+ * which is exactly the case that needs somebody to draw one.
+ *
+ * `lib/flashdraft/job-handoff.ts` already owns this contract: the link is keyed
+ * on the QUOTE REQUEST rather than on a saved profile, because every job has
+ * one and only some jobs have the other. FlashDraft opens on the real geometry
+ * when there is some, on the photo to trace when there is a photo, and on a
+ * blank canvas with the job's material and gauge filled in when there is
+ * neither — three honest outcomes, none of them invented.
+ */
+export function flashDraftHrefFor(card: { id: string }): string {
+  return `/studio/draft?${JOB_HANDOFF_PARAM}=${encodeURIComponent(card.id)}`;
+}
+
 export function liveSpecChip(spec: string): V7SpecChip | null {
   if (!spec) return null;
   const exact = V7_COLORS[spec];
@@ -125,9 +142,19 @@ function liveCard(card: WorkbenchCard): V7Card {
     customer: card.customer,
     itemLine: card.itemLine,
     spec: liveSpecChip(card.specLine),
-    // See this file's header, point 1.
+    // See this file's header, point 1 — `drawing` is the PARAMETRIC kind+d
+    // stand-in and is always null on the live side.
     drawing: null,
-    thumbState: 'np',
+    // V8: the REAL picture, whatever its source. `thumbState` follows it so
+    // v7's own box styling still matches what is in the box.
+    profileSource: card.profileSource,
+    flashDraftHref: flashDraftHrefFor(card),
+    thumbState:
+      card.profileSource?.kind === 'photo'
+        ? 'photo'
+        : card.profileSource && card.profileSource.kind !== 'none'
+          ? ''
+          : 'np',
     profilePill: liveProfilePill(card, false),
     // v7's flag pills are Revised v2 and Addendum waiting — gap-audit items 8
     // and 9, neither of which exists. Rush is the one flag this app really has,
@@ -193,6 +220,21 @@ export function liveWorkbench(
     })),
   );
 
+  // REID'S PROFILE RULE 1d — every job with no image of ANY kind is listed as
+  // work, not left as an empty box on a card somebody scrolls past. The
+  // resolver already decided this (`kind: 'none'` carries `todo: true`); this
+  // just gathers them.
+  const needsDrawing = wb.lanes
+    .flatMap((l) => l.cards)
+    .filter((c) => c.profileSource?.kind === 'none')
+    .map((c) => ({
+      key: c.id,
+      title: c.customer,
+      sub: `${c.itemLine} · ${c.sourceLabel}`,
+      href: `/admin/command-center/job/${c.id}`,
+      flashDraftHref: flashDraftHrefFor(c),
+    }));
+
   const footNotes = ['Done jobs leave the board after 14 days. Search still finds them.'];
   if (wb.archivedFromDone > 0) {
     // Never a silent truncation: if the 14-day rule hid something, say so.
@@ -211,6 +253,7 @@ export function liveWorkbench(
     inbox: null,
     shopRows,
     deliveryRows,
+    needsDrawing,
     footNotes,
   };
 }

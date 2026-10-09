@@ -162,6 +162,13 @@ function cardOf(f: V7Fixture, j: V7Job): V7Card {
     jobNumber: jid(j.n),
     stage: j.lane,
     customer: j.cust,
+    // THE FIXTURE SIDE KEEPS v7's PARAMETRIC DRAWING and carries no V8 source.
+    // It exists to be measured against the frozen v7 prototype by the pixel
+    // gate (CLAUDE.md rule #34), so it must render exactly what v7 renders —
+    // and v7's sample jobs have no real saved geometry, no photograph and no
+    // shop PNG behind them, because they are not real jobs.
+    profileSource: null,
+    flashDraftHref: null,
     itemLine: itemLabel(j),
     spec: specChip(j.spec),
     drawing: drawingOf(f, j),
@@ -254,6 +261,8 @@ export function fixtureWorkbench(): V7WorkbenchView {
     inbox: { connected: 'Connected to Outlook · read 20 sec ago', newCount: nin, rows: inboxRows },
     shopRows,
     deliveryRows,
+    // v7's sample jobs all carry a parametric drawing, so none is missing one.
+    needsDrawing: [],
     // v7's third sentence is a SAMPLE-DATA DISCLOSURE and is true here, because
     // in fixture mode the screen really is showing v7's samples. The live
     // builder does not emit it — shipping "these are sample data" over real

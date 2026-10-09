@@ -35,6 +35,7 @@ import {
   type JobStage,
 } from '@/lib/data/job-stage';
 import { sourceArrivalLabel, sourceIconKey, type SourceIconKey } from '@/lib/data/quote-request-source-tool';
+import { resolveJobProfileSources, type ProfileSource } from '@/lib/data/v8-profile-source';
 import { daysSince, greetingFor, waitingPhrase } from '@/lib/utils/waiting-time';
 
 /** A Done job leaves the Workbench after this many days. Search still finds it. */
@@ -80,6 +81,16 @@ export interface WorkbenchCard {
   isRush: boolean;
   /** Approved cards pulse green. */
   pulse: boolean;
+  /**
+   * What picture this job really has — real geometry, the real field
+   * photograph, the real saved shop PNG, or an explicit to-do.
+   *
+   * Resolved in `getWorkbench` by one batched read, NOT in `buildCard`, which
+   * stays pure and database-free so the lane/age/one-action rules remain
+   * unit-testable without a database. `null` means nobody asked (a unit test,
+   * or a caller that does not render thumbnails).
+   */
+  profileSource: ProfileSource | null;
 }
 
 export interface WorkbenchLane {
@@ -112,6 +123,7 @@ export interface Workbench {
 
 interface WorkbenchRow {
   id: string;
+  upload_id?: string | null;
   request_number: string;
   user_id: string | null;
   guest_email: string | null;
@@ -255,6 +267,8 @@ export function buildCard(
     sourceLabel: sourceArrivalLabel(row.source_tool),
     sourceIcon: sourceIconKey(row.source_tool),
     isRush: row.is_rush === true,
+    // Filled in by getWorkbench's batched resolve. buildCard is pure.
+    profileSource: null as ProfileSource | null,
   };
 
   // A send that failed outranks whatever the stage would otherwise say. It is
@@ -388,6 +402,12 @@ export function summaryChips(summary: WorkbenchSummary): SummaryChip[] {
 const CARD_COLUMNS =
   'id, request_number, user_id, guest_email, line_items, is_rush, submitted_at, quoted_at, ' +
   'source_tool, job_stage, stage_changed_at, approved_at, sent_to_machine_at, done_at, ' +
+  // upload_id is what links a field-app submission to the PHOTOGRAPH the
+  // contractor took (takeoff_uploads). Without it on the card the Workbench
+  // cannot know a photo exists, which is half of why a field photo never
+  // appeared on this screen — see the pulse route for the other half.
+  // It is an id, not an image: no bytes cross the wire here (rule #26).
+  'upload_id, ' +
   'send_status, send_error, pathfinder_profile_ids';
 
 export async function getWorkbench(
@@ -457,6 +477,26 @@ export async function getWorkbench(
         now,
       })
     );
+  }
+
+  // WHAT PICTURE EACH CARD HAS — one batched resolve for the whole board, not
+  // three queries per card. Reid's profile rule 1: every thumbnail shows the
+  // REAL saved image from its source, and a job with none says so as a to-do.
+  const allCards = JOB_STAGES.flatMap((s) => byStage.get(s)!);
+  if (allCards.length) {
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const sources = await resolveJobProfileSources(
+      allCards.map((c) => {
+        const r = byId.get(c.id);
+        return {
+          id: c.id,
+          lineItems: r?.line_items ?? null,
+          uploadId: r?.upload_id ?? null,
+          sourceTool: r?.source_tool ?? null,
+        };
+      }),
+    );
+    for (const card of allCards) card.profileSource = sources.get(card.id) ?? null;
   }
 
   const lanes: WorkbenchLane[] = JOB_STAGES.map((key) => ({

@@ -158,10 +158,18 @@ test.describe('ProfileViewer, in a real browser, on real saved geometry', () => 
     // The explicit absence, in words, from an id that cannot exist.
     const absent = page.locator('[data-v8-viewer="no-drawing"]');
     await expect(absent).toHaveCount(1);
-    await expect(absent).toHaveText('No saved drawing');
+    // REID'S RULE 1d: a missing drawing is a visible TO-DO, in those words,
+    // not a blank box. It also carries the way to fix it.
+    await expect(absent).toContainText('No profile drawing yet');
+    await expect(absent).toHaveAttribute('data-v8-todo', '1');
     // The reason travels with it, so the absence is explained rather than bare.
-    await expect(absent).toHaveAttribute('data-v8-reason', /Passport/);
-    // And it is NOT a .zoom and NOT a button — nothing to open.
+    await expect(absent).toHaveAttribute('data-v8-reason', /.+/);
+    // RULE 5: even with no image, there is a way into FlashDraft to draw one —
+    // this is precisely the case that needs it.
+    await expect(absent.locator('[data-v8-send-to-flashdraft]')).toBeVisible();
+    // And the box itself is NOT a .zoom and NOT a button — there is nothing to
+    // enlarge, and a control that opens an empty overlay teaches people the
+    // overlay is sometimes empty.
     expect(await absent.evaluate((el) => el.tagName)).toBe('SPAN');
     expect(await absent.evaluate((el) => el.className.includes('zoom'))).toBe(false);
 
@@ -171,10 +179,10 @@ test.describe('ProfileViewer, in a real browser, on real saved geometry', () => 
   test('single click enlarges; double click goes full size and carries the numbers', async ({ page }) => {
     await prepare(page);
     await page.goto(`/studio/v8-viewer-debug?ids=${IDS.join(',')}`, { waitUntil: 'load' });
-    await page.waitForSelector('[data-v8-viewer="drawing"]', { timeout: 20_000 });
+    await page.waitForSelector('[data-v8-viewer="geometry"]', { timeout: 20_000 });
     await settle(page);
 
-    const first = page.locator('[data-v8-viewer="drawing"]').first();
+    const first = page.locator('[data-v8-viewer="geometry"]').first();
 
     // ── single click → enlarged, and NOT before the delay elapses ─────────
     await first.click();
@@ -242,13 +250,13 @@ test.describe('ProfileViewer, in a real browser, on real saved geometry', () => 
   test('the keyboard reaches it without the click delay', async ({ page }) => {
     await prepare(page);
     await page.goto(`/studio/v8-viewer-debug?ids=${IDS.join(',')}`, { waitUntil: 'load' });
-    await page.waitForSelector('[data-v8-viewer="drawing"]', { timeout: 20_000 });
+    await page.waitForSelector('[data-v8-viewer="geometry"]', { timeout: 20_000 });
     await settle(page);
 
     // A key press IS the intent, so there is nothing to disambiguate and no
     // delay to wait out. A thumbnail nobody can reach by keyboard is a
     // thumbnail with no numbers available to anybody not using a mouse.
-    await page.locator('[data-v8-viewer="drawing"]').first().focus();
+    await page.locator('[data-v8-viewer="geometry"]').first().focus();
     await page.keyboard.press('Enter');
     await expect(page.locator('[data-v8-overlay="enlarged"]')).toBeVisible({ timeout: 300 });
     await page.keyboard.press('Escape');

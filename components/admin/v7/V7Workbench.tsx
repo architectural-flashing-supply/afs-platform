@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { V7Btn, V7PillEl, V7Spec, V7Thumb } from '@/components/admin/v7/V7Primitives';
+import ProfileViewer from '@/components/admin/v8/ProfileViewer';
 import type { V7Card, V7Chip, V7Lane, V7RailRow, V7WorkbenchView } from '@/lib/data/v7-view/types';
 
 /**
@@ -56,6 +57,29 @@ const INBOX_CLASS: Record<string, string> = {
   done: 'rl m done',
 };
 
+/**
+ * HOW OFTEN THE WORKBENCH ASKS WHETHER ANYTHING CHANGED.
+ *
+ * Five seconds, against `/api/admin/command-center/pulse` — a few bytes, two
+ * indexed aggregates and a count. `router.refresh()` is called ONLY when the
+ * signature moves, so the expensive full re-render happens when something has
+ * actually arrived rather than twelve times a minute on a quiet shop.
+ *
+ * THE OLD VALUE WAS 60_000 AND THAT WAS THE REGRESSION. A photo sent from the
+ * field app took up to a full minute to appear on Steve's screen, averaging
+ * half of one, because this timer was the only thing that fetched. It used to
+ * arrive "within seconds"; with a one-minute poll and no realtime subscription
+ * that was impossible by construction. Diagnosed against the live database on
+ * 2026-10-09 — see the pulse route's own header for why polling rather than
+ * Supabase realtime.
+ */
+const PULSE_MS = 5_000;
+
+/**
+ * The fallback full refresh, for anything the pulse signature cannot see — an
+ * edit that changes a card's text without moving a stage or a timestamp. Still
+ * a minute, because it is now a backstop rather than the only mechanism.
+ */
 const REFRESH_MS = 60_000;
 
 export default function V7Workbench({
@@ -72,24 +96,63 @@ export default function V7Workbench({
 
   useEffect(() => {
     if (!live) return;
-    let timer: ReturnType<typeof setInterval> | null = null;
+    let pulse: ReturnType<typeof setInterval> | null = null;
+    let slow: ReturnType<typeof setInterval> | null = null;
+    let lastSignature: string | null = null;
+    let inFlight = false;
+
+    const check = async () => {
+      // One request at a time. A slow response on a loaded machine must not
+      // stack up a queue of them behind it.
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const res = await fetch('/api/admin/command-center/pulse', { cache: 'no-store' });
+        if (!res.ok) return;
+        const body = (await res.json()) as { signature?: string };
+        const sig = typeof body.signature === 'string' ? body.signature : null;
+        if (sig === null) return;
+        // The first reading establishes the baseline; it must not trigger a
+        // refresh of the page that just rendered.
+        if (lastSignature !== null && sig !== lastSignature) router.refresh();
+        lastSignature = sig;
+      } catch {
+        // A failed pulse is not an error worth showing anybody — the slow
+        // fallback below still runs, and the next pulse is five seconds away.
+      } finally {
+        inFlight = false;
+      }
+    };
+
     const start = () => {
-      if (timer === null) timer = setInterval(() => router.refresh(), REFRESH_MS);
+      if (pulse === null) pulse = setInterval(check, PULSE_MS);
+      if (slow === null) slow = setInterval(() => router.refresh(), REFRESH_MS);
     };
     const stop = () => {
-      if (timer !== null) {
-        clearInterval(timer);
-        timer = null;
+      // RULE #26: a polling screen pauses when the tab is hidden. A Command
+      // Center left open on a shop tablet with the screen off must not keep
+      // asking.
+      if (pulse !== null) {
+        clearInterval(pulse);
+        pulse = null;
+      }
+      if (slow !== null) {
+        clearInterval(slow);
+        slow = null;
       }
     };
     const onVisibility = () => {
       if (document.hidden) stop();
       else {
         router.refresh();
+        void check();
         start();
       }
     };
-    if (!document.hidden) start();
+    if (!document.hidden) {
+      void check();
+      start();
+    }
     document.addEventListener('visibilitychange', onVisibility);
     return () => {
       stop();
@@ -291,12 +354,31 @@ function CardEl({
       data-request-number={card.jobNumber}
     >
       <div className="top">
-        <V7Thumb
-          drawing={card.drawing}
-          state={card.thumbState}
-          href={card.href}
-          label={`Open ${card.customer}`}
-        />
+        {/*
+          V8 (Reid's profile rule 1): when the live side has resolved a REAL
+          source — drawn geometry, the field photograph, the saved shop PNG, or
+          an explicit to-do — the one ProfileViewer shows it, with hover,
+          click-to-enlarge, double-click-to-full-size and Send to FlashDraft.
+          `V7Thumb` remains for the FIXTURE side, which the v7 pixel gate
+          measures against the frozen prototype and which has no real source.
+        */}
+        {card.profileSource ? (
+          <span className="thumb">
+            <ProfileViewer
+              source={card.profileSource}
+              label={`${card.customer} — ${card.itemLine}`}
+              thumbSize={100}
+              flashDraftHref={card.flashDraftHref}
+            />
+          </span>
+        ) : (
+          <V7Thumb
+            drawing={card.drawing}
+            state={card.thumbState}
+            href={card.href}
+            label={`Open ${card.customer}`}
+          />
+        )}
         <div className="body">
           <Link href={card.href} className="stretch">
             {card.customer}
@@ -409,6 +491,33 @@ function RailPanels({ view }: { view: V7WorkbenchView }) {
           <div className="hint">Nothing in the queue.</div>
         )}
       </section>
+
+      {/*
+        REID'S PROFILE RULE 1d — the to-do list. A job with no image of any
+        kind is work, and work belongs on a list rather than hiding as an empty
+        box on a card. Rendered only when there IS something on it: an
+        always-present empty panel trains people to ignore it.
+      */}
+      {view.needsDrawing.length > 0 && (
+        <section className="rp" data-v8-needs-drawing-panel="1">
+          <h3>
+            Needs a drawing · {view.needsDrawing.length}
+          </h3>
+          {view.needsDrawing.map((r) => (
+            <div key={r.key} className="rl" data-v8-needs-drawing-row={r.key}>
+              <div className="tx">
+                <b>
+                  <Link href={r.href}>{r.title}</Link>
+                </b>
+                <span>{r.sub}</span>
+              </div>
+              <Link href={r.flashDraftHref} className="btn red sm" data-v8-send-to-flashdraft="1">
+                Send to FlashDraft
+              </Link>
+            </div>
+          ))}
+        </section>
+      )}
 
       <section className="rp">
         <h3>
