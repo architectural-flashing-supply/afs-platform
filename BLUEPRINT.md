@@ -721,6 +721,43 @@ Playwright                 → passes on all UI feature prompts
 
 No prompt is considered complete until all applicable gates pass.
 
+### THE PREBUILD GATES — `pnpm run build` RUNS THEM, SO VERCEL CANNOT SKIP THEM
+
+`prebuild` chains four scripts. A failure in any of them stops the build, which
+is the point: each one exists because the defect it catches is invisible to the
+compiler and plausible in a screenshot.
+
+```
+scripts/design/scope-v7-css.mjs        derives the scoped v7 CSS (rule #33)
+scripts/audit/contrast-check.mjs       WCAG AA on every Command Center screen (rule #28)
+scripts/audit/contract-check.mjs       the V8 design contract is unchanged (rule #36)
+scripts/audit/single-drawing-path.mjs  every admin profile drawing goes through
+                                       components/admin/v8/ProfileViewer.tsx (rule #37)
+```
+
+Three standing prohibitions, all recorded in CLAUDE.md and all load-bearing:
+
+- **Never relax a threshold, widen a mask, or add a skip list** to make a gate
+  pass. Fix the colour, fix the screen.
+- **Never regenerate a V8 baseline.** The contract's hashes are rewritten only by
+  `scripts/design/rebaseline-v8-contract.mjs`, which requires
+  `CONTRACT_APPROVED_BY_REID=1` — **a variable no Claude Code session may set.**
+  The five baseline PNGs are re-derived from the committed HTML on every run and
+  have no update mode.
+- **Never add to the single-drawing-path allowlist, and never raise a count.**
+  Its counts are exact in BOTH directions: fewer than allowlisted also fails,
+  asking for the number to be lowered, so a conversion has to be written down
+  rather than happening invisibly.
+
+### NOTHING IS MARKED DONE WHILE UNVERIFIED
+
+A passing gate is evidence to bring to Reid, not his confirmation. Anything
+visual or interactive stays **IMPLEMENTED, UNCONFIRMED** in
+STATE_OF_THE_BUILD.md until he has checked the behaviour himself — the standard
+that file and SESSION_STATE.md already set, and the standard the V8 phase 0
+audit applies to every item in it, including a component that typechecks, passes
+its unit tests and has never been rendered in a browser.
+
 ---
 
 ## 12. GOVERNANCE UPDATE — REQUIRED LAST ACTION

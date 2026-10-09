@@ -34,6 +34,266 @@ summary, not a replacement for it.
 
 ---
 
+## COMMAND CENTER V8, PHASE 0 — THE ENFORCEMENT HARNESS AND THE AUDIT (v8-00, 2026-10-08)
+
+**Branch `feat/command-center-v8`, off `main`. NOT merged, NOT deployed. Pushed as a branch only.**
+**Phase 0 built the harness and the audit. It built and restyled NO screen.**
+
+### GATES, RUN IN THIS SESSION
+
+| Gate | Result |
+|---|---|
+| `pnpm tsc --noEmit` | **0 errors** |
+| `pnpm run build` | **exit 0.** All three prebuild gates ran: contrast **24 screens / 248 pairs / 0 unresolved / 0 below**; V8 contract **3 verified / 0 problems / 0 ungoverned**; single-drawing-path **107 files / 18 with drawings / 29 calls / baseline 29 / 0 unreadable** |
+| `pnpm test:unit` (vitest) | **586 passed / 4 failed / 4 skipped** across 39 files. The 4 failures are ALL in `lib/pricing/ledger-append-only.test.ts` and are pre-existing Supabase permission failures (`Missing required permission(s): database_read`) — the same four recorded on branch `feat/hailview-engine-v2` by hv2-03, whose entry is not on this branch because this branch is off `main` — isolated and confirmed: that file alone is 4 failed / 8 passed. **Nothing in this run touched pricing.** |
+| New v8 Playwright specs | **16 passed.** `v8-baselines.spec.ts` (2) + `v8-interaction-gate.spec.ts` (14). `auth.setup` was flaky once on a cold `next dev` and passed on retry |
+
+### DRIFT PROOF — THE GATE REALLY CATCHES A CHANGED CONTRACT
+
+One byte (a single space) appended to `Workbench_E-shop-view.html`:
+
+```
+CHANGED  docs/design/command-center-v8/Workbench_E-shop-view.html
+         expected c99244c31ee31ef9e7805f05f654288835dc2b56576fcc0a960381986d83c30f
+         actual   38ad8915b15fcbc99fc52b6164c30421e04edd04d93472824e41c5d95056c739
+         size now 49051 bytes
+2 verified · 1 problem · 0 ungoverned
+V8 CONTRACT CHECK — FAILED        (exit 1)
+```
+
+Restored: `3 verified · 0 problems · 0 ungoverned` (exit 0). The re-baseline script
+was also confirmed to REFUSE without `CONTRACT_APPROVED_BY_REID=1`, which this
+session did not set and no session may.
+
+The drawing-path gate was proved the same way: a commented-out `<V7Drawing />`
+added to `components/admin/SourceIcon.tsx` produced `NEW` + `OVER (total)` and
+exit 1; removing it returned exit 0.
+
+### WHAT WAS BUILT
+
+**The frozen contract.** The three files Reid approved on 2026-10-08 were
+hash-verified against the instruction's hashes BEFORE copying, then copied
+byte-for-byte to `docs/design/command-center-v8/` with `CONTRACT_MANIFEST.json`
+(hashes, five drivable states, the interaction contract).
+`scripts/audit/contract-check.mjs` is wired into `prebuild` beside
+contrast-check; it also fails on an UNGOVERNED `.html` in that folder, which is
+the one way to defeat a hash check without changing a hash. Re-baselining is
+`scripts/design/rebaseline-v8-contract.mjs` and requires
+`CONTRACT_APPROVED_BY_REID=1`.
+
+**Five baselines**, re-derived from the committed HTML every run, no update mode, and `tests/visual/v8-baselines/` **gitignored** like v7's so a PNG cannot start looking like an expectation:
+
+```
+workbench-b          1440x1073     127016 bytes
+email-two-pane       1440x900       93653 bytes
+shop-view-queue      1440x900       90880 bytes
+shop-view-job        1440x900       76624 bytes   (driven via the mockup's own job())
+shop-view-full       1440x900       48076 bytes   (driven via its own openFullBtn())
+```
+
+**The interaction gate**, written against the contract FIRST and passing there.
+It drives every state a file defines (derived from its own `id="jv-…"` job
+screens, not a hand list) and asserts every `.zoom` mount in the source was
+clicked — 8 in B, 0 in C, 9 in E — so a mount reachable only in an undriven
+state cannot go ungated. The timing assertion waits the full 230 ms out AFTER a
+double-click to prove the enlarge never lands.
+
+**`components/admin/v8/ProfileViewer.tsx`** — thumbnail, enlarged, full size,
+from saved geometry only, drawn by `drawProfileScene`. `lib/flashdraft/
+viewer-scene.ts` supplies the non-interactive camera and material facts;
+`lib/data/v8-profile-geometry.ts` parses the saved blob strictly;
+`app/api/admin/v8/profile-geometry/[id]` is the admin-guarded read.
+
+**41 new unit tests** (`viewer-scene.test.ts` 19, `v8-profile-geometry.test.ts`
+18, `zoom-intent.test.ts` 4). The geometry-fidelity test RECORDS THE CANVAS CALL
+STREAM for three real saved-profile shapes — a two-hem coping, an
+opposite-handedness Z-bar, a five-point custom with a stored radius list and a
+teardrop hem — twice, once through the viewer and once through
+`drawProfileScene` assembled independently, and asserts the streams are
+identical. It also asserts something was really drawn, so two empty recordings
+cannot pass.
+
+### THE FACTS BEHIND THE VIEWER WERE MOVED OUT OF FLASHDRAFT, NOT COPIED
+
+`PIXELS_PER_INCH`, `computeFitView`, `isGauge18OrThicker`,
+`defaultBendRadiusIn`, `signedAngleBetween` and the canvas palette were private
+to `app/studio/draft/page.tsx`. They now live in `lib/flashdraft/viewer-scene.ts`
+and that file imports them BACK — which is why FlashDraft's own rendering is
+unchanged: it calls the same functions it used to declare. `signedAngleBetween`
+DELEGATES to rule #12's `signedInteriorAngleDeg` rather than reimplementing it.
+Re-declaring them beside the originals was the easy path; GEOMETRY_AUDIT.md is
+the record of what three copies of one walk cost.
+
+### THE AUDIT'S HEADLINE FINDING — THE BRIEF'S PREMISE WAS HALF RIGHT
+
+The brief assumed admin screens draw profiles from the parametric `kind + d`
+table and need switching to real geometry. **In LIVE mode they draw nothing:**
+`from-live.ts:129,180,189`, `from-live-lists.ts:101,161`, `shop.ts:113,148,168`
+all set `drawing: null`, and `liveCustomers` sets `profiles: null`. Every
+`kind + d` assignment is in a FIXTURE builder. `V7Primitives.tsx` already
+documents the choice and the reason is sound.
+
+So the V8 problem is **"no drawing, or a thumbnail-resolution one with no
+numbers on it"**, not "the wrong drawing". Where a live screen does show
+something it is a base64 PNG snapshot (right numbers, fixed resolution, cannot be
+enlarged) or `pointsToSvgPath` (right shape, no angles, no lengths, no hems, no
+painted side). That changes what each phase has to do: almost nothing to replace,
+a great deal to supply.
+
+### FIVE FINDINGS THIS RUN FOUND BY READING THE CODE
+
+1. **`pointsToSvgPath` was missed by the first draft of the drawing-path gate.**
+   Found by reading the live Job screen, not by a search. Added before the
+   baseline was committed, which is why the total is 29 and not 27.
+2. **Workbench_C (the email two-pane) mounts NO drawing.** It carries the
+   complete apparatus and zero `.zoom` elements. The approved design shows the
+   attachment as a text chip. Recorded as `apparatus-only`, with a premise test
+   forbidding every file being like it.
+3. **The hem label disagrees with the contract.** FlashDraft prints
+   `OPEN 3/16" gap` / `TEARDROP` / `SMASHED`; the contract prints `0.5" hem`.
+   Neither is a superset — the contract does not say which kind of hem, FlashDraft
+   does not say how far it folds. The shop needs both. **The interaction gate WILL
+   fail on the live Shop View until this is closed, and that failure is correct.**
+4. **The quoted blank width excludes hem allowance.** FlashDraft's own displayed
+   blank width adds `hemAllowanceIn` for each hem (`page.tsx:1791, 3878`);
+   `lib/pricing/quote-inputs.ts:92` does not. A double-hemmed 1/2 in profile is
+   quoted about 1 3/8 in narrower than drawn, and rule #19 divides 48 in by that
+   number to get strips per sheet — so the quote gets MORE strips and a LOWER
+   material cost. **A pricing question; not changed.**
+5. **`defaultBendRadiusIn` does not match the British spelling.** `/aluminu?m/i`
+   matches `aluminum` and `aluminm` but not `aluminium`, which falls through to
+   0.5 in instead of 0.375 in. No catalogue material hits it today; a hand-typed
+   or imported one could. Asserted as it behaves; not changed.
+
+Plus the already-known dangling link, re-confirmed still broken:
+`lib/data/v7-view/job.ts:524` points at `/admin/command-center/job/[n]/source`,
+which does not exist (the real route is `/admin/quote-requests/[id]/source`).
+
+### MAIL — WHAT EXISTS AND WHAT IS MISSING
+
+**Parser: LIVE for `.eml` upload and the generic ingest endpoint.** Schema
+(migration 050), pipeline, intent classification, dedupe-by-Message-ID, admin
+visibility and retry all exist. **Microsoft Graph is DORMANT** — real logic,
+`readGraphConfig()` returns `null` without the five `OUTLOOK_*` vars, and the
+webhook answers the validation handshake then 503s real notifications so nothing
+is half-processed.
+
+**Graph subscription creation and renewal: MISSING ENTIRELY.** No code creates a
+subscription (graph.ts's header names it as a manual step), no code renews one,
+no subscription id is stored anywhere, and `vercel.json` declares **no `crons`
+array at all** with no `app/api/cron/` directory. A Graph mail subscription lasts
+about three days, so **an unrenewed one stops delivering mail silently.** This is
+the largest gap in the mail story.
+
+**AI reply drafting: PARTIAL, and not what the contract shows.**
+`draft-followup` drafts a CHASE message for an unanswered quote and deliberately
+does not send. **Nothing drafts a reply to an inbound email**, and **nothing
+sends mail through Outlook/Graph at all.** The contract's "Send through Outlook"
+button has no counterpart.
+
+**View Source: one real route, one dangling link** (above).
+
+**UNVERIFIED:** whether the `OUTLOOK_*` vars are set in Vercel, and whether
+Resend is configured. Neither was checked. The admin page prints the Outlook
+answer live (`data-testid="outlook-status"`) — one page-load to settle.
+
+### A DEFECT FOUND AT COMMIT TIME THAT WOULD HAVE BROKEN THE GATE ON EVERY FRESH WINDOWS CLONE
+
+**A hash-frozen file needs `.gitattributes -text`, or git redefines the design
+with a line-ending conversion.** This repo has `core.autocrlf=true` and had **no
+`.gitattributes` at all.** The contract files are stored with LF. Measured, not
+reasoned about — the file was deleted and `git checkout`ed:
+
+```
+expected c99244c31ee31ef9e7805f05f654288835dc2b56576fcc0a960381986d83c30f
+actual   dd6546531de26e2c141f1a3b85192a1d6b01478fa3a5b402a97d69a37081c27d
+V8 CONTRACT CHECK — FAILED
+```
+
+Anyone cloning this branch on Windows would get a **failing build on an
+unmodified contract**, and the obvious-looking fix would be to re-baseline the
+hashes — which is exactly what rule #36 forbids. The approved design would have
+been silently redefined by a CRLF conversion.
+
+`.gitattributes` now marks the contract `-text` (never convert, either
+direction, any platform). Proved by the same round trip: delete, `git checkout`,
+re-hash → `c99244c3…c30f`, `3 verified · 0 problems`.
+
+**AND IT HAD ALREADY HAPPENED TO v7, UNNOTICED.** Rule #33 records the
+prototype's sha256 as `37f9c4d6…112a63`. On this machine the working copy had
+been converted to CRLF by an earlier checkout and hashed `28a5e741…`, so **rule
+#33's own recorded hash could not be verified here at all.** `37f9c4d6…` is the
+LF hash — the index blob. Restoring the file to LF brings it back to
+`37f9c4d69aaa2f1f2bb2944e33a4bf5ef7c9dcc9833ed3c8e1b3c6e79f112a63` exactly, which
+is rule #33's value to the last character.
+
+Fixing that surfaced two more files in the same chain, both of which were
+passing their tests only by accident of this machine's conversion state:
+
+- **`v7.css`.** `lib/design/v7-css.test.ts` asserts it CONTAINS each of the
+  prototype's four `<style>` blocks VERBATIM — a byte comparison across two
+  files. With the prototype LF and `v7.css` CRLF, all four blocks failed, even
+  though both are LF in the index and both pass on a Linux clone.
+- **`command-center-v7.generated.css`** and the four other CSS inputs
+  (`v7-deviations`, `v7-fonts`, `v7-preflight-reset`, `v7-real-data`). The
+  generator concatenates its inputs, so its output took their line endings and
+  the "is exactly what the transform produces right now" assertion compared a
+  CRLF regeneration against an LF checkout.
+
+All of them are `-text` now, restored to LF, and `pnpm css:v7` reproduces the
+committed generated file byte-for-byte (`git diff` empty).
+`lib/design/v7-css.test.ts` + `v7-deviations.test.ts`: **20 passed.**
+
+The point is not the line endings. It is that **three governance hashes and two
+byte-comparison tests meant different things on Windows and on Linux**, and
+every one of them was green on the machine that mattered least. `.gitattributes`
+is scoped to those files only — a repo-wide eol policy would rewrite every file
+in the project, which is a separate decision and not this run's to make.
+
+### THE ALLOWLIST TO BURN TO ZERO
+
+**29 drawing calls across 18 files.** By primitive: `V7Drawing=11`,
+`LazyProfileThumb=5`, `ShopJobDrawing=5`, `V7Thumb=3`, `pointsToSvgPath=2`,
+`V7Plate=1`, `PastProfileThumb=1`, `drawInner=1`. Counts are exact in BOTH
+directions — fewer than allowlisted also fails, asking for the number to be
+lowered, so each phase's progress is written down rather than happening
+invisibly.
+
+### STATUS — IMPLEMENTED, UNCONFIRMED
+
+By this document's own standard, **everything above is IMPLEMENTED, UNCONFIRMED.**
+Gates passed in this session and that is evidence to bring to Reid, not his
+confirmation. In particular **`ProfileViewer` has never been rendered in a
+browser** — it typechecks and its renderer is proven call-for-call identical to
+FlashDraft's, and nobody has looked at it. Its own fidelity against the contract
+belongs to phase 1.
+
+Also **UNVERIFIED and material to phase planning:** no live database query was
+run, so how many jobs actually have a `saved_configurations` row, and how many
+`shop_profile_library` rows could be joined back to one, are unknown — and
+phase 1's and phase 2's real effort depends on those numbers.
+
+Seven open questions are listed in `docs/COMMAND_CENTER_V8_AUDIT.md` §8, all
+PENDING REID. The full audit, including the per-screen table with file paths and
+line numbers, is that document (`.docx` copy beside it).
+
+### REMAINING PHASES
+
+1 Workbench (B) · 2 Shop View (E) · 3 email two-pane + mail go-live
+(subscription creation, renewal, expiry alerting, AI reply drafting, send through
+Outlook, the dangling View Source link) · 4 Deliveries / Customers / Quotes /
+Orders thumbnails through ProfileViewer · 5 Search · 6 allowlist to zero.
+
+Each phase must bring its screen under BOTH gates in the same commit: a route in
+the interaction gate's `SURFACES` with `EXPECTED_PORTED` bumped, and its
+allowlist count lowered.
+
+New rules recorded in CLAUDE.md as **#36** (the contract is frozen; never
+regenerate a baseline; never loosen a gate) and **#37** (every admin profile
+drawing goes through ProfileViewer; the allowlist burns to zero).
+
+---
+
 ## 2026-10-03 — THE JOB -> FLASHDRAFT HANDOFF (branch `cc-flashdraft-handoff`)
 
 **"Draw it in FlashDraft" was a dead end or a blank canvas. It now opens the

@@ -24,7 +24,161 @@ let self-reported verification read as equivalent to user confirmation.
 
 ---
 
-## JOB -> FLASHDRAFT HANDOFF (2026-10-03, branch `cc-flashdraft-handoff`) — CURRENT HANDOFF
+## COMMAND CENTER V8 PHASE 0 (2026-10-08, branch `feat/command-center-v8`) — CURRENT HANDOFF
+
+**The harness and the audit. NO screen was built or restyled. Branch pushed, not merged, not deployed.**
+
+### THE ONE THING TO READ FIRST
+
+`docs/COMMAND_CENTER_V8_AUDIT.md` (a `.docx` copy sits beside it). Its headline
+finding contradicts the brief's premise, and it changes the plan:
+
+**The live Command Center screens do not draw a wrong profile. They draw
+nothing.** Every live view builder sets `drawing: null` — `from-live.ts:129,180,189`,
+`from-live-lists.ts:101,161`, `shop.ts:113,148,168` — and `liveCustomers` sets
+`profiles: null`. The parametric `kind + d` drawings the brief is about exist
+only in **fixture mode**, which is what the v7 pixel gate measures.
+
+Where a live screen does show something, it is a base64 PNG snapshot (real
+numbers, thumbnail resolution, cannot be enlarged) or `pointsToSvgPath` (real
+shape, **no angles, no lengths, no hems, no painted side**). So phases 1-5 are
+mostly about SUPPLYING a drawing, not replacing one — and the effort per screen
+is mostly id-plumbing, not rendering.
+
+### THE ONE THING TO CHECK IN THE BROWSER
+
+Nothing yet, and that is deliberate — no screen changed. The thing Reid has not
+seen and should see first is **`components/admin/v8/ProfileViewer.tsx`**, which
+typechecks, is proven call-for-call identical to FlashDraft's renderer by unit
+test, and **has never been rendered in a browser.** It has no mount point until
+phase 1 gives it one. Phase 1 should put it on the Job screen first: that screen
+already holds the real saved points, so it is the lowest-friction conversion of
+the fourteen.
+
+### WHAT RUNS NEXT
+
+**v8-01 — Workbench (B).** Port `Workbench_B-stage-strip-table.html` to
+`/admin/command-center` and put each card's drawing through `ProfileViewer`.
+
+Two things to settle before writing code, both from the audit:
+
+- **A Workbench card has no profile id.** `V7Card` has no such field.
+  `quote_requests.line_items[]` carries the geometry, but only *some* jobs also
+  have a `saved_configurations` row. **How many is UNVERIFIED** — no live
+  database query was run in phase 0, and this number decides whether phase 1 is
+  id-plumbing or a data-model change. Query it first.
+- **The Job screen is the easier half** and is in the same phase. Do it first for
+  a real screen to look at.
+
+### THE GATES PHASE 1 MUST SATISFY, IN THE SAME COMMIT
+
+1. `tests/visual/v8-interaction-gate.spec.ts` — give `live-workbench` a `route`
+   in `SURFACES` and bump `EXPECTED_PORTED[1]` to match. The coverage test fails
+   otherwise, which is the point: a phase cannot port a screen and leave its
+   gate pointing at nothing.
+2. `scripts/audit/single-drawing-path.mjs` — lower the converted file's count in
+   `single-drawing-path-allowlist.json` and lower `baselineTotal` by the same
+   amount. **Fewer than allowlisted FAILS**, so the progress has to be written
+   down.
+3. The existing v7 pixel gate still runs. A screen moved to V8 will diverge from
+   v7's prototype; decide explicitly whether its v7 manifest entry retires or
+   the screen is measured against V8 instead. **Not decided in phase 0.**
+
+### THREE CONFLICTS THAT WILL BITE, AND ONE THAT ALREADY WILL
+
+- **The hem label (phase 2, and the gate will fail first).** FlashDraft prints
+  `OPEN 3/16" gap` / `TEARDROP` / `SMASHED`; the contract prints `0.5" hem`.
+  Neither is a superset — the contract does not say which kind of hem, FlashDraft
+  does not say how far it folds. The shop needs both. The interaction gate
+  demands the contract's form, so **Shop View will fail it until the fold length
+  is added — and that failure is correct, not a gate to relax.** The current
+  behaviour is pinned by an assertion in `lib/flashdraft/viewer-scene.test.ts`,
+  so whoever closes it is forced to update that test.
+- **The drawing palette.** Contract blue/amber/green vs FlashDraft crimson.
+  Reconcilable in one line (`drawProfileScene` takes the palette as a
+  parameter), and `V8_CONTRACT_DRAWING_COLORS` is recorded and deliberately
+  passed nowhere. **PENDING REID** — changing it changes FlashDraft's own editing
+  canvas.
+- **The quoted blank width excludes hem allowance.** A real pricing discrepancy
+  of up to ~1 3/8 in of girth on a double-hemmed profile, and rule #19 divides
+  48 in by that number. **PENDING REID.**
+- **Two zoom interactions would coexist on the profile-search rail** (phase 5):
+  rule #27's hover-intent preview and V8's click/double-click. **PENDING REID.**
+
+### MAIL — PHASE 3's REAL SHAPE
+
+The parser works (`.eml` upload and the generic ingest endpoint are LIVE; Graph
+is dormant pending the `OUTLOOK_*` vars). The gap is not the parser:
+
+- **No code creates a Graph subscription, and no code renews one.** No
+  subscription id is stored, `vercel.json` has **no `crons` array at all**, and
+  there is no `app/api/cron/`. A Graph mail subscription lasts about three days,
+  so an unrenewed one **stops delivering mail silently**. Phase 3 needs a
+  subscription record, a renewal job, and an alert — because a silent stop is the
+  failure mode.
+- **Nothing drafts a reply to an inbound email**, and **nothing sends mail
+  through Outlook at all.** `draft-followup` drafts a chase for an unanswered
+  quote and does not send, by design.
+- An email approval must write into **`app/api/quote-approve/[token]`'s existing
+  approval record** (rules #14, #21). **Never a new door to the machine.**
+- The dangling `sourceHref` (`lib/data/v7-view/job.ts:524` → a route that does
+  not exist) is phase 3's to fix: either point it at the real
+  `/admin/quote-requests/[id]/source`, or build the side-by-side screen
+  `SCREEN_MANIFEST.json` lists as `liveRoute: null`.
+
+### TWO RULES WERE ADDED TO CLAUDE.md
+
+**#36** — the V8 contract is frozen by hash; never edit a contract file, never
+regenerate a baseline, never loosen a gate or add to an allowlist to make a
+build pass. Re-baselining needs `CONTRACT_APPROVED_BY_REID=1`, **which no Claude
+Code session may set.**
+
+**#37** — every profile drawing on an admin screen goes through
+`ProfileViewer`, and the allowlist (29 calls, 18 files) is burned to zero.
+
+### A NOTE ON HOW THE GATE WAS GOT RIGHT
+
+The first draft of `single-drawing-path.mjs` **missed `pointsToSvgPath`** — a
+second polyline renderer drawing the real saved points with none of the numbers
+on them. It was found by reading the live Job screen, not by a search, and added
+before the baseline was committed (which is why the total is 29 and not 27).
+Keep the pattern list an inventory of what this codebase really does.
+
+### ONE MORE THING THAT WAS FIXED, AND IT AFFECTS v7 TOO
+
+**A hash-frozen file needs `.gitattributes -text`.** This repo had none and
+`core.autocrlf=true`, so a plain `git checkout` of a V8 contract file converted
+it to CRLF and changed its sha256 — a failing build on an UNMODIFIED contract
+for anyone cloning on Windows, whose obvious-looking fix would be to re-baseline
+the hashes. Measured, then fixed, then proved by the same round trip.
+
+**It had already happened to v7 unnoticed:** rule #33's recorded prototype hash
+`37f9c4d6…112a63` is the LF hash, and the working copy here was CRLF, so that
+rule's own hash could not be verified on this machine at all. Restoring it to LF
+reproduces `37f9c4d6…112a63` exactly. Fixing that surfaced `v7.css` and the five
+generated-CSS inputs, all of which were passing their byte-comparison tests only
+by accident of this machine's conversion state. All are `-text` now, `pnpm
+css:v7` reproduces the committed output byte-for-byte, and the two v7 design
+tests are 20 passed.
+
+**If a future session sees a contract or prototype hash mismatch, check
+`git ls-files --eol` BEFORE anything else.** It is far more likely to be a line
+ending than a changed design.
+
+### STATUS
+
+**IMPLEMENTED, UNCONFIRMED by this document's own standard.** tsc 0; build exit
+0 with all three prebuild gates passing; vitest 586 passed / 4 failed / 4
+skipped, the four being the pre-existing pricing-ledger Supabase permission
+failures in a file this run did not touch; 16 new Playwright assertions passing.
+The contract gate was proved to catch a one-byte change and to go green again on
+restore. **None of that is Reid confirming anything in a browser.** Seven open
+questions are listed in the audit's §8, and §9 lists what was deliberately not
+checked.
+
+---
+
+## JOB -> FLASHDRAFT HANDOFF (2026-10-03, branch `cc-flashdraft-handoff`) (SUPERSEDED AS HANDOFF)
 
 **The FlashDraft button on a Command Center job now opens the real editor with
 that order's profile in it. Before this run it was, depending on the screen,

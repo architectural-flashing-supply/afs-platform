@@ -1,0 +1,56 @@
+# THE V8 DESIGN CONTRACT IS FROZEN BY SHA256, SO GIT MUST NOT TOUCH ITS BYTES.
+#
+# `docs/design/command-center-v8/` holds three HTML files Reid approved on
+# 2026-10-08. Their hashes are recorded in CONTRACT_MANIFEST.json and re-derived
+# on every build by scripts/audit/contract-check.mjs (CLAUDE.md rule #36).
+#
+# WHY THIS FILE EXISTS, AND IT IS NOT HYPOTHETICAL. This repository has
+# `core.autocrlf=true` on the development machine and had no .gitattributes. The
+# contract files are stored with LF. A plain `git checkout` of one of them was
+# measured in this session converting it to CRLF and changing its hash:
+#
+#     expected c99244c31ee31ef9e7805f05f654288835dc2b56576fcc0a960381986d83c30f
+#     actual   dd6546531de26e2c141f1a3b85192a1d6b01478fa3a5b402a97d69a37081c27d
+#     V8 CONTRACT CHECK — FAILED
+#
+# So without `-text`, anyone cloning this branch on Windows gets a FAILING BUILD
+# on an UNMODIFIED contract — and the obvious-looking fix would be to
+# re-baseline the hashes, which is precisely the move rule #36 forbids. The
+# design would then have been silently redefined by a line-ending conversion.
+#
+# `-text` means: never convert, in either direction, on any platform. The bytes
+# in the index are the bytes on disk are the bytes that were hashed.
+#
+# Scoped deliberately to the contract folder. A repo-wide eol policy would
+# rewrite every file in the project, which is a separate decision and not this
+# one's to make.
+docs/design/command-center-v8/*.html -text
+docs/design/command-center-v8/*.json -text
+
+# THE v7 PROTOTYPE AND ITS VERBATIM EXTRACT, under the same discipline and for a
+# measured reason. Rule #33 records the prototype's sha256 as 37f9c4d6…112a63,
+# which is the LF hash. On this machine the working copy had already been
+# converted to CRLF by an earlier checkout, so it hashed 28a5e741… and RULE #33's
+# OWN RECORDED HASH COULD NOT BE VERIFIED HERE AT ALL. Restoring it to LF brings
+# the file back to 37f9c4d6…112a63 exactly.
+#
+# `v7.css` must carry the same attribute, not just the prototype.
+# lib/design/v7-css.test.ts asserts that v7.css CONTAINS each of the prototype's
+# four <style> blocks verbatim, which is a byte comparison across two files — so
+# one being CRLF and the other LF fails it even though both are LF in the index
+# and both pass on a Linux clone. Pinning both is what makes that test mean the
+# same thing on every machine.
+docs/design/command-center-v7/*.html -text
+docs/design/command-center-v7/*.css -text
+
+# AND THE DERIVED STYLESHEET, for the same byte-comparison reason. `pnpm css:v7`
+# regenerates app/styles/command-center-v7.generated.css from v7.css, and
+# lib/design/v7-css.test.ts asserts the committed file EQUALS what the transform
+# produces right now. The transform's output follows its LF input, so a CRLF
+# working copy of the generated file fails that equality on a Windows tree while
+# passing on a Linux clone — the same split-brain the two files above had.
+app/styles/command-center-v7.generated.css -text
+
+# Generated .docx copies of specs and audits (scripts/md-to-docx.mjs). A zip
+# container; any text conversion corrupts it.
+*.docx binary

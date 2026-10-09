@@ -35,6 +35,21 @@ import {
   renderShopSnapshotDataUri,
   LIVE_CANVAS_LABEL_STYLE,
 } from '@/lib/flashdraft/draw-profile-scene';
+// MOVED OUT, NOT COPIED (V8 phase 0). PIXELS_PER_INCH, computeFitView,
+// isGauge18OrThicker, defaultBendRadiusIn, signedAngleBetween and the canvas
+// palette were all declared privately in this file. The Command Center's V8
+// ProfileViewer has to draw a saved profile with the identical camera,
+// material facts and colours, so they now live in one module and this file
+// imports them back — FlashDraft's own rendering is unchanged because it calls
+// the same functions it used to declare. See lib/flashdraft/viewer-scene.ts.
+import {
+  PIXELS_PER_INCH,
+  computeFitView,
+  defaultBendRadiusIn,
+  isGauge18OrThicker,
+  signedAngleBetween,
+  FLASHDRAFT_CANVAS_COLORS as CANVAS_COLORS,
+} from '@/lib/flashdraft/viewer-scene';
 import SubmitConfirmation3DModal, { type PaintFace } from '@/components/studio/SubmitConfirmation3DModal';
 import { isPaintedMaterial, resolveSelectedPaintColor, BARE_METAL_COLOR } from '@/lib/utils/paint-appearance';
 import ProfileDetailsModal, { type ProfileDetailsFormValues } from '@/components/studio/ProfileDetailsModal';
@@ -205,37 +220,21 @@ function isFlashDraftLineItem(
   );
 }
 
-// Canvas 2D fillStyle/strokeStyle can't consume Tailwind classes or CSS
-// custom properties — mirrors the afs-crimson / afs-ink-900 / afs-accent-*
-// tokens for the canvas-drawn profile and its dimension/bend/hem labels
-// (same documented exception pattern already used for the Stripe
-// CardElement in app/checkout/page.tsx). See DESIGN_TOKENS.md §10.
-const CANVAS_COLORS = {
-  // Applied as the 2D canvas element's own inline background (see the
-  // <canvas> below) — deliberately NOT the shared afs-bg-raised token
-  // (#363C4A), which stays untouched for every other page/component that
-  // uses it. Light neutral gray so the crimson/blue profile lines and
-  // black-ink dimension labels stay high-contrast against the drawing
-  // surface (afs-fl-019).
-  background: '#C4C4C4',
-  grid: 'rgba(17, 17, 17, 0.08)',
-  profile: '#C0001A',
-  profileSelected: '#2563EB',
-  point: '#C0001A',
-  ink: '#111111',
-  dragLabelBg: 'rgba(17, 17, 17, 0.92)',
-  dragLabelText: '#FFFFFF',
-  angleArc: '#C0001A', // afs-crimson
-  angleArcWarn: '#D32F2F',
-  hemLine: '#C0001A', // afs-crimson — hem fold/gap/teardrop rendering (DESIGN_TOKENS.md §10)
-};
+// The canvas palette this file used to declare here (CANVAS_COLORS) moved to
+// lib/flashdraft/viewer-scene.ts as FLASHDRAFT_CANVAS_COLORS and is imported
+// above under its old local name, so every use below is unchanged. The
+// CANVAS_COLORS exception it relies on — a canvas 2D fillStyle/strokeStyle
+// cannot consume a Tailwind class or a CSS custom property, so the afs-*
+// values are mirrored as literal hex — is documented in full there, and in
+// DESIGN_TOKENS.md §10 alongside the Stripe CardElement precedent.
 
 // Green "move mode" cursor shown while whole-profile move (afs-sv-004,
 // Alt+drag) is actively dragging — matches the Pathfinder-familiar move
 // affordance Steve expects. CSS `cursor` can't consume Tailwind classes or
 // CSS custom properties any more than a 2D canvas context can, so this is a
-// literal-hex value under the same documented exception as CANVAS_COLORS
-// above (DESIGN_TOKENS.md §10) rather than a new precedent. Inline SVG data
+// literal-hex value under the same documented exception as
+// FLASHDRAFT_CANVAS_COLORS (lib/flashdraft/viewer-scene.ts, imported above as
+// CANVAS_COLORS) — DESIGN_TOKENS.md §10 — rather than a new precedent. Inline SVG data
 // URI (a 4-way move-arrows glyph) with a `grabbing` keyword fallback for any
 // browser that can't parse a custom cursor image.
 const MOVE_CURSOR_SVG =
@@ -244,7 +243,6 @@ const MOVE_CURSOR_SVG =
   'fill="#00FF00" stroke="#111111" stroke-width="1"/></svg>';
 const MOVE_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(MOVE_CURSOR_SVG)}") 12 12, grabbing`;
 
-const PIXELS_PER_INCH = 20;
 const CANVAS_MIN_WIDTH = 600;
 const CANVAS_MIN_HEIGHT = 440;
 const HIT_RADIUS_PX = 10;
@@ -318,17 +316,7 @@ const MAX_BEND_ANGLE_DEG = 179;
 const ROTATE_STEP_DEG = 15;
 const ZOOM_STEP_RATIO = 0.1;
 
-function defaultBendRadiusIn(material: string): number {
-  if (/copper|zinc/i.test(material)) return 0.75;
-  if (/aluminu?m/i.test(material)) return 0.375;
-  return 0.5;
-}
 
-function isGauge18OrThicker(gauge: string): boolean {
-  const match = gauge.trim().match(/^(\d+)\s*ga$/i);
-  if (!match) return false;
-  return parseInt(match[1], 10) <= 18;
-}
 
 // PathfinderEdge fallback title generator (afs-jf-006) — used by
 // submitQuoteRequest() below ONLY when the user hasn't set a real canvas
@@ -381,17 +369,6 @@ function bendAngleAt(prev: Point, curr: Point, next: Point): number {
   if (mag === 0) return 0;
   const cos = Math.max(-1, Math.min(1, dot / mag));
   return (Math.acos(cos) * 180) / Math.PI;
-}
-
-// Signed angle from v1 to v2 in degrees, range (-180, 180] — internal to the
-// bend-circle angle-drag math below (direction/sign only); display always
-// uses the unsigned bendAngleAt.
-function signedAngleBetween(v1: Point, v2: Point): number {
-  const a = Math.atan2(v2.y, v2.x) - Math.atan2(v1.y, v1.x);
-  let deg = (a * 180) / Math.PI;
-  while (deg > 180) deg -= 360;
-  while (deg <= -180) deg += 360;
-  return deg;
 }
 
 // The value the 2D canvas actually PRINTS at each bend — see
@@ -553,26 +530,6 @@ function centroidOf(points: Point[]): Point {
   const x = points.reduce((s, p) => s + p.x, 0) / points.length;
   const y = points.reduce((s, p) => s + p.y, 0) / points.length;
   return { x, y };
-}
-
-// Shared by fitToScreen (reads live `points` state) and loadTemplate (fits
-// the just-loaded template array directly, before that state update has
-// landed) — same math, parameterized instead of closing over `points`.
-function computeFitView(points: Point[], canvasWidth: number, canvasHeight: number): { zoom: number; pan: Point } {
-  const xs = points.map((p) => p.x);
-  const ys = points.map((p) => p.y);
-  const widthIn = Math.max(Math.max(...xs) - Math.min(...xs), 0.5);
-  const heightIn = Math.max(Math.max(...ys) - Math.min(...ys), 0.5);
-  const PADDING_PX = 60;
-  const availW = canvasWidth - PADDING_PX * 2;
-  const availH = canvasHeight - PADDING_PX * 2;
-  const nextZoom = Math.max(
-    0.25,
-    Math.min(4, Math.min(availW / (widthIn * PIXELS_PER_INCH), availH / (heightIn * PIXELS_PER_INCH)))
-  );
-  const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
-  const centerY = (Math.min(...ys) + Math.max(...ys)) / 2;
-  return { zoom: nextZoom, pan: { x: -centerX * PIXELS_PER_INCH * nextZoom, y: -centerY * PIXELS_PER_INCH * nextZoom } };
 }
 
 function distanceToSegment(p: Point, a: Point, b: Point): number {

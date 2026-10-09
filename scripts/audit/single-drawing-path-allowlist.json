@@ -1,0 +1,151 @@
+{
+  "$comment": [
+    "THE V8 SINGLE-DRAWING-PATH BASELINE — recorded 2026-10-08 (V8 phase 0), to be burned to zero.",
+    "",
+    "Every entry here is an admin screen that draws a profile WITHOUT going through",
+    "components/admin/v8/ProfileViewer.tsx. Phase 0 built the harness and converted no",
+    "screens, so this is the whole starting state: 29 drawing calls across 18 files.",
+    "",
+    "WHAT EACH PRIMITIVE MEANS, and why it is a violation:",
+    "  V7Drawing / V7Thumb / V7Plate / drawInner — lib/design/v7-draw.ts. A profile KIND",
+    "    out of a nine-entry table plus a few leg lengths: a picture of the CATEGORY of",
+    "    flashing, not of what the customer drew. No seven-bend custom, no hem kick, no",
+    "    bend handedness (CLAUDE.md rule #12).",
+    "  LazyProfileThumb / PastProfileThumb / ShopJobDrawing — a base64 PNG of real",
+    "    geometry, captured once at thumbnail resolution. Right shape, but it cannot be",
+    "    enlarged and read off, which is exactly what the V8 full-size view is for.",
+    "",
+    "THE COUNTS ARE EXACT IN BOTH DIRECTIONS. More fails (a drawing path was added);",
+    "fewer ALSO fails, asking for the number to be lowered here and `baselineTotal`",
+    "lowered by the same amount. That is how each phase's progress gets written down",
+    "instead of happening invisibly.",
+    "",
+    "NEVER add an entry, and never raise a count, to make a build pass — CLAUDE.md",
+    "rule #37. `baselineTotal` may only go down.",
+    "",
+    "",
+    "pointsToSvgPath (lib/data/job-screen.ts) was MISSED by the first draft of this gate",
+    "and added before this baseline was committed. It draws the REAL saved points, so the",
+    "shape is right — but it carries no bend angles, no segment lengths, no hems and no",
+    "painted side, and its own comment says it is deliberately not FlashDraft's renderer.",
+    "It is the subtlest violation on the list and the reason the pattern set is an",
+    "inventory of what this codebase really does rather than a guess at it.",
+    "",
+    "Which phase retires which file is listed in docs/COMMAND_CENTER_V8_AUDIT.md."
+  ],
+  "baselineTotal": 29,
+  "recordedOn": "2026-10-08",
+  "files": {
+    "app/admin/command-center/job/[id]/page.tsx": {
+      "count": 2,
+      "primitives": [
+        "PastProfileThumb",
+        "pointsToSvgPath"
+      ]
+    },
+    "app/admin/quotes/new/page.tsx": {
+      "count": 1,
+      "primitives": [
+        "LazyProfileThumb"
+      ]
+    },
+    "components/admin/LazyProfileThumb.tsx": {
+      "count": 1,
+      "primitives": [
+        "pointsToSvgPath"
+      ]
+    },
+    "components/admin/PastProfileThumb.tsx": {
+      "count": 1,
+      "primitives": [
+        "LazyProfileThumb"
+      ]
+    },
+    "components/admin/ProfileSearchPanel.tsx": {
+      "count": 2,
+      "primitives": [
+        "LazyProfileThumb"
+      ]
+    },
+    "components/admin/QuoteOrderList.tsx": {
+      "count": 1,
+      "primitives": [
+        "LazyProfileThumb"
+      ]
+    },
+    "components/admin/ShopQueueBoard.tsx": {
+      "count": 2,
+      "primitives": [
+        "ShopJobDrawing"
+      ]
+    },
+    "components/admin/v7/V7Customers.tsx": {
+      "count": 1,
+      "primitives": [
+        "V7Drawing"
+      ]
+    },
+    "components/admin/v7/V7Deliveries.tsx": {
+      "count": 1,
+      "primitives": [
+        "V7Thumb"
+      ]
+    },
+    "components/admin/v7/V7Drawing.tsx": {
+      "count": 1,
+      "primitives": [
+        "drawInner"
+      ]
+    },
+    "components/admin/v7/V7Job.tsx": {
+      "count": 2,
+      "primitives": [
+        "V7Drawing",
+        "V7Plate"
+      ]
+    },
+    "components/admin/v7/V7List.tsx": {
+      "count": 1,
+      "primitives": [
+        "V7Drawing"
+      ]
+    },
+    "components/admin/v7/V7NewQuote.tsx": {
+      "count": 1,
+      "primitives": [
+        "V7Drawing"
+      ]
+    },
+    "components/admin/v7/V7Pricing.tsx": {
+      "count": 1,
+      "primitives": [
+        "V7Drawing"
+      ]
+    },
+    "components/admin/v7/V7Primitives.tsx": {
+      "count": 2,
+      "primitives": [
+        "V7Drawing"
+      ]
+    },
+    "components/admin/v7/V7Search.tsx": {
+      "count": 1,
+      "primitives": [
+        "V7Drawing"
+      ]
+    },
+    "components/admin/v7/V7ShopBoard.tsx": {
+      "count": 6,
+      "primitives": [
+        "ShopJobDrawing",
+        "V7Drawing"
+      ]
+    },
+    "components/admin/v7/V7Workbench.tsx": {
+      "count": 2,
+      "primitives": [
+        "V7Thumb"
+      ]
+    }
+  }
+}

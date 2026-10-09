@@ -1134,6 +1134,161 @@ SPEC_DOCUMENT_UPLOAD.md (referenced again for order attachments)
     state: `docs/design/V7_PIXEL_REPORT.md`. The behaviour mapping, v7 function
     to React handler: `docs/design/command-center-v7/BEHAVIOR_MAP.md`.
 
+36. **THE V8 CONTRACT IS FROZEN BY HASH. NEVER EDIT A CONTRACT FILE, NEVER
+    REGENERATE A BASELINE, AND NEVER LOOSEN A GATE OR ADD TO AN ALLOWLIST TO
+    MAKE A BUILD PASS.**
+
+    Command Center V8 is a PORT of three HTML files Reid approved on 2026-10-08:
+    `docs/design/command-center-v8/Workbench_B-stage-strip-table.html` (the
+    Workbench), `Workbench_C-inbox-first.html` (the email two-pane) and
+    `Workbench_E-shop-view.html` (Shop View, including the job screen and the
+    full-size overlay). Their sha256 hashes, the states each can be driven into
+    and the interaction contract live in `CONTRACT_MANIFEST.json`, and
+    `scripts/audit/contract-check.mjs` re-derives every hash on every build as
+    part of `prebuild` — so a Vercel deployment cannot get past a changed
+    contract. It also fails on an UNGOVERNED `.html` in that folder, because
+    dropping a fourth mockup in beside the three and porting that instead is the
+    one way to defeat a hash check without ever changing a hash.
+
+    **A HASH-FROZEN FILE NEEDS `.gitattributes -text`, OR GIT REDEFINES THE
+    DESIGN WITH A LINE-ENDING CONVERSION.** This repo has `core.autocrlf=true`
+    and had NO `.gitattributes`. A plain `git checkout` of a contract file was
+    measured converting it to CRLF and changing its sha256 — a FAILING BUILD ON
+    AN UNMODIFIED CONTRACT for anyone cloning on Windows, whose obvious-looking
+    fix would be to re-baseline the hashes. **It had already happened to v7
+    unnoticed:** rule #33's recorded `37f9c4d6…112a63` is the LF hash, and the
+    working copy here was CRLF, so that rule's own hash could not be verified on
+    this machine at all. `v7.css`, the four other generated-CSS inputs and
+    `command-center-v7.generated.css` were all in the same state, passing their
+    byte-comparison tests only by accident of this machine's conversion. All are
+    `-text` now. **If a hash ever mismatches, run `git ls-files --eol` BEFORE
+    anything else** — it is far more likely to be a line ending than a changed
+    design, and re-baselining would bake the conversion in as the new design.
+
+    **Re-baselining is a human act, not a build step.** The only writer of those
+    hashes is `scripts/design/rebaseline-v8-contract.mjs`, which refuses unless
+    `CONTRACT_APPROVED_BY_REID=1` is in the environment. **NO CLAUDE CODE SESSION
+    MAY SET THAT VARIABLE.** If contract-check fails, the fix is
+    `git checkout docs/design/command-center-v8/` — never a re-baseline.
+
+    **THE BASELINE PNGs ARE RENDERS, NOT EXPECTATIONS.**
+    `tests/visual/v8-baselines.spec.ts` re-derives all five from the committed
+    HTML every run. There is no update mode and there must never be one: the
+    moment a baseline becomes something a session may refresh, a failing gate
+    turns into a two-line fix and stops being a gate. Same discipline as rule
+    #34(d), same reason.
+
+    **ONE INTERACTION CONTRACT, AND THE 230 ms IS LOAD-BEARING.** All three files
+    carry a byte-identical zoom-handler block and a byte-identical `META` table,
+    asserted rather than assumed. Single click ENLARGES, double-click goes FULL
+    SIZE, and those gestures overlap — a double-click fires `click` twice before
+    `dblclick` — so the enlarge is SCHEDULED (`lib/ui/zoom-intent.ts`'s
+    `ZOOM_OPEN_DELAY_MS`, read back out of the contract's own `setTimeout` line
+    by a unit test) and the double-click CANCELS it. Without the cancel, one
+    double-click opens two overlays. `tests/visual/v8-interaction-gate.spec.ts`
+    waits the whole delay out AFTER a double-click to prove the enlarge never
+    lands; do not inline the timer and do not shorten it.
+
+    **THE FULL-SIZE VIEW IS WHAT THE SHOP READS A JOB OFF**, so it must carry
+    every segment length, every interior angle, the hem labels, the developed
+    width, the painted-side marker and Steve's red shop notes. The gate derives
+    those counts from each profile's own `META` as RELATIONSHIPS (angle labels =
+    bends, hem labels = hems, length labels = legs) rather than hardcoding
+    today's sample data, and asserts the contract contains at least one
+    shop-noted and one hemmed profile so neither conditional clause can go
+    vacuous.
+
+    **WORKBENCH_C MOUNTS NO DRAWING, AND THAT IS THE APPROVED DESIGN.** It
+    carries the complete apparatus — the handlers, the `#pop`/`#full` overlays,
+    the `META` table, the legend — and ZERO `.zoom` elements. The gate reports
+    that as `apparatus-only` and a separate test forbids every file being like
+    it. Whether the email pane should show the drawing the AI read its takeoff
+    from is an open question, PENDING REID, recorded in
+    docs/COMMAND_CENTER_V8_AUDIT.md.
+
+    **NOTHING SHIPS MARKED DONE WHILE UNVERIFIED.** Phase 0's own audit marks
+    every item UNVERIFIED until Reid confirms it in the browser, including
+    `ProfileViewer`, which typechecks and is proven call-for-call identical to
+    FlashDraft's renderer by unit test and which **nobody has looked at**. A unit
+    test is evidence to bring to Reid, not his confirmation — the standard
+    STATE_OF_THE_BUILD.md and SESSION_STATE.md already set.
+
+37. **EVERY PROFILE DRAWING ON AN ADMIN SCREEN GOES THROUGH
+    `components/admin/v8/ProfileViewer.tsx`, AND THE ALLOWLIST IS BURNED TO
+    ZERO.**
+
+    That component takes a saved FlashDraft profile id and renders ONLY from the
+    saved geometry, through `drawProfileScene` — the same renderer FlashDraft's
+    own editing canvas and the shop snapshot use. It never writes a second
+    drawing algorithm, and `scripts/audit/single-drawing-path.mjs` fails the
+    build (via `prebuild`) if any file under `app/admin/` or `components/admin/`
+    draws a profile another way.
+
+    **WHAT IT IS PROTECTING AGAINST, precisely.** `lib/design/v7-draw.ts` —
+    reached through `V7Drawing` / `V7Thumb` / `V7Plate` — takes a profile KIND
+    out of a nine-entry table plus a few leg lengths. That is a picture of the
+    CATEGORY of flashing a job belongs to. It has no entry for a seven-bend
+    custom, no way to express which way a hem kicks, and no concept of a bend's
+    handedness at all (rule #12, where the signed interior angle IS the meaning
+    of a bend). On a thumbnail that is a wrong picture; shown full size on the
+    screen whose next button reaches the Thalmann (rule #14), it is a wrong
+    INSTRUCTION that looks like a right one — and nothing in a type system or a
+    screenshot catches it, because the markup is correct and the picture is
+    plausible.
+
+    **A BASE64 PNG IS ALSO NOT GOOD ENOUGH, and that is the subtler half.**
+    `LazyProfileThumb` / `PastProfileThumb` / `ShopJobDrawing` show REAL geometry
+    — a snapshot of FlashDraft's own canvas — but captured once at thumbnail
+    resolution, so it cannot be enlarged and read off. `pointsToSvgPath`
+    (`lib/data/job-screen.ts`) draws the real saved points and carries no bend
+    angles, no segment lengths, no hems and no painted side. Both are correct as
+    the read-only previews they were written to be, and neither is something the
+    shop can read a job off. `pointsToSvgPath` was MISSED by the first draft of
+    that gate and found by reading the live Job screen, which is why the pattern
+    set is an inventory of what this codebase really does rather than a guess.
+
+    **NO SAVED GEOMETRY MEANS AN EXPLICIT "No saved drawing", NEVER A STAND-IN.**
+    `lib/data/v8-profile-geometry.ts` returns real geometry or an absence with a
+    reason in plain English, and **one unreadable point voids the whole
+    drawing** — a polyline silently missing a leg is a plausible-looking shape
+    nobody can vouch for. An unrecognised hem type or kick drops the hem rather
+    than defaulting it, because a hem's type is how it is formed and its kick is
+    which way it folds. Same position `lib/flashdraft/job-handoff.ts` takes in
+    refusing to rebuild points from `legA`/`legB`.
+
+    **THE ALLOWLIST'S COUNTS ARE EXACT IN BOTH DIRECTIONS.**
+    `scripts/audit/single-drawing-path-allowlist.json` records the phase-0
+    baseline — **29 drawing calls across 18 files**. More than a file's count
+    fails (a drawing path was added); FEWER ALSO FAILS, asking for the number to
+    be lowered and `baselineTotal` lowered with it. That second half is what
+    makes "later phases burn it to zero" a fact rather than an intention:
+    progress that does not have to be written down is progress nobody can audit.
+    **Never add an entry and never raise a count to make a build pass**, and
+    `--print-current` is a measurement, not an approval.
+
+    **THE FACTS BEHIND THE VIEWER WERE MOVED, NOT COPIED.** `PIXELS_PER_INCH`,
+    `computeFitView`, `isGauge18OrThicker`, `defaultBendRadiusIn`,
+    `signedAngleBetween` and the canvas palette now live in
+    `lib/flashdraft/viewer-scene.ts` and `app/studio/draft/page.tsx` imports them
+    BACK — which is why FlashDraft's own rendering is unchanged: it calls the
+    same functions it used to declare. `signedAngleBetween` DELEGATES to rule
+    #12's `signedInteriorAngleDeg` rather than reimplementing it. Do not
+    re-declare any of them beside the originals; GEOMETRY_AUDIT.md is the record
+    of what three copies of one walk cost.
+
+    **THREE KNOWN CONFLICTS WITH THE CONTRACT ARE RECORDED, NOT SILENTLY
+    RESOLVED**, each because closing it changes FlashDraft's own canvas or a
+    number the price book divides by, and both are Reid's call: the hem label
+    (FlashDraft prints `OPEN 3/16" gap` / `TEARDROP` / `SMASHED`; the contract
+    prints `0.5" hem` — neither is a superset, and the interaction gate WILL fail
+    on the live screen until the fold length is added, which is the gate
+    working); the drawing palette (`V8_CONTRACT_DRAWING_COLORS` is recorded and
+    deliberately passed nowhere, with a unit test asserting it still differs so
+    the question cannot be closed by an edit instead of a decision); and
+    `lib/pricing/quote-inputs.ts`'s `blankWidthIn`, which excludes hem allowance
+    while FlashDraft's own displayed blank width includes it. Full detail and
+    every open question: `docs/COMMAND_CENTER_V8_AUDIT.md`.
+
 ---
 
 ## MACHINE INTEGRATION — THALMANN DS2801 / AFS MACHINE BRIDGE

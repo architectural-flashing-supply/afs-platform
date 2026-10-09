@@ -217,9 +217,54 @@ Total files:            65
 
 ---
 
+## IN-REPO DOCS NOT MIRRORED TO THE FORGE FOLDER (added 2026-10-08)
+
+The folder structure above lists what goes in `FORGE/projects/afs-website/`.
+Several working documents live only in the repo's own `docs/` directory, and the
+V8 contract is one of them because it is enforced by a build gate rather than
+read by a prompt:
+
+```
+docs/design/command-center-v8/          THE V8 DESIGN CONTRACT. Three HTML files
+  Workbench_B-stage-strip-table.html    Reid approved 2026-10-08, FROZEN BY HASH
+  Workbench_C-inbox-first.html          (CLAUDE.md rule #36). Verified on every
+  Workbench_E-shop-view.html            build by scripts/audit/contract-check.mjs.
+  CONTRACT_MANIFEST.json                Hashes, drivable states, the interaction
+                                        contract. Re-baselining needs
+                                        CONTRACT_APPROVED_BY_REID=1 — a variable
+                                        no Claude Code session may set.
+
+docs/COMMAND_CENTER_V8_AUDIT.md         V8 phase 0 audit: every admin screen that
+docs/COMMAND_CENTER_V8_AUDIT.docx       shows a profile drawing, its real source
+                                        with file paths and line numbers, the mail
+                                        go-live gaps, and seven open questions
+                                        PENDING REID. The .docx is generated from
+                                        the .md by scripts/md-to-docx.mjs.
+
+docs/COMMAND_CENTER_V7_GAP_AUDIT.md     Earlier v7 audits and reports, kept for
+docs/design/V7_PIXEL_REPORT.md          the reasoning behind the current gates.
+docs/design/V7_COLOR_DEVIATIONS.md
+```
+
+**`AGENTS.md` and `SCHEMA_REGISTRY.md` do not exist in this project.** Both were
+named in the V8 phase 0 instruction's governance list and neither is present
+anywhere in the repo — checked 2026-10-08. They were NOT created: inventing a
+governance file nobody wrote would add a document with no authority behind it.
+The roles they would play are already filled — agent/session conventions by
+`CLAUDE.md` and `SESSION_STATE.md`, the schema by `SCHEMA.md` and
+`MIGRATIONS_STATUS.md`. V8 phase 0 made no schema change (it added one API route
+and no migration), so there was nothing for a schema registry to record either
+way.
+
+---
+
 ## WHAT DOES NOT EXIST IN THIS PROJECT
 
-- No `.docx` files — all documentation is `.md`
+- No `.docx` files — all documentation is `.md`, **except the two generated
+  copies noted above** (`COMMAND_CENTER_V2_SPEC.docx`,
+  `COMMAND_CENTER_V8_AUDIT.docx`), each produced from its `.md` source by
+  `scripts/md-to-docx.mjs` so the Markdown stays the original
+- No `AGENTS.md`, no `SCHEMA_REGISTRY.md` — see the section above
 - No `SPEC_CONTRACTOR_PRICING_PORTAL.md` — deleted (incorrect model)
 - No customer-facing pricing component specs — RFQ model, no prices to customers
 - No light mode / dark mode toggle — single gunmetal theme

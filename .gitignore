@@ -80,3 +80,12 @@ scratch-verify/
 # canonical truth is docs/design/command-center-v7/AFS_Command_Center_Prototype_v7.html,
 # which IS committed.
 tests/visual/v7-baselines/
+
+# The V8 contract baselines, for exactly the same reason and under the same rule
+# (CLAUDE.md rule #36): tests/visual/v8-baselines.spec.ts re-derives all five
+# from the committed contract HTML on every run, there is no update mode, and
+# there must never be one. Committing them would make them look like an
+# expectation a session could refresh. The canonical truth is the three files in
+# docs/design/command-center-v8/, which ARE committed and are hash-verified on
+# every build by scripts/audit/contract-check.mjs.
+tests/visual/v8-baselines/

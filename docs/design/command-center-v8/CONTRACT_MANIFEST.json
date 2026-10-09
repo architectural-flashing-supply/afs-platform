@@ -1,0 +1,126 @@
+{
+  "$comment": [
+    "THE V8 CONTRACT. Approved by Reid 2026-10-08 and FROZEN.",
+    "",
+    "These three files are the design authority for Command Center V8. They were",
+    "copied BYTE-FOR-BYTE out of",
+    "  C:\\Users\\manag\\Documents\\ARCHITECTURAL FLASHING SUPPLY WEBSITE\\cc-compare",
+    "after their sha256 hashes were verified against the hashes Reid approved in",
+    "the V8 Phase 0 instruction. Nothing was reformatted, minified, prettified or",
+    "re-saved on the way in.",
+    "",
+    "scripts/audit/contract-check.mjs re-hashes every file listed here on every",
+    "build (it is wired into `prebuild`, beside contrast-check), so an edit to a",
+    "contract file fails the build rather than silently becoming the new design.",
+    "",
+    "RE-BASELINING IS NOT A NORMAL OPERATION. The only way to change a hash in",
+    "this file is scripts/design/rebaseline-v8-contract.mjs, which refuses to run",
+    "unless the environment carries CONTRACT_APPROVED_BY_REID=1. No Claude Code",
+    "session may set that variable; it exists so the act of changing the frozen",
+    "design is Reid's, recorded in a shell he typed it into.",
+    "",
+    "The `sourcePath` field records where each file came from. It is informational",
+    "only — the gate hashes the committed copy under docs/, never the source",
+    "folder, which is outside the repo and may change."
+  ],
+  "contractVersion": "v8.0",
+  "approvedBy": "Reid Whitesides",
+  "approvedOn": "2026-10-08",
+  "frozen": true,
+  "sourceFolder": "C:\\Users\\manag\\Documents\\ARCHITECTURAL FLASHING SUPPLY WEBSITE\\cc-compare",
+  "files": [
+    {
+      "path": "docs/design/command-center-v8/Workbench_B-stage-strip-table.html",
+      "sha256": "d845e2a6ef9a940c814c97f58e42bc1f5e19d2898685ad86753f3871f37fd190",
+      "sourcePath": "Workbench_B-stage-strip-table.html",
+      "screen": "Workbench",
+      "title": "Workbench \u00b7 Option B",
+      "role": "The Workbench: a stage strip over one table of every live job."
+    },
+    {
+      "path": "docs/design/command-center-v8/Workbench_C-inbox-first.html",
+      "sha256": "8097d45e5485eefc6617b0e7c618110b681b34a03b110d1fd83b83dfb3904352",
+      "sourcePath": "Workbench_C-inbox-first.html",
+      "screen": "Email two-pane",
+      "title": "Workbench \u00b7 Option C",
+      "role": "The email two-pane: the original email as received on the left, the AI takeoff / drafted reply on the right."
+    },
+    {
+      "path": "docs/design/command-center-v8/Workbench_E-shop-view.html",
+      "sha256": "c99244c31ee31ef9e7805f05f654288835dc2b56576fcc0a960381986d83c30f",
+      "sourcePath": "Workbench_E-shop-view.html",
+      "screen": "Shop View",
+      "title": "Shop View \u00b7 Mockup",
+      "role": "Shop View: the queue board, the per-job screen, and the full-size drawing overlay."
+    }
+  ],
+  "states": [
+    {
+      "id": "workbench-b",
+      "file": "docs/design/command-center-v8/Workbench_B-stage-strip-table.html",
+      "name": "Workbench (B) \u2014 stage strip + table",
+      "drive": "none"
+    },
+    {
+      "id": "email-two-pane",
+      "file": "docs/design/command-center-v8/Workbench_C-inbox-first.html",
+      "name": "Email two-pane (C) \u2014 order, as received",
+      "drive": "none"
+    },
+    {
+      "id": "shop-view-queue",
+      "file": "docs/design/command-center-v8/Workbench_E-shop-view.html",
+      "name": "Shop View (E) \u2014 queue board",
+      "drive": "none"
+    },
+    {
+      "id": "shop-view-job",
+      "file": "docs/design/command-center-v8/Workbench_E-shop-view.html",
+      "name": "Shop View (E) \u2014 job screen open",
+      "drive": "job:J-2037"
+    },
+    {
+      "id": "shop-view-full",
+      "file": "docs/design/command-center-v8/Workbench_E-shop-view.html",
+      "name": "Shop View (E) \u2014 full-size drawing overlay",
+      "drive": "full:coping"
+    }
+  ],
+  "interaction": {
+    "$comment": [
+      "The interaction contract, read out of the three files' own script blocks.",
+      "All three carry the SAME handler block, verbatim — so the gate asserts one",
+      "contract against all three rather than three near-copies.",
+      "tests/visual/v8-interaction-gate.spec.ts is the executable form of this."
+    ],
+    "zoomSelector": ".zoom",
+    "singleClickOpens": "#pop",
+    "singleClickDelayMs": 230,
+    "doubleClickOpens": "#full",
+    "popTitleId": "pt",
+    "popSvgId": "ps",
+    "fullTitleId": "ft",
+    "fullMetaId": "fm",
+    "fullSvgId": "fs",
+    "scrimId": "scrim",
+    "popCloseId": "pc",
+    "fullCloseId": "fc",
+    "expandButtonSelector": ".expbtn",
+    "closesOn": ["Escape", "#pc", "#fc", "#scrim"],
+    "fullMustContain": [
+      "segment-length-labels",
+      "interior-angle-labels",
+      "hem-labels",
+      "developed-width",
+      "painted-side-marker",
+      "steve-red-shop-note"
+    ],
+    "legendColors": {
+      "segment": "#1553B3",
+      "hem": "#C26A00",
+      "angle": "#17703A",
+      "shopNote": "#B3261E",
+      "labelInk": "#101C2C"
+    }
+  }
+}
