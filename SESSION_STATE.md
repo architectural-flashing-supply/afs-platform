@@ -45,15 +45,28 @@ shape, **no angles, no lengths, no hems, no painted side**). So phases 1-5 are
 mostly about SUPPLYING a drawing, not replacing one — and the effort per screen
 is mostly id-plumbing, not rendering.
 
-### THE ONE THING TO CHECK IN THE BROWSER
+### THE ONE THING TO CHECK IN THE BROWSER (updated 2026-10-09)
 
-Nothing yet, and that is deliberate — no screen changed. The thing Reid has not
-seen and should see first is **`components/admin/v8/ProfileViewer.tsx`**, which
-typechecks, is proven call-for-call identical to FlashDraft's renderer by unit
-test, and **has never been rendered in a browser.** It has no mount point until
-phase 1 gives it one. Phase 1 should put it on the Job screen first: that screen
-already holds the real saved points, so it is the lowest-friction conversion of
-the fourteen.
+**Start the dev server and open
+`/studio/v8-viewer-debug?ids=<saved_configurations uuid>,<uuid>`** — an
+admin-guarded debug harness on the `/studio/hem-debug` precedent. It renders the
+real `ProfileViewer` against real saved geometry at all three sizes, both by id
+and from server-read `initialData`, plus the explicit no-drawing state. Single
+click enlarges, double-click goes full size, Esc closes.
+
+There are only **two** drawable saved profiles in the database (see below), and
+their ids are not written here because a saved profile is a customer's record —
+take them from `saved_configurations`.
+
+**It was rendered on 2026-10-09 and it was visibly wrong**: cropped thumbnails,
+a clipped dimension label, editor grab rings on a read-only view, and a teardrop
+hem hanging outside the canvas — all with a green unit suite. Fixed, with a new
+bounds test that would have caught it. Screenshots in `test-results/v8-viewer/`.
+**Reid has still not looked at it.**
+
+Phase 1 should still put the viewer on the Job screen first: that screen already
+holds the real saved points, so it is the lowest-friction conversion of the
+fourteen.
 
 ### WHAT RUNS NEXT
 
@@ -62,11 +75,19 @@ the fourteen.
 
 Two things to settle before writing code, both from the audit:
 
-- **A Workbench card has no profile id.** `V7Card` has no such field.
-  `quote_requests.line_items[]` carries the geometry, but only *some* jobs also
-  have a `saved_configurations` row. **How many is UNVERIFIED** — no live
-  database query was run in phase 0, and this number decides whether phase 1 is
-  id-plumbing or a data-model change. Query it first.
+- **A Workbench card has no profile id — and there are almost no ids to give
+  it.** MEASURED 2026-10-09: `saved_configurations` (the Profile Passport, the
+  table `ProfileViewer` reads by id) contains **2 rows**. The geometry that
+  exists is on `quote_requests.line_items` — **5 of 18 jobs** — and as base64
+  PNGs in `shop_profile_library` (19 of 22). So **phase 1 is not id-plumbing**:
+  the `initialData` path, geometry handed straight to the viewer from the line
+  item, is what carries the work and should be the primary input. The id path
+  stays for the two profiles that have one.
+- **Phase 2's join would not help much either.** At most **5 of the 22** shop
+  rows could ever reach saved geometry, because only 5 jobs carry points at all.
+  For the other 17 the base64 PNG is the only drawing that will ever exist
+  unless geometry is backfilled — so phase 2's real decision is what to do about
+  those 17, not whether to add a foreign key.
 - **The Job screen is the easier half** and is in the same phase. Do it first for
   a real screen to look at.
 

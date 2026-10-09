@@ -34,6 +34,178 @@ summary, not a replacement for it.
 
 ---
 
+## V8 PHASE 0 FOLLOW-UP — THE TWO UNVERIFIED ITEMS, CLOSED (2026-10-09)
+
+**Branch `feat/command-center-v8`. Still not merged, still not deployed.**
+
+Phase 0 shipped with two gaps named in its own audit: no live database query had
+been run, and `ProfileViewer` had never been rendered in a browser. Both are now
+closed, and **closing the second one found real defects in the component phase 0
+shipped.** That is the whole argument for looking.
+
+---
+
+### THE LIVE NUMBERS — PHASE 1 AND PHASE 2 ARE SMALLER AND DIFFERENT THAN ASSUMED
+
+Queried directly against PostgREST with the service role. **Counts and UUIDs
+only** — CLAUDE.md records that saved profile names are real customer, hospital
+and project names, so no name, company, person or email was selected.
+
+```
+saved_configurations rows                      : 2
+  dimensions.kind === 'flashdraft'             : 2
+  with >=2 real points (DRAWABLE by the viewer): 2
+    ...carrying a hem                          : 1
+  point count  min / median / max              : 3 / 5 / 5
+
+quote_requests rows                            : 18
+  with >=1 line item carrying real geometry    : 5
+  line items total / carrying geometry         : 18 / 5
+
+shop_profile_library rows                      : 22
+  with a geometry_svg (base64 PNG)             : 19
+  with a pathfinder_profile_id                 : 20
+  by source_tool  {"afs-quote-builder":3,"afs-flashdraft":19}
+```
+
+**THE PROFILE PASSPORT HAS TWO ROWS.** `ProfileViewer`'s whole id-based design
+points at `saved_configurations`, and that table contains **two** profiles in the
+entire database. The geometry that actually exists lives somewhere else: on
+`quote_requests.line_items` (5 of 18 jobs) and as base64 PNGs in
+`shop_profile_library` (19 of 22 rows).
+
+Three consequences, and they change the plan:
+
+1. **Phase 1 cannot be id-plumbing, because there are almost no ids.** The
+   `initialData` path — geometry handed straight to the viewer from the line
+   item — is the one that will carry the work, and it should be treated as the
+   primary input rather than an optional convenience. It is already exercised
+   side-by-side with the id path in the harness, and the two are asserted to
+   produce identical ink.
+2. **Phase 2 is worse than "no FK".** At most 5 of the 22 shop rows could reach
+   saved geometry even if the join existed, because only 5 jobs carry points at
+   all. For the other 17 **the base64 PNG is the only drawing that will ever
+   exist**, unless geometry is backfilled. "Add a join" is not the fix; deciding
+   what to do about 17 rows with no recoverable geometry is.
+3. **The fixture screens are most of what anyone has seen.** With 2 saved
+   profiles and 5 drawable jobs, almost every Command Center screen in live mode
+   has been showing empty boxes — which matches the audit's headline finding and
+   explains it.
+
+---
+
+### LOOKING AT IT FOUND FOUR DEFECTS THAT EVERY TEST PASSED
+
+`ProfileViewer` now renders at `/studio/v8-viewer-debug?ids=…`, an admin-guarded
+harness on the `/studio/hem-debug` precedent — the same pattern that exists so
+hem glyphs can be looked at through the exact function the real canvas calls.
+Screenshots: `test-results/v8-viewer/`.
+
+The first render was visibly wrong while the unit suite was green:
+
+1. **Every thumbnail was cropped**, at 110px and far worse at 56px, where the
+   larger profile was a few disconnected red fragments.
+2. **The enlarged view clipped `3 15/16"`** clean off its right edge.
+3. **Endpoint grab rings were drawn on a read-only view**, advertising a
+   drag gesture the Command Center viewer does not implement.
+4. **A teardrop hem hung 8.4px outside the canvas at every size** — a constant
+   overflow, which is the signature of a fixed-pixel mark.
+
+**ONE ROOT CAUSE BEHIND ALL OF IT.** `computeFitView` fits the POINT BOUNDING
+BOX. `drawProfileScene` then draws a great deal that is not a point and does not
+scale with zoom: a 20px angle arc, its label 12px beyond that, an 8px endpoint
+ring, a hem glyph with a 14px floor reaching `R * 2.1`, and dimension text whose
+width depends on the string. On FlashDraft's 600x440 canvas with 60px of padding
+that all fits in the slack. On a 110px thumbnail it does not. Compounding it,
+`computeFitView`'s `Math.max(0.25, …)` zoom floor — correct for the editor —
+forced a 29in profile to overflow a 56px box outright.
+
+**THE FIXES, all in the viewer's own module or additive to the shared renderer:**
+
+- `computeFitView` gained an explicit `minZoom`, **defaulting to FlashDraft's own
+  0.25 so the editor is unchanged**; the viewer passes a far smaller floor,
+  because "too small to read" is honest and "cropped" is not — a cropped profile
+  is a different shape, confidently drawn.
+- Padding is now DERIVED from what will actually be drawn, not a tuned constant.
+  The text term is **measured** with `ctx.measureText`: a first attempt estimated
+  it as `fontPx * 2.4` and `3 15/16"` was still clipped. The context that knows
+  the answer was already in the caller's hand.
+- The hem extent comes from `hemGlyphExtentPx`, a new export sitting **next to
+  the formulas it mirrors** in `draw-profile-scene.ts`, so the number a caller
+  reserves and the number the renderer draws cannot drift. A flat 14px guess was
+  what left the teardrop outside.
+- The fit runs **two passes**, because a hem glyph's size depends on zoom and
+  zoom depends on the room the glyph needs. It is a contraction, so one
+  iteration settles it.
+- `drawProfileScene` gained `drawUiIndicators`, **default true**, following the
+  `drawGrid` / `drawBackground` precedent already in that file. It gates the
+  endpoint rings, the angle arcs and the fixed-size hem glyph — never the hem's
+  fold line, which is real world-unit geometry and still drawn. FlashDraft passes
+  nothing and is byte-identical.
+- The enlarged view **drops the hem caption**, and it is a stated trade-off:
+  `OPEN 3/16" gap` is ~98px and is drawn LEFT-ALIGNED outward from a hem that
+  sits at the profile's edge by definition. Reserving for it leaves a third of a
+  420px canvas for the drawing. **This is tied to the open hem-label question**
+  (audit §4a) — the contract's own `0.5" hem` is a third shorter and would fit.
+
+**THE TESTS WERE WRONG TOO, IN THREE WAYS**, each fixed and each worth naming
+because they are the failure modes of this kind of test:
+
+- The fidelity test compared the two sides' CAMERAS. The viewer's framing is
+  deliberately **not** FlashDraft's, so it went red for the framing being fixed.
+  It now holds the camera equal and compares everything else — renderer,
+  palette, label style, radius precedence — which is what it was always for.
+- A new bounds test read `arc()` coordinates as canvas coordinates when the hem
+  glyphs are drawn inside a `translate`/`rotate`, and reported a correct drawing
+  as 8.4px out at every size. It now walks the transform stack.
+- The text test treated every label as centred. A hem caption is left-aligned,
+  so its whole width extends past its anchor, not half.
+
+**FOUR NEW TEST GROUPS, 14 assertions**, including the one that would have
+caught this: every drawn coordinate must land inside the canvas, for three
+profiles at four sizes. It is geometry, not pixels, so it needs no rasteriser.
+Plus `tests/visual/v8-viewer-live.spec.ts`, which drives the real component in a
+real browser and reads **pixels back out of the canvas** — ink present, label ink
+present, the 230 ms cancel holding on a real event loop, Enter opening without
+the delay. It SKIPS with a message naming what to pass when `V8_VIEWER_IDS` is
+unset: no customer's profile id is committed.
+
+---
+
+### A NAME COLLISION, AND THE PRECEDENT THAT SETTLED IT
+
+The harness was first called `profile-viewer-debug`, which tripped
+`lib/data/removed-machine-library.test.ts`: a route named for viewing a profile
+under `/studio/` was deleted with the 911-profile machine library, and the gate
+fails on any longer path that starts with it. The second attempt still failed —
+the explanatory comment SPELLED the dead route.
+
+Both were fixed the way CLAUDE.md already records: **rename out of the
+collision** (v2-01's `profile-library` precedent, where fifteen innocent files
+were renamed rather than the test relaxed), and **describe a forbidden name
+rather than spell it**, which is the device that test uses on itself. The route
+is `/studio/v8-viewer-debug`. The gate was not touched.
+
+---
+
+### STILL OPEN AFTER THIS
+
+- **The full-size view has no legend.** The contract carries one naming all five
+  inks. A screen-port item for phase 1/2, not built here.
+- **The hem caption at `enlarged` size** — see above, tied to audit §4a.
+- **Everything in audit §8 remains PENDING REID**, unchanged.
+- **Reid has still not looked at any of this.** Four screenshots exist and the
+  assertions pass; by this document's own standard that is evidence to bring
+  him, not his confirmation.
+
+Gates after the follow-up: tsc 0; build exit 0 with all three prebuild gates
+green (contrast 24/248/0/0, contract 3 verified, drawing path 29 calls against a
+baseline of 29); vitest **599 passed / 4 failed / 4 skipped**, the 4 being the
+same pre-existing pricing-ledger Supabase permission failures in a file this work
+did not touch; **20 v8 Playwright assertions passing.**
+
+---
+
 ## COMMAND CENTER V8, PHASE 0 — THE ENFORCEMENT HARNESS AND THE AUDIT (v8-00, 2026-10-08)
 
 **Branch `feat/command-center-v8`, off `main`. NOT merged, NOT deployed. Pushed as a branch only.**

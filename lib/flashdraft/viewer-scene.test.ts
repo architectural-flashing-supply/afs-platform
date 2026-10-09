@@ -5,6 +5,7 @@ import {
   FLASHDRAFT_CANVAS_COLORS,
   V8_CONTRACT_DRAWING_COLORS,
   computeFitView,
+  fitPaddingPx,
   defaultBendRadiusIn,
   developedWidthIn,
   isGauge18OrThicker,
@@ -13,6 +14,7 @@ import {
   type SavedProfileGeometry,
 } from './viewer-scene';
 import { drawProfileScene, SHOP_SNAPSHOT_LABEL_STYLE } from './draw-profile-scene';
+
 import { signedInteriorAngleDeg } from './geometry';
 import { gaugeToThicknessMm } from '@/lib/utils/gauge-thickness';
 import { hemAllowanceIn } from '@/lib/types/profile';
@@ -165,11 +167,31 @@ const MM_PER_INCH = 25.4;
 const W = 1100;
 const H = 620;
 
-/** FlashDraft's own static-render parameters, assembled independently. */
-function flashDraftStream(p: (typeof PROFILES)[number]): Call[] {
+/**
+ * FlashDraft's own static-render parameters, assembled independently — but
+ * driven by the camera the viewer actually used.
+ *
+ * WHY THE CAMERA IS SHARED AND NOT COMPARED. The viewer's FRAMING is
+ * deliberately NOT FlashDraft's: the editor fits a 600x440 canvas with 60px of
+ * padding and a 0.25 zoom floor, and a 56px thumbnail needs neither. Asserting
+ * the two cameras match would assert the opposite of the design, and an earlier
+ * version of this test did exactly that — it went red the moment the framing
+ * was fixed, for the framing being fixed.
+ *
+ * What this comparison is FOR is everything else: that the viewer draws through
+ * `drawProfileScene` rather than a second algorithm of its own, in FlashDraft's
+ * palette, at FlashDraft's shop-snapshot label style, with FlashDraft's
+ * bend-radius precedence and its gauge-derived thickness. Hold the camera equal
+ * and every one of those shows up as a differing call.
+ *
+ * The framing has its own test below, which is the one that would have caught
+ * the cropping.
+ */
+function flashDraftStream(
+  p: (typeof PROFILES)[number],
+  cam: { zoom: number; pan: { x: number; y: number } },
+): Call[] {
   const { ctx, calls } = recordingContext();
-  const spec = VIEWER_SIZES.fullsize;
-  const { zoom, pan } = computeFitView(p.geometry.points, W, H, spec.paddingPx);
   const thicknessIn = gaugeToThicknessMm(p.gauge) / MM_PER_INCH;
   const radii = p.geometry.bendRadiiIn ?? null;
   drawProfileScene({
@@ -180,12 +202,12 @@ function flashDraftStream(p: (typeof PROFILES)[number]): Call[] {
     hemStart: p.geometry.hemStart,
     hemEnd: p.geometry.hemEnd,
     worldToScreen: (q) => ({
-      x: q.x * PIXELS_PER_INCH * zoom + pan.x + W / 2,
-      y: q.y * PIXELS_PER_INCH * zoom + pan.y + H / 2,
+      x: q.x * PIXELS_PER_INCH * cam.zoom + cam.pan.x + W / 2,
+      y: q.y * PIXELS_PER_INCH * cam.zoom + cam.pan.y + H / 2,
     }),
     fontFamily: 'JetBrains Mono, ui-monospace, monospace',
     pixelsPerInch: PIXELS_PER_INCH,
-    zoom,
+    zoom: cam.zoom,
     gauge: p.gauge,
     thicknessIn,
     getEffectiveRadius: (i) => p.geometry.points[i]?.radius ?? radii?.[i - 1] ?? defaultBendRadiusIn(p.material),
@@ -194,24 +216,41 @@ function flashDraftStream(p: (typeof PROFILES)[number]): Call[] {
     colors: FLASHDRAFT_CANVAS_COLORS,
     labelStyle: SHOP_SNAPSHOT_LABEL_STYLE,
     drawGrid: true,
+    drawUiIndicators: true,
   });
   return calls;
 }
 
-function viewerStream(p: (typeof PROFILES)[number]): Call[] {
+function viewerStream(
+  p: (typeof PROFILES)[number],
+  size: 'thumb' | 'enlarged' | 'fullsize' = 'fullsize',
+  w = W,
+  h = H,
+): { calls: Call[]; cam: { zoom: number; pan: { x: number; y: number } } } {
   const { ctx, calls } = recordingContext();
   const result = renderSavedProfileScene({
     ctx,
-    cssWidth: W,
-    cssHeight: H,
+    cssWidth: w,
+    cssHeight: h,
     geometry: p.geometry,
     material: p.material,
     gauge: p.gauge,
-    size: 'fullsize',
+    size,
     fontFamily: 'JetBrains Mono, ui-monospace, monospace',
   });
   expect(result, 'a real profile must render, not return null').not.toBeNull();
-  return calls;
+  // DROP THE MEASUREMENT PASS. Before drawing anything, the viewer measures the
+  // widest label it is about to draw so the fit can reserve room for it
+  // (`measureLabelReservePx`), and setting a font to measure it is a recorded
+  // ctx write. That is not drawing — `drawProfileScene` opens with `clearRect`,
+  // so the scene is everything from there on. Comparing the measurement too
+  // would make this test fail for the viewer knowing something FlashDraft's
+  // editor does not need to know.
+  const start = calls.findIndex((c) => c.startsWith('clearRect('));
+  return {
+    calls: start >= 0 ? calls.slice(start) : calls,
+    cam: { zoom: result!.zoom, pan: result!.pan },
+  };
 }
 
 function textsDrawn(calls: Call[]): string[] {
@@ -235,8 +274,8 @@ describe('V8 ProfileViewer geometry fidelity', () => {
 
   for (const p of PROFILES) {
     it(`draws "${p.name}" with the identical canvas call stream as FlashDraft's renderer`, () => {
-      const viewer = viewerStream(p);
-      const flashdraft = flashDraftStream(p);
+      const { calls: viewer, cam } = viewerStream(p);
+      const flashdraft = flashDraftStream(p, cam);
 
       // PREMISE: something was really drawn. Two empty streams would match.
       expect(viewer.length).toBeGreaterThan(50);
@@ -246,7 +285,7 @@ describe('V8 ProfileViewer geometry fidelity', () => {
     });
 
     it(`labels every leg, every bend and every hem of "${p.name}"`, () => {
-      const texts = textsDrawn(viewerStream(p));
+      const texts = textsDrawn(viewerStream(p).calls);
 
       // One interior-angle label per bend. The bends are the interior vertices.
       const bendCount = Math.max(p.geometry.points.length - 2, 0);
@@ -374,6 +413,198 @@ describe('V8 ProfileViewer geometry fidelity', () => {
     expect(grid('thumb')).toBe(false);
     expect(grid('enlarged')).toBe(false);
     expect(grid('fullsize')).toBe(true);
+  });
+});
+
+/**
+ * THE TEST THAT WOULD HAVE CAUGHT THE CROPPING.
+ *
+ * The call-stream comparison above proves the viewer draws the same things
+ * FlashDraft does. It says nothing about WHERE, because both sides are given
+ * the same camera. The first version of this component framed every drawing by
+ * fitting the POINT BOUNDING BOX and then drew a 20px angle arc, an 8px
+ * endpoint ring, a hem glyph and dimension text OUTSIDE it — so the thumbnails
+ * ran off all four edges and the enlarged view clipped `3 15/16"` in half.
+ * Every test passed. A screenshot found it.
+ *
+ * This reads the coordinates back out of the recorded stream and asserts they
+ * land inside the canvas. It is deliberately about geometry, not pixels, so it
+ * needs no rasteriser and runs in milliseconds.
+ *
+ * `fillText` is EXCLUDED from the bounds check and asserted separately, by its
+ * anchor point with a measured half-width allowance — a text anchor can sit
+ * legitimately close to an edge as long as the string still fits, and the
+ * recording cannot know a real font's metrics.
+ */
+describe('the drawing stays inside its canvas', () => {
+  const SIZES: { size: 'thumb' | 'enlarged' | 'fullsize'; w: number; h: number }[] = [
+    { size: 'thumb', w: 56, h: 56 },
+    { size: 'thumb', w: 110, h: 110 },
+    { size: 'enlarged', w: 420, h: 260 },
+    { size: 'fullsize', w: 1100, h: 620 },
+  ];
+
+  /**
+   * Every (x, y) the stream positions geometry at, in CANVAS coordinates,
+   * excluding full-canvas ops.
+   *
+   * THE TRANSFORM STACK IS NOT OPTIONAL HERE. The hem glyphs are drawn inside a
+   * `translate` + `rotate` so their construction can be written in local
+   * coordinates (hem-glyph.ts's "+x = outward past the true end"). A first
+   * version of this helper read those local coordinates as canvas ones and
+   * reported the teardrop's bulb — local `arc(21, 0, 8.4)` — as 8.4px off the
+   * top of the canvas, at every size, for a drawing that was correct. A bounds
+   * check that ignores the transform does not check bounds.
+   */
+  function drawnPoints(calls: Call[], w: number, h: number): { x: number; y: number }[] {
+    const pts: { x: number; y: number }[] = [];
+    // [a, b, c, d, e, f] — the same 2x3 the canvas uses.
+    let m2: number[] = [1, 0, 0, 1, 0, 0];
+    const stack: number[][] = [];
+    const mul = (m: number[], n: number[]) => [
+      m[0] * n[0] + m[2] * n[1],
+      m[1] * n[0] + m[3] * n[1],
+      m[0] * n[2] + m[2] * n[3],
+      m[1] * n[2] + m[3] * n[3],
+      m[0] * n[4] + m[2] * n[5] + m[4],
+      m[1] * n[4] + m[3] * n[5] + m[5],
+    ];
+    const apply = (x: number, y: number) => ({
+      x: m2[0] * x + m2[2] * y + m2[4],
+      y: m2[1] * x + m2[3] * y + m2[5],
+    });
+    /** Scale factor the current transform applies to a radius. */
+    const radiusScale = () => Math.max(Math.hypot(m2[0], m2[1]), Math.hypot(m2[2], m2[3]));
+
+    for (const c of calls) {
+      let t = c.match(/^save\(\)$/);
+      if (t) {
+        stack.push([...m2]);
+        continue;
+      }
+      if (/^restore\(\)$/.test(c)) {
+        m2 = stack.pop() ?? [1, 0, 0, 1, 0, 0];
+        continue;
+      }
+      t = c.match(/^setTransform\(([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+)\)$/);
+      if (t) {
+        m2 = t.slice(1).map(Number);
+        continue;
+      }
+      t = c.match(/^translate\(([-\d.]+),([-\d.]+)\)$/);
+      if (t) {
+        m2 = mul(m2, [1, 0, 0, 1, Number(t[1]), Number(t[2])]);
+        continue;
+      }
+      t = c.match(/^rotate\(([-\d.]+)\)$/);
+      if (t) {
+        const a = Number(t[1]);
+        m2 = mul(m2, [Math.cos(a), Math.sin(a), -Math.sin(a), Math.cos(a), 0, 0]);
+        continue;
+      }
+      t = c.match(/^scale\(([-\d.]+),([-\d.]+)\)$/);
+      if (t) {
+        m2 = mul(m2, [Number(t[1]), 0, 0, Number(t[2]), 0, 0]);
+        continue;
+      }
+      let m = c.match(/^(?:moveTo|lineTo)\(([-\d.]+),([-\d.]+)\)$/);
+      if (m) {
+        pts.push(apply(Number(m[1]), Number(m[2])));
+        continue;
+      }
+      // arc(x, y, r, ...) — the circle's extent, not just its centre.
+      m = c.match(/^arc\(([-\d.]+),([-\d.]+),([-\d.]+),/);
+      if (m) {
+        const [x, y, r] = [Number(m[1]), Number(m[2]), Number(m[3])];
+        const centre = apply(x, y);
+        const rr = r * radiusScale();
+        pts.push({ x: centre.x - rr, y: centre.y - rr }, { x: centre.x + rr, y: centre.y + rr });
+        continue;
+      }
+      // Skip clearRect/fillRect of the whole canvas — that IS the canvas.
+      m = c.match(/^fillRect\(([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+)\)$/);
+      if (m) {
+        const [x, y, rw, rh] = m.slice(1).map(Number);
+        if (!(x <= 0.01 && y <= 0.01 && rw >= w - 0.01 && rh >= h - 0.01)) {
+          pts.push(apply(x, y), apply(x + rw, y + rh));
+        }
+      }
+    }
+    return pts;
+  }
+
+  for (const { size, w, h } of SIZES) {
+    for (const p of PROFILES) {
+      it(`keeps "${p.name}" inside a ${w}x${h} ${size}`, () => {
+        const { calls } = viewerStream(p, size, w, h);
+        const pts = drawnPoints(calls, w, h);
+        expect(pts.length, 'nothing was drawn at all').toBeGreaterThan(4);
+
+        // The GRID is drawn across the whole canvas by design and is clipped by
+        // it; it is not content that can be "cropped". Only grid lines sit
+        // exactly on the bounds, so a small tolerance separates them from a
+        // profile running off the edge.
+        const tol = 1.5;
+        const bad = pts.filter((q) => q.x < -tol || q.y < -tol || q.x > w + tol || q.y > h + tol);
+        const worst = bad
+          .map((q) => Math.max(-q.x, -q.y, q.x - w, q.y - h))
+          .reduce((a, b) => Math.max(a, b), 0);
+        expect(
+          bad.length,
+          `${bad.length} drawn point(s) fall outside the ${w}x${h} canvas, worst by ${worst.toFixed(1)}px — the drawing is cropped`,
+        ).toBe(0);
+      });
+    }
+  }
+
+  it('a text anchor leaves room for its own string', () => {
+    // Anchors are centred, so the string needs half its width either side. The
+    // recording fake measures 7px per character, which is what the viewer's own
+    // reserve was computed from in this environment — so the two agree.
+    for (const { size, w, h } of SIZES) {
+      for (const p of PROFILES) {
+        const { calls } = viewerStream(p, size, w, h);
+        // A label set to 0px draws nothing, but the `fillText` call is still
+        // recorded — that is how `VIEWER_SIZES.thumb` suppresses its labels
+        // without the one renderer needing a labels-off flag. Tracking the
+        // font in force is what separates "drawn and clipped" from "not drawn".
+        let fontPx = 0;
+        for (const c of calls) {
+          const f = c.match(/^font=(?:bold )?([\d.]+)px/);
+          if (f) fontPx = Number(f[1]);
+          const m = c.match(/^fillText\("((?:[^"\\]|\\.)*)",([-\d.]+),([-\d.]+)\)/);
+          if (!m || fontPx <= 0) continue;
+          const text = JSON.parse(`"${m[1]}"`) as string;
+          const [x, y] = [Number(m[2]), Number(m[3])];
+          const width = text.length * 7;
+          // ALIGNMENT MATTERS. Dimension labels are centred on what they
+          // annotate, so half the string sits either side of the anchor. A hem
+          // CAPTION is left-aligned outward from the fold, so its whole width
+          // extends to the right of the anchor. Treating them alike understates
+          // a caption's reach by half its length.
+          const isCaption = /^(OPEN|TEARDROP|SMASHED)/.test(text);
+          const left = isCaption ? x : x - width / 2;
+          const right = isCaption ? x + width : x + width / 2;
+          expect(
+            left > -8 && right < w + 8 && y > -8 && y < h + 8,
+            `${size} ${w}x${h} "${p.name}": label ${JSON.stringify(text)} at (${x.toFixed(0)}, ${y.toFixed(0)}) spans ${left.toFixed(0)}..${right.toFixed(0)} and does not fit`,
+          ).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('the thumbnail draws no fixed-size UI marks, and the larger views do', () => {
+    // A 20px angle arc on a 56px canvas is bigger than the bend it annotates,
+    // and an endpoint grab ring promises a drag the viewer cannot perform.
+    // Both were overflowing the box before `drawUiIndicators` existed.
+    const p = PROFILES[2]; // 4 bends and a hem — plenty of marks to find
+    const ringOrArc = (calls: Call[]) =>
+      calls.filter((c) => /^arc\([-\d.]+,[-\d.]+,(8\.0000|20\.0000),/.test(c)).length;
+
+    expect(ringOrArc(viewerStream(p, 'thumb', 110, 110).calls)).toBe(0);
+    expect(ringOrArc(viewerStream(p, 'enlarged', 420, 260).calls)).toBeGreaterThan(0);
+    expect(ringOrArc(viewerStream(p, 'fullsize', 1100, 620).calls)).toBeGreaterThan(0);
   });
 });
 

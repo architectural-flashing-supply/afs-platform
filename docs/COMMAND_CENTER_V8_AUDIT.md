@@ -471,16 +471,24 @@ Listed so the gaps are known rather than assumed closed:
 
 - **No live screen was opened.** Nothing about how any Command Center screen
   looks today was verified in this session.
-- **No live database query was run.** Row counts, how many jobs actually have a
-  `saved_configurations` row, and how many `shop_profile_library` rows could be
-  joined back to one are all **UNVERIFIED** — and phase 1's and phase 2's effort
-  depends on those numbers.
+- ~~**No live database query was run.**~~ **CLOSED 2026-10-09.** Measured:
+  `saved_configurations` has **2** rows, `quote_requests` **18** of which **5**
+  carry geometry, `shop_profile_library` **22** of which **19** hold a PNG. The
+  Profile Passport having two rows means phase 1 cannot be id-plumbing and phase
+  2 has at most 5 of 22 rows it could ever join back. See
+  STATE_OF_THE_BUILD.md's 2026-10-09 follow-up entry.
 - **No deployment environment was inspected.** Vercel env vars, Resend
   configuration and Graph credentials are **UNVERIFIED**.
-- **`ProfileViewer` has not been rendered in a browser.** It typechecks, its
-  renderer is proven call-for-call identical to FlashDraft's by unit test, and
-  **nobody has looked at it.** Its own pixel fidelity against the contract is
-  **UNVERIFIED** and belongs to phase 1.
+- ~~**`ProfileViewer` has not been rendered in a browser.**~~ **CLOSED
+  2026-10-09, and it was visibly wrong.** Rendered at `/studio/v8-viewer-debug`
+  against real saved geometry, it cropped every thumbnail, clipped `3 15/16"`
+  in the enlarged view, drew editor grab rings on a read-only view, and hung a
+  teardrop hem 8.4px outside the canvas — with the entire unit suite green. One
+  root cause (the fit measured the points and ignored everything drawn in fixed
+  screen pixels around them), four fixes, and a new bounds test that would have
+  caught it. Full account in STATE_OF_THE_BUILD.md's 2026-10-09 entry.
+  **Its pixel fidelity against the contract is still UNVERIFIED**, and Reid has
+  still not looked at it.
 - **`/admin/pricing`'s drawing was not traced** to live or fixture. §2 row 12.
 
 ---

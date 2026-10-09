@@ -175,6 +175,70 @@ const MIN_READABLE_R = 10; // px floor
 const TEARDROP_THICKNESS_TO_R = 1 / 0.22;
 const MIN_TEARDROP_R = 14; // px, empirically the smallest size the tangent-circle construction reads as a closed loop rather than a dot
 
+/**
+ * How far a hem's glyph reaches, in SCREEN pixels, out from its tip.
+ *
+ * Exported so a caller that has to FIT a profile into a box can reserve the
+ * right amount of room for it. The alternative was for the viewer to carry its
+ * own copy of these constants, and it did briefly — a flat 14px guess, which
+ * left a teardrop hanging 8.4px outside the canvas at every size, because a
+ * teardrop actually reaches R * 2.1 and R has a 14px floor of its own.
+ *
+ * Computed from the SAME formulas the renderer below uses, a few lines away,
+ * so the number a caller reserves and the number this file draws cannot drift.
+ * Both grow with zoom, which is why a caller fitting to a box has to iterate:
+ * more zoom means a bigger glyph means less room means less zoom.
+ *
+ *   open / smashed   the hook's flat run, R * 1.8   (hem-glyph.ts's `Lh`)
+ *   teardrop         tip to the far edge of the bulb,
+ *                    R * 1.5 + R * 0.6 = R * 2.1    (its `centerDist + bulbR`)
+ */
+export function hemGlyphRadiusPx(
+  hem: Hem | null,
+  opts: { pixelsPerInch: number; zoom: number; thicknessIn: number; gauge: string },
+): number {
+  if (!hem) return 0;
+  const { pixelsPerInch, zoom, thicknessIn, gauge } = opts;
+  if (hem.type === 'teardrop') {
+    const effectiveThicknessIn = gauge ? thicknessIn : 0.0625;
+    return Math.max(MIN_TEARDROP_R, effectiveThicknessIn * pixelsPerInch * zoom * TEARDROP_THICKNESS_TO_R);
+  }
+  return Math.max(MIN_READABLE_R, hem.lengthIn * pixelsPerInch * zoom * HEM_GLYPH_LENGTH_SCALE);
+}
+
+export function hemGlyphExtentPx(
+  hem: Hem | null,
+  opts: { pixelsPerInch: number; zoom: number; thicknessIn: number; gauge: string },
+): number {
+  if (!hem) return 0;
+  const R = hemGlyphRadiusPx(hem, opts);
+  return hem.type === 'teardrop' ? R * 2.1 : R * 1.8;
+}
+
+/**
+ * Where a hem's CAPTION starts, out from the tip, in screen px.
+ *
+ * The caption (`OPEN 3/16" gap`, `TEARDROP`, `SMASHED`) is drawn LEFT-ALIGNED
+ * at `R * 2 + 6` beyond the fold tip, so unlike every centred dimension label
+ * it extends its FULL width outward rather than half. Reserving half of it left
+ * `OPEN 3/16" gap` starting at x=425 on a 420px-wide canvas.
+ */
+export function hemCaptionOffsetPx(
+  hem: Hem | null,
+  opts: { pixelsPerInch: number; zoom: number; thicknessIn: number; gauge: string },
+): number {
+  if (!hem) return 0;
+  return hemGlyphRadiusPx(hem, opts) * 2 + 6;
+}
+
+/** The fixed-pixel UI marks' own reach, for the same fitting purpose. */
+export const UI_INDICATOR_EXTENT_PX = {
+  /** The bend-angle arc, plus the 12px its label sits beyond the arc. */
+  angleArcAndLabel: ANGLE_ARC_RADIUS_PX + 12,
+  /** The hollow grab ring on a free endpoint. */
+  endHandle: END_HANDLE_RADIUS_PX,
+};
+
 export interface DrawProfileSceneParams {
   ctx: CanvasRenderingContext2D;
   cssWidth: number;
@@ -216,6 +280,32 @@ export interface DrawProfileSceneParams {
    * not belong.
    */
   drawBackground?: boolean;
+  /**
+   * Default TRUE — unchanged for every existing caller.
+   *
+   * The FIXED-SCREEN-PIXEL UI indicators: the hollow grab ring on each free
+   * endpoint, and the bend-angle arc. Both are drawn at a constant pixel size
+   * regardless of zoom, because they are interface marks rather than to-scale
+   * geometry (see END_HANDLE_RADIUS_PX and ANGLE_ARC_RADIUS_PX above).
+   *
+   * WHY THIS FLAG EXISTS. On FlashDraft's own 600x440+ editing canvas those
+   * marks are small and the grab ring advertises a real gesture (rule #13's
+   * extend-from-this-end). On a 56px or 110px READ-ONLY thumbnail they are
+   * neither: a 20px arc on a 56px canvas dominates the drawing it is annotating,
+   * and a grab ring promises a drag that the Command Center viewer does not
+   * implement. Both were visibly overflowing the box — found by looking at a
+   * screenshot, not by a test.
+   *
+   * IT ALSO GATES THE HEM GLYPH, for the same reason and with one deliberate
+   * exception: the hem's FOLD LINE is real geometry in world units and is
+   * always drawn, so a hemmed end still reads as longer than an unhemmed one.
+   * What is dropped is the fixed-size ICON on its tip — a teardrop's is 29px
+   * across at its floor, which is over half a 56px thumbnail and cannot shrink.
+   *
+   * The angle LABEL is not gated here; it is governed by `labelStyle.angleFontPx`,
+   * which a caller already sets to 0 when it wants no text.
+   */
+  drawUiIndicators?: boolean;
   /** Grid phase offset — the live canvas's own pan state. Defaults to {x:0,y:0} (the offscreen snapshot has no pan). */
   pan?: ScreenPoint;
 }
@@ -247,6 +337,7 @@ export function drawProfileScene(params: DrawProfileSceneParams): void {
     labelStyle,
     interaction = NO_INTERACTION,
     paint,
+    drawUiIndicators = true,
     drawGrid = true,
     drawBackground = true,
     pan = { x: 0, y: 0 },
@@ -395,7 +486,12 @@ export function drawProfileScene(params: DrawProfileSceneParams): void {
   // grabbable and both must look it. The ring sits around the endpoint and
   // the hem glyph is drawn from that same point outward, so they read as
   // one handle with a fold on it rather than fighting each other.
-  if (points.length >= 2) {
+  //
+  // `drawUiIndicators` turns the ring off for a READ-ONLY render. The ring's
+  // whole meaning is "you can drag this"; on the Command Center's thumbnail
+  // nobody can, and a mark that promises a gesture that does not fire is worse
+  // than no mark. FlashDraft passes nothing and keeps it.
+  if (drawUiIndicators && points.length >= 2) {
     const freeEnds: number[] = [0, points.length - 1];
     ctx.save();
     ctx.strokeStyle = colors.point;
@@ -428,11 +524,18 @@ export function drawProfileScene(params: DrawProfileSceneParams): void {
 
     const isSelected = interaction.selectedBendPoint === i;
     const isHovered = interaction.hoveredVertex === i;
-    ctx.strokeStyle = arcColor;
-    ctx.lineWidth = isSelected || isHovered ? 2.5 : 1.5;
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, ANGLE_ARC_RADIUS_PX, angleToPrev, angleToNext, sweep < 0);
-    ctx.stroke();
+    // The arc is a FIXED 20px mark. On a 56px thumbnail it is larger than the
+    // bend it annotates, so `drawUiIndicators` drops it there. The angle LABEL
+    // below is not gated here — `labelStyle.angleFontPx` already governs it,
+    // and a caller that wants the number without the arc (or the reverse) can
+    // have either.
+    if (drawUiIndicators) {
+      ctx.strokeStyle = arcColor;
+      ctx.lineWidth = isSelected || isHovered ? 2.5 : 1.5;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, ANGLE_ARC_RADIUS_PX, angleToPrev, angleToNext, sweep < 0);
+      ctx.stroke();
+    }
 
     const v1 = { x: prev.x - curr.x, y: prev.y - curr.y };
     const v2 = { x: next.x - curr.x, y: next.y - curr.y };
@@ -497,7 +600,7 @@ export function drawProfileScene(params: DrawProfileSceneParams): void {
       ctx.lineTo(sFoldTip.x, sFoldTip.y);
       ctx.stroke();
 
-      drawHemGlyphHere(sFoldTip, angleU, 'open', R, mirrorGlyph, gapPx);
+      if (drawUiIndicators) drawHemGlyphHere(sFoldTip, angleU, 'open', R, mirrorGlyph, gapPx);
       ctx.font = labelFont(labelStyle.hemFontPx, labelStyle.bold, fontFamily);
       ctx.fillText(`OPEN ${formatInches(hem.gapIn)} gap`, sFoldTip.x + R * 2 + 6, sFoldTip.y - 6);
     } else if (hem.type === 'teardrop') {
@@ -514,7 +617,7 @@ export function drawProfileScene(params: DrawProfileSceneParams): void {
       ctx.lineTo(sFoldTip.x, sFoldTip.y);
       ctx.stroke();
 
-      drawHemGlyphHere(sFoldTip, angleU, 'teardrop', R, mirrorGlyph, gapPx);
+      if (drawUiIndicators) drawHemGlyphHere(sFoldTip, angleU, 'teardrop', R, mirrorGlyph, gapPx);
       ctx.font = labelFont(labelStyle.hemFontPx, labelStyle.bold, fontFamily);
       ctx.fillText('TEARDROP', sFoldTip.x + R * 2 + 6, sFoldTip.y - 6);
     } else {
@@ -530,7 +633,7 @@ export function drawProfileScene(params: DrawProfileSceneParams): void {
       ctx.lineTo(sFoldTip.x, sFoldTip.y);
       ctx.stroke();
 
-      drawHemGlyphHere(sFoldTip, angleU, 'smashed', R, mirrorGlyph, gapPx);
+      if (drawUiIndicators) drawHemGlyphHere(sFoldTip, angleU, 'smashed', R, mirrorGlyph, gapPx);
       ctx.font = labelFont(labelStyle.hemFontPx, labelStyle.bold, fontFamily);
       ctx.fillText('SMASHED', sFoldTip.x + R * 2 + 6, sFoldTip.y - 6);
     }

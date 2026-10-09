@@ -1,5 +1,15 @@
-import { drawProfileScene, type DrawSceneLabelStyle, type DrawScenePaintState, type ProfileSceneColors, type ScenePoint } from './draw-profile-scene';
+import {
+  drawProfileScene,
+  hemGlyphExtentPx,
+  hemCaptionOffsetPx,
+  UI_INDICATOR_EXTENT_PX,
+  type DrawSceneLabelStyle,
+  type DrawScenePaintState,
+  type ProfileSceneColors,
+  type ScenePoint,
+} from './draw-profile-scene';
 import { signedInteriorAngleDeg } from './geometry';
+import { formatInches } from '@/lib/utils/format-inches';
 import { gaugeToThicknessMm } from '@/lib/utils/gauge-thickness';
 import { hemAllowanceIn, type Hem } from '@/lib/types/profile';
 import { blankWidthInFromPoints } from '@/lib/pricing/quote-inputs';
@@ -105,15 +115,24 @@ export function signedAngleBetween(v1: { x: number; y: number }, v2: { x: number
  * and its template loader both use, so a saved profile is framed in the
  * Command Center exactly as FlashDraft frames it.
  *
- * `PADDING_PX` is a SCREEN padding, 60px at any size, which is why a 110px
- * thumbnail needs the smaller value below rather than this one: 60px of
- * padding on each side of a 110px box leaves nothing to draw in.
+ * `paddingPx` is a SCREEN padding, 60px by default, which is why a small
+ * thumbnail must pass its own: 60px on each side of a 110px box leaves nothing
+ * to draw in.
+ *
+ * `minZoom` DEFAULTS TO FlashDraft's OWN 0.25 so the editor is unchanged — its
+ * "Fit to screen" should never zoom out past a quarter scale on a 600x440
+ * canvas. **That floor is wrong for a thumbnail**, and visibly so: a 29in
+ * profile needs about 0.15 to fit a 56px box, the floor forced 0.25, and the
+ * drawing ran off every edge. A read-only viewer passes a far smaller floor
+ * because "too small to read" is the honest outcome there, and "cropped" is
+ * not — a cropped profile is a different shape, confidently drawn.
  */
 export function computeFitView(
   points: ViewerPoint[],
   canvasWidth: number,
   canvasHeight: number,
   paddingPx = 60,
+  minZoom = 0.25,
 ): { zoom: number; pan: { x: number; y: number } } {
   const xs = points.map((p) => p.x);
   const ys = points.map((p) => p.y);
@@ -122,7 +141,7 @@ export function computeFitView(
   const availW = canvasWidth - paddingPx * 2;
   const availH = canvasHeight - paddingPx * 2;
   const nextZoom = Math.max(
-    0.25,
+    minZoom,
     Math.min(4, Math.min(availW / (widthIn * PIXELS_PER_INCH), availH / (heightIn * PIXELS_PER_INCH))),
   );
   const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
@@ -177,8 +196,12 @@ export type ViewerSize = 'thumb' | 'enlarged' | 'fullsize';
 
 interface SizeSpec {
   label: DrawSceneLabelStyle;
-  paddingPx: number;
   drawGrid: boolean;
+  /**
+   * The fixed-screen-pixel UI marks — the free-endpoint grab rings and the
+   * 20px bend-angle arcs. See `drawUiIndicators` in draw-profile-scene.ts.
+   */
+  uiIndicators: boolean;
 }
 
 export const VIEWER_SIZES: Record<ViewerSize, SizeSpec> = {
@@ -191,20 +214,228 @@ export const VIEWER_SIZES: Record<ViewerSize, SizeSpec> = {
     // somebody could act on. The thumbnail identifies the shape; every number
     // is one click away.
     label: { segmentFontPx: 0, angleFontPx: 0, hemFontPx: 0, bold: false },
-    paddingPx: 10,
     drawGrid: false,
+    // AND NO UI MARKS. A 20px angle arc on a 56px canvas is bigger than the
+    // bend it annotates, and an endpoint grab ring promises a drag the viewer
+    // does not implement. Both were overflowing the box.
+    uiIndicators: false,
   },
   enlarged: {
-    label: { segmentFontPx: 13, angleFontPx: 12, hemFontPx: 11, bold: true },
-    paddingPx: 34,
+    // NO HEM CAPTION AT THIS SIZE, and it is a trade-off rather than an
+    // oversight. FlashDraft's caption is `OPEN 3/16" gap` — about 98px at this
+    // font — and it is drawn LEFT-ALIGNED outward from the hem, which sits at
+    // the profile's edge by definition. Reserving room for it on a 420px canvas
+    // leaves barely a third of the width for the drawing; not reserving it
+    // clips the caption. Neither is worth it for a view whose job is "see the
+    // shape bigger": the hem is still visible as a glyph, and its type and gap
+    // are one more click away at full size, where there is room.
+    //
+    // THIS IS TIED TO THE OPEN HEM-LABEL QUESTION (docs/COMMAND_CENTER_V8_AUDIT.md
+    // section 4a). The V8 contract's own label is `0.5" hem`, which is a third
+    // shorter and would fit here. If Reid settles on a shorter caption, revisit
+    // this line first.
+    label: { segmentFontPx: 13, angleFontPx: 12, hemFontPx: 0, bold: true },
     drawGrid: false,
+    uiIndicators: true,
   },
   fullsize: {
     label: { segmentFontPx: 21, angleFontPx: 19, hemFontPx: 17.5, bold: true },
-    paddingPx: 60,
     drawGrid: true,
+    uiIndicators: true,
   },
 };
+
+/**
+ * HOW MUCH SCREEN SPACE THE SCENE USES OUTSIDE THE POINT BOUNDING BOX.
+ *
+ * THIS IS THE BUG THE SCREENSHOTS FOUND, and it is worth stating plainly
+ * because it is invisible to every test that does not rasterise:
+ * `computeFitView` fits the POINTS. `drawProfileScene` then draws a great deal
+ * that is NOT a point and does NOT scale with zoom — a 20px angle arc, its
+ * label another 12px beyond that, an 8px endpoint ring, a hem glyph with a
+ * 10-14px floor, and dimension text whose width depends on the string, not on
+ * the profile. On FlashDraft's 600x440 canvas with 60px of padding, all of that
+ * fits in the slack. On a 110px thumbnail it does not, and on the 420px
+ * enlarged view the segment label `3 15/16"` was clipped clean off the right
+ * edge.
+ *
+ * So the padding is DERIVED from what will actually be drawn rather than being
+ * a constant somebody tuned once. Each term below corresponds to a real mark:
+ *
+ *   arcs + angle labels   ANGLE_ARC_RADIUS_PX (20) + 12, only with indicators
+ *   endpoint rings        8, only with indicators
+ *   hem glyphs            `hemGlyphExtentPx`, the renderer's OWN formula — a
+ *                         teardrop reaches R * 2.1 with a 14px floor on R, so
+ *                         a flat 14 left it 8.4px outside the canvas at every
+ *                         size. A constant overflow that does not change with
+ *                         the box is the signature of a fixed-pixel mark.
+ *   dimension text        `measuredLabelHalfWidthPx` — the REAL half-width of
+ *                         the widest string this scene will actually draw,
+ *                         from `ctx.measureText`. A first attempt estimated it
+ *                         as `fontPx * 2.4` and `3 15/16"` was still clipped at
+ *                         the right edge of the enlarged view: a guess at glyph
+ *                         widths is a guess, and the canvas context that knows
+ *                         the answer is already in the caller's hand. See
+ *                         `measureLabelReservePx`.
+ *
+ * CAPPED AT 30% OF THE SMALLER SIDE. Without the cap a small box would reserve
+ * more than it has and the drawing would collapse to nothing — swapping a
+ * cropped profile for an invisible one, which is not an improvement. If the cap
+ * ever binds, that is the signal the indicators should be off at that size,
+ * which is exactly how `thumb` is configured.
+ */
+export function fitPaddingPx(
+  size: ViewerSize,
+  cssWidth: number,
+  cssHeight: number,
+  hemExtentPx: number,
+  measuredLabelHalfWidthPx = 0,
+): number {
+  const spec = VIEWER_SIZES[size];
+
+  const indicators = spec.uiIndicators
+    ? Math.max(UI_INDICATOR_EXTENT_PX.angleArcAndLabel, UI_INDICATOR_EXTENT_PX.endHandle)
+    : 0;
+
+  const wanted = Math.max(indicators, measuredLabelHalfWidthPx, hemExtentPx) + 4;
+  const cap = Math.min(cssWidth, cssHeight) * 0.3;
+  return Math.max(2, Math.min(wanted, cap));
+}
+
+/**
+ * The smallest zoom each size may fit to.
+ *
+ * A thumbnail must be allowed to zoom out as far as the shape needs — see
+ * `computeFitView`'s `minZoom` note. The larger views keep a floor near
+ * FlashDraft's, because at 420px and 1100px anything that small is a data
+ * problem rather than a framing one.
+ */
+const MIN_ZOOM: Record<ViewerSize, number> = {
+  thumb: 0.02,
+  enlarged: 0.05,
+  fullsize: 0.1,
+};
+
+/**
+ * The points the FIT should consider — the real ones, plus where each hem's
+ * fold actually reaches.
+ *
+ * A hem is drawn from its endpoint outward along the leg's own direction by
+ * `hem.lengthIn`, in WORLD units, so it makes the shape genuinely bigger. The
+ * glyph on its tip is screen-sized and is handled by `fitPaddingPx`; this is
+ * the part that scales, and leaving it out meant a hemmed profile was fitted
+ * as if its hems were not there and then drawn with them.
+ *
+ * Direction is taken from the endpoint's own neighbour, which is the same
+ * vector `renderHemAt` uses, so the two cannot disagree about which way a fold
+ * goes.
+ */
+function hemBoundsPoints(geometry: SavedProfileGeometry): ViewerPoint[] {
+  const pts = geometry.points;
+  const out: ViewerPoint[] = [...pts];
+  const reach = (from: ViewerPoint, toward: ViewerPoint, lengthIn: number): ViewerPoint | null => {
+    const dx = from.x - toward.x;
+    const dy = from.y - toward.y;
+    const len = Math.hypot(dx, dy);
+    if (!Number.isFinite(len) || len === 0) return null;
+    return { x: from.x + (dx / len) * lengthIn, y: from.y + (dy / len) * lengthIn };
+  };
+  if (geometry.hemStart && pts.length >= 2) {
+    const p = reach(pts[0], pts[1], geometry.hemStart.lengthIn);
+    if (p) out.push(p);
+  }
+  if (geometry.hemEnd && pts.length >= 2) {
+    const p = reach(pts[pts.length - 1], pts[pts.length - 2], geometry.hemEnd.lengthIn);
+    if (p) out.push(p);
+  }
+  return out;
+}
+
+/**
+ * The real half-width of the widest label this scene will draw, in screen px.
+ *
+ * Every dimension string is CENTRED on what it labels, so half of it overhangs
+ * the thing it annotates, and that overhang is what runs off the edge. The
+ * strings are knowable before anything is drawn — they are `formatInches` of
+ * each segment, the signed angle at each bend, and the hem captions — and the
+ * canvas context can measure them exactly. So it measures them, rather than
+ * multiplying the font size by a number somebody picked.
+ *
+ * Returns 0 when the size draws no labels at all (the thumbnail), because then
+ * there is nothing to reserve for.
+ *
+ * `ctx` is saved and restored: this runs BEFORE the scene is drawn and must not
+ * leave a font set behind it.
+ */
+function measureLabelReservePx(
+  ctx: CanvasRenderingContext2D,
+  geometry: SavedProfileGeometry,
+  size: ViewerSize,
+  fontFamily: string,
+): number {
+  const spec = VIEWER_SIZES[size];
+  const { segmentFontPx, angleFontPx, hemFontPx, bold } = spec.label;
+  if (segmentFontPx <= 0 && angleFontPx <= 0 && hemFontPx <= 0) return 0;
+
+  const pts = geometry.points;
+  const strings: { text: string; px: number }[] = [];
+
+  for (let i = 0; i < pts.length - 1; i += 1) {
+    const len = Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y);
+    strings.push({ text: formatInches(len), px: segmentFontPx });
+  }
+  for (let i = 1; i < pts.length - 1; i += 1) {
+    const deg = signedInteriorAngleDeg(pts[i - 1], pts[i], pts[i + 1]);
+    strings.push({ text: `${deg.toFixed(0)}°`, px: angleFontPx });
+  }
+  // The hem captions draw-profile-scene.ts actually writes.
+  for (const hem of [geometry.hemStart, geometry.hemEnd]) {
+    if (!hem) continue;
+    const text =
+      hem.type === 'open'
+        ? `OPEN ${formatInches(hem.gapIn)} gap`
+        : hem.type === 'teardrop'
+          ? 'TEARDROP'
+          : 'SMASHED';
+    strings.push({ text, px: hemFontPx });
+  }
+
+  ctx.save();
+  let widest = 0;
+  for (const s of strings) {
+    if (s.px <= 0) continue;
+    ctx.font = `${bold ? 'bold ' : ''}${s.px}px ${fontFamily}`;
+    widest = Math.max(widest, ctx.measureText(s.text).width);
+  }
+  ctx.restore();
+  return widest / 2;
+}
+
+/** The widest hem caption this scene will draw, measured. 0 when none is drawn. */
+function measureHemCaptionWidthPx(
+  ctx: CanvasRenderingContext2D,
+  geometry: SavedProfileGeometry,
+  size: ViewerSize,
+  fontFamily: string,
+): number {
+  const { hemFontPx, bold } = VIEWER_SIZES[size].label;
+  if (hemFontPx <= 0) return 0;
+  ctx.save();
+  ctx.font = `${bold ? 'bold ' : ''}${hemFontPx}px ${fontFamily}`;
+  let widest = 0;
+  for (const hem of [geometry.hemStart, geometry.hemEnd]) {
+    if (!hem) continue;
+    const text =
+      hem.type === 'open'
+        ? `OPEN ${formatInches(hem.gapIn)} gap`
+        : hem.type === 'teardrop'
+          ? 'TEARDROP'
+          : 'SMASHED';
+    widest = Math.max(widest, ctx.measureText(text).width);
+  }
+  ctx.restore();
+  return widest;
+}
 
 export interface RenderSavedProfileParams {
   ctx: CanvasRenderingContext2D;
@@ -240,8 +471,49 @@ export function renderSavedProfileScene(
   if (!geometry.points || geometry.points.length < 2) return null;
 
   const spec = VIEWER_SIZES[size];
-  const { zoom, pan } = computeFitView(geometry.points, cssWidth, cssHeight, spec.paddingPx);
   const thicknessIn = gaugeToThicknessMm(gauge) / MM_PER_INCH;
+  // A hem is drawn from its endpoint OUTWARD by its own fold length, in world
+  // units, so it genuinely enlarges the shape — fold that into the points the
+  // fit is computed over rather than trying to absorb it as screen padding.
+  const fitPoints = hemBoundsPoints(geometry);
+  const labelReserve = measureLabelReservePx(ctx, geometry, size, fontFamily);
+
+  // TWO PASSES, because the hem glyph's size depends on the zoom and the zoom
+  // depends on how much room the glyph needs. More zoom means a bigger glyph
+  // means less room means less zoom — a contraction, so one iteration from a
+  // floor-only estimate settles it. A single pass left a teardrop outside the
+  // canvas; looping to convergence would be a loop to save a few tenths of a
+  // pixel on a drawing nobody measures with calipers.
+  const hemCaptionWidth = measureHemCaptionWidthPx(ctx, geometry, size, fontFamily);
+  const hemExtentAt = (zoom: number) => {
+    if (!spec.uiIndicators) return 0; // no glyph and no caption at thumbnail size
+    const opts = { pixelsPerInch: PIXELS_PER_INCH, zoom, thicknessIn, gauge };
+    const reach = (hem: typeof geometry.hemStart) =>
+      hem
+        ? Math.max(
+            hemGlyphExtentPx(hem, opts),
+            // The caption is LEFT-aligned beyond the glyph, so its whole width
+            // sticks out, not half of it.
+            hemCaptionOffsetPx(hem, opts) + hemCaptionWidth,
+          )
+        : 0;
+    return Math.max(reach(geometry.hemStart), reach(geometry.hemEnd));
+  };
+
+  const first = computeFitView(
+    fitPoints,
+    cssWidth,
+    cssHeight,
+    fitPaddingPx(size, cssWidth, cssHeight, hemExtentAt(0), labelReserve),
+    MIN_ZOOM[size],
+  );
+  const { zoom, pan } = computeFitView(
+    fitPoints,
+    cssWidth,
+    cssHeight,
+    fitPaddingPx(size, cssWidth, cssHeight, hemExtentAt(first.zoom), labelReserve),
+    MIN_ZOOM[size],
+  );
   const radii = geometry.bendRadiiIn ?? null;
 
   const points: ScenePoint[] = geometry.points.map((p) => ({ x: p.x, y: p.y, radius: p.radius }));
@@ -273,6 +545,7 @@ export function renderSavedProfileScene(
     colors: FLASHDRAFT_CANVAS_COLORS,
     labelStyle: spec.label,
     drawGrid: spec.drawGrid,
+    drawUiIndicators: spec.uiIndicators,
     paint,
   });
 
